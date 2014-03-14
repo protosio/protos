@@ -4,7 +4,11 @@ HOME=/home/git
 USERNAME=username
 PUBKEY=publickey.pub
 
+# making sure script aborts if a command fails
+set -e
+
 # INSTALL PKG's
+apt-get update
 apt-get install git openssh-server apt-utils -y
 
 # Setup environment
