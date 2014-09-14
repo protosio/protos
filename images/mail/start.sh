@@ -8,4 +8,4 @@ if [ ! -d "$DATA" ]; then
   mkdir $DATA
 fi
 
-docker run -p 25:25 -p 993:993 -v $DATA:/extdata --name egor_mail -t -i mail_last:latest /bin/bash 
+docker run -p 25:25 -p 993:993 -v $DATA:/extdata --name egor_mail -d egor_mail:latest /root/init.sh
