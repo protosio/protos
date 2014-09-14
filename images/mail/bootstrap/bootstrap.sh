@@ -6,6 +6,7 @@ cp $BASE_DIR/network /etc/sysconfig/network
 yum makecache
 yum install postfix dovecot dovecot-mysql system-switch-mail mysql-server -y
 # MYSQL
+cp $BASE_DIR/sql/my.cnf /etc/my.cnf
 service mysqld start
 usr/bin/mysqladmin -u root password 'changeme'
 mysql -uroot -p'changeme' < $BASE_DIR/sql/mail.sql
@@ -28,3 +29,4 @@ newaliases
 mysql -uroot -p'changeme' < $BASE_DIR/sql/setmailbox.sql 
 # Clean
 service mysqld stop
+cp $BASE_DIR/init.sh /root/init.sh && chmod +x /root/init.sh
