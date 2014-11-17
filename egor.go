@@ -4,11 +4,16 @@ import (
 	"fmt"
 	"github.com/codegangsta/cli"
 	"github.com/gorilla/mux"
+	//"gopkg.in/yaml.v2"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 )
+
+//type AppConfig struct {
+//
+//}
 
 func webadmin(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello admin"))
@@ -16,8 +21,11 @@ func webadmin(w http.ResponseWriter, r *http.Request) {
 
 func websrv() {
 	rtr := mux.NewRouter()
-	rtr.HandleFunc("/admin", webadmin).Methods("GET")
 
+	//rtr.HandleFunc("/admin", webadmin).Methods("GET")
+	//http.Handle("/", rtr)
+
+	rtr.PathPrefix("/").Handler(http.FileServer(http.Dir("./static/")))
 	http.Handle("/", rtr)
 
 	log.Println("Listening...")
