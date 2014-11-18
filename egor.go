@@ -3,18 +3,19 @@ package main
 import (
 	"fmt"
 	"github.com/codegangsta/cli"
+	"github.com/fsouza/go-dockerclient"
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
 type AppConfig struct {
 	Description string
+	Image       string
 	Ports       map[int]int
 	Data        string
 }
@@ -37,23 +38,49 @@ func websrv() {
 
 }
 
-func validate_cfg(app string) {
-	log.Println("Validating config for", app)
+func load_cfg(app string) AppConfig {
+	log.Println("Reading config for", app)
 	filename, _ := filepath.Abs(fmt.Sprintf("./images/%s/app.yaml", app))
 	yamlFile, err := ioutil.ReadFile(filename)
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var config AppConfig
 
 	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	fmt.Printf("Value: %#v\n", config)
+	return config
+}
+
+func start_app(app string) {
+	log.Println("Starting application [", app, "]")
+	endpoint := "unix:///var/run/docker.sock"
+	client, _ := docker.NewClient(endpoint)
+
+	app_config := load_cfg(app)
+
+	// Create container
+	config := docker.Config{Image: app_config.Image}
+	create_options := docker.CreateContainerOptions{Name: "egor_" + app, Config: &config}
+	container, err := client.CreateContainer(create_options)
+	if err != nil {
+		log.Println("Could not create container")
+		log.Fatal(err)
+	}
+
+	// Start container
+	host_config := docker.HostConfig{}
+	err2 := client.StartContainer(container.ID, &host_config)
+	if err2 != nil {
+		log.Println("Could not start container")
+		log.Fatal(err2)
+	}
+
 }
 
 func main() {
@@ -70,12 +97,7 @@ func main() {
 			Name:  "start",
 			Usage: "starts an application",
 			Action: func(c *cli.Context) {
-				println("Running application: ", c.Args().First())
-				out, err := exec.Command("sh", "-c", fmt.Sprintf("./images/%s/start.sh", c.Args().First())).Output()
-				if err != nil {
-					fmt.Printf("%s", err)
-				}
-				fmt.Printf("%s", out)
+				start_app(c.Args().First())
 			},
 		},
 		{
@@ -90,7 +112,7 @@ func main() {
 			Name:  "validate",
 			Usage: "validates application config",
 			Action: func(c *cli.Context) {
-				validate_cfg(c.Args().First())
+				load_cfg(c.Args().First())
 			},
 		},
 	}
