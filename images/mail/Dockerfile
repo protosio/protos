@@ -10,4 +10,4 @@ EXPOSE 25:25 993:993
 
 ADD ./bootstrap /tmp/bootstrap/
 RUN chmod +x /tmp/bootstrap/bootstrap.sh && /tmp/bootstrap/bootstrap.sh
-
+CMD ["/root/init.sh"]
