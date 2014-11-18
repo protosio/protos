@@ -83,6 +83,24 @@ func start_app(app string) {
 
 }
 
+func stop_app(app string) {
+	log.Println("Stopping application [", app, "]")
+	endpoint := "unix:///var/run/docker.sock"
+	client, _ := docker.NewClient(endpoint)
+
+	err := client.StopContainer("egor_"+app, 3)
+	if err != nil {
+		log.Println("Could not stop application")
+		log.Fatal(err)
+	}
+
+	remove_options := docker.RemoveContainerOptions{ID: "egor_" + app}
+	err2 := client.RemoveContainer(remove_options)
+	if err2 != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 
 	app := cli.NewApp()
@@ -98,6 +116,13 @@ func main() {
 			Usage: "starts an application",
 			Action: func(c *cli.Context) {
 				start_app(c.Args().First())
+			},
+		},
+		{
+			Name:  "stop",
+			Usage: "stops an application",
+			Action: func(c *cli.Context) {
+				stop_app(c.Args().First())
 			},
 		},
 		{
