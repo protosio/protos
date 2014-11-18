@@ -15,10 +15,8 @@ import (
 
 type AppConfig struct {
 	Description string
-	Ports       struct {
-		iport int
-		eport int
-	}
+	Ports       map[int]int
+	Data        string
 }
 
 func webadmin(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +54,6 @@ func validate_cfg(app string) {
 	}
 
 	fmt.Printf("Value: %#v\n", config)
-	//fmt.Printf("Value: %#v\n", config.eport)
 }
 
 func main() {

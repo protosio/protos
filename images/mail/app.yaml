@@ -1,6 +1,6 @@
 ---
+description: "The mail app provides a full personal MTA solution"
 ports:
     25: 25
     993: 993
-data:
-    - /extdata
+data: /extdata
