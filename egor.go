@@ -16,7 +16,7 @@ import (
 type AppConfig struct {
 	Description string
 	Image       string
-	Ports       map[int]int
+	Ports       map[string]string
 	Data        string
 }
 
@@ -64,6 +64,10 @@ func start_app(app string) {
 
 	app_config := load_cfg(app)
 
+	//Configure volumes
+	//volumes := make(map[string]struct{})
+	//volumes["/home/al3x/code/egor/data/"+app] = app_config.Data
+
 	// Create container
 	config := docker.Config{Image: app_config.Image}
 	create_options := docker.CreateContainerOptions{Name: "egor_" + app, Config: &config}
@@ -73,8 +77,16 @@ func start_app(app string) {
 		log.Fatal(err)
 	}
 
+	// Configure ports
+	portsWrapper := make(map[docker.Port][]docker.PortBinding)
+	for key, value := range app_config.Ports {
+		ports := []docker.PortBinding{docker.PortBinding{HostIP: "0.0.0.0", HostPort: value}}
+		port_host := docker.Port(key)
+		portsWrapper[port_host] = ports
+	}
+
 	// Start container
-	host_config := docker.HostConfig{}
+	host_config := docker.HostConfig{PortBindings: portsWrapper}
 	err2 := client.StartContainer(container.ID, &host_config)
 	if err2 != nil {
 		log.Println("Could not start container")
