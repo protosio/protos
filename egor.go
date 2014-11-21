@@ -39,7 +39,7 @@ func websrv() {
 }
 
 func load_cfg(app string) AppConfig {
-	log.Println("Reading config for", app)
+	log.Println("Reading config for [", app, "]")
 	filename, _ := filepath.Abs(fmt.Sprintf("./images/%s/app.yaml", app))
 	yamlFile, err := ioutil.ReadFile(filename)
 
@@ -65,11 +65,12 @@ func start_app(app string) {
 	app_config := load_cfg(app)
 
 	//Configure volumes
-	//volumes := make(map[string]struct{})
-	//volumes["/home/al3x/code/egor/data/"+app] = app_config.Data
+	volumes := make(map[string]struct{})
+	var tmp struct{}
+	volumes[app_config.Data] = tmp
 
 	// Create container
-	config := docker.Config{Image: app_config.Image}
+	config := docker.Config{Image: app_config.Image, Volumes: volumes}
 	create_options := docker.CreateContainerOptions{Name: "egor_" + app, Config: &config}
 	container, err := client.CreateContainer(create_options)
 	if err != nil {
@@ -85,8 +86,11 @@ func start_app(app string) {
 		portsWrapper[port_host] = ports
 	}
 
+	// Bind volumes
+	binds := []string{fmt.Sprintf("/home/al3x/code/egor/data/%s:%s:rw", app, app_config.Data)}
+
 	// Start container
-	host_config := docker.HostConfig{PortBindings: portsWrapper}
+	host_config := docker.HostConfig{PortBindings: portsWrapper, Binds: binds}
 	err2 := client.StartContainer(container.ID, &host_config)
 	if err2 != nil {
 		log.Println("Could not start container")
