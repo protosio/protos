@@ -13,12 +13,20 @@ import (
 	"path/filepath"
 )
 
+// Defines structure for config parameters
+// specific to each application
 type AppConfig struct {
 	Description string
 	Image       string
 	Ports       map[string]string
 	Data        string
 }
+
+type Config struct {
+	DataPath string
+}
+
+var Gconfig Config
 
 func webadmin(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello admin"))
@@ -38,7 +46,7 @@ func websrv() {
 
 }
 
-func load_cfg(app string) AppConfig {
+func load_app_cfg(app string) AppConfig {
 	log.Println("Reading config for [", app, "]")
 	filename, _ := filepath.Abs(fmt.Sprintf("./images/%s/app.yaml", app))
 	yamlFile, err := ioutil.ReadFile(filename)
@@ -57,12 +65,31 @@ func load_cfg(app string) AppConfig {
 	return config
 }
 
+func load_cfg(config_file string) Config {
+	log.Println("Reading main config [", config_file, "]")
+	filename, _ := filepath.Abs(config_file)
+	yamlFile, err := ioutil.ReadFile(filename)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var config Config
+
+	err = yaml.Unmarshal(yamlFile, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return config
+}
+
 func start_app(app string) {
 	log.Println("Starting application [", app, "]")
 	endpoint := "unix:///var/run/docker.sock"
 	client, _ := docker.NewClient(endpoint)
 
-	app_config := load_cfg(app)
+	app_config := load_app_cfg(app)
 
 	//Configure volumes
 	volumes := make(map[string]struct{})
@@ -87,7 +114,7 @@ func start_app(app string) {
 	}
 
 	// Bind volumes
-	binds := []string{fmt.Sprintf("/home/al3x/code/egor/data/%s:%s:rw", app, app_config.Data)}
+	binds := []string{fmt.Sprintf("%s/%s:%s:rw", Gconfig.DataPath, app, app_config.Data)}
 
 	// Start container
 	host_config := docker.HostConfig{PortBindings: portsWrapper, Binds: binds}
@@ -126,6 +153,8 @@ func main() {
 		println("I work!")
 	}
 
+	Gconfig = load_cfg("egor.yaml")
+
 	app.Commands = []cli.Command{
 		{
 			Name:  "start",
@@ -153,7 +182,7 @@ func main() {
 			Name:  "validate",
 			Usage: "validates application config",
 			Action: func(c *cli.Context) {
-				load_cfg(c.Args().First())
+				load_app_cfg(c.Args().First())
 			},
 		},
 	}
