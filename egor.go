@@ -149,11 +149,21 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "egor"
 	app.Usage = "iz good for your privacy"
-	app.Action = func(c *cli.Context) {
-		println("I work!")
+	app.Author = "Alex Giurgiu"
+	app.Email = "alex@giurgiu.io"
+
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "c, config",
+			Value: "egor.yaml",
+			Usage: "Specify a config file (default: egor.yaml)",
+		},
 	}
 
-	Gconfig = load_cfg("egor.yaml")
+	app.Before = func(c *cli.Context) error {
+		Gconfig = load_cfg(c.String("config"))
+		return nil
+	}
 
 	app.Commands = []cli.Command{
 		{
