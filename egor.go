@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"github.com/codegangsta/cli"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"egor/daemon"
 )
 
 // Defines structure for config parameters
@@ -24,6 +24,7 @@ type AppConfig struct {
 
 type Config struct {
 	DataPath string
+	AppsPath string
 }
 
 var Gconfig Config
@@ -32,19 +33,6 @@ func webadmin(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello admin"))
 }
 
-func websrv() {
-	rtr := mux.NewRouter()
-
-	//rtr.HandleFunc("/admin", webadmin).Methods("GET")
-	//http.Handle("/", rtr)
-
-	rtr.PathPrefix("/").Handler(http.FileServer(http.Dir("./static/")))
-	http.Handle("/", rtr)
-
-	log.Println("Listening...")
-	http.ListenAndServe(":9000", nil)
-
-}
 
 func load_app_cfg(app string) AppConfig {
 	log.Println("Reading config for [", app, "]")
@@ -144,6 +132,12 @@ func stop_app(app string) {
 	}
 }
 
+//func get_apps() []string {
+//	endpoint := "unix:///var/run/docker.sock"
+//	client, _ := docker.NewClient(endpoint)
+//		
+//}
+
 func main() {
 
 	app := cli.NewApp()
@@ -184,8 +178,7 @@ func main() {
 			Name:  "daemon",
 			Usage: "starts http server",
 			Action: func(c *cli.Context) {
-				println("Starting webserver")
-				websrv()
+				daemon.Websrv()
 			},
 		},
 		{
