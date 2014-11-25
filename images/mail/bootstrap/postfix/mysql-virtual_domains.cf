@@ -1,5 +1,0 @@
-user = mail_admin
-password = whynotchangeme
-dbname = mail
-query = SELECT domain AS virtual FROM domains WHERE domain='%s'
-hosts = 127.0.0.1
