@@ -1,12 +1,10 @@
 package main
 
 import (
+	"egor/daemon"
 	"github.com/codegangsta/cli"
 	"os"
-	"egor/daemon"
 )
-
-
 
 func main() {
 
@@ -56,6 +54,13 @@ func main() {
 			Usage: "validates application config",
 			Action: func(c *cli.Context) {
 				daemon.LoadAppCfg(c.Args().First())
+			},
+		},
+		{
+			Name:  "list",
+			Usage: "list applications",
+			Action: func(c *cli.Context) {
+				daemon.GetApps()
 			},
 		},
 	}

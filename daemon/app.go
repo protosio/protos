@@ -127,14 +127,19 @@ func StopApp(app string) {
 	}
 
 	remove_options := docker.RemoveContainerOptions{ID: "egor_" + app}
-	err2 := client.RemoveContainer(remove_options)
-	if err2 != nil {
+	err = client.RemoveContainer(remove_options)
+	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-//func get_apps() []string {
-//	endpoint := "unix:///var/run/docker.sock"
-//	client, _ := docker.NewClient(endpoint)
-//
-//}
+func GetApps() {
+	client := Gconfig.DockerClient
+	log.Println("Retrieving applications")
+	listcontaineroptions := docker.ListContainersOptions{All: true}
+	containers, err := client.ListContainers(listcontaineroptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println(containers)
+}
