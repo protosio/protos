@@ -1,2 +1,4 @@
+port: 9000
 datapath: /path/to/egor/data/
-appspath: /path/to/apps/
+appspath: /path/to/egor/apps/
+dockerendpoint: "unix:///var/run/docker.sock"
