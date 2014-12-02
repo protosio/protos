@@ -18,6 +18,11 @@ type AppConfig struct {
 	Data        string
 }
 
+type App struct {
+	Name   string
+	Status string
+}
+
 type Config struct {
 	DataPath       string
 	AppsPath       string
@@ -133,7 +138,7 @@ func StopApp(app string) {
 	}
 }
 
-func GetApps() {
+func GetApps() []App {
 	client := Gconfig.DockerClient
 	log.Println("Retrieving applications")
 	listcontaineroptions := docker.ListContainersOptions{All: true}
@@ -141,5 +146,12 @@ func GetApps() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println(containers)
+
+	apps := []App{}
+	for _, container := range containers {
+		app := App{Name: container.Names[0], Status: container.Status}
+		apps = append(apps, app)
+		log.Println(app)
+	}
+	return apps
 }
