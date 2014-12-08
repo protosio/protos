@@ -4,5 +4,6 @@
 *.un~
 Session.vim
 static/*
+data/*
 .netrwhist
 *~
