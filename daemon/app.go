@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
+	"strings"
 )
 
 // Defines structure for config parameters
@@ -140,18 +141,38 @@ func StopApp(app string) {
 
 func GetApps() []App {
 	client := Gconfig.DockerClient
+	apps := []App{}
 	log.Println("Retrieving applications")
+
 	listcontaineroptions := docker.ListContainersOptions{All: true}
 	containers, err := client.ListContainers(listcontaineroptions)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	apps := []App{}
+	images, err := client.ListImages(true)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	app_images := []docker.APIImages{}
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			name := strings.Split(tag, ":")
+			if strings.Contains(name[0], "/") {
+				repo := strings.Split(name[0], "/")
+				if strings.Contains(repo[0], "egor") {
+					log.Println("Found image [", repo[1], "]")
+					app_images = append(app_images, image)
+				}
+			}
+		}
+	}
+
 	for _, container := range containers {
 		app := App{Name: container.Names[0], Status: container.Status}
 		apps = append(apps, app)
-		log.Println(app)
+		//log.Println(app)
 	}
 	return apps
 }
