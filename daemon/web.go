@@ -7,11 +7,6 @@ import (
 	"net/http"
 )
 
-type Page struct {
-	Title string
-	Body  []byte
-}
-
 func Websrv() {
 	rtr := mux.NewRouter()
 
@@ -28,11 +23,18 @@ func Websrv() {
 
 func MainHandler(w http.ResponseWriter, r *http.Request) {
 
-	p := &Page{Title: "Egor dashboard", Body: []byte("page content")}
+	apps := GetApps()
+	app_count := len(apps)
 
-	_ = GetApps()
+	data := struct {
+		Title    string
+		AppCount int
+	}{
+		"Egor dashboard",
+		app_count,
+	}
 
 	t := template.Must(template.ParseFiles("templates/index.html", "templates/head.html", "templates/navbar.html"))
-	t.Execute(w, p)
+	t.Execute(w, data)
 
 }
