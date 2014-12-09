@@ -163,7 +163,7 @@ func GetApps() []App {
 				repo := strings.Split(name[0], "/")
 				if strings.Contains(repo[0], "egor") {
 					log.Println("Found image [", repo[1], "]")
-					app := App{Name: repo[0], ImageID: image.ID, Status: "n/a"}
+					app := App{Name: repo[1], ImageID: image.ID, Status: "n/a"}
 					apps = append(apps, app)
 				}
 			}

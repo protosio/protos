@@ -12,7 +12,8 @@ func Websrv() {
 
 	fileHandler := http.StripPrefix("/static/", http.FileServer(http.Dir("./static")))
 
-	rtr.HandleFunc("/", MainHandler)
+	rtr.HandleFunc("/", IndexHandler)
+	rtr.HandleFunc("/apps", AppsHandler)
 	rtr.PathPrefix("/static").Handler(fileHandler)
 	http.Handle("/", rtr)
 
@@ -21,7 +22,7 @@ func Websrv() {
 
 }
 
-func MainHandler(w http.ResponseWriter, r *http.Request) {
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 	apps := GetApps()
 	app_count := len(apps)
@@ -30,11 +31,28 @@ func MainHandler(w http.ResponseWriter, r *http.Request) {
 		Title    string
 		AppCount int
 	}{
-		"Egor dashboard",
+		"Dashboard",
 		app_count,
 	}
 
 	t := template.Must(template.ParseFiles("templates/index.html", "templates/head.html", "templates/navbar.html"))
+	t.Execute(w, data)
+
+}
+
+func AppsHandler(w http.ResponseWriter, r *http.Request) {
+
+	apps := GetApps()
+
+	data := struct {
+		Title string
+		Apps  []App
+	}{
+		"Apps",
+		apps,
+	}
+
+	t := template.Must(template.ParseFiles("templates/apps.html", "templates/head.html", "templates/navbar.html"))
 	t.Execute(w, data)
 
 }
