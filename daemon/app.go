@@ -155,7 +155,7 @@ func GetApps() []App {
 		log.Fatal(err)
 	}
 
-	app_images := []docker.APIImages{}
+	app_images := []*docker.Image{}
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
 			name := strings.Split(tag, ":")
@@ -163,7 +163,11 @@ func GetApps() []App {
 				repo := strings.Split(name[0], "/")
 				if strings.Contains(repo[0], "egor") {
 					log.Println("Found image [", repo[1], "]")
-					app_images = append(app_images, image)
+					img, err := client.InspectImage(image.ID)
+					if err != nil {
+						log.Fatal(err)
+					}
+					app_images = append(app_images, img)
 				}
 			}
 		}
