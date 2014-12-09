@@ -20,8 +20,9 @@ type AppConfig struct {
 }
 
 type App struct {
-	Name   string
-	Status string
+	Name    string
+	ImageID string
+	Status  string
 }
 
 type Config struct {
@@ -144,18 +145,17 @@ func GetApps() []App {
 	apps := []App{}
 	log.Println("Retrieving applications")
 
-	listcontaineroptions := docker.ListContainersOptions{All: true}
-	containers, err := client.ListContainers(listcontaineroptions)
-	if err != nil {
-		log.Fatal(err)
-	}
+	//listcontaineroptions := docker.ListContainersOptions{All: true}
+	//containers, err := client.ListContainers(listcontaineroptions)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
 
 	images, err := client.ListImages(true)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	app_images := []*docker.Image{}
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
 			name := strings.Split(tag, ":")
@@ -163,20 +163,17 @@ func GetApps() []App {
 				repo := strings.Split(name[0], "/")
 				if strings.Contains(repo[0], "egor") {
 					log.Println("Found image [", repo[1], "]")
-					img, err := client.InspectImage(image.ID)
-					if err != nil {
-						log.Fatal(err)
-					}
-					app_images = append(app_images, img)
+					app := App{Name: repo[0], ImageID: image.ID, Status: "n/a"}
+					apps = append(apps, app)
 				}
 			}
 		}
 	}
 
-	for _, container := range containers {
-		app := App{Name: container.Names[0], Status: container.Status}
-		apps = append(apps, app)
-		//log.Println(app)
-	}
+	//for _, container := range containers {
+	//	app := App{Name: container.Names[0], Status: container.Status}
+	//	apps = append(apps, app)
+	//	//log.Println(app)
+	//}
 	return apps
 }
