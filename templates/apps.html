@@ -20,9 +20,22 @@
             </div>
             <!-- /.row -->
             <div class="row">
+                <table class="table table-striped">
+                    <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Image ID</th>
+                        <th>Status</th>
+                    </tr>
+                    </thead>
                 {{ range $app := .Apps  }}  
-                {{ $app.Name }} {{ $app.ImageID }}  {{ $app.Status }}
+                    <tr>
+                        <td>{{ $app.Name }}</td> 
+                        <td>{{ $app.ImageID }}</td> 
+                        <td>{{ $app.Status }}</td>
+                    </tr>
                 {{ end  }}  
+                </table>
             </div>
             <!-- /.row -->
             <!-- /.row -->
