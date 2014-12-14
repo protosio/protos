@@ -46,7 +46,7 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		Title string
-		Apps  []App
+		Apps  map[string]*App
 	}{
 		"Apps",
 		apps,

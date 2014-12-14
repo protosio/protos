@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
 	"gopkg.in/yaml.v2"
@@ -20,9 +21,10 @@ type AppConfig struct {
 }
 
 type App struct {
-	Name    string
-	ImageID string
-	Status  string
+	Name       string
+	ImageID    string
+	Containers []string
+	Status     string
 }
 
 type Config struct {
@@ -140,16 +142,21 @@ func StopApp(app string) {
 	}
 }
 
-func GetApps() []App {
-	client := Gconfig.DockerClient
-	apps := []App{}
-	log.Println("Retrieving applications")
+func tagtoname(tag string) (string, error) {
+	name := strings.Split(tag, ":")
+	if strings.Contains(name[0], "/") {
+		repo := strings.Split(name[0], "/")
+		if strings.Contains(repo[0], "egor") {
+			return repo[1], nil
+		}
+	}
+	return "", errors.New("Tag is not related to egor")
+}
 
-	//listcontaineroptions := docker.ListContainersOptions{All: true}
-	//containers, err := client.ListContainers(listcontaineroptions)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+func GetApps() map[string]*App {
+	client := Gconfig.DockerClient
+	apps := make(map[string]*App)
+	log.Println("Retrieving applications")
 
 	images, err := client.ListImages(true)
 	if err != nil {
@@ -158,22 +165,31 @@ func GetApps() []App {
 
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
-			name := strings.Split(tag, ":")
-			if strings.Contains(name[0], "/") {
-				repo := strings.Split(name[0], "/")
-				if strings.Contains(repo[0], "egor") {
-					log.Println("Found image [", repo[1], "]")
-					app := App{Name: repo[1], ImageID: image.ID, Status: "n/a"}
-					apps = append(apps, app)
-				}
+			appname, err := tagtoname(tag)
+			if err != nil {
+				continue
 			}
+			log.Println("Found image [", appname, "]")
+			app := App{Name: appname, ImageID: image.ID, Status: "n/a"}
+			apps[appname] = &app
 		}
 	}
 
-	//for _, container := range containers {
-	//	app := App{Name: container.Names[0], Status: container.Status}
-	//	apps = append(apps, app)
-	//	//log.Println(app)
-	//}
+	listcontaineroptions := docker.ListContainersOptions{All: true}
+	containers, err := client.ListContainers(listcontaineroptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, container := range containers {
+		//app := App{Name: container.Names[0], Status: container.Status}
+		//apps = append(apps, app)
+		appname, err := tagtoname(container.Image)
+		if err != nil {
+			continue
+		}
+		apps[appname].Containers = append(apps[appname].Containers, container.ID)
+		log.Println("Found container", container.ID, "for", appname)
+	}
 	return apps
 }
