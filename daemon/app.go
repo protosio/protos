@@ -13,6 +13,11 @@ import (
 
 // Defines structure for config parameters
 // specific to each application
+const (
+	Running = "Running"
+	Stopped = "Stopped"
+)
+
 type AppConfig struct {
 	Description string
 	Image       string
@@ -97,7 +102,7 @@ func StartApp(app string) {
 
 	// Create container
 	config := docker.Config{Image: app_config.Image, Volumes: volumes}
-	create_options := docker.CreateContainerOptions{Name: "egor_" + app, Config: &config}
+	create_options := docker.CreateContainerOptions{Name: "egor." + app, Config: &config}
 	container, err := client.CreateContainer(create_options)
 	if err != nil {
 		log.Println("Could not create container")
@@ -129,13 +134,13 @@ func StopApp(app string) {
 	log.Println("Stopping application [", app, "]")
 	client := Gconfig.DockerClient
 
-	err := client.StopContainer("egor_"+app, 3)
+	err := client.StopContainer("egor."+app, 3)
 	if err != nil {
 		log.Println("Could not stop application")
 		log.Fatal(err)
 	}
 
-	remove_options := docker.RemoveContainerOptions{ID: "egor_" + app}
+	remove_options := docker.RemoveContainerOptions{ID: "egor." + app}
 	err = client.RemoveContainer(remove_options)
 	if err != nil {
 		log.Fatal(err)
@@ -170,7 +175,7 @@ func GetApps() map[string]*App {
 				continue
 			}
 			log.Println("Found image [", appname, "]")
-			app := App{Name: appname, ImageID: image.ID, Status: "n/a"}
+			app := App{Name: appname, ImageID: image.ID, Status: Stopped}
 			apps[appname] = &app
 		}
 	}
@@ -190,6 +195,11 @@ func GetApps() map[string]*App {
 		}
 		apps[appname].Containers = append(apps[appname].Containers, container.ID)
 		log.Println("Found container", container.ID, "for", appname)
+		if strings.Contains(container.Status, "Up") {
+			apps[appname].Status = Running
+		} else {
+			apps[appname].Status = Stopped
+		}
 	}
 	return apps
 }
