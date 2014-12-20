@@ -41,6 +41,7 @@ type Config struct {
 }
 
 var Gconfig Config
+var Apps map[string]*App
 
 func LoadAppCfg(app string) AppConfig {
 	log.Println("Reading config for [", app, "]")
@@ -85,6 +86,8 @@ func LoadCfg(config_file string) Config {
 		log.Fatal(err)
 	}
 	Gconfig.DockerClient = client
+
+	LoadApps()
 
 	return config
 }
@@ -158,7 +161,7 @@ func tagtoname(tag string) (string, error) {
 	return "", errors.New("Tag is not related to egor")
 }
 
-func GetApps() map[string]*App {
+func LoadApps() {
 	client := Gconfig.DockerClient
 	apps := make(map[string]*App)
 	log.Println("Retrieving applications")
@@ -201,5 +204,9 @@ func GetApps() map[string]*App {
 			apps[appname].Status = Stopped
 		}
 	}
-	return apps
+	Apps = apps
+}
+
+func GetApps() map[string]*App {
+	return Apps
 }
