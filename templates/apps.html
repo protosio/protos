@@ -30,7 +30,7 @@
                     </thead>
                 {{ range $app := .Apps  }}  
                     <tr>
-                        <td>{{ $app.Name }}</td> 
+                        <td><a href="/apps/{{ $app.Name }}">{{ $app.Name }}</a></td> 
                         <td>{{ $app.ImageID }}</td> 
                         <td>{{ $app.Status }}</td>
                     </tr>
