@@ -60,14 +60,15 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 
 func AppHandler(w http.ResponseWriter, r *http.Request) {
 
-	//apps := GetApps()
+	vars := mux.Vars(r)
+	app := GetApp(vars["app"])
 
 	data := struct {
 		Title string
-		Apps  string
+		App   *App
 	}{
-		"Apps",
-		"yolo",
+		vars["app"],
+		app,
 	}
 
 	t := template.Must(template.ParseFiles("templates/app.html", "templates/head.html", "templates/navbar.html"))

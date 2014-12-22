@@ -208,5 +208,11 @@ func LoadApps() {
 }
 
 func GetApps() map[string]*App {
+	LoadApps()
 	return Apps
+}
+
+func GetApp(name string) *App {
+	log.Println("Retrieving data for [", name, "]")
+	return  Apps[name]
 }
