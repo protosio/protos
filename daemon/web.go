@@ -61,7 +61,21 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 func AppHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
-	app := GetApp(vars["app"])
+	appname := vars["app"]
+
+	if r.Method == "POST" {
+		if r.FormValue("submit") == "start" {
+			log.Println("starting", appname)
+			StartApp(appname)
+		} else if r.FormValue("submit") == "stop" {
+			log.Println("stopping", appname)
+			StopApp(appname)
+		} else {
+			log.Fatal("Unknown command:", r.FormValue("submit"))
+		}
+	}
+
+	app := GetApp(appname)
 
 	data := struct {
 		Title string
