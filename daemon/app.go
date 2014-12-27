@@ -213,6 +213,7 @@ func GetApps() map[string]*App {
 }
 
 func GetApp(name string) *App {
+	LoadApps()
 	log.Println("Retrieving data for [", name, "]")
-	return  Apps[name]
+	return Apps[name]
 }
