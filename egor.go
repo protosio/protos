@@ -3,6 +3,7 @@ package main
 import (
 	"egor/daemon"
 	"github.com/codegangsta/cli"
+	"log"
 	"os"
 )
 
@@ -32,14 +33,18 @@ func main() {
 			Name:  "start",
 			Usage: "starts an application",
 			Action: func(c *cli.Context) {
-				daemon.StartApp(c.Args().First())
+				app_name := c.Args().First()
+				app := daemon.GetApp(app_name)
+				app.Start()
 			},
 		},
 		{
 			Name:  "stop",
 			Usage: "stops an application",
 			Action: func(c *cli.Context) {
-				daemon.StopApp(c.Args().First())
+				app_name := c.Args().First()
+				app := daemon.GetApp(app_name)
+				app.Stop()
 			},
 		},
 		{
@@ -53,14 +58,20 @@ func main() {
 			Name:  "validate",
 			Usage: "validates application config",
 			Action: func(c *cli.Context) {
-				daemon.LoadAppCfg(c.Args().First())
+				app_name := c.Args().First()
+				app := daemon.GetApp(app_name)
+				app.LoadCfg()
+
 			},
 		},
 		{
 			Name:  "list",
 			Usage: "list applications",
 			Action: func(c *cli.Context) {
-				daemon.GetApps()
+				apps := daemon.GetApps()
+				for _, app := range apps {
+					log.Println(app.Name)
+				}
 			},
 		},
 	}
