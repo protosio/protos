@@ -25,11 +25,16 @@ type AppConfig struct {
 	Data        string
 }
 
+type AppStatus struct {
+	Running bool
+}
+
 type App struct {
 	Name       string
 	ImageID    string
 	Containers []string
-	Status     string
+	Status     AppStatus
+	Config     AppConfig
 }
 
 type Config struct {
@@ -43,23 +48,19 @@ type Config struct {
 var Gconfig Config
 var Apps map[string]*App
 
-func LoadAppCfg(app string) AppConfig {
-	log.Println("Reading config for [", app, "]")
-	filename, _ := filepath.Abs(fmt.Sprintf("%s/%s/app.yaml", Gconfig.AppsPath, app))
+func (app *App) LoadCfg() {
+	log.Println("Reading config for [", app.Name, "]")
+	filename, _ := filepath.Abs(fmt.Sprintf("%s/%s/app.yaml", Gconfig.AppsPath, app.Name))
 	yamlFile, err := ioutil.ReadFile(filename)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var config AppConfig
-
-	err = yaml.Unmarshal(yamlFile, &config)
+	err = yaml.Unmarshal(yamlFile, &app.Config)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	return config
 }
 
 func LoadCfg(config_file string) Config {
@@ -92,20 +93,20 @@ func LoadCfg(config_file string) Config {
 	return config
 }
 
-func StartApp(app string) {
-	log.Println("Starting application [", app, "]")
+func (app *App) Start() {
+	log.Println("Starting application [", app.Name, "]")
 	client := Gconfig.DockerClient
 
-	app_config := LoadAppCfg(app)
+	app.LoadCfg()
 
 	//Configure volumes
 	volumes := make(map[string]struct{})
 	var tmp struct{}
-	volumes[app_config.Data] = tmp
+	volumes[app.Config.Data] = tmp
 
 	// Create container
-	config := docker.Config{Image: app_config.Image, Volumes: volumes}
-	create_options := docker.CreateContainerOptions{Name: "egor." + app, Config: &config}
+	config := docker.Config{Image: app.Config.Image, Volumes: volumes}
+	create_options := docker.CreateContainerOptions{Name: "egor." + app.Name, Config: &config}
 	container, err := client.CreateContainer(create_options)
 	if err != nil {
 		log.Println("Could not create container")
@@ -114,14 +115,14 @@ func StartApp(app string) {
 
 	// Configure ports
 	portsWrapper := make(map[docker.Port][]docker.PortBinding)
-	for key, value := range app_config.Ports {
+	for key, value := range app.Config.Ports {
 		ports := []docker.PortBinding{docker.PortBinding{HostIP: "0.0.0.0", HostPort: value}}
 		port_host := docker.Port(key)
 		portsWrapper[port_host] = ports
 	}
 
 	// Bind volumes
-	binds := []string{fmt.Sprintf("%s/%s:%s:rw", Gconfig.DataPath, app, app_config.Data)}
+	binds := []string{fmt.Sprintf("%s/%s:%s:rw", Gconfig.DataPath, app.Name, app.Config.Data)}
 
 	// Start container
 	host_config := docker.HostConfig{PortBindings: portsWrapper, Binds: binds}
@@ -130,24 +131,28 @@ func StartApp(app string) {
 		log.Println("Could not start container")
 		log.Fatal(err2)
 	}
+	container_instance, _ := client.InspectContainer(container.ID)
+	app.Status.Running = container_instance.State.Running
 
 }
 
-func StopApp(app string) {
-	log.Println("Stopping application [", app, "]")
+func (app *App) Stop() {
+	log.Println("Stopping application [", app.Name, "]")
 	client := Gconfig.DockerClient
 
-	err := client.StopContainer("egor."+app, 3)
+	container_name := "egor." + app.Name
+	err := Gconfig.DockerClient.StopContainer(container_name, 3)
 	if err != nil {
 		log.Println("Could not stop application")
 		log.Fatal(err)
 	}
 
-	remove_options := docker.RemoveContainerOptions{ID: "egor." + app}
+	remove_options := docker.RemoveContainerOptions{ID: "egor." + app.Name}
 	err = client.RemoveContainer(remove_options)
 	if err != nil {
 		log.Fatal(err)
 	}
+	app.Status.Running = false
 }
 
 func tagtoname(tag string) (string, error) {
@@ -178,7 +183,7 @@ func LoadApps() {
 				continue
 			}
 			log.Println("Found image [", appname, "]")
-			app := App{Name: appname, ImageID: image.ID, Status: Stopped}
+			app := App{Name: appname, ImageID: image.ID}
 			apps[appname] = &app
 		}
 	}
@@ -190,19 +195,14 @@ func LoadApps() {
 	}
 
 	for _, container := range containers {
-		//app := App{Name: container.Names[0], Status: container.Status}
-		//apps = append(apps, app)
 		appname, err := tagtoname(container.Image)
 		if err != nil {
 			continue
 		}
 		apps[appname].Containers = append(apps[appname].Containers, container.ID)
 		log.Println("Found container", container.ID, "for", appname)
-		if strings.Contains(container.Status, "Up") {
-			apps[appname].Status = Running
-		} else {
-			apps[appname].Status = Stopped
-		}
+		container, _ := client.InspectContainer(container.ID)
+		apps[appname].Status.Running = container.State.Running
 	}
 	Apps = apps
 }
