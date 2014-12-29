@@ -14,7 +14,7 @@
         <div id="page-wrapper">
             <div class="row">
                 <div class="col-lg-12">
-                    <h2 class="page-header">{{ .App.Name }} <span class="label label-{{ if eq .App.Status "Running" }}success{{ else }}default{{ end }}">{{ .App.Status }}</span></h2>
+                    <h2 class="page-header">{{ .App.Name }} <span class="label label-{{ if eq .App.Status.Running true }}success{{ else }}default{{ end }}">{{ if eq .App.Status.Running true }}Running{{ else }}Stopped{{ end }}</span></h2>
                 </div>
                 <!-- /.col-lg-12 -->
             </div>

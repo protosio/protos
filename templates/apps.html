@@ -32,7 +32,7 @@
                     <tr>
                         <td><a href="/apps/{{ $app.Name }}">{{ $app.Name }}</a></td> 
                         <td>{{ $app.ImageID }}</td> 
-                        <td>{{ $app.Status }}</td>
+                        <td><span class="label label-{{ if eq $app.Status.Running true }}success{{ else }}default{{ end }}">{{ if eq $app.Status.Running true }}Running{{ else }}Stopped{{ end }}</span></td>
                     </tr>
                 {{ end  }}  
                 </table>
