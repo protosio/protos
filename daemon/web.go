@@ -15,6 +15,7 @@ func Websrv() {
 	rtr.HandleFunc("/", IndexHandler)
 	rtr.HandleFunc("/apps", AppsHandler)
 	rtr.HandleFunc("/apps/{app}", AppHandler)
+	rtr.HandleFunc("/store", StoreHandler)
 	rtr.PathPrefix("/static").Handler(fileHandler)
 	http.Handle("/", rtr)
 
@@ -84,6 +85,21 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t := template.Must(template.ParseFiles("templates/app.html", "templates/head.html", "templates/navbar.html"))
+	t.Execute(w, data)
+
+}
+
+func StoreHandler(w http.ResponseWriter, r *http.Request) {
+
+	data := struct {
+		Title string
+		Apps  string
+	}{
+		"Apps",
+		"N/A",
+	}
+
+	t := template.Must(template.ParseFiles("templates/store.html", "templates/head.html", "templates/navbar.html"))
 	t.Execute(w, data)
 
 }
