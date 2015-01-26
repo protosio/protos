@@ -1,6 +1,6 @@
 ---
 description: 'The mail app provides a full personal MTA solution'
-image: 'egor_mail:latest'
+image: 'egor/mail:latest'
 ports:
     25: 25
     993: 993
