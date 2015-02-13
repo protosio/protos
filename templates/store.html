@@ -20,6 +20,10 @@
             </div>
             <!-- /.row -->
             <div class="row">
+                {{ range $app := .Apps  }}  
+                  {{ $app.Name }} {{ $app.Description }}
+                {{ end  }}  
+
             </div>
             <!-- /.row -->
             <!-- /.row -->

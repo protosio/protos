@@ -91,12 +91,15 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 
 func StoreHandler(w http.ResponseWriter, r *http.Request) {
 
+	apps := SearchApps()
+	log.Println(apps)
+
 	data := struct {
 		Title string
-		Apps  string
+		Apps  []AppSearch
 	}{
 		"Apps",
-		"N/A",
+		apps,
 	}
 
 	t := template.Must(template.ParseFiles("templates/store.html", "templates/head.html", "templates/navbar.html"))
