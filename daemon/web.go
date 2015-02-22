@@ -91,6 +91,11 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 
 func StoreHandler(w http.ResponseWriter, r *http.Request) {
 
+	if r.Method == "POST" {
+		log.Println(r.FormValue("download"))
+		DownloadApp(r.FormValue("download"))
+	}
+
 	apps := SearchApps()
 	log.Println(apps)
 

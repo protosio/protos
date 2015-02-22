@@ -1,16 +1,39 @@
 package daemon
 
 import (
+	"bytes"
 	"encoding/json"
+	"github.com/fsouza/go-dockerclient"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type AppSearch struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+}
+
+func DownloadApp(name string) {
+
+	client := Gconfig.DockerClient
+	var buf bytes.Buffer
+
+	test := strings.Split(name, "/")
+	log.Println("Downloading [", test[1], "]")
+
+	opts := docker.PullImageOptions{
+		Repository: "dexter.giurgiu.io:5000/" + test[1],
+		Registry:   "dexter.giurgiu.io:5000",
+		OutputStream: &buf,
+	}
+	err := client.PullImage(opts, docker.AuthConfiguration{})
+	if err != nil {
+		log.Println(err)
+	}
+
 }
 
 func SearchApps() []AppSearch {

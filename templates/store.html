@@ -21,9 +21,19 @@
             <!-- /.row -->
             <div class="row">
                 {{ range $app := .Apps  }}  
-                  {{ $app.Name }} {{ $app.Description }}
+                   
+                <div class="panel panel-default">
+                  <div class="panel-heading">
+                    <h3 class="panel-title">{{ $app.Name }}</h3>
+                  </div>
+                  <div class="panel-body row">
+                    <div class="col-md-10"> Description: {{ $app.Description }}</div>
+                    <form class="form-group" role="form" method="post" action="">
+                        <input type="submit" value="{{ $app.Name }}" name="download" id="download" class="btn btn-default col-md-2" />
+                    </form>
+                  </div>
+                </div>
                 {{ end  }}  
-
             </div>
             <!-- /.row -->
             <!-- /.row -->
