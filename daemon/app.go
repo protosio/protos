@@ -171,7 +171,7 @@ func LoadApps() {
 	apps := make(map[string]*App)
 	log.Println("Retrieving applications")
 
-	images, err := client.ListImages(true)
+	images, err := client.ListImages(docker.ListImagesOptions{All: true})
 	if err != nil {
 		log.Fatal(err)
 	}
