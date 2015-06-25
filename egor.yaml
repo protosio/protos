@@ -1,4 +1,4 @@
-port: 9000
+port: 80
 datapath: /home/al3x/code/egor/data
 appspath: /go/src/egor/apps
 dockerendpoint: "unix:///var/run/docker.sock"
