@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/fsouza/go-dockerclient"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -22,16 +21,16 @@ func DownloadApp(name string) {
 	var buf bytes.Buffer
 
 	test := strings.Split(name, "/")
-	log.Println("Downloading [", test[1], "]")
+	log.Info("Downloading [", test[1], "]")
 
 	opts := docker.PullImageOptions{
-		Repository: "dexter.giurgiu.io:5000/" + test[1],
-		Registry:   "dexter.giurgiu.io:5000",
+		Repository:   "dexter.giurgiu.io:5000/" + test[1],
+		Registry:     "dexter.giurgiu.io:5000",
 		OutputStream: &buf,
 	}
 	err := client.PullImage(opts, docker.AuthConfiguration{})
 	if err != nil {
-		log.Println(err)
+		log.Warn(err)
 	}
 
 }
@@ -48,7 +47,7 @@ func SearchApps() []AppSearch {
 		log.Fatal(err)
 		os.Exit(1)
 	}
-	log.Println(string(contents))
+	//log.Println(string(contents))
 
 	var objmap map[string]*json.RawMessage
 	err = json.Unmarshal(contents, &objmap)

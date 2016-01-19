@@ -1,4 +1,5 @@
-port: 80
+port: 8080
 datapath: /home/al3x/code/egor/data
 appspath: /go/src/egor/apps
-dockerendpoint: "unix:///var/run/docker.sock"
+dockerendpoint: "127.0.0.1:3333"
+staticassets: /Users/al3x/code/protos/protosfrontend/resources/public

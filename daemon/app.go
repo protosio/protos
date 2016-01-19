@@ -6,7 +6,6 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"strings"
 )
@@ -43,28 +42,41 @@ type Config struct {
 	Port           int
 	DockerEndpoint string
 	DockerClient   *docker.Client
+	StaticAssets   string
 }
 
 var Gconfig Config
 var Apps map[string]*App
 
 func (app *App) LoadCfg() {
-	log.Println("Reading config for [", app.Name, "]")
+	log.Info("Reading config for [", app.Name, "]")
 	filename, _ := filepath.Abs(fmt.Sprintf("%s/%s/app.yaml", Gconfig.AppsPath, app.Name))
 	yamlFile, err := ioutil.ReadFile(filename)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Warn(err)
+		return
 	}
 
 	err = yaml.Unmarshal(yamlFile, &app.Config)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn(err)
+		return
 	}
 }
 
+func (app *App) GetImage() *docker.Image {
+	log.Debug("Reading image ", app.ImageID)
+	client := Gconfig.DockerClient
+	image, err := client.InspectImage(app.ImageID)
+	if err != nil {
+		log.Error(err)
+	}
+	return image
+}
+
 func LoadCfg(config_file string) Config {
-	log.Println("Reading main config [", config_file, "]")
+	log.Info("Reading main config [", config_file, "]")
 	filename, _ := filepath.Abs(config_file)
 	yamlFile, err := ioutil.ReadFile(filename)
 
@@ -81,7 +93,7 @@ func LoadCfg(config_file string) Config {
 
 	Gconfig = config
 
-	log.Println("Connecting to the docker daemon")
+	log.Info("Connecting to the docker daemon")
 	client, err := docker.NewClient(Gconfig.DockerEndpoint)
 	if err != nil {
 		log.Fatal(err)
@@ -94,56 +106,67 @@ func LoadCfg(config_file string) Config {
 }
 
 func (app *App) Start() {
-	log.Println("Starting application [", app.Name, "]")
-	client := Gconfig.DockerClient
+	log.Info("Starting application [", app.Name, "]")
+	//client := Gconfig.DockerClient
 
 	app.LoadCfg()
-
-	//Configure volumes
-	volumes := make(map[string]struct{})
-	var tmp struct{}
-	volumes[app.Config.Data] = tmp
-
-	// Create container
-	config := docker.Config{Image: app.Config.Image, Volumes: volumes}
-	create_options := docker.CreateContainerOptions{Name: "egor." + app.Name, Config: &config}
-	container, err := client.CreateContainer(create_options)
-	if err != nil {
-		log.Println("Could not create container")
-		log.Fatal(err)
+	image := app.GetImage()
+	if len(image.Config.Entrypoint) == 0 {
+		log.Error("Image [", image.ID, "|", app.Name, "] has no entrypoint. Aborting")
+		return
 	}
 
-	// Configure ports
-	portsWrapper := make(map[docker.Port][]docker.PortBinding)
-	for key, value := range app.Config.Ports {
-		ports := []docker.PortBinding{docker.PortBinding{HostIP: "0.0.0.0", HostPort: value}}
-		port_host := docker.Port(key)
-		portsWrapper[port_host] = ports
-	}
+	////Configure
+	//volumes := make(map[string]struct{})
+	//var tmp struct{}
+	//volumes["/data"] = tmp
+	//cmd := []string{"/bin/nc -l 2000"}
 
-	// Bind volumes
-	binds := []string{fmt.Sprintf("%s/%s:%s:rw", Gconfig.DataPath, app.Name, app.Config.Data)}
+	//// Create container
+	//config := docker.Config{Image: app.Name, Volumes: volumes, Cmd: cmd}
+	//create_options := docker.CreateContainerOptions{Name: "egor." + app.Name, Config: &config}
+	//container, err := client.CreateContainer(create_options)
+	//if err != nil {
+	//	log.Error("Could not create container")
+	//	log.Error(err)
+	//	return
+	//}
+	//log.Debug("Created container ", app.Name)
 
-	// Start container
-	host_config := docker.HostConfig{PortBindings: portsWrapper, Binds: binds}
-	err2 := client.StartContainer(container.ID, &host_config)
-	if err2 != nil {
-		log.Println("Could not start container")
-		log.Fatal(err2)
-	}
-	container_instance, _ := client.InspectContainer(container.ID)
-	app.Status.Running = container_instance.State.Running
+	//// Configure ports
+	//portsWrapper := make(map[docker.Port][]docker.PortBinding)
+	//for key, value := range app.Config.Ports {
+	//	ports := []docker.PortBinding{docker.PortBinding{HostIP: "0.0.0.0", HostPort: value}}
+	//	port_host := docker.Port(key)
+	//	portsWrapper[port_host] = ports
+	//}
+
+	//// Bind volumes
+	////binds := []string{fmt.Sprintf("%s/%s:%s:rw", Gconfig.DataPath, app.Name, app.Config.Data)}
+
+	//// Start container
+	//host_config := docker.HostConfig{PortBindings: portsWrapper} //, Binds: binds}
+	//err2 := client.StartContainer(container.ID, &host_config)
+	//if err2 != nil {
+	//	log.Error("Could not start container")
+	//	log.Error(err2)
+	//	return
+	//}
+	//log.Debug("Started container ", app.Name)
+
+	//container_instance, _ := client.InspectContainer(container.ID)
+	//app.Status.Running = container_instance.State.Running
 
 }
 
 func (app *App) Stop() {
-	log.Println("Stopping application [", app.Name, "]")
+	log.Info("Stopping application [", app.Name, "]")
 	client := Gconfig.DockerClient
 
 	container_name := "egor." + app.Name
 	err := Gconfig.DockerClient.StopContainer(container_name, 3)
 	if err != nil {
-		log.Println("Could not stop application")
+		log.Info("Could not stop application")
 		log.Fatal(err)
 	}
 
@@ -155,34 +178,47 @@ func (app *App) Stop() {
 	app.Status.Running = false
 }
 
-func tagtoname(tag string) (string, error) {
-	name := strings.Split(tag, ":")
-	if strings.Contains(name[0], "/") {
-		repo := strings.Split(name[0], "/")
-		if strings.Contains(repo[0], "egor") {
-			return repo[1], nil
-		}
+func tagtoname(tag string, filter string) (string, string, error) {
+	log.Debug("Working on [", tag, "]")
+	full_name := strings.Split(tag, ":")
+	name := full_name[0]
+	var version string
+	if len(full_name) > 1 {
+		version = full_name[1]
+	} else {
+		version = ""
 	}
-	return "", errors.New("Tag is not related to egor")
+	if len(filter) > 0 {
+		if strings.Contains(name, filter) {
+			repo := strings.Split(name, filter)
+			return repo[1], version, nil
+		} else {
+			return "", "", errors.New("Tag is not related to egor")
+		}
+	} else {
+		return name, version, nil
+	}
 }
 
 func LoadApps() {
 	client := Gconfig.DockerClient
 	apps := make(map[string]*App)
-	log.Println("Retrieving applications")
+	log.Info("Retrieving applications")
 
-	images, err := client.ListImages(docker.ListImagesOptions{All: true})
+	filters := make(map[string][]string)
+	filters["dangling"] = []string{"false"}
+	images, err := client.ListImages(docker.ListImagesOptions{All: false, Filters: filters})
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
-			appname, err := tagtoname(tag)
+			appname, _, err := tagtoname(tag, "")
 			if err != nil {
 				continue
 			}
-			log.Println("Found image [", appname, "]")
+			log.Debug("Found image [", appname, "]")
 			app := App{Name: appname, ImageID: image.ID}
 			apps[appname] = &app
 		}
@@ -195,12 +231,13 @@ func LoadApps() {
 	}
 
 	for _, container := range containers {
-		appname, err := tagtoname(container.Image)
+		appname, _, err := tagtoname(container.Image, "")
 		if err != nil {
+			log.Error(err)
 			continue
 		}
 		apps[appname].Containers = append(apps[appname].Containers, container.ID)
-		log.Println("Found container", container.ID, "for", appname)
+		log.Debug("Found container", container.ID, "for", appname)
 		container, _ := client.InspectContainer(container.ID)
 		apps[appname].Status.Running = container.State.Running
 	}
@@ -214,6 +251,6 @@ func GetApps() map[string]*App {
 
 func GetApp(name string) *App {
 	LoadApps()
-	log.Println("Retrieving data for [", name, "]")
+	log.Info("Retrieving data for [", name, "]")
 	return Apps[name]
 }

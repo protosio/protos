@@ -2,8 +2,8 @@ package main
 
 import (
 	"egor/daemon"
+	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
-	"log"
 	"os"
 )
 
@@ -21,10 +21,24 @@ func main() {
 			Value: "egor.yaml",
 			Usage: "Specify a config file (default: egor.yaml)",
 		},
+		cli.StringFlag{
+			Name:  "l, loglevel",
+			Value: "info",
+			Usage: "Specify log level: debug, info, warn, error (default: info)",
+		},
 	}
 
 	app.Before = func(c *cli.Context) error {
 		daemon.LoadCfg(c.String("config"))
+		if c.String("loglevel") == "debug" {
+			daemon.SetLogLevel(log.DebugLevel)
+		} else if c.String("loglevel") == "info" {
+			daemon.SetLogLevel(log.InfoLevel)
+		} else if c.String("loglevel") == "warn" {
+			daemon.SetLogLevel(log.WarnLevel)
+		} else if c.String("loglevel") == "error" {
+			daemon.SetLogLevel(log.ErrorLevel)
+		}
 		return nil
 	}
 
