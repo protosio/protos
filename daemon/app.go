@@ -107,7 +107,7 @@ func LoadCfg(config_file string) Config {
 
 func (app *App) Start() {
 	log.Info("Starting application [", app.Name, "]")
-	//client := Gconfig.DockerClient
+	client := Gconfig.DockerClient
 
 	app.LoadCfg()
 	image := app.GetImage()
@@ -120,18 +120,20 @@ func (app *App) Start() {
 	//volumes := make(map[string]struct{})
 	//var tmp struct{}
 	//volumes["/data"] = tmp
-	//cmd := []string{"/bin/nc -l 2000"}
 
-	//// Create container
-	//config := docker.Config{Image: app.Name, Volumes: volumes, Cmd: cmd}
-	//create_options := docker.CreateContainerOptions{Name: "egor." + app.Name, Config: &config}
-	//container, err := client.CreateContainer(create_options)
-	//if err != nil {
-	//	log.Error("Could not create container")
-	//	log.Error(err)
-	//	return
-	//}
-	//log.Debug("Created container ", app.Name)
+	// Create container
+	config := docker.Config{Image: app.Name}
+	create_options := docker.CreateContainerOptions{Name: "protos." + app.Name, Config: &config}
+	container, err := client.CreateContainer(create_options)
+	if err != nil {
+		log.Error("Could not create container")
+		log.Error(err)
+		return
+	}
+	log.Debug("Created container ", app.Name, container)
+
+	//remove_options := docker.RemoveContainerOptions{ID: container.ID, RemoveVolumes: true}
+	//_ = client.RemoveContainer(remove_options)
 
 	//// Configure ports
 	//portsWrapper := make(map[docker.Port][]docker.PortBinding)
@@ -144,18 +146,18 @@ func (app *App) Start() {
 	//// Bind volumes
 	////binds := []string{fmt.Sprintf("%s/%s:%s:rw", Gconfig.DataPath, app.Name, app.Config.Data)}
 
-	//// Start container
-	//host_config := docker.HostConfig{PortBindings: portsWrapper} //, Binds: binds}
-	//err2 := client.StartContainer(container.ID, &host_config)
-	//if err2 != nil {
-	//	log.Error("Could not start container")
-	//	log.Error(err2)
-	//	return
-	//}
-	//log.Debug("Started container ", app.Name)
+	// Start container
+	host_config := docker.HostConfig{} //PortBindings: portsWrapper} //, Binds: binds}
+	err2 := client.StartContainer(container.ID, &host_config)
+	if err2 != nil {
+		log.Error("Could not start container")
+		log.Error(err2)
+		return
+	}
+	log.Debug("Started container ", app.Name)
 
-	//container_instance, _ := client.InspectContainer(container.ID)
-	//app.Status.Running = container_instance.State.Running
+	container_instance, _ := client.InspectContainer(container.ID)
+	app.Status.Running = container_instance.State.Running
 
 }
 
