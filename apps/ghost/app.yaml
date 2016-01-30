@@ -1,6 +1,0 @@
----
-description: 'Ghost blogging platform'
-image: 'protos/ghost'
-ports:
-    2369: 80
-data: /ghost-override

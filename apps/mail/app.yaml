@@ -1,7 +1,0 @@
----
-description: 'The mail app provides a full personal MTA solution'
-image: 'protos/mail:latest'
-ports:
-    25: 25
-    993: 993
-data: /extdata
