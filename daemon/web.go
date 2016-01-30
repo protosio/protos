@@ -9,34 +9,43 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
 var (
-	backend     httpauth.GobFileAuthBackend
-	aaa         httpauth.Authorizer
-	roles       map[string]httpauth.Role
-	port        = 8009
-	backendfile = "auth.gob"
+	auth_backend httpauth.GobFileAuthBackend
+	aaa          httpauth.Authorizer
+	roles        map[string]httpauth.Role
+	port         = 8009
+	auth_file    = "auth.gob"
 )
+
+func InitAuth() (b httpauth.GobFileAuthBackend) {
+	// create the auth_backend storage, remove when all done
+	abs_auth_path, _ := filepath.Abs(filepath.Join(Gconfig.DataPath, auth_file))
+	log.Debug("Creating auth file: ", abs_auth_path)
+	os.Create(abs_auth_path)
+	defer os.Remove(abs_auth_path)
+
+	// create the auth_backend
+	b, err := httpauth.NewGobFileAuthBackend(abs_auth_path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return b
+}
 
 func Websrv() {
 	var err error
-	// create the backend storage, remove when all done
-	os.Create(backendfile)
-	defer os.Remove(backendfile)
 
-	// create the backend
-	backend, err = httpauth.NewGobFileAuthBackend(backendfile)
-	if err != nil {
-		panic(err)
-	}
+	auth_backend = InitAuth()
 
 	// create some default roles
 	roles = make(map[string]httpauth.Role)
 	roles["user"] = 30
 	roles["admin"] = 80
-	aaa, err = httpauth.NewAuthorizer(backend, []byte("cookie-encryption-key"), "user", roles)
+	aaa, err = httpauth.NewAuthorizer(auth_backend, []byte("cookie-encryption-key"), "user", roles)
 
 	// create a default user
 	hash, err := bcrypt.GenerateFromPassword([]byte("adminadmin"), bcrypt.DefaultCost)
@@ -44,7 +53,7 @@ func Websrv() {
 		panic(err)
 	}
 	defaultUser := httpauth.UserData{Username: "admin", Email: "admin@localhost", Hash: hash, Role: "admin"}
-	err = backend.SaveUser(defaultUser)
+	err = auth_backend.SaveUser(defaultUser)
 	if err != nil {
 		panic(err)
 	}
