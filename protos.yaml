@@ -1,5 +1,4 @@
 port: 8080
 datapath: data
-appspath: apps
 dockerendpoint: "unix:///var/run/docker.sock"
 staticassets: public
