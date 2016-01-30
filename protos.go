@@ -1,25 +1,25 @@
 package main
 
 import (
-	"egor/daemon"
 	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
 	"os"
+	"protos/daemon"
 )
 
 func main() {
 
 	app := cli.NewApp()
-	app.Name = "egor"
-	app.Usage = "iz good for your privacy"
+	app.Name = "protos"
+	app.Usage = "self hosting applications"
 	app.Author = "Alex Giurgiu"
 	app.Email = "alex@giurgiu.io"
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "c, config",
-			Value: "egor.yaml",
-			Usage: "Specify a config file (default: egor.yaml)",
+			Value: "protos.yaml",
+			Usage: "Specify a config file (default: protos.yaml)",
 		},
 		cli.StringFlag{
 			Name:  "l, loglevel",

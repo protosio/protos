@@ -1,0 +1,5 @@
+port: 8080
+datapath: data
+appspath: apps
+dockerendpoint: "unix:///var/run/docker.sock"
+staticassets: /Users/al3x/code/protos/protosfrontend/resources/public

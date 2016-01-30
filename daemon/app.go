@@ -126,8 +126,7 @@ func (app *App) Start() {
 	create_options := docker.CreateContainerOptions{Name: "protos." + app.Name, Config: &config}
 	container, err := client.CreateContainer(create_options)
 	if err != nil {
-		log.Error("Could not create container")
-		log.Error(err)
+		log.Error("Could not create container: ", err)
 		return
 	}
 	log.Debug("Created container ", app.Name, container)
@@ -150,8 +149,7 @@ func (app *App) Start() {
 	host_config := docker.HostConfig{} //PortBindings: portsWrapper} //, Binds: binds}
 	err2 := client.StartContainer(container.ID, &host_config)
 	if err2 != nil {
-		log.Error("Could not start container")
-		log.Error(err2)
+		log.Error("Could not start container: ", err2)
 		return
 	}
 	log.Debug("Started container ", app.Name)
@@ -165,17 +163,16 @@ func (app *App) Stop() {
 	log.Info("Stopping application [", app.Name, "]")
 	client := Gconfig.DockerClient
 
-	container_name := "egor." + app.Name
+	container_name := "protos." + app.Name
 	err := Gconfig.DockerClient.StopContainer(container_name, 3)
 	if err != nil {
-		log.Info("Could not stop application")
-		log.Fatal(err)
+		log.Error("Could not stop application. ", err)
 	}
 
-	remove_options := docker.RemoveContainerOptions{ID: "egor." + app.Name}
+	remove_options := docker.RemoveContainerOptions{ID: "protos." + app.Name}
 	err = client.RemoveContainer(remove_options)
 	if err != nil {
-		log.Fatal(err)
+		log.Error("Could not delete container. ", err)
 	}
 	app.Status.Running = false
 }
@@ -195,7 +192,7 @@ func tagtoname(tag string, filter string) (string, string, error) {
 			repo := strings.Split(name, filter)
 			return repo[1], version, nil
 		} else {
-			return "", "", errors.New("Tag is not related to egor")
+			return "", "", errors.New("Tag is not related to protos")
 		}
 	} else {
 		return name, version, nil
@@ -239,7 +236,7 @@ func LoadApps() {
 			continue
 		}
 		apps[appname].Containers = append(apps[appname].Containers, container.ID)
-		log.Debug("Found container", container.ID, "for", appname)
+		log.Debug("Found container ", container.ID, " for ", appname)
 		container, _ := client.InspectContainer(container.ID)
 		apps[appname].Status.Running = container.State.Running
 	}

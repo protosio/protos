@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker build -t egor_mail:latest . 
+docker build -t protos_mail:latest . 

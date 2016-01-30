@@ -107,7 +107,6 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 
 func AppHandler(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("Received app state change request")
 	vars := mux.Vars(r)
 
 	decoder := json.NewDecoder(r.Body)
@@ -116,6 +115,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error("Invalid request: ", r.Body)
 	}
+	log.Debug("Received app state change request: ", app_params)
 
 	appname := vars["app"]
 

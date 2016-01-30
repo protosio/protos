@@ -9,4 +9,4 @@ if [ ! -d "$GHOST_DATA" ]; then
   mkdir $GHOST_DATA
 fi
 
-docker run -d -p 8085:2368 -v $GHOST_DATA:/ghost-override dockerfile/ghost --name egor_ghost
+docker run -d -p 8085:2368 -v $GHOST_DATA:/ghost-override dockerfile/ghost --name protos_ghost
