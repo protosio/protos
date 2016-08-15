@@ -36,16 +36,6 @@ type App struct {
 	Config     AppConfig
 }
 
-type Config struct {
-	DataPath       string
-	AppsPath       string
-	Port           int
-	DockerEndpoint string
-	DockerClient   *docker.Client
-	StaticAssets   string
-}
-
-var Gconfig Config
 var Apps map[string]*App
 
 func (app *App) LoadCfg() {
@@ -73,36 +63,6 @@ func (app *App) GetImage() *docker.Image {
 		log.Error(err)
 	}
 	return image
-}
-
-func LoadCfg(config_file string) Config {
-	log.Info("Reading main config [", config_file, "]")
-	filename, _ := filepath.Abs(config_file)
-	yamlFile, err := ioutil.ReadFile(filename)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var config Config
-
-	err = yaml.Unmarshal(yamlFile, &config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	Gconfig = config
-
-	log.Info("Connecting to the docker daemon")
-	client, err := docker.NewClient(Gconfig.DockerEndpoint)
-	if err != nil {
-		log.Fatal(err)
-	}
-	Gconfig.DockerClient = client
-
-	LoadApps()
-
-	return config
 }
 
 func (app *App) Start() {

@@ -1,4 +1,4 @@
 port: 8080
-datapath: data
+workdir: /opt/protos/
 dockerendpoint: "unix:///var/run/docker.sock"
 staticassets: public

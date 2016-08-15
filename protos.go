@@ -2,7 +2,7 @@ package main
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/codegangsta/cli"
+	"gopkg.in/urfave/cli.v1"
 	"os"
 	"protos/daemon"
 )
@@ -11,32 +11,36 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "protos"
-	app.Usage = "self hosting applications"
+	app.Usage = "self hosting platform"
 	app.Author = "Alex Giurgiu"
 	app.Email = "alex@giurgiu.io"
 
+	var config string
+	var loglevel string
+
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:  "c, config",
-			Value: "protos.yaml",
-			Usage: "Specify a config file (default: protos.yaml)",
+			Name:        "config",
+			Value:       "protos.yaml",
+			Usage:       "Specify a config file",
+			Destination: &config,
 		},
 		cli.StringFlag{
-			Name:  "l, loglevel",
-			Value: "info",
-			Usage: "Specify log level: debug, info, warn, error (default: info)",
+			Name:        "loglevel",
+			Value:       "info",
+			Usage:       "Specify log level: debug, info, warn, error",
+			Destination: &loglevel,
 		},
 	}
 
 	app.Before = func(c *cli.Context) error {
-		daemon.LoadCfg(c.String("config"))
-		if c.String("loglevel") == "debug" {
+		if loglevel == "debug" {
 			daemon.SetLogLevel(log.DebugLevel)
-		} else if c.String("loglevel") == "info" {
+		} else if config == "info" {
 			daemon.SetLogLevel(log.InfoLevel)
-		} else if c.String("loglevel") == "warn" {
+		} else if config == "warn" {
 			daemon.SetLogLevel(log.WarnLevel)
-		} else if c.String("loglevel") == "error" {
+		} else if config == "error" {
 			daemon.SetLogLevel(log.ErrorLevel)
 		}
 		return nil
@@ -44,48 +48,22 @@ func main() {
 
 	app.Commands = []cli.Command{
 		{
-			Name:  "start",
-			Usage: "starts an application",
-			Action: func(c *cli.Context) {
-				app_name := c.Args().First()
-				app := daemon.GetApp(app_name)
-				app.Start()
-			},
-		},
-		{
-			Name:  "stop",
-			Usage: "stops an application",
-			Action: func(c *cli.Context) {
-				app_name := c.Args().First()
-				app := daemon.GetApp(app_name)
-				app.Stop()
-			},
-		},
-		{
 			Name:  "daemon",
-			Usage: "starts http server",
-			Action: func(c *cli.Context) {
+			Usage: "start the server",
+			Action: func(c *cli.Context) error {
+				daemon.LoadCfg(config)
+				daemon.LoadApps()
 				daemon.Websrv()
+				return nil
 			},
 		},
 		{
-			Name:  "validate",
-			Usage: "validates application config",
-			Action: func(c *cli.Context) {
-				app_name := c.Args().First()
-				app := daemon.GetApp(app_name)
-				app.LoadCfg()
-
-			},
-		},
-		{
-			Name:  "list",
-			Usage: "list applications",
-			Action: func(c *cli.Context) {
-				apps := daemon.GetApps()
-				for _, app := range apps {
-					log.Println(app.Name)
-				}
+			Name:  "init",
+			Usage: "create initial configuration and user",
+			Action: func(c *cli.Context) error {
+				daemon.LoadCfg(config)
+				daemon.Initialize()
+				return nil
 			},
 		},
 	}
