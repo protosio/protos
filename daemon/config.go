@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/boltdb/bolt"
@@ -47,6 +48,18 @@ func readCredentials() (string, string) {
 	return strings.TrimSpace(username), strings.TrimSpace(password)
 }
 
+func openDatabase() error {
+
+	// open the database
+	var err error
+	var dbpath string
+	dbpath = path.Join(Gconfig.WorkDir, "protos.db")
+	log.Info("Opening database [", dbpath, "]")
+	Gconfig.Db, err = bolt.Open(dbpath, 0600, nil)
+	return err
+
+}
+
 // Initialize creates an initial detabase and populates the credentials.
 func Initialize() {
 
@@ -66,15 +79,19 @@ func Initialize() {
 		}
 	}
 
-	// open the database
 	var err error
-	Gconfig.Db, err = bolt.Open(path.Join(Gconfig.WorkDir, "protos.db"), 0600, nil)
+	err = openDatabase()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer shutDown()
 
 	username, password := readCredentials()
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		panic(err)
+	}
 
 	log.Infof("Writing username %s to database", username)
 	err = Gconfig.Db.Update(func(tx *bolt.Tx) error {
@@ -88,7 +105,7 @@ func Initialize() {
 			return err
 		}
 
-		err = bucket.Put([]byte("password"), []byte(password))
+		err = bucket.Put([]byte("password"), hashedPassword)
 		if err != nil {
 			return err
 		}
@@ -101,13 +118,23 @@ func Initialize() {
 
 }
 
-func startup() {
+// StartUp triggers a sequence of steps required to start the application
+func StartUp(configFile string) {
 	log.Info("Starting up...")
 	var err error
-	Gconfig.Db, err = bolt.Open(path.Join(Gconfig.WorkDir, "protos.db"), 0600, nil)
+
+	err = LoadCfg(configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = openDatabase()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	connectDocker()
+
 }
 
 func shutDown() {
@@ -116,25 +143,24 @@ func shutDown() {
 }
 
 // LoadCfg reads the configuration from a file and maps it to the config struct
-func LoadCfg(configFile string) Config {
+func LoadCfg(configFile string) error {
 	log.Info("Reading main config [", configFile, "]")
 	filename, _ := filepath.Abs(configFile)
 	yamlFile, err := ioutil.ReadFile(filename)
-
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	var config Config
 
 	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	Gconfig = config
 
-	return Gconfig
+	return nil
 }
 
 func connectDocker() error {

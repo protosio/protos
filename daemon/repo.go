@@ -3,18 +3,21 @@ package daemon
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/fsouza/go-dockerclient"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/fsouza/go-dockerclient"
 )
 
+//AppSearch not implemented yet
 type AppSearch struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
+// DownloadApp not implemented yet
 func DownloadApp(name string) {
 
 	client := Gconfig.DockerClient
@@ -35,6 +38,7 @@ func DownloadApp(name string) {
 
 }
 
+// SearchApps not implemented yet
 func SearchApps() []AppSearch {
 	response, err := http.Get("http://dexter.giurgiu.io:5000/v1/search")
 	if err != nil {
@@ -47,7 +51,6 @@ func SearchApps() []AppSearch {
 		log.Fatal(err)
 		os.Exit(1)
 	}
-	//log.Println(string(contents))
 
 	var objmap map[string]*json.RawMessage
 	err = json.Unmarshal(contents, &objmap)

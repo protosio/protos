@@ -2,58 +2,40 @@ package daemon
 
 import (
 	"encoding/json"
-	"github.com/abbot/go-http-auth"
-	"github.com/gorilla/mux"
-	"html/template"
+	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
-func Secret(user, realm string) string {
-	if user == "alex" {
-		// password is "hello"
-		return "$1$dlPL2MqE$oQmn16q49SqdmhenQuNgs1"
-	}
-	return ""
-}
-
+// Websrv starts an HTTP server that exposes all the application functionality
 func Websrv() {
 
 	rtr := mux.NewRouter()
-	authenticator := auth.NewBasicAuthenticator("localhost", Secret)
 
-	fileHandler := http.FileServer(http.Dir(Gconfig.StaticAssets))
+	//fileHandler := http.FileServer(http.Dir(Gconfig.StaticAssets))
 
-	rtr.HandleFunc("/apps", auth.JustCheck(authenticator, AppsHandler))
-	rtr.HandleFunc("/apps/{app}", AppHandler)
-	rtr.PathPrefix("/static").Handler(fileHandler)
-	rtr.PathPrefix("/").Handler(fileHandler)
+	rtr.HandleFunc("/apps", appsHandler)
+	rtr.HandleFunc("/apps/{app}", appHandler)
+	rtr.HandleFunc("/", indexHandler)
+	//rtr.PathPrefix("/static").Handler(fileHandler)
+	//rtr.PathPrefix("/").Handler(fileHandler)
 	http.Handle("/", rtr)
 
 	port := strconv.Itoa(Gconfig.Port)
-	log.Println("Listening on port " + port)
+	log.Info("Listening on port " + port)
 	http.ListenAndServe(":"+port, nil)
 
 }
 
-func IndexHandler(w http.ResponseWriter, r *http.Request) {
+func indexHandler(w http.ResponseWriter, r *http.Request) {
 
-	//apps := GetApps()
-	//app_count := len(apps)
-
-	data := struct {
-		Title string
-	}{
-		"Dashboard",
-	}
-
-	//t := template.Must(template.ParseFiles("templates/index.html", "templates/head.html", "templates/navbar.html"))
-	t := template.Must(template.ParseFiles("templates/index_cljs.html"))
-	t.Execute(w, data)
+	fmt.Fprintf(w, "Not implemented.")
 
 }
 
-func AppsHandler(w http.ResponseWriter, r *http.Request) {
+func appsHandler(w http.ResponseWriter, r *http.Request) {
 
 	apps := GetApps()
 
@@ -63,38 +45,36 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 		apps,
 	}
 
-	//t := template.Must(template.ParseFiles("templates/apps.html", "templates/head.html", "templates/navbar.html"))
-	//t.Execute(w, data)
-	log.Println("Sending response: ", apps)
+	log.Debug("Sending response: ", apps)
 	json.NewEncoder(w).Encode(data)
 
 }
 
-func AppHandler(w http.ResponseWriter, r *http.Request) {
+func appHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 
 	decoder := json.NewDecoder(r.Body)
-	var app_params App
-	err := decoder.Decode(&app_params)
+	var appParams App
+	err := decoder.Decode(&appParams)
 	if err != nil {
 		log.Error("Invalid request: ", r.Body)
 	}
-	log.Debug("Received app state change request: ", app_params)
+	log.Debug("Received app state change request: ", appParams)
 
 	appname := vars["app"]
 
 	app := GetApp(appname)
 
 	if r.Method == "POST" {
-		if app_params.Status.Running == true {
+		if appParams.Status.Running == true {
 			app.Start()
-		} else if app_params.Status.Running == false {
+		} else if appParams.Status.Running == false {
 			app.Stop()
 		}
 	}
 
-	log.Println("Sending response: ", app)
+	log.Debug("Sending response: ", app)
 	json.NewEncoder(w).Encode(app)
 
 }
