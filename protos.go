@@ -1,10 +1,11 @@
 package main
 
 import (
-	log "github.com/Sirupsen/logrus"
-	"gopkg.in/urfave/cli.v1"
 	"os"
 	"protos/daemon"
+
+	log "github.com/Sirupsen/logrus"
+	"gopkg.in/urfave/cli.v1"
 )
 
 func main() {
@@ -51,7 +52,7 @@ func main() {
 			Name:  "daemon",
 			Usage: "start the server",
 			Action: func(c *cli.Context) error {
-				daemon.LoadCfg(config)
+				daemon.StartUp(config)
 				daemon.LoadApps()
 				daemon.Websrv()
 				return nil
