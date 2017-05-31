@@ -9,18 +9,94 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type Route struct {
+	Name        string
+	Method      string
+	Pattern     string
+	HandlerFunc http.HandlerFunc
+}
+
+type Routes []Route
+
+var routes = Routes{
+	Route{
+		"getApps",
+		"GET",
+		"/apps",
+		getApps,
+	},
+	Route{
+		"createApp",
+		"POST",
+		"/apps",
+		createApp,
+	},
+	Route{
+		"getApp",
+		"GET",
+		"/apps/{appID}",
+		getApp,
+	},
+	Route{
+		"startApp",
+		"POST",
+		"/apps/{appID}/start",
+		startApp,
+	},
+	Route{
+		"stopApp",
+		"POST",
+		"/apps/{appID}/stop",
+		stopApp,
+	},
+	Route{
+		"removeApp",
+		"DELETE",
+		"/apps/{appID}",
+		removeApp,
+	},
+	Route{
+		"getInstallers",
+		"GET",
+		"/installers",
+		getInstallers,
+	},
+	Route{
+		"getInstaller",
+		"GET",
+		"/installers/{installerID}",
+		getInstaller,
+	},
+}
+
+func newRouter() *mux.Router {
+
+	router := mux.NewRouter().StrictSlash(true)
+	for _, route := range routes {
+		var handler http.Handler
+
+		handler = route.HandlerFunc
+		handler = httpLogger(handler, route.Name)
+
+		router.
+			Methods(route.Method).
+			Path(route.Pattern).
+			Name(route.Name).
+			Handler(handler)
+
+	}
+
+	return router
+}
+
 // Websrv starts an HTTP server that exposes all the application functionality
 func Websrv() {
 
-	rtr := mux.NewRouter()
+	rtr := newRouter()
 
-	//fileHandler := http.FileServer(http.Dir(Gconfig.StaticAssets))
-
-	rtr.HandleFunc("/apps", appsHandler)
-	rtr.HandleFunc("/apps/{app}", appHandler)
-	rtr.HandleFunc("/", indexHandler)
-	//rtr.PathPrefix("/static").Handler(fileHandler)
-	//rtr.PathPrefix("/").Handler(fileHandler)
+	// //fileHandler := http.FileServer(http.Dir(Gconfig.StaticAssets))
+	// //rtr.PathPrefix("/static").Handler(fileHandler)
+	// //rtr.PathPrefix("/").Handler(fileHandler)
 	http.Handle("/", rtr)
 
 	port := strconv.Itoa(Gconfig.Port)
@@ -35,7 +111,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func appsHandler(w http.ResponseWriter, r *http.Request) {
+func getApps(w http.ResponseWriter, r *http.Request) {
 
 	apps := GetApps()
 
@@ -50,9 +126,7 @@ func appsHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func appHandler(w http.ResponseWriter, r *http.Request) {
-
-	vars := mux.Vars(r)
+func createApp(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	var appParams App
@@ -60,21 +134,109 @@ func appHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error("Invalid request: ", r.Body)
 	}
-	log.Debug("Received app state change request: ", appParams)
 
-	appname := vars["app"]
-
-	app := GetApp(appname)
-
-	if r.Method == "POST" {
-		if appParams.Status.Running == true {
-			app.Start()
-		} else if appParams.Status.Running == false {
-			app.Stop()
-		}
+	app, err := CreateApp(appParams.ImageID, appParams.Name)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
 	}
 
 	log.Debug("Sending response: ", app)
 	json.NewEncoder(w).Encode(app)
+
+}
+
+func getApp(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	app, err := ReadApp(appID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	log.Debug("Sending response: ", app)
+	json.NewEncoder(w).Encode(app)
+
+}
+
+func startApp(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	app, err := ReadApp(appID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	err = app.Start()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func stopApp(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	app, err := ReadApp(appID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	err = app.Stop()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func removeApp(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	app, err := ReadApp(appID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	err = app.Remove()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func getInstallers(w http.ResponseWriter, r *http.Request) {
+
+	images := GetInstallers()
+
+	log.Debug("Sending response: ", images)
+	json.NewEncoder(w).Encode(images)
+
+}
+
+func getInstaller(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	installerID := vars["installerID"]
+
+	installer, err := ReadApp(installerID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	log.Debug("Sending response: ", installer)
+	json.NewEncoder(w).Encode(installer)
 
 }

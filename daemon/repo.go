@@ -1,14 +1,10 @@
 package daemon
 
 import (
-	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strings"
-
-	"github.com/fsouza/go-dockerclient"
 )
 
 //AppSearch not implemented yet
@@ -18,25 +14,25 @@ type AppSearch struct {
 }
 
 // DownloadApp not implemented yet
-func DownloadApp(name string) {
+// func DownloadApp(name string) {
 
-	client := Gconfig.DockerClient
-	var buf bytes.Buffer
+// 	client := Gconfig.DockerClient
+// 	var buf bytes.Buffer
 
-	test := strings.Split(name, "/")
-	log.Info("Downloading [", test[1], "]")
+// 	test := strings.Split(name, "/")
+// 	log.Info("Downloading [", test[1], "]")
 
-	opts := docker.PullImageOptions{
-		Repository:   "dexter.giurgiu.io:5000/" + test[1],
-		Registry:     "dexter.giurgiu.io:5000",
-		OutputStream: &buf,
-	}
-	err := client.PullImage(opts, docker.AuthConfiguration{})
-	if err != nil {
-		log.Warn(err)
-	}
+// 	opts := docker.PullImageOptions{
+// 		Repository:   "dexter.giurgiu.io:5000/" + test[1],
+// 		Registry:     "dexter.giurgiu.io:5000",
+// 		OutputStream: &buf,
+// 	}
+// 	err := client.PullImage(opts, docker.AuthConfiguration{})
+// 	if err != nil {
+// 		log.Warn(err)
+// 	}
 
-}
+// }
 
 // SearchApps not implemented yet
 func SearchApps() []AppSearch {

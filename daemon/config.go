@@ -14,7 +14,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/boltdb/bolt"
-	"github.com/fsouza/go-dockerclient"
+	docker "github.com/docker/docker/client"
+
 	"gopkg.in/yaml.v2"
 )
 
@@ -165,9 +166,11 @@ func LoadCfg(configFile string) error {
 
 func connectDocker() error {
 	log.Info("Connecting to the docker daemon")
-	client, err := docker.NewClient(Gconfig.DockerEndpoint)
+
+	// Gconfig.DockerEndpoint
+	client, err := docker.NewEnvClient()
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	Gconfig.DockerClient = client
 	return nil

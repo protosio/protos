@@ -1,14 +1,14 @@
 package daemon
 
 import (
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"path/filepath"
+	"context"
 	"strings"
+	"time"
 
-	"github.com/fsouza/go-dockerclient"
-	"gopkg.in/yaml.v2"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+
+	"github.com/docker/docker/api/types/strslice"
 )
 
 // Defines structure for config parameters
@@ -26,142 +26,100 @@ type AppConfig struct {
 	Data        string
 }
 
-// AppStatus is the application status
-type AppStatus struct {
-	Running bool
-}
-
 // App represents the application state
 type App struct {
-	Name       string
-	ImageID    string
-	Containers []string
-	Status     AppStatus
-	Config     AppConfig
+	Name    string `json:"name"`
+	ID      string `json:"id"`
+	ImageID string `json:"imageid"`
+	Status  string `json:"status"`
+}
+
+// Installer represents a Docker image
+type Installer struct {
+	Name string
+	ID   string
 }
 
 // Apps maintains a map of all the applications
 var Apps map[string]*App
 
-func (app *App) loadCfg() {
-	log.Info("Reading config for [", app.Name, "]")
-	filename, _ := filepath.Abs(fmt.Sprintf("%s/%s/app.yaml", Gconfig.AppsPath, app.Name))
-	yamlFile, err := ioutil.ReadFile(filename)
-
-	if err != nil {
-		log.Warn(err)
-		return
-	}
-
-	err = yaml.Unmarshal(yamlFile, &app.Config)
-	if err != nil {
-		log.Warn(err)
-		return
-	}
-}
-
-func (app *App) getImage() *docker.Image {
-	log.Debug("Reading image ", app.ImageID)
+// CreateApp takes an image and creates an application, without starting it
+func CreateApp(imageID string, name string) (App, error) {
 	client := Gconfig.DockerClient
-	image, err := client.InspectImage(app.ImageID)
+
+	log.Debug("Creating container")
+	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: strslice.StrSlice{"sleep", "600"}}, nil, nil, name)
 	if err != nil {
 		log.Error(err)
+		return App{}, err
 	}
-	return image
+	log.Debug("Created application ", name, "[", cnt.ID, "]")
+
+	container, err := client.ContainerInspect(context.Background(), cnt.ID)
+	if err != nil {
+		log.Error(err)
+		return App{}, err
+	}
+
+	app := App{Name: container.Name, ID: container.ID, ImageID: container.Image, Status: container.State.Status}
+
+	return app, nil
+
 }
 
 // Start starts an application
-func (app *App) Start() {
-	log.Info("Starting application [", app.Name, "]")
+func (app *App) Start() error {
+	log.Info("Starting application ", app.Name, "[", app.ID, "]")
 	client := Gconfig.DockerClient
 
-	app.loadCfg()
-	image := app.getImage()
-	if len(image.Config.Entrypoint) == 0 {
-		log.Error("Image [", image.ID, "|", app.Name, "] has no entrypoint. Aborting")
-		return
-	}
-
-	////Configure
-	//volumes := make(map[string]struct{})
-	//var tmp struct{}
-	//volumes["/data"] = tmp
-
-	// Create container
-	config := docker.Config{Image: app.Name}
-	createOptions := docker.CreateContainerOptions{Name: "protos." + app.Name, Config: &config}
-	container, err := client.CreateContainer(createOptions)
+	err := client.ContainerStart(context.Background(), app.ID, types.ContainerStartOptions{})
 	if err != nil {
-		log.Error("Could not create container: ", err)
-		return
+		log.Error(err)
+		return err
 	}
-	log.Debug("Created container ", app.Name, container)
-
-	//removeOptions := docker.RemoveContainerOptions{ID: container.ID, RemoveVolumes: true}
-	//_ = client.RemoveContainer(removeOptions)
-
-	//// Configure ports
-	//portsWrapper := make(map[docker.Port][]docker.PortBinding)
-	//for key, value := range app.Config.Ports {
-	//	ports := []docker.PortBinding{docker.PortBinding{HostIP: "0.0.0.0", HostPort: value}}
-	//	port_host := docker.Port(key)
-	//	portsWrapper[port_host] = ports
-	//}
-
-	//// Bind volumes
-	////binds := []string{fmt.Sprintf("%s/%s:%s:rw", Gconfig.DataPath, app.Name, app.Config.Data)}
-
-	// Start container
-	hostConfig := docker.HostConfig{} //PortBindings: portsWrapper} //, Binds: binds}
-	err2 := client.StartContainer(container.ID, &hostConfig)
-	if err2 != nil {
-		log.Error("Could not start container: ", err2)
-		return
-	}
-	log.Debug("Started container ", app.Name)
-
-	containerInstance, _ := client.InspectContainer(container.ID)
-	app.Status.Running = containerInstance.State.Running
-
+	return nil
 }
 
 // Stop stops an application
-func (app *App) Stop() {
-	log.Info("Stopping application [", app.Name, "]")
+func (app *App) Stop() error {
+	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
 	client := Gconfig.DockerClient
 
-	containerName := "protos." + app.Name
-	err := Gconfig.DockerClient.StopContainer(containerName, 3)
+	stopTimeout := time.Duration(10) * time.Second
+	err := client.ContainerStop(context.Background(), app.ID, &stopTimeout)
 	if err != nil {
-		log.Error("Could not stop application. ", err)
+		log.Error(err)
+		return err
 	}
-
-	removeOptions := docker.RemoveContainerOptions{ID: "protos." + app.Name}
-	err = client.RemoveContainer(removeOptions)
-	if err != nil {
-		log.Error("Could not delete container. ", err)
-	}
-	app.Status.Running = false
+	return nil
 }
 
-func tagtoname(tag string, filter string) (string, string, error) {
-	log.Debug("Working on [", tag, "]")
-	fullName := strings.Split(tag, ":")
-	name := fullName[0]
-	var version string
-	if len(fullName) > 1 {
-		version = fullName[1]
-	} else {
-		version = ""
+// ReadApp reads a fresh copy of the application
+func ReadApp(appID string) (App, error) {
+	log.Info("Reading application ", appID)
+	client := Gconfig.DockerClient
+
+	container, err := client.ContainerInspect(context.Background(), appID)
+	if err != nil {
+		log.Error(err)
+		return App{}, err
 	}
-	if len(filter) > 0 {
-		if strings.Contains(name, filter) {
-			repo := strings.Split(name, filter)
-			return repo[1], version, nil
-		}
-		return "", "", errors.New("Tag is not related to protos")
+
+	app := App{Name: container.Name, ID: container.ID, ImageID: container.Image, Status: container.State.Status}
+	return app, nil
+}
+
+// Remove removes an application container
+func (app *App) Remove() error {
+	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
+	client := Gconfig.DockerClient
+
+	err := client.ContainerRemove(context.Background(), app.ID, types.ContainerRemoveOptions{})
+	if err != nil {
+		log.Error(err)
+		return err
 	}
-	return name, version, nil
+	return nil
 }
 
 // LoadApps connects to the Docker daemon and refreshes the internal application list
@@ -170,40 +128,16 @@ func LoadApps() {
 	apps := make(map[string]*App)
 	log.Info("Retrieving applications")
 
-	filters := make(map[string][]string)
-	filters["dangling"] = []string{"false"}
-	images, err := client.ListImages(docker.ListImagesOptions{All: false, Filters: filters})
+	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
-	for _, image := range images {
-		for _, tag := range image.RepoTags {
-			appname, _, err := tagtoname(tag, "")
-			if err != nil {
-				continue
-			}
-			log.Debug("Found image [", appname, "]")
-			app := App{Name: appname, ImageID: image.ID}
-			apps[appname] = &app
-		}
-	}
-	listcontaineroptions := docker.ListContainersOptions{All: true}
-	containers, err := client.ListContainers(listcontaineroptions)
-	if err != nil {
-		log.Fatal(err)
-	}
 	for _, container := range containers {
-		appname, _, err := tagtoname(container.Image, "")
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		apps[appname].Containers = append(apps[appname].Containers, container.ID)
-		log.Debug("Found container ", container.ID, " for ", appname)
-		container, _ := client.InspectContainer(container.ID)
-		apps[appname].Status.Running = container.State.Running
+		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State}
+		apps[app.Name] = &app
 	}
+
 	Apps = apps
 }
 
@@ -213,9 +147,27 @@ func GetApps() map[string]*App {
 	return Apps
 }
 
-// GetApp refreshes the application list and retrieves a specific application
-func GetApp(name string) *App {
-	LoadApps()
-	log.Info("Retrieving data for [", name, "]")
-	return Apps[name]
+// GetInstallers gets all the local images and returns them
+func GetInstallers() []Installer {
+	client := Gconfig.DockerClient
+	var installers []Installer
+	log.Info("Retrieving installers")
+	images, err := client.ImageList(context.Background(), types.ImageListOptions{})
+	if err != nil {
+		log.Warn(err)
+		return nil
+	}
+
+	for _, image := range images {
+		var name string
+		if len(image.RepoTags) > 0 {
+			name = image.RepoTags[0]
+		} else {
+			name = "n/a"
+		}
+		installer := Installer{Name: name, ID: image.ID}
+		installers = append(installers, installer)
+	}
+
+	return installers
 }
