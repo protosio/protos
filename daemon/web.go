@@ -94,9 +94,9 @@ func Websrv() {
 
 	rtr := newRouter()
 
-	// //fileHandler := http.FileServer(http.Dir(Gconfig.StaticAssets))
-	// //rtr.PathPrefix("/static").Handler(fileHandler)
-	// //rtr.PathPrefix("/").Handler(fileHandler)
+	fileHandler := http.FileServer(http.Dir(Gconfig.StaticAssets))
+	rtr.PathPrefix("/static").Handler(fileHandler)
+	rtr.PathPrefix("/").Handler(fileHandler)
 	http.Handle("/", rtr)
 
 	port := strconv.Itoa(Gconfig.Port)
@@ -114,15 +114,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 func getApps(w http.ResponseWriter, r *http.Request) {
 
 	apps := GetApps()
-
-	data := struct {
-		Apps map[string]*App
-	}{
-		apps,
-	}
-
 	log.Debug("Sending response: ", apps)
-	json.NewEncoder(w).Encode(data)
+	json.NewEncoder(w).Encode(apps)
 
 }
 

@@ -41,7 +41,7 @@ type Installer struct {
 }
 
 // Apps maintains a map of all the applications
-var Apps map[string]*App
+var Apps []*App
 
 // CreateApp takes an image and creates an application, without starting it
 func CreateApp(imageID string, name string) (App, error) {
@@ -125,7 +125,7 @@ func (app *App) Remove() error {
 // LoadApps connects to the Docker daemon and refreshes the internal application list
 func LoadApps() {
 	client := Gconfig.DockerClient
-	apps := make(map[string]*App)
+	var apps []*App
 	log.Info("Retrieving applications")
 
 	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{All: true})
@@ -135,14 +135,14 @@ func LoadApps() {
 
 	for _, container := range containers {
 		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State}
-		apps[app.Name] = &app
+		apps = append(apps, &app)
 	}
 
 	Apps = apps
 }
 
 // GetApps refreshes the application list and returns it
-func GetApps() map[string]*App {
+func GetApps() []*App {
 	LoadApps()
 	return Apps
 }
