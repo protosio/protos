@@ -148,9 +148,9 @@ func GetApps() []*App {
 }
 
 // GetInstallers gets all the local images and returns them
-func GetInstallers() []Installer {
+func GetInstallers() map[string]Installer {
 	client := Gconfig.DockerClient
-	var installers []Installer
+	installers := make(map[string]Installer)
 	log.Info("Retrieving installers")
 	images, err := client.ImageList(context.Background(), types.ImageListOptions{})
 	if err != nil {
@@ -165,8 +165,7 @@ func GetInstallers() []Installer {
 		} else {
 			name = "n/a"
 		}
-		installer := Installer{Name: name, ID: image.ID}
-		installers = append(installers, installer)
+		installers[image.ID] = Installer{Name: name, ID: image.ID}
 	}
 
 	return installers

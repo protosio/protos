@@ -212,10 +212,10 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 
 func getInstallers(w http.ResponseWriter, r *http.Request) {
 
-	images := GetInstallers()
+	installers := GetInstallers()
 
-	log.Debug("Sending response: ", images)
-	json.NewEncoder(w).Encode(images)
+	log.Debug("Sending response: ", installers)
+	json.NewEncoder(w).Encode(installers)
 
 }
 
