@@ -67,6 +67,12 @@ var routes = Routes{
 		"/installers/{installerID}",
 		getInstaller,
 	},
+	Route{
+		"removeInstaller",
+		"DELETE",
+		"/installers/{installerID}",
+		removeInstaller,
+	},
 }
 
 func newRouter() *mux.Router {
@@ -231,5 +237,23 @@ func getInstaller(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("Sending response: ", installer)
 	json.NewEncoder(w).Encode(installer)
+
+}
+
+func removeInstaller(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	installerID := vars["installerID"]
+
+	installer, err := ReadInstaller(installerID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+	err = installer.Remove()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	w.WriteHeader(http.StatusOK)
 
 }

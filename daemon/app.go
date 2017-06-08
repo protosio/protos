@@ -109,9 +109,9 @@ func ReadApp(appID string) (App, error) {
 	return app, nil
 }
 
-// Remove removes an application container
+// Remove App removes an application container
 func (app *App) Remove() error {
-	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
+	log.Info("Removing application ", app.Name, "[", app.ID, "]")
 	client := Gconfig.DockerClient
 
 	err := client.ContainerRemove(context.Background(), app.ID, types.ContainerRemoveOptions{})
@@ -190,4 +190,17 @@ func ReadInstaller(installerID string) (Installer, error) {
 	}
 	installer := Installer{Name: name, ID: image.ID}
 	return installer, nil
+}
+
+// Remove Installer removes an installer image
+func (installer *Installer) Remove() error {
+	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
+	client := Gconfig.DockerClient
+
+	_, err := client.ImageRemove(context.Background(), installer.ID, types.ImageRemoveOptions{})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
 }
