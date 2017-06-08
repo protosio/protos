@@ -224,7 +224,7 @@ func getInstaller(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	installerID := vars["installerID"]
 
-	installer, err := ReadApp(installerID)
+	installer, err := ReadInstaller(installerID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 	}

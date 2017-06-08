@@ -170,3 +170,24 @@ func GetInstallers() map[string]Installer {
 
 	return installers
 }
+
+// ReadInstaller reads a fresh copy of the installer
+func ReadInstaller(installerID string) (Installer, error) {
+	log.Info("Reading installer ", installerID)
+	client := Gconfig.DockerClient
+
+	image, _, err := client.ImageInspectWithRaw(context.Background(), installerID)
+	if err != nil {
+		log.Error(err)
+		return Installer{}, err
+	}
+
+	var name string
+	if len(image.RepoTags) > 0 {
+		name = image.RepoTags[0]
+	} else {
+		name = "n/a"
+	}
+	installer := Installer{Name: name, ID: image.ID}
+	return installer, nil
+}
