@@ -47,7 +47,7 @@ var Apps []*App
 func CreateApp(imageID string, name string) (App, error) {
 	client := Gconfig.DockerClient
 
-	log.Debug("Creating container")
+	log.Debugf("Creating container: %s %s", imageID, name)
 	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: strslice.StrSlice{"sleep", "600"}}, nil, nil, name)
 	if err != nil {
 		log.Error(err)
@@ -160,7 +160,7 @@ func GetInstallers() map[string]Installer {
 
 	for _, image := range images {
 		var name string
-		if len(image.RepoTags) > 0 {
+		if len(image.RepoTags) > 0 && image.RepoTags[0] != "<none>:<none>" {
 			name = image.RepoTags[0]
 		} else {
 			name = "n/a"

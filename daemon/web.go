@@ -131,12 +131,17 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 	var appParams App
 	err := decoder.Decode(&appParams)
 	if err != nil {
-		log.Error("Invalid request: ", r.Body)
+		log.Error(err)
+		http.Error(w, err.Error(), 500)
+		return
 	}
+	defer r.Body.Close()
 
 	app, err := CreateApp(appParams.ImageID, appParams.Name)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	log.Debug("Sending response: ", app)
