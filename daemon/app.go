@@ -2,13 +2,12 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-
-	"github.com/docker/docker/api/types/strslice"
 )
 
 // Defines structure for config parameters
@@ -26,12 +25,20 @@ type AppConfig struct {
 	Data        string
 }
 
+// AppAction represents an action that can be executed on
+// an application
+type AppAction struct {
+	Name string
+}
+
 // App represents the application state
 type App struct {
-	Name    string `json:"name"`
-	ID      string `json:"id"`
-	ImageID string `json:"imageid"`
-	Status  string `json:"status"`
+	Name    string      `json:"name"`
+	ID      string      `json:"id"`
+	ImageID string      `json:"imageid"`
+	Status  string      `json:"status"`
+	Command string      `json:"command"`
+	Actions []AppAction `json:"actions"`
 }
 
 // Installer represents a Docker image
@@ -41,14 +48,14 @@ type Installer struct {
 }
 
 // Apps maintains a map of all the applications
-var Apps []*App
+var Apps map[string]*App
 
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(imageID string, name string) (App, error) {
+func CreateApp(imageID string, name string, command string) (App, error) {
 	client := Gconfig.DockerClient
 
-	log.Debugf("Creating container: %s %s", imageID, name)
-	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: strslice.StrSlice{"sleep", "600"}}, nil, nil, name)
+	log.Debugf("Creating container: %s %s {%s}", imageID, name, command)
+	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: strings.Split(command, " ")}, nil, nil, name)
 	if err != nil {
 		log.Error(err)
 		return App{}, err
@@ -67,6 +74,21 @@ func CreateApp(imageID string, name string) (App, error) {
 
 }
 
+// AddAction performs an action on an application
+func (app *App) AddAction(action AppAction) error {
+	log.Info("Performing action [", action.Name, "] on application ", app.Name, "[", app.ID, "]")
+
+	switch action.Name {
+	case "start":
+		app.Start()
+	case "stop":
+		app.Stop()
+	default:
+		return errors.New("Action not supported")
+	}
+	return nil
+}
+
 // Start starts an application
 func (app *App) Start() error {
 	log.Info("Starting application ", app.Name, "[", app.ID, "]")
@@ -74,7 +96,6 @@ func (app *App) Start() error {
 
 	err := client.ContainerStart(context.Background(), app.ID, types.ContainerStartOptions{})
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	return nil
@@ -88,7 +109,6 @@ func (app *App) Stop() error {
 	stopTimeout := time.Duration(10) * time.Second
 	err := client.ContainerStop(context.Background(), app.ID, &stopTimeout)
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	return nil
@@ -101,11 +121,10 @@ func ReadApp(appID string) (App, error) {
 
 	container, err := client.ContainerInspect(context.Background(), appID)
 	if err != nil {
-		log.Error(err)
 		return App{}, err
 	}
 
-	app := App{Name: container.Name, ID: container.ID, ImageID: container.Image, Status: container.State.Status}
+	app := App{Name: container.Name, ID: container.ID, ImageID: container.Image, Status: container.State.Status, Command: strings.Join(container.Config.Cmd, " ")}
 	return app, nil
 }
 
@@ -125,7 +144,8 @@ func (app *App) Remove() error {
 // LoadApps connects to the Docker daemon and refreshes the internal application list
 func LoadApps() {
 	client := Gconfig.DockerClient
-	var apps []*App
+	//var apps []*App
+	apps := make(map[string]*App)
 	log.Info("Retrieving applications")
 
 	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{All: true})
@@ -134,15 +154,16 @@ func LoadApps() {
 	}
 
 	for _, container := range containers {
-		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State}
-		apps = append(apps, &app)
+		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State, Command: container.Command}
+		//apps = append(apps, &app)
+		apps[app.ID] = &app
 	}
 
 	Apps = apps
 }
 
 // GetApps refreshes the application list and returns it
-func GetApps() []*App {
+func GetApps() map[string]*App {
 	LoadApps()
 	return Apps
 }

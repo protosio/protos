@@ -38,22 +38,16 @@ var routes = Routes{
 		getApp,
 	},
 	Route{
-		"startApp",
-		"POST",
-		"/apps/{appID}/start",
-		startApp,
-	},
-	Route{
-		"stopApp",
-		"POST",
-		"/apps/{appID}/stop",
-		stopApp,
-	},
-	Route{
 		"removeApp",
 		"DELETE",
 		"/apps/{appID}",
 		removeApp,
+	},
+	Route{
+		"actionApp",
+		"POST",
+		"/apps/{appID}/action",
+		actionApp,
 	},
 	Route{
 		"getInstallers",
@@ -127,17 +121,17 @@ func getApps(w http.ResponseWriter, r *http.Request) {
 
 func createApp(w http.ResponseWriter, r *http.Request) {
 
-	decoder := json.NewDecoder(r.Body)
 	var appParams App
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
 	err := decoder.Decode(&appParams)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	defer r.Body.Close()
 
-	app, err := CreateApp(appParams.ImageID, appParams.Name)
+	app, err := CreateApp(appParams.ImageID, appParams.Name, appParams.Command)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)
@@ -164,38 +158,33 @@ func getApp(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func startApp(w http.ResponseWriter, r *http.Request) {
+func actionApp(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	appID := vars["appID"]
 
 	app, err := ReadApp(appID)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
-	err = app.Start()
+	var action AppAction
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&action)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
-}
-
-func stopApp(w http.ResponseWriter, r *http.Request) {
-
-	vars := mux.Vars(r)
-	appID := vars["appID"]
-
-	app, err := ReadApp(appID)
+	err = app.AddAction(action)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
-	}
-
-	err = app.Stop()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -209,12 +198,16 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 
 	app, err := ReadApp(appID)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	err = app.Remove()
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
