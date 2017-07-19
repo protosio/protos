@@ -270,6 +270,10 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 
 func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
 
+	type Payload struct {
+		Metadata string `json:"metadata"`
+	}
+
 	vars := mux.Vars(r)
 	installerID := vars["installerID"]
 
@@ -278,10 +282,18 @@ func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	var metadata InstallerMetadata
+	var payload Payload
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
-	err = decoder.Decode(&metadata)
+	err = decoder.Decode(&payload)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	var metadata InstallerMetadata
+	err = json.Unmarshal([]byte(payload.Metadata), &metadata)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)

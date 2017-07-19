@@ -14,14 +14,14 @@ type InstallerMetadata struct {
 	Params      []string `json:"params"`
 	Provides    []string `json:"provides"`
 	Requires    []string `json:"requires"`
-	Description []string `json:"description"`
+	Description string   `json:"description"`
 }
 
 // Installer represents an application installer
 type Installer struct {
-	Name     string            `json:"name"`
-	ID       string            `json:"id"`
-	Metadata InstallerMetadata `json:"metadata"`
+	Name     string             `json:"name"`
+	ID       string             `json:"id"`
+	Metadata *InstallerMetadata `json:"metadata"`
 }
 
 // GetInstallers gets all the local images and returns them
