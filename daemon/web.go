@@ -67,6 +67,18 @@ var routes = Routes{
 		"/installers/{installerID}",
 		removeInstaller,
 	},
+	Route{
+		"writeInstallerMetadata",
+		"POST",
+		"/installers/{installerID}/metadata",
+		writeInstallerMetadata,
+	},
+	Route{
+		"registerResourceProvider",
+		"POST",
+		"/resources/providers",
+		registerResourceProvider,
+	},
 }
 
 func newRouter() *mux.Router {
@@ -254,4 +266,36 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
+}
+
+func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	installerID := vars["installerID"]
+
+	installer, err := ReadInstaller(installerID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	var metadata InstallerMetadata
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&metadata)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	if err = installer.writeMetadata(metadata); err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }

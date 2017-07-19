@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -49,23 +48,10 @@ func readCredentials() (string, string) {
 	return strings.TrimSpace(username), strings.TrimSpace(password)
 }
 
-func openDatabase() error {
-
-	// open the database
-	var err error
-	var dbpath string
-	dbpath = path.Join(Gconfig.WorkDir, "protos.db")
-	log.Info("Opening database [", dbpath, "]")
-	Gconfig.Db, err = bolt.Open(dbpath, 0600, nil)
-	return err
-
-}
-
 // Initialize creates an initial detabase and populates the credentials.
 func Initialize() {
 
 	log.Info("Initializing...")
-	var userBucket = []byte("user")
 
 	// create the workdir if it does not exist
 	if _, err := os.Stat(Gconfig.WorkDir); err != nil {
@@ -94,19 +80,34 @@ func Initialize() {
 		panic(err)
 	}
 
+	log.Infof("Setting up database")
+	err = Gconfig.Db.Update(func(tx *bolt.Tx) error {
+
+		buckets := [3]string{"installer", "app", "user"}
+
+		for _, bname := range buckets {
+			_, err := tx.CreateBucketIfNotExists([]byte(bname))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Infof("Writing username %s to database", username)
 	err = Gconfig.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists(userBucket)
+		userBucket := tx.Bucket([]byte("user"))
+
+		err = userBucket.Put([]byte("username"), []byte(username))
 		if err != nil {
 			return err
 		}
 
-		err = bucket.Put([]byte("username"), []byte(username))
-		if err != nil {
-			return err
-		}
-
-		err = bucket.Put([]byte("password"), hashedPassword)
+		err = userBucket.Put([]byte("password"), hashedPassword)
 		if err != nil {
 			return err
 		}

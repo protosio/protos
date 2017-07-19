@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/strslice"
 )
 
 // Defines structure for config parameters
@@ -41,21 +42,19 @@ type App struct {
 	Actions []AppAction `json:"actions"`
 }
 
-// Installer represents a Docker image
-type Installer struct {
-	Name string
-	ID   string
-}
-
 // Apps maintains a map of all the applications
 var Apps map[string]*App
 
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(imageID string, name string, command string) (App, error) {
+func CreateApp(imageID string, name string, commandstr string) (App, error) {
 	client := Gconfig.DockerClient
 
-	log.Debugf("Creating container: %s %s {%s}", imageID, name, command)
-	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: strings.Split(command, " ")}, nil, nil, name)
+	log.Debugf("Creating container: %s %s {%s}", imageID, name, commandstr)
+	command := strslice.StrSlice{}
+	if len(commandstr) > 0 {
+		command = strings.Split(commandstr, " ")
+	}
+	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: command}, nil, nil, name)
 	if err != nil {
 		log.Error(err)
 		return App{}, err
@@ -166,62 +165,4 @@ func LoadApps() {
 func GetApps() map[string]*App {
 	LoadApps()
 	return Apps
-}
-
-// GetInstallers gets all the local images and returns them
-func GetInstallers() map[string]Installer {
-	client := Gconfig.DockerClient
-	installers := make(map[string]Installer)
-	log.Info("Retrieving installers")
-	images, err := client.ImageList(context.Background(), types.ImageListOptions{})
-	if err != nil {
-		log.Warn(err)
-		return nil
-	}
-
-	for _, image := range images {
-		var name string
-		if len(image.RepoTags) > 0 && image.RepoTags[0] != "<none>:<none>" {
-			name = image.RepoTags[0]
-		} else {
-			name = "n/a"
-		}
-		installers[image.ID] = Installer{Name: name, ID: image.ID}
-	}
-
-	return installers
-}
-
-// ReadInstaller reads a fresh copy of the installer
-func ReadInstaller(installerID string) (Installer, error) {
-	log.Info("Reading installer ", installerID)
-	client := Gconfig.DockerClient
-
-	image, _, err := client.ImageInspectWithRaw(context.Background(), installerID)
-	if err != nil {
-		log.Error(err)
-		return Installer{}, err
-	}
-
-	var name string
-	if len(image.RepoTags) > 0 {
-		name = image.RepoTags[0]
-	} else {
-		name = "n/a"
-	}
-	installer := Installer{Name: name, ID: image.ID}
-	return installer, nil
-}
-
-// Remove Installer removes an installer image
-func (installer *Installer) Remove() error {
-	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
-	client := Gconfig.DockerClient
-
-	_, err := client.ImageRemove(context.Background(), installer.ID, types.ImageRemoveOptions{})
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-	return nil
 }
