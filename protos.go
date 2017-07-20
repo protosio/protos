@@ -2,7 +2,9 @@ package main
 
 import (
 	"os"
+	"protos/api"
 	"protos/daemon"
+	"protos/util"
 
 	log "github.com/Sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
@@ -36,13 +38,13 @@ func main() {
 
 	app.Before = func(c *cli.Context) error {
 		if loglevel == "debug" {
-			daemon.SetLogLevel(log.DebugLevel)
+			util.SetLogLevel(log.DebugLevel)
 		} else if config == "info" {
-			daemon.SetLogLevel(log.InfoLevel)
+			util.SetLogLevel(log.InfoLevel)
 		} else if config == "warn" {
-			daemon.SetLogLevel(log.WarnLevel)
+			util.SetLogLevel(log.WarnLevel)
 		} else if config == "error" {
-			daemon.SetLogLevel(log.ErrorLevel)
+			util.SetLogLevel(log.ErrorLevel)
 		}
 		return nil
 	}
@@ -54,7 +56,7 @@ func main() {
 			Action: func(c *cli.Context) error {
 				daemon.StartUp(config)
 				daemon.LoadApps()
-				daemon.Websrv()
+				api.Websrv()
 				return nil
 			},
 		},

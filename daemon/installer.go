@@ -98,7 +98,8 @@ func ReadInstaller(installerID string) (Installer, error) {
 	return installer, nil
 }
 
-func (installer *Installer) writeMetadata(metadata InstallerMetadata) error {
+// WriteMetadata adds metadata for an installer
+func (installer *Installer) WriteMetadata(metadata InstallerMetadata) error {
 
 	log.Infof("Writing metadata for installler %s", installer.ID)
 	err := Gconfig.Db.Update(func(tx *bolt.Tx) error {

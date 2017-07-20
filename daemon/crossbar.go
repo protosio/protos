@@ -1,10 +1,5 @@
 package daemon
 
-// Resource defines a Protos resource
-type Resource struct {
-	Type string
-}
-
 // Provider defines a Protos resource provider
 type Provider struct {
 	resource Resource

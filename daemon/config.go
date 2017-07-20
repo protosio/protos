@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"protos/util"
 	"strings"
 	"syscall"
 
@@ -31,6 +32,7 @@ type Config struct {
 
 // Gconfig maintains a global view of the application configuration parameters.
 var Gconfig Config
+var log = util.Log
 
 func readCredentials() (string, string) {
 	reader := bufio.NewReader(os.Stdin)
