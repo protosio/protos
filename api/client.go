@@ -91,7 +91,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := daemon.CreateApp(appParams.ImageID, appParams.Name, appParams.Command)
+	app, err := daemon.CreateApp(appParams.ImageID, appParams.Name, appParams.Command, appParams.PublicPorts)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)
@@ -110,7 +110,9 @@ func getApp(w http.ResponseWriter, r *http.Request) {
 
 	app, err := daemon.ReadApp(appID)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	log.Debug("Sending response: ", app)

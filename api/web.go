@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"protos/daemon"
 	"protos/util"
@@ -64,11 +63,5 @@ func Websrv() {
 	port := strconv.Itoa(daemon.Gconfig.Port)
 	log.Info("Listening on port " + port)
 	http.ListenAndServe(":"+port, nil)
-
-}
-
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-
-	fmt.Fprintf(w, "Not implemented.")
 
 }

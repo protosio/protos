@@ -9,6 +9,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/strslice"
+	"github.com/docker/go-connections/nat"
 )
 
 // Defines structure for config parameters
@@ -34,19 +35,21 @@ type AppAction struct {
 
 // App represents the application state
 type App struct {
-	Name    string      `json:"name"`
-	ID      string      `json:"id"`
-	ImageID string      `json:"imageid"`
-	Status  string      `json:"status"`
-	Command string      `json:"command"`
-	Actions []AppAction `json:"actions"`
+	Name        string      `json:"name"`
+	ID          string      `json:"id"`
+	ImageID     string      `json:"imageid"`
+	Status      string      `json:"status"`
+	Command     string      `json:"command"`
+	Actions     []AppAction `json:"actions"`
+	IP          string      `json:"ip"`
+	PublicPorts string      `json:"publicports"`
 }
 
 // Apps maintains a map of all the applications
 var Apps map[string]*App
 
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(imageID string, name string, commandstr string) (App, error) {
+func CreateApp(imageID string, name string, commandstr string, ports string) (App, error) {
 	client := Gconfig.DockerClient
 
 	log.Debugf("Creating container: %s %s {%s}", imageID, name, commandstr)
@@ -54,7 +57,14 @@ func CreateApp(imageID string, name string, commandstr string) (App, error) {
 	if len(commandstr) > 0 {
 		command = strings.Split(commandstr, " ")
 	}
-	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: command}, nil, nil, name)
+
+	var publicports []string
+	for _, v := range strings.Split(ports, ",") {
+		publicports = append(publicports, "0.0.0.0:"+v+":"+v+"/tcp")
+	}
+	exposedPorts, portBindings, _ := nat.ParsePortSpecs(publicports)
+
+	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: command, ExposedPorts: exposedPorts}, &container.HostConfig{Links: []string{"protos"}, PortBindings: portBindings}, nil, name)
 	if err != nil {
 		log.Error(err)
 		return App{}, err
@@ -127,6 +137,21 @@ func ReadApp(appID string) (App, error) {
 	return app, nil
 }
 
+// ReadAppByIP searches and returns an application based on it's IP address
+func ReadAppByIP(appIP string) (App, error) {
+	log.Debug("Reading application with IP ", appIP)
+	LoadApps()
+
+	for _, app := range Apps {
+		if app.IP == appIP {
+			log.Info("Found application '", app.Name, "' for IP ", appIP)
+			return *app, nil
+		}
+	}
+	return App{}, errors.New("Could not find any application with IP " + appIP)
+
+}
+
 // Remove App removes an application container
 func (app *App) Remove() error {
 	log.Info("Removing application ", app.Name, "[", app.ID, "]")
@@ -143,18 +168,16 @@ func (app *App) Remove() error {
 // LoadApps connects to the Docker daemon and refreshes the internal application list
 func LoadApps() {
 	client := Gconfig.DockerClient
-	//var apps []*App
 	apps := make(map[string]*App)
 	log.Info("Retrieving applications")
 
 	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	for _, container := range containers {
-		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State, Command: container.Command}
-		//apps = append(apps, &app)
+		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State, Command: container.Command, IP: container.NetworkSettings.Networks["bridge"].IPAddress}
 		apps[app.ID] = &app
 	}
 
