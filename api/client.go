@@ -64,10 +64,10 @@ var clientRoutes = routes{
 		writeInstallerMetadata,
 	},
 	route{
-		"registerResourceProvider",
-		"POST",
-		"/resources/providers",
-		registerResourceProvider,
+		"getResources",
+		"GET",
+		"/resources",
+		getResources,
 	},
 }
 
@@ -255,5 +255,14 @@ func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+
+}
+
+func getResources(w http.ResponseWriter, r *http.Request) {
+
+	resources := daemon.GetResources()
+
+	log.Debug("Sending response: ", resources)
+	json.NewEncoder(w).Encode(resources)
 
 }
