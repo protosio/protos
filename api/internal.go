@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"protos/daemon"
 	"strings"
@@ -102,6 +103,7 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	log.Debug(resources)
 
 	json.NewEncoder(w).Encode(resources)
 }
@@ -115,15 +117,21 @@ func registerResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var resource daemon.Resource
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	err = decoder.Decode(&resource)
+	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	defer r.Body.Close()
+
+	resource, err := daemon.GetResourceFromJSON(bodyJSON)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
 	err = daemon.AddResource(resource, &app)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
