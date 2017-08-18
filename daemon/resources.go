@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/cnf/structhash"
 	"github.com/tidwall/gjson"
@@ -136,10 +137,8 @@ func CreateResource(appJSON []byte, appIP string) (Resource, error) {
 	if IsValidResourceType(resource.Type) == false {
 		return Resource{}, errors.New("Resource type '" + resource.Type + "' is invalid.")
 	}
-	rhash, err := structhash.Hash(resource, 1)
-	if err != nil {
-		return Resource{}, err
-	}
+
+	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
 	if rsc, ok := resources[rhash]; ok {
 		return Resource{}, errors.New("Resource " + rhash + " already registered for application " + rsc.App.Name)
 	}
