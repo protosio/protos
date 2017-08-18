@@ -10,24 +10,17 @@ import (
 
 type DNSResource struct {
 	Host  string `json:"host"`
-	Value string `json:"value"`
+	Value string `json:"value" hash:"-"`
 	Type  string `json:"type"`
 	TTL   int    `json:"ttl" hash:"-"`
 }
 
-// Resource defines a Protos resource
-// type Resource struct {
-// 	Type   string            `json:"type"`
-// 	Fields map[string]string `json:"value"`
-// 	Status string            `json:"status"`
-// 	App    *App              `json:"app"`
-// }
-
 type Resource struct {
+	ID     string      `json:"id" hash:"-"`
 	Type   string      `json:"type"`
 	Fields interface{} `json:"value"`
 	Status string      `json:"status"`
-	App    *App        `json:"app"`
+	App    *App        `json:"app" hash:"-"`
 }
 
 var resources = make(map[string]Resource)
@@ -40,16 +33,9 @@ type Provider struct {
 
 var providers = make(map[string]Provider)
 
-//IsValidResourceType check if a resource type is valid
-func IsValidResourceType(rtype string) bool {
-	switch rtype {
-	case
-		"dns",
-		"mail":
-		return true
-	}
-	return false
-}
+//
+// Providers
+//
 
 // RegisterProvider registers a resource provider
 func RegisterProvider(provider Provider, app *App) error {
@@ -99,37 +85,91 @@ func GetProviderResources(app *App) (map[string]Resource, error) {
 			return res, nil
 		}
 	}
-	err := errors.New("Application '" + app.Name + "' is NOT registered as a resource resource provider.")
+	err := errors.New("Application '" + app.Name + "' is NOT registered as a resource provider.")
 	log.Error(err)
 	return map[string]Resource{}, err
 }
 
-//AddResource adds a resource to the internal resources map.
-func AddResource(resource Resource, app *App) error {
-	if IsValidResourceType(resource.Type) == false {
-		log.Error("Resource type '", resource.Type, "' is invalid.")
-		return errors.New("Resource type '" + resource.Type + "' is invalid.")
-	}
-	rhash, err := structhash.Hash(resource, 1)
-	if err != nil {
-		log.Error(err)
-		return err
-	}
+//
+// Resource
+//
 
-	resource.App = app
-	resource.Status = "registered"
-	log.Debug("Adding resource ", rhash, ": ", resource)
-	resources[rhash] = resource
-	return nil
+//IsValidResourceType check if a resource type is valid
+func IsValidResourceType(rtype string) bool {
+	switch rtype {
+	case
+		"dns",
+		"mail":
+		return true
+	}
+	return false
 }
 
 //GetResources retrieves all the saved resources
-func GetResources() []Resource {
-	rsc := []Resource{}
-	for _, resource := range resources {
-		rsc = append(rsc, resource)
+func GetResources() map[string]Resource {
+	return resources
+}
+
+// GetAppResources retrieves all the resources that belong to an application
+func GetAppResources(app *App) map[string]Resource {
+	rsc := make(map[string]Resource)
+	for id, resource := range resources {
+		if resource.App.ID == app.ID {
+			rsc[id] = resource
+		}
 	}
 	return rsc
+}
+
+//CreateResource adds a resource to the internal resources map.
+func CreateResource(appJSON []byte, appIP string) (Resource, error) {
+	app, err := ReadAppByIP(appIP)
+	if err != nil {
+		return Resource{}, err
+	}
+
+	resource, err := GetResourceFromJSON(appJSON)
+	if err != nil {
+		return Resource{}, err
+	}
+
+	if IsValidResourceType(resource.Type) == false {
+		return Resource{}, errors.New("Resource type '" + resource.Type + "' is invalid.")
+	}
+	rhash, err := structhash.Hash(resource, 1)
+	if err != nil {
+		return Resource{}, err
+	}
+	if rsc, ok := resources[rhash]; ok {
+		return Resource{}, errors.New("Resource " + rhash + " already registered for application " + rsc.App.Name)
+	}
+	log.Debug("Adding resource ", rhash, ": ", resource)
+
+	resource.App = &app
+	resource.Status = "registered"
+	resource.ID = rhash
+	resources[rhash] = resource
+	return resource, nil
+}
+
+//DeleteResource deletes a resource
+func DeleteResource(resourceID string, appIP string) error {
+	resource, ok := resources[resourceID]
+	if ok != true {
+		return errors.New("Resource " + resourceID + " does not exist.")
+	}
+
+	app, err := ReadAppByIP(appIP)
+	if err != nil {
+		return err
+	}
+
+	if resource.App.ID != app.ID {
+		return errors.New("Resource " + resourceID + " not owned by application " + app.ID)
+	}
+	log.Info("Deleting resource " + resourceID + " belonging to application " + resource.App.ID)
+	delete(resources, resourceID)
+	return nil
 }
 
 //GetResourceFromJSON recevies json and casts it to the correct data structure

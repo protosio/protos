@@ -6,14 +6,28 @@ import (
 	"net/http"
 	"protos/daemon"
 	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 var internalRoutes = routes{
 	route{
-		"registerResource",
+		"getOwnResources",
+		"GET",
+		"/internal/resource",
+		getOwnResources,
+	},
+	route{
+		"createResource",
 		"POST",
 		"/internal/resource",
-		registerResource,
+		createResource,
+	},
+	route{
+		"deleteResource",
+		"DELETE",
+		"/internal/resource/{resourceID}",
+		deleteResource,
 	},
 	route{
 		"registerResourceProvider",
@@ -22,10 +36,10 @@ var internalRoutes = routes{
 		registerResourceProvider,
 	},
 	route{
-		"unregisterResourceProvider",
+		"deregisterResourceProvider",
 		"DELETE",
 		"/internal/provider",
-		unregisterResourceProvider,
+		deregisterResourceProvider,
 	},
 	route{
 		"getProviderResources",
@@ -34,6 +48,10 @@ var internalRoutes = routes{
 		getProviderResources,
 	},
 }
+
+//
+// Methods used by resource providers
+//
 
 func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 
@@ -62,7 +80,7 @@ func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func unregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
+func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 
 	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
 	if err != nil {
@@ -108,7 +126,11 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resources)
 }
 
-func registerResource(w http.ResponseWriter, r *http.Request) {
+//
+// Methods used by normal applications to manipulate their own resources
+//
+
+func getOwnResources(w http.ResponseWriter, r *http.Request) {
 
 	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
 	if err != nil {
@@ -116,6 +138,17 @@ func registerResource(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+
+	resources := daemon.GetAppResources(&app)
+	log.Debug(resources)
+
+	json.NewEncoder(w).Encode(resources)
+
+}
+
+func createResource(w http.ResponseWriter, r *http.Request) {
+
+	appIP := strings.Split(r.RemoteAddr, ":")[0]
 
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -125,15 +158,28 @@ func registerResource(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	resource, err := daemon.GetResourceFromJSON(bodyJSON)
+	resource, err := daemon.CreateResource(bodyJSON, appIP)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	log.Debug(resource)
 
-	err = daemon.AddResource(resource, &app)
+	json.NewEncoder(w).Encode(resource)
+
+}
+
+func deleteResource(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	resourceID := vars["resourceID"]
+
+	appIP := strings.Split(r.RemoteAddr, ":")[0]
+
+	err := daemon.DeleteResource(resourceID, appIP)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
