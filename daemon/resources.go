@@ -109,16 +109,21 @@ func IsValidResourceType(rtype string) bool {
 //GetResources retrieves all the saved resources
 // some fields are modified before being returned
 func GetResources() map[string]interface{} {
-	type Alias Resource
-	type MResource struct {
-		App string `json:"app"`
-		*Alias
-	}
 	modifiedResources := make(map[string]interface{})
 	for id, rsc := range resources {
-		mrsc := MResource{
-			App:   rsc.App.ID,
-			Alias: (*Alias)(&rsc),
+		log.Debug(&rsc)
+		mrsc := struct {
+			App    string      `json:"app"`
+			ID     string      `json:"id" hash:"-"`
+			Type   string      `json:"type"`
+			Fields interface{} `json:"value"`
+			Status string      `json:"status"`
+		}{
+			App:    rsc.App.ID,
+			ID:     rsc.ID,
+			Type:   rsc.Type,
+			Fields: rsc.Fields,
+			Status: rsc.Status,
 		}
 		modifiedResources[id] = mrsc
 	}
