@@ -176,6 +176,7 @@ func LoadApps() {
 		log.Fatal(err)
 	}
 
+	//FixMe: names for the protos container has werid names
 	for _, container := range containers {
 		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State, Command: container.Command, IP: container.NetworkSettings.Networks["bridge"].IPAddress}
 		apps[app.ID] = &app

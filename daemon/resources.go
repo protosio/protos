@@ -107,8 +107,22 @@ func IsValidResourceType(rtype string) bool {
 }
 
 //GetResources retrieves all the saved resources
-func GetResources() map[string]Resource {
-	return resources
+// some fields are modified before being returned
+func GetResources() map[string]interface{} {
+	type Alias Resource
+	type MResource struct {
+		App string `json:"app"`
+		*Alias
+	}
+	modifiedResources := make(map[string]interface{})
+	for id, rsc := range resources {
+		mrsc := MResource{
+			App:   rsc.App.ID,
+			Alias: (*Alias)(&rsc),
+		}
+		modifiedResources[id] = mrsc
+	}
+	return modifiedResources
 }
 
 // GetAppResources retrieves all the resources that belong to an application
