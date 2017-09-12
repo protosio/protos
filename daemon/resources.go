@@ -9,6 +9,14 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+type rstatus string
+
+const (
+	Requested = rstatus("requested")
+	Created   = rstatus("created")
+	Unknown   = rstatus("unknown")
+)
+
 type DNSResource struct {
 	Host  string `json:"host"`
 	Value string `json:"value" hash:"-"`
@@ -24,7 +32,7 @@ type Resource struct {
 	App    *App        `json:"app" hash:"-"`
 }
 
-var resources = make(map[string]Resource)
+var resources = make(map[string]*Resource)
 
 // Provider defines a Protos resource provider
 type Provider struct {
@@ -32,7 +40,16 @@ type Provider struct {
 	App  *App
 }
 
-var providers = make(map[string]Provider)
+var providers = make(map[string]*Provider)
+
+func statusIsValid(status rstatus) bool {
+	if status == Requested ||
+		status == Created ||
+		status == Unknown {
+		return true
+	}
+	return false
+}
 
 //
 // Providers
@@ -52,7 +69,7 @@ func RegisterProvider(provider Provider, app *App) error {
 
 	log.Info("Registering application '" + app.Name + "' as a '" + provider.Type + "' provider.")
 	provider.App = app
-	providers[provider.Type] = provider
+	providers[provider.Type] = &provider
 	return nil
 }
 
@@ -74,10 +91,10 @@ func UnregisterProvider(provider Provider, app *App) error {
 }
 
 //GetProviderResources retrieves all resources of a specific resource provider.
-func GetProviderResources(app *App) (map[string]Resource, error) {
+func GetProviderResources(app *App) (map[string]*Resource, error) {
 	for _, provider := range providers {
 		if provider.App.ID == app.ID {
-			res := map[string]Resource{}
+			res := map[string]*Resource{}
 			for id, resource := range resources {
 				if provider.Type == resource.Type {
 					res[id] = resource
@@ -88,7 +105,22 @@ func GetProviderResources(app *App) (map[string]Resource, error) {
 	}
 	err := errors.New("Application '" + app.Name + "' is NOT registered as a resource provider.")
 	log.Error(err)
-	return map[string]Resource{}, err
+	return map[string]*Resource{}, err
+}
+
+func isResourceProvider(providerIP string, rtype string) error {
+
+	app, err := ReadAppByIP(providerIP)
+	if err != nil {
+		return err
+	}
+
+	for _, provider := range providers {
+		if provider.App.ID == app.ID && provider.Type == rtype {
+			return nil
+		}
+	}
+	return errors.New("App " + app.ID + " is not a " + rtype + " provider.")
 }
 
 //
@@ -111,7 +143,6 @@ func IsValidResourceType(rtype string) bool {
 func GetResources() map[string]interface{} {
 	modifiedResources := make(map[string]interface{})
 	for id, rsc := range resources {
-		log.Debug(&rsc)
 		mrsc := struct {
 			App    string      `json:"app"`
 			ID     string      `json:"id" hash:"-"`
@@ -131,8 +162,8 @@ func GetResources() map[string]interface{} {
 }
 
 // GetAppResources retrieves all the resources that belong to an application
-func GetAppResources(app *App) map[string]Resource {
-	rsc := make(map[string]Resource)
+func GetAppResources(app *App) map[string]*Resource {
+	rsc := make(map[string]*Resource)
 	for id, resource := range resources {
 		if resource.App.ID == app.ID {
 			rsc[id] = resource
@@ -164,9 +195,9 @@ func CreateResource(appJSON []byte, appIP string) (Resource, error) {
 	log.Debug("Adding resource ", rhash, ": ", resource)
 
 	resource.App = &app
-	resource.Status = "registered"
+	resource.Status = string(Requested)
 	resource.ID = rhash
-	resources[rhash] = resource
+	resources[rhash] = &resource
 	return resource, nil
 }
 
@@ -220,4 +251,27 @@ func GetResourceFromJSON(resourceJSON []byte) (Resource, error) {
 	}
 
 	return resource, nil
+}
+
+// SetResourceStatus allows a provider to modify the status of a resource
+func SetResourceStatus(resourceID string, providerIP string, status string) error {
+	resource, ok := resources[resourceID]
+	if ok != true {
+		return errors.New("Resource [" + resourceID + "] does not exist.")
+	}
+
+	if statusIsValid(rstatus(status)) != true {
+		return errors.New("Status [" + status + "] is invalid.")
+	}
+
+	err := isResourceProvider(providerIP, resource.Type)
+	if err != nil {
+		return err
+	}
+
+	log.Debug("Setting status ", status, " for resource ", resourceID)
+	resource.Status = status
+
+	return nil
+
 }

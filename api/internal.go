@@ -44,8 +44,14 @@ var internalRoutes = routes{
 	route{
 		"getProviderResources",
 		"GET",
-		"/internal/provider/resources",
+		"/internal/resource/provider",
 		getProviderResources,
+	},
+	route{
+		"setResourceStatus",
+		"POST",
+		"/internal/resource/{resourceID}",
+		setResourceStatus,
 	},
 }
 
@@ -140,7 +146,6 @@ func getOwnResources(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resources := daemon.GetAppResources(&app)
-	log.Debug(resources)
 
 	json.NewEncoder(w).Encode(resources)
 
@@ -164,7 +169,6 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	log.Debug(resource)
 
 	json.NewEncoder(w).Encode(resource)
 
@@ -178,6 +182,37 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 	appIP := strings.Split(r.RemoteAddr, ":")[0]
 
 	err := daemon.DeleteResource(resourceID, appIP)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func setResourceStatus(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	resourceID := vars["resourceID"]
+
+	appIP := strings.Split(r.RemoteAddr, ":")[0]
+
+	var status struct {
+		Status string `json:"status"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err := decoder.Decode(&status)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	err = daemon.SetResourceStatus(resourceID, appIP, status.Status)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)

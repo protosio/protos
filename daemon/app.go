@@ -144,7 +144,7 @@ func ReadAppByIP(appIP string) (App, error) {
 
 	for _, app := range Apps {
 		if app.IP == appIP {
-			log.Info("Found application '", app.Name, "' for IP ", appIP)
+			log.Debug("Found application '", app.Name, "' for IP ", appIP)
 			return *app, nil
 		}
 	}
