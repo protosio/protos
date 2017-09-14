@@ -138,17 +138,17 @@ func ReadApp(appID string) (App, error) {
 }
 
 // ReadAppByIP searches and returns an application based on it's IP address
-func ReadAppByIP(appIP string) (App, error) {
+func ReadAppByIP(appIP string) (*App, error) {
 	log.Debug("Reading application with IP ", appIP)
 	LoadApps()
 
 	for _, app := range Apps {
 		if app.IP == appIP {
 			log.Debug("Found application '", app.Name, "' for IP ", appIP)
-			return *app, nil
+			return app, nil
 		}
 	}
-	return App{}, errors.New("Could not find any application with IP " + appIP)
+	return &App{}, errors.New("Could not find any application with IP " + appIP)
 
 }
 

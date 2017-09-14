@@ -56,38 +56,36 @@ func statusIsValid(status rstatus) bool {
 //
 
 // RegisterProvider registers a resource provider
-func RegisterProvider(provider Provider, app *App) error {
-	if IsValidResourceType(provider.Type) == false {
-		log.Error("Resource type '", provider.Type, "' is invalid.")
-		return errors.New("Resource type '" + provider.Type + "' is invalid.")
+func RegisterProvider(app *App, rtype string) error {
+	if IsValidResourceType(rtype) == false {
+		return errors.New("Resource type '" + rtype + "' is invalid.")
 	}
-	if val, ok := providers[provider.Type]; ok {
-		err := errors.New("Application '" + val.App.Name + "' already registered for resource type '" + provider.Type + "'.")
-		log.Error(err)
+	if val, ok := providers[rtype]; ok {
+		err := errors.New("Application '" + val.App.Name + "' already registered for resource type '" + rtype + "'.")
 		return err
 	}
 
-	log.Info("Registering application '" + app.Name + "' as a '" + provider.Type + "' provider.")
-	provider.App = app
-	providers[provider.Type] = &provider
+	log.Info("Registering application '" + app.Name + "' as a '" + rtype + "' provider.")
+	providers[rtype] = &Provider{
+		Type: rtype,
+		App:  app,
+	}
 	return nil
 }
 
-// UnregisterProvider unregisters a resource provider
-func UnregisterProvider(provider Provider, app *App) error {
-	if IsValidResourceType(provider.Type) == false {
-		log.Error("Resource type '", provider.Type, "' is invalid.")
-		return errors.New("Resource type '" + provider.Type + "' is invalid.")
-	}
-	if _, ok := providers[provider.Type]; ok {
-		log.Info("Unregistering application '" + app.Name + "' as a '" + provider.Type + "' provider.")
-		delete(providers, provider.Type)
-		return nil
+// DeregisterProvider deregisters a resource provider
+func DeregisterProvider(app *App, rtype string) error {
+	if IsValidResourceType(rtype) == false {
+		return errors.New("Resource type '" + rtype + "' is invalid.")
 	}
 
-	err := errors.New("Application '" + app.Name + "' is NOT registered for resource type '" + provider.Type + "'.")
-	log.Error(err)
-	return err
+	if isResourceProvider(app, rtype) != true {
+		return errors.New("Application '" + app.Name + "' is NOT registered for resource type '" + rtype + "'.")
+	}
+
+	log.Info("Deregistering application '" + app.Name + "' as a '" + rtype + "' provider.")
+	delete(providers, rtype)
+	return nil
 }
 
 //GetProviderResources retrieves all resources of a specific resource provider.
@@ -108,19 +106,14 @@ func GetProviderResources(app *App) (map[string]*Resource, error) {
 	return map[string]*Resource{}, err
 }
 
-func isResourceProvider(providerIP string, rtype string) error {
-
-	app, err := ReadAppByIP(providerIP)
-	if err != nil {
-		return err
-	}
+func isResourceProvider(app *App, rtype string) bool {
 
 	for _, provider := range providers {
-		if provider.App.ID == app.ID && provider.Type == rtype {
-			return nil
+		if provider.App.ID == app.ID && rtype == provider.Type {
+			return true
 		}
 	}
-	return errors.New("App " + app.ID + " is not a " + rtype + " provider.")
+	return false
 }
 
 //
@@ -194,7 +187,7 @@ func CreateResource(appJSON []byte, appIP string) (Resource, error) {
 	}
 	log.Debug("Adding resource ", rhash, ": ", resource)
 
-	resource.App = &app
+	resource.App = app
 	resource.Status = string(Requested)
 	resource.ID = rhash
 	resources[rhash] = &resource
@@ -264,9 +257,13 @@ func SetResourceStatus(resourceID string, providerIP string, status string) erro
 		return errors.New("Status [" + status + "] is invalid.")
 	}
 
-	err := isResourceProvider(providerIP, resource.Type)
+	app, err := ReadAppByIP(providerIP)
 	if err != nil {
 		return err
+	}
+
+	if isResourceProvider(app, resource.Type) != true {
+		return errors.New("Application '" + app.Name + "' is NOT registered for resource type '" + resource.Type + "'.")
 	}
 
 	log.Debug("Setting status ", status, " for resource ", resourceID)

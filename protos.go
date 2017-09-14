@@ -14,9 +14,9 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "protos"
-	app.Usage = "self hosting platform"
 	app.Author = "Alex Giurgiu"
 	app.Email = "alex@giurgiu.io"
+	app.Version = "0.0.1"
 
 	var config string
 	var loglevel string

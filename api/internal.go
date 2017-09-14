@@ -77,8 +77,9 @@ func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	err = daemon.RegisterProvider(provider, &app)
+	err = daemon.RegisterProvider(app, provider.Type)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -104,8 +105,10 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	err = daemon.UnregisterProvider(provider, &app)
+
+	err = daemon.DeregisterProvider(app, provider.Type)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -122,12 +125,11 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resources, err := daemon.GetProviderResources(&app)
+	resources, err := daemon.GetProviderResources(app)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	log.Debug(resources)
 
 	json.NewEncoder(w).Encode(resources)
 }
@@ -145,7 +147,7 @@ func getOwnResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resources := daemon.GetAppResources(&app)
+	resources := daemon.GetAppResources(app)
 
 	json.NewEncoder(w).Encode(resources)
 
