@@ -82,8 +82,9 @@ func getApps(w http.ResponseWriter, r *http.Request) {
 func createApp(w http.ResponseWriter, r *http.Request) {
 
 	var appParams daemon.App
-	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
+
+	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&appParams)
 	if err != nil {
 		log.Error(err)
@@ -91,7 +92,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := daemon.CreateApp(appParams.ImageID, appParams.Name, appParams.Command, appParams.PublicPorts)
+	app, err := daemon.CreateApp(appParams.ImageID, appParams.Name, appParams.Command, appParams.PublicPorts, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)

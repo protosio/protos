@@ -102,7 +102,6 @@ func GetProviderResources(app *App) (map[string]*Resource, error) {
 		}
 	}
 	err := errors.New("Application '" + app.Name + "' is NOT registered as a resource provider.")
-	log.Error(err)
 	return map[string]*Resource{}, err
 }
 

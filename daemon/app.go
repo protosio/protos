@@ -35,21 +35,30 @@ type AppAction struct {
 
 // App represents the application state
 type App struct {
-	Name        string      `json:"name"`
-	ID          string      `json:"id"`
-	ImageID     string      `json:"imageid"`
-	Status      string      `json:"status"`
-	Command     string      `json:"command"`
-	Actions     []AppAction `json:"actions"`
-	IP          string      `json:"ip"`
-	PublicPorts string      `json:"publicports"`
+	Name            string            `json:"name"`
+	ID              string            `json:"id"`
+	ImageID         string            `json:"imageid"`
+	Status          string            `json:"status"`
+	Command         string            `json:"command"`
+	Actions         []AppAction       `json:"actions"`
+	IP              string            `json:"ip"`
+	PublicPorts     string            `json:"publicports"`
+	InstallerParams map[string]string `json:"installer-params"`
 }
 
 // Apps maintains a map of all the applications
 var Apps map[string]*App
 
+func combineEnv(params map[string]string) []string {
+	var env []string
+	for id, val := range params {
+		env = append(env, id+"="+val)
+	}
+	return env
+}
+
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(imageID string, name string, commandstr string, ports string) (App, error) {
+func CreateApp(imageID string, name string, commandstr string, ports string, installerParams map[string]string) (App, error) {
 	client := Gconfig.DockerClient
 
 	log.Debugf("Creating container: %s %s {%s}", imageID, name, commandstr)
@@ -64,9 +73,19 @@ func CreateApp(imageID string, name string, commandstr string, ports string) (Ap
 	}
 	exposedPorts, portBindings, _ := nat.ParsePortSpecs(publicports)
 
-	cnt, err := client.ContainerCreate(context.Background(), &container.Config{Image: imageID, Cmd: command, ExposedPorts: exposedPorts}, &container.HostConfig{Links: []string{"protos"}, PortBindings: portBindings}, nil, name)
+	containerConfig := &container.Config{
+		Image:        imageID,
+		Cmd:          command,
+		ExposedPorts: exposedPorts,
+		Env:          combineEnv(installerParams),
+	}
+	hostConfig := &container.HostConfig{
+		Links:        []string{"protos"},
+		PortBindings: portBindings,
+	}
+
+	cnt, err := client.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, name)
 	if err != nil {
-		log.Error(err)
 		return App{}, err
 	}
 	log.Debug("Created application ", name, "[", cnt.ID, "]")

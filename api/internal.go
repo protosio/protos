@@ -127,6 +127,7 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
 	resources, err := daemon.GetProviderResources(app)
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
