@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"regexp"
+	"strings"
 
 	"github.com/boltdb/bolt"
 	"github.com/docker/docker/api/types"
@@ -22,6 +24,31 @@ type Installer struct {
 	Name     string             `json:"name"`
 	ID       string             `json:"id"`
 	Metadata *InstallerMetadata `json:"metadata"`
+}
+
+func getMetadata(labels map[string]string) (InstallerMetadata, error) {
+	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
+	metadata := InstallerMetadata{}
+	for label, value := range labels {
+		labelParts := r.FindStringSubmatch(label)
+		if len(labelParts) == 3 {
+			switch labelParts[2] {
+			case "params":
+				metadata.Params = strings.Split(value, ",")
+			case "provides":
+				metadata.Provides = strings.Split(value, ",")
+			case "requires":
+				metadata.Requires = strings.Split(value, ",")
+			case "description":
+				metadata.Description = value
+			}
+		}
+
+	}
+	if metadata.Description == "" {
+		return metadata, errors.New("Installer metadata field 'description' is mandatory.")
+	}
+	return metadata, nil
 }
 
 // GetInstallers gets all the local images and returns them
@@ -55,9 +82,7 @@ func GetInstallers() map[string]Installer {
 // ReadInstaller reads a fresh copy of the installer
 func ReadInstaller(installerID string) (Installer, error) {
 	log.Info("Reading installer ", installerID)
-	var installerBucket = []byte("installer")
 	client := Gconfig.DockerClient
-	db := Gconfig.Db
 
 	image, _, err := client.ImageInspectWithRaw(context.Background(), installerID)
 	if err != nil {
@@ -73,26 +98,12 @@ func ReadInstaller(installerID string) (Installer, error) {
 
 	installer := Installer{Name: name, ID: image.ID}
 
-	err = db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(installerBucket)
-		if bucket == nil {
-			return fmt.Errorf("Bucket %q not found!", installerBucket)
-		}
-
-		metadata := bucket.Get([]byte(installerID))
-		if len(metadata) == 0 {
-			log.Warnf("Image %s does not have any metadata stored", installerID)
-			return nil
-		}
-
-		if err := json.Unmarshal(metadata, &installer.Metadata); err != nil {
-			return err
-		}
-
-		return nil
-	})
+	metadata, err := getMetadata(image.Config.Labels)
 	if err != nil {
-		return Installer{}, err
+		log.Warnf("Protos labeled image %s does not have any metadata", installerID)
+		installer.Metadata = nil
+	} else {
+		installer.Metadata = &metadata
 	}
 
 	return installer, nil
@@ -125,9 +136,8 @@ func (installer *Installer) Remove() error {
 	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
 	client := Gconfig.DockerClient
 
-	_, err := client.ImageRemove(context.Background(), installer.ID, types.ImageRemoveOptions{})
+	_, err := client.ImageRemove(context.Background(), installer.ID, types.ImageRemoveOptions{PruneChildren: true})
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	return nil

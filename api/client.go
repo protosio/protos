@@ -212,6 +212,7 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 	}
 	err = installer.Remove()
 	if err != nil {
+		log.Error(err)
 		http.Error(w, err.Error(), 500)
 	}
 
