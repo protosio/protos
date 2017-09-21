@@ -92,7 +92,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := daemon.CreateApp(appParams.InstallerID, appParams.Name, appParams.Command, appParams.PublicPorts, appParams.InstallerParams)
+	app, err := daemon.CreateApp(appParams.InstallerID, appParams.Name, appParams.PublicPorts, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), 500)
