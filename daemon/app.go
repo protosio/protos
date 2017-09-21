@@ -37,7 +37,7 @@ type AppAction struct {
 type App struct {
 	Name            string            `json:"name"`
 	ID              string            `json:"id"`
-	ImageID         string            `json:"imageid"`
+	InstallerID     string            `json:"installer-id"`
 	Status          string            `json:"status"`
 	Command         string            `json:"command"`
 	Actions         []AppAction       `json:"actions"`
@@ -57,11 +57,32 @@ func combineEnv(params map[string]string) []string {
 	return env
 }
 
+func validateInstallerParams(paramsProvided map[string]string, paramsExpected []string) error {
+	for _, param := range paramsExpected {
+		if val, ok := paramsProvided[param]; ok && val != "" {
+			continue
+		} else {
+			return errors.New("Installer parameter " + param + " should not be empty")
+		}
+	}
+	return nil
+}
+
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(imageID string, name string, commandstr string, ports string, installerParams map[string]string) (App, error) {
+func CreateApp(installerID string, name string, commandstr string, ports string, installerParams map[string]string) (App, error) {
 	client := Gconfig.DockerClient
 
-	log.Debugf("Creating container: %s %s {%s}", imageID, name, commandstr)
+	installer, err := ReadInstaller(installerID)
+	if err != nil {
+		return App{}, err
+	}
+
+	err = validateInstallerParams(installerParams, installer.Metadata.Params)
+	if err != nil {
+		return App{}, err
+	}
+
+	log.Debugf("Creating container: %s %s {%s}", installerID, name, commandstr)
 	command := strslice.StrSlice{}
 	if len(commandstr) > 0 {
 		command = strings.Split(commandstr, " ")
@@ -74,7 +95,7 @@ func CreateApp(imageID string, name string, commandstr string, ports string, ins
 	exposedPorts, portBindings, _ := nat.ParsePortSpecs(publicports)
 
 	containerConfig := &container.Config{
-		Image:        imageID,
+		Image:        installerID,
 		Cmd:          command,
 		ExposedPorts: exposedPorts,
 		Env:          combineEnv(installerParams),
@@ -96,7 +117,7 @@ func CreateApp(imageID string, name string, commandstr string, ports string, ins
 		return App{}, err
 	}
 
-	app := App{Name: container.Name, ID: container.ID, ImageID: container.Image, Status: container.State.Status}
+	app := App{Name: container.Name, ID: container.ID, InstallerID: container.Image, Status: container.State.Status}
 
 	return app, nil
 
@@ -152,7 +173,7 @@ func ReadApp(appID string) (App, error) {
 		return App{}, err
 	}
 
-	app := App{Name: container.Name, ID: container.ID, ImageID: container.Image, Status: container.State.Status, Command: strings.Join(container.Config.Cmd, " ")}
+	app := App{Name: container.Name, ID: container.ID, InstallerID: container.Image, Status: container.State.Status, Command: strings.Join(container.Config.Cmd, " ")}
 	return app, nil
 }
 
@@ -197,7 +218,7 @@ func LoadApps() {
 
 	//FixMe: names for the protos container has werid names
 	for _, container := range containers {
-		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, ImageID: container.ImageID, Status: container.State, Command: container.Command, IP: container.NetworkSettings.Networks["bridge"].IPAddress}
+		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, InstallerID: container.ImageID, Status: container.State, Command: container.Command, IP: container.NetworkSettings.Networks["bridge"].IPAddress}
 		apps[app.ID] = &app
 	}
 
