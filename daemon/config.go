@@ -10,7 +10,6 @@ import (
 	"strings"
 	"syscall"
 
-	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/boltdb/bolt"
@@ -27,6 +26,7 @@ type Config struct {
 	DockerEndpoint string
 	DockerClient   *docker.Client
 	StaticAssets   string
+	Secret         []byte
 	Db             *bolt.DB
 }
 
@@ -68,24 +68,16 @@ func Initialize() {
 		}
 	}
 
-	var err error
-	err = openDatabase()
+	err := openDatabase()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer shutDown()
 
-	username, password := readCredentials()
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		panic(err)
-	}
-
-	log.Infof("Setting up database")
+	log.Info("Setting up database")
 	err = Gconfig.Db.Update(func(tx *bolt.Tx) error {
 
-		buckets := [3]string{"installer", "app", "user"}
+		buckets := [4]string{"installer", "app", "user"}
 
 		for _, bname := range buckets {
 			_, err := tx.CreateBucketIfNotExists([]byte(bname))
@@ -100,25 +92,13 @@ func Initialize() {
 		log.Fatal(err)
 	}
 
-	log.Infof("Writing username %s to database", username)
-	err = Gconfig.Db.Update(func(tx *bolt.Tx) error {
-		userBucket := tx.Bucket([]byte("user"))
-
-		err = userBucket.Put([]byte("username"), []byte(username))
-		if err != nil {
-			return err
-		}
-
-		err = userBucket.Put([]byte("password"), hashedPassword)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-
+	// Creating initial user (admin)
+	username, clearpassword := readCredentials()
+	user, err := CreateUser(username, clearpassword, true)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Infof("User %s has been created.", user.Username)
 
 }
 
@@ -137,12 +117,16 @@ func StartUp(configFile string) {
 		log.Fatal(err)
 	}
 
+	// Generate secret key used for JWT
+	log.Info("Generating secret for JWT")
+	Gconfig.Secret, err = util.GenerateRandomBytes(32)
+
 	connectDocker()
 
 }
 
 func shutDown() {
-	log.Info("Shuting down...")
+	log.Info("Closing database and shuting down...")
 	Gconfig.Db.Close()
 }
 
