@@ -104,7 +104,7 @@ func ValidateAndGetUser(username string, password string) (User, error) {
 			return errInvalid
 		}
 
-		log.Debugf("User %s logged in successfuly")
+		log.Debugf("User %s logged in successfuly", username)
 		return nil
 	})
 	if err != nil {
