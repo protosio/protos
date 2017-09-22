@@ -88,14 +88,14 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&appParams)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	app, err := daemon.CreateApp(appParams.InstallerID, appParams.Name, appParams.PublicPorts, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -112,7 +112,7 @@ func getApp(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadApp(appID)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -129,7 +129,7 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadApp(appID)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -139,14 +139,14 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 	err = decoder.Decode(&action)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	err = app.AddAction(action)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -162,14 +162,14 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadApp(appID)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	err = app.Remove()
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -193,7 +193,7 @@ func getInstaller(w http.ResponseWriter, r *http.Request) {
 
 	installer, err := daemon.ReadInstaller(installerID)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
 	log.Debug("Sending response: ", installer)
@@ -208,12 +208,12 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 
 	installer, err := daemon.ReadInstaller(installerID)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	err = installer.Remove()
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -231,7 +231,7 @@ func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
 
 	installer, err := daemon.ReadInstaller(installerID)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
 	var payload Payload
@@ -240,7 +240,7 @@ func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
 	err = decoder.Decode(&payload)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -248,12 +248,12 @@ func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal([]byte(payload.Metadata), &metadata)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if err = installer.WriteMetadata(metadata); err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
 	w.WriteHeader(http.StatusOK)

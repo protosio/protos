@@ -64,7 +64,7 @@ func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -74,13 +74,13 @@ func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 	err = decoder.Decode(&provider)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	err = daemon.RegisterProvider(app, provider.Type)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -92,7 +92,7 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -102,14 +102,14 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 	err = decoder.Decode(&provider)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	err = daemon.DeregisterProvider(app, provider.Type)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -121,14 +121,14 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	resources, err := daemon.GetProviderResources(app)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -144,7 +144,7 @@ func getOwnResources(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -161,7 +161,7 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer r.Body.Close()
@@ -169,7 +169,7 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 	resource, err := daemon.CreateResource(bodyJSON, appIP)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -187,7 +187,7 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 	err := daemon.DeleteResource(resourceID, appIP)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -211,14 +211,14 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&status)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	err = daemon.SetResourceStatus(resourceID, appIP, status.Status)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

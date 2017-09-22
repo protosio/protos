@@ -9,6 +9,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	userBucket = "user"
+)
+
 // User represents a Protos user
 type User struct {
 	Username   string `json:"username"`
@@ -68,4 +72,43 @@ func (user *User) Save() error {
 
 		return nil
 	})
+}
+
+// ValidateAndGetUser takes a username and password and returns the full User struct if credentials are valid
+func ValidateAndGetUser(username string, password string) (User, error) {
+	log.Debugf("Searching for username %s", username)
+	user := User{}
+	err := Gconfig.Db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(userBucket))
+		v := b.Get([]byte(username))
+		errInvalid := errors.New("Invalid credentials")
+		if v == nil {
+			log.Debugf("Can't find user %s", username)
+			return errInvalid
+		}
+
+		err := json.Unmarshal(v, &user)
+		if err != nil {
+			log.Error(err)
+			return errInvalid
+		}
+
+		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+		if err != nil {
+			log.Debugf("Invalid password for user %s", username)
+			return errInvalid
+		}
+
+		if user.IsDisabled {
+			log.Debugf("User %s is disabled", username)
+			return errInvalid
+		}
+
+		log.Debugf("User %s logged in successfuly")
+		return nil
+	})
+	if err != nil {
+		return User{}, err
+	}
+	return user, nil
 }

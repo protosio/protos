@@ -77,7 +77,7 @@ func Initialize() {
 	log.Info("Setting up database")
 	err = Gconfig.Db.Update(func(tx *bolt.Tx) error {
 
-		buckets := [4]string{"installer", "app", "user"}
+		buckets := [...]string{"installer", "app", "user"}
 
 		for _, bname := range buckets {
 			_, err := tx.CreateBucketIfNotExists([]byte(bname))
