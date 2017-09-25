@@ -75,7 +75,7 @@ func ValidateTokenMiddleware(next http.Handler) http.Handler {
 				return daemon.Gconfig.Secret, nil
 			})
 		if err != nil {
-			log.Debugf("Unauthorized access to resource %s", r.URL)
+			log.Debugf("Unauthorized access to resource %s with error: %s", r.URL, err.Error())
 			http.Error(w, "Unauthorized access to this resource", http.StatusUnauthorized)
 			return
 		}
@@ -127,11 +127,14 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokenResponse := struct {
-		Token string `json:"token"`
+		Token    string `json:"token"`
+		Username string `json:"username"`
 	}{
-		Token: tokenString,
+		Token:    tokenString,
+		Username: user.Username,
 	}
 
+	log.Debug("Sending response: ", tokenResponse)
 	json.NewEncoder(w).Encode(tokenResponse)
 
 }
