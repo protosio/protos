@@ -4,137 +4,267 @@ import (
 	"encoding/json"
 	"net/http"
 	"protos/daemon"
-	"protos/util"
-	"strconv"
-	"time"
 
-	"github.com/dgrijalva/jwt-go"
-	"github.com/dgrijalva/jwt-go/request"
 	"github.com/gorilla/mux"
 )
 
-var log = util.Log
-
-type route struct {
-	Name        string
-	Method      string
-	Pattern     string
-	HandlerFunc http.HandlerFunc
+var clientRoutes = routes{
+	route{
+		"getApps",
+		"GET",
+		"/apps",
+		getApps,
+	},
+	route{
+		"createApp",
+		"POST",
+		"/apps",
+		createApp,
+	},
+	route{
+		"getApp",
+		"GET",
+		"/apps/{appID}",
+		getApp,
+	},
+	route{
+		"removeApp",
+		"DELETE",
+		"/apps/{appID}",
+		removeApp,
+	},
+	route{
+		"actionApp",
+		"POST",
+		"/apps/{appID}/action",
+		actionApp,
+	},
+	route{
+		"getInstallers",
+		"GET",
+		"/installers",
+		getInstallers,
+	},
+	route{
+		"getInstaller",
+		"GET",
+		"/installers/{installerID}",
+		getInstaller,
+	},
+	route{
+		"removeInstaller",
+		"DELETE",
+		"/installers/{installerID}",
+		removeInstaller,
+	},
+	route{
+		"writeInstallerMetadata",
+		"POST",
+		"/installers/{installerID}/metadata",
+		writeInstallerMetadata,
+	},
+	route{
+		"getResources",
+		"GET",
+		"/resources",
+		getResources,
+	},
 }
 
-type routes []route
+func getApps(w http.ResponseWriter, r *http.Request) {
 
-func newRouter() *mux.Router {
-
-	router := mux.NewRouter().StrictSlash(true)
-
-	// Cllient routes (requires auth)
-	for _, route := range clientRoutes {
-		protectedRoute := ValidateTokenMiddleware(route.HandlerFunc)
-		handler := util.HTTPLogger(protectedRoute, route.Name)
-		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
-	}
-
-	// Internal routes
-	for _, route := range clientRoutes {
-		handler := util.HTTPLogger(route.HandlerFunc, route.Name)
-		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
-	}
-
-	// Authentication route
-	handler := util.HTTPLogger(http.HandlerFunc(LoginHandler), "login")
-	router.Methods("POST").Path("/login").Name("login").Handler(handler)
-
-	return router
-}
-
-// Websrv starts an HTTP server that exposes all the application functionality
-func Websrv() {
-
-	rtr := newRouter()
-
-	fileHandler := http.FileServer(http.Dir(daemon.Gconfig.StaticAssets))
-	rtr.PathPrefix("/static").Handler(fileHandler)
-	rtr.PathPrefix("/").Handler(fileHandler)
-
-	http.Handle("/", rtr)
-
-	port := strconv.Itoa(daemon.Gconfig.Port)
-	log.Info("Listening on port " + port)
-	http.ListenAndServe(":"+port, nil)
-
-}
-
-// ValidateTokenMiddleware checks that the request contains a valid JWT token
-func ValidateTokenMiddleware(next http.Handler) http.Handler {
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		token, err := request.ParseFromRequest(r, request.AuthorizationHeaderExtractor,
-			func(token *jwt.Token) (interface{}, error) {
-				return daemon.Gconfig.Secret, nil
-			})
-		if err != nil {
-			log.Debugf("Unauthorized access to resource %s with error: %s", r.URL, err.Error())
-			http.Error(w, "Unauthorized access to this resource", http.StatusUnauthorized)
-			return
-		}
-
-		if token.Valid == false {
-			log.Debug("Token is not valid")
-			http.Error(w, "Token is not valid", http.StatusUnauthorized)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+	apps := daemon.GetApps()
+	log.Debug("Sending response: ", apps)
+	json.NewEncoder(w).Encode(apps)
 
 }
 
-// LoginHandler takes a JSON payload containing a username and password, and returns a JWT if they are valid
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	var userform struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
+func createApp(w http.ResponseWriter, r *http.Request) {
 
-	err := json.NewDecoder(r.Body).Decode(&userform)
+	var appParams daemon.App
+	defer r.Body.Close()
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&appParams)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	user, err := daemon.ValidateAndGetUser(userform.Username, userform.Password)
-	if err != nil {
-		log.Debug(err)
-		http.Error(w, err.Error(), http.StatusForbidden)
-		return
-	}
-
-	token := jwt.New(jwt.SigningMethodHS256)
-	claims := make(jwt.MapClaims)
-	claims["admin"] = user.IsAdmin
-	claims["exp"] = time.Now().Add(time.Hour * time.Duration(1)).Unix()
-	claims["iat"] = time.Now().Unix()
-	token.Claims = claims
-
-	tokenString, err := token.SignedString(daemon.Gconfig.Secret)
+	app, err := daemon.CreateApp(appParams.InstallerID, appParams.Name, appParams.PublicPorts, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	tokenResponse := struct {
-		Token    string `json:"token"`
-		Username string `json:"username"`
-	}{
-		Token:    tokenString,
-		Username: user.Username,
+	log.Debug("Sending response: ", app)
+	json.NewEncoder(w).Encode(app)
+
+}
+
+func getApp(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	app, err := daemon.ReadApp(appID)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	log.Debug("Sending response: ", tokenResponse)
-	json.NewEncoder(w).Encode(tokenResponse)
+	log.Debug("Sending response: ", app)
+	json.NewEncoder(w).Encode(app)
+
+}
+
+func actionApp(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	app, err := daemon.ReadApp(appID)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var action daemon.AppAction
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&action)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = app.AddAction(action)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func removeApp(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	app, err := daemon.ReadApp(appID)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = app.Remove()
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func getInstallers(w http.ResponseWriter, r *http.Request) {
+
+	installers := daemon.GetInstallers()
+
+	log.Debug("Sending response: ", installers)
+	json.NewEncoder(w).Encode(installers)
+
+}
+
+func getInstaller(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	installerID := vars["installerID"]
+
+	installer, err := daemon.ReadInstaller(installerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	log.Debug("Sending response: ", installer)
+	json.NewEncoder(w).Encode(installer)
+
+}
+
+func removeInstaller(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	installerID := vars["installerID"]
+
+	installer, err := daemon.ReadInstaller(installerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	err = installer.Remove()
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
+
+	type Payload struct {
+		Metadata string `json:"metadata"`
+	}
+
+	vars := mux.Vars(r)
+	installerID := vars["installerID"]
+
+	installer, err := daemon.ReadInstaller(installerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	var payload Payload
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&payload)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var metadata daemon.InstallerMetadata
+	err = json.Unmarshal([]byte(payload.Metadata), &metadata)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err = installer.WriteMetadata(metadata); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func getResources(w http.ResponseWriter, r *http.Request) {
+
+	resources := daemon.GetResources()
+
+	log.Debug("Sending response: ", resources)
+	json.NewEncoder(w).Encode(resources)
 
 }
