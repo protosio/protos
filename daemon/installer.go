@@ -53,10 +53,9 @@ func getMetadata(labels map[string]string) (InstallerMetadata, error) {
 
 // GetInstallers gets all the local images and returns them
 func GetInstallers() map[string]Installer {
-	client := Gconfig.DockerClient
 	installers := make(map[string]Installer)
 	log.Info("Retrieving installers")
-	images, err := client.ImageList(context.Background(), types.ImageListOptions{})
+	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
 	if err != nil {
 		log.Warn(err)
 		return nil
@@ -82,9 +81,8 @@ func GetInstallers() map[string]Installer {
 // ReadInstaller reads a fresh copy of the installer
 func ReadInstaller(installerID string) (Installer, error) {
 	log.Info("Reading installer ", installerID)
-	client := Gconfig.DockerClient
 
-	image, _, err := client.ImageInspectWithRaw(context.Background(), installerID)
+	image, _, err := dockerClient.ImageInspectWithRaw(context.Background(), installerID)
 	if err != nil {
 		return Installer{}, err
 	}
@@ -113,7 +111,7 @@ func ReadInstaller(installerID string) (Installer, error) {
 func (installer *Installer) WriteMetadata(metadata InstallerMetadata) error {
 
 	log.Infof("Writing metadata for installler %s", installer.ID)
-	err := Gconfig.Db.Update(func(tx *bolt.Tx) error {
+	err := db.Update(func(tx *bolt.Tx) error {
 		userBucket := tx.Bucket([]byte("installer"))
 
 		metadataJSON, err := json.Marshal(metadata)
@@ -134,9 +132,8 @@ func (installer *Installer) WriteMetadata(metadata InstallerMetadata) error {
 // Remove Installer removes an installer image
 func (installer *Installer) Remove() error {
 	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
-	client := Gconfig.DockerClient
 
-	_, err := client.ImageRemove(context.Background(), installer.ID, types.ImageRemoveOptions{PruneChildren: true})
+	_, err := dockerClient.ImageRemove(context.Background(), installer.ID, types.ImageRemoveOptions{PruneChildren: true})
 	if err != nil {
 		return err
 	}

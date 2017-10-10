@@ -68,7 +68,6 @@ func validateInstallerParams(paramsProvided map[string]string, paramsExpected []
 
 // CreateApp takes an image and creates an application, without starting it
 func CreateApp(installerID string, name string, ports string, installerParams map[string]string) (App, error) {
-	client := Gconfig.DockerClient
 
 	installer, err := ReadInstaller(installerID)
 	if err != nil {
@@ -98,13 +97,13 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 		PortBindings: portBindings,
 	}
 
-	cnt, err := client.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, name)
+	cnt, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, name)
 	if err != nil {
 		return App{}, err
 	}
 	log.Debug("Created application ", name, "[", cnt.ID, "]")
 
-	container, err := client.ContainerInspect(context.Background(), cnt.ID)
+	container, err := dockerClient.ContainerInspect(context.Background(), cnt.ID)
 	if err != nil {
 		log.Error(err)
 		return App{}, err
@@ -134,9 +133,8 @@ func (app *App) AddAction(action AppAction) error {
 // Start starts an application
 func (app *App) Start() error {
 	log.Info("Starting application ", app.Name, "[", app.ID, "]")
-	client := Gconfig.DockerClient
 
-	err := client.ContainerStart(context.Background(), app.ID, types.ContainerStartOptions{})
+	err := dockerClient.ContainerStart(context.Background(), app.ID, types.ContainerStartOptions{})
 	if err != nil {
 		return err
 	}
@@ -146,10 +144,9 @@ func (app *App) Start() error {
 // Stop stops an application
 func (app *App) Stop() error {
 	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
-	client := Gconfig.DockerClient
 
 	stopTimeout := time.Duration(10) * time.Second
-	err := client.ContainerStop(context.Background(), app.ID, &stopTimeout)
+	err := dockerClient.ContainerStop(context.Background(), app.ID, &stopTimeout)
 	if err != nil {
 		return err
 	}
@@ -159,9 +156,8 @@ func (app *App) Stop() error {
 // ReadApp reads a fresh copy of the application
 func ReadApp(appID string) (App, error) {
 	log.Info("Reading application ", appID)
-	client := Gconfig.DockerClient
 
-	container, err := client.ContainerInspect(context.Background(), appID)
+	container, err := dockerClient.ContainerInspect(context.Background(), appID)
 	if err != nil {
 		return App{}, err
 	}
@@ -188,9 +184,8 @@ func ReadAppByIP(appIP string) (*App, error) {
 // Remove App removes an application container
 func (app *App) Remove() error {
 	log.Info("Removing application ", app.Name, "[", app.ID, "]")
-	client := Gconfig.DockerClient
 
-	err := client.ContainerRemove(context.Background(), app.ID, types.ContainerRemoveOptions{})
+	err := dockerClient.ContainerRemove(context.Background(), app.ID, types.ContainerRemoveOptions{})
 	if err != nil {
 		log.Error(err)
 		return err
@@ -200,11 +195,10 @@ func (app *App) Remove() error {
 
 // LoadApps connects to the Docker daemon and refreshes the internal application list
 func LoadApps() {
-	client := Gconfig.DockerClient
 	apps := make(map[string]*App)
 	log.Info("Retrieving applications")
 
-	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{All: true})
+	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
 		log.Fatal(err)
 	}

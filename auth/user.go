@@ -1,17 +1,27 @@
-package daemon
+package auth
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
-
-	"github.com/boltdb/bolt"
+	"fmt"
+	"os"
+	"protos/database"
+	"protos/util"
+	"strings"
+	"syscall"
 
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
 	userBucket = "user"
 )
+
+var log = util.Log
+
+//var db = database.DB
 
 // User represents a Protos user
 type User struct {
@@ -57,58 +67,64 @@ func CreateUser(username string, password string, isadmin bool) (User, error) {
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
 	log.Debugf("Writing username %s to database", user.Username)
-	return Gconfig.Db.Update(func(tx *bolt.Tx) error {
-		userBucket := tx.Bucket([]byte("user"))
-
-		userbuf, err := json.Marshal(user)
-		if err != nil {
-			return err
-		}
-
-		err = userBucket.Put([]byte(user.Username), userbuf)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
+	return database.Update(userBucket, user.Username, user)
 }
 
 // ValidateAndGetUser takes a username and password and returns the full User struct if credentials are valid
 func ValidateAndGetUser(username string, password string) (User, error) {
 	log.Debugf("Searching for username %s", username)
+
+	errInvalid := errors.New("Invalid credentials")
 	user := User{}
-	err := Gconfig.Db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(userBucket))
-		v := b.Get([]byte(username))
-		errInvalid := errors.New("Invalid credentials")
-		if v == nil {
-			log.Debugf("Can't find user %s", username)
-			return errInvalid
-		}
-
-		err := json.Unmarshal(v, &user)
-		if err != nil {
-			log.Error(err)
-			return errInvalid
-		}
-
-		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-		if err != nil {
-			log.Debugf("Invalid password for user %s", username)
-			return errInvalid
-		}
-
-		if user.IsDisabled {
-			log.Debugf("User %s is disabled", username)
-			return errInvalid
-		}
-
-		log.Debugf("User %s logged in successfuly", username)
-		return nil
-	})
+	userBuf, err := database.Get(userBucket, username)
 	if err != nil {
-		return User{}, err
+		log.Debugf("Can't find user %s (%s)", username, err)
+		return User{}, errInvalid
 	}
+
+	err = json.Unmarshal(userBuf, &user)
+	if err != nil {
+		log.Error(err)
+		return User{}, errInvalid
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	if err != nil {
+		log.Debugf("Invalid password for user %s", username)
+		return User{}, errInvalid
+	}
+
+	if user.IsDisabled {
+		log.Debugf("User %s is disabled", username)
+		return User{}, errInvalid
+	}
+
+	log.Debugf("User %s logged in successfuly", username)
 	return user, nil
+}
+
+func readCredentials() (string, string) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Print("Enter Username: ")
+	username, _ := reader.ReadString('\n')
+
+	fmt.Print("Enter Password: ")
+	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		log.Fatal(err)
+	}
+	password := string(bytePassword)
+
+	return strings.TrimSpace(username), strings.TrimSpace(password)
+}
+
+// InitAdmin creates and initial admin user
+func InitAdmin() {
+	username, clearpassword := readCredentials()
+	user, err := CreateUser(username, clearpassword, true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Infof("User %s has been created.", user.Username)
 }

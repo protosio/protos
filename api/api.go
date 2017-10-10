@@ -3,7 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"protos/daemon"
+	"protos/auth"
+	"protos/config"
 	"protos/util"
 	"strconv"
 	"time"
@@ -14,6 +15,7 @@ import (
 )
 
 var log = util.Log
+var gconfig = config.Gconfig
 
 type route struct {
 	Name        string
@@ -41,9 +43,9 @@ func newRouter() *mux.Router {
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
 	}
 
-	// Authentication route
-	handler := util.HTTPLogger(http.HandlerFunc(LoginHandler), "login")
-	router.Methods("POST").Path("/login").Name("login").Handler(handler)
+	// Authentication routes
+	loginHdlr := util.HTTPLogger(http.HandlerFunc(LoginHandler), "login")
+	router.Methods("POST").Path("/login").Name("login").Handler(loginHdlr)
 
 	return router
 }
@@ -53,13 +55,13 @@ func Websrv() {
 
 	rtr := newRouter()
 
-	fileHandler := http.FileServer(http.Dir(daemon.Gconfig.StaticAssets))
+	fileHandler := http.FileServer(http.Dir(gconfig.StaticAssets))
 	rtr.PathPrefix("/static").Handler(fileHandler)
 	rtr.PathPrefix("/").Handler(fileHandler)
 
 	http.Handle("/", rtr)
 
-	port := strconv.Itoa(daemon.Gconfig.Port)
+	port := strconv.Itoa(gconfig.Port)
 	log.Info("Listening on port " + port)
 	http.ListenAndServe(":"+port, nil)
 
@@ -72,7 +74,7 @@ func ValidateTokenMiddleware(next http.Handler) http.Handler {
 
 		token, err := request.ParseFromRequest(r, request.AuthorizationHeaderExtractor,
 			func(token *jwt.Token) (interface{}, error) {
-				return daemon.Gconfig.Secret, nil
+				return gconfig.Secret, nil
 			})
 		if err != nil {
 			log.Debugf("Unauthorized access to resource %s with error: %s", r.URL, err.Error())
@@ -105,7 +107,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := daemon.ValidateAndGetUser(userform.Username, userform.Password)
+	user, err := auth.ValidateAndGetUser(userform.Username, userform.Password)
 	if err != nil {
 		log.Debug(err)
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -119,7 +121,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	claims["iat"] = time.Now().Unix()
 	token.Claims = claims
 
-	tokenString, err := token.SignedString(daemon.Gconfig.Secret)
+	tokenString, err := token.SignedString(gconfig.Secret)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

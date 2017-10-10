@@ -3,7 +3,10 @@ package main
 import (
 	"os"
 	"protos/api"
+	"protos/auth"
+	"protos/config"
 	"protos/daemon"
+	"protos/database"
 	"protos/util"
 
 	log "github.com/Sirupsen/logrus"
@@ -18,7 +21,7 @@ func main() {
 	app.Email = "alex@giurgiu.io"
 	app.Version = "0.0.1"
 
-	var config string
+	var configFile string
 	var loglevel string
 
 	app.Flags = []cli.Flag{
@@ -26,7 +29,7 @@ func main() {
 			Name:        "config",
 			Value:       "protos.yaml",
 			Usage:       "Specify a config file",
-			Destination: &config,
+			Destination: &configFile,
 		},
 		cli.StringFlag{
 			Name:        "loglevel",
@@ -39,11 +42,11 @@ func main() {
 	app.Before = func(c *cli.Context) error {
 		if loglevel == "debug" {
 			util.SetLogLevel(log.DebugLevel)
-		} else if config == "info" {
+		} else if configFile == "info" {
 			util.SetLogLevel(log.InfoLevel)
-		} else if config == "warn" {
+		} else if configFile == "warn" {
 			util.SetLogLevel(log.WarnLevel)
-		} else if config == "error" {
+		} else if configFile == "error" {
 			util.SetLogLevel(log.ErrorLevel)
 		}
 		return nil
@@ -54,7 +57,10 @@ func main() {
 			Name:  "daemon",
 			Usage: "start the server",
 			Action: func(c *cli.Context) error {
-				daemon.StartUp(config)
+				config.Load(configFile)
+				database.Open()
+				defer database.Close()
+				daemon.StartUp()
 				daemon.LoadApps()
 				api.Websrv()
 				return nil
@@ -64,8 +70,12 @@ func main() {
 			Name:  "init",
 			Usage: "create initial configuration and user",
 			Action: func(c *cli.Context) error {
-				daemon.LoadCfg(config)
+				config.Load(configFile)
 				daemon.Initialize()
+				database.Open()
+				//				defer database.Close()
+				database.Initialize()
+				auth.InitAdmin()
 				return nil
 			},
 		},
