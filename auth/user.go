@@ -31,8 +31,25 @@ type User struct {
 	IsDisabled bool   `json:"isdisabled"`
 }
 
-// GeneratePasswordHash takes a string representing the raw password, and generates a hash
-func GeneratePasswordHash(password string) (string, error) {
+// readCredentials reads a username and password interactively
+func readCredentials() (string, string) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Print("Enter Username: ")
+	username, _ := reader.ReadString('\n')
+
+	fmt.Print("Enter Password: ")
+	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		log.Fatal(err)
+	}
+	password := string(bytePassword)
+
+	return strings.TrimSpace(username), strings.TrimSpace(password)
+}
+
+// generatePasswordHash takes a string representing the raw password, and generates a hash
+func generatePasswordHash(password string) (string, error) {
 
 	if len([]rune(password)) < 10 {
 		return "", errors.New("Minimum password length is 10 characters")
@@ -49,7 +66,7 @@ func GeneratePasswordHash(password string) (string, error) {
 // CreateUser creates and returns a user
 func CreateUser(username string, password string, isadmin bool) (User, error) {
 
-	passwordHash, err := GeneratePasswordHash(password)
+	passwordHash, err := generatePasswordHash(password)
 	if err != nil {
 		return User{}, err
 	}
@@ -101,22 +118,6 @@ func ValidateAndGetUser(username string, password string) (User, error) {
 
 	log.Debugf("User %s logged in successfuly", username)
 	return user, nil
-}
-
-func readCredentials() (string, string) {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("Enter Username: ")
-	username, _ := reader.ReadString('\n')
-
-	fmt.Print("Enter Password: ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		log.Fatal(err)
-	}
-	password := string(bytePassword)
-
-	return strings.TrimSpace(username), strings.TrimSpace(password)
 }
 
 // InitAdmin creates and initial admin user
