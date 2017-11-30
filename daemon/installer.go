@@ -2,12 +2,10 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
 
-	"github.com/boltdb/bolt"
 	"github.com/docker/docker/api/types"
 )
 
@@ -46,7 +44,7 @@ func getMetadata(labels map[string]string) (InstallerMetadata, error) {
 
 	}
 	if metadata.Description == "" {
-		return metadata, errors.New("Installer metadata field 'description' is mandatory.")
+		return metadata, errors.New("installer metadata field 'description' is mandatory")
 	}
 	return metadata, nil
 }
@@ -105,28 +103,6 @@ func ReadInstaller(installerID string) (Installer, error) {
 	}
 
 	return installer, nil
-}
-
-// WriteMetadata adds metadata for an installer
-func (installer *Installer) WriteMetadata(metadata InstallerMetadata) error {
-
-	log.Infof("Writing metadata for installler %s", installer.ID)
-	err := db.Update(func(tx *bolt.Tx) error {
-		userBucket := tx.Bucket([]byte("installer"))
-
-		metadataJSON, err := json.Marshal(metadata)
-		if err != nil {
-			return err
-		}
-
-		err = userBucket.Put([]byte(installer.ID), metadataJSON)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-
-	return err
 }
 
 // Remove Installer removes an installer image

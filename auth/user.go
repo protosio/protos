@@ -2,7 +2,6 @@ package auth
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -21,11 +20,9 @@ const (
 
 var log = util.Log
 
-//var db = database.DB
-
 // User represents a Protos user
 type User struct {
-	Username   string `json:"username"`
+	Username   string `json:"username" storm:"id"`
 	Password   string `json:"password"`
 	IsAdmin    bool   `json:"isadmin"`
 	IsDisabled bool   `json:"isdisabled"`
@@ -36,7 +33,10 @@ func readCredentials() (string, string) {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Print("Enter Username: ")
-	username, _ := reader.ReadString('\n')
+	username, err := reader.ReadString('\n')
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Print("Enter Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
@@ -84,7 +84,7 @@ func CreateUser(username string, password string, isadmin bool) (User, error) {
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
 	log.Debugf("Writing username %s to database", user.Username)
-	return database.Update(userBucket, user.Username, user)
+	return database.Save(user)
 }
 
 // ValidateAndGetUser takes a username and password and returns the full User struct if credentials are valid
@@ -92,16 +92,10 @@ func ValidateAndGetUser(username string, password string) (User, error) {
 	log.Debugf("Searching for username %s", username)
 
 	errInvalid := errors.New("Invalid credentials")
-	user := User{}
-	userBuf, err := database.Get(userBucket, username)
+	var user User
+	err := database.One("Username", username, &user)
 	if err != nil {
 		log.Debugf("Can't find user %s (%s)", username, err)
-		return User{}, errInvalid
-	}
-
-	err = json.Unmarshal(userBuf, &user)
-	if err != nil {
-		log.Error(err)
 		return User{}, errInvalid
 	}
 

@@ -3,19 +3,23 @@ package daemon
 import (
 	"context"
 	"errors"
+	"protos/database"
 	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
+	"github.com/rs/xid"
 )
 
 // Defines structure for config parameters
 // specific to each application
 const (
-	Running = "Running"
-	Stopped = "Stopped"
+	Running                = "Running"
+	Stopped                = "Stopped"
+	appBucket              = "app"
+	statusMissingContainer = "missing container"
 )
 
 // AppConfig the application config
@@ -37,6 +41,7 @@ type App struct {
 	Name            string            `json:"name"`
 	ID              string            `json:"id"`
 	InstallerID     string            `json:"installer-id"`
+	ContainerID     string            `json:"container-id"`
 	Status          string            `json:"status"`
 	Actions         []AppAction       `json:"actions"`
 	IP              string            `json:"ip"`
@@ -45,8 +50,9 @@ type App struct {
 }
 
 // Apps maintains a map of all the applications
-var Apps map[string]*App
+var Apps = make(map[string]*App)
 
+// combineEnv takes a map of environment variables and transforms them into a list of environment variables
 func combineEnv(params map[string]string) []string {
 	var env []string
 	for id, val := range params {
@@ -55,6 +61,7 @@ func combineEnv(params map[string]string) []string {
 	return env
 }
 
+// validateInstallerParams makes sure that the params passed at app creation match what is requested by the installer
 func validateInstallerParams(paramsProvided map[string]string, paramsExpected []string) error {
 	for _, param := range paramsExpected {
 		if val, ok := paramsProvided[param]; ok && val != "" {
@@ -79,13 +86,17 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 		return App{}, err
 	}
 
-	log.Debugf("Creating container: %s %s", installerID, name)
+	guid := xid.New()
+	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
 
 	var publicports []string
 	for _, v := range strings.Split(ports, ",") {
 		publicports = append(publicports, "0.0.0.0:"+v+":"+v+"/tcp")
 	}
-	exposedPorts, portBindings, _ := nat.ParsePortSpecs(publicports)
+	exposedPorts, portBindings, err := nat.ParsePortSpecs(publicports)
+	if err != nil {
+		return App{}, err
+	}
 
 	containerConfig := &container.Config{
 		Image:        installerID,
@@ -101,15 +112,13 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 	if err != nil {
 		return App{}, err
 	}
-	log.Debug("Created application ", name, "[", cnt.ID, "]")
+	log.Debug("Created application ", name, "[", guid.String(), "]")
 
-	container, err := dockerClient.ContainerInspect(context.Background(), cnt.ID)
+	app := App{Name: name, ID: guid.String(), InstallerID: installerID, ContainerID: cnt.ID}
+	err = database.Save(&app)
 	if err != nil {
-		log.Error(err)
 		return App{}, err
 	}
-
-	app := App{Name: container.Name, ID: container.ID, InstallerID: container.Image, Status: container.State.Status}
 
 	return app, nil
 
@@ -126,6 +135,15 @@ func (app *App) AddAction(action AppAction) error {
 		app.Stop()
 	default:
 		return errors.New("Action not supported")
+	}
+	return nil
+}
+
+// Save - persists application data to database
+func (app *App) Save() error {
+	err := database.Save(app)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -157,12 +175,21 @@ func (app *App) Stop() error {
 func ReadApp(appID string) (App, error) {
 	log.Info("Reading application ", appID)
 
-	container, err := dockerClient.ContainerInspect(context.Background(), appID)
+	var app App
+	err := database.One("ID", appID, &app)
 	if err != nil {
-		return App{}, err
+		log.Debugf("Can't find app %s (%s)", appID, err)
+		return app, err
 	}
 
-	app := App{Name: container.Name, ID: container.ID, InstallerID: container.Image, Status: container.State.Status}
+	container, err := dockerClient.ContainerInspect(context.Background(), app.ContainerID)
+	if err != nil {
+		app.Status = statusMissingContainer
+		return app, errors.New("Error retrieving container for application " + app.ID + ": " + err.Error())
+	}
+
+	app.Status = container.State.Status
+	app.IP = container.NetworkSettings.Networks["bridge"].IPAddress
 	return app, nil
 }
 
@@ -195,21 +222,38 @@ func (app *App) Remove() error {
 
 // LoadApps connects to the Docker daemon and refreshes the internal application list
 func LoadApps() {
-	apps := make(map[string]*App)
+	var apps []App
 	log.Info("Retrieving applications")
+
+	err := database.All(&apps)
+	if err != nil {
+		log.Error("Could not retrieve applications from the database: ", err)
+		return
+	}
 
 	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	//FixMe: names for the protos container has werid names
-	for _, container := range containers {
-		app := App{Name: strings.Replace(container.Names[0], "/", "", 1), ID: container.ID, InstallerID: container.ImageID, Status: container.State, IP: container.NetworkSettings.Networks["bridge"].IPAddress}
-		apps[app.ID] = &app
+	for _, app := range apps {
+		matched := false
+		for _, container := range containers {
+			if container.ID == app.ContainerID {
+				app.Status = container.State
+				matched = true
+			}
+		}
+		if matched != true {
+			log.Errorf("Application %s is missing container %s", app.ID, app.ContainerID)
+			app.Status = statusMissingContainer
+		}
+		if app.Save() != nil {
+			log.Panicf("Failed to persist app %s to db", app.ID)
+		}
+		Apps[app.ID] = &app
 	}
 
-	Apps = apps
 }
 
 // GetApps refreshes the application list and returns it

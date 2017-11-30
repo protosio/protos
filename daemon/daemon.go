@@ -3,13 +3,11 @@ package daemon
 import (
 	"os"
 	"protos/config"
-	"protos/database"
 	"protos/util"
 )
 
 var gconfig = config.Gconfig
 var log = util.Log
-var db = database.DB
 
 // StartUp triggers a sequence of steps required to start the application
 func StartUp() {

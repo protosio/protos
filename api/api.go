@@ -30,16 +30,16 @@ func newRouter() *mux.Router {
 
 	router := mux.NewRouter().StrictSlash(true)
 
-	// Web routes (require auth)
-	for _, route := range clientRoutes {
-		protectedRoute := ValidateTokenMiddleware(route.HandlerFunc)
-		handler := util.HTTPLogger(protectedRoute, route.Name)
+	// Internal routes
+	for _, route := range internalRoutes {
+		handler := util.HTTPLogger(route.HandlerFunc, route.Name)
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
 	}
 
-	// Internal routes
+	// Web routes (require auth)
 	for _, route := range clientRoutes {
-		handler := util.HTTPLogger(route.HandlerFunc, route.Name)
+		protectedRoute := ValidateExternalRequest(route.HandlerFunc)
+		handler := util.HTTPLogger(protectedRoute, route.Name)
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
 	}
 
@@ -67,8 +67,8 @@ func Websrv() {
 
 }
 
-// ValidateTokenMiddleware checks that the request contains a valid JWT token
-func ValidateTokenMiddleware(next http.Handler) http.Handler {
+// ValidateExternalRequest that the request contains a valid JWT token
+func ValidateExternalRequest(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 

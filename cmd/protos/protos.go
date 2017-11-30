@@ -8,10 +8,30 @@ import (
 	"protos/daemon"
 	"protos/database"
 	"protos/util"
+	"sync"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
 )
+
+func run(configFile string) {
+	var wg sync.WaitGroup
+	config.Load(configFile)
+	database.Open()
+	defer database.Close()
+	daemon.StartUp()
+	daemon.LoadApps()
+	wg.Add(2)
+	go func() {
+		auth.LDAPsrv()
+		wg.Done()
+	}()
+	go func() {
+		api.Websrv()
+		wg.Done()
+	}()
+	wg.Wait()
+}
 
 func main() {
 
@@ -40,15 +60,11 @@ func main() {
 	}
 
 	app.Before = func(c *cli.Context) error {
-		if loglevel == "debug" {
-			util.SetLogLevel(log.DebugLevel)
-		} else if configFile == "info" {
-			util.SetLogLevel(log.InfoLevel)
-		} else if configFile == "warn" {
-			util.SetLogLevel(log.WarnLevel)
-		} else if configFile == "error" {
-			util.SetLogLevel(log.ErrorLevel)
+		level, err := logrus.ParseLevel(loglevel)
+		if err != nil {
+			return err
 		}
+		util.SetLogLevel(level)
 		return nil
 	}
 
@@ -57,12 +73,7 @@ func main() {
 			Name:  "daemon",
 			Usage: "start the server",
 			Action: func(c *cli.Context) error {
-				config.Load(configFile)
-				database.Open()
-				defer database.Close()
-				daemon.StartUp()
-				daemon.LoadApps()
-				api.Websrv()
+				run(configFile)
 				return nil
 			},
 		},
@@ -73,8 +84,7 @@ func main() {
 				config.Load(configFile)
 				daemon.Initialize()
 				database.Open()
-				//				defer database.Close()
-				database.Initialize()
+				defer database.Close()
 				auth.InitAdmin()
 				return nil
 			},

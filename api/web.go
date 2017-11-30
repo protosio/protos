@@ -58,12 +58,6 @@ var clientRoutes = routes{
 		removeInstaller,
 	},
 	route{
-		"writeInstallerMetadata",
-		"POST",
-		"/installers/{installerID}/metadata",
-		writeInstallerMetadata,
-	},
-	route{
 		"getResources",
 		"GET",
 		"/resources",
@@ -213,46 +207,6 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 	err = installer.Remove()
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	w.WriteHeader(http.StatusOK)
-
-}
-
-func writeInstallerMetadata(w http.ResponseWriter, r *http.Request) {
-
-	type Payload struct {
-		Metadata string `json:"metadata"`
-	}
-
-	vars := mux.Vars(r)
-	installerID := vars["installerID"]
-
-	installer, err := daemon.ReadInstaller(installerID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	var payload Payload
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	err = decoder.Decode(&payload)
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	var metadata daemon.InstallerMetadata
-	err = json.Unmarshal([]byte(payload.Metadata), &metadata)
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err = installer.WriteMetadata(metadata); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
