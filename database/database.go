@@ -47,3 +47,8 @@ func One(fieldName string, value interface{}, to interface{}) error {
 func All(to interface{}) error {
 	return db.All(to)
 }
+
+// Remove removes a record of specific type
+func Remove(data interface{}) error {
+	return db.Remove(data)
+}

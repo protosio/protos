@@ -3,6 +3,7 @@ package daemon
 import (
 	"os"
 	"protos/config"
+	"protos/platform"
 	"protos/util"
 )
 
@@ -21,7 +22,7 @@ func StartUp() {
 		log.Fatal(err)
 	}
 
-	connectDocker()
+	platform.ConnectDocker()
 
 }
 

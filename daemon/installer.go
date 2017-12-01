@@ -1,12 +1,10 @@
 package daemon
 
 import (
-	"context"
 	"errors"
+	"protos/platform"
 	"regexp"
 	"strings"
-
-	"github.com/docker/docker/api/types"
 )
 
 // InstallerMetadata holds metadata for the installer
@@ -50,51 +48,33 @@ func getMetadata(labels map[string]string) (InstallerMetadata, error) {
 }
 
 // GetInstallers gets all the local images and returns them
-func GetInstallers() map[string]Installer {
+func GetInstallers() (map[string]Installer, error) {
 	installers := make(map[string]Installer)
 	log.Info("Retrieving installers")
-	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
+
+	imgs, err := platform.GetAllDockerImages()
 	if err != nil {
-		log.Warn(err)
-		return nil
+		return installers, errors.New("Error retrieving docker images: " + err.Error())
 	}
 
-	for _, image := range images {
-		var name string
-		if _, valid := image.Labels["protos"]; valid == false {
-			continue
-		}
-
-		if len(image.RepoTags) > 0 && image.RepoTags[0] != "<none>:<none>" {
-			name = image.RepoTags[0]
-		} else {
-			name = "n/a"
-		}
-		installers[image.ID] = Installer{Name: name, ID: image.ID}
+	for _, img := range imgs {
+		installers[img.ID] = Installer{ID: img.ID, Name: img.RepoTags[0]}
 	}
 
-	return installers
+	return installers, nil
 }
 
 // ReadInstaller reads a fresh copy of the installer
 func ReadInstaller(installerID string) (Installer, error) {
 	log.Info("Reading installer ", installerID)
 
-	image, _, err := dockerClient.ImageInspectWithRaw(context.Background(), installerID)
+	img, err := platform.GetDockerImage(installerID)
 	if err != nil {
-		return Installer{}, err
+		return Installer{}, errors.New("Error retrieving docker image: " + err.Error())
 	}
 
-	var name string
-	if len(image.RepoTags) > 0 {
-		name = image.RepoTags[0]
-	} else {
-		name = "n/a"
-	}
-
-	installer := Installer{Name: name, ID: image.ID}
-
-	metadata, err := getMetadata(image.Config.Labels)
+	installer := Installer{Name: img.RepoTags[0], ID: img.ID}
+	metadata, err := getMetadata(img.Config.Labels)
 	if err != nil {
 		log.Warnf("Protos labeled image %s does not have any metadata", installerID)
 		installer.Metadata = nil
@@ -109,9 +89,9 @@ func ReadInstaller(installerID string) (Installer, error) {
 func (installer *Installer) Remove() error {
 	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
 
-	_, err := dockerClient.ImageRemove(context.Background(), installer.ID, types.ImageRemoveOptions{PruneChildren: true})
+	err := platform.RemoveDockerImage(installer.ID)
 	if err != nil {
-		return err
+		return errors.New("Failed to remove installer: " + err.Error())
 	}
 	return nil
 }

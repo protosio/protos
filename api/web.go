@@ -173,7 +173,10 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 
 func getInstallers(w http.ResponseWriter, r *http.Request) {
 
-	installers := daemon.GetInstallers()
+	installers, err := daemon.GetInstallers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
 	log.Debug("Sending response: ", installers)
 	json.NewEncoder(w).Encode(installers)
