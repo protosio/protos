@@ -112,7 +112,7 @@ func (app *App) Save() error {
 
 // reateContainer create the underlying Docker container
 func (app *App) createContainer() error {
-	cnt, err := platform.NewDockerContainer(app.Name, app.InstallerID, app.PublicPorts, app.InstallerParams)
+	cnt, err := platform.NewDockerContainer(app.Name, app.ID, app.InstallerID, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"protos/daemon"
-	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -61,17 +60,12 @@ var internalRoutes = routes{
 
 func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 
-	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	app := r.Context().Value("app").(*daemon.App)
 
 	var provider daemon.Provider
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
-	err = decoder.Decode(&provider)
+	err := decoder.Decode(&provider)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -89,17 +83,12 @@ func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 
 func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 
-	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	app := r.Context().Value("app").(*daemon.App)
 
 	var provider daemon.Provider
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
-	err = decoder.Decode(&provider)
+	err := decoder.Decode(&provider)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -118,12 +107,7 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 
 func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
-	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	app := r.Context().Value("app").(*daemon.App)
 
 	resources, err := daemon.GetProviderResources(app)
 	if err != nil {
@@ -141,13 +125,7 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
 func getOwnResources(w http.ResponseWriter, r *http.Request) {
 
-	app, err := daemon.ReadAppByIP(strings.Split(r.RemoteAddr, ":")[0])
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
+	app := r.Context().Value("app").(*daemon.App)
 	resources := daemon.GetAppResources(app)
 
 	json.NewEncoder(w).Encode(resources)
@@ -156,7 +134,7 @@ func getOwnResources(w http.ResponseWriter, r *http.Request) {
 
 func createResource(w http.ResponseWriter, r *http.Request) {
 
-	appIP := strings.Split(r.RemoteAddr, ":")[0]
+	app := r.Context().Value("app").(*daemon.App)
 
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -166,7 +144,7 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	resource, err := daemon.CreateResource(bodyJSON, appIP)
+	resource, err := app.CreateResource(bodyJSON)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -182,9 +160,8 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
 
-	appIP := strings.Split(r.RemoteAddr, ":")[0]
-
-	err := daemon.DeleteResource(resourceID, appIP)
+	app := r.Context().Value("app").(*daemon.App)
+	err := app.DeleteResource(resourceID)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -200,7 +177,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
 
-	appIP := strings.Split(r.RemoteAddr, ":")[0]
+	app := r.Context().Value("app").(*daemon.App)
 
 	var status struct {
 		Status string `json:"status"`
@@ -215,7 +192,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = daemon.SetResourceStatus(resourceID, appIP, status.Status)
+	err = app.SetResourceStatus(resourceID, status.Status)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -165,11 +165,7 @@ func GetAppResources(app *App) map[string]*Resource {
 }
 
 //CreateResource adds a resource to the internal resources map.
-func CreateResource(appJSON []byte, appIP string) (Resource, error) {
-	app, err := ReadAppByIP(appIP)
-	if err != nil {
-		return Resource{}, err
-	}
+func (app *App) CreateResource(appJSON []byte) (Resource, error) {
 
 	resource, err := GetResourceFromJSON(appJSON)
 	if err != nil {
@@ -194,15 +190,10 @@ func CreateResource(appJSON []byte, appIP string) (Resource, error) {
 }
 
 //DeleteResource deletes a resource
-func DeleteResource(resourceID string, appIP string) error {
+func (app *App) DeleteResource(resourceID string) error {
 	resource, ok := resources[resourceID]
 	if ok != true {
 		return errors.New("Resource " + resourceID + " does not exist.")
-	}
-
-	app, err := ReadAppByIP(appIP)
-	if err != nil {
-		return err
 	}
 
 	if resource.App.ID != app.ID {
@@ -246,7 +237,7 @@ func GetResourceFromJSON(resourceJSON []byte) (Resource, error) {
 }
 
 // SetResourceStatus allows a provider to modify the status of a resource
-func SetResourceStatus(resourceID string, providerIP string, status string) error {
+func (app *App) SetResourceStatus(resourceID string, status string) error {
 	resource, ok := resources[resourceID]
 	if ok != true {
 		return errors.New("Resource [" + resourceID + "] does not exist.")
@@ -254,11 +245,6 @@ func SetResourceStatus(resourceID string, providerIP string, status string) erro
 
 	if statusIsValid(rstatus(status)) != true {
 		return errors.New("Status [" + status + "] is invalid.")
-	}
-
-	app, err := ReadAppByIP(providerIP)
-	if err != nil {
-		return err
 	}
 
 	if isResourceProvider(app, resource.Type) != true {

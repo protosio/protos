@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"protos/auth"
 	"protos/config"
+	"protos/daemon"
 	"protos/util"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -32,7 +35,8 @@ func newRouter() *mux.Router {
 
 	// Internal routes
 	for _, route := range internalRoutes {
-		handler := util.HTTPLogger(route.HandlerFunc, route.Name)
+		protectedRoute := ValidateInternalRequest(route.HandlerFunc)
+		handler := util.HTTPLogger(protectedRoute, route.Name)
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
 	}
 
@@ -67,7 +71,34 @@ func Websrv() {
 
 }
 
-// ValidateExternalRequest that the request contains a valid JWT token
+// ValidateInternalRequest validates requests coming from the containers (correct IP and AppID)
+func ValidateInternalRequest(next http.Handler) http.Handler {
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		appID := r.Header.Get("Appid")
+		if appID == "" {
+			log.Debug("Can't identify request to resource %s. App ID is missing.", r.URL)
+			http.Error(w, "Can't identify request. App ID is missing.", http.StatusUnauthorized)
+		}
+		app, err := daemon.ReadApp(appID)
+		if err != nil {
+			log.Errorf("Request for resource %s from non-existent app %s: %s", r.URL, appID, err.Error())
+			http.Error(w, "Request for resource from non-existent app", http.StatusUnauthorized)
+		}
+		ip := strings.Split(r.RemoteAddr, ":")[0]
+		if app.IP != ip {
+			log.Errorf("App IP mismatch for request for resource %s: ip %s incorrect for %s", r.URL, ip, appID)
+			http.Error(w, "App IP mismatch", http.StatusUnauthorized)
+		}
+		log.Debug("Validated request as coming from app ", appID)
+		ctx := context.WithValue(r.Context(), "app", &app)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+
+}
+
+// ValidateExternalRequest validates client request contains a valid JWT token
 func ValidateExternalRequest(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

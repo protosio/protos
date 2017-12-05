@@ -48,7 +48,7 @@ func combineEnv(params map[string]string) []string {
 //
 
 // NewDockerContainer creates and returns a docker container reference
-func NewDockerContainer(name string, imageid string, ports string, envvars map[string]string) (*DockerContainer, error) {
+func NewDockerContainer(name string, appid string, imageid string, ports string, installerParams map[string]string) (*DockerContainer, error) {
 	log.Debug("Creating container " + name + " from image " + imageid)
 	var publicports []string
 	for _, v := range strings.Split(ports, ",") {
@@ -58,6 +58,12 @@ func NewDockerContainer(name string, imageid string, ports string, envvars map[s
 	if err != nil {
 		return &DockerContainer{}, err
 	}
+
+	envvars := map[string]string{}
+	for k, v := range installerParams {
+		envvars[k] = v
+	}
+	envvars["APPID"] = appid
 
 	containerConfig := &container.Config{
 		Image:        imageid,
@@ -166,7 +172,7 @@ func GetDockerImage(id string) (types.ImageInspect, error) {
 	}
 
 	if len(image.RepoTags) == 0 {
-		image.RepoTags[0] = "n/a"
+		image.RepoTags = append(image.RepoTags, "n/a")
 	}
 
 	return image, nil
@@ -187,7 +193,9 @@ func GetAllDockerImages() (map[string]types.ImageSummary, error) {
 			continue
 		}
 
-		if len(image.RepoTags) == 0 && image.RepoTags[0] == "<none>:<none>" {
+		if len(image.RepoTags) == 0 {
+			image.RepoTags = append(image.RepoTags, "n/a")
+		} else if image.RepoTags[0] == "<none>:<none>" {
 			image.RepoTags[0] = "n/a"
 		}
 		imgs[image.ID] = image
