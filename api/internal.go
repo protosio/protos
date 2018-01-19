@@ -9,6 +9,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	CregisterResourceProvider = "registerResourceProvider"
+)
+
 var internalRoutes = routes{
 	route{
 		"getOwnResources",
@@ -29,7 +33,7 @@ var internalRoutes = routes{
 		deleteResource,
 	},
 	route{
-		"registerResourceProvider",
+		CregisterResourceProvider,
 		"POST",
 		"/internal/provider",
 		registerResourceProvider,
@@ -51,6 +55,12 @@ var internalRoutes = routes{
 		"POST",
 		"/internal/resource/{resourceID}",
 		setResourceStatus,
+	},
+	route{
+		"getResource",
+		"GET",
+		"/internal/resource/{resourceID}",
+		getResource,
 	},
 }
 
@@ -152,6 +162,16 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(resource)
+
+}
+
+func getResource(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	resourceID := vars["resourceID"]
+	log.Debug(resourceID)
+
+	w.WriteHeader(http.StatusOK)
 
 }
 

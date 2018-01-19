@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"protos/auth"
+	"protos/capability"
 	"protos/config"
 	"protos/daemon"
 	"protos/util"
@@ -35,7 +37,7 @@ func newRouter() *mux.Router {
 
 	// Internal routes
 	for _, route := range internalRoutes {
-		protectedRoute := ValidateInternalRequest(route.HandlerFunc)
+		protectedRoute := ValidateInternalRequest(route.HandlerFunc, router)
 		handler := util.HTTPLogger(protectedRoute, route.Name)
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
 	}
@@ -50,6 +52,8 @@ func newRouter() *mux.Router {
 	// Authentication routes
 	loginHdlr := util.HTTPLogger(http.HandlerFunc(LoginHandler), "login")
 	router.Methods("POST").Path("/login").Name("login").Handler(loginHdlr)
+
+	createCapabilities()
 
 	return router
 }
@@ -72,30 +76,60 @@ func Websrv() {
 }
 
 // ValidateInternalRequest validates requests coming from the containers (correct IP and AppID)
-func ValidateInternalRequest(next http.Handler) http.Handler {
+func ValidateInternalRequest(next http.Handler, rtr *mux.Router) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		appID := r.Header.Get("Appid")
 		if appID == "" {
-			log.Debug("Can't identify request to resource %s. App ID is missing.", r.URL)
+			log.Debugf("Can't identify request to resource %s. App ID is missing.", r.URL)
 			http.Error(w, "Can't identify request. App ID is missing.", http.StatusUnauthorized)
+			return
 		}
 		app, err := daemon.ReadApp(appID)
 		if err != nil {
 			log.Errorf("Request for resource %s from non-existent app %s: %s", r.URL, appID, err.Error())
 			http.Error(w, "Request for resource from non-existent app", http.StatusUnauthorized)
+			return
 		}
 		ip := strings.Split(r.RemoteAddr, ":")[0]
 		if app.IP != ip {
 			log.Errorf("App IP mismatch for request for resource %s: ip %s incorrect for %s", r.URL, ip, appID)
 			http.Error(w, "App IP mismatch", http.StatusUnauthorized)
+			return
 		}
-		log.Debug("Validated request as coming from app ", appID)
+		log.Debugf("Validated %s request to %s as coming from app %s(%s)", r.Method, r.URL.Path, appID, app.Name)
+
+		err = checkCapability(&app, rtr, r)
+		if err != nil {
+			log.Error(err.Error())
+			http.Error(w, "Application not authorized to access that resource", http.StatusUnauthorized)
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), "app", &app)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 
+}
+
+func checkCapability(app *daemon.App, rtr *mux.Router, r *http.Request) error {
+	var match mux.RouteMatch
+	if rtr.Match(r, &match) {
+		methodcap, err := capability.GetMethodCap(match.Route.GetName())
+		if err != nil {
+			return err
+		}
+		for _, appcaptoken := range app.Capabilities {
+			log.Debugf("Checking app cap token %s", appcaptoken.ID)
+			if methodcap.ValidateToken(appcaptoken) {
+				return nil
+			}
+		}
+		return errors.New("Method capability " + methodcap.Name + " not satisfied by application " + app.ID)
+	}
+
+	return errors.New("Route not matched in capability check")
 }
 
 // ValidateExternalRequest validates client request contains a valid JWT token
@@ -108,13 +142,13 @@ func ValidateExternalRequest(next http.Handler) http.Handler {
 				return gconfig.Secret, nil
 			})
 		if err != nil {
-			log.Debugf("Unauthorized access to resource %s with error: %s", r.URL, err.Error())
+			log.Errorf("Unauthorized access to resource %s with error: %s", r.URL, err.Error())
 			http.Error(w, "Unauthorized access to this resource", http.StatusUnauthorized)
 			return
 		}
 
 		if token.Valid == false {
-			log.Debug("Token is not valid")
+			log.Error("Token is not valid")
 			http.Error(w, "Token is not valid", http.StatusUnauthorized)
 			return
 		}

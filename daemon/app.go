@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"errors"
+	"protos/capability"
 	"protos/database"
 	"protos/platform"
 
@@ -43,6 +44,7 @@ type App struct {
 	IP              string               `json:"ip"`
 	PublicPorts     string               `json:"publicports"`
 	InstallerParams map[string]string    `json:"installer-params"`
+	Capabilities    []capability.Token   `json:"tokens"`
 }
 
 // Apps maintains a map of all the applications
@@ -58,6 +60,12 @@ func validateInstallerParams(paramsProvided map[string]string, paramsExpected []
 		}
 	}
 	return nil
+}
+
+func createDefaultCapabilities() []capability.Token {
+	caps := []capability.Token{}
+	caps = append(caps, capability.RC.CreateToken())
+	return caps
 }
 
 // CreateApp takes an image and creates an application, without starting it
@@ -80,6 +88,8 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 	if err != nil {
 		return App{}, err
 	}
+	app.Capabilities = createDefaultCapabilities()
+	app.Save()
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 
