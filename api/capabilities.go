@@ -17,7 +17,7 @@ func createCapabilities() {
 	capGetProviderResources.SetParent(capResourceProvider)
 	capSetResourceStatus.SetParent(capResourceProvider)
 
-	capResourceProvider.SetParent(&capability.RC)
+	capResourceProvider.SetParent(capability.RC)
 
 	// Match capabilities to their respective methods
 	capability.SetMethodCap(CregisterResourceProvider, capRegisterResourceProvider)

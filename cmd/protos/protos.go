@@ -4,6 +4,7 @@ import (
 	"os"
 	"protos/api"
 	"protos/auth"
+	"protos/capability"
 	"protos/config"
 	"protos/daemon"
 	"protos/database"
@@ -18,6 +19,7 @@ func run(configFile string) {
 	var wg sync.WaitGroup
 	config.Load(configFile)
 	database.Open()
+	capability.Initialize()
 	defer database.Close()
 	daemon.StartUp()
 	daemon.LoadApps()
