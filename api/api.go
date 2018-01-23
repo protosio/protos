@@ -27,6 +27,7 @@ type route struct {
 	Method      string
 	Pattern     string
 	HandlerFunc http.HandlerFunc
+	Capability  *capability.Capability
 }
 
 type routes []route
@@ -40,6 +41,9 @@ func newRouter() *mux.Router {
 		protectedRoute := ValidateInternalRequest(route.HandlerFunc, router)
 		handler := util.HTTPLogger(protectedRoute, route.Name)
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
+		if route.Capability != nil {
+			capability.SetMethodCap(route.Name, route.Capability)
+		}
 	}
 
 	// Web routes (require auth)
@@ -52,8 +56,6 @@ func newRouter() *mux.Router {
 	// Authentication routes
 	loginHdlr := util.HTTPLogger(http.HandlerFunc(LoginHandler), "login")
 	router.Methods("POST").Path("/login").Name("login").Handler(loginHdlr)
-
-	createCapabilities()
 
 	return router
 }

@@ -24,6 +24,7 @@ type Capability struct {
 // Initialize creates the root capability and retrieves any tokens that are stored in the db
 func Initialize() {
 	RC = New("RootCapability")
+	createTree(RC)
 }
 
 // New returns a new capability

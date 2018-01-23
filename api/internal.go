@@ -4,13 +4,10 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"protos/capability"
 	"protos/daemon"
 
 	"github.com/gorilla/mux"
-)
-
-const (
-	CregisterResourceProvider = "registerResourceProvider"
 )
 
 var internalRoutes = routes{
@@ -19,48 +16,56 @@ var internalRoutes = routes{
 		"GET",
 		"/internal/resource",
 		getOwnResources,
+		capability.ResourceProvider,
 	},
 	route{
 		"createResource",
 		"POST",
 		"/internal/resource",
 		createResource,
+		capability.ResourceProvider,
 	},
 	route{
 		"deleteResource",
 		"DELETE",
 		"/internal/resource/{resourceID}",
 		deleteResource,
+		capability.ResourceProvider,
 	},
 	route{
-		CregisterResourceProvider,
+		"registerResourceProvider",
 		"POST",
 		"/internal/provider",
 		registerResourceProvider,
+		capability.RegisterResourceProvider,
 	},
 	route{
 		"deregisterResourceProvider",
 		"DELETE",
 		"/internal/provider",
 		deregisterResourceProvider,
+		capability.DeregisterResourceProvider,
 	},
 	route{
 		"getProviderResources",
 		"GET",
 		"/internal/resource/provider",
 		getProviderResources,
+		capability.GetProviderResources,
 	},
 	route{
 		"setResourceStatus",
 		"POST",
 		"/internal/resource/{resourceID}",
 		setResourceStatus,
+		capability.SetResourceStatus,
 	},
 	route{
 		"getResource",
 		"GET",
 		"/internal/resource/{resourceID}",
 		getResource,
+		nil,
 	},
 }
 
