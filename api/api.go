@@ -120,9 +120,9 @@ func checkCapability(app *daemon.App, rtr *mux.Router, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		for _, appcaptoken := range app.Capabilities {
-			log.Debugf("Checking app cap token %s", appcaptoken.ID)
-			if methodcap.ValidateToken(appcaptoken) {
+		log.Debugf("Required capability for route %s is %s", match.Route.GetName(), methodcap.Name)
+		for _, appcap := range app.Capabilities {
+			if capability.ValidateCapability(methodcap, appcap) {
 				return nil
 			}
 		}

@@ -44,7 +44,7 @@ type App struct {
 	IP              string               `json:"ip"`
 	PublicPorts     string               `json:"publicports"`
 	InstallerParams map[string]string    `json:"installer-params"`
-	Capabilities    []capability.Token   `json:"tokens"`
+	Capabilities    []string             `json:"tokens"`
 }
 
 // Apps maintains a map of all the applications
@@ -62,9 +62,9 @@ func validateInstallerParams(paramsProvided map[string]string, paramsExpected []
 	return nil
 }
 
-func createDefaultCapabilities() []capability.Token {
-	caps := []capability.Token{}
-	caps = append(caps, capability.RC.CreateToken())
+func createDefaultCapabilities() []string {
+	caps := []string{}
+	caps = append(caps, capability.RC.Name)
 	return caps
 }
 
