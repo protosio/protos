@@ -52,3 +52,4 @@ vendor/**
 # Protos
 protos.dev.yaml
 glide.lock
+.glide/
