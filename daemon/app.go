@@ -62,9 +62,11 @@ func validateInstallerParams(paramsProvided map[string]string, paramsExpected []
 	return nil
 }
 
-func createDefaultCapabilities() []string {
+func createCapabilities(installerCapabilities []*capability.Capability) []string {
 	caps := []string{}
-	caps = append(caps, capability.RC.Name)
+	for _, cap := range installerCapabilities {
+		caps = append(caps, cap.Name)
+	}
 	return caps
 }
 
@@ -88,7 +90,7 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 	if err != nil {
 		return App{}, err
 	}
-	app.Capabilities = createDefaultCapabilities()
+	app.Capabilities = createCapabilities(installer.Metadata.Capabilities)
 	app.Save()
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
