@@ -9,6 +9,9 @@ import (
 
 var log = util.Log
 
+// AllCapabilities is a list of all the capabilities available in the system
+var AllCapabilities = []*Capability{}
+
 //CapMap holds a maping of methods to capabilities
 var CapMap = make(map[string]*Capability)
 
@@ -30,7 +33,9 @@ func Initialize() {
 // New returns a new capability
 func New(name string) *Capability {
 	log.Debugf("Creating capability %s", name)
-	return &Capability{Name: name}
+	cap := &Capability{Name: name}
+	AllCapabilities = append(AllCapabilities, cap)
+	return cap
 }
 
 // SetParent takes a capability and sets it as the parent
@@ -61,6 +66,16 @@ func GetMethodCap(method string) (*Capability, error) {
 		return cap, nil
 	}
 	return nil, errors.New("Can't find capability for method " + method)
+}
+
+// GetByName returns the capability based on the provided name, if one exists
+func GetByName(name string) (*Capability, error) {
+	for _, cap := range AllCapabilities {
+		if cap.Name == name {
+			return cap, nil
+		}
+	}
+	return nil, errors.New("Capability " + name + " does not exist")
 }
 
 // GetMethodName returns a string representation of the passed method

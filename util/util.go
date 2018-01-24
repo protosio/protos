@@ -58,3 +58,13 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 
 	return b, nil
 }
+
+// StringInSlice checks if provided string is in provided string list
+func StringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}

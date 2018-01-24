@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"errors"
+	"protos/capability"
 	"protos/platform"
 	"regexp"
 	"strings"
@@ -9,10 +10,11 @@ import (
 
 // InstallerMetadata holds metadata for the installer
 type InstallerMetadata struct {
-	Params      []string `json:"params"`
-	Provides    []string `json:"provides"`
-	Requires    []string `json:"requires"`
-	Description string   `json:"description"`
+	Params       []string                 `json:"params"`
+	Provides     []string                 `json:"provides"`
+	Requires     []string                 `json:"requires"`
+	Description  string                   `json:"description"`
+	Capabilities []*capability.Capability `json:"-"`
 }
 
 // Installer represents an application installer
@@ -22,6 +24,19 @@ type Installer struct {
 	Metadata *InstallerMetadata `json:"metadata"`
 }
 
+func parseInstallerCapabilities(capstring string) []*capability.Capability {
+	caps := []*capability.Capability{}
+	for _, capname := range strings.Split(capstring, ",") {
+		cap, err := capability.GetByName(capname)
+		if err != nil {
+			log.Error(err)
+		} else {
+			caps = append(caps, cap)
+		}
+	}
+	return caps
+}
+
 func getMetadata(labels map[string]string) (InstallerMetadata, error) {
 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
 	metadata := InstallerMetadata{}
@@ -29,6 +44,8 @@ func getMetadata(labels map[string]string) (InstallerMetadata, error) {
 		labelParts := r.FindStringSubmatch(label)
 		if len(labelParts) == 3 {
 			switch labelParts[2] {
+			case "capabilities":
+				metadata.Capabilities = parseInstallerCapabilities(value)
 			case "params":
 				metadata.Params = strings.Split(value, ",")
 			case "provides":
