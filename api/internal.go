@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"protos/capability"
 	"protos/daemon"
+	"protos/meta"
 	"protos/provider"
 	"protos/resource"
 
@@ -70,6 +71,13 @@ var internalRoutes = routes{
 		"/internal/resource/{resourceID}",
 		getResource,
 		nil,
+	},
+	route{
+		"getDomainInfo",
+		"GET",
+		"/internal/info/domain",
+		getDomainInfo,
+		capability.GetInformation,
 	},
 }
 
@@ -165,6 +173,16 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	rsc.SetStatus(status)
 	w.WriteHeader(http.StatusOK)
 
+}
+
+func getDomainInfo(w http.ResponseWriter, r *http.Request) {
+	domain := struct {
+		Domain string
+	}{
+		Domain: meta.GetDomain(),
+	}
+
+	json.NewEncoder(w).Encode(domain)
 }
 
 //

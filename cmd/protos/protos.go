@@ -8,6 +8,7 @@ import (
 	"protos/config"
 	"protos/daemon"
 	"protos/database"
+	"protos/meta"
 	"protos/util"
 	"sync"
 
@@ -19,15 +20,16 @@ func run(configFile string) {
 	var wg sync.WaitGroup
 	config.Load(configFile)
 	database.Open()
-	capability.Initialize()
 	defer database.Close()
+	capability.Initialize()
+	meta.Initialize()
 	daemon.StartUp()
 	daemon.LoadApps()
 	wg.Add(2)
-	go func() {
-		auth.LDAPsrv()
-		wg.Done()
-	}()
+	// go func() {
+	// 	auth.LDAPsrv()
+	// 	wg.Done()
+	// }()
 	go func() {
 		api.Websrv()
 		wg.Done()
@@ -84,10 +86,11 @@ func main() {
 			Usage: "create initial configuration and user",
 			Action: func(c *cli.Context) error {
 				config.Load(configFile)
-				daemon.Initialize()
+				daemon.Setup()
 				database.Open()
 				defer database.Close()
-				auth.InitAdmin()
+				meta.Setup()
+				auth.SetupAdmin()
 				return nil
 			},
 		},

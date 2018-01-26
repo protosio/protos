@@ -7,6 +7,9 @@ var DeregisterResourceProvider = New("DeregisterResourceProvider")
 var GetProviderResources = New("GetProviderResources")
 var SetResourceStatus = New("SetResourceStatus")
 
+// Information capabilities
+var GetInformation = New("GetInformation")
+
 func createTree(root *Capability) {
 	RegisterResourceProvider.SetParent(ResourceProvider)
 	DeregisterResourceProvider.SetParent(ResourceProvider)
@@ -14,4 +17,5 @@ func createTree(root *Capability) {
 	SetResourceStatus.SetParent(ResourceProvider)
 
 	ResourceProvider.SetParent(root)
+	GetInformation.SetParent(root)
 }

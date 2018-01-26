@@ -26,8 +26,8 @@ func StartUp() {
 
 }
 
-// Initialize creates an initial detabase and populates the credentials.
-func Initialize() {
+// Setup creates the Protos work directory
+func Setup() {
 
 	// create the workdir if it does not exist
 	if _, err := os.Stat(gconfig.WorkDir); err != nil {

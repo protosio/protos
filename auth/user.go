@@ -114,8 +114,8 @@ func ValidateAndGetUser(username string, password string) (User, error) {
 	return user, nil
 }
 
-// InitAdmin creates and initial admin user
-func InitAdmin() {
+// SetupAdmin creates and initial admin user
+func SetupAdmin() {
 	username, clearpassword := readCredentials()
 	user, err := CreateUser(username, clearpassword, true)
 	if err != nil {
