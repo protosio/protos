@@ -2,12 +2,16 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"protos/capability"
 	"protos/daemon"
+	"protos/provider"
+	"protos/resource"
 
 	"github.com/gorilla/mux"
+	"github.com/tidwall/gjson"
 )
 
 var internalRoutes = routes{
@@ -35,14 +39,14 @@ var internalRoutes = routes{
 	route{
 		"registerResourceProvider",
 		"POST",
-		"/internal/provider",
+		"/internal/provider/{resourceType}",
 		registerResourceProvider,
 		capability.RegisterResourceProvider,
 	},
 	route{
 		"deregisterResourceProvider",
 		"DELETE",
-		"/internal/provider",
+		"/internal/provider/{resourceType}",
 		deregisterResourceProvider,
 		capability.DeregisterResourceProvider,
 	},
@@ -74,19 +78,16 @@ var internalRoutes = routes{
 //
 
 func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
-
 	app := r.Context().Value("app").(*daemon.App)
 
-	var provider daemon.Provider
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	err := decoder.Decode(&provider)
+	rtype, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = daemon.RegisterProvider(app, provider.Type)
+
+	err = provider.Register(app, rtype)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -100,17 +101,14 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 
 	app := r.Context().Value("app").(*daemon.App)
 
-	var provider daemon.Provider
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	err := decoder.Decode(&provider)
+	rtype, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = daemon.DeregisterProvider(app, provider.Type)
+	err = provider.Deregister(app, rtype)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -124,7 +122,7 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
 	app := r.Context().Value("app").(*daemon.App)
 
-	resources, err := daemon.GetProviderResources(app)
+	resources, err := provider.GetResources(app)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -134,6 +132,41 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resources)
 }
 
+func setResourceStatus(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	resourceID := vars["resourceID"]
+
+	app := r.Context().Value("app").(*daemon.App)
+
+	bodyJSON, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	statusName := gjson.GetBytes(bodyJSON, "status").Str
+	status, err := resource.GetStatus(statusName)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rsc := app.Provider.GetResource(resourceID)
+	if rsc == nil {
+		err := errors.New("Could not find resource " + resourceID)
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rsc.SetStatus(status)
+	w.WriteHeader(http.StatusOK)
+
+}
+
 //
 // Methods used by normal applications to manipulate their own resources
 //
@@ -141,7 +174,7 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 func getOwnResources(w http.ResponseWriter, r *http.Request) {
 
 	app := r.Context().Value("app").(*daemon.App)
-	resources := daemon.GetAppResources(app)
+	resources := app.GetResources()
 
 	json.NewEncoder(w).Encode(resources)
 
@@ -170,12 +203,21 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 
 }
 
+//ToDo: implement functionality
 func getResource(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
-	log.Debug(resourceID)
+	app := r.Context().Value("app").(*daemon.App)
+	rsc := app.GetResource(resourceID)
+	if rsc == nil {
+		err := errors.New("Could not find resource " + resourceID)
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
+	json.NewEncoder(w).Encode(rsc)
 	w.WriteHeader(http.StatusOK)
 
 }
@@ -187,37 +229,6 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 
 	app := r.Context().Value("app").(*daemon.App)
 	err := app.DeleteResource(resourceID)
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-
-}
-
-func setResourceStatus(w http.ResponseWriter, r *http.Request) {
-
-	vars := mux.Vars(r)
-	resourceID := vars["resourceID"]
-
-	app := r.Context().Value("app").(*daemon.App)
-
-	var status struct {
-		Status string `json:"status"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	err := decoder.Decode(&status)
-	if err != nil {
-		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	err = app.SetResourceStatus(resourceID, status.Status)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

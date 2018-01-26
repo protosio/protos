@@ -60,11 +60,17 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 }
 
 // StringInSlice checks if provided string is in provided string list
-func StringInSlice(a string, list []string) bool {
-	for _, b := range list {
+func StringInSlice(a string, list []string) (bool, int) {
+	for i, b := range list {
 		if b == a {
-			return true
+			return true, i
 		}
 	}
-	return false
+	return false, 0
+}
+
+// RemoveStringFromSlice removes a string element from a slice, usind the provided index
+func RemoveStringFromSlice(s []string, i int) []string {
+	s[len(s)-1], s[i] = s[i], s[len(s)-1]
+	return s[:len(s)-1]
 }

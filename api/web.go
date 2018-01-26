@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"protos/daemon"
+	"protos/resource"
 
 	"github.com/gorilla/mux"
 )
@@ -228,7 +229,7 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 
 func getResources(w http.ResponseWriter, r *http.Request) {
 
-	resources := daemon.GetResources()
+	resources := resource.GetAll()
 
 	log.Debug("Sending response: ", resources)
 	json.NewEncoder(w).Encode(resources)

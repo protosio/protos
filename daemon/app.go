@@ -5,6 +5,8 @@ import (
 	"protos/capability"
 	"protos/database"
 	"protos/platform"
+	"protos/resource"
+	"protos/util"
 
 	"github.com/rs/xid"
 )
@@ -44,7 +46,9 @@ type App struct {
 	IP              string               `json:"ip"`
 	PublicPorts     string               `json:"publicports"`
 	InstallerParams map[string]string    `json:"installer-params"`
-	Capabilities    []string             `json:"tokens"`
+	Capabilities    []string             `json:"capabilities"`
+	Resources       []string             `json:"resources"`
+	Provider        provider             `json:"-"`
 }
 
 // Apps maintains a map of all the applications
@@ -270,4 +274,78 @@ func LoadApps() {
 func GetApps() map[string]*App {
 	LoadApps()
 	return Apps
+}
+
+//
+// Resource related methods
+//
+
+//CreateResource adds a resource to the internal resources map.
+func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
+
+	rsc, err := resource.Create(appJSON)
+	if err != nil {
+		return &resource.Resource{}, err
+	}
+	app.Resources = append(app.Resources, rsc.ID)
+
+	return rsc, nil
+}
+
+//DeleteResource deletes a resource
+func (app *App) DeleteResource(resourceID string) error {
+	if v, index := util.StringInSlice(resourceID, app.Resources); v {
+		log.Info("Deleting resource " + resourceID + " belonging to application " + app.ID)
+		err := resource.Delete(resourceID)
+		if err != nil {
+			return err
+		}
+		app.Resources = util.RemoveStringFromSlice(app.Resources, index)
+		return nil
+	}
+
+	return errors.New("Resource " + resourceID + " not owned by application " + app.ID)
+}
+
+// GetResources retrieves all the resources that belong to an application
+func (app *App) GetResources() map[string]*resource.Resource {
+	resources := make(map[string]*resource.Resource)
+	for _, rscid := range app.Resources {
+		rsc, err := resource.Get(rscid)
+		if err != nil {
+			log.Error(err)
+		}
+		resources[rscid] = rsc
+	}
+	return resources
+}
+
+// GetResource returns resource with provided ID, if it belongs to this app
+func (app *App) GetResource(resourceID string) *resource.Resource {
+	for _, rscid := range app.Resources {
+		if rscid == resourceID {
+			rsc, err := resource.Get(rscid)
+			if err != nil {
+				log.Error(err)
+			}
+			return rsc
+		}
+	}
+	return nil
+}
+
+//
+// Provider related methods
+//
+
+type provider interface {
+	TypeName() string
+	GetResources() map[string]*resource.Resource
+	GetResource(string) *resource.Resource
+}
+
+//SetProvider makes an application a resource provider
+func (app *App) SetProvider(provider provider) {
+	log.Debugf("Making application %s a provider for resource %s", app.ID, provider.TypeName())
+	app.Provider = provider
 }
