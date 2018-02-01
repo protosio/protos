@@ -21,19 +21,6 @@ const (
 	Unknown   = RStatus("unknown")
 )
 
-const (
-	Certificate = RType("certificate")
-	DNS         = RType("dns")
-	Mail        = RType("mail")
-)
-
-type DNSResource struct {
-	Host  string `json:"host"`
-	Value string `json:"value" hash:"-"`
-	Type  string `json:"type"`
-	TTL   int    `json:"ttl" hash:"-"`
-}
-
 type Resource struct {
 	ID     string      `json:"id" hash:"-"`
 	Type   RType       `json:"type"`
@@ -42,15 +29,6 @@ type Resource struct {
 }
 
 var resources = make(map[string]*Resource)
-
-// func statusIsValid(status RStatus) bool {
-// 	if status == Requested ||
-// 		status == Created ||
-// 		status == Unknown {
-// 		return true
-// 	}
-// 	return false
-// }
 
 //
 // Resource

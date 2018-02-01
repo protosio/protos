@@ -102,14 +102,14 @@ func ValidateInternalRequest(next http.Handler, rtr *mux.Router) http.Handler {
 		}
 		log.Debugf("Validated %s request to %s as coming from app %s(%s)", r.Method, r.URL.Path, appID, app.Name)
 
-		err = checkCapability(&app, rtr, r)
+		err = checkCapability(app, rtr, r)
 		if err != nil {
 			log.Error(err.Error())
 			http.Error(w, "Application not authorized to access that resource", http.StatusUnauthorized)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "app", &app)
+		ctx := context.WithValue(r.Context(), "app", app)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 

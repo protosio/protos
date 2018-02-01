@@ -36,6 +36,7 @@ func Register(app *daemon.App, rtype resource.RType) error {
 
 	log.Info("Registering  provider for resource " + string(rtype))
 	providers[rtype].App = app
+	app.SetProvider(providers[rtype])
 
 	return nil
 }
@@ -44,27 +45,12 @@ func Register(app *daemon.App, rtype resource.RType) error {
 func Deregister(app *daemon.App, rtype resource.RType) error {
 
 	if providers[rtype].App != nil && providers[rtype].App.ID != app.ID {
-		return errors.New("Application '" + app.Name + "' is NOT registered for resource type '" + string(rtype))
+		return errors.New("Application '" + app.Name + "' is NOT registered for resource type " + string(rtype))
 	}
 
-	log.Info("Deregistering application '" + app.Name + "' as a provider for '" + string(rtype))
+	log.Info("Deregistering application '" + app.Name + "' as a provider for " + string(rtype))
 	providers[rtype].App = nil
 	return nil
-}
-
-//GetResources retrieves all resources of a specific resource provider.
-func GetResources(app *daemon.App) (map[string]*resource.Resource, error) {
-	for _, provider := range providers {
-		if provider.App.ID == app.ID {
-			res := map[string]*resource.Resource{}
-			for _, resource := range resource.GetForType(provider.Type) {
-				res[resource.ID] = resource
-			}
-			return res, nil
-		}
-	}
-	err := errors.New("Application '" + app.Name + "' is NOT registered as a resource provider.")
-	return map[string]*resource.Resource{}, err
 }
 
 //

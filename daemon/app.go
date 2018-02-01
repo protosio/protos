@@ -180,11 +180,19 @@ func (app *App) Stop() error {
 }
 
 // ReadApp reads a fresh copy of the application
-func ReadApp(appID string) (App, error) {
+func ReadApp(appID string) (*App, error) {
 	log.Info("Reading application ", appID)
 
-	var app App
-	err := database.One("ID", appID, &app)
+	var app *App
+	if a, ok := Apps[appID]; ok {
+		app = a
+	} else {
+		err := errors.New("Can't find app " + appID)
+		log.Debug(err)
+		return app, err
+	}
+
+	err := database.One("ID", appID, app)
 	if err != nil {
 		log.Debugf("Can't find app %s (%s)", appID, err)
 		return app, err
@@ -199,7 +207,6 @@ func ReadApp(appID string) (App, error) {
 	app.Status = cnt.Status
 	app.IP = cnt.IP
 	app.Rtu = cnt
-	Apps[app.ID] = &app
 	return app, nil
 }
 
@@ -344,8 +351,16 @@ type provider interface {
 	GetResource(string) *resource.Resource
 }
 
-//SetProvider makes an application a resource provider
+// SetProvider makes an application a resource provider
 func (app *App) SetProvider(provider provider) {
 	log.Debugf("Making application %s a provider for resource %s", app.ID, provider.TypeName())
 	app.Provider = provider
+}
+
+// IsProvider checks if an application is a provider
+func (app *App) IsProvider() bool {
+	if app.Provider != nil {
+		return true
+	}
+	return false
 }

@@ -130,13 +130,14 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
 	app := r.Context().Value("app").(*daemon.App)
 
-	resources, err := provider.GetResources(app)
-	if err != nil {
+	if app.IsProvider() == false {
+		err := errors.New("Application " + app.ID + " is not a resource provider")
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	resources := app.Provider.GetResources()
 	json.NewEncoder(w).Encode(resources)
 }
 
