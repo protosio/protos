@@ -88,7 +88,7 @@ var internalRoutes = routes{
 func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 	app := r.Context().Value("app").(*daemon.App)
 
-	rtype, err := resource.GetType(mux.Vars(r)["resourceType"])
+	rtype, _, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -109,7 +109,7 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 
 	app := r.Context().Value("app").(*daemon.App)
 
-	rtype, err := resource.GetType(mux.Vars(r)["resourceType"])
+	rtype, _, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

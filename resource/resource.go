@@ -13,7 +13,6 @@ import (
 var log = util.Log
 
 type RStatus string
-type RType string
 
 const (
 	Requested = RStatus("requested")
@@ -22,10 +21,10 @@ const (
 )
 
 type Resource struct {
-	ID     string      `json:"id" hash:"-"`
-	Type   RType       `json:"type"`
-	Fields interface{} `json:"value"`
-	Status RStatus     `json:"status"`
+	ID     string  `json:"id" hash:"-"`
+	Type   RType   `json:"type"`
+	Fields Type    `json:"-"`
+	Status RStatus `json:"status"`
 }
 
 var resources = make(map[string]*Resource)
@@ -84,16 +83,16 @@ func GetResourceFromJSON(resourceJSON []byte) (*Resource, error) {
 	}
 
 	resourceType := gjson.Get(string(resourceJSON), "type").Str
-	if resourceType == string(DNS) {
-		resourceStruct := DNSResource{}
-		err = json.Unmarshal(raw, &resourceStruct)
-		if err != nil {
-			return &Resource{}, err
-		}
-		resource.Fields = resourceStruct
-	} else {
-		return &Resource{}, errors.New("Resource type '" + resourceType + "' does not exists")
+
+	_, resourceStruct, err := GetType(resourceType)
+	if err != nil {
+		return nil, err
 	}
+	err = json.Unmarshal(raw, resourceStruct)
+	if err != nil {
+		return nil, err
+	}
+	resource.Fields = resourceStruct
 
 	return &resource, nil
 }
@@ -159,16 +158,14 @@ func (rsc *Resource) SetStatus(status RStatus) {
 }
 
 //GetType retrieves a resource type based on the provided string
-func GetType(typename string) (RType, error) {
+func GetType(typename string) (RType, Type, error) {
 	switch typename {
 	case "certificate":
-		return Certificate, nil
+		return Certificate, &CertificateResource{}, nil
 	case "dns":
-		return DNS, nil
-	case "mail":
-		return Mail, nil
+		return DNS, &DNSResource{}, nil
 	default:
-		return RType(""), errors.New("Resource type " + typename + " does not exist")
+		return RType(""), nil, errors.New("Resource type " + typename + " does not exist")
 	}
 }
 
