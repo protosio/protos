@@ -2,9 +2,10 @@ package capability
 
 import (
 	"errors"
-	"protos/util"
 	"reflect"
 	"runtime"
+
+	"github.com/nustiueudinastea/protos/util"
 )
 
 var log = util.Log

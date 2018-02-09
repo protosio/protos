@@ -2,9 +2,10 @@ package daemon
 
 import (
 	"os"
-	"protos/config"
-	"protos/platform"
-	"protos/util"
+
+	"github.com/nustiueudinastea/protos/config"
+	"github.com/nustiueudinastea/protos/platform"
+	"github.com/nustiueudinastea/protos/util"
 )
 
 var gconfig = config.Gconfig

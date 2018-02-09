@@ -2,15 +2,16 @@ package main
 
 import (
 	"os"
-	"protos/api"
-	"protos/auth"
-	"protos/capability"
-	"protos/config"
-	"protos/daemon"
-	"protos/database"
-	"protos/meta"
-	"protos/util"
 	"sync"
+
+	"github.com/nustiueudinastea/protos/api"
+	"github.com/nustiueudinastea/protos/auth"
+	"github.com/nustiueudinastea/protos/capability"
+	"github.com/nustiueudinastea/protos/config"
+	"github.com/nustiueudinastea/protos/daemon"
+	"github.com/nustiueudinastea/protos/database"
+	"github.com/nustiueudinastea/protos/meta"
+	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/Sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"

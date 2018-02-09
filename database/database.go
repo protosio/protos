@@ -2,8 +2,9 @@ package database
 
 import (
 	"path"
-	"protos/config"
-	"protos/util"
+
+	"github.com/nustiueudinastea/protos/config"
+	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/asdine/storm"
 )

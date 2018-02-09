@@ -2,9 +2,10 @@ package provider
 
 import (
 	"errors"
-	"protos/daemon"
-	"protos/resource"
-	"protos/util"
+
+	"github.com/nustiueudinastea/protos/daemon"
+	"github.com/nustiueudinastea/protos/resource"
+	"github.com/nustiueudinastea/protos/util"
 )
 
 var log = util.Log

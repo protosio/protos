@@ -3,7 +3,8 @@ package config
 import (
 	"io/ioutil"
 	"path/filepath"
-	"protos/util"
+
+	"github.com/nustiueudinastea/protos/util"
 
 	"gopkg.in/yaml.v2"
 )

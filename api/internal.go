@@ -5,11 +5,12 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
-	"protos/capability"
-	"protos/daemon"
-	"protos/meta"
-	"protos/provider"
-	"protos/resource"
+
+	"github.com/nustiueudinastea/protos/capability"
+	"github.com/nustiueudinastea/protos/daemon"
+	"github.com/nustiueudinastea/protos/meta"
+	"github.com/nustiueudinastea/protos/provider"
+	"github.com/nustiueudinastea/protos/resource"
 
 	"github.com/gorilla/mux"
 	"github.com/tidwall/gjson"

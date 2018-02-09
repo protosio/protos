@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"protos/util"
+
+	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/cnf/structhash"
 	"github.com/tidwall/gjson"

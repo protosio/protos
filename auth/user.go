@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"protos/database"
-	"protos/util"
 	"strings"
 	"syscall"
+
+	"github.com/nustiueudinastea/protos/database"
+	"github.com/nustiueudinastea/protos/util"
 
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"

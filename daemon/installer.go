@@ -2,10 +2,11 @@ package daemon
 
 import (
 	"errors"
-	"protos/capability"
-	"protos/platform"
 	"regexp"
 	"strings"
+
+	"github.com/nustiueudinastea/protos/capability"
+	"github.com/nustiueudinastea/protos/platform"
 )
 
 // InstallerMetadata holds metadata for the installer

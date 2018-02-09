@@ -2,11 +2,12 @@ package daemon
 
 import (
 	"errors"
-	"protos/capability"
-	"protos/database"
-	"protos/platform"
-	"protos/resource"
-	"protos/util"
+
+	"github.com/nustiueudinastea/protos/capability"
+	"github.com/nustiueudinastea/protos/database"
+	"github.com/nustiueudinastea/protos/platform"
+	"github.com/nustiueudinastea/protos/resource"
+	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/rs/xid"
 )

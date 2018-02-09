@@ -3,8 +3,9 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"protos/daemon"
-	"protos/resource"
+
+	"github.com/nustiueudinastea/protos/daemon"
+	"github.com/nustiueudinastea/protos/resource"
 
 	"github.com/gorilla/mux"
 )

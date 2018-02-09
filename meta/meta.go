@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"protos/database"
-	"protos/util"
 	"strings"
+
+	"github.com/nustiueudinastea/protos/database"
+	"github.com/nustiueudinastea/protos/util"
 )
 
 var log = util.Log

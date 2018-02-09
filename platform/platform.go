@@ -1,6 +1,6 @@
 package platform
 
-import "protos/util"
+import "github.com/nustiueudinastea/protos/util"
 
 var log = util.Log
 
