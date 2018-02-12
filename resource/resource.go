@@ -8,7 +8,6 @@ import (
 	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/cnf/structhash"
-	"github.com/tidwall/gjson"
 )
 
 var log = util.Log
@@ -24,7 +23,7 @@ const (
 type Resource struct {
 	ID     string  `json:"id" hash:"-"`
 	Type   RType   `json:"type"`
-	Fields Type    `json:"-"`
+	Value  Type    `json:"value"`
 	Status RStatus `json:"status"`
 }
 
@@ -35,24 +34,8 @@ var resources = make(map[string]*Resource)
 //
 
 //GetAll retrieves all the saved resources
-// some fields are modified before being returned
-func GetAll() map[string]interface{} {
-	modifiedResources := make(map[string]interface{})
-	for id, rsc := range resources {
-		mrsc := struct {
-			ID     string      `json:"id" hash:"-"`
-			Type   RType       `json:"type"`
-			Fields interface{} `json:"value"`
-			Status RStatus     `json:"status"`
-		}{
-			ID:     rsc.ID,
-			Type:   rsc.Type,
-			Fields: rsc.Fields,
-			Status: rsc.Status,
-		}
-		modifiedResources[id] = mrsc
-	}
-	return modifiedResources
+func GetAll() map[string]*Resource {
+	return resources
 }
 
 //GetForType returns all the resources of a specific resource type
@@ -66,42 +49,40 @@ func GetForType(RType RType) []*Resource {
 	return rscs
 }
 
-//GetResourceFromJSON recevies json and casts it to the correct data structure
-func GetResourceFromJSON(resourceJSON []byte) (*Resource, error) {
-
-	resource := Resource{}
-	err := json.Unmarshal(resourceJSON, &resource)
+// UnmarshalJSON is a custom json unmarshaller for resource
+func (rsc *Resource) UnmarshalJSON(b []byte) error {
+	resdata := struct {
+		ID     string          `json:"id" hash:"-"`
+		Type   RType           `json:"type"`
+		Value  json.RawMessage `json:"value"`
+		Status RStatus         `json:"status"`
+	}{}
+	err := json.Unmarshal(b, &resdata)
 	if err != nil {
-		return &Resource{}, err
+		return err
 	}
 
-	resourceJSONValue := gjson.GetBytes(resourceJSON, "value")
-	var raw []byte
-	if resourceJSONValue.Index > 0 {
-		raw = resourceJSON[resourceJSONValue.Index : resourceJSONValue.Index+len(resourceJSONValue.Raw)]
-	} else {
-		raw = []byte(resourceJSONValue.Raw)
-	}
-
-	resourceType := gjson.Get(string(resourceJSON), "type").Str
-
-	_, resourceStruct, err := GetType(resourceType)
+	rsc.ID = resdata.ID
+	rsc.Type = resdata.Type
+	rsc.Status = resdata.Status
+	_, resourceStruct, err := GetType(string(resdata.Type))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = json.Unmarshal(raw, resourceStruct)
-	if err != nil {
-		return nil, err
-	}
-	resource.Fields = resourceStruct
 
-	return &resource, nil
+	err = json.Unmarshal(resdata.Value, &resourceStruct)
+	if err != nil {
+		return err
+	}
+	rsc.Value = resourceStruct
+	return nil
 }
 
 //Create creates a resource and adds it to the internal resources map.
 func Create(appJSON []byte) (*Resource, error) {
 
-	resource, err := GetResourceFromJSON(appJSON)
+	resource := &Resource{}
+	err := json.Unmarshal(appJSON, resource)
 	if err != nil {
 		return resource, err
 	}
