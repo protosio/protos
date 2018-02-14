@@ -91,10 +91,10 @@ func Create(appJSON []byte) (*Resource, error) {
 	if _, ok := resources[rhash]; ok {
 		return &Resource{}, errors.New("Resource " + rhash + " already registered")
 	}
-	log.Debug("Adding resource ", rhash, ": ", resource)
-
 	resource.Status = Requested
 	resource.ID = rhash
+
+	log.Debug("Adding resource ", rhash, ": ", resource)
 	resources[rhash] = resource
 	return resource, nil
 }

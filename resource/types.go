@@ -21,7 +21,7 @@ type DNSResource struct {
 	TTL   int    `json:"ttl" hash:"-"`
 }
 
-func (rsc *DNSResource) GetHash() string {
+func (rsc DNSResource) GetHash() string {
 	return ""
 }
 
@@ -33,6 +33,6 @@ type CertificateResource struct {
 	IssuerCertificate []byte   `json:"-" hash:"-"`
 }
 
-func (rsc *CertificateResource) GetHash() string {
+func (rsc CertificateResource) GetHash() string {
 	return ""
 }
