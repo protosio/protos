@@ -31,7 +31,7 @@ func init() {
 // Register registers a resource provider
 func Register(app *daemon.App, rtype resource.RType) error {
 	if providers[rtype].App != nil {
-		err := errors.New("Provider already registered for resource type '" + string(rtype))
+		err := errors.New("Provider already registered for resource type " + string(rtype))
 		return err
 	}
 
