@@ -261,7 +261,7 @@ func LoadApps() {
 		return
 	}
 
-	for _, app := range apps {
+	for idx, app := range apps {
 		if cnt, ok := cnts[app.ContainerID]; ok {
 			app.Status = cnt.Status
 			app.IP = cnt.IP
@@ -273,7 +273,7 @@ func LoadApps() {
 		if app.Save() != nil {
 			log.Panicf("Failed to persist app %s to db", app.ID)
 		}
-		Apps[app.ID] = &app
+		Apps[app.ID] = &apps[idx]
 	}
 
 }
