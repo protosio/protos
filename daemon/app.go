@@ -49,7 +49,6 @@ type App struct {
 	InstallerParams map[string]string    `json:"installer-params"`
 	Capabilities    []string             `json:"capabilities"`
 	Resources       []string             `json:"resources"`
-	Provider        provider             `json:"-"`
 }
 
 // Apps maintains a map of all the applications
@@ -340,28 +339,4 @@ func (app *App) GetResource(resourceID string) *resource.Resource {
 		}
 	}
 	return nil
-}
-
-//
-// Provider related methods
-//
-
-type provider interface {
-	TypeName() string
-	GetResources() map[string]*resource.Resource
-	GetResource(string) *resource.Resource
-}
-
-// SetProvider makes an application a resource provider
-func (app *App) SetProvider(provider provider) {
-	log.Debugf("Making application %s a provider for resource %s", app.ID, provider.TypeName())
-	app.Provider = provider
-}
-
-// IsProvider checks if an application is a provider
-func (app *App) IsProvider() bool {
-	if app.Provider != nil {
-		return true
-	}
-	return false
 }

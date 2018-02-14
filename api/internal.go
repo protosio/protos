@@ -131,14 +131,15 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
 	app := r.Context().Value("app").(*daemon.App)
 
-	if app.IsProvider() == false {
+	provider, err := provider.Get(app)
+	if err != nil {
 		err := errors.New("Application " + app.ID + " is not a resource provider")
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	resources := app.Provider.GetResources()
+	resources := provider.GetResources()
 	json.NewEncoder(w).Encode(resources)
 }
 
@@ -156,6 +157,14 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	provider, err := provider.Get(app)
+	if err != nil {
+		err := errors.New("Application " + app.ID + " is not a resource provider")
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	statusName := gjson.GetBytes(bodyJSON, "status").Str
 	status, err := resource.GetStatus(statusName)
 	if err != nil {
@@ -164,7 +173,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rsc := app.Provider.GetResource(resourceID)
+	rsc := provider.GetResource(resourceID)
 	if rsc == nil {
 		err := errors.New("Could not find resource " + resourceID)
 		log.Error(err)

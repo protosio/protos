@@ -31,13 +31,14 @@ func init() {
 // Register registers a resource provider
 func Register(app *daemon.App, rtype resource.RType) error {
 	if providers[rtype].App != nil {
-		err := errors.New("Provider already registered for resource type " + string(rtype))
-		return err
+		_, err := daemon.ReadApp(providers[rtype].App.ID)
+		if err == nil {
+			return errors.New("Provider already registered for resource type " + string(rtype))
+		}
 	}
 
-	log.Info("Registering  provider for resource " + string(rtype))
+	log.Info("Registering provider for resource " + string(rtype))
 	providers[rtype].App = app
-	app.SetProvider(providers[rtype])
 
 	return nil
 }
@@ -52,6 +53,16 @@ func Deregister(app *daemon.App, rtype resource.RType) error {
 	log.Info("Deregistering application '" + app.Name + "' as a provider for " + string(rtype))
 	providers[rtype].App = nil
 	return nil
+}
+
+// Get retrieves the resource provider associated with an app
+func Get(app *daemon.App) (*Provider, error) {
+	for _, provider := range providers {
+		if provider.App != nil && provider.App.ID == app.ID {
+			return provider, nil
+		}
+	}
+	return nil, errors.New("Application '" + app.Name + "' is NOT a resource provider")
 }
 
 //
