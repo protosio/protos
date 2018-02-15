@@ -54,6 +54,10 @@ type App struct {
 // Apps maintains a map of all the applications
 var Apps = make(map[string]*App)
 
+//
+// Utilities
+//
+
 // validateInstallerParams makes sure that the params passed at app creation match what is requested by the installer
 func validateInstallerParams(paramsProvided map[string]string, paramsExpected []string) error {
 	for _, param := range paramsExpected {
@@ -74,34 +78,16 @@ func createCapabilities(installerCapabilities []*capability.Capability) []string
 	return caps
 }
 
-// CreateApp takes an image and creates an application, without starting it
-func CreateApp(installerID string, name string, ports string, installerParams map[string]string) (App, error) {
-
-	installer, err := ReadInstaller(installerID)
-	if err != nil {
-		return App{}, err
+// ToDo: do app refresh caching in the platform code
+func refreshAppsPlatform() {
+	for _, app := range Apps {
+		app.RefreshPlatform()
 	}
-
-	err = validateInstallerParams(installerParams, installer.Metadata.Params)
-	if err != nil {
-		return App{}, err
-	}
-
-	guid := xid.New()
-	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app := App{Name: name, ID: guid.String(), InstallerID: installerID, PublicPorts: ports, InstallerParams: installerParams}
-	err = app.createContainer()
-	if err != nil {
-		return App{}, err
-	}
-	app.Capabilities = createCapabilities(installer.Metadata.Capabilities)
-	app.Save()
-
-	log.Debug("Created application ", name, "[", guid.String(), "]")
-
-	return app, nil
-
 }
+
+//
+// Methods for application instance
+//
 
 // AddAction performs an action on an application
 func (app *App) AddAction(action AppAction) error {
@@ -132,10 +118,10 @@ func (app *App) createContainer() error {
 	if err != nil {
 		return err
 	}
-	app.ContainerID = cnt.ID
-	app.Status = cnt.Status
-	app.IP = cnt.IP
 	app.Rtu = cnt
+	app.ContainerID = app.Rtu.GetID()
+	app.IP = app.Rtu.GetIP()
+	app.Status = app.Rtu.GetStatus()
 	return app.Save()
 }
 
@@ -144,6 +130,27 @@ func (app *App) containerMissing() bool {
 		return false
 	}
 	return true
+}
+
+// RefreshPlatform updates the information about the underlying application container
+func (app *App) RefreshPlatform() {
+	if app.Rtu == nil {
+		cnt, err := platform.GetDockerContainer(app.ContainerID)
+		if err != nil {
+			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
+			app.Status = statusMissingContainer
+		} else {
+			app.Rtu = cnt
+		}
+	} else {
+		err := app.Rtu.Update()
+		if err != nil {
+			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
+			app.Status = statusMissingContainer
+		}
+	}
+	app.IP = app.Rtu.GetIP()
+	app.Status = app.Rtu.GetStatus()
 }
 
 // Start starts an application
@@ -179,52 +186,6 @@ func (app *App) Stop() error {
 	return nil
 }
 
-// ReadApp reads a fresh copy of the application
-func ReadApp(appID string) (*App, error) {
-	log.Info("Reading application ", appID)
-
-	var app *App
-	if a, ok := Apps[appID]; ok {
-		app = a
-	} else {
-		err := errors.New("Can't find app " + appID)
-		log.Debug(err)
-		return app, err
-	}
-
-	err := database.One("ID", appID, app)
-	if err != nil {
-		log.Debugf("Can't find app %s (%s)", appID, err)
-		return app, err
-	}
-
-	cnt, err := platform.GetDockerContainer(app.ContainerID)
-	if err != nil {
-		app.Status = statusMissingContainer
-		return app, nil
-	}
-
-	app.Status = cnt.Status
-	app.IP = cnt.IP
-	app.Rtu = cnt
-	return app, nil
-}
-
-// ReadAppByIP searches and returns an application based on it's IP address
-func ReadAppByIP(appIP string) (*App, error) {
-	log.Debug("Reading application with IP ", appIP)
-	LoadApps()
-
-	for _, app := range Apps {
-		if app.IP == appIP {
-			log.Debug("Found application '", app.Name, "' for IP ", appIP)
-			return app, nil
-		}
-	}
-	return &App{}, errors.New("Could not find any application with IP " + appIP)
-
-}
-
 // Remove App removes an application container
 func (app *App) Remove() error {
 	log.Info("Removing application ", app.Name, "[", app.ID, "]")
@@ -243,49 +204,7 @@ func (app *App) Remove() error {
 	return nil
 }
 
-// LoadApps connects to the Docker daemon and refreshes the internal application list
-func LoadApps() {
-	apps := []App{}
-	log.Info("Retrieving applications")
-
-	err := database.All(&apps)
-	if err != nil {
-		log.Error("Could not retrieve applications from the database: ", err)
-		return
-	}
-
-	cnts, err := platform.GetAllDockerContainers()
-	if err != nil {
-		log.Error("Could not retrieve containers from Docker: ", err)
-		return
-	}
-
-	for idx, app := range apps {
-		if cnt, ok := cnts[app.ContainerID]; ok {
-			app.Status = cnt.Status
-			app.IP = cnt.IP
-		} else {
-			log.Errorf("Application %s is missing container %s", app.ID, app.ContainerID)
-			app.Status = statusMissingContainer
-		}
-
-		if app.Save() != nil {
-			log.Panicf("Failed to persist app %s to db", app.ID)
-		}
-		Apps[app.ID] = &apps[idx]
-	}
-
-}
-
-// GetApps refreshes the application list and returns it
-func GetApps() map[string]*App {
-	LoadApps()
-	return Apps
-}
-
-//
 // Resource related methods
-//
 
 //CreateResource adds a resource to the internal resources map.
 func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
@@ -339,4 +258,86 @@ func (app *App) GetResource(resourceID string) *resource.Resource {
 		}
 	}
 	return nil
+}
+
+//
+// Package public methods
+//
+
+// CreateApp takes an image and creates an application, without starting it
+func CreateApp(installerID string, name string, ports string, installerParams map[string]string) (App, error) {
+
+	installer, err := ReadInstaller(installerID)
+	if err != nil {
+		return App{}, err
+	}
+
+	err = validateInstallerParams(installerParams, installer.Metadata.Params)
+	if err != nil {
+		return App{}, err
+	}
+
+	guid := xid.New()
+	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
+	app := App{Name: name, ID: guid.String(), InstallerID: installerID, PublicPorts: ports, InstallerParams: installerParams}
+	err = app.createContainer()
+	if err != nil {
+		return App{}, err
+	}
+	app.Capabilities = createCapabilities(installer.Metadata.Capabilities)
+	app.Save()
+
+	log.Debug("Created application ", name, "[", guid.String(), "]")
+
+	return app, nil
+
+}
+
+// ReadApp reads a fresh copy of the application
+func ReadApp(appID string) (*App, error) {
+	log.Info("Reading application ", appID)
+	if app, ok := Apps[appID]; ok {
+		app.RefreshPlatform()
+		return app, nil
+	}
+	err := errors.New("Can't find app " + appID)
+	log.Debug(err)
+	return nil, err
+}
+
+// ReadAppByIP searches and returns an application based on it's IP address
+// ToDo: refresh IP data for all applications?
+func ReadAppByIP(appIP string) (*App, error) {
+	log.Debug("Reading application with IP ", appIP)
+
+	for _, app := range Apps {
+		if app.IP == appIP {
+			log.Debug("Found application '", app.Name, "' for IP ", appIP)
+			return app, nil
+		}
+	}
+	return &App{}, errors.New("Could not find any application with IP " + appIP)
+
+}
+
+// LoadAppsDB connects to the Docker daemon and refreshes the internal application list
+func LoadAppsDB() {
+	log.Info("Retrieving applications from DB")
+
+	apps := []App{}
+	err := database.All(&apps)
+	if err != nil {
+		log.Error("Could not retrieve applications from the database: ", err)
+		return
+	}
+	for idx, app := range apps {
+		Apps[app.ID] = &apps[idx]
+	}
+	refreshAppsPlatform()
+}
+
+// GetApps refreshes the application list and returns it
+func GetApps() map[string]*App {
+	refreshAppsPlatform()
+	return Apps
 }

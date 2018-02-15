@@ -25,7 +25,7 @@ func run(configFile string) {
 	capability.Initialize()
 	meta.Initialize()
 	daemon.StartUp()
-	daemon.LoadApps()
+	daemon.LoadAppsDB()
 	wg.Add(2)
 	// go func() {
 	// 	auth.LDAPsrv()
