@@ -60,6 +60,13 @@ var internalRoutes = routes{
 		capability.GetProviderResources,
 	},
 	route{
+		"updateResourceValue",
+		"UPDATE",
+		"/internal/resource/{resourceID}",
+		updateResourceValue,
+		capability.ResourceProvider,
+	},
+	route{
 		"setResourceStatus",
 		"POST",
 		"/internal/resource/{resourceID}",
@@ -141,6 +148,51 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
 	resources := provider.GetResources()
 	json.NewEncoder(w).Encode(resources)
+}
+
+func updateResourceValue(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	resourceID := vars["resourceID"]
+
+	app := r.Context().Value("app").(*daemon.App)
+
+	prvd, err := provider.Get(app)
+	if err != nil {
+		err := errors.New("Application " + app.ID + " is not a resource provider")
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rsc := prvd.GetResource(resourceID)
+	if rsc == nil {
+		err := errors.New("Could not find resource " + resourceID)
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	bodyJSON, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, newValue, err := resource.GetType(string(rsc.Type))
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	err = json.Unmarshal(bodyJSON, newValue)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	rsc.Value.Update(newValue)
+	w.WriteHeader(http.StatusOK)
+
 }
 
 func setResourceStatus(w http.ResponseWriter, r *http.Request) {

@@ -11,6 +11,7 @@ const (
 // Type is an interface that satisfies all the resource types
 type Type interface {
 	GetHash() string
+	Update(Type)
 }
 
 // DNSResource represents a DNS resource
@@ -21,18 +22,30 @@ type DNSResource struct {
 	TTL   int    `json:"ttl" hash:"-"`
 }
 
-func (rsc DNSResource) GetHash() string {
+func (rsc *DNSResource) GetHash() string {
 	return ""
+}
+
+func (rsc *DNSResource) Update(newValue Type) {
 }
 
 // CertificateResource represents an SSL certificate resource
 type CertificateResource struct {
-	Domains           []string `json:"domains"`
-	PrivateKey        []byte   `json:"-" hash:"-"`
-	Certificate       []byte   `json:"-" hash:"-"`
-	IssuerCertificate []byte   `json:"-" hash:"-"`
+	Domains           []string
+	PrivateKey        []byte `hash:"-"`
+	Certificate       []byte `hash:"-"`
+	IssuerCertificate []byte `hash:"-"`
+	CSR               []byte `hash:"-"`
 }
 
-func (rsc CertificateResource) GetHash() string {
+func (rsc *CertificateResource) GetHash() string {
 	return ""
+}
+
+func (rsc *CertificateResource) Update(newValue Type) {
+	newCert := newValue.(*CertificateResource)
+	rsc.PrivateKey = newCert.PrivateKey
+	rsc.Certificate = newCert.Certificate
+	rsc.IssuerCertificate = newCert.IssuerCertificate
+	rsc.CSR = newCert.CSR
 }
