@@ -156,6 +156,21 @@ func (cnt *DockerContainer) Remove() error {
 	return nil
 }
 
+// GetID returns the ID of the container, as a string
+func (cnt *DockerContainer) GetID() string {
+	return cnt.ID
+}
+
+// GetIP returns the IP of the container, as a string
+func (cnt *DockerContainer) GetIP() string {
+	return cnt.IP
+}
+
+// GetStatus returns the status of the container, as a string
+func (cnt *DockerContainer) GetStatus() string {
+	return cnt.Status
+}
+
 //
 // Docker image operation
 //

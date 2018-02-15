@@ -10,4 +10,7 @@ type RuntimeUnit interface {
 	Stop() error
 	Update() error
 	Remove() error
+	GetID() string
+	GetIP() string
+	GetStatus() string
 }
