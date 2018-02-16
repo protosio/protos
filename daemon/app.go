@@ -265,27 +265,31 @@ func (app *App) GetResource(resourceID string) *resource.Resource {
 //
 
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(installerID string, name string, ports string, installerParams map[string]string) (App, error) {
+func CreateApp(installerID string, name string, ports string, installerParams map[string]string) (*App, error) {
 
 	installer, err := ReadInstaller(installerID)
 	if err != nil {
-		return App{}, err
+		return nil, err
 	}
 
 	err = validateInstallerParams(installerParams, installer.Metadata.Params)
 	if err != nil {
-		return App{}, err
+		return nil, err
 	}
 
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app := App{Name: name, ID: guid.String(), InstallerID: installerID, PublicPorts: ports, InstallerParams: installerParams}
+	app := &App{Name: name, ID: guid.String(), InstallerID: installerID, PublicPorts: ports, InstallerParams: installerParams}
 	err = app.createContainer()
 	if err != nil {
-		return App{}, err
+		return nil, err
 	}
 	app.Capabilities = createCapabilities(installer.Metadata.Capabilities)
-	app.Save()
+	err = app.Save()
+	if err != nil {
+		return nil, err
+	}
+	Apps[app.ID] = app
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 
