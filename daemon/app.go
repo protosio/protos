@@ -139,14 +139,15 @@ func (app *App) RefreshPlatform() {
 		if err != nil {
 			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
 			app.Status = statusMissingContainer
-		} else {
-			app.Rtu = cnt
+			return
 		}
+		app.Rtu = cnt
 	} else {
 		err := app.Rtu.Update()
 		if err != nil {
 			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
 			app.Status = statusMissingContainer
+			return
 		}
 	}
 	app.IP = app.Rtu.GetIP()
