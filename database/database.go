@@ -51,5 +51,5 @@ func All(to interface{}) error {
 
 // Remove removes a record of specific type
 func Remove(data interface{}) error {
-	return db.Remove(data)
+	return db.DeleteStruct(data)
 }

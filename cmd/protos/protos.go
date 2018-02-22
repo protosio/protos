@@ -13,8 +13,8 @@ import (
 	"github.com/nustiueudinastea/protos/meta"
 	"github.com/nustiueudinastea/protos/util"
 
-	"github.com/Sirupsen/logrus"
-	"gopkg.in/urfave/cli.v1"
+	"github.com/sirupsen/logrus"
+	cli "gopkg.in/urfave/cli.v1"
 )
 
 func run(configFile string) {
