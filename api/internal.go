@@ -146,6 +146,7 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("Retrieving resources for provider %s(%s)", provider.App.ID, provider.Type)
 	resources := provider.GetResources()
 	json.NewEncoder(w).Encode(resources)
 }

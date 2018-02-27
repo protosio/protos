@@ -49,35 +49,6 @@ func GetForType(RType RType) []*Resource {
 	return rscs
 }
 
-// UnmarshalJSON is a custom json unmarshaller for resource
-func (rsc *Resource) UnmarshalJSON(b []byte) error {
-	resdata := struct {
-		ID     string          `json:"id" hash:"-"`
-		Type   RType           `json:"type"`
-		Value  json.RawMessage `json:"value"`
-		Status RStatus         `json:"status"`
-	}{}
-	err := json.Unmarshal(b, &resdata)
-	if err != nil {
-		return err
-	}
-
-	rsc.ID = resdata.ID
-	rsc.Type = resdata.Type
-	rsc.Status = resdata.Status
-	_, resourceStruct, err := GetType(string(resdata.Type))
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(resdata.Value, &resourceStruct)
-	if err != nil {
-		return err
-	}
-	rsc.Value = resourceStruct
-	return nil
-}
-
 //Create creates a resource and adds it to the internal resources map.
 func Create(appJSON []byte) (*Resource, error) {
 
@@ -120,23 +91,38 @@ func Get(resourceID string) (*Resource, error) {
 	return rsc, nil
 }
 
-// SetStatus allows a provider to modify the status of a resource
-func SetStatus(resourceID string, status RStatus) error {
-	resource, ok := resources[resourceID]
-	if ok != true {
-		return errors.New("Resource [" + resourceID + "] does not exist.")
-	}
-
-	log.Debug("Setting status ", status, " for resource ", resourceID)
-	resource.Status = status
-
-	return nil
-
-}
-
 // SetStatus sets the status on a resource instance
 func (rsc *Resource) SetStatus(status RStatus) {
 	rsc.Status = status
+}
+
+// UnmarshalJSON is a custom json unmarshaller for resource
+func (rsc *Resource) UnmarshalJSON(b []byte) error {
+	resdata := struct {
+		ID     string          `json:"id" hash:"-"`
+		Type   RType           `json:"type"`
+		Value  json.RawMessage `json:"value"`
+		Status RStatus         `json:"status"`
+	}{}
+	err := json.Unmarshal(b, &resdata)
+	if err != nil {
+		return err
+	}
+
+	rsc.ID = resdata.ID
+	rsc.Type = resdata.Type
+	rsc.Status = resdata.Status
+	_, resourceStruct, err := GetType(string(resdata.Type))
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(resdata.Value, &resourceStruct)
+	if err != nil {
+		return err
+	}
+	rsc.Value = resourceStruct
+	return nil
 }
 
 //GetType retrieves a resource type based on the provided string

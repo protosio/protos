@@ -1,5 +1,8 @@
 package resource
 
+import "encoding/json"
+import "github.com/mitchellh/mapstructure"
+
 type RType string
 
 const (
@@ -12,6 +15,7 @@ const (
 type Type interface {
 	GetHash() string
 	Update(Type)
+	MarshalJSON() ([]byte, error)
 }
 
 // DNSResource represents a DNS resource
@@ -27,6 +31,15 @@ func (rsc *DNSResource) GetHash() string {
 }
 
 func (rsc *DNSResource) Update(newValue Type) {
+}
+
+func (rsc *DNSResource) MarshalJSON() ([]byte, error) {
+	output := map[string]interface{}{}
+	err := mapstructure.Decode(rsc, &output)
+	if err != nil {
+		return []byte{}, err
+	}
+	return json.Marshal(output)
 }
 
 // CertificateResource represents an SSL certificate resource
@@ -48,4 +61,11 @@ func (rsc *CertificateResource) Update(newValue Type) {
 	rsc.Certificate = newCert.Certificate
 	rsc.IssuerCertificate = newCert.IssuerCertificate
 	rsc.CSR = newCert.CSR
+}
+
+func (rsc *CertificateResource) MarshalJSON() ([]byte, error) {
+	output := map[string]interface{}{
+		"domains": rsc.Domains,
+	}
+	return json.Marshal(output)
 }

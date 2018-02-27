@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"sync"
 
 	"github.com/nustiueudinastea/protos/api"
 	"github.com/nustiueudinastea/protos/auth"
@@ -17,7 +18,7 @@ import (
 )
 
 func run(configFile string) {
-	// var wg sync.WaitGroup
+	var wg sync.WaitGroup
 	config.Load(configFile)
 	database.Open()
 	defer database.Close()
@@ -25,17 +26,16 @@ func run(configFile string) {
 	meta.Initialize()
 	daemon.StartUp()
 	daemon.LoadAppsDB()
-	api.Websrv()
-	//wg.Add(2)
+	wg.Add(2)
 	// go func() {
 	// 	auth.LDAPsrv()
 	// 	wg.Done()
 	// }()
-	// go func() {
-	// api.Websrv()
-	// wg.Done()
-	// }()
-	// wg.Wait()
+	go func() {
+		api.Websrv()
+		wg.Done()
+	}()
+	wg.Wait()
 }
 
 func main() {
