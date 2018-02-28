@@ -1,10 +1,12 @@
 package resource
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/nustiueudinastea/protos/database"
 	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/cnf/structhash"
@@ -65,21 +67,11 @@ func Create(appJSON []byte) (*Resource, error) {
 	resource.Status = Requested
 	resource.ID = rhash
 
+	resource.Save()
+
 	log.Debug("Adding resource ", rhash, ": ", resource)
 	resources[rhash] = resource
 	return resource, nil
-}
-
-//Delete deletes a resource
-func Delete(resourceID string) error {
-	_, ok := resources[resourceID]
-	if ok != true {
-		return errors.New("Resource " + resourceID + " does not exist.")
-	}
-
-	log.Info("Deleting resource " + resourceID)
-	delete(resources, resourceID)
-	return nil
 }
 
 //Get retrieves a resources based on the provided id
@@ -91,9 +83,40 @@ func Get(resourceID string) (*Resource, error) {
 	return rsc, nil
 }
 
+// Save - persists application data to database
+func (rsc *Resource) Save() {
+	err := database.Save(rsc)
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
+//Delete deletes a resource
+func (rsc *Resource) Delete() error {
+	_, ok := resources[rsc.ID]
+	if ok != true {
+		return errors.New("Resource " + rsc.ID + " does not exist.")
+	}
+
+	log.Info("Deleting resource " + rsc.ID)
+	err := database.Remove(rsc)
+	if err != nil {
+		return err
+	}
+	delete(resources, rsc.ID)
+	return nil
+}
+
 // SetStatus sets the status on a resource instance
 func (rsc *Resource) SetStatus(status RStatus) {
 	rsc.Status = status
+	rsc.Save()
+}
+
+// UpdateValue updates the value of a resource
+func (rsc *Resource) UpdateValue(value Type) {
+	rsc.Value.Update(value)
+	rsc.Save()
 }
 
 // UnmarshalJSON is a custom json unmarshaller for resource
@@ -148,5 +171,23 @@ func GetStatus(statusname string) (RStatus, error) {
 		return Unknown, nil
 	default:
 		return RStatus(""), errors.New("Resource status " + statusname + " does not exist")
+	}
+}
+
+// LoadResourcesDB loads resources from the database
+func LoadResourcesDB() {
+	log.Info("Retrieving resources from DB")
+	gob.Register(&Resource{})
+	gob.Register(&DNSResource{})
+	gob.Register(&CertificateResource{})
+
+	rscs := []Resource{}
+	err := database.All(&rscs)
+	if err != nil {
+		log.Error("Could not retrieve resources from the database: ", err)
+		return
+	}
+	for idx, rsc := range rscs {
+		resources[rsc.ID] = &rscs[idx]
 	}
 }

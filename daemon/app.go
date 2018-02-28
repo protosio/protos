@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"encoding/gob"
 	"errors"
 
 	"github.com/nustiueudinastea/protos/capability"
@@ -223,7 +224,11 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 func (app *App) DeleteResource(resourceID string) error {
 	if v, index := util.StringInSlice(resourceID, app.Resources); v {
 		log.Info("Deleting resource " + resourceID + " belonging to application " + app.ID)
-		err := resource.Delete(resourceID)
+		rsc, err := resource.Get(resourceID)
+		if err != nil {
+			return err
+		}
+		err = rsc.Delete()
 		if err != nil {
 			return err
 		}
@@ -328,6 +333,8 @@ func ReadAppByIP(appIP string) (*App, error) {
 // LoadAppsDB connects to the Docker daemon and refreshes the internal application list
 func LoadAppsDB() {
 	log.Info("Retrieving applications from DB")
+	gob.Register(&App{})
+	gob.Register(&platform.DockerContainer{})
 
 	apps := []App{}
 	err := database.All(&apps)

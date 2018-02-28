@@ -4,6 +4,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/nustiueudinastea/protos/resource"
+
 	"github.com/nustiueudinastea/protos/api"
 	"github.com/nustiueudinastea/protos/auth"
 	"github.com/nustiueudinastea/protos/capability"
@@ -26,6 +28,7 @@ func run(configFile string) {
 	meta.Initialize()
 	daemon.StartUp()
 	daemon.LoadAppsDB()
+	resource.LoadResourcesDB()
 	wg.Add(2)
 	// go func() {
 	// 	auth.LDAPsrv()

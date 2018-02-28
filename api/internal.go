@@ -191,7 +191,7 @@ func updateResourceValue(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	rsc.Value.Update(newValue)
+	rsc.UpdateValue(newValue)
 	w.WriteHeader(http.StatusOK)
 
 }
