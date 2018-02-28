@@ -195,7 +195,10 @@ func (app *App) Remove() error {
 	if app.containerMissing() {
 		log.Warn("App ", app.ID, " does not have a container.")
 	} else {
-		app.Rtu.Remove()
+		err := app.Rtu.Remove()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Removing resources requested by this app
