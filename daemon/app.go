@@ -105,12 +105,11 @@ func (app *App) AddAction(action AppAction) error {
 }
 
 // Save - persists application data to database
-func (app *App) Save() error {
+func (app *App) Save() {
 	err := database.Save(app)
 	if err != nil {
-		return err
+		log.Panic(err)
 	}
-	return nil
 }
 
 // reateContainer create the underlying Docker container
@@ -123,7 +122,8 @@ func (app *App) createContainer() error {
 	app.ContainerID = app.Rtu.GetID()
 	app.IP = app.Rtu.GetIP()
 	app.Status = app.Rtu.GetStatus()
-	return app.Save()
+	app.Save()
+	return nil
 }
 
 func (app *App) containerMissing() bool {
@@ -198,6 +198,14 @@ func (app *App) Remove() error {
 		app.Rtu.Remove()
 	}
 
+	// Removing resources requested by this app
+	for _, rscID := range app.Resources {
+		err := app.DeleteResource(rscID)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
 	err := database.Remove(app)
 	if err != nil {
 		return err
@@ -216,6 +224,7 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 		return &resource.Resource{}, err
 	}
 	app.Resources = append(app.Resources, rsc.ID)
+	app.Save()
 
 	return rsc, nil
 }
@@ -223,7 +232,6 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 //DeleteResource deletes a resource
 func (app *App) DeleteResource(resourceID string) error {
 	if v, index := util.StringInSlice(resourceID, app.Resources); v {
-		log.Info("Deleting resource " + resourceID + " belonging to application " + app.ID)
 		rsc, err := resource.Get(resourceID)
 		if err != nil {
 			return err
@@ -233,6 +241,8 @@ func (app *App) DeleteResource(resourceID string) error {
 			return err
 		}
 		app.Resources = util.RemoveStringFromSlice(app.Resources, index)
+		app.Save()
+
 		return nil
 	}
 
@@ -246,6 +256,7 @@ func (app *App) GetResources() map[string]*resource.Resource {
 		rsc, err := resource.Get(rscid)
 		if err != nil {
 			log.Error(err)
+			continue
 		}
 		resources[rscid] = rsc
 	}
@@ -291,10 +302,7 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 		return nil, err
 	}
 	app.Capabilities = createCapabilities(installer.Metadata.Capabilities)
-	err = app.Save()
-	if err != nil {
-		return nil, err
-	}
+	app.Save()
 	Apps[app.ID] = app
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")

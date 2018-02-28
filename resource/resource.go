@@ -98,7 +98,7 @@ func (rsc *Resource) Delete() error {
 		return errors.New("Resource " + rsc.ID + " does not exist.")
 	}
 
-	log.Info("Deleting resource " + rsc.ID)
+	log.Debug("Deleting resource " + rsc.ID)
 	err := database.Remove(rsc)
 	if err != nil {
 		return err

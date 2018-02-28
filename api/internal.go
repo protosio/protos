@@ -285,7 +285,6 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//ToDo: implement functionality
 func getResource(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
