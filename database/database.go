@@ -7,6 +7,7 @@ import (
 	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/asdine/storm"
+	"github.com/asdine/storm/codec/gob"
 )
 
 var gconfig = config.Gconfig
@@ -21,7 +22,7 @@ func Open() {
 	var err error
 	dbpath := path.Join(gconfig.WorkDir, "protos.db")
 	log.Info("Opening database [", dbpath, "]")
-	db, err = storm.Open(dbpath)
+	db, err = storm.Open(dbpath, storm.Codec(gob.Codec))
 	if err != nil {
 		log.Fatal(err)
 	}
