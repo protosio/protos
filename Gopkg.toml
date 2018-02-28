@@ -62,10 +62,6 @@
   version = "1.0.6"
 
 [[constraint]]
-  name = "github.com/vjeantet/ldapserver"
-  version = "1.0.0"
-
-[[constraint]]
   branch = "master"
   name = "golang.org/x/crypto"
 

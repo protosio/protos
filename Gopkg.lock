@@ -12,6 +12,7 @@
   packages = [
     ".",
     "codec",
+    "codec/gob",
     "codec/json",
     "index",
     "internal",
@@ -181,6 +182,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1754085556ece614e0d650005d156b68d07759012d85859ae4a6a366f36609e1"
+  inputs-digest = "b51e7b0a98fbc80a6cd6ddb684285e8b34df76484ca8fa142ba0de8fe8d02c88"
   solver-name = "gps-cdcl"
   solver-version = 1
