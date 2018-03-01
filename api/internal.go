@@ -299,8 +299,6 @@ func getResource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(rsc)
-	w.WriteHeader(http.StatusOK)
-
 }
 
 func deleteResource(w http.ResponseWriter, r *http.Request) {
