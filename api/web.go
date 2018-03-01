@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/nustiueudinastea/protos/capability"
 	"github.com/nustiueudinastea/protos/daemon"
 	"github.com/nustiueudinastea/protos/resource"
 
@@ -73,6 +74,13 @@ var clientRoutes = routes{
 		"/resources",
 		getResources,
 		nil,
+	},
+	route{
+		"removeResource",
+		"DELETE",
+		"/resources/{resourceID}",
+		removeResource,
+		capability.UserAdmin,
 	},
 }
 
@@ -234,5 +242,24 @@ func getResources(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("Sending response: ", resources)
 	json.NewEncoder(w).Encode(resources)
+
+}
+
+func removeResource(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	resourceID := vars["resourceID"]
+
+	rsc, err := resource.Get(resourceID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	err = rsc.Delete()
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
 
 }

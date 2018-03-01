@@ -49,9 +49,12 @@ func newRouter() *mux.Router {
 
 	// Web routes (require auth)
 	for _, route := range clientRoutes {
-		protectedRoute := ValidateExternalRequest(route.HandlerFunc)
+		protectedRoute := ValidateExternalRequest(route.HandlerFunc, router)
 		handler := util.HTTPLogger(protectedRoute, route.Name)
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
+		if route.Capability != nil {
+			capability.SetMethodCap(route.Name, route.Capability)
+		}
 	}
 
 	// Authentication routes
@@ -116,27 +119,27 @@ func ValidateInternalRequest(next http.Handler, rtr *mux.Router) http.Handler {
 
 }
 
-func checkCapability(app *daemon.App, rtr *mux.Router, r *http.Request) error {
+func checkCapability(capChecker capability.Checker, rtr *mux.Router, r *http.Request) error {
 	var match mux.RouteMatch
 	if rtr.Match(r, &match) {
 		methodcap, err := capability.GetMethodCap(match.Route.GetName())
 		if err != nil {
-			return err
+			log.Warn(err.Error())
+			return nil
 		}
 		log.Debugf("Required capability for route %s is %s", match.Route.GetName(), methodcap.Name)
-		for _, appcap := range app.Capabilities {
-			if capability.ValidateCapability(methodcap, appcap) {
-				return nil
-			}
+		err = capChecker.ValidateCapability(methodcap)
+		if err != nil {
+			return err
 		}
-		return errors.New("Method capability " + methodcap.Name + " not satisfied by application " + app.ID)
+		return nil
 	}
 
 	return errors.New("Route not matched in capability check")
 }
 
 // ValidateExternalRequest validates client request contains a valid JWT token
-func ValidateExternalRequest(next http.Handler) http.Handler {
+func ValidateExternalRequest(next http.Handler, rtr *mux.Router) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -153,6 +156,27 @@ func ValidateExternalRequest(next http.Handler) http.Handler {
 		if token.Valid == false {
 			log.Error("Token is not valid")
 			http.Error(w, "Token is not valid", http.StatusUnauthorized)
+			return
+		}
+
+		sstring, err := token.SigningString()
+		if err != nil {
+			log.Error(err)
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		user, err := auth.GetUser(sstring)
+		if err != nil {
+			log.Error(err)
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		err = checkCapability(user, rtr, r)
+		if err != nil {
+			log.Error(err.Error())
+			http.Error(w, "User not authorized to access that resource", http.StatusUnauthorized)
 			return
 		}
 
@@ -184,7 +208,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := make(jwt.MapClaims)
-	claims["admin"] = user.IsAdmin
 	claims["exp"] = time.Now().Add(time.Hour * time.Duration(1)).Unix()
 	claims["iat"] = time.Now().Unix()
 	token.Claims = claims
@@ -195,6 +218,13 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	sstring, err := token.SigningString()
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	user.AddToken(sstring)
 
 	tokenResponse := struct {
 		Token    string `json:"token"`
