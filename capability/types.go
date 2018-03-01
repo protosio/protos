@@ -13,6 +13,9 @@ var ResourceConsumer = New("ResourceConsumer")
 // Information capabilities
 var GetInformation = New("GetInformation")
 
+// User capabilities
+var UserAdmin = New("UserAdmin")
+
 func createTree(root *Capability) {
 	RegisterResourceProvider.SetParent(ResourceProvider)
 	DeregisterResourceProvider.SetParent(ResourceProvider)
@@ -22,4 +25,5 @@ func createTree(root *Capability) {
 	ResourceProvider.SetParent(root)
 	ResourceConsumer.SetParent(root)
 	GetInformation.SetParent(root)
+	UserAdmin.SetParent(root)
 }
