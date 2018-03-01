@@ -280,6 +280,16 @@ func (app *App) GetResource(resourceID string) *resource.Resource {
 	return nil
 }
 
+// ValidateCapability implements the capability checker interface
+func (app *App) ValidateCapability(cap *capability.Capability) error {
+	for _, appcap := range app.Capabilities {
+		if capability.Validate(cap, appcap) {
+			return nil
+		}
+	}
+	return errors.New("Method capability " + cap.Name + " not satisfied by application " + app.ID)
+}
+
 //
 // Package public methods
 //
