@@ -19,6 +19,11 @@ var CapMap = make(map[string]*Capability)
 // RC is the root capability
 var RC *Capability
 
+// Checker is an interface that implements methods for checking a capability
+type Checker interface {
+	ValidateCapability(cap *Capability) error
+}
+
 // Capability represents a security capability in the system
 type Capability struct {
 	Name   string `storm:"id"`
@@ -44,13 +49,13 @@ func (cap *Capability) SetParent(parent *Capability) {
 	cap.Parent = parent
 }
 
-// ValidateCapability validates a capability
-func ValidateCapability(methodcap *Capability, appcap string) bool {
+// Validate validates a capability
+func Validate(methodcap *Capability, appcap string) bool {
 	if methodcap.Name == appcap {
 		log.Debug("Matched capability at " + methodcap.Name)
 		return true
 	} else if methodcap.Parent != nil {
-		return ValidateCapability(methodcap.Parent, appcap)
+		return Validate(methodcap.Parent, appcap)
 	}
 	return false
 }
