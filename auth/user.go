@@ -8,6 +8,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/nustiueudinastea/protos/capability"
+
 	"github.com/nustiueudinastea/protos/database"
 	"github.com/nustiueudinastea/protos/util"
 
@@ -23,11 +25,13 @@ var log = util.Log
 
 // User represents a Protos user
 type User struct {
-	Username   string `json:"username" storm:"id"`
-	Password   string `json:"password"`
-	IsAdmin    bool   `json:"isadmin"`
-	IsDisabled bool   `json:"isdisabled"`
+	Username     string   `json:"username" storm:"id"`
+	Password     string   `json:"password"`
+	IsDisabled   bool     `json:"isdisabled"`
+	Capabilities []string `json:"capabilities"`
 }
+
+var usersTokens = map[string]*User{}
 
 // readCredentials reads a username and password interactively
 func readCredentials() (string, string) {
@@ -64,23 +68,9 @@ func generatePasswordHash(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 
-// CreateUser creates and returns a user
-func CreateUser(username string, password string, isadmin bool) (User, error) {
-
-	passwordHash, err := generatePasswordHash(password)
-	if err != nil {
-		return User{}, err
-	}
-
-	user := User{
-		Username:   username,
-		Password:   passwordHash,
-		IsAdmin:    isadmin,
-		IsDisabled: false,
-	}
-
-	return user, user.Save()
-}
+//
+// User instance methods
+//
 
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
@@ -88,8 +78,52 @@ func (user *User) Save() error {
 	return database.Save(user)
 }
 
+// AddToken associates a JWT token with a username
+func (user *User) AddToken(token string) {
+	for tkn, usr := range usersTokens {
+		if usr.Username == user.Username {
+			log.Debugf("Removing old token %s for user %s", tkn, usr.Username)
+			delete(usersTokens, tkn)
+		}
+	}
+	log.Debugf("Adding token %s for username %s", token, user.Username)
+	usersTokens[token] = user
+}
+
+// ValidateCapability implements the capability checker interface
+func (user *User) ValidateCapability(cap *capability.Capability) error {
+	for _, usercap := range user.Capabilities {
+		if capability.Validate(cap, usercap) {
+			return nil
+		}
+	}
+	return errors.New("Method capability " + cap.Name + " not satisfied by user " + user.Username)
+}
+
+//
+// Public package methods
+//
+
+// CreateUser creates and returns a user
+func CreateUser(username string, password string, isadmin bool) (*User, error) {
+
+	passwordHash, err := generatePasswordHash(password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := User{
+		Username:     username,
+		Password:     passwordHash,
+		IsDisabled:   false,
+		Capabilities: []string{capability.UserAdmin.Name},
+	}
+
+	return &user, user.Save()
+}
+
 // ValidateAndGetUser takes a username and password and returns the full User struct if credentials are valid
-func ValidateAndGetUser(username string, password string) (User, error) {
+func ValidateAndGetUser(username string, password string) (*User, error) {
 	log.Debugf("Searching for username %s", username)
 
 	errInvalid := errors.New("Invalid credentials")
@@ -97,22 +131,30 @@ func ValidateAndGetUser(username string, password string) (User, error) {
 	err := database.One("Username", username, &user)
 	if err != nil {
 		log.Debugf("Can't find user %s (%s)", username, err)
-		return User{}, errInvalid
+		return nil, errInvalid
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
 		log.Debugf("Invalid password for user %s", username)
-		return User{}, errInvalid
+		return nil, errInvalid
 	}
 
 	if user.IsDisabled {
 		log.Debugf("User %s is disabled", username)
-		return User{}, errInvalid
+		return nil, errInvalid
 	}
 
 	log.Debugf("User %s logged in successfuly", username)
-	return user, nil
+	return &user, nil
+}
+
+// GetUser returns a username for a specific token
+func GetUser(token string) (*User, error) {
+	if usr, ok := usersTokens[token]; ok {
+		return usr, nil
+	}
+	return nil, errors.New("No user found for token " + token)
 }
 
 // SetupAdmin creates and initial admin user
