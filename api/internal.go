@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/nustiueudinastea/protos/auth"
 	"github.com/nustiueudinastea/protos/capability"
 	"github.com/nustiueudinastea/protos/daemon"
 	"github.com/nustiueudinastea/protos/meta"
@@ -86,6 +87,13 @@ var internalRoutes = routes{
 		"/internal/info/domain",
 		getDomainInfo,
 		capability.GetInformation,
+	},
+	route{
+		"authUser",
+		"POST",
+		"/internal/user/auth",
+		authUser,
+		capability.AuthUser,
 	},
 }
 
@@ -316,4 +324,30 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
+}
+
+//
+// User interaction
+//
+
+func authUser(w http.ResponseWriter, r *http.Request) {
+	var userform struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&userform)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = auth.ValidateAndGetUser(userform.Username, userform.Password)
+	if err != nil {
+		log.Debug(err)
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
