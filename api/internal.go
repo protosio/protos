@@ -89,6 +89,13 @@ var internalRoutes = routes{
 		capability.GetInformation,
 	},
 	route{
+		"getAppInfo",
+		"GET",
+		"/internal/info/app",
+		getAppInfo,
+		capability.GetInformation,
+	},
+	route{
 		"authUser",
 		"POST",
 		"/internal/user/auth",
@@ -258,7 +265,7 @@ func getDomainInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 //
-// Methods used by normal applications to manipulate their own resources
+// Methods used by normal applications to interact with Protos
 //
 
 func getOwnResources(w http.ResponseWriter, r *http.Request) {
@@ -324,6 +331,17 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
+}
+
+func getAppInfo(w http.ResponseWriter, r *http.Request) {
+	app := r.Context().Value("app").(*daemon.App)
+	appInfo := struct {
+		Name string
+	}{
+		Name: app.Name,
+	}
+
+	json.NewEncoder(w).Encode(appInfo)
 }
 
 //
