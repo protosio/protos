@@ -51,8 +51,8 @@ func GetForType(RType RType) []*Resource {
 	return rscs
 }
 
-//Create creates a resource and adds it to the internal resources map.
-func Create(appJSON []byte) (*Resource, error) {
+//CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
+func CreateFromJSON(appJSON []byte) (*Resource, error) {
 
 	resource := &Resource{}
 	err := json.Unmarshal(appJSON, resource)
@@ -72,6 +72,27 @@ func Create(appJSON []byte) (*Resource, error) {
 	log.Debug("Adding resource ", rhash, ": ", resource)
 	resources[rhash] = resource
 	return resource, nil
+}
+
+//Create creates a resource and adds it to the internal resources map.
+func Create(rtype RType, value Type) (*Resource, error) {
+	resource := &Resource{}
+	resource.Type = rtype
+	resource.Value = value
+
+	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
+	if _, ok := resources[rhash]; ok {
+		return &Resource{}, errors.New("Resource " + rhash + " already registered")
+	}
+	resource.Status = Requested
+	resource.ID = rhash
+
+	resource.Save()
+
+	log.Debug("Adding resource ", rhash, ": ", resource)
+	resources[rhash] = resource
+	return resource, nil
+
 }
 
 //Get retrieves a resources based on the provided id

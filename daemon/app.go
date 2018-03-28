@@ -4,6 +4,8 @@ import (
 	"encoding/gob"
 	"errors"
 
+	"github.com/nustiueudinastea/protos/meta"
+
 	"github.com/nustiueudinastea/protos/capability"
 	"github.com/nustiueudinastea/protos/database"
 	"github.com/nustiueudinastea/protos/platform"
@@ -222,7 +224,7 @@ func (app *App) Remove() error {
 //CreateResource adds a resource to the internal resources map.
 func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 
-	rsc, err := resource.Create(appJSON)
+	rsc, err := resource.CreateFromJSON(appJSON)
 	if err != nil {
 		return &resource.Resource{}, err
 	}
@@ -315,6 +317,13 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 		return nil, err
 	}
 	app.Capabilities = createCapabilities(installer.Metadata.Capabilities)
+	if app.ValidateCapability(capability.PublicDNS) == nil {
+		rsc, err := resource.Create(resource.DNS, &resource.DNSResource{Host: app.Name, Value: meta.GetPublicIP(), Type: "A", TTL: 300})
+		if err != nil {
+			return nil, err
+		}
+		app.Resources = append(app.Resources, rsc.ID)
+	}
 	app.Save()
 	Apps[app.ID] = app
 

@@ -17,6 +17,9 @@ var GetInformation = New("GetInformation")
 var UserAdmin = New("UserAdmin")
 var AuthUser = New("AuthUser")
 
+// PublicDNS capability tells the platform to create a public dns record using the applications name
+var PublicDNS = New("PublicDNS")
+
 func createTree(root *Capability) {
 	RegisterResourceProvider.SetParent(ResourceProvider)
 	DeregisterResourceProvider.SetParent(ResourceProvider)
@@ -29,4 +32,6 @@ func createTree(root *Capability) {
 
 	UserAdmin.SetParent(root)
 	AuthUser.SetParent(root)
+
+	PublicDNS.SetParent(root)
 }
