@@ -256,7 +256,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 
 func getDomainInfo(w http.ResponseWriter, r *http.Request) {
 	domain := struct {
-		Domain string
+		Domain string `json:"domain"`
 	}{
 		Domain: meta.GetDomain(),
 	}
@@ -336,7 +336,7 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 func getAppInfo(w http.ResponseWriter, r *http.Request) {
 	app := r.Context().Value("app").(*daemon.App)
 	appInfo := struct {
-		Name string
+		Name string `json:"name"`
 	}{
 		Name: app.Name,
 	}
