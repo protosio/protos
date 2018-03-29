@@ -1,8 +1,5 @@
 package resource
 
-import "encoding/json"
-import "github.com/mitchellh/mapstructure"
-
 type RType string
 
 const (
@@ -15,7 +12,7 @@ const (
 type Type interface {
 	GetHash() string
 	Update(Type)
-	MarshalJSON() ([]byte, error)
+	Sanitize() Type
 }
 
 // DNSResource represents a DNS resource
@@ -33,22 +30,17 @@ func (rsc *DNSResource) GetHash() string {
 func (rsc *DNSResource) Update(newValue Type) {
 }
 
-func (rsc *DNSResource) MarshalJSON() ([]byte, error) {
-	output := map[string]interface{}{}
-	err := mapstructure.Decode(rsc, &output)
-	if err != nil {
-		return []byte{}, err
-	}
-	return json.Marshal(output)
+func (rsc *DNSResource) Sanitize() Type {
+	return rsc
 }
 
 // CertificateResource represents an SSL certificate resource
 type CertificateResource struct {
 	Domains           []string
-	PrivateKey        []byte `hash:"-"`
-	Certificate       []byte `hash:"-"`
-	IssuerCertificate []byte `hash:"-"`
-	CSR               []byte `hash:"-"`
+	PrivateKey        []byte `json:"privatekey,omitempty" hash:"-"`
+	Certificate       []byte `json:"certificate,omitempty" hash:"-"`
+	IssuerCertificate []byte `json:"issuercertificate,omitempty" hash:"-"`
+	CSR               []byte `json:"csr,omitempty" hash:"-"`
 }
 
 func (rsc *CertificateResource) GetHash() string {
@@ -63,9 +55,11 @@ func (rsc *CertificateResource) Update(newValue Type) {
 	rsc.CSR = newCert.CSR
 }
 
-func (rsc *CertificateResource) MarshalJSON() ([]byte, error) {
-	output := map[string]interface{}{
-		"domains": rsc.Domains,
-	}
-	return json.Marshal(output)
+func (rsc *CertificateResource) Sanitize() Type {
+	output := *rsc
+	output.PrivateKey = []byte{}
+	output.Certificate = []byte{}
+	output.IssuerCertificate = []byte{}
+	output.CSR = []byte{}
+	return &output
 }
