@@ -238,7 +238,7 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 
 func getResources(w http.ResponseWriter, r *http.Request) {
 
-	resources := resource.GetAll()
+	resources := resource.GetAll(true)
 
 	log.Debug("Sending response: ", resources)
 	json.NewEncoder(w).Encode(resources)

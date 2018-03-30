@@ -36,8 +36,15 @@ var resources = make(map[string]*Resource)
 //
 
 //GetAll retrieves all the saved resources
-func GetAll() map[string]*Resource {
-	return resources
+func GetAll(sanitize bool) map[string]*Resource {
+	if sanitize == false {
+		return resources
+	}
+	var sanitizedResources = make(map[string]*Resource, len(resources))
+	for _, rsc := range resources {
+		sanitizedResources[rsc.ID] = rsc.Sanitize()
+	}
+	return sanitizedResources
 }
 
 //GetForType returns all the resources of a specific resource type
@@ -138,6 +145,13 @@ func (rsc *Resource) SetStatus(status RStatus) {
 func (rsc *Resource) UpdateValue(value Type) {
 	rsc.Value.Update(value)
 	rsc.Save()
+}
+
+// Sanitize returns a sanitized version of the resource, with sensitive fields removed
+func (rsc *Resource) Sanitize() *Resource {
+	srsc := *rsc
+	srsc.Value = rsc.Value.Sanitize()
+	return &srsc
 }
 
 // UnmarshalJSON is a custom json unmarshaller for resource
