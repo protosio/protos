@@ -25,9 +25,9 @@ func createTree(root *Capability) {
 	DeregisterResourceProvider.SetParent(ResourceProvider)
 	GetProviderResources.SetParent(ResourceProvider)
 	SetResourceStatus.SetParent(ResourceProvider)
+	ResourceConsumer.SetParent(ResourceProvider)
 
 	ResourceProvider.SetParent(root)
-	ResourceConsumer.SetParent(root)
 	GetInformation.SetParent(root)
 
 	UserAdmin.SetParent(root)

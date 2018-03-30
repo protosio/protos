@@ -205,9 +205,15 @@ func (app *App) Remove() error {
 
 	// Removing resources requested by this app
 	for _, rscID := range app.Resources {
-		err := app.DeleteResource(rscID)
+		rsc, err := resource.Get(rscID)
 		if err != nil {
 			log.Error(err)
+			continue
+		}
+		err = rsc.Delete()
+		if err != nil {
+			log.Error(err)
+			continue
 		}
 	}
 
@@ -230,6 +236,8 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 	}
 	app.Resources = append(app.Resources, rsc.ID)
 	app.Save()
+	log.Debug(rsc)
+	log.Debug(app.Resources)
 
 	return rsc, nil
 }

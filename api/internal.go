@@ -79,7 +79,7 @@ var internalRoutes = routes{
 		"GET",
 		"/internal/resource/{resourceID}",
 		getResource,
-		nil,
+		capability.ResourceConsumer,
 	},
 	route{
 		"getDomainInfo",
