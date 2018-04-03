@@ -27,14 +27,22 @@ var log = util.Log
 type User struct {
 	Username     string   `json:"username" storm:"id"`
 	Password     string   `json:"password"`
+	Name         string   `json:"name"`
 	IsDisabled   bool     `json:"isdisabled"`
 	Capabilities []string `json:"capabilities"`
+}
+
+// UserInfo holds information about a user that is meant to be returned to external applications or the web interface
+type UserInfo struct {
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	IsAdmin  bool   `json:"isadmin"`
 }
 
 var usersTokens = map[string]*User{}
 
 // readCredentials reads a username and password interactively
-func readCredentials() (string, string) {
+func readCredentials() (string, string, string) {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Print("Enter Username: ")
@@ -50,7 +58,13 @@ func readCredentials() (string, string) {
 	}
 	password := string(bytePassword)
 
-	return strings.TrimSpace(username), strings.TrimSpace(password)
+	fmt.Print("Enter Name: ")
+	name, err := reader.ReadString('\n')
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return strings.TrimSpace(username), strings.TrimSpace(password), strings.TrimSpace(name)
 }
 
 // generatePasswordHash takes a string representing the raw password, and generates a hash
@@ -100,12 +114,29 @@ func (user *User) ValidateCapability(cap *capability.Capability) error {
 	return errors.New("Method capability " + cap.Name + " not satisfied by user " + user.Username)
 }
 
+// IsAdmin checks if a user is an admin or not
+func (user *User) IsAdmin() bool {
+	if user.ValidateCapability(capability.UserAdmin) != nil {
+		return false
+	}
+	return true
+}
+
+// GetInfo returns public information about a user
+func (user *User) GetInfo() UserInfo {
+	return UserInfo{
+		Username: user.Username,
+		Name:     user.Name,
+		IsAdmin:  user.IsAdmin(),
+	}
+}
+
 //
 // Public package methods
 //
 
 // CreateUser creates and returns a user
-func CreateUser(username string, password string, isadmin bool) (*User, error) {
+func CreateUser(username string, password string, name string, isadmin bool) (*User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {
@@ -115,8 +146,12 @@ func CreateUser(username string, password string, isadmin bool) (*User, error) {
 	user := User{
 		Username:     username,
 		Password:     passwordHash,
+		Name:         name,
 		IsDisabled:   false,
-		Capabilities: []string{capability.UserAdmin.Name},
+		Capabilities: []string{},
+	}
+	if isadmin {
+		user.Capabilities = append(user.Capabilities, capability.UserAdmin.Name)
 	}
 
 	return &user, user.Save()
@@ -159,8 +194,8 @@ func GetUser(token string) (*User, error) {
 
 // SetupAdmin creates and initial admin user
 func SetupAdmin() {
-	username, clearpassword := readCredentials()
-	user, err := CreateUser(username, clearpassword, true)
+	username, clearpassword, name := readCredentials()
+	user, err := CreateUser(username, clearpassword, name, true)
 	if err != nil {
 		log.Fatal(err)
 	}

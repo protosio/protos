@@ -361,11 +361,12 @@ func authUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = auth.ValidateAndGetUser(userform.Username, userform.Password)
+	user, err := auth.ValidateAndGetUser(userform.Username, userform.Password)
 	if err != nil {
 		log.Debug(err)
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(w).Encode(user.GetInfo())
 }
