@@ -3,13 +3,14 @@ package platform
 import (
 	"context"
 	"errors"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/nustiueudinastea/protos/util"
 )
 
 const protosNetwork = "bridge"
@@ -48,13 +49,13 @@ func combineEnv(params map[string]string) []string {
 //
 
 // NewDockerContainer creates and returns a docker container reference
-func NewDockerContainer(name string, appid string, imageid string, ports string, installerParams map[string]string) (*DockerContainer, error) {
+func NewDockerContainer(name string, appid string, imageid string, publicPorts []util.Port, installerParams map[string]string) (*DockerContainer, error) {
 	log.Debug("Creating container " + name + " from image " + imageid)
-	var publicports []string
-	for _, v := range strings.Split(ports, ",") {
-		publicports = append(publicports, "0.0.0.0:"+v+":"+v+"/tcp")
+	var ports []string
+	for _, port := range publicPorts {
+		ports = append(ports, "0.0.0.0:"+strconv.Itoa(port.Nr)+":"+strconv.Itoa(port.Nr)+"/"+string(port.Type))
 	}
-	exposedPorts, portBindings, err := nat.ParsePortSpecs(publicports)
+	exposedPorts, portBindings, err := nat.ParsePortSpecs(ports)
 	if err != nil {
 		return &DockerContainer{}, err
 	}

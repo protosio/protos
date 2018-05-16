@@ -48,7 +48,7 @@ type App struct {
 	Status          string               `json:"status"`
 	Actions         []AppAction          `json:"actions"`
 	IP              string               `json:"ip"`
-	PublicPorts     string               `json:"publicports"`
+	PublicPorts     []util.Port          `json:"publicports"`
 	InstallerParams map[string]string    `json:"installer-params"`
 	Capabilities    []string             `json:"capabilities"`
 	Resources       []string             `json:"resources"`
@@ -305,7 +305,7 @@ func (app *App) ValidateCapability(cap *capability.Capability) error {
 //
 
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(installerID string, name string, ports string, installerParams map[string]string) (*App, error) {
+func CreateApp(installerID string, name string, installerParams map[string]string) (*App, error) {
 
 	installer, err := ReadInstaller(installerID)
 	if err != nil {
@@ -319,7 +319,7 @@ func CreateApp(installerID string, name string, ports string, installerParams ma
 
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app := &App{Name: name, ID: guid.String(), InstallerID: installerID, PublicPorts: ports, InstallerParams: installerParams}
+	app := &App{Name: name, ID: guid.String(), InstallerID: installerID, PublicPorts: installer.Metadata.PublicPorts, InstallerParams: installerParams}
 	err = app.createContainer()
 	if err != nil {
 		return nil, err

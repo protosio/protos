@@ -3,10 +3,12 @@ package daemon
 import (
 	"errors"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/nustiueudinastea/protos/capability"
 	"github.com/nustiueudinastea/protos/platform"
+	"github.com/nustiueudinastea/protos/util"
 )
 
 // InstallerMetadata holds metadata for the installer
@@ -14,6 +16,7 @@ type InstallerMetadata struct {
 	Params       []string                 `json:"params"`
 	Provides     []string                 `json:"provides"`
 	Requires     []string                 `json:"requires"`
+	PublicPorts  []util.Port              `json:"publicports"`
 	Description  string                   `json:"description"`
 	Capabilities []*capability.Capability `json:"-"`
 }
@@ -38,6 +41,37 @@ func parseInstallerCapabilities(capstring string) []*capability.Capability {
 	return caps
 }
 
+func parsePublicPorts(publicports string) []util.Port {
+	ports := []util.Port{}
+	for _, portstr := range strings.Split(publicports, ",") {
+		portParts := strings.Split(portstr, "/")
+		if len(portParts) != 2 {
+			log.Errorf("Error parsing installer port string %s", portstr)
+			continue
+		}
+		portNr, err := strconv.Atoi(portParts[0])
+		if err != nil {
+			log.Errorf("Error parsing installer port string %s", portstr)
+			continue
+		}
+		if portNr < 1 || portNr > 0xffff {
+			log.Errorf("Installer port is out of range %s", portstr)
+			continue
+		}
+		port := util.Port{Nr: portNr}
+		if strings.ToUpper(portParts[1]) == string(util.TCP) {
+			port.Type = util.TCP
+		} else if strings.ToUpper(portParts[1]) == string(util.UDP) {
+			port.Type = util.UDP
+		} else {
+			log.Errorf("Installer port protocol is invalid %s", portstr)
+			continue
+		}
+		ports = append(ports, port)
+	}
+	return ports
+}
+
 func getMetadata(labels map[string]string) (InstallerMetadata, error) {
 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
 	metadata := InstallerMetadata{}
@@ -53,6 +87,8 @@ func getMetadata(labels map[string]string) (InstallerMetadata, error) {
 				metadata.Provides = strings.Split(value, ",")
 			case "requires":
 				metadata.Requires = strings.Split(value, ",")
+			case "publicports":
+				metadata.PublicPorts = parsePublicPorts(value)
 			case "description":
 				metadata.Description = value
 			}
