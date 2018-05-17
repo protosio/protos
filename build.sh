@@ -10,4 +10,4 @@ docker run \
        --name protos \
        --hostname protos \
        golang:1.9.4 \
-       go build -o bin/protos cmd/protos/protos.go
+       /bin/bash -c "go get -u github.com/golang/dep/cmd/dep && dep ensure && go build -o bin/protos cmd/protos/protos.go"
