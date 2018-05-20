@@ -2,6 +2,8 @@ package util
 
 import (
 	"crypto/rand"
+	"crypto/sha1"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"time"
@@ -73,4 +75,11 @@ func StringInSlice(a string, list []string) (bool, int) {
 func RemoveStringFromSlice(s []string, i int) []string {
 	s[len(s)-1], s[i] = s[i], s[len(s)-1]
 	return s[:len(s)-1]
+}
+
+// String2SHA1 converts a string to a SHA1 hash, formatted as a hex string
+func String2SHA1(s string) string {
+	h := sha1.New()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
 }
