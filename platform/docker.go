@@ -8,6 +8,8 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
+	volumetypes "github.com/docker/docker/api/types/volume"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/nustiueudinastea/protos/util"
@@ -15,11 +17,17 @@ import (
 
 const protosNetwork = "bridge"
 
-// DockerContainer represents
+// DockerContainer represents a container
 type DockerContainer struct {
 	ID     string
 	IP     string
 	Status string
+}
+
+// DockerVolume represents a persistent disk volume
+type DockerVolume struct {
+	ID              string
+	PersistencePath string
 }
 
 var dockerClient *docker.Client
@@ -45,11 +53,41 @@ func combineEnv(params map[string]string) []string {
 }
 
 //
+// Docker volume operations
+//
+
+// GetOrCreateDockerVolume returns a volume, either an existing one or a new one
+func GetOrCreateDockerVolume(volumeID string, persistencePath string) (*DockerVolume, error) {
+	volume := DockerVolume{PersistencePath: persistencePath}
+	if volumeID != "" {
+		dockerVolume, err := dockerClient.VolumeInspect(context.Background(), volumeID)
+		if err != nil {
+			return nil, err
+		}
+		volume.ID = dockerVolume.Name
+		return nil, nil
+	}
+	dockerVolume, err := dockerClient.VolumeCreate(context.Background(), volumetypes.VolumesCreateBody{Labels: map[string]string{"protos": "0.0.1"}})
+	if err != nil {
+		return nil, err
+	}
+	log.Debug("Created docker volume " + dockerVolume.Name)
+	volume.ID = dockerVolume.Name
+	return &volume, nil
+}
+
+// RemoveDockerVolume removes a Docker volume
+func RemoveDockerVolume(volumeID string) error {
+	log.Debug("Removing Docker volume " + volumeID)
+	return dockerClient.VolumeRemove(context.Background(), volumeID, false)
+}
+
+//
 // Docker container operation
 //
 
 // NewDockerContainer creates and returns a docker container reference
-func NewDockerContainer(name string, appid string, imageid string, publicPorts []util.Port, installerParams map[string]string) (*DockerContainer, error) {
+func NewDockerContainer(name string, appid string, imageid string, volume *DockerVolume, publicPorts []util.Port, installerParams map[string]string) (*DockerContainer, error) {
 	log.Debug("Creating container " + name + " from image " + imageid)
 	var ports []string
 	for _, port := range publicPorts {
@@ -66,6 +104,16 @@ func NewDockerContainer(name string, appid string, imageid string, publicPorts [
 	}
 	envvars["APPID"] = appid
 
+	// mounting container volumes
+	mounts := []mount.Mount{}
+	if volume != nil {
+		mounts = append(mounts, mount.Mount{
+			Type:   mount.TypeVolume,
+			Source: volume.ID,
+			Target: volume.PersistencePath,
+		})
+	}
+
 	containerConfig := &container.Config{
 		Image:        imageid,
 		ExposedPorts: exposedPorts,
@@ -74,6 +122,7 @@ func NewDockerContainer(name string, appid string, imageid string, publicPorts [
 	hostConfig := &container.HostConfig{
 		Links:        []string{"protos"},
 		PortBindings: portBindings,
+		Mounts:       mounts,
 	}
 
 	dcnt, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, name)
@@ -175,6 +224,22 @@ func (cnt *DockerContainer) GetStatus() string {
 //
 // Docker image operation
 //
+
+// GetDockerImageDataPath returns the path inside the container where data is persisted
+func GetDockerImageDataPath(image types.ImageInspect) (string, error) {
+	vlen := len(image.Config.Volumes)
+	if vlen == 0 {
+		return "", nil
+	} else if vlen > 1 {
+		return "", errors.New("Docker image " + image.ID + " has too many volumes")
+	}
+	persistentPath := ""
+	for k := range image.Config.Volumes {
+		persistentPath = k
+		break
+	}
+	return persistentPath, nil
+}
 
 // GetDockerImage returns a docker image by id, if it is labeled for protos
 func GetDockerImage(id string) (types.ImageInspect, error) {

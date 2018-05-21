@@ -44,6 +44,7 @@ type App struct {
 	ID              string               `json:"id"`
 	InstallerID     string               `json:"installer-id"`
 	ContainerID     string               `json:"container-id"`
+	VolumeID        string               `json:"volumeid"`
 	Rtu             platform.RuntimeUnit `json:"-"`
 	Status          string               `json:"status"`
 	Actions         []AppAction          `json:"actions"`
@@ -121,7 +122,16 @@ func (app *App) createContainer() error {
 		return err
 	}
 
-	cnt, err := platform.NewDockerContainer(app.Name, app.ID, installer.PlatformID, app.PublicPorts, app.InstallerParams)
+	var volume *platform.DockerVolume
+	if installer.PersistancePath != "" {
+		volume, err = platform.GetOrCreateDockerVolume(app.VolumeID, installer.PersistancePath)
+		if err != nil {
+			return errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
+		}
+		app.VolumeID = volume.ID
+	}
+
+	cnt, err := platform.NewDockerContainer(app.Name, app.ID, installer.PlatformID, volume, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return err
 	}
@@ -205,6 +215,13 @@ func (app *App) Remove() error {
 		err := app.Rtu.Remove()
 		if err != nil {
 			return err
+		}
+	}
+
+	if app.VolumeID != "" {
+		err := platform.RemoveDockerVolume(app.VolumeID)
+		if err != nil {
+			log.Error(err)
 		}
 	}
 

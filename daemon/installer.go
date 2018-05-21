@@ -23,10 +23,11 @@ type InstallerMetadata struct {
 
 // Installer represents an application installer
 type Installer struct {
-	Name       string             `json:"name"`
-	ID         string             `json:"id"`
-	PlatformID string             `json:"platformid"`
-	Metadata   *InstallerMetadata `json:"metadata"`
+	Name            string             `json:"name"`
+	ID              string             `json:"id"`
+	PlatformID      string             `json:"platformid"`
+	PersistancePath string             `json:"persistancepath"`
+	Metadata        *InstallerMetadata `json:"metadata"`
 }
 
 func parseInstallerCapabilities(capstring string) []*capability.Capability {
@@ -149,7 +150,12 @@ func ReadInstaller(installerID string) (Installer, error) {
 		return Installer{}, errors.New("Error retrieving docker image: " + err.Error())
 	}
 
-	installer := Installer{Name: img.RepoTags[0], ID: installerID, PlatformID: img.ID}
+	persistancePath, err := platform.GetDockerImageDataPath(img)
+	if err != nil {
+		return Installer{}, errors.New("Installer " + installerID + " is invalid: " + err.Error())
+	}
+
+	installer := Installer{Name: img.RepoTags[0], ID: installerID, PlatformID: img.ID, PersistancePath: persistancePath}
 	metadata, err := getMetadata(img.Config.Labels)
 	if err != nil {
 		log.Warnf("Protos labeled image %s does not have any metadata", installerID)
