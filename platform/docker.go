@@ -60,13 +60,15 @@ func combineEnv(params map[string]string) []string {
 func GetOrCreateDockerVolume(volumeID string, persistencePath string) (*DockerVolume, error) {
 	volume := DockerVolume{PersistencePath: persistencePath}
 	if volumeID != "" {
+		log.Debug("Retrieving Docker volume " + volumeID)
 		dockerVolume, err := dockerClient.VolumeInspect(context.Background(), volumeID)
 		if err != nil {
 			return nil, err
 		}
 		volume.ID = dockerVolume.Name
-		return nil, nil
+		return &volume, nil
 	}
+	log.Debug("Creating new Docker volume")
 	dockerVolume, err := dockerClient.VolumeCreate(context.Background(), volumetypes.VolumesCreateBody{Labels: map[string]string{"protos": "0.0.1"}})
 	if err != nil {
 		return nil, err
