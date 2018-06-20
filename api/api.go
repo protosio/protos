@@ -33,9 +33,9 @@ type route struct {
 
 type routes []route
 
-func newRouter() *mux.Router {
+func newAPIRouter(r *mux.Router) *mux.Router {
 
-	router := mux.NewRouter().StrictSlash(true)
+	router := r.PathPrefix("/api/v1").Subrouter()
 
 	// Internal routes
 	for _, route := range internalRoutes {
@@ -67,13 +67,13 @@ func newRouter() *mux.Router {
 // Websrv starts an HTTP server that exposes all the application functionality
 func Websrv() {
 
-	rtr := newRouter()
+	mainRtr := mux.NewRouter().StrictSlash(true)
+	newAPIRouter(mainRtr)
 
 	fileHandler := http.FileServer(http.Dir(gconfig.StaticAssets))
-	rtr.PathPrefix("/static").Handler(fileHandler)
-	rtr.PathPrefix("/").Handler(fileHandler)
-
-	http.Handle("/", rtr)
+	mainRtr.PathPrefix("/static").Handler(fileHandler)
+	mainRtr.PathPrefix("/").Handler(fileHandler)
+	http.Handle("/", mainRtr)
 
 	port := strconv.Itoa(gconfig.Port)
 	log.Info("Listening on port " + port)
