@@ -152,6 +152,7 @@ func (app *App) containerMissing() bool {
 
 // RefreshPlatform updates the information about the underlying application container
 func (app *App) RefreshPlatform() {
+	log.Debug(app.Rtu)
 	if app.Rtu == nil {
 		cnt, err := platform.GetDockerContainer(app.ContainerID)
 		if err != nil {

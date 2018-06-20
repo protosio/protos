@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/nustiueudinastea/protos/config"
-	"github.com/nustiueudinastea/protos/platform"
 	"github.com/nustiueudinastea/protos/util"
 )
 
@@ -22,8 +21,6 @@ func StartUp() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	platform.ConnectDocker()
 
 }
 

@@ -4,6 +4,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/nustiueudinastea/protos/platform"
 	"github.com/nustiueudinastea/protos/resource"
 
 	"github.com/nustiueudinastea/protos/api"
@@ -26,14 +27,11 @@ func run(configFile string) {
 	defer database.Close()
 	capability.Initialize()
 	meta.Initialize()
+	platform.Initialize()
 	daemon.StartUp()
 	daemon.LoadAppsDB()
 	resource.LoadResourcesDB()
 	wg.Add(2)
-	// go func() {
-	// 	auth.LDAPsrv()
-	// 	wg.Done()
-	// }()
 	go func() {
 		api.Websrv()
 		wg.Done()
@@ -94,6 +92,7 @@ func main() {
 				database.Open()
 				defer database.Close()
 				meta.Setup()
+				platform.Setup()
 				auth.SetupAdmin()
 				return nil
 			},

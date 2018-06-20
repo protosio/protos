@@ -54,6 +54,7 @@ func findPublicIP() string {
 func Setup() {
 	domainName := readDomain()
 	ip := findPublicIP()
+	log.Debugf("Instance running using domain %s and IP %s", domainName, ip)
 	metaRoot = meta{ID: "metaroot", Domain: domainName, PublicIP: ip}
 	err := database.Save(&metaRoot)
 	if err != nil {
@@ -69,10 +70,14 @@ func Initialize() {
 		log.Error(err)
 		log.Fatal("Can't load instance information from database")
 	}
-	metaRoot.PublicIP = findPublicIP()
-	err = database.Save(&metaRoot)
-	if err != nil {
-		log.Fatal(err)
+
+	publicIP := findPublicIP()
+	if metaRoot.PublicIP != publicIP {
+		metaRoot.PublicIP = findPublicIP()
+		err = database.Save(&metaRoot)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if metaRoot.Domain == "" {

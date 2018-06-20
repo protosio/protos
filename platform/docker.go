@@ -9,13 +9,14 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/network"
 	volumetypes "github.com/docker/docker/api/types/volume"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/nustiueudinastea/protos/util"
 )
 
-const protosNetwork = "bridge"
+const protosNetwork = "protosnet"
 
 // DockerContainer represents a container
 type DockerContainer struct {
@@ -53,6 +54,33 @@ func combineEnv(params map[string]string) []string {
 }
 
 //
+// Docker network operations
+//
+
+// CreateDockerNetwork creates a Docker network
+func CreateDockerNetwork(name string) (string, error) {
+	netResponse, err := dockerClient.NetworkCreate(context.Background(), name, types.NetworkCreate{
+		CheckDuplicate: true,
+		Driver:         "bridge",
+		EnableIPv6:     false,
+		Internal:       false,
+	})
+	if err != nil {
+		return "", errors.New("Failed to create network " + name + ":" + err.Error())
+	}
+	return netResponse.ID, nil
+}
+
+// DockerNetworkExists checks if a Docker network exists and returns a bool
+func DockerNetworkExists(id string) bool {
+	_, err := dockerClient.NetworkInspect(context.Background(), id)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+//
 // Docker volume operations
 //
 
@@ -85,7 +113,7 @@ func RemoveDockerVolume(volumeID string) error {
 }
 
 //
-// Docker container operation
+// Docker container operations
 //
 
 // NewDockerContainer creates and returns a docker container reference
@@ -126,8 +154,15 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 		PortBindings: portBindings,
 		Mounts:       mounts,
 	}
+	networkConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			"protosnet": &network.EndpointSettings{
+				NetworkID: protosNetwork,
+			},
+		},
+	}
 
-	dcnt, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, name)
+	dcnt, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, networkConfig, name)
 	if err != nil {
 		return &DockerContainer{}, err
 	}
@@ -174,7 +209,9 @@ func (cnt *DockerContainer) Update() error {
 	if err != nil {
 		return errors.New("Error retrieving container " + cnt.ID + ": " + err.Error())
 	}
-	cnt.IP = container.NetworkSettings.Networks[protosNetwork].IPAddress
+	if network, ok := container.NetworkSettings.Networks[protosNetwork]; ok {
+		cnt.IP = network.IPAddress
+	}
 	cnt.Status = container.State.Status
 	return nil
 }
@@ -224,7 +261,7 @@ func (cnt *DockerContainer) GetStatus() string {
 }
 
 //
-// Docker image operation
+// Docker image operations
 //
 
 // GetDockerImageDataPath returns the path inside the container where data is persisted
