@@ -74,7 +74,8 @@ func parsePublicPorts(publicports string) []util.Port {
 	return ports
 }
 
-func getMetadata(labels map[string]string) (InstallerMetadata, error) {
+// GetMetadata parses the image metadata from the image labels
+func GetMetadata(labels map[string]string) (InstallerMetadata, error) {
 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
 	metadata := InstallerMetadata{}
 	for label, value := range labels {
@@ -156,7 +157,7 @@ func ReadInstaller(installerID string) (Installer, error) {
 	}
 
 	installer := Installer{Name: img.RepoTags[0], ID: installerID, PlatformID: img.ID, PersistancePath: persistancePath}
-	metadata, err := getMetadata(img.Config.Labels)
+	metadata, err := GetMetadata(img.Config.Labels)
 	if err != nil {
 		log.Warnf("Protos labeled image %s does not have any metadata", installerID)
 		installer.Metadata = nil
