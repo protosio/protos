@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"sync"
 
@@ -91,7 +92,10 @@ func main() {
 				daemon.Setup()
 				database.Open()
 				defer database.Close()
-				meta.Setup()
+				err := meta.Setup("")
+				if err != nil {
+					log.Fatal(err)
+				}
 				platform.Setup()
 				auth.SetupAdmin()
 				return nil

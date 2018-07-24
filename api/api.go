@@ -13,6 +13,7 @@ import (
 	"github.com/nustiueudinastea/protos/capability"
 	"github.com/nustiueudinastea/protos/config"
 	"github.com/nustiueudinastea/protos/daemon"
+	"github.com/nustiueudinastea/protos/meta"
 	"github.com/nustiueudinastea/protos/util"
 
 	"github.com/dgrijalva/jwt-go"
@@ -59,7 +60,9 @@ func newAPIRouter(r *mux.Router) *mux.Router {
 
 	// Authentication routes
 	loginHdlr := util.HTTPLogger(http.HandlerFunc(LoginHandler), "login")
+	registerHdlr := util.HTTPLogger(http.HandlerFunc(RegisterHandler), "register")
 	router.Methods("POST").Path("/login").Name("login").Handler(loginHdlr)
+	router.Methods("POST").Path("/register").Name("register").Handler(registerHdlr)
 
 	return router
 }
@@ -183,6 +186,50 @@ func ValidateExternalRequest(next http.Handler, rtr *mux.Router) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 
+}
+
+// RegisterHandler is used in the initial user and domain registration. Should be disabled after the initial setup
+func RegisterHandler(w http.ResponseWriter, r *http.Request) {
+	var registerform struct {
+		Username        string `json:"username"`
+		Name            string `json:"name"`
+		Password        string `json:"password"`
+		ConfirmPassword string `json:"confirmpassword"`
+		Domain          string `json:"domain"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&registerform)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if registerform.Password != registerform.ConfirmPassword {
+		err = errors.New("Passwords don't match")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if registerform.Domain == "" {
+		err = errors.New("Domain cannot be empty")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = meta.Setup(registerform.Domain)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = auth.CreateUser(registerform.Username, registerform.Password, registerform.Name, true)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Debug(registerform)
+	w.WriteHeader(http.StatusOK)
 }
 
 // LoginHandler takes a JSON payload containing a username and password, and returns a JWT if they are valid

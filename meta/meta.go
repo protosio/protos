@@ -51,15 +51,18 @@ func findPublicIP() string {
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup() {
-	domainName := readDomain()
+func Setup(domainName string) error {
+	if domainName == "" {
+		domainName = readDomain()
+	}
 	ip := findPublicIP()
 	log.Debugf("Instance running using domain %s and IP %s", domainName, ip)
 	metaRoot = meta{ID: "metaroot", Domain: domainName, PublicIP: ip}
 	err := database.Save(&metaRoot)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
 
 // Initialize loads the instance information at program startup
