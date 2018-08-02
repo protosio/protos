@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
-  revision = "7da180ee92d8bd8bb8c37fc560e673e6557c392f"
-  version = "v0.4.7"
+  revision = "a6d595ae73cf27a1b8fc32930668708f45ce1c85"
+  version = "v0.4.9"
 
 [[projects]]
   name = "github.com/asdine/storm"
@@ -117,14 +117,14 @@
 [[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
-  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
-  version = "v1.0.5"
+  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
+  version = "v1.0.6"
 
 [[projects]]
   name = "github.com/tidwall/gjson"
   packages = ["."]
-  revision = "afaeb9562041a8018c74e006551143666aed08bf"
-  version = "v1.1.1"
+  revision = "f123b340873a0084cb27267eddd8ff615115fbff"
+  version = "v1.1.2"
 
 [[projects]]
   branch = "master"
@@ -134,13 +134,25 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/unrolled/render"
+  packages = ["."]
+  revision = "65450fb6b2d3595beca39f969c411db8f8d5c806"
+
+[[projects]]
+  name = "github.com/urfave/negroni"
+  packages = ["."]
+  revision = "5dbbc83f748fc3ad38585842b0aedab546d0ea1e"
+  version = "v0.3.0"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
     "blowfish",
     "ssh/terminal"
   ]
-  revision = "027cca12c2d63e3d62b670d901e8a2c95854feec"
+  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
 
 [[projects]]
   branch = "master"
@@ -151,7 +163,7 @@
     "internal/socks",
     "proxy"
   ]
-  revision = "db08ff08e8622530d9ed3a0e8ac279f6d4c02196"
+  revision = "49c15d80dfbc983ea25246ee959d970efe09ec09"
 
 [[projects]]
   branch = "master"
@@ -160,7 +172,7 @@
     "unix",
     "windows"
   ]
-  revision = "f24d3d461d02f3f840cb4ff4ae1c6b3dd9f93db9"
+  revision = "bd9dbc187b6e1dacfdd2722a87e83093c2d7bd6e"
 
 [[projects]]
   name = "gopkg.in/urfave/cli.v1"
@@ -177,6 +189,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "090b6d8ec1c687a83923fdd7fec1023a11f01494e7fdcfe2013968d12754fb46"
+  inputs-digest = "9c987465a165778ef079dfc622e3c8bb4f2853d7e5e41cf1b2bceee9940978cf"
   solver-name = "gps-cdcl"
   solver-version = 1

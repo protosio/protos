@@ -36,18 +36,18 @@ func readDomain() string {
 	return strings.TrimSpace(domain)
 }
 
-func findPublicIP() string {
+func findPublicIP() (string, error) {
 	log.Info("Finding the public IP of this Protos instance")
 	resp, err := http.Get("https://api.ipify.org?format=json")
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 	bodyJSON, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
-	return gjson.GetBytes(bodyJSON, "ip").Str
+	return gjson.GetBytes(bodyJSON, "ip").Str, nil
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
@@ -55,10 +55,13 @@ func Setup(domainName string) error {
 	if domainName == "" {
 		domainName = readDomain()
 	}
-	ip := findPublicIP()
+	ip, err := findPublicIP()
+	if err != nil {
+		log.Error(err.Error())
+	}
 	log.Debugf("Instance running using domain %s and IP %s", domainName, ip)
 	metaRoot = meta{ID: "metaroot", Domain: domainName, PublicIP: ip}
-	err := database.Save(&metaRoot)
+	err = database.Save(&metaRoot)
 	if err != nil {
 		return err
 	}
@@ -74,9 +77,13 @@ func Initialize() {
 		log.Fatal("Can't load instance information from database")
 	}
 
-	publicIP := findPublicIP()
-	if metaRoot.PublicIP != publicIP {
-		metaRoot.PublicIP = findPublicIP()
+	publicIP, err := findPublicIP()
+	if err != nil {
+		log.Error(err.Error())
+	}
+
+	if publicIP != "" && metaRoot.PublicIP != publicIP {
+		metaRoot.PublicIP = publicIP
 		err = database.Save(&metaRoot)
 		if err != nil {
 			log.Fatal(err)

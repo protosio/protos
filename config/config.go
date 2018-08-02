@@ -17,9 +17,10 @@ type Config struct {
 	DockerEndpoint string
 	StaticAssets   string
 	Secret         []byte
+	InitMode       bool
 }
 
-var config = Config{}
+var config = Config{InitMode: true}
 
 // Gconfig maintains a global view of the application configuration parameters.
 var Gconfig = &config

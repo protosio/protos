@@ -114,14 +114,14 @@ func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 	rtype, _, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
 	err = provider.Register(app, rtype)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -135,14 +135,14 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 	rtype, _, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
 	err = provider.Deregister(app, rtype)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -157,7 +157,7 @@ func getProviderResources(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err := errors.New("Application " + app.ID + " is not a resource provider")
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -176,7 +176,7 @@ func updateResourceValue(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err := errors.New("Application " + app.ID + " is not a resource provider")
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -184,26 +184,26 @@ func updateResourceValue(w http.ResponseWriter, r *http.Request) {
 	if rsc == nil {
 		err := errors.New("Could not find resource " + resourceID)
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
 	_, newValue, err := resource.GetType(string(rsc.Type))
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 	err = json.Unmarshal(bodyJSON, newValue)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 
 	rsc.UpdateValue(newValue)
@@ -221,7 +221,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -229,7 +229,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err := errors.New("Application " + app.ID + " is not a resource provider")
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -237,7 +237,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := resource.GetStatus(statusName)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -245,7 +245,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	if rsc == nil {
 		err := errors.New("Could not find resource " + resourceID)
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -284,7 +284,7 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 	defer r.Body.Close()
@@ -292,7 +292,7 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 	resource, err := app.CreateResource(bodyJSON)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -309,7 +309,7 @@ func getResource(w http.ResponseWriter, r *http.Request) {
 	if rsc == nil {
 		err := errors.New("Could not find resource " + resourceID)
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -325,7 +325,7 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 	err := app.DeleteResource(resourceID)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -357,7 +357,7 @@ func authUser(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&userform)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 

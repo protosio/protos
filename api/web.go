@@ -82,6 +82,13 @@ var clientRoutes = routes{
 		removeResource,
 		capability.UserAdmin,
 	},
+	route{
+		"searchAppStore",
+		"GET",
+		"/store/search",
+		searchAppStore,
+		nil,
+	},
 }
 
 func getApps(w http.ResponseWriter, r *http.Request) {
@@ -101,14 +108,14 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&appParams)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
 	app, err := daemon.CreateApp(appParams.InstallerID, appParams.Name, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -125,7 +132,7 @@ func getApp(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadApp(appID)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -142,7 +149,7 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadApp(appID)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -152,14 +159,14 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 	err = decoder.Decode(&action)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
 	err = app.AddAction(action)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -175,14 +182,14 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 	app, err := daemon.ReadApp(appID)
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
 	err = app.Remove()
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
@@ -194,7 +201,7 @@ func getInstallers(w http.ResponseWriter, r *http.Request) {
 
 	installers, err := daemon.GetInstallers()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 
 	log.Debug("Sending response: ", installers)
@@ -209,7 +216,7 @@ func getInstaller(w http.ResponseWriter, r *http.Request) {
 
 	installer, err := daemon.ReadInstaller(installerID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 
 	log.Debug("Sending response: ", installer)
@@ -224,12 +231,12 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 
 	installer, err := daemon.ReadInstaller(installerID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 	err = installer.Remove()
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -252,14 +259,23 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 
 	rsc, err := resource.Get(resourceID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 	err = rsc.Delete()
 	if err != nil {
 		log.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 	}
 
 	w.WriteHeader(http.StatusOK)
 
+}
+
+//
+// App store
+//
+
+func searchAppStore(w http.ResponseWriter, r *http.Request) {
+	installers := []string{"namecheap-dns"}
+	json.NewEncoder(w).Encode(installers)
 }
