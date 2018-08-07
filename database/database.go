@@ -10,7 +10,7 @@ import (
 	"github.com/asdine/storm/codec/gob"
 )
 
-var gconfig = config.Gconfig
+var gconfig = config.Get()
 var log = util.Log
 
 // db - package wide db reference

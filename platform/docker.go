@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/nustiueudinastea/protos/util"
+	"github.com/pkg/errors"
 )
 
 const protosNetwork = "protosnet"
@@ -66,7 +66,7 @@ func CreateDockerNetwork(name string) (string, error) {
 		Internal:       false,
 	})
 	if err != nil {
-		return "", errors.New("Failed to create network " + name + ":" + err.Error())
+		return "", errors.Wrap(err, "Failed to create network "+name)
 	}
 	return netResponse.ID, nil
 }
@@ -207,7 +207,7 @@ func GetAllDockerContainers() (map[string]*DockerContainer, error) {
 func (cnt *DockerContainer) Update() error {
 	container, err := dockerClient.ContainerInspect(context.Background(), cnt.ID)
 	if err != nil {
-		return errors.New("Error retrieving container " + cnt.ID + ": " + err.Error())
+		return errors.Wrap(err, "Error retrieving container "+cnt.ID)
 	}
 	if network, ok := container.NetworkSettings.Networks[protosNetwork]; ok {
 		cnt.IP = network.IPAddress
@@ -330,6 +330,16 @@ func RemoveDockerImage(id string) error {
 	_, err := dockerClient.ImageRemove(context.Background(), id, types.ImageRemoveOptions{PruneChildren: true})
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+// PullDockerImage pulls a docker image from the Protos app store
+func PullDockerImage(name string, tag string) error {
+	imageStr := gconfig.AppStoreHost + "/" + name + ":" + tag
+	_, err := dockerClient.ImagePull(context.Background(), imageStr, types.ImagePullOptions{})
+	if err != nil {
+		return errors.Wrap(err, "Failed to pull image from app store")
 	}
 	return nil
 }

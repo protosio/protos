@@ -18,12 +18,14 @@ type Config struct {
 	StaticAssets   string
 	Secret         []byte
 	InitMode       bool
+	AppStoreURL    string
+	AppStoreHost   string
 }
 
-var config = Config{InitMode: true}
+var config = Config{InitMode: true, AppStoreURL: "https://apps.protos.io/", AppStoreHost: "apps.protos.io"}
 
 // Gconfig maintains a global view of the application configuration parameters.
-var Gconfig = &config
+// var gconfig = &config
 var log = util.Log
 
 // Load reads the configuration from a file and maps it to the config struct
@@ -39,4 +41,9 @@ func Load(configFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// Get returns a pointer to the global config structure
+func Get() *Config {
+	return &config
 }

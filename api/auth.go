@@ -25,7 +25,6 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
-	log.Debug(registerform)
 
 	if registerform.Password != registerform.ConfirmPassword {
 		err = errors.New("Passwords don't match")

@@ -7,7 +7,7 @@ import (
 	"github.com/nustiueudinastea/protos/util"
 )
 
-var gconfig = config.Gconfig
+var gconfig = config.Get()
 var log = util.Log
 
 // StartUp triggers a sequence of steps required to start the application

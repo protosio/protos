@@ -89,6 +89,13 @@ var clientRoutes = routes{
 		searchAppStore,
 		nil,
 	},
+	route{
+		"downloadInstaller",
+		"POST",
+		"/store/download",
+		downloadInstaller,
+		nil,
+	},
 }
 
 func getApps(w http.ResponseWriter, r *http.Request) {
@@ -202,6 +209,7 @@ func getInstallers(w http.ResponseWriter, r *http.Request) {
 	installers, err := daemon.GetInstallers()
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
 	}
 
 	log.Debug("Sending response: ", installers)
@@ -217,6 +225,7 @@ func getInstaller(w http.ResponseWriter, r *http.Request) {
 	installer, err := daemon.ReadInstaller(installerID)
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
 	}
 
 	log.Debug("Sending response: ", installer)
@@ -232,11 +241,13 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 	installer, err := daemon.ReadInstaller(installerID)
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
 	}
 	err = installer.Remove()
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -260,11 +271,13 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 	rsc, err := resource.Get(resourceID)
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
 	}
 	err = rsc.Delete()
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -276,6 +289,59 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 //
 
 func searchAppStore(w http.ResponseWriter, r *http.Request) {
-	installers := []string{"namecheap-dns"}
-	json.NewEncoder(w).Encode(installers)
+	queryParams := r.URL.Query()
+	provides, ok := queryParams["provides"]
+	if ok != true || len(provides) == 0 {
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: "'provides' is the only allowed search parameter"})
+		return
+	}
+
+	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/search?provides=" + provides[0])
+	if err != nil {
+		log.Fatalln(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
+		return
+	}
+
+	installers := map[string]struct {
+		Name        string   `json:"name"`
+		Provides    []string `json:"provides"`
+		Description string   `json:"description"`
+		Versions    []string `json:"versions"`
+	}{}
+
+	err = json.NewDecoder(resp.Body).Decode(&installers)
+	defer resp.Body.Close()
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Something went wrong decoding the response from the application store"})
+		return
+	}
+
+	rend.JSON(w, http.StatusOK, installers)
+}
+
+func downloadInstaller(w http.ResponseWriter, r *http.Request) {
+	var installer = struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}{}
+
+	defer r.Body.Close()
+	err := json.NewDecoder(r.Body).Decode(&installer)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: "Could not decode JSON request"})
+		return
+	}
+
+	err = daemon.DownloadInstaller(installer.Name, installer.Version)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

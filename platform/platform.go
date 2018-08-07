@@ -1,10 +1,12 @@
 package platform
 
 import (
+	"github.com/nustiueudinastea/protos/config"
 	"github.com/nustiueudinastea/protos/database"
 	"github.com/nustiueudinastea/protos/util"
 )
 
+var gconfig = config.Get()
 var log = util.Log
 
 type platform struct {

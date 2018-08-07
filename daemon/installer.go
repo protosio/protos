@@ -168,6 +168,12 @@ func ReadInstaller(installerID string) (Installer, error) {
 	return installer, nil
 }
 
+// DownloadInstaller downloads an installer from the application store
+func DownloadInstaller(name string, version string) error {
+	log.Info("Downloading installer ", name, ", version ", version)
+	return platform.PullDockerImage(name, version)
+}
+
 // Remove Installer removes an installer image
 func (installer *Installer) Remove() error {
 	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")

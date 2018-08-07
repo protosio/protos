@@ -15,7 +15,7 @@ import (
 )
 
 var log = util.Log
-var gconfig = config.Gconfig
+var gconfig = config.Get()
 var rend = render.New(render.Options{IndentJSON: true})
 
 type httperr struct {
