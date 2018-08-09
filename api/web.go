@@ -343,5 +343,5 @@ func downloadInstaller(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	rend.JSON(w, http.StatusOK, nil)
 }

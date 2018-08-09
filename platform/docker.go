@@ -2,6 +2,8 @@ package platform
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strconv"
 	"time"
 
@@ -336,10 +338,46 @@ func RemoveDockerImage(id string) error {
 
 // PullDockerImage pulls a docker image from the Protos app store
 func PullDockerImage(name string, tag string) error {
-	imageStr := gconfig.AppStoreHost + "/" + name + ":" + tag
-	_, err := dockerClient.ImagePull(context.Background(), imageStr, types.ImagePullOptions{})
+	repoImage := gconfig.AppStoreHost + "/" + name
+	imageStr := repoImage + ":" + tag
+	events, err := dockerClient.ImagePull(context.Background(), imageStr, types.ImagePullOptions{})
 	if err != nil {
 		return errors.Wrap(err, "Failed to pull image from app store")
+	}
+
+	type Event struct {
+		Status         string `json:"status"`
+		Error          string `json:"error"`
+		Progress       string `json:"progress"`
+		ProgressDetail struct {
+			Current int `json:"current"`
+			Total   int `json:"total"`
+		} `json:"progressDetail"`
+	}
+
+	var event *Event
+	d := json.NewDecoder(events)
+	for {
+		if err := d.Decode(&event); err != nil {
+			if err == io.EOF {
+				break
+			}
+			panic(err)
+		}
+	}
+
+	log.Debugf("Pulled image %s with status: %s:", name, event.Status)
+	if event.Error != "" {
+		return errors.New("Failed to pull image from app store: " + event.Error)
+	}
+
+	err = dockerClient.ImageTag(context.Background(), imageStr, name+":"+tag)
+	if err != nil {
+		return errors.Wrap(err, "Something went wrong while re-tagging Docker image")
+	}
+	_, err = dockerClient.ImageRemove(context.Background(), imageStr, types.ImageRemoveOptions{})
+	if err != nil {
+		return errors.Wrap(err, "Something went wront while removing old Docker image tag")
 	}
 	return nil
 }

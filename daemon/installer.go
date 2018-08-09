@@ -118,7 +118,7 @@ func GetInstallers() (map[string]Installer, error) {
 		if img.RepoTags[0] == "n/a" {
 			continue
 		}
-		installerID := util.String2SHA1(img.RepoTags[0])
+		installerID := util.String2SHA1(strings.Split(img.RepoTags[0], ":")[0])
 		installers[installerID] = Installer{ID: installerID, Name: img.RepoTags[0], PlatformID: img.ID}
 	}
 
@@ -135,8 +135,11 @@ func ReadInstaller(installerID string) (Installer, error) {
 	}
 
 	imageID := ""
+	installerName := ""
 	for _, img := range imgs {
-		instID := util.String2SHA1(img.RepoTags[0])
+		installerStr := strings.Split(img.RepoTags[0], ":")
+		installerName = installerStr[0]
+		instID := util.String2SHA1(installerName)
 		if installerID == instID {
 			imageID = img.ID
 		}
@@ -156,7 +159,7 @@ func ReadInstaller(installerID string) (Installer, error) {
 		return Installer{}, errors.New("Installer " + installerID + " is invalid: " + err.Error())
 	}
 
-	installer := Installer{Name: img.RepoTags[0], ID: installerID, PlatformID: img.ID, PersistancePath: persistancePath}
+	installer := Installer{Name: installerName, ID: installerID, PlatformID: img.ID, PersistancePath: persistancePath}
 	metadata, err := GetMetadata(img.Config.Labels)
 	if err != nil {
 		log.Warnf("Protos labeled image %s does not have any metadata", installerID)
