@@ -1,8 +1,10 @@
 package platform
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strconv"
 	"time"
@@ -75,7 +77,7 @@ func CreateDockerNetwork(name string) (string, error) {
 
 // DockerNetworkExists checks if a Docker network exists and returns a bool
 func DockerNetworkExists(id string) bool {
-	_, err := dockerClient.NetworkInspect(context.Background(), id)
+	_, err := dockerClient.NetworkInspect(context.Background(), id, types.NetworkInspectOptions{})
 	if err != nil {
 		return false
 	}
@@ -99,7 +101,7 @@ func GetOrCreateDockerVolume(volumeID string, persistencePath string) (*DockerVo
 		return &volume, nil
 	}
 	log.Debug("Creating new Docker volume")
-	dockerVolume, err := dockerClient.VolumeCreate(context.Background(), volumetypes.VolumesCreateBody{Labels: map[string]string{"protos": "0.0.1"}})
+	dockerVolume, err := dockerClient.VolumeCreate(context.Background(), volumetypes.VolumeCreateBody{Labels: map[string]string{"protos": "0.0.1"}})
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +226,25 @@ func (cnt *DockerContainer) Start() error {
 	err := dockerClient.ContainerStart(context.Background(), cnt.ID, types.ContainerStartOptions{})
 	if err != nil {
 		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	statusCh, errCh := dockerClient.ContainerWait(ctx, cnt.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			panic(err)
+		}
+	case <-statusCh:
+		out, err := dockerClient.ContainerLogs(ctx, cnt.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+		if err != nil {
+			panic(err)
+		}
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(out)
+		return fmt.Errorf("unexpected container termination: %s", buf.String())
 	}
 	return nil
 }

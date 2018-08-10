@@ -2,7 +2,8 @@ package daemon
 
 import (
 	"encoding/gob"
-	"errors"
+
+	"github.com/pkg/errors"
 
 	"github.com/nustiueudinastea/protos/meta"
 
@@ -185,7 +186,7 @@ func (app *App) Start() error {
 
 	err := app.Rtu.Start()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
 	return nil
 }
