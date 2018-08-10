@@ -45,11 +45,10 @@
 [[projects]]
   name = "github.com/docker/distribution"
   packages = [
-    "digest",
+    "digestset",
     "reference"
   ]
-  revision = "48294d928ced5dd9b378f7fd7c6f5da3ff3f2c89"
-  version = "v2.6.2"
+  revision = "b7446e89bfcec2a0b33d2bdf4a50309e19c40e14"
 
 [[projects]]
   name = "github.com/docker/docker"
@@ -212,6 +211,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "85ff0831bd8878be967f05b47be455a72381d227b5a39c5a4efa337aad2a9730"
+  inputs-digest = "ac96207992df32e40fd2e1659d157dee1b900f9f08d77b29ce877aec8d63107a"
   solver-name = "gps-cdcl"
   solver-version = 1
