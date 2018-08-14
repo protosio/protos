@@ -127,7 +127,7 @@ func (app *App) createContainer() error {
 
 	installerMetadata, found := installer.Versions[app.InstallerVersion]
 	if found == false {
-		return fmt.Errorf("Could not find version %s for installer %s", app.InstallerVersion, app.InstallerID)
+		return fmt.Errorf("Could not find version [%s] for installer %s", app.InstallerVersion, app.InstallerID)
 	}
 
 	var volume *platform.DockerVolume
@@ -336,6 +336,14 @@ func (app *App) ValidateCapability(cap *capability.Capability) error {
 
 // CreateApp takes an image and creates an application, without starting it
 func CreateApp(installerID string, installerVersion string, name string, installerParams map[string]string) (*App, error) {
+
+	if name == "" {
+		return nil, fmt.Errorf("Application name cannot be empty")
+	}
+
+	if installerVersion == "" {
+		return nil, fmt.Errorf("Installer version cannot be empty")
+	}
 
 	installer, err := ReadInstaller(installerID)
 	if err != nil {
