@@ -119,7 +119,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := daemon.CreateApp(appParams.InstallerID, appParams.Name, appParams.InstallerParams)
+	app, err := daemon.CreateApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -199,8 +199,7 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
+	rend.JSON(w, http.StatusOK, nil)
 }
 
 func getInstallers(w http.ResponseWriter, r *http.Request) {
@@ -249,7 +248,7 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	rend.JSON(w, http.StatusOK, nil)
 
 }
 
@@ -279,7 +278,7 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	rend.JSON(w, http.StatusOK, nil)
 
 }
 
