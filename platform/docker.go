@@ -122,6 +122,9 @@ func RemoveDockerVolume(volumeID string) error {
 
 // NewDockerContainer creates and returns a docker container reference
 func NewDockerContainer(name string, appid string, imageid string, volume *DockerVolume, publicPorts []util.Port, installerParams map[string]string) (*DockerContainer, error) {
+	if imageid == "" {
+		return nil, errors.New("Docker imageid is empty")
+	}
 	log.Debug("Creating container " + name + " from image " + imageid)
 	var ports []string
 	for _, port := range publicPorts {
@@ -228,14 +231,18 @@ func (cnt *DockerContainer) Start() error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	statusCh, errCh := dockerClient.ContainerWait(ctx, cnt.ID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
 		if err != nil {
-			panic(err)
+			if err.Error() == "context deadline exceeded" {
+				return nil
+			} else {
+				errors.Wrap(err, "Error while waiting for container")
+			}
 		}
 	case <-statusCh:
 		out, err := dockerClient.ContainerLogs(ctx, cnt.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})

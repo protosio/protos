@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/gob"
+	"fmt"
 
 	"github.com/pkg/errors"
 
@@ -41,19 +42,20 @@ type AppAction struct {
 
 // App represents the application state
 type App struct {
-	Name            string               `json:"name"`
-	ID              string               `json:"id"`
-	InstallerID     string               `json:"installer-id"`
-	ContainerID     string               `json:"container-id"`
-	VolumeID        string               `json:"volumeid"`
-	Rtu             platform.RuntimeUnit `json:"-"`
-	Status          string               `json:"status"`
-	Actions         []AppAction          `json:"actions"`
-	IP              string               `json:"ip"`
-	PublicPorts     []util.Port          `json:"publicports"`
-	InstallerParams map[string]string    `json:"installer-params"`
-	Capabilities    []string             `json:"capabilities"`
-	Resources       []string             `json:"resources"`
+	Name             string               `json:"name"`
+	ID               string               `json:"id"`
+	InstallerID      string               `json:"installer-id"`
+	InstallerVersion string               `json:"installer-version"`
+	ContainerID      string               `json:"container-id"`
+	VolumeID         string               `json:"volumeid"`
+	Rtu              platform.RuntimeUnit `json:"-"`
+	Status           string               `json:"status"`
+	Actions          []AppAction          `json:"actions"`
+	IP               string               `json:"ip"`
+	PublicPorts      []util.Port          `json:"publicports"`
+	InstallerParams  map[string]string    `json:"installer-params"`
+	Capabilities     []string             `json:"capabilities"`
+	Resources        []string             `json:"resources"`
 }
 
 // Apps maintains a map of all the applications
@@ -123,18 +125,23 @@ func (app *App) createContainer() error {
 		return err
 	}
 
+	installerMetadata, found := installer.Versions[app.InstallerVersion]
+	if found == false {
+		return fmt.Errorf("Could not find version %s for installer %s", app.InstallerVersion, app.InstallerID)
+	}
+
 	var volume *platform.DockerVolume
-	if installer.PersistancePath != "" {
-		volume, err = platform.GetOrCreateDockerVolume(app.VolumeID, installer.PersistancePath)
+	if installerMetadata.PersistancePath != "" {
+		volume, err = platform.GetOrCreateDockerVolume(app.VolumeID, installerMetadata.PersistancePath)
 		if err != nil {
 			return errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
 		}
 		app.VolumeID = volume.ID
 	}
 
-	cnt, err := platform.NewDockerContainer(app.Name, app.ID, installer.PlatformID, volume, app.PublicPorts, app.InstallerParams)
+	cnt, err := platform.NewDockerContainer(app.Name, app.ID, installerMetadata.PlatformID, volume, app.PublicPorts, app.InstallerParams)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Failed to create container")
 	}
 	app.Rtu = cnt
 	app.ContainerID = app.Rtu.GetID()
@@ -328,26 +335,30 @@ func (app *App) ValidateCapability(cap *capability.Capability) error {
 //
 
 // CreateApp takes an image and creates an application, without starting it
-func CreateApp(installerID string, name string, installerParams map[string]string) (*App, error) {
+func CreateApp(installerID string, installerVersion string, name string, installerParams map[string]string) (*App, error) {
 
 	installer, err := ReadInstaller(installerID)
 	if err != nil {
 		return nil, err
 	}
+	installerMetadata, found := installer.Versions[installerVersion]
+	if found == false {
+		return nil, fmt.Errorf("Could not find version %s for installer %s", installerVersion, installerID)
+	}
 
-	err = validateInstallerParams(installerParams, installer.Metadata.Params)
+	err = validateInstallerParams(installerParams, installerMetadata.Params)
 	if err != nil {
 		return nil, err
 	}
 
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app := &App{Name: name, ID: guid.String(), InstallerID: installerID, PublicPorts: installer.Metadata.PublicPorts, InstallerParams: installerParams}
+	app := &App{Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion, PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams}
 	err = app.createContainer()
 	if err != nil {
 		return nil, err
 	}
-	app.Capabilities = createCapabilities(installer.Metadata.Capabilities)
+	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
 	if app.ValidateCapability(capability.PublicDNS) == nil {
 		rsc, err := resource.Create(resource.DNS, &resource.DNSResource{Host: app.Name, Value: meta.GetPublicIP(), Type: "A", TTL: 300})
 		if err != nil {

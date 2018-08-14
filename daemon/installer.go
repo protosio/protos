@@ -13,21 +13,21 @@ import (
 
 // InstallerMetadata holds metadata for the installer
 type InstallerMetadata struct {
-	Params       []string                 `json:"params"`
-	Provides     []string                 `json:"provides"`
-	Requires     []string                 `json:"requires"`
-	PublicPorts  []util.Port              `json:"publicports"`
-	Description  string                   `json:"description"`
-	Capabilities []*capability.Capability `json:"-"`
+	Params          []string                 `json:"params"`
+	Provides        []string                 `json:"provides"`
+	Requires        []string                 `json:"requires"`
+	PublicPorts     []util.Port              `json:"publicports"`
+	Description     string                   `json:"description"`
+	PlatformID      string                   `json:"platformid"`
+	PersistancePath string                   `json:"persistancepath"`
+	Capabilities    []*capability.Capability `json:"-"`
 }
 
 // Installer represents an application installer
 type Installer struct {
-	Name            string             `json:"name"`
-	ID              string             `json:"id"`
-	PlatformID      string             `json:"platformid"`
-	PersistancePath string             `json:"persistancepath"`
-	Metadata        *InstallerMetadata `json:"metadata"`
+	Name     string                        `json:"name"`
+	ID       string                        `json:"id"`
+	Versions map[string]*InstallerMetadata `json:"versions"`
 }
 
 func parseInstallerCapabilities(capstring string) []*capability.Capability {
@@ -118,8 +118,10 @@ func GetInstallers() (map[string]Installer, error) {
 		if img.RepoTags[0] == "n/a" {
 			continue
 		}
-		installerID := util.String2SHA1(strings.Split(img.RepoTags[0], ":")[0])
-		installers[installerID] = Installer{ID: installerID, Name: img.RepoTags[0], PlatformID: img.ID}
+		installerStr := strings.Split(img.RepoTags[0], ":")
+		installerName := installerStr[0]
+		installerID := util.String2SHA1(installerName)
+		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]*InstallerMetadata{}}
 	}
 
 	return installers, nil
@@ -134,38 +136,43 @@ func ReadInstaller(installerID string) (Installer, error) {
 		return Installer{}, errors.New("Error retrieving installer " + installerID + ": " + err.Error())
 	}
 
-	imageID := ""
-	installerName := ""
+	installer := Installer{ID: installerID, Versions: map[string]*InstallerMetadata{}}
+
 	for _, img := range imgs {
-		installerStr := strings.Split(img.RepoTags[0], ":")
-		installerName = installerStr[0]
-		instID := util.String2SHA1(installerName)
-		if installerID == instID {
-			imageID = img.ID
+		if img.RepoTags[0] == "n/a" {
+			continue
 		}
+		installerStr := strings.Split(img.RepoTags[0], ":")
+		installerName := installerStr[0]
+		installerVersion := installerStr[1]
+		instID := util.String2SHA1(installerName)
+		if installerID != instID {
+			continue
+		}
+		installer.Name = installerName
+
+		img, err := platform.GetDockerImage(img.ID)
+		if err != nil {
+			return Installer{}, errors.New("Error retrieving docker image: " + err.Error())
+		}
+
+		persistancePath, err := platform.GetDockerImageDataPath(img)
+		if err != nil {
+			return Installer{}, errors.New("Installer " + installerID + " is invalid: " + err.Error())
+		}
+
+		metadata, err := GetMetadata(img.Config.Labels)
+		if err != nil {
+			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", installerID, installerVersion, err)
+		}
+		metadata.PersistancePath = persistancePath
+		metadata.PlatformID = img.ID
+		installer.Versions[installerVersion] = &metadata
+
 	}
 
-	if imageID == "" {
+	if len(installer.Versions) == 0 {
 		return Installer{}, errors.New("Could not find installer " + installerID)
-	}
-
-	img, err := platform.GetDockerImage(imageID)
-	if err != nil {
-		return Installer{}, errors.New("Error retrieving docker image: " + err.Error())
-	}
-
-	persistancePath, err := platform.GetDockerImageDataPath(img)
-	if err != nil {
-		return Installer{}, errors.New("Installer " + installerID + " is invalid: " + err.Error())
-	}
-
-	installer := Installer{Name: installerName, ID: installerID, PlatformID: img.ID, PersistancePath: persistancePath}
-	metadata, err := GetMetadata(img.Config.Labels)
-	if err != nil {
-		log.Warnf("Protos labeled image %s does not have any metadata", installerID)
-		installer.Metadata = nil
-	} else {
-		installer.Metadata = &metadata
 	}
 
 	return installer, nil
@@ -181,9 +188,11 @@ func DownloadInstaller(name string, version string) error {
 func (installer *Installer) Remove() error {
 	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
 
-	err := platform.RemoveDockerImage(installer.PlatformID)
-	if err != nil {
-		return errors.New("Failed to remove installer: " + err.Error())
+	for _, metadata := range installer.Versions {
+		err := platform.RemoveDockerImage(metadata.PlatformID)
+		if err != nil {
+			return errors.New("Failed to remove installer: " + err.Error())
+		}
 	}
 	return nil
 }
