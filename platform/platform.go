@@ -2,7 +2,6 @@ package platform
 
 import (
 	"github.com/nustiueudinastea/protos/config"
-	"github.com/nustiueudinastea/protos/database"
 	"github.com/nustiueudinastea/protos/util"
 )
 
@@ -26,33 +25,7 @@ type RuntimeUnit interface {
 	GetStatus() string
 }
 
-// Setup creates the Protos network through which applications communicate
-func Setup() {
-	ConnectDocker()
-	log.Debug("Creating protosnet network")
-	networkID, err := CreateDockerNetwork("protosnet")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	platform := platform{ID: "docker", NetworkID: networkID, NetworkName: "protosnet"}
-	err = database.Save(&platform)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 // Initialize checks if the Protos network exists
 func Initialize() {
-	log.Debug("Reading platform information from database")
-	var platform platform
-	err := database.One("ID", "docker", &platform)
-	if err != nil {
-		log.Fatalf("Can't load platform information from database(%s). Please run init", err.Error())
-	}
 	ConnectDocker()
-
-	if platform.NetworkID == "" || DockerNetworkExists(platform.NetworkID) == false {
-		log.Fatal("Protos network does not exist. Please run init")
-	}
 }
