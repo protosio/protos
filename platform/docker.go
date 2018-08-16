@@ -163,7 +163,7 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 	}
 	networkConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
-			"protosnet": &network.EndpointSettings{
+			protosNetwork: &network.EndpointSettings{
 				NetworkID: protosNetwork,
 			},
 		},
