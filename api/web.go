@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/nustiueudinastea/protos/meta"
+
 	"github.com/nustiueudinastea/protos/capability"
 	"github.com/nustiueudinastea/protos/daemon"
 	"github.com/nustiueudinastea/protos/resource"
@@ -94,6 +96,13 @@ var clientRoutes = routes{
 		"POST",
 		"/store/download",
 		downloadInstaller,
+		nil,
+	},
+	route{
+		"createProtosResources",
+		"POST",
+		"/protos/resources",
+		createProtosResources,
 		nil,
 	},
 }
@@ -342,4 +351,26 @@ func downloadInstaller(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rend.JSON(w, http.StatusOK, nil)
+}
+
+//
+// Protos resources (DNS and TLS)
+//
+
+func createProtosResources(w http.ResponseWriter, r *http.Request) {
+	resources, err := meta.CreateProtosResources()
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+		return
+	}
+
+	// err = meta.WaitForProtosResources()
+	// if err != nil {
+	// 	log.Error(err)
+	// 	rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+	// 	return
+	// }
+
+	rend.JSON(w, http.StatusOK, resources)
 }
