@@ -17,6 +17,11 @@ func SetLogLevel(level logrus.Level) {
 	Log.Level = level
 }
 
+// GetLogger returns the main logger
+func GetLogger() *logrus.Logger {
+	return Log
+}
+
 func assertAvailablePRNG() {
 	// Assert that a cryptographically secure PRNG is available.
 	// Panic otherwise.
