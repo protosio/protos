@@ -1,9 +1,12 @@
 package api
 
 import (
+	"crypto/tls"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/nustiueudinastea/protos/resource"
 
 	"github.com/nustiueudinastea/protos/capability"
 	"github.com/nustiueudinastea/protos/config"
@@ -73,8 +76,57 @@ func applyAPIroutes(r *mux.Router) {
 
 }
 
+// initListen is only used to start a http web server to complete the initialisation phase
+func initListen(handler http.Handler) {
+	httpport := strconv.Itoa(gconfig.HTTPport)
+	log.Info("Listening on port " + httpport)
+	srv := &http.Server{
+		Addr:           ":" + httpport,
+		Handler:        handler,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
+	log.Fatal(srv.ListenAndServe())
+}
+
+func secureListen(handler http.Handler, certrsc resource.Type) {
+	cert := certrsc.(*resource.CertificateResource)
+	tlscert, err := tls.X509KeyPair(cert.Certificate, cert.PrivateKey)
+	if err != nil {
+		log.Fatalf("Failed to parse the TLS certificate: %s", err.Error())
+	}
+	cfg := &tls.Config{
+		MinVersion:               tls.VersionTLS12,
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		PreferServerCipherSuites: true,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		},
+		Certificates: []tls.Certificate{tlscert},
+	}
+
+	httpsport := strconv.Itoa(gconfig.HTTPSport)
+	httpport := strconv.Itoa(gconfig.HTTPport)
+	log.Info("Listening on port " + httpsport)
+	srv := &http.Server{
+		Addr:         ":" + httpsport,
+		Handler:      handler,
+		TLSConfig:    cfg,
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+	}
+	go func() {
+		log.Fatal(http.ListenAndServe(":"+httpport, handler))
+	}()
+
+	log.Fatal(srv.ListenAndServeTLS("", ""))
+}
+
 // Websrv starts an HTTP server that exposes all the application functionality
-func Websrv() {
+func Websrv(certrsc *resource.Resource) {
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAPIroutes(mainRtr)
@@ -88,15 +140,10 @@ func Websrv() {
 	n.Use(negroni.HandlerFunc(HTTPLogger))
 	n.UseHandler(mainRtr)
 
-	port := strconv.Itoa(gconfig.Port)
-	log.Info("Listening on port " + port)
-	server := &http.Server{
-		Addr:           ":" + port,
-		Handler:        n,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+	if certrsc != nil {
+		secureListen(n, certrsc.Value)
+	} else {
+		initListen(n)
 	}
-	server.ListenAndServe()
 
 }
