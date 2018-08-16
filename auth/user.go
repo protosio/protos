@@ -184,8 +184,20 @@ func ValidateAndGetUser(username string, password string) (*User, error) {
 	return &user, nil
 }
 
-// GetUser returns a username for a specific token
-func GetUser(token string) (*User, error) {
+// GetUser returns a user based on the username
+func GetUser(username string) (*User, error) {
+	errInvalid := errors.New("Invalid username")
+	var user User
+	err := database.One("Username", username, &user)
+	if err != nil {
+		log.Debugf("Can't find user %s (%s)", username, err)
+		return nil, errInvalid
+	}
+	return &user, nil
+}
+
+// GetUserForToken returns a user for a specific token
+func GetUserForToken(token string) (*User, error) {
 	if usr, ok := usersTokens[token]; ok {
 		return usr, nil
 	}
