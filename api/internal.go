@@ -89,6 +89,13 @@ var internalRoutes = routes{
 		capability.GetInformation,
 	},
 	route{
+		"getAdminUser",
+		"GET",
+		"/info/adminuser",
+		getAdminUser,
+		capability.GetInformation,
+	},
+	route{
 		"getAppInfo",
 		"GET",
 		"/info/app",
@@ -262,6 +269,29 @@ func getDomainInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(domain)
+}
+
+func getAdminUser(w http.ResponseWriter, r *http.Request) {
+	response := struct {
+		Username string `json:"username"`
+	}{}
+
+	username := meta.GetAdminUser()
+	user, err := auth.GetUser(username)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+
+	if user.IsAdmin() != true {
+		log.Errorf("User %s is not admin, as recorded in meta", user.Username)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not find the admin user"})
+		return
+	}
+	response.Username = user.Username
+
+	rend.JSON(w, http.StatusOK, response)
 }
 
 //
