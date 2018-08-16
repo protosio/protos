@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"sync"
 
@@ -24,20 +23,45 @@ import (
 func run(configFile string) {
 	var wg sync.WaitGroup
 	config.Load(configFile)
-	database.Open()
-	defer database.Close()
-	capability.Initialize()
-	meta.Initialize()
-	platform.Initialize()
-	daemon.StartUp()
-	daemon.LoadAppsDB()
-	resource.LoadResourcesDB()
-	wg.Add(2)
-	go func() {
-		api.Websrv()
-		wg.Done()
-	}()
-	wg.Wait()
+	log := util.GetLogger()
+
+	if database.Exists() {
+		database.Open()
+		defer database.Close()
+		capability.Initialize()
+		resource.LoadResourcesDB()
+		cert := meta.Initialize()
+		platform.Initialize()
+		daemon.StartUp()
+		daemon.LoadAppsDB()
+		wg.Add(2)
+		go func() {
+			api.Websrv(cert)
+			wg.Done()
+		}()
+		wg.Wait()
+	} else {
+		log.Info("Database file doesn't exists. Running in web init mode")
+		database.Open()
+		defer database.Close()
+		capability.Initialize()
+
+		meta.Setup()
+		meta.SetPublicIP()
+
+		daemon.LoadAppsDB()        // required to register the application structs with the DB
+		resource.LoadResourcesDB() // required to register the resource structs with the DB
+		platform.Initialize()      // required to connect to the Docker daemon
+		daemon.StartUp()
+		wg.Add(2)
+		go func() {
+			api.Websrv(nil)
+			wg.Done()
+		}()
+		wg.Wait()
+
+	}
+
 }
 
 func main() {
@@ -92,11 +116,7 @@ func main() {
 				daemon.Setup()
 				database.Open()
 				defer database.Close()
-				err := meta.Setup("")
-				if err != nil {
-					log.Fatal(err)
-				}
-				platform.Setup()
+				meta.Setup()
 				auth.SetupAdmin()
 				return nil
 			},
