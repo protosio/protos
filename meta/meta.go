@@ -8,6 +8,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/nustiueudinastea/protos/resource"
+	"github.com/pkg/errors"
+
 	"github.com/nustiueudinastea/protos/database"
 	"github.com/nustiueudinastea/protos/util"
 	"github.com/tidwall/gjson"
@@ -16,9 +19,11 @@ import (
 var log = util.Log
 
 type meta struct {
-	ID       string
-	Domain   string
-	PublicIP string
+	ID        string
+	Domain    string
+	PublicIP  string
+	AdminUser string
+	Resources []string
 }
 
 var metaRoot meta
@@ -50,31 +55,62 @@ func findPublicIP() (string, error) {
 	return gjson.GetBytes(bodyJSON, "ip").Str, nil
 }
 
-// Setup reads the domain and other information on first run and save this information to the database
-func Setup(domainName string) error {
-	if domainName == "" {
-		domainName = readDomain()
+// SetDomain sets the instance domain name
+func SetDomain(domainName string) {
+	log.Debugf("Setting instance domain name to %s", domainName)
+	metaRoot.Domain = domainName
+	err := database.Save(&metaRoot)
+	if err != nil {
+		log.Fatalf("Failed to write the metaroot domain to database: %s", err.Error())
 	}
+}
+
+// SetPublicIP sets the public ip of the instance
+func SetPublicIP() {
 	ip, err := findPublicIP()
 	if err != nil {
-		log.Error(err.Error())
+		log.Fatalf("Could not find instance public ip: %s", err.Error())
 	}
-	log.Debugf("Instance running using domain %s and IP %s", domainName, ip)
-	metaRoot = meta{ID: "metaroot", Domain: domainName, PublicIP: ip}
+	log.Debugf("Setting instance IP address to %s", ip)
+	metaRoot.PublicIP = ip
 	err = database.Save(&metaRoot)
+	if err != nil {
+		log.Fatalf("Failed to write the metaroot IP to database: %s", err.Error())
+	}
+}
+
+// Setup reads the domain and other information on first run and save this information to the database
+func Setup() {
+	log.Debug("Creating metaroot database entry")
+	metaRoot = meta{ID: "metaroot"}
+	err := database.Save(&metaRoot)
+	if err != nil {
+		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
+	}
+}
+
+// SetAdminUser takes a username that gets saved as the instance admin user
+func SetAdminUser(username string) error {
+	log.Debugf("Setting admin user to [%s]", username)
+	metaRoot.AdminUser = username
+	err := database.Save(&metaRoot)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+// GetAdminUser returns the username of the admin user
+func GetAdminUser() string {
+	return metaRoot.AdminUser
+}
+
 // Initialize loads the instance information at program startup
-func Initialize() {
+func Initialize() *resource.Resource {
 	log.Debug("Reading instance information from database")
 	err := database.One("ID", "metaroot", &metaRoot)
 	if err != nil {
-		log.Error(err)
-		log.Fatal("Can't load instance information from database")
+		log.Fatalf("Can't load instance information from database: %s", err.Error())
 	}
 
 	publicIP, err := findPublicIP()
@@ -86,14 +122,33 @@ func Initialize() {
 		metaRoot.PublicIP = publicIP
 		err = database.Save(&metaRoot)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Can't save instance information to database: %s", err.Error())
 		}
 	}
 
 	if metaRoot.Domain == "" {
 		log.Fatal("Instance domain is empty. Please run init")
 	}
+
+	// if metaRoot.AdminUser == "" {
+	// 	log.Fatal("Instance admin user is empty. Please run init")
+	// }
+
 	log.Infof("Running under domain %s using public IP %s", metaRoot.Domain, metaRoot.PublicIP)
+	resources := map[resource.RType]*resource.Resource{}
+	if len(metaRoot.Resources) < 2 {
+		log.Fatal("DNS and TLS certificate resources have not been created. Please run init")
+	}
+	for _, rscid := range metaRoot.Resources {
+		rsc, err := resource.Get(rscid)
+		if err != nil {
+			// log.Error("Failed to retrieve one of the Protos resources. Please run init")
+			log.Error(err.Error())
+			continue
+		}
+		resources[rsc.Type] = rsc
+	}
+	return resources[resource.Certificate]
 }
 
 // GetDomain returns the domain name used in this Protos instance
@@ -104,4 +159,42 @@ func GetDomain() string {
 // GetPublicIP returns the public IP of the Protos instance
 func GetPublicIP() string {
 	return metaRoot.PublicIP
+}
+
+// CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
+func CreateProtosResources() (map[string]*resource.Resource, error) {
+	resources := map[string]*resource.Resource{}
+	protosDNS := resource.DNSResource{
+		Host:  "protos",
+		Value: GetPublicIP(),
+		Type:  "A",
+		TTL:   300,
+	}
+	dnsrsc, err := resource.Create(resource.DNS, &protosDNS)
+	if err != nil {
+		if strings.Contains(err.Error(), "already registered") == false {
+			return resources, errors.Wrap(err, "Failed to create Protos resources")
+		}
+	}
+	metaRoot.Resources = append(metaRoot.Resources, dnsrsc.ID)
+
+	protosCert := resource.CertificateResource{
+		Domains: []string{"protos"},
+	}
+	certrsc, err := resource.Create(resource.Certificate, &protosCert)
+	if err != nil {
+		if strings.Contains(err.Error(), "already registered") == false {
+			return resources, errors.Wrap(err, "Failed to create Protos resources")
+		}
+	}
+	metaRoot.Resources = append(metaRoot.Resources, certrsc.ID)
+
+	err = database.Save(&metaRoot)
+	if err != nil {
+		return resources, errors.Wrap(err, "Failed to create Protos resources")
+	}
+	resources[dnsrsc.ID] = dnsrsc
+	resources[certrsc.ID] = certrsc
+
+	return resources, nil
 }
