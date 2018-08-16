@@ -111,17 +111,24 @@ func secureListen(handler http.Handler, certrsc resource.Type) {
 
 	httpsport := strconv.Itoa(gconfig.HTTPSport)
 	httpport := strconv.Itoa(gconfig.HTTPport)
-	log.Info("Listening on port " + httpsport)
 	srv := &http.Server{
 		Addr:         ":" + httpsport,
 		Handler:      handler,
 		TLSConfig:    cfg,
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 	}
-	go func() {
-		log.Fatal(http.ListenAndServe(":"+httpport, handler))
-	}()
+	ips, err := util.GetLocalIPs()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, ip := range ips {
+		log.Infof("Listening internally on %s:%s (HTTP)", ip, httpport)
+		go func() {
+			log.Fatal(http.ListenAndServe(ip+":"+httpport, handler))
+		}()
+	}
 
+	log.Infof("Listening on port %s (HTTPS)", httpsport)
 	log.Fatal(srv.ListenAndServeTLS("", ""))
 }
 
