@@ -88,8 +88,8 @@ func Create(rtype RType, value Type) (*Resource, error) {
 	resource.Value = value
 
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
-	if _, ok := resources[rhash]; ok {
-		return &Resource{}, errors.New("Resource " + rhash + " already registered")
+	if rsc, ok := resources[rhash]; ok {
+		return rsc, errors.New("Resource " + rhash + " already registered")
 	}
 	resource.Status = Requested
 	resource.ID = rhash
