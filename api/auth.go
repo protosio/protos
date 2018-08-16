@@ -40,14 +40,15 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = meta.Setup(registerform.Domain)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+	meta.SetDomain(registerform.Domain)
 
 	user, err := auth.CreateUser(registerform.Username, registerform.Password, registerform.Name, true)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+		return
+	}
+	err = meta.SetAdminUser(user.Username)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
