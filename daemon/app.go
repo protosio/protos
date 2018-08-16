@@ -114,7 +114,7 @@ func (app *App) AddAction(action AppAction) error {
 func (app *App) Save() {
 	err := database.Save(app)
 	if err != nil {
-		log.Panic(err)
+		log.Panic(errors.Wrap(err, "Could not save app to database"))
 	}
 }
 
@@ -266,8 +266,6 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 	}
 	app.Resources = append(app.Resources, rsc.ID)
 	app.Save()
-	log.Debug(rsc)
-	log.Debug(app.Resources)
 
 	return rsc, nil
 }
