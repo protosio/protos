@@ -121,7 +121,7 @@ func ExternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 		return
 	}
 
-	user, err := auth.GetUser(sstring)
+	user, err := auth.GetUserForToken(sstring)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: err.Error()})
