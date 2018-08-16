@@ -1,6 +1,7 @@
 package database
 
 import (
+	"os"
 	"path"
 
 	"github.com/nustiueudinastea/protos/config"
@@ -16,6 +17,15 @@ var log = util.Log
 // db - package wide db reference
 var db *storm.DB
 
+// Exists checks if the database file exists on disk
+func Exists() bool {
+	dbpath := path.Join(gconfig.WorkDir, "protos.db")
+	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
 // Open opens a a boltdb database
 func Open() {
 
@@ -24,7 +34,7 @@ func Open() {
 	log.Info("Opening database [", dbpath, "]")
 	db, err = storm.Open(dbpath, storm.Codec(gob.Codec))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to open database at path %s, %s", dbpath, err.Error())
 	}
 
 }
