@@ -13,7 +13,8 @@ import (
 type Config struct {
 	WorkDir        string
 	AppsPath       string
-	Port           int
+	HTTPport       int
+	HTTPSport      int
 	DockerEndpoint string
 	StaticAssets   string
 	Secret         []byte
