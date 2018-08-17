@@ -143,7 +143,7 @@ func Initialize() *resource.Resource {
 		rsc, err := resource.Get(rscid)
 		if err != nil {
 			// log.Error("Failed to retrieve one of the Protos resources. Please run init")
-			log.Error(err.Error())
+			log.Errorf("Could not find protos resource: %s", err.Error())
 			continue
 		}
 		resources[rsc.Type] = rsc
