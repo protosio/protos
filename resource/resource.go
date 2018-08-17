@@ -115,7 +115,7 @@ func Get(resourceID string) (*Resource, error) {
 func (rsc *Resource) Save() {
 	err := database.Save(rsc)
 	if err != nil {
-		log.Panic(err)
+		log.Panicf("Failed to save resource to db: %s", err.Error())
 	}
 }
 
@@ -129,7 +129,7 @@ func (rsc *Resource) Delete() error {
 	log.Debug("Deleting resource " + rsc.ID)
 	err := database.Remove(rsc)
 	if err != nil {
-		return err
+		log.Panicf("Failed to remove resource from db: %s", err.Error())
 	}
 	delete(resources, rsc.ID)
 	return nil
@@ -219,8 +219,7 @@ func LoadResourcesDB() {
 	rscs := []Resource{}
 	err := database.All(&rscs)
 	if err != nil {
-		log.Error("Could not retrieve resources from the database: ", err)
-		return
+		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
 	}
 	for idx, rsc := range rscs {
 		resources[rsc.ID] = &rscs[idx]
