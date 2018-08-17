@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/nustiueudinastea/protos/platform"
+	"github.com/nustiueudinastea/protos/provider"
 	"github.com/nustiueudinastea/protos/resource"
 
 	"github.com/nustiueudinastea/protos/api"
@@ -29,11 +30,13 @@ func run(configFile string) {
 		database.Open()
 		defer database.Close()
 		capability.Initialize()
-		resource.LoadResourcesDB()
+		platform.Initialize()      // required to connect to the Docker daemon
+		daemon.LoadAppsDB()        // required to register the application structs with the DB
+		resource.LoadResourcesDB() // required to register the resource structs with the DB
+		provider.LoadProvidersDB() // required to register the provider structs with the DB
 		cert := meta.Initialize()
-		platform.Initialize()
+
 		daemon.StartUp()
-		daemon.LoadAppsDB()
 		wg.Add(2)
 		go func() {
 			api.Websrv(cert)
@@ -49,9 +52,10 @@ func run(configFile string) {
 		meta.Setup()
 		meta.SetPublicIP()
 
+		platform.Initialize()      // required to connect to the Docker daemon
 		daemon.LoadAppsDB()        // required to register the application structs with the DB
 		resource.LoadResourcesDB() // required to register the resource structs with the DB
-		platform.Initialize()      // required to connect to the Docker daemon
+		provider.LoadProvidersDB() // required to register the provider structs with the DB
 		daemon.StartUp()
 		wg.Add(2)
 		go func() {
