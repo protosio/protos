@@ -18,7 +18,7 @@ var log = util.Log
 
 // Provider defines a Protos resource provider
 type Provider struct {
-	Type  resource.RType
+	Type  resource.RType `storm:"id"`
 	AppID string
 }
 
