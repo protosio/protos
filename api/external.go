@@ -78,6 +78,13 @@ var clientRoutes = routes{
 		nil,
 	},
 	route{
+		"getResource",
+		"GET",
+		"/resources/{resourceID}",
+		getResource,
+		nil,
+	},
+	route{
 		"removeResource",
 		"DELETE",
 		"/resources/{resourceID}",
@@ -267,6 +274,20 @@ func getResources(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("Sending response: ", resources)
 	json.NewEncoder(w).Encode(resources)
+
+}
+
+func getResource(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	resourceID := vars["resourceID"]
+
+	rsc, err := resource.Get(resourceID)
+	if err != nil {
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+	rend.JSON(w, http.StatusOK, rsc)
 
 }
 

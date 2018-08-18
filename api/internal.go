@@ -78,7 +78,7 @@ var internalRoutes = routes{
 		"getResource",
 		"GET",
 		"/resource/{resourceID}",
-		getResource,
+		getAppResource,
 		capability.ResourceConsumer,
 	},
 	route{
@@ -330,7 +330,7 @@ func createResource(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func getResource(w http.ResponseWriter, r *http.Request) {
+func getAppResource(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
