@@ -177,6 +177,19 @@ func CreateProtosResources() (map[string]*resource.Resource, error) {
 		}
 	}
 	metaRoot.Resources = append(metaRoot.Resources, dnsrsc.ID)
+	protosMX := resource.DNSResource{
+		Host:  "mail",
+		Value: "protos",
+		Type:  "MX",
+		TTL:   300,
+	}
+	mxrsc, err := resource.Create(resource.DNS, &protosMX)
+	if err != nil {
+		if strings.Contains(err.Error(), "already registered") == false {
+			return resources, errors.Wrap(err, "Failed to create Protos resources")
+		}
+	}
+	metaRoot.Resources = append(metaRoot.Resources, mxrsc.ID)
 
 	protosCert := resource.CertificateResource{
 		Domains: []string{"protos"},
@@ -195,6 +208,7 @@ func CreateProtosResources() (map[string]*resource.Resource, error) {
 	}
 	resources[dnsrsc.ID] = dnsrsc
 	resources[certrsc.ID] = certrsc
+	resources[mxrsc.ID] = mxrsc
 
 	return resources, nil
 }
