@@ -9,9 +9,9 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/dgrijalva/jwt-go/request"
 	"github.com/gorilla/mux"
-	"github.com/nustiueudinastea/protos/auth"
-	"github.com/nustiueudinastea/protos/capability"
-	"github.com/nustiueudinastea/protos/daemon"
+	"github.com/protosio/protos/auth"
+	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/daemon"
 )
 
 func checkCapability(capChecker capability.Checker, routeName string) error {

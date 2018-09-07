@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/nustiueudinastea/protos/resource"
+	"github.com/protosio/protos/resource"
 
-	"github.com/nustiueudinastea/protos/capability"
-	"github.com/nustiueudinastea/protos/config"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/config"
+	"github.com/protosio/protos/util"
 
 	"github.com/gorilla/mux"
 	"github.com/unrolled/render"

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"runtime"
 
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/util"
 )
 
 var log = util.Log

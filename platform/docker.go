@@ -16,7 +16,7 @@ import (
 	volumetypes "github.com/docker/docker/api/types/volume"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/util"
 	"github.com/pkg/errors"
 )
 

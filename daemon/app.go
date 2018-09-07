@@ -6,13 +6,13 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/nustiueudinastea/protos/meta"
+	"github.com/protosio/protos/meta"
 
-	"github.com/nustiueudinastea/protos/capability"
-	"github.com/nustiueudinastea/protos/database"
-	"github.com/nustiueudinastea/protos/platform"
-	"github.com/nustiueudinastea/protos/resource"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/database"
+	"github.com/protosio/protos/platform"
+	"github.com/protosio/protos/resource"
+	"github.com/protosio/protos/util"
 
 	"github.com/rs/xid"
 )

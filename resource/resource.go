@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/nustiueudinastea/protos/database"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/database"
+	"github.com/protosio/protos/util"
 
 	"github.com/cnf/structhash"
 )

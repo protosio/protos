@@ -4,10 +4,10 @@ import (
 	"encoding/gob"
 	"errors"
 
-	"github.com/nustiueudinastea/protos/daemon"
-	"github.com/nustiueudinastea/protos/database"
-	"github.com/nustiueudinastea/protos/resource"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/daemon"
+	"github.com/protosio/protos/database"
+	"github.com/protosio/protos/resource"
+	"github.com/protosio/protos/util"
 )
 
 var log = util.Log

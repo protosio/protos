@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/util"
 
 	"gopkg.in/yaml.v2"
 )

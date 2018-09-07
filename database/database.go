@@ -4,8 +4,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/nustiueudinastea/protos/config"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/config"
+	"github.com/protosio/protos/util"
 
 	"github.com/asdine/storm"
 	"github.com/asdine/storm/codec/gob"

@@ -1,8 +1,8 @@
 package platform
 
 import (
-	"github.com/nustiueudinastea/protos/config"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/config"
+	"github.com/protosio/protos/util"
 )
 
 var gconfig = config.Get()

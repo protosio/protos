@@ -8,11 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nustiueudinastea/protos/resource"
+	"github.com/protosio/protos/resource"
 	"github.com/pkg/errors"
 
-	"github.com/nustiueudinastea/protos/database"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/database"
+	"github.com/protosio/protos/util"
 	"github.com/tidwall/gjson"
 )
 

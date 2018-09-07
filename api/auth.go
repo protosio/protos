@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/nustiueudinastea/protos/auth"
-	"github.com/nustiueudinastea/protos/meta"
+	"github.com/protosio/protos/auth"
+	"github.com/protosio/protos/meta"
 )
 
 // RegisterHandler is used in the initial user and domain registration. Should be disabled after the initial setup

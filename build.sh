@@ -4,8 +4,8 @@ docker run \
        --rm \
        -ti \
        --privileged \
-       -v "$PWD":/go/src/github.com/nustiueudinastea/protos \
-       -w /go/src/github.com/nustiueudinastea/protos \
+       -v "$PWD":/go/src/github.com/protosio/protos \
+       -w /go/src/github.com/protosio/protos \
        -p 8080:8080 \
        --name protos \
        --hostname protos \

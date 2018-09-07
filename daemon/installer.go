@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nustiueudinastea/protos/capability"
-	"github.com/nustiueudinastea/protos/platform"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/platform"
+	"github.com/protosio/protos/util"
 )
 
 // InstallerMetadata holds metadata for the installer

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/nustiueudinastea/protos/capability"
+	"github.com/protosio/protos/capability"
 
-	"github.com/nustiueudinastea/protos/database"
-	"github.com/nustiueudinastea/protos/util"
+	"github.com/protosio/protos/database"
+	"github.com/protosio/protos/util"
 
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"

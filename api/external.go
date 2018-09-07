@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/nustiueudinastea/protos/meta"
+	"github.com/protosio/protos/meta"
 
-	"github.com/nustiueudinastea/protos/capability"
-	"github.com/nustiueudinastea/protos/daemon"
-	"github.com/nustiueudinastea/protos/resource"
+	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/daemon"
+	"github.com/protosio/protos/resource"
 
 	"github.com/gorilla/mux"
 )

@@ -6,12 +6,12 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/nustiueudinastea/protos/auth"
-	"github.com/nustiueudinastea/protos/capability"
-	"github.com/nustiueudinastea/protos/daemon"
-	"github.com/nustiueudinastea/protos/meta"
-	"github.com/nustiueudinastea/protos/provider"
-	"github.com/nustiueudinastea/protos/resource"
+	"github.com/protosio/protos/auth"
+	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/daemon"
+	"github.com/protosio/protos/meta"
+	"github.com/protosio/protos/provider"
+	"github.com/protosio/protos/resource"
 
 	"github.com/gorilla/mux"
 	"github.com/tidwall/gjson"
