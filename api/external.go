@@ -318,25 +318,44 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 
 func searchAppStore(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
-	provides, ok := queryParams["provides"]
-	if ok != true || len(provides) == 0 {
-		rend.JSON(w, http.StatusBadRequest, httperr{Error: "'provides' is the only allowed search parameter"})
-		return
-	}
-
-	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/search?provides=" + provides[0])
-	if err != nil {
-		log.Fatalln(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
-		return
-	}
-
 	installers := map[string]struct {
 		Name        string   `json:"name"`
 		Provides    []string `json:"provides"`
 		Description string   `json:"description"`
 		Versions    []string `json:"versions"`
 	}{}
+	var resp *http.Response
+	var err error
+
+	if len(queryParams) == 0 {
+		resp, err = http.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
+			return
+		}
+	} else if len(queryParams) == 1 {
+		provides, providesFound := queryParams["provides"]
+		general, generalFound := queryParams["general"]
+		if providesFound == true && len(provides) > 0 {
+			resp, err = http.Get(gconfig.AppStoreURL + "/api/v1/search?provides=" + provides[0])
+			if err != nil {
+				log.Error(err)
+				rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
+				return
+			}
+		} else if generalFound && len(general) > 0 {
+			resp, err = http.Get(gconfig.AppStoreURL + "/api/v1/search?general=" + general[0])
+			if err != nil {
+				log.Error(err)
+				rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
+				return
+			}
+		} else {
+			rend.JSON(w, http.StatusBadRequest, httperr{Error: "'provides' and 'general' are the only allowed search parameters"})
+			return
+		}
+	}
 
 	err = json.NewDecoder(resp.Body).Decode(&installers)
 	defer resp.Body.Close()
