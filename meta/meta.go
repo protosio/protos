@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/protosio/protos/resource"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/resource"
 
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
@@ -178,8 +178,8 @@ func CreateProtosResources() (map[string]*resource.Resource, error) {
 	}
 	metaRoot.Resources = append(metaRoot.Resources, dnsrsc.ID)
 	protosMX := resource.DNSResource{
-		Host:  "mail",
-		Value: "protos",
+		Host:  "@",
+		Value: "protos." + GetDomain(),
 		Type:  "MX",
 		TTL:   300,
 	}
