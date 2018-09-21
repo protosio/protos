@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/protosio/protos/meta"
@@ -355,6 +357,17 @@ func searchAppStore(w http.ResponseWriter, r *http.Request) {
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: "'provides' and 'general' are the only allowed search parameters"})
 			return
 		}
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		errText := fmt.Sprintf("Error (HTTP %d) while querying the application store: \"%s\"", resp.StatusCode, string(bodyBytes))
+		log.Error(errText)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: errText})
+		return
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&installers)
