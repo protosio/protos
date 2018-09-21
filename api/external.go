@@ -405,12 +405,5 @@ func createProtosResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// err = meta.WaitForProtosResources()
-	// if err != nil {
-	// 	log.Error(err)
-	// 	rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
-	// 	return
-	// }
-
 	rend.JSON(w, http.StatusOK, resources)
 }
