@@ -20,7 +20,7 @@ type InstallerMetadata struct {
 	Description     string                   `json:"description"`
 	PlatformID      string                   `json:"platformid"`
 	PersistancePath string                   `json:"persistancepath"`
-	Capabilities    []*capability.Capability `json:"-"`
+	Capabilities    []*capability.Capability `json:"capabilities"`
 }
 
 // Installer represents an application installer
