@@ -321,10 +321,8 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 func searchAppStore(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	installers := map[string]struct {
-		Name        string   `json:"name"`
-		Provides    []string `json:"provides"`
-		Description string   `json:"description"`
-		Versions    []string `json:"versions"`
+		Name     string                               `json:"name"`
+		Versions map[string]*daemon.InstallerMetadata `json:"versions"`
 	}{}
 	var resp *http.Response
 	var err error
@@ -373,7 +371,7 @@ func searchAppStore(w http.ResponseWriter, r *http.Request) {
 	err = json.NewDecoder(resp.Body).Decode(&installers)
 	defer resp.Body.Close()
 	if err != nil {
-		log.Error(err)
+		log.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Something went wrong decoding the response from the application store"})
 		return
 	}
