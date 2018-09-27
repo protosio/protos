@@ -116,6 +116,10 @@ var clientRoutes = routes{
 	},
 }
 
+//
+// Apps
+//
+
 func getApps(w http.ResponseWriter, r *http.Request) {
 
 	apps := daemon.GetApps()
@@ -220,6 +224,10 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 	rend.JSON(w, http.StatusOK, nil)
 }
 
+//
+// Installers
+//
+
 func getInstallers(w http.ResponseWriter, r *http.Request) {
 
 	installers, err := daemon.GetInstallers()
@@ -269,6 +277,10 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 	rend.JSON(w, http.StatusOK, nil)
 
 }
+
+//
+// Resources
+//
 
 func getResources(w http.ResponseWriter, r *http.Request) {
 
