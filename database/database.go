@@ -12,7 +12,7 @@ import (
 )
 
 var gconfig = config.Get()
-var log = util.Log
+var log = util.GetLogger()
 
 // db - package wide db reference
 var db *storm.DB

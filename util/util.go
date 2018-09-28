@@ -9,17 +9,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Log is the global logger
-var Log = logrus.New()
+// log is the global logger
+var log = logrus.New()
 
 // SetLogLevel sets the log level for the application
 func SetLogLevel(level logrus.Level) {
-	Log.Level = level
+	log.Level = level
 }
 
 // GetLogger returns the main logger
 func GetLogger() *logrus.Logger {
-	return Log
+	return log
 }
 
 func assertAvailablePRNG() {
@@ -29,7 +29,7 @@ func assertAvailablePRNG() {
 
 	_, err := io.ReadFull(rand.Reader, buf)
 	if err != nil {
-		Log.Panicf("crypto/rand is unavailable: Read() failed with %#v", err.Error())
+		log.Panicf("crypto/rand is unavailable: Read() failed with %#v", err.Error())
 	}
 }
 

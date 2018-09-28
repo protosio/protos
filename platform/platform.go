@@ -6,7 +6,7 @@ import (
 )
 
 var gconfig = config.Get()
-var log = util.Log
+var log = util.GetLogger()
 
 type platform struct {
 	ID          string

@@ -27,7 +27,7 @@ var config = Config{InitMode: true, AppStoreURL: "https://apps.protos.io/", AppS
 
 // Gconfig maintains a global view of the application configuration parameters.
 // var gconfig = &config
-var log = util.Log
+var log = util.GetLogger()
 
 // Load reads the configuration from a file and maps it to the config struct
 func Load(configFile string) {

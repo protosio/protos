@@ -8,7 +8,7 @@ import (
 )
 
 var gconfig = config.Get()
-var log = util.Log
+var log = util.GetLogger()
 
 // StartUp triggers a sequence of steps required to start the application
 func StartUp() {

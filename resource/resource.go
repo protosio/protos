@@ -12,7 +12,7 @@ import (
 	"github.com/cnf/structhash"
 )
 
-var log = util.Log
+var log = util.GetLogger()
 
 type RStatus string
 

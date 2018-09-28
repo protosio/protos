@@ -17,7 +17,7 @@ import (
 	"github.com/urfave/negroni"
 )
 
-var log = util.Log
+var log = util.GetLogger()
 var gconfig = config.Get()
 var rend = render.New(render.Options{IndentJSON: true})
 
