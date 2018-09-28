@@ -21,7 +21,7 @@ const (
 	userBucket = "user"
 )
 
-var log = util.Log
+var log = util.GetLogger()
 
 // User represents a Protos user
 type User struct {
