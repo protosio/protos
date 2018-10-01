@@ -4,6 +4,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/protosio/protos/app"
+
 	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/provider"
 	"github.com/protosio/protos/resource"
@@ -31,7 +33,7 @@ func run(configFile string) {
 		defer database.Close()
 		capability.Initialize()
 		platform.Initialize()      // required to connect to the Docker daemon
-		daemon.LoadAppsDB()        // required to register the application structs with the DB
+		app.LoadAppsDB()           // required to register the application structs with the DB
 		resource.LoadResourcesDB() // required to register the resource structs with the DB
 		provider.LoadProvidersDB() // required to register the provider structs with the DB
 		cert := meta.Initialize()
@@ -53,7 +55,7 @@ func run(configFile string) {
 		meta.SetPublicIP()
 
 		platform.Initialize()      // required to connect to the Docker daemon
-		daemon.LoadAppsDB()        // required to register the application structs with the DB
+		app.LoadAppsDB()           // required to register the application structs with the DB
 		resource.LoadResourcesDB() // required to register the resource structs with the DB
 		provider.LoadProvidersDB() // required to register the provider structs with the DB
 		daemon.StartUp()

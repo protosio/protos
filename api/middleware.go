@@ -9,9 +9,9 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/dgrijalva/jwt-go/request"
 	"github.com/gorilla/mux"
+	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/auth"
 	"github.com/protosio/protos/capability"
-	"github.com/protosio/protos/daemon"
 )
 
 func checkCapability(capChecker capability.Checker, routeName string) error {
@@ -69,29 +69,29 @@ func InternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Can't identify request. App ID is missing."})
 		return
 	}
-	app, err := daemon.ReadApp(appID)
+	appInstance, err := app.Read(appID)
 	if err != nil {
 		log.Errorf("Request for resource %s from non-existent app %s: %s", r.URL, appID, err.Error())
 		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Request for resource from non-existent app"})
 		return
 	}
 	ip := strings.Split(r.RemoteAddr, ":")[0]
-	if app.IP != ip {
+	if appInstance.IP != ip {
 		log.Errorf("App IP mismatch for request for resource %s: ip %s incorrect for %s", r.URL, ip, appID)
 		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "App IP mismatch"})
 		return
 	}
-	log.Debugf("Validated %s request to %s as coming from app %s(%s)", r.Method, r.URL.Path, appID, app.Name)
+	log.Debugf("Validated %s request to %s as coming from app %s(%s)", r.Method, r.URL.Path, appID, appInstance.Name)
 
 	routeName := mux.CurrentRoute(r).GetName()
-	err = checkCapability(app, routeName)
+	err = checkCapability(appInstance, routeName)
 	if err != nil {
 		log.Error(err.Error())
 		http.Error(rw, "Application not authorized to access that resource", http.StatusUnauthorized)
 		return
 	}
 
-	ctx := context.WithValue(r.Context(), "app", app)
+	ctx := context.WithValue(r.Context(), "app", appInstance)
 	next.ServeHTTP(rw, r.WithContext(ctx))
 }
 

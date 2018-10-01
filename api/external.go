@@ -6,10 +6,11 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/protosio/protos/app"
+	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/meta"
 
 	"github.com/protosio/protos/capability"
-	"github.com/protosio/protos/daemon"
 	"github.com/protosio/protos/resource"
 
 	"github.com/gorilla/mux"
@@ -122,15 +123,14 @@ var clientRoutes = routes{
 
 func getApps(w http.ResponseWriter, r *http.Request) {
 
-	apps := daemon.GetApps()
+	apps := app.GetApps()
 	log.Debug("Sending response: ", apps)
 	json.NewEncoder(w).Encode(apps)
-
 }
 
 func createApp(w http.ResponseWriter, r *http.Request) {
 
-	var appParams daemon.App
+	var appParams app.App
 	defer r.Body.Close()
 
 	decoder := json.NewDecoder(r.Body)
@@ -141,7 +141,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := daemon.CreateApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerParams)
+	app, err := app.CreateApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -158,7 +158,7 @@ func getApp(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	appID := vars["appID"]
 
-	app, err := daemon.ReadApp(appID)
+	app, err := app.Read(appID)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -175,14 +175,14 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	appID := vars["appID"]
 
-	app, err := daemon.ReadApp(appID)
+	appInstance, err := app.Read(appID)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
-	var action daemon.AppAction
+	var action app.Action
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	err = decoder.Decode(&action)
@@ -192,7 +192,7 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.AddAction(action)
+	err = appInstance.AddAction(action)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -207,7 +207,7 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	appID := vars["appID"]
 
-	app, err := daemon.ReadApp(appID)
+	app, err := app.Read(appID)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -230,7 +230,7 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 
 func getInstallers(w http.ResponseWriter, r *http.Request) {
 
-	installers, err := daemon.GetInstallers()
+	installers, err := installer.GetAll()
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
@@ -246,7 +246,7 @@ func getInstaller(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	installerID := vars["installerID"]
 
-	installer, err := daemon.ReadInstaller(installerID)
+	installer, err := installer.Read(installerID)
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
@@ -262,7 +262,7 @@ func removeInstaller(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	installerID := vars["installerID"]
 
-	installer, err := daemon.ReadInstaller(installerID)
+	installer, err := installer.Read(installerID)
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
@@ -333,8 +333,8 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 func searchAppStore(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	installers := map[string]struct {
-		Name     string                               `json:"name"`
-		Versions map[string]*daemon.InstallerMetadata `json:"versions"`
+		Name     string                         `json:"name"`
+		Versions map[string]*installer.Metadata `json:"versions"`
 	}{}
 	var resp *http.Response
 	var err error
@@ -392,21 +392,21 @@ func searchAppStore(w http.ResponseWriter, r *http.Request) {
 }
 
 func downloadInstaller(w http.ResponseWriter, r *http.Request) {
-	var installer = struct {
+	var installerParams = struct {
 		ID      string `json:"id"`
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	}{}
 
 	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&installer)
+	err := json.NewDecoder(r.Body).Decode(&installerParams)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusBadRequest, httperr{Error: "Could not decode JSON request"})
 		return
 	}
 
-	err = daemon.DownloadInstaller(installer.Name, installer.Version)
+	err = installer.Download(installerParams.Name, installerParams.Version)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})

@@ -4,7 +4,7 @@ import (
 	"encoding/gob"
 	"errors"
 
-	"github.com/protosio/protos/daemon"
+	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/resource"
 	"github.com/protosio/protos/util"
@@ -31,16 +31,16 @@ func init() {
 }
 
 // Register registers a resource provider
-func Register(app *daemon.App, rtype resource.RType) error {
+func Register(appInstance *app.App, rtype resource.RType) error {
 	if providers[rtype].AppID != "" {
-		_, err := daemon.ReadApp(providers[rtype].AppID)
+		_, err := app.Read(providers[rtype].AppID)
 		if err == nil {
 			return errors.New("Provider already registered for resource type " + string(rtype))
 		}
 	}
 
 	log.Info("Registering provider for resource " + string(rtype))
-	providers[rtype].AppID = app.ID
+	providers[rtype].AppID = appInstance.ID
 	err := database.Save(providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
@@ -50,7 +50,7 @@ func Register(app *daemon.App, rtype resource.RType) error {
 }
 
 // Deregister deregisters a resource provider
-func Deregister(app *daemon.App, rtype resource.RType) error {
+func Deregister(app *app.App, rtype resource.RType) error {
 
 	if providers[rtype].AppID != "" && providers[rtype].AppID != app.ID {
 		return errors.New("Application '" + app.Name + "' is NOT registered for resource type " + string(rtype))
@@ -66,7 +66,7 @@ func Deregister(app *daemon.App, rtype resource.RType) error {
 }
 
 // Get retrieves the resource provider associated with an app
-func Get(app *daemon.App) (*Provider, error) {
+func Get(app *app.App) (*Provider, error) {
 	for _, provider := range providers {
 		if provider.AppID != "" && provider.AppID == app.ID {
 			return provider, nil
