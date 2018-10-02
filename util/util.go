@@ -14,12 +14,13 @@ var log = logrus.New()
 
 // SetLogLevel sets the log level for the application
 func SetLogLevel(level logrus.Level) {
+	log.Formatter = &logrus.TextFormatter{FullTimestamp: true, QuoteEmptyFields: true}
 	log.Level = level
 }
 
 // GetLogger returns the main logger
-func GetLogger() *logrus.Logger {
-	return log
+func GetLogger(context string) *logrus.Entry {
+	return log.WithField("context", context)
 }
 
 func assertAvailablePRNG() {
