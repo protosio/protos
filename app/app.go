@@ -18,7 +18,7 @@ import (
 	"github.com/rs/xid"
 )
 
-var log = util.GetLogger()
+var log = util.GetLogger("app")
 
 // Defines structure for config parameters
 // specific to each application

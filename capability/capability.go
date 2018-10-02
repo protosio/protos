@@ -8,7 +8,7 @@ import (
 	"github.com/protosio/protos/util"
 )
 
-var log = util.GetLogger()
+var log = util.GetLogger("capability")
 
 // AllCapabilities is a list of all the capabilities available in the system
 var AllCapabilities = []*Capability{}

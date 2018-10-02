@@ -8,7 +8,7 @@ import (
 )
 
 var gconfig = config.Get()
-var log = util.GetLogger()
+var log = util.GetLogger("daemon")
 
 // StartUp triggers a sequence of steps required to start the application
 func StartUp() {

@@ -10,7 +10,7 @@ import (
 	"github.com/protosio/protos/util"
 )
 
-var log = util.GetLogger()
+var log = util.GetLogger("provider")
 
 //
 // Provider code

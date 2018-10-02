@@ -16,7 +16,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-var log = util.GetLogger()
+var log = util.GetLogger("meta")
 
 type meta struct {
 	ID        string

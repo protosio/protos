@@ -16,8 +16,8 @@ import (
 	volumetypes "github.com/docker/docker/api/types/volume"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
-	"github.com/protosio/protos/util"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/util"
 )
 
 const protosNetwork = "protosnet"
@@ -240,9 +240,8 @@ func (cnt *DockerContainer) Start() error {
 		if err != nil {
 			if err.Error() == "context deadline exceeded" {
 				return nil
-			} else {
-				errors.Wrap(err, "Error while waiting for container")
 			}
+			errors.Wrap(err, "Error while waiting for container")
 		}
 	case <-statusCh:
 		out, err := dockerClient.ContainerLogs(ctx, cnt.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})

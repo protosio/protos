@@ -15,7 +15,7 @@ const (
 	ProtosErrInstallerNotFoundLocally = 101
 )
 
-var log = util.GetLogger()
+var log = util.GetLogger("installer")
 
 // Metadata holds metadata for the installer
 type Metadata struct {
