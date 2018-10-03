@@ -31,9 +31,10 @@ type Metadata struct {
 
 // Installer represents an application installer
 type Installer struct {
-	Name     string               `json:"name"`
-	ID       string               `json:"id"`
-	Versions map[string]*Metadata `json:"versions"`
+	Name      string               `json:"name"`
+	ID        string               `json:"id"`
+	Thumbnail string               `json:"thumbnail,omitempty"`
+	Versions  map[string]*Metadata `json:"versions"`
 }
 
 func parseInstallerCapabilities(capstring string) []*capability.Capability {
