@@ -4,7 +4,10 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 
 	"github.com/sirupsen/logrus"
 )
@@ -69,4 +72,16 @@ func String2SHA1(s string) string {
 	h := sha1.New()
 	h.Write([]byte(s))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+//HTTPBadResponse checks a HTTP response code and returns an error if its not ok
+func HTTPBadResponse(resp *http.Response) error {
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return fmt.Errorf("Error (HTTP %d) while querying the application store: \"%s\"", resp.StatusCode, string(bodyBytes))
+	}
+	return nil
 }
