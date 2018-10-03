@@ -327,64 +327,30 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 }
 
 //
+//
 // App store
 //
 
 func searchAppStore(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
-	installers := map[string]struct {
-		Name     string                         `json:"name"`
-		Versions map[string]*installer.Metadata `json:"versions"`
-	}{}
-	var resp *http.Response
 	var err error
+	var installers map[string]installer.Installer
 
 	if len(queryParams) == 0 {
-		resp, err = http.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
-		if err != nil {
-			log.Error(err)
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
-			return
-		}
+		installers, err = installer.StoreGetAll()
 	} else if len(queryParams) == 1 {
-		provides, providesFound := queryParams["provides"]
-		general, generalFound := queryParams["general"]
-		if providesFound == true && len(provides) > 0 {
-			resp, err = http.Get(gconfig.AppStoreURL + "/api/v1/search?provides=" + provides[0])
-			if err != nil {
-				log.Error(err)
-				rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
-				return
-			}
-		} else if generalFound && len(general) > 0 {
-			resp, err = http.Get(gconfig.AppStoreURL + "/api/v1/search?general=" + general[0])
-			if err != nil {
-				log.Error(err)
-				rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
-				return
-			}
+		if val := queryParams.Get("provides"); val != "" {
+			installers, err = installer.StoreSearch("provides", val)
+		} else if val := queryParams.Get("general"); val != "" {
+			installers, err = installer.StoreSearch("general", val)
 		} else {
-			rend.JSON(w, http.StatusBadRequest, httperr{Error: "'provides' and 'general' are the only allowed search parameters"})
-			return
+			installers, err = installer.StoreGetAll()
 		}
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-		errText := fmt.Sprintf("Error (HTTP %d) while querying the application store: \"%s\"", resp.StatusCode, string(bodyBytes))
-		log.Error(errText)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: errText})
-		return
-	}
-
-	err = json.NewDecoder(resp.Body).Decode(&installers)
-	defer resp.Body.Close()
 	if err != nil {
-		log.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Something went wrong decoding the response from the application store"})
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
 		return
 	}
 

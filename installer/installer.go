@@ -1,12 +1,16 @@
 package installer
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/util"
 )
@@ -15,6 +19,7 @@ const (
 	ProtosErrInstallerNotFoundLocally = 101
 )
 
+var gconfig = config.Get()
 var log = util.GetLogger("installer")
 
 // Metadata holds metadata for the installer
@@ -202,4 +207,70 @@ func (installer *Installer) Remove() error {
 		}
 	}
 	return nil
+}
+
+//
+// App store operations
+//
+
+// StoreGetAll returns all installers from the application store
+func StoreGetAll() (map[string]Installer, error) {
+	installers := map[string]Installer{}
+	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
+	if err != nil {
+		return installers, err
+	}
+
+	if err := util.HTTPBadResponse(resp); err != nil {
+		return installers, err
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&installers)
+	defer resp.Body.Close()
+	if err != nil {
+		return installers, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
+	}
+	return installers, nil
+}
+
+// StoreGetID returns a single installer based on its id
+func StoreGetID(id string) (Installer, error) {
+	installer := Installer{}
+	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/" + id)
+	if err != nil {
+		return installer, err
+	}
+
+	if err := util.HTTPBadResponse(resp); err != nil {
+		return installer, err
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&installer)
+	defer resp.Body.Close()
+	if err != nil {
+		return installer, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
+	}
+	return installer, nil
+}
+
+// StoreSearch takes a map of search terms and performs a search on the app store
+func StoreSearch(key string, value string) (map[string]Installer, error) {
+	var installers map[string]Installer
+
+	resp, err := http.Get(fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value))
+	if err != nil {
+		return installers, err
+	}
+
+	if err := util.HTTPBadResponse(resp); err != nil {
+		return installers, err
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&installers)
+	defer resp.Body.Close()
+	if err != nil {
+		return installers, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
+	}
+	return installers, nil
+
 }
