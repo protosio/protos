@@ -15,10 +15,6 @@ import (
 	"github.com/protosio/protos/util"
 )
 
-const (
-	ProtosErrInstallerNotFoundLocally = 101
-)
-
 var gconfig = config.Get()
 var log = util.GetLogger("installer")
 
@@ -185,7 +181,7 @@ func Read(installerID string) (Installer, error) {
 	}
 
 	if len(installer.Versions) == 0 {
-		return Installer{}, util.NewTypedError("Could not find installer "+installerID, ProtosErrInstallerNotFoundLocally)
+		return Installer{}, errors.New("Could not find installer " + installerID)
 	}
 
 	return installer, nil
