@@ -30,6 +30,7 @@ type Metadata struct {
 	PublicPorts     []util.Port              `json:"publicports"`
 	Description     string                   `json:"description"`
 	PlatformID      string                   `json:"platformid"`
+	PlatformType    string                   `json:"platformtype"`
 	PersistancePath string                   `json:"persistancepath"`
 	Capabilities    []*capability.Capability `json:"capabilities"`
 }
