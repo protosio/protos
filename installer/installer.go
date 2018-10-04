@@ -191,6 +191,22 @@ func Read(installerID string) (Installer, error) {
 	return installer, nil
 }
 
+// ReadVersion returns the metadata for a specific installer version
+func ReadVersion(id string, version string) (Metadata, error) {
+	log.Infof("Reading installer %s:%s", id, version)
+	var metadata *Metadata
+	var found bool
+
+	installer, err := StoreGetID(id)
+	if err != nil {
+		return *metadata, fmt.Errorf("Could not retrieve installer %s version %s: %s", id, version, err.Error())
+	}
+	if metadata, found = installer.Versions[version]; found == false {
+		return *metadata, fmt.Errorf("Could not find version %s for installer %s", version, id)
+	}
+	return *metadata, nil
+}
+
 // Download downloads an installer from the application store
 func Download(name string, version string) error {
 	log.Info("Downloading installer ", name, ", version ", version)
