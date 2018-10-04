@@ -209,6 +209,18 @@ func Download(name string, version string) error {
 	return platform.PullDockerImage(name, version)
 }
 
+// IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
+func (metadata Metadata) IsPlatformImageAvailable() bool {
+	_, err := platform.GetDockerImage(metadata.PlatformID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrDockerImageNotFound) == false {
+			log.Error(err)
+		}
+		return false
+	}
+	return true
+}
+
 // Remove Installer removes an installer image
 func (installer *Installer) Remove() error {
 	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
