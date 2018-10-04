@@ -20,7 +20,11 @@ import (
 	"github.com/protosio/protos/util"
 )
 
-const protosNetwork = "protosnet"
+const (
+	protosNetwork = "protosnet"
+	// ErrDockerImageNotFound means the requested docker image is not found on the locally
+	ErrDockerImageNotFound = 101
+)
 
 // DockerContainer represents a container
 type DockerContainer struct {
@@ -313,7 +317,7 @@ func GetDockerImageDataPath(image types.ImageInspect) (string, error) {
 func GetDockerImage(id string) (types.ImageInspect, error) {
 	image, _, err := dockerClient.ImageInspectWithRaw(context.Background(), id)
 	if err != nil {
-		return types.ImageInspect{}, err
+		return types.ImageInspect{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image %s", id), "No such image", ErrDockerImageNotFound)
 	}
 
 	if _, valid := image.Config.Labels["protos"]; valid == false {
