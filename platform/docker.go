@@ -315,7 +315,9 @@ func GetDockerImageDataPath(image types.ImageInspect) (string, error) {
 
 // GetDockerImage returns a docker image by id, if it is labeled for protos
 func GetDockerImage(id string) (types.ImageInspect, error) {
-	image, _, err := dockerClient.ImageInspectWithRaw(context.Background(), id)
+	log.Debugf("Retrieving Docker image %s", id)
+	repoImage := gconfig.AppStoreHost + "/" + id
+	image, _, err := dockerClient.ImageInspectWithRaw(context.Background(), repoImage)
 	if err != nil {
 		return types.ImageInspect{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image %s", id), "No such image", ErrDockerImageNotFound)
 	}
@@ -368,10 +370,9 @@ func RemoveDockerImage(id string) error {
 }
 
 // PullDockerImage pulls a docker image from the Protos app store
-func PullDockerImage(name string, tag string) error {
-	repoImage := gconfig.AppStoreHost + "/" + name
-	imageStr := repoImage + ":" + tag
-	events, err := dockerClient.ImagePull(context.Background(), imageStr, types.ImagePullOptions{})
+func PullDockerImage(id string, installerName string, installerVersion string) error {
+	repoImage := gconfig.AppStoreHost + "/" + id
+	events, err := dockerClient.ImagePull(context.Background(), repoImage, types.ImagePullOptions{})
 	if err != nil {
 		return errors.Wrap(err, "Failed to pull image from app store")
 	}
@@ -397,18 +398,10 @@ func PullDockerImage(name string, tag string) error {
 		}
 	}
 
-	log.Debugf("Pulled image %s with status: %s:", name, event.Status)
+	log.Debugf("Pulled image %s with status: %s:", id, event.Status)
 	if event.Error != "" {
 		return errors.New("Failed to pull image from app store: " + event.Error)
 	}
 
-	err = dockerClient.ImageTag(context.Background(), imageStr, name+":"+tag)
-	if err != nil {
-		return errors.Wrap(err, "Something went wrong while re-tagging Docker image")
-	}
-	_, err = dockerClient.ImageRemove(context.Background(), imageStr, types.ImageRemoveOptions{})
-	if err != nil {
-		return errors.Wrap(err, "Something went wront while removing old Docker image tag")
-	}
 	return nil
 }
