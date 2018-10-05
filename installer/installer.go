@@ -2,13 +2,13 @@ package installer
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/platform"
@@ -188,30 +188,36 @@ func Read(installerID string) (Installer, error) {
 }
 
 // ReadVersion returns the metadata for a specific installer version
-func ReadVersion(id string, version string) (Metadata, error) {
-	log.Infof("Reading installer %s:%s", id, version)
+func (inst Installer) ReadVersion(version string) (Metadata, error) {
 	var metadata *Metadata
 	var found bool
 
-	installer, err := StoreGetID(id)
-	if err != nil {
-		return *metadata, fmt.Errorf("Could not retrieve installer %s version %s: %s", id, version, err.Error())
-	}
-	if metadata, found = installer.Versions[version]; found == false {
-		return *metadata, fmt.Errorf("Could not find version %s for installer %s", version, id)
+	if metadata, found = inst.Versions[version]; found == false {
+		return *metadata, fmt.Errorf("Could not find version %s for installer %s", version, inst.ID)
 	}
 	return *metadata, nil
 }
 
 // Download downloads an installer from the application store
-func Download(name string, version string) error {
-	log.Info("Downloading installer ", name, ", version ", version)
-	return platform.PullDockerImage(name, version)
+func (inst Installer) Download(version string) error {
+	metadata, err := inst.ReadVersion(version)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to download installer %s version %s", inst.ID, version)
+	}
+
+	log.Infof("Downloading platform image for installer %s(%s) version %s", inst.Name, inst.ID, version)
+	return platform.PullDockerImage(metadata.PlatformID, inst.Name, version)
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
-func (metadata Metadata) IsPlatformImageAvailable() bool {
-	_, err := platform.GetDockerImage(metadata.PlatformID)
+func (inst Installer) IsPlatformImageAvailable(version string) bool {
+	metadata, err := inst.ReadVersion(version)
+	if err != nil {
+		log.Error()
+		return false
+	}
+
+	_, err = platform.GetDockerImage(metadata.PlatformID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrDockerImageNotFound) == false {
 			log.Error(err)
