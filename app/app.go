@@ -393,29 +393,30 @@ func CreateApp(installerID string, installerVersion string, name string, install
 }
 
 // Read reads a fresh copy of the application
-func Read(appID string) (*App, error) {
-	log.Info("Reading application ", appID)
-	if app, ok := Apps[appID]; ok {
-		app.RefreshPlatform()
-		return app, nil
-	}
-	err := errors.New("Can't find app " + appID)
-	log.Debug(err)
-	return nil, err
+func Read(id string) (App, error) {
+	log.Info("Reading application ", id)
+
+	ra := readAppReq{id: id, resp: make(chan readAppResp)}
+	readAppQueue <- ra
+	resp := <-ra.resp
+	app := &resp.app
+	app.RefreshPlatform()
+	return *app, resp.err
 }
 
 // ReadByIP searches and returns an application based on it's IP address
 // ToDo: refresh IP data for all applications?
-func ReadByIP(appIP string) (*App, error) {
+func ReadByIP(appIP string) (App, error) {
 	log.Debug("Reading application with IP ", appIP)
 
-	for _, app := range Apps {
+	apps := GetApps()
+	for _, app := range apps {
 		if app.IP == appIP {
 			log.Debug("Found application '", app.Name, "' for IP ", appIP)
 			return app, nil
 		}
 	}
-	return &App{}, errors.New("Could not find any application with IP " + appIP)
+	return App{}, errors.New("Could not find any application with IP " + appIP)
 
 }
 
