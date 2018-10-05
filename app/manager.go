@@ -34,7 +34,7 @@ var readAllQueue = make(chan chan map[string]App)
 
 // Manager runs in its own goroutine and manages access to the app list
 func Manager() {
-	log.WithField("proc", "scheduler").Info("Starting the task scheduler")
+	log.WithField("proc", "appmanager").Info("Starting the app manager")
 	for {
 		select {
 		case readReq := <-readAppQueue:
