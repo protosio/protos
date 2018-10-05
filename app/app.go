@@ -62,9 +62,6 @@ type App struct {
 	Resources        []string             `json:"resources"`
 }
 
-// Apps maintains a map of all the applications
-var Apps = make(map[string]*App)
-
 //
 // Utilities
 //
@@ -90,10 +87,13 @@ func createCapabilities(installerCapabilities []*capability.Capability) []string
 }
 
 // ToDo: do app refresh caching in the platform code
-func refreshAppsPlatform() {
-	for _, app := range Apps {
-		app.RefreshPlatform()
+func refreshAppsPlatform(apps map[string]App) map[string]App {
+	for _, app := range apps {
+		tmp := &app
+		tmp.RefreshPlatform()
+		apps[tmp.ID] = *tmp
 	}
+	return apps
 }
 
 //
@@ -255,7 +255,14 @@ func (app *App) Remove() error {
 	if err != nil {
 		return err
 	}
-	delete(Apps, app.ID)
+
+	ra := removeAppReq{id: app.ID, resp: make(chan error)}
+	removeAppQueue <- ra
+	err = <-ra.resp
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -323,7 +330,7 @@ func (app *App) GetResource(resourceID string) *resource.Resource {
 }
 
 // ValidateCapability implements the capability checker interface
-func (app *App) ValidateCapability(cap *capability.Capability) error {
+func (app App) ValidateCapability(cap *capability.Capability) error {
 	for _, appcap := range app.Capabilities {
 		if capability.Validate(cap, appcap) {
 			return nil
@@ -424,14 +431,16 @@ func LoadAppsDB() {
 		log.Error("Could not retrieve applications from the database: ", err)
 		return
 	}
-	for idx, app := range apps {
-		Apps[app.ID] = &apps[idx]
+
+	for _, app := range apps {
+		addAppQueue <- app
 	}
-	refreshAppsPlatform()
 }
 
 // GetApps refreshes the application list and returns it
-func GetApps() map[string]*App {
-	refreshAppsPlatform()
-	return Apps
+func GetApps() map[string]App {
+	resp := make(chan map[string]App)
+	readAllQueue <- resp
+	apps := refreshAppsPlatform(<-resp)
+	return apps
 }

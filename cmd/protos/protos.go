@@ -4,6 +4,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/protosio/protos/task"
+
 	"github.com/protosio/protos/app"
 
 	"github.com/protosio/protos/platform"
@@ -26,7 +28,7 @@ import (
 func run(configFile string) {
 	var wg sync.WaitGroup
 	config.Load(configFile)
-	log := util.GetLogger()
+	log := util.GetLogger("cmd")
 
 	if database.Exists() {
 		database.Open()
@@ -39,7 +41,15 @@ func run(configFile string) {
 		cert := meta.Initialize()
 
 		daemon.StartUp()
-		wg.Add(2)
+		wg.Add(3)
+		go func() {
+			app.Manager()
+			wg.Done()
+		}()
+		go func() {
+			task.Scheduler(20)
+			wg.Done()
+		}()
 		go func() {
 			api.Websrv(cert)
 			wg.Done()
@@ -59,7 +69,15 @@ func run(configFile string) {
 		resource.LoadResourcesDB() // required to register the resource structs with the DB
 		provider.LoadProvidersDB() // required to register the provider structs with the DB
 		daemon.StartUp()
-		wg.Add(2)
+		wg.Add(3)
+		go func() {
+			app.Manager()
+			wg.Done()
+		}()
+		go func() {
+			task.Scheduler(20)
+			wg.Done()
+		}()
 		go func() {
 			api.Websrv(nil)
 			wg.Done()
