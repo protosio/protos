@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/docker/distribution"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -16,7 +19,9 @@ import (
 	volumetypes "github.com/docker/docker/api/types/volume"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/heroku/docker-registry-client/registry"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
 )
 
@@ -25,6 +30,33 @@ const (
 	// ErrDockerImageNotFound means the requested docker image is not found on the locally
 	ErrDockerImageNotFound = 101
 )
+
+type downloadEvent struct {
+	ID             string `json:"id"`
+	Status         string `json:"status"`
+	Error          string `json:"error"`
+	Progress       string `json:"progress"`
+	ProgressDetail struct {
+		Current int64 `json:"current"`
+		Total   int64 `json:"total"`
+	} `json:"progressDetail"`
+}
+
+type imageLayer struct {
+	id         string
+	size       int64
+	downloaded int64
+	extracted  int64
+}
+
+type downloadProgress struct {
+	layers            map[string]imageLayer
+	parent            *task.Task
+	totalSize         int64
+	percentage        int
+	weight            int
+	initialPercentage int
+}
 
 // DockerContainer represents a container
 type DockerContainer struct {
@@ -294,6 +326,57 @@ func (cnt *DockerContainer) GetStatus() string {
 }
 
 //
+// Image pull progress reporting
+//
+
+func (dp *downloadProgress) updatePercentage() {
+	downloaded := int64(0)
+	extracted := int64(0)
+	for _, layer := range dp.layers {
+		downloaded = downloaded + layer.downloaded
+		extracted = extracted + layer.extracted
+	}
+	downloadedPercentage := (downloaded * 100) / dp.totalSize
+	extractedPercentage := (extracted * 100) / dp.totalSize
+	newPercentage := int(((downloadedPercentage * 4) + extractedPercentage) / 5)
+	if newPercentage != dp.percentage {
+		dp.percentage = newPercentage
+		dp.parent.Progress.Percentage = dp.initialPercentage + ((dp.percentage * dp.weight) / 100)
+		dp.parent.Update()
+	}
+}
+
+func (dp *downloadProgress) complete() {
+	dp.parent.Progress.Percentage = dp.initialPercentage + dp.weight
+	dp.parent.Progress.StatusMessage = "Finished downloading Docker image"
+	dp.parent.Update()
+}
+
+func (dp *downloadProgress) processEvent(event downloadEvent) {
+	if layer, found := dp.layers[event.ID]; found {
+		switch event.Status {
+		case "Already exists":
+			layer.downloaded = layer.size
+			layer.extracted = layer.size
+		case "Downloading":
+			layer.downloaded = event.ProgressDetail.Current
+		case "Extracting":
+			layer.extracted = event.ProgressDetail.Current
+		}
+		dp.layers[event.ID] = layer
+		dp.updatePercentage()
+	}
+}
+
+func (dp *downloadProgress) addLayers(layers []distribution.Descriptor) {
+	for _, mlayer := range layers {
+		l := imageLayer{id: mlayer.Digest.Encoded()[0:12], size: mlayer.Size}
+		dp.layers[l.id] = l
+		dp.totalSize = dp.totalSize + l.size
+	}
+}
+
+//
 // Docker image operations
 //
 
@@ -370,37 +453,42 @@ func RemoveDockerImage(id string) error {
 }
 
 // PullDockerImage pulls a docker image from the Protos app store
-func PullDockerImage(id string, installerName string, installerVersion string) error {
+func PullDockerImage(t *task.Task, id string, installerName string, installerVersion string) error {
 	repoImage := gconfig.AppStoreHost + "/" + id
-	events, err := dockerClient.ImagePull(context.Background(), repoImage, types.ImagePullOptions{})
+	progress := &downloadProgress{parent: t, layers: make(map[string]imageLayer), weight: 85, initialPercentage: t.Progress.Percentage}
+	regClient, err := registry.New(fmt.Sprintf("https://%s/", gconfig.AppStoreHost), "", "")
 	if err != nil {
 		return errors.Wrap(err, "Failed to pull image from app store")
 	}
 
-	type Event struct {
-		Status         string `json:"status"`
-		Error          string `json:"error"`
-		Progress       string `json:"progress"`
-		ProgressDetail struct {
-			Current int `json:"current"`
-			Total   int `json:"total"`
-		} `json:"progressDetail"`
+	idparts := strings.Split(id, "@")
+	manifest, err := regClient.ManifestV2(idparts[0], idparts[1])
+	if err != nil {
+		return errors.Wrap(err, "Failed to pull image from app store")
+	}
+	progress.addLayers(manifest.Layers)
+
+	events, err := dockerClient.ImageCreate(context.Background(), repoImage, types.ImageCreateOptions{})
+	if err != nil {
+		return errors.Wrap(err, "Failed to pull image from app store")
 	}
 
-	var event *Event
+	var e downloadEvent
 	d := json.NewDecoder(events)
 	for {
-		if err := d.Decode(&event); err != nil {
+		if err := d.Decode(&e); err != nil {
 			if err == io.EOF {
 				break
 			}
 			panic(err)
 		}
+		progress.processEvent(e)
 	}
+	progress.complete()
 
-	log.Debugf("Pulled image %s with status: %s:", id, event.Status)
-	if event.Error != "" {
-		return errors.New("Failed to pull image from app store: " + event.Error)
+	log.Debugf("Pulled image %s successfully", id)
+	if e.Error != "" {
+		return errors.New("Failed to pull image from app store: " + e.Error)
 	}
 
 	return nil
