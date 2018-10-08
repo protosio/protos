@@ -10,24 +10,24 @@ var log = util.GetLogger("task")
 
 const (
 	// REQUESTED - task has been created
-	REQUESTED = "REQUESTED"
+	REQUESTED = "requested"
 	// INPROGRESS - task is in progress
-	INPROGRESS = "INPROGRESS"
-	// ERROR - task has failed
-	ERROR = "ERROR"
+	INPROGRESS = "inprogress"
+	// FAILED - task has failed
+	FAILED = "failed"
 	// FINISHED - tash has been completed
-	FINISHED = "FINISHED"
+	FINISHED = "finished"
 )
 
 // Type is the interface that all task types need to adhere too
 type Type interface {
-	Run() error
+	Run(*Task) error
 }
 
 // Progress tracks the percentage and message of a task
 type Progress struct {
-	Percentage    int
-	StatusMessage string
+	Percentage    int    `json:"percentage"`
+	StatusMessage string `json:"satusmessage"`
 }
 
 // Task represents an (a)synchronous piece of work that Protos acts upon
@@ -41,14 +41,28 @@ type Task struct {
 
 	// Communication channels
 	quitChan chan bool
-	getCopy  chan Task
 }
-// GetCopy returns a copy of a running task
-func (t *Task) GetCopy() Task {
-	log.Debugf("Getting copy of task %s", t.ID)
-	t.getCopy <- Task{}
-	tsk := <-t.getCopy
-	return tsk
+
+// Run starts the task
+func (t *Task) Run() {
+	log.WithField("proc", t.ID).Infof("Started task %s", t.ID)
+	err := t.taskType.Run(t)
+	if err != nil {
+		log.WithField("proc", t.ID).Error("Failed to finish task: ", err.Error())
+		t.Status = FAILED
+	} else {
+		log.WithField("proc", t.ID).Infof("Task %s finished successfully", t.ID)
+		t.Status = FINISHED
+	}
+	t.Progress.Percentage = 100
+	ts := time.Now()
+	t.FinishedAt = &ts
+	t.Update()
+}
+
+// Update sends a copy of the running task to the task scheduler
+func (t *Task) Update() {
+	updateTaskQueue <- *t
 }
 
 //
