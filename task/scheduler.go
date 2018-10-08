@@ -32,6 +32,9 @@ var schedulerQueue = make(chan requestTask, 100)
 // readTaskQueue receives read requests for specific tasks, based on task id
 var readTaskQueue = make(chan readTaskReq)
 
+// updateTaskQueue receives updated information for a task
+var updateTaskQueue = make(chan Task, 1000)
+
 // readAllQueue receives read requests for the whole task list
 var readAllQueue = make(chan chan map[string]Task)
 
@@ -45,7 +48,6 @@ func createTask(taskType Type) Task {
 		taskType:  taskType,
 
 		quitChan: make(chan bool),
-		getCopy:  make(chan Task),
 	}
 	log.WithField("proc", "scheduler").Debugf("Created new task %s with id %s", reflect.TypeOf(taskType), tsk.ID)
 	return tsk
@@ -62,6 +64,9 @@ func Scheduler(nrWorkers int) {
 			taskReq.resp <- tsk
 			log.WithField("proc", "scheduler").Infof("Running new task %s with id %s", reflect.TypeOf(taskReq.t), tsk.ID)
 			go tsk.Run()
+		case tsk := <-updateTaskQueue:
+			log.WithField("proc", "scheduler").Debugf("Updating task %s", tsk.ID)
+			tasks[tsk.ID] = tsk
 		case readReq := <-readTaskQueue:
 			if tsk, found := tasks[readReq.id]; found {
 				readReq.resp <- readTaskResp{tsk: tsk}
