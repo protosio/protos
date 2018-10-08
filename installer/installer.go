@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/protosio/protos/task"
+
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/config"
@@ -199,14 +201,14 @@ func (inst Installer) ReadVersion(version string) (Metadata, error) {
 }
 
 // Download downloads an installer from the application store
-func (inst Installer) Download(version string) error {
+func (inst Installer) Download(t *task.Task, version string) error {
 	metadata, err := inst.ReadVersion(version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer %s version %s", inst.ID, version)
 	}
 
 	log.Infof("Downloading platform image for installer %s(%s) version %s", inst.Name, inst.ID, version)
-	return platform.PullDockerImage(metadata.PlatformID, inst.Name, version)
+	return platform.PullDockerImage(t, metadata.PlatformID, inst.Name, version)
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
