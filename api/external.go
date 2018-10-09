@@ -103,10 +103,12 @@ var clientRoutes = routes{
 		nil,
 	},
 	route{
-		"downloadInstaller",
-		"POST",
-		"/store/download",
-		downloadInstaller,
+		"getTask",
+		"GET",
+		"/tasks/{taskID}",
+		getTask,
+		nil,
+	},
 		nil,
 	},
 	route{
@@ -380,30 +382,6 @@ func searchAppStore(w http.ResponseWriter, r *http.Request) {
 	rend.JSON(w, http.StatusOK, installers)
 }
 
-func downloadInstaller(w http.ResponseWriter, r *http.Request) {
-	var installerParams = struct {
-		ID      string `json:"id"`
-		Name    string `json:"name"`
-		Version string `json:"version"`
-	}{}
-
-	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&installerParams)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusBadRequest, httperr{Error: "Could not decode JSON request"})
-		return
-	}
-
-	err = installer.Download(installerParams.Name, installerParams.Version)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
-		return
-	}
-
-	rend.JSON(w, http.StatusOK, nil)
-}
 
 //
 // Protos resources (DNS and TLS)
