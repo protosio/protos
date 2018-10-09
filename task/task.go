@@ -55,7 +55,7 @@ func (t *Task) Run() {
 		t.Status = FINISHED
 	}
 	t.Progress.Percentage = 100
-	ts := time.Now()
+	ts := time.Now().Truncate(time.Millisecond)
 	t.FinishedAt = &ts
 	t.Update()
 }

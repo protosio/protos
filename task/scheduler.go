@@ -39,7 +39,7 @@ var updateTaskQueue = make(chan Task, 1000)
 var readAllQueue = make(chan chan map[string]Task)
 
 func createTask(taskType Type) Task {
-	ts := time.Now()
+	ts := time.Now().Truncate(time.Millisecond)
 	tsk := Task{
 		ID:        xid.New().String(),
 		Status:    REQUESTED,
