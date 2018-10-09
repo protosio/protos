@@ -2,8 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/protosio/protos/app"
@@ -96,10 +94,10 @@ var clientRoutes = routes{
 		capability.UserAdmin,
 	},
 	route{
-		"searchAppStore",
+		"getTasks",
 		"GET",
-		"/store/search",
-		searchAppStore,
+		"/tasks",
+		getTasks,
 		nil,
 	},
 	route{
@@ -109,6 +107,11 @@ var clientRoutes = routes{
 		getTask,
 		nil,
 	},
+	route{
+		"searchAppStore",
+		"GET",
+		"/store/search",
+		searchAppStore,
 		nil,
 	},
 	route{
@@ -132,7 +135,6 @@ func getApps(w http.ResponseWriter, r *http.Request) {
 }
 
 func createApp(w http.ResponseWriter, r *http.Request) {
-
 	var appParams app.App
 	defer r.Body.Close()
 
@@ -144,16 +146,21 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := app.CreateApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerParams)
+	task, err := task.New(app.CreateAppTask{
+		InstallerID:      appParams.InstallerID,
+		InstallerVersion: appParams.InstallerVersion,
+		AppName:          appParams.Name,
+		InstallerParams:  appParams.InstallerParams,
+		StartOnCreation:  true,
+	})
+
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
-	log.Debug("Sending response: ", app)
-	json.NewEncoder(w).Encode(app)
-
+	rend.JSON(w, http.StatusAccepted, task)
 }
 
 func getApp(w http.ResponseWriter, r *http.Request) {
@@ -352,6 +359,7 @@ func getTask(w http.ResponseWriter, r *http.Request) {
 	rend.JSON(w, http.StatusOK, tsk)
 
 }
+
 //
 // App store
 //
@@ -381,7 +389,6 @@ func searchAppStore(w http.ResponseWriter, r *http.Request) {
 
 	rend.JSON(w, http.StatusOK, installers)
 }
-
 
 //
 // Protos resources (DNS and TLS)
