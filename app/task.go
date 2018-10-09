@@ -36,7 +36,7 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
 	pt.Progress.Percentage = 10
-	pt.Progress.StatusMessage = "Created application"
+	pt.Progress.State = "Created application"
 	pt.Update()
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {

@@ -348,7 +348,7 @@ func (dp *downloadProgress) updatePercentage() {
 
 func (dp *downloadProgress) complete() {
 	dp.pt.Progress.Percentage = dp.initialPercentage + dp.weight
-	dp.pt.Progress.StatusMessage = "Finished downloading Docker image"
+	dp.pt.Progress.State = "Finished downloading Docker image"
 	dp.pt.Update()
 }
 

@@ -26,8 +26,8 @@ type Type interface {
 
 // Progress tracks the percentage and message of a task
 type Progress struct {
-	Percentage    int    `json:"percentage"`
-	StatusMessage string `json:"satusmessage"`
+	Percentage int    `json:"percentage"`
+	State      string `json:"state"`
 }
 
 // Task represents an (a)synchronous piece of work that Protos acts upon
@@ -49,6 +49,7 @@ func (t *Task) Run() {
 	err := t.taskType.Run(t)
 	if err != nil {
 		log.WithField("proc", t.ID).Error("Failed to finish task: ", err.Error())
+		t.Progress.State = err.Error()
 		t.Status = FAILED
 	} else {
 		log.WithField("proc", t.ID).Infof("Task %s finished successfully", t.ID)
