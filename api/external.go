@@ -9,6 +9,7 @@ import (
 	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/meta"
+	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/resource"
@@ -327,6 +328,28 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 }
 
 //
+// Tasks
+//
+
+func getTasks(w http.ResponseWriter, r *http.Request) {
+	tasks := task.GetAll()
+	log.Debug("Retrieved and sending all tasks: ", tasks)
+	rend.JSON(w, http.StatusOK, tasks)
+}
+
+func getTask(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	taskID := vars["taskID"]
+
+	tsk, err := task.Get(taskID)
+	if err != nil {
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+	rend.JSON(w, http.StatusOK, tsk)
+
+}
 //
 // App store
 //
