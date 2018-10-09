@@ -51,7 +51,7 @@ type imageLayer struct {
 
 type downloadProgress struct {
 	layers            map[string]imageLayer
-	parent            *task.Task
+	pt                *task.Task
 	totalSize         int64
 	percentage        int
 	weight            int
@@ -341,15 +341,15 @@ func (dp *downloadProgress) updatePercentage() {
 	newPercentage := int(((downloadedPercentage * 4) + extractedPercentage) / 5)
 	if newPercentage != dp.percentage {
 		dp.percentage = newPercentage
-		dp.parent.Progress.Percentage = dp.initialPercentage + ((dp.percentage * dp.weight) / 100)
-		dp.parent.Update()
+		dp.pt.Progress.Percentage = dp.initialPercentage + ((dp.percentage * dp.weight) / 100)
+		dp.pt.Update()
 	}
 }
 
 func (dp *downloadProgress) complete() {
-	dp.parent.Progress.Percentage = dp.initialPercentage + dp.weight
-	dp.parent.Progress.StatusMessage = "Finished downloading Docker image"
-	dp.parent.Update()
+	dp.pt.Progress.Percentage = dp.initialPercentage + dp.weight
+	dp.pt.Progress.StatusMessage = "Finished downloading Docker image"
+	dp.pt.Update()
 }
 
 func (dp *downloadProgress) processEvent(event downloadEvent) {
@@ -453,9 +453,9 @@ func RemoveDockerImage(id string) error {
 }
 
 // PullDockerImage pulls a docker image from the Protos app store
-func PullDockerImage(t *task.Task, id string, installerName string, installerVersion string) error {
+func PullDockerImage(pt *task.Task, id string, installerName string, installerVersion string) error {
 	repoImage := gconfig.AppStoreHost + "/" + id
-	progress := &downloadProgress{parent: t, layers: make(map[string]imageLayer), weight: 85, initialPercentage: t.Progress.Percentage}
+	progress := &downloadProgress{pt: pt, layers: make(map[string]imageLayer), weight: 85, initialPercentage: pt.Progress.Percentage}
 	regClient, err := registry.New(fmt.Sprintf("https://%s/", gconfig.AppStoreHost), "", "")
 	if err != nil {
 		return errors.Wrap(err, "Failed to pull image from app store")
@@ -486,7 +486,7 @@ func PullDockerImage(t *task.Task, id string, installerName string, installerVer
 	}
 	progress.complete()
 
-	log.Debugf("Pulled image %s successfully", id)
+	log.WithField("proc", pt.ID).Debugf("Pulled image %s successfully", id)
 	if e.Error != "" {
 		return errors.New("Failed to pull image from app store: " + e.Error)
 	}

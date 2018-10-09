@@ -17,10 +17,10 @@ type CreateAppTask struct {
 }
 
 // Run starts the async task
-func (t CreateAppTask) Run(parent *task.Task) error {
-	log.Debugf("Running app creation task [%s] based on installer %s:%s", t.InstallerID, t.InstallerVersion, t.AppName)
-	parent.Status = task.INPROGRESS
-	parent.Update()
+func (t CreateAppTask) Run(pt *task.Task) error {
+	log.WithField("proc", pt.ID).Debugf("Running app creation task [%s] based on installer %s:%s", t.InstallerID, t.InstallerVersion, t.AppName)
+	pt.Status = task.INPROGRESS
+	pt.Update()
 
 	inst, err := installer.StoreGetID(t.InstallerID)
 	if err != nil {
@@ -37,18 +37,18 @@ func (t CreateAppTask) Run(parent *task.Task) error {
 		return fmt.Errorf("Could not create application %s: %s", t.AppName, err.Error())
 	}
 	defer app.Remove()
-	parent.Progress.Percentage = 10
-	parent.Progress.StatusMessage = "Created application"
-	parent.Update()
+	pt.Progress.Percentage = 10
+	pt.Progress.StatusMessage = "Created application"
+	pt.Update()
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {
-		log.Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
-		err = inst.Download(parent, t.InstallerVersion)
+		log.WithField("proc", pt.ID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
+		err = inst.Download(pt, t.InstallerVersion)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create application %s", t.AppName)
 		}
 	} else {
-		log.Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
+		log.WithField("proc", pt.ID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
 	}
 
 	return nil
