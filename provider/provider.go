@@ -31,7 +31,7 @@ func init() {
 }
 
 // Register registers a resource provider
-func Register(appInstance *app.App, rtype resource.RType) error {
+func Register(appInstance app.App, rtype resource.RType) error {
 	if providers[rtype].AppID != "" {
 		_, err := app.Read(providers[rtype].AppID)
 		if err == nil {
@@ -50,7 +50,7 @@ func Register(appInstance *app.App, rtype resource.RType) error {
 }
 
 // Deregister deregisters a resource provider
-func Deregister(app *app.App, rtype resource.RType) error {
+func Deregister(app app.App, rtype resource.RType) error {
 
 	if providers[rtype].AppID != "" && providers[rtype].AppID != app.ID {
 		return errors.New("Application '" + app.Name + "' is NOT registered for resource type " + string(rtype))
@@ -66,7 +66,7 @@ func Deregister(app *app.App, rtype resource.RType) error {
 }
 
 // Get retrieves the resource provider associated with an app
-func Get(app *app.App) (*Provider, error) {
+func Get(app app.App) (*Provider, error) {
 	for _, provider := range providers {
 		if provider.AppID != "" && provider.AppID == app.ID {
 			return provider, nil

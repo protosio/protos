@@ -121,6 +121,7 @@ func (app *App) Save() {
 	if err != nil {
 		log.Panic(errors.Wrap(err, "Could not save app to database"))
 	}
+	addAppQueue <- *app
 }
 
 // reateContainer create the underlying Docker container
@@ -335,9 +336,9 @@ func (app App) ValidateCapability(cap *capability.Capability) error {
 //
 
 // Create takes an image and creates an application, without starting it
-func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata) (App, error) {
+func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata) (*App, error) {
 
-	var app App
+	var app *App
 	if name == "" {
 		return app, fmt.Errorf("Application name cannot be empty")
 	}
@@ -349,7 +350,7 @@ func Create(installerID string, installerVersion string, name string, installerP
 
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app = App{Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion, PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams, InstallerMetadata: installerMetadata}
+	app = &App{Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion, PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams, InstallerMetadata: installerMetadata}
 
 	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
 	if app.ValidateCapability(capability.PublicDNS) == nil {
@@ -360,12 +361,9 @@ func Create(installerID string, installerVersion string, name string, installerP
 		app.Resources = append(app.Resources, rsc.ID)
 	}
 	app.Save()
-	addAppQueue <- app
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
-
 	return app, nil
-
 }
 
 // Read reads a fresh copy of the application
