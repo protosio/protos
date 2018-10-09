@@ -188,7 +188,7 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 	}
 
 	containerConfig := &container.Config{
-		Image:        imageid,
+		Image:        gconfig.AppStoreHost + "/" + imageid,
 		ExposedPorts: exposedPorts,
 		Env:          combineEnv(envvars),
 	}
