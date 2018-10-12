@@ -138,9 +138,9 @@ func secureListen(handler http.Handler, certrsc resource.Type) {
 	}
 	for _, ip := range ips {
 		log.Infof("Listening internally on %s:%s (HTTP)", ip, httpport)
-		go func() {
+		go func(ip string) {
 			log.Fatal(http.ListenAndServe(ip+":"+httpport, handler))
-		}()
+		}(ip)
 	}
 
 	log.Infof("Listening on port %s (HTTPS)", httpsport)
