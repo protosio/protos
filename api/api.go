@@ -35,6 +35,15 @@ type route struct {
 
 type routes []route
 
+func uiHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling UI")
+	http.ServeFile(w, r, string(http.Dir(gconfig.StaticAssets))+"/index.html")
+}
+
+func uiRedirect(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/ui/", 303)
+}
+
 func applyAPIroutes(r *mux.Router) {
 
 	// Internal routes
@@ -73,6 +82,12 @@ func applyAPIroutes(r *mux.Router) {
 	authRouter.Methods("POST").Path("/login").Name("login").Handler(http.HandlerFunc(LoginHandler))
 
 	r.PathPrefix("/api/v1/auth").Handler(authRouter)
+
+	// UI routes
+	fileHandler := http.FileServer(http.Dir(gconfig.StaticAssets))
+	r.PathPrefix("/static/").Name("static").Handler(http.StripPrefix("/static/", fileHandler))
+	r.PathPrefix("/ui/").Name("ui").Handler(http.HandlerFunc(uiHandler))
+	r.PathPrefix("/").Name("root").Handler(http.HandlerFunc(uiRedirect))
 
 }
 
@@ -137,10 +152,6 @@ func Websrv(certrsc *resource.Resource) {
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAPIroutes(mainRtr)
-
-	fileHandler := http.FileServer(http.Dir(gconfig.StaticAssets))
-	mainRtr.PathPrefix("/static").Handler(fileHandler)
-	mainRtr.PathPrefix("/").Handler(fileHandler)
 
 	// Negroni middleware
 	n := negroni.New()
