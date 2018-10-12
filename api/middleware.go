@@ -14,6 +14,12 @@ import (
 	"github.com/protosio/protos/capability"
 )
 
+type key int
+
+const (
+	appKey key = iota
+)
+
 func checkCapability(capChecker capability.Checker, routeName string) error {
 	methodcap, err := capability.GetMethodCap(routeName)
 	if err != nil {
@@ -91,7 +97,7 @@ func InternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 		return
 	}
 
-	ctx := context.WithValue(r.Context(), "app", appInstance)
+	ctx := context.WithValue(r.Context(), appKey, appInstance)
 	next.ServeHTTP(rw, r.WithContext(ctx))
 }
 

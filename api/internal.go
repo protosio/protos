@@ -116,7 +116,7 @@ var internalRoutes = routes{
 //
 
 func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 
 	rtype, _, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
@@ -137,7 +137,7 @@ func registerResourceProvider(w http.ResponseWriter, r *http.Request) {
 
 func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 
 	rtype, _, err := resource.GetType(mux.Vars(r)["resourceType"])
 	if err != nil {
@@ -158,7 +158,7 @@ func deregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 
 func getProviderResources(w http.ResponseWriter, r *http.Request) {
 
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 
 	provider, err := provider.Get(app)
 	if err != nil {
@@ -177,7 +177,7 @@ func updateResourceValue(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
 
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 
 	prvd, err := provider.Get(app)
 	if err != nil {
@@ -223,7 +223,7 @@ func setResourceStatus(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
 
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -300,7 +300,7 @@ func getAdminUser(w http.ResponseWriter, r *http.Request) {
 
 func getOwnResources(w http.ResponseWriter, r *http.Request) {
 
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 	resources := app.GetResources()
 
 	json.NewEncoder(w).Encode(resources)
@@ -309,7 +309,7 @@ func getOwnResources(w http.ResponseWriter, r *http.Request) {
 
 func createResource(w http.ResponseWriter, r *http.Request) {
 
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 
 	bodyJSON, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -334,7 +334,7 @@ func getAppResource(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 	rsc := app.GetResource(resourceID)
 	if rsc == nil {
 		err := errors.New("Could not find resource " + resourceID)
@@ -351,7 +351,7 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	resourceID := vars["resourceID"]
 
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 	err := app.DeleteResource(resourceID)
 	if err != nil {
 		log.Error(err)
@@ -364,7 +364,7 @@ func deleteResource(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAppInfo(w http.ResponseWriter, r *http.Request) {
-	app := r.Context().Value("app").(app.App)
+	app := r.Context().Value(appKey).(app.App)
 	appInfo := struct {
 		Name string `json:"name"`
 	}{
