@@ -106,12 +106,20 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	user.AddToken(sstring)
 
+	var role string
+	if user.IsAdmin() {
+		role = "admin"
+	} else {
+		role = "user"
+	}
 	tokenResponse := struct {
 		Token    string `json:"token"`
 		Username string `json:"username"`
+		Role     string `json:"role"`
 	}{
 		Token:    tokenString,
 		Username: user.Username,
+		Role:     role,
 	}
 
 	log.Debug("Sending response: ", tokenResponse)
