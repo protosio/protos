@@ -117,7 +117,7 @@ var clientRoutes = routes{
 	route{
 		"createProtosResources",
 		"POST",
-		"/protos/resources",
+		"/init/resources",
 		createProtosResources,
 		nil,
 	},
