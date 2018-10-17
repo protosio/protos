@@ -48,6 +48,9 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 		}
 	} else {
 		log.WithField("proc", pt.ID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
+		pt.Progress.Percentage = 50
+		pt.Progress.State = "Docker image found locally"
+		pt.Update()
 	}
 
 	err = app.createContainer()
@@ -55,6 +58,9 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 		app.Remove()
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
+	pt.Progress.Percentage = 70
+	pt.Progress.State = "Created Docker container"
+	pt.Update()
 
 	if t.StartOnCreation {
 		err = app.Start()
