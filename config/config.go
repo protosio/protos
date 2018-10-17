@@ -23,7 +23,7 @@ type Config struct {
 	AppStoreHost   string
 }
 
-var config = Config{InitMode: true, AppStoreURL: "https://apps.protos.io/", AppStoreHost: "apps.protos.io"}
+var config = Config{InitMode: true, AppStoreURL: "https://apps.protos.io", AppStoreHost: "apps.protos.io"}
 
 // Gconfig maintains a global view of the application configuration parameters.
 // var gconfig = &config
