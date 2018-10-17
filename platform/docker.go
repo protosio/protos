@@ -267,7 +267,7 @@ func (cnt *DockerContainer) Start() error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	statusCh, errCh := dockerClient.ContainerWait(ctx, cnt.ID, container.WaitConditionNotRunning)
