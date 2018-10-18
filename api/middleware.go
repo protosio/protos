@@ -103,6 +103,12 @@ func InternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 
 // ExternalRequestValidator validates client request contains a valid JWT token
 func ExternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	var httpErrStatus int
+	if gconfig.InitMode {
+		httpErrStatus = http.StatusFailedDependency
+	} else {
+		httpErrStatus = http.StatusUnauthorized
+	}
 
 	token, err := request.ParseFromRequest(r, request.AuthorizationHeaderExtractor,
 		func(token *jwt.Token) (interface{}, error) {
@@ -110,27 +116,27 @@ func ExternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 		})
 	if err != nil {
 		log.Errorf("Unauthorized access to resource %s with Error: %s", r.URL, err.Error())
-		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Unauthorized access to this resource"})
+		rend.JSON(rw, httpErrStatus, httperr{Error: "Unauthorized access to this resource"})
 		return
 	}
 
 	if token.Valid == false {
 		log.Error("Token is not valid")
-		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Token is not valid"})
+		rend.JSON(rw, httpErrStatus, httperr{Error: "Token is not valid"})
 		return
 	}
 
 	sstring, err := token.SigningString()
 	if err != nil {
 		log.Error(err)
-		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: err.Error()})
+		rend.JSON(rw, httpErrStatus, httperr{Error: err.Error()})
 		return
 	}
 
 	user, err := auth.GetUserForToken(sstring)
 	if err != nil {
 		log.Error(err)
-		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: err.Error()})
+		rend.JSON(rw, httpErrStatus, httperr{Error: err.Error()})
 		return
 	}
 
@@ -138,7 +144,7 @@ func ExternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 	err = checkCapability(user, routeName)
 	if err != nil {
 		log.Error(err.Error())
-		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "User not authorized to access that resource"})
+		rend.JSON(rw, httpErrStatus, httperr{Error: "User not authorized to access that resource"})
 		return
 	}
 
