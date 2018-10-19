@@ -54,7 +54,7 @@ func createTask(taskType Type) Task {
 }
 
 // Scheduler takes care of scheduling long running background tasks
-func Scheduler(nrWorkers int) {
+func Scheduler() {
 	log.WithField("proc", "taskscheduler").Info("Starting the task scheduler")
 	for {
 		select {
