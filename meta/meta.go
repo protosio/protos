@@ -159,7 +159,7 @@ func GetTLSCertificate() resource.Resource {
 
 // CleanProtosResources removes the MX record resource owned by the instance, created during the init process
 func CleanProtosResources() error {
-	for _, rscid := range metaRoot.Resources {
+	for i, rscid := range metaRoot.Resources {
 		rsc, err := resource.Get(rscid)
 		if err != nil {
 			log.Errorf("Could not find protos resource: %s", err.Error())
@@ -172,6 +172,7 @@ func CleanProtosResources() error {
 				if err != nil {
 					return errors.Wrap(err, "Could not clean Protos resources")
 				}
+				metaRoot.Resources = util.RemoveStringFromSlice(metaRoot.Resources, i)
 				return nil
 			}
 		}
