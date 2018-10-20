@@ -21,9 +21,10 @@ type Config struct {
 	InitMode       bool
 	AppStoreURL    string
 	AppStoreHost   string
+	ProcsQuit      map[string]chan bool
 }
 
-var config = Config{InitMode: true, AppStoreURL: "https://apps.protos.io", AppStoreHost: "apps.protos.io"}
+var config = Config{InitMode: true, AppStoreURL: "https://apps.protos.io", AppStoreHost: "apps.protos.io", ProcsQuit: make(map[string]chan bool)}
 
 // Gconfig maintains a global view of the application configuration parameters.
 // var gconfig = &config
