@@ -54,7 +54,7 @@ func createTask(taskType Type) Task {
 }
 
 // Scheduler takes care of scheduling long running background tasks
-func Scheduler() {
+func Scheduler(quit chan bool) {
 	log.WithField("proc", "taskscheduler").Info("Starting the task scheduler")
 	for {
 		select {
@@ -75,6 +75,9 @@ func Scheduler() {
 			}
 		case readAllResp := <-readAllQueue:
 			readAllResp <- tasks
+		case <-quit:
+			log.Info("Shutting down task scheduler")
+			return
 		}
 	}
 

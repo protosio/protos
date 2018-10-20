@@ -54,6 +54,9 @@ func Manager() {
 			}
 		case readAllResp := <-readAllQueue:
 			readAllResp <- apps
+		case <-quit:
+			log.Info("Shutting down app manager")
+			return
 		}
 	}
 }
