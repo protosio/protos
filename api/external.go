@@ -130,6 +130,13 @@ var clientRoutes = routes{
 		removeInitProvider,
 		nil,
 	},
+	route{
+		"finishInit",
+		"GET",
+		"/init/finish",
+		finishInit,
+		nil,
+	},
 }
 
 //
@@ -443,4 +450,9 @@ func createProtosResources(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rend.JSON(w, http.StatusOK, resources)
+}
+
+func finishInit(w http.ResponseWriter, r *http.Request) {
+	gconfig.ProcsQuit["initwebserver"] <- true
+	rend.JSON(w, http.StatusOK, nil)
 }

@@ -1,11 +1,15 @@
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/resource"
 
 	"github.com/protosio/protos/capability"
@@ -90,21 +94,7 @@ func applyAPIroutes(r *mux.Router) {
 
 }
 
-// initListen is only used to start a http web server to complete the initialisation phase
-func initListen(handler http.Handler) {
-	httpport := strconv.Itoa(gconfig.HTTPport)
-	log.Info("Listening on port " + httpport)
-	srv := &http.Server{
-		Addr:           ":" + httpport,
-		Handler:        handler,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
-	}
-	log.Fatal(srv.ListenAndServe())
-}
-
-func secureListen(handler http.Handler, certrsc resource.Type) {
+func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 	cert := certrsc.(*resource.CertificateResource)
 	tlscert, err := tls.X509KeyPair(cert.Certificate, cert.PrivateKey)
 	if err != nil {
@@ -142,12 +132,26 @@ func secureListen(handler http.Handler, certrsc resource.Type) {
 		}(ip)
 	}
 
-	log.Infof("Listening on port %s (HTTPS)", httpsport)
-	log.Fatal(srv.ListenAndServeTLS("", ""))
+	go func() {
+		log.Infof("Listening on port %s (HTTPS)", httpsport)
+		if err := srv.ListenAndServeTLS("", ""); err != nil {
+			if strings.Contains(err.Error(), "Server closed") {
+				log.Info("Init webserver terminated successfully")
+			} else {
+				log.Errorf("HTTPS webserver died with error: %s", err.Error())
+			}
+		}
+	}()
+
+	<-quit
+	log.Info("Shutting down HTTPS webserver")
+	if err := srv.Shutdown(context.Background()); err != nil {
+		log.Error(errors.Wrap(err, "Something went wrong while shutting down the HTTPS webserver"))
+	}
 }
 
-// Websrv starts an HTTP server that exposes all the application functionality
-func Websrv(certrsc *resource.Resource) {
+// Websrv starts an HTTP(S) server that exposes all the application functionality
+func Websrv(quit chan bool) {
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAPIroutes(mainRtr)
@@ -157,10 +161,43 @@ func Websrv(certrsc *resource.Resource) {
 	n.Use(negroni.HandlerFunc(HTTPLogger))
 	n.UseHandler(mainRtr)
 
-	if certrsc != nil {
-		secureListen(n, certrsc.Value)
-	} else {
-		initListen(n)
+	cert := meta.GetTLSCertificate()
+	secureListen(n, cert.Value, quit)
+}
+
+// WebsrvInit starts an HTTP server used only during the initialisation process
+func WebsrvInit(quit chan bool) {
+	mainRtr := mux.NewRouter().StrictSlash(true)
+	applyAPIroutes(mainRtr)
+
+	// Negroni middleware
+	n := negroni.New()
+	n.Use(negroni.HandlerFunc(HTTPLogger))
+	n.UseHandler(mainRtr)
+
+	httpport := strconv.Itoa(gconfig.HTTPport)
+	log.Info("Starting init webserver on port " + httpport)
+	srv := &http.Server{
+		Addr:           ":" + httpport,
+		Handler:        n,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			if strings.Contains(err.Error(), "Server closed") {
+				log.Info("Init webserver terminated successfully")
+			} else {
+				log.Errorf("Init webserver died with error: %s", err.Error())
+			}
+		}
+	}()
+
+	<-quit
+	log.Info("Shutting down init webserver")
+	if err := srv.Shutdown(context.Background()); err != nil {
+		log.Error(errors.Wrap(err, "Something went wrong while shutting down the init webserver"))
 	}
 
 }
