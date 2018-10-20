@@ -453,6 +453,12 @@ func createProtosResources(w http.ResponseWriter, r *http.Request) {
 }
 
 func finishInit(w http.ResponseWriter, r *http.Request) {
+	err := meta.CleanProtosResources()
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+		return
+	}
 	gconfig.ProcsQuit["initwebserver"] <- true
 	rend.JSON(w, http.StatusOK, nil)
 }

@@ -142,7 +142,7 @@ func GetPublicIP() string {
 	return metaRoot.PublicIP
 }
 
-// GetTLSCertificate returns the TLS certificate resources owned by the instance
+// GetTLSCertificate returns the TLS certificate resource owned by the instance
 func GetTLSCertificate() resource.Resource {
 	for _, rscid := range metaRoot.Resources {
 		rsc, err := resource.Get(rscid)
@@ -155,6 +155,28 @@ func GetTLSCertificate() resource.Resource {
 		}
 	}
 	return resource.Resource{}
+}
+
+// CleanProtosResources removes the MX record resource owned by the instance, created during the init process
+func CleanProtosResources() error {
+	for _, rscid := range metaRoot.Resources {
+		rsc, err := resource.Get(rscid)
+		if err != nil {
+			log.Errorf("Could not find protos resource: %s", err.Error())
+			continue
+		}
+		if rsc.Type == resource.RType("dns") {
+			val := rsc.Value.(*resource.DNSResource)
+			if val.Type == "MX" {
+				err = rsc.Delete()
+				if err != nil {
+					return errors.Wrap(err, "Could not clean Protos resources")
+				}
+				return nil
+			}
+		}
+	}
+	return errors.New("Could not clean Protos resources: MX DNS record not found")
 }
 
 // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
