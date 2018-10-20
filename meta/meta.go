@@ -236,3 +236,18 @@ func CreateProtosResources() (map[string]*resource.Resource, error) {
 
 	return resources, nil
 }
+
+// GetProtosResources returns the resources owned by Protos
+func GetProtosResources() map[string]*resource.Resource {
+	resources := map[string]*resource.Resource{}
+	for _, rscid := range metaRoot.Resources {
+		rsc, err := resource.Get(rscid)
+		if err != nil {
+			log.Errorf("Could not find protos resource: %s", err.Error())
+			continue
+		}
+		resources[rsc.ID] = rsc
+
+	}
+	return resources
+}

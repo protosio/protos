@@ -123,6 +123,21 @@ var clientRoutes = routes{
 		createProtosResources,
 		nil,
 	},
+
+	route{
+		"createProtosResources",
+		"POST",
+		"/init/resources",
+		createProtosResources,
+		nil,
+	},
+	route{
+		"getProtosResources",
+		"GET",
+		"/init/resources",
+		getProtosResources,
+		nil,
+	},
 	route{
 		"removeInitProvider",
 		"DELETE",
@@ -449,6 +464,11 @@ func createProtosResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rend.JSON(w, http.StatusOK, resources)
+}
+
+func getProtosResources(w http.ResponseWriter, r *http.Request) {
+	resources := meta.GetProtosResources()
 	rend.JSON(w, http.StatusOK, resources)
 }
 
