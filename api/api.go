@@ -36,7 +36,6 @@ type route struct {
 type routes []route
 
 func uiHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling UI")
 	http.ServeFile(w, r, string(http.Dir(gconfig.StaticAssets))+"/index.html")
 }
 
