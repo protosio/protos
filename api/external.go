@@ -459,6 +459,11 @@ func finishInit(w http.ResponseWriter, r *http.Request) {
 		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 		return
 	}
+	dashboard := struct {
+		Domain string `json:"domain"`
+	}{
+		Domain: meta.GetDashboardDomain(),
+	}
 	gconfig.ProcsQuit["initwebserver"] <- true
-	rend.JSON(w, http.StatusOK, nil)
+	rend.JSON(w, http.StatusOK, dashboard)
 }

@@ -180,6 +180,11 @@ func CleanProtosResources() error {
 	return errors.New("Could not clean Protos resources: MX DNS record not found")
 }
 
+// GetDashboardDomain returns the full domain through which the dashboard can be accessed
+func GetDashboardDomain() string {
+	return "protos." + GetDomain()
+}
+
 // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
 func CreateProtosResources() (map[string]*resource.Resource, error) {
 	resources := map[string]*resource.Resource{}
