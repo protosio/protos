@@ -1,6 +1,12 @@
 package app
 
-import "fmt"
+import (
+	"encoding/gob"
+	"fmt"
+
+	"github.com/protosio/protos/database"
+	"github.com/protosio/protos/platform"
+)
 
 // apps maintains a map of all the applications
 var apps = make(map[string]App)
@@ -32,9 +38,27 @@ var removeAppQueue = make(chan removeAppReq, 100)
 // readAllQueue receives read requests for the whole app list
 var readAllQueue = make(chan chan map[string]App)
 
+// initDB runs when Protos starts and loads all apps from the DB in memory
+func initDB() {
+	log.WithField("proc", "appmanager").Debug("Retrieving applications from DB")
+	gob.Register(&App{})
+	gob.Register(&platform.DockerContainer{})
+
+	dbapps := []App{}
+	err := database.All(&dbapps)
+	if err != nil {
+		log.Fatal("Could not retrieve applications from the database: ", err)
+	}
+
+	for _, app := range dbapps {
+		apps[app.ID] = app
+	}
+}
+
 // Manager runs in its own goroutine and manages access to the app list
-func Manager() {
+func Manager(quit chan bool) {
 	log.WithField("proc", "appmanager").Info("Starting the app manager")
+	initDB()
 	for {
 		select {
 		case readReq := <-readAppQueue:

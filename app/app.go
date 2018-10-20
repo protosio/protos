@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/gob"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -116,6 +115,7 @@ func (app *App) AddAction(action Action) error {
 }
 
 // Save - persists application data to database
+// ToDo: move db save in the manager?
 func (app *App) Save() {
 	err := database.Save(app)
 	if err != nil {
@@ -392,24 +392,6 @@ func ReadByIP(appIP string) (App, error) {
 	}
 	return App{}, errors.New("Could not find any application with IP " + appIP)
 
-}
-
-// LoadAppsDB connects to the Docker daemon and refreshes the internal application list
-func LoadAppsDB() {
-	log.Info("Retrieving applications from DB")
-	gob.Register(&App{})
-	gob.Register(&platform.DockerContainer{})
-
-	apps := []App{}
-	err := database.All(&apps)
-	if err != nil {
-		log.Error("Could not retrieve applications from the database: ", err)
-		return
-	}
-
-	for _, app := range apps {
-		addAppQueue <- app
-	}
 }
 
 // GetApps refreshes the application list and returns it
