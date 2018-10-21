@@ -96,6 +96,7 @@ func applyAPIroutes(r *mux.Router) {
 	if gconfig.StaticAssets != "" {
 		log.Debugf("Running webserver with static assets from %s", gconfig.StaticAssets)
 		fileHandler = http.FileServer(http.Dir(gconfig.StaticAssets))
+		r.PathPrefix("/ui/").Name("ui").Handler(http.HandlerFunc(uiHandler))
 	} else {
 		statikFS, err := fs.New()
 		if err != nil {
@@ -103,9 +104,15 @@ func applyAPIroutes(r *mux.Router) {
 		}
 		log.Debug("Running webserver with embedded static assets")
 		fileHandler = http.FileServer(statikFS)
+		file, err := statikFS.Open("/index.html")
+		if err != nil {
+			log.Fatal(errors.Wrap(err, "Failed to open the embedded index.html file"))
+		}
+		r.PathPrefix("/ui/").Name("ui").Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.ServeContent(w, r, "index.html", time.Now(), file)
+		}))
 	}
 	r.PathPrefix("/static/").Name("static").Handler(http.StripPrefix("/static/", fileHandler))
-	r.PathPrefix("/ui/").Name("ui").Handler(http.HandlerFunc(uiHandler))
 	r.PathPrefix("/").Name("root").Handler(http.HandlerFunc(uiRedirect))
 
 }
