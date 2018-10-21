@@ -58,7 +58,6 @@ type App struct {
 	PublicPorts       []util.Port          `json:"publicports"`
 	InstallerParams   map[string]string    `json:"installer-params"`
 	Capabilities      []string             `json:"capabilities"`
-	Tasks             []string             `json:"tasks"`
 	Resources         []string             `json:"resources"`
 }
 
