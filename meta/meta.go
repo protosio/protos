@@ -144,6 +144,7 @@ func GetPublicIP() string {
 
 // GetTLSCertificate returns the TLS certificate resource owned by the instance
 func GetTLSCertificate() resource.Resource {
+
 	for _, rscid := range metaRoot.Resources {
 		rsc, err := resource.Get(rscid)
 		if err != nil {
@@ -173,6 +174,10 @@ func CleanProtosResources() error {
 					return errors.Wrap(err, "Could not clean Protos resources")
 				}
 				metaRoot.Resources = util.RemoveStringFromSlice(metaRoot.Resources, i)
+				err = database.Save(&metaRoot)
+				if err != nil {
+					return errors.Wrap(err, "Failed to save Protos resources")
+				}
 				return nil
 			}
 		}
