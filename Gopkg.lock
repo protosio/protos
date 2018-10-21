@@ -181,6 +181,14 @@
   version = "v0.8.0"
 
 [[projects]]
+  digest = "1:ea0700160aca4ef099f4e06686a665a87691f4248dddd40796925eda2e46bd64"
+  name = "github.com/rakyll/statik"
+  packages = ["fs"]
+  pruneopts = "UT"
+  revision = "1355192d24db2566a83c3914e187e2a7e7679832"
+  version = "v0.1.5"
+
+[[projects]]
   digest = "1:2e76a73cb51f42d63a2a1a85b3dc5731fd4faf6821b434bd0ef2c099186031d6"
   name = "github.com/rs/xid"
   packages = ["."]
@@ -189,12 +197,12 @@
   version = "v1.2.1"
 
 [[projects]]
-  digest = "1:dc2d85c13ac22c22a1f3170a41a8e1b897fa05134aaf533f16df44f66a25b4a1"
+  digest = "1:3f53e9e4dfbb664cd62940c9c4b65a2171c66acd0b7621a1a6b8e78513525a52"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   pruneopts = "UT"
-  revision = "a67f783a3814b8729bd2dac5780b5f78f8dbd64d"
-  version = "v1.1.0"
+  revision = "ad15b42461921f1fb3529b058c6786c6a45d5162"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:2cab41f59638fdb77dda96ab4f9b5860ef30f48967557254eba127e43c756f2e"
@@ -246,7 +254,7 @@
     "ssh/terminal",
   ]
   pruneopts = "UT"
-  revision = "e3636079e1a4c1f337f212cc5cd2aca108f6c900"
+  revision = "0c41d7ab0a0ee717d4590a44bcb987dfd9e183eb"
 
 [[projects]]
   branch = "master"
@@ -259,18 +267,18 @@
     "proxy",
   ]
   pruneopts = "UT"
-  revision = "146acd28ed5894421fb5aac80ca93bc1b1f46f87"
+  revision = "04a2e542c03f1d053ab3e4d6e5abcd4b66e2be8e"
 
 [[projects]]
   branch = "master"
-  digest = "1:850d28ab022512e2cd3cf511a77f363c29e22689b4031f2050871f5de47ae4a0"
+  digest = "1:56e0fb6e56fa651d9183abd2db5f29d05da203a7c50bf9b331259e5087aca683"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "4497e2df6f9e69048a54498c7affbbec3294ad47"
+  revision = "8e24a49d80f82323e1c4db1b5da3e0f31171a151"
 
 [[projects]]
   digest = "1:b24d38b282bacf9791408a080f606370efa3d364e4b5fd9ba0f7b87786d3b679"
@@ -297,6 +305,7 @@
     "github.com/cnf/structhash",
     "github.com/dgrijalva/jwt-go",
     "github.com/dgrijalva/jwt-go/request",
+    "github.com/docker/distribution",
     "github.com/docker/docker/api/types",
     "github.com/docker/docker/api/types/container",
     "github.com/docker/docker/api/types/mount",
@@ -307,6 +316,7 @@
     "github.com/gorilla/mux",
     "github.com/heroku/docker-registry-client/registry",
     "github.com/pkg/errors",
+    "github.com/rakyll/statik/fs",
     "github.com/rs/xid",
     "github.com/sirupsen/logrus",
     "github.com/tidwall/gjson",
