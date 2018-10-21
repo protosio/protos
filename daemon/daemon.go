@@ -30,6 +30,7 @@ func run(wg *sync.WaitGroup, manager func(chan bool), quit chan bool) {
 
 // StartUp triggers a sequence of steps required to start the application
 func StartUp(configFile string, init bool) {
+	meta.PrintBanner()
 	log.Info("Starting up...")
 	var err error
 	var wg sync.WaitGroup
