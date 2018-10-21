@@ -12,11 +12,15 @@ import (
 	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/resource"
 
+	// statik package is use to embed static web assets in the protos binary
+	_ "github.com/protosio/protos/statik"
+
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/util"
 
 	"github.com/gorilla/mux"
+	"github.com/rakyll/statik/fs"
 	"github.com/unrolled/render"
 	"github.com/urfave/negroni"
 )
@@ -87,7 +91,19 @@ func applyAPIroutes(r *mux.Router) {
 	r.PathPrefix("/api/v1/auth").Handler(authRouter)
 
 	// UI routes
-	fileHandler := http.FileServer(http.Dir(gconfig.StaticAssets))
+
+	var fileHandler http.Handler
+	if gconfig.StaticAssets != "" {
+		log.Debugf("Running webserver with static assets from %s", gconfig.StaticAssets)
+		fileHandler = http.FileServer(http.Dir(gconfig.StaticAssets))
+	} else {
+		statikFS, err := fs.New()
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Debug("Running webserver with embedded static assets")
+		fileHandler = http.FileServer(statikFS)
+	}
 	r.PathPrefix("/static/").Name("static").Handler(http.StripPrefix("/static/", fileHandler))
 	r.PathPrefix("/ui/").Name("ui").Handler(http.HandlerFunc(uiHandler))
 	r.PathPrefix("/").Name("root").Handler(http.HandlerFunc(uiRedirect))
