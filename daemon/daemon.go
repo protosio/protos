@@ -30,7 +30,7 @@ func run(wg *sync.WaitGroup, manager func(chan bool), quit chan bool) {
 }
 
 // StartUp triggers a sequence of steps required to start the application
-func StartUp(configFile string, init bool, version *semver.Version) {
+func StartUp(configFile string, init bool, version *semver.Version, incontainer bool) {
 	config.Load(configFile, version)
 	log.Info("Starting up...")
 	meta.PrintBanner()
@@ -56,9 +56,9 @@ func StartUp(configFile string, init bool, version *semver.Version) {
 	}
 
 	capability.Initialize()
-	platform.Initialize(true)  // required to connect to the Docker daemon
-	resource.LoadResourcesDB() // required to register the resource structs with the DB
-	provider.LoadProvidersDB() // required to register the provider structs with the DB
+	platform.Initialize(incontainer) // required to connect to the Docker daemon
+	resource.LoadResourcesDB()       // required to register the resource structs with the DB
+	provider.LoadProvidersDB()       // required to register the provider structs with the DB
 
 	wg.Add(3)
 	// start app manager
