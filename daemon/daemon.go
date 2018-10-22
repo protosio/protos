@@ -33,10 +33,10 @@ func run(wg *sync.WaitGroup, manager func(chan bool), quit chan bool) {
 func StartUp(configFile string, init bool, version *semver.Version, incontainer bool) {
 	config.Load(configFile, version)
 	log.Info("Starting up...")
-	meta.PrintBanner()
 	var err error
 	var wg sync.WaitGroup
 	gconfig.InitMode = (database.Exists() == false) || init
+	meta.PrintBanner()
 
 	// Generate secret key used for JWT
 	log.Info("Generating secret for JWT")
