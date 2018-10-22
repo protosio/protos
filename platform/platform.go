@@ -50,5 +50,5 @@ func Initialize(inContainer bool) {
 	}
 	netConfig := protosNet.IPAM.Config[0]
 	log.Debugf("Running using internal Docker network %s(%s), gateway %s in subnet %s", protosNet.Name, protosNet.ID, netConfig.Gateway, netConfig.Subnet)
-	protosIP = netConfig.Gateway
+	gconfig.InternalIP = netConfig.Gateway
 }

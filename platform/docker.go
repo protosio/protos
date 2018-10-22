@@ -75,7 +75,6 @@ type DockerVolume struct {
 }
 
 var dockerClient *docker.Client
-var protosIP string
 
 // ConnectDocker connects to the Docker daemon
 func ConnectDocker() {
@@ -207,13 +206,15 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 		Env:          combineEnv(envvars),
 	}
 	hostConfig := &container.HostConfig{
-		Links:        []string{"protos"},
 		PortBindings: portBindings,
 		Mounts:       mounts,
 	}
-	if protosIP != "" {
-		hostConfig.ExtraHosts = []string{"protos:" + protosIP}
+	if gconfig.InternalIP != "" {
+		hostConfig.ExtraHosts = []string{"protos:" + gconfig.InternalIP}
+	} else {
+		hostConfig.Links = []string{"protos"}
 	}
+
 	networkConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			protosNetwork: &network.EndpointSettings{

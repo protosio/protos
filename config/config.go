@@ -25,6 +25,7 @@ type Config struct {
 	AppStoreURL    string
 	AppStoreHost   string
 	ProcsQuit      map[string]chan bool
+	InternalIP     string
 	Version        *semver.Version
 }
 

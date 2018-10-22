@@ -144,9 +144,15 @@ func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 		TLSConfig:    cfg,
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 	}
-	ips, err := util.GetLocalIPs()
-	if err != nil {
-		log.Fatal(err)
+
+	var ips []string
+	if gconfig.InternalIP != "" {
+		ips = []string{gconfig.InternalIP}
+	} else {
+		ips, err = util.GetLocalIPs()
+		if err != nil {
+			log.Fatal(errors.Wrap(err, "Failed to start HTTPS server"))
+		}
 	}
 	for _, ip := range ips {
 		log.Infof("Listening internally on %s:%s (HTTP)", ip, httpport)
@@ -156,7 +162,7 @@ func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 	}
 
 	go func() {
-		log.Infof("Listening on port %s (HTTPS)", httpsport)
+		log.Infof("Listening on %s (HTTPS)", srv.Addr)
 		if err := srv.ListenAndServeTLS("", ""); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
 				log.Info("Init webserver terminated successfully")
@@ -199,14 +205,14 @@ func WebsrvInit(quit chan bool) {
 	n.UseHandler(mainRtr)
 
 	httpport := strconv.Itoa(gconfig.HTTPport)
-	log.Info("Starting init webserver on port " + httpport)
 	srv := &http.Server{
-		Addr:           ":" + httpport,
+		Addr:           "0.0.0.0:" + httpport,
 		Handler:        n,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
+	log.Info("Starting init webserver on " + srv.Addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
