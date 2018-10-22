@@ -189,7 +189,11 @@ func CleanProtosResources() error {
 
 // GetDashboardDomain returns the full domain through which the dashboard can be accessed
 func GetDashboardDomain() string {
-	return "protos." + GetDomain()
+	dashboardDomain := "protos." + GetDomain()
+	if gconfig.HTTPSport != 443 {
+		dashboardDomain = fmt.Sprintf("%s:%d", dashboardDomain, gconfig.HTTPSport)
+	}
+	return dashboardDomain
 }
 
 // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
