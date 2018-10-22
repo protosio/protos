@@ -3,7 +3,9 @@ package config
 import (
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/util"
 
 	"gopkg.in/yaml.v2"
@@ -24,7 +26,15 @@ type Config struct {
 	ProcsQuit      map[string]chan bool
 }
 
-var config = Config{InitMode: true, AppStoreURL: "https://apps.protos.io", AppStoreHost: "apps.protos.io", ProcsQuit: make(map[string]chan bool)}
+var config = Config{
+	WorkDir:        "/opt/protos/",
+	HTTPport:       8080,
+	HTTPSport:      8443,
+	DockerEndpoint: "unix:///var/run/docker.sock",
+	InitMode:       false,
+	AppStoreURL:    "https://apps.protos.io",
+	AppStoreHost:   "apps.protos.io",
+	ProcsQuit:      make(map[string]chan bool)}
 
 // Gconfig maintains a global view of the application configuration parameters.
 // var gconfig = &config
@@ -36,7 +46,11 @@ func Load(configFile string) {
 	filename, _ := filepath.Abs(configFile)
 	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Fatal(err)
+		if strings.Contains(err.Error(), "no such file or directory") {
+			log.Info("No config file found, using default config values")
+		} else {
+			log.Fatal(errors.Wrap(err, "Failed to load protos config file"))
+		}
 	}
 
 	err = yaml.Unmarshal(yamlFile, &config)
