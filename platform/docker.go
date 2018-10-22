@@ -28,8 +28,10 @@ import (
 
 const (
 	protosNetwork = "protosnet"
-	// ErrDockerImageNotFound means the requested docker image is not found on the locally
+	// ErrDockerImageNotFound means the requested docker image is not found locally
 	ErrDockerImageNotFound = 101
+	// ErrDockerNetworkNotFound means the requested docker network is not found locally
+	ErrDockerNetworkNotFound = 102
 )
 
 type downloadEvent struct {
@@ -126,7 +128,7 @@ func GetDockerNetwork(name string) (types.NetworkResource, error) {
 		return net, errors.Wrap(err, "Failed to retrieve network "+name)
 	}
 	if len(networks) == 0 {
-		return net, errors.Wrap(err, "Failed to retrieve network "+name)
+		return net, util.NewTypedError("Could not find network "+name, ErrDockerNetworkNotFound)
 	}
 	net = networks[0]
 	return net, nil

@@ -35,9 +35,13 @@ func Initialize(inContainer bool) {
 	}
 	protosNet, err := GetDockerNetwork(protosNetwork)
 	if err != nil {
-		log.Errorf("YOLO: %s", err.Error())
-		protosNet, err = CreateDockerNetwork(protosNetwork)
-		if err != nil {
+		if util.IsErrorType(err, ErrDockerNetworkNotFound) {
+			// if network is not found it should be created
+			protosNet, err = CreateDockerNetwork(protosNetwork)
+			if err != nil {
+				log.Fatal(errors.Wrap(err, "Failed to initialize Docker platform"))
+			}
+		} else {
 			log.Fatal(errors.Wrap(err, "Failed to initialize Docker platform"))
 		}
 	}
@@ -45,6 +49,6 @@ func Initialize(inContainer bool) {
 		log.Fatalf("Failed to initialize Docker platform: no network config for network %s(%s)", protosNet.Name, protosNet.ID)
 	}
 	netConfig := protosNet.IPAM.Config[0]
-	log.Debugf("Running using internal Docker network %s(%s), gateway %s int subnet %s", protosNet.Name, protosNet.ID, netConfig.Gateway, netConfig.Subnet)
+	log.Debugf("Running using internal Docker network %s(%s), gateway %s in subnet %s", protosNet.Name, protosNet.ID, netConfig.Gateway, netConfig.Subnet)
 	protosIP = netConfig.Gateway
 }
