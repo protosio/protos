@@ -4,6 +4,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/Masterminds/semver"
 	"github.com/protosio/protos/api"
 	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/provider"
@@ -29,12 +30,12 @@ func run(wg *sync.WaitGroup, manager func(chan bool), quit chan bool) {
 }
 
 // StartUp triggers a sequence of steps required to start the application
-func StartUp(configFile string, init bool) {
-	meta.PrintBanner()
+func StartUp(configFile string, init bool, version *semver.Version) {
+	config.Load(configFile, version)
 	log.Info("Starting up...")
+	meta.PrintBanner()
 	var err error
 	var wg sync.WaitGroup
-	config.Load(configFile)
 	gconfig.InitMode = (database.Exists() == false) || init
 
 	// Generate secret key used for JWT

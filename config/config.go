@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/util"
 
@@ -24,6 +25,7 @@ type Config struct {
 	AppStoreURL    string
 	AppStoreHost   string
 	ProcsQuit      map[string]chan bool
+	Version        *semver.Version
 }
 
 var config = Config{
@@ -41,7 +43,7 @@ var config = Config{
 var log = util.GetLogger("config")
 
 // Load reads the configuration from a file and maps it to the config struct
-func Load(configFile string) {
+func Load(configFile string, version *semver.Version) {
 	log.Info("Reading main config [", configFile, "]")
 	filename, _ := filepath.Abs(configFile)
 	yamlFile, err := ioutil.ReadFile(filename)
@@ -57,6 +59,7 @@ func Load(configFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	config.Version = version
 }
 
 // Get returns a pointer to the global config structure

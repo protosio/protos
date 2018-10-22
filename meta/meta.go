@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/resource"
 
 	"github.com/protosio/protos/database"
@@ -17,6 +18,7 @@ import (
 )
 
 var log = util.GetLogger("meta")
+var gconfig = config.Get()
 
 type meta struct {
 	ID        string

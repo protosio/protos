@@ -6,6 +6,7 @@ import (
 	"github.com/protosio/protos/daemon"
 	"github.com/protosio/protos/util"
 
+	"github.com/Masterminds/semver"
 	"github.com/sirupsen/logrus"
 	cli "gopkg.in/urfave/cli.v1"
 )
@@ -16,7 +17,11 @@ func main() {
 	app.Name = "protos"
 	app.Author = "Alex Giurgiu"
 	app.Email = "alex@giurgiu.io"
-	app.Version = "0.0.1"
+	version, err := semver.NewVersion("0.0.1-alpha.1")
+	if err != nil {
+		panic(err)
+	}
+	app.Version = version.String()
 
 	var configFile string
 	var loglevel string
@@ -50,7 +55,7 @@ func main() {
 			Name:  "daemon",
 			Usage: "start the server",
 			Action: func(c *cli.Context) error {
-				daemon.StartUp(configFile, false)
+				daemon.StartUp(configFile, false, version)
 				return nil
 			},
 		},
@@ -58,7 +63,7 @@ func main() {
 			Name:  "init",
 			Usage: "create initial configuration and user",
 			Action: func(c *cli.Context) error {
-				daemon.StartUp(configFile, true)
+				daemon.StartUp(configFile, true, version)
 				return nil
 			},
 		},
