@@ -14,6 +14,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	volumetypes "github.com/docker/docker/api/types/volume"
@@ -72,6 +73,7 @@ type DockerVolume struct {
 }
 
 var dockerClient *docker.Client
+var protosIP string
 
 // ConnectDocker connects to the Docker daemon
 func ConnectDocker() {
@@ -97,8 +99,9 @@ func combineEnv(params map[string]string) []string {
 // Docker network operations
 //
 
-// CreateDockerNetwork creates a Docker network
-func CreateDockerNetwork(name string) (string, error) {
+// CreateDockerNetwork creates the Protos Docker network
+func CreateDockerNetwork(name string) (types.NetworkResource, error) {
+	var net types.NetworkResource
 	netResponse, err := dockerClient.NetworkCreate(context.Background(), name, types.NetworkCreate{
 		CheckDuplicate: true,
 		Driver:         "bridge",
@@ -106,18 +109,27 @@ func CreateDockerNetwork(name string) (string, error) {
 		Internal:       false,
 	})
 	if err != nil {
-		return "", errors.Wrap(err, "Failed to create network "+name)
+		return net, errors.Wrap(err, "Failed to create network "+name)
 	}
-	return netResponse.ID, nil
+	net, err = dockerClient.NetworkInspect(context.Background(), netResponse.ID, types.NetworkInspectOptions{})
+	if err != nil {
+		return net, errors.Wrap(err, "Failed to create network "+name)
+	}
+	return net, nil
 }
 
-// DockerNetworkExists checks if a Docker network exists and returns a bool
-func DockerNetworkExists(id string) bool {
-	_, err := dockerClient.NetworkInspect(context.Background(), id, types.NetworkInspectOptions{})
+// GetDockerNetwork returns a Docker network based on its name
+func GetDockerNetwork(name string) (types.NetworkResource, error) {
+	var net types.NetworkResource
+	networks, err := dockerClient.NetworkList(context.Background(), types.NetworkListOptions{Filters: filters.NewArgs(filters.KeyValuePair{Key: "name", Value: protosNetwork})})
 	if err != nil {
-		return false
+		return net, errors.Wrap(err, "Failed to retrieve network "+name)
 	}
-	return true
+	if len(networks) == 0 {
+		return net, errors.Wrap(err, "Failed to retrieve network "+name)
+	}
+	net = networks[0]
+	return net, nil
 }
 
 //
@@ -196,6 +208,9 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 		Links:        []string{"protos"},
 		PortBindings: portBindings,
 		Mounts:       mounts,
+	}
+	if protosIP != "" {
+		hostConfig.ExtraHosts = []string{"protos:" + protosIP}
 	}
 	networkConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
