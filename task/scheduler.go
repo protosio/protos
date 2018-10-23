@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
 )
 
@@ -39,7 +40,7 @@ var updateTaskQueue = make(chan Task, 1000)
 var readAllQueue = make(chan chan map[string]Task)
 
 func createTask(taskType Type) Task {
-	ts := time.Now().Truncate(time.Millisecond)
+	ts := util.ProtosTime(time.Now())
 	tsk := Task{
 		ID:        xid.New().String(),
 		Status:    REQUESTED,

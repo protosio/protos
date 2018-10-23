@@ -32,11 +32,11 @@ type Progress struct {
 
 // Task represents an (a)synchronous piece of work that Protos acts upon
 type Task struct {
-	ID         string     `json:"id"`
-	Status     string     `json:"status"`
-	Progress   *Progress  `json:"progress"`
-	StartedAt  *time.Time `json:"started-at,omitempty"`
-	FinishedAt *time.Time `json:"finished-at,omitempty"`
+	ID         string           `json:"id"`
+	Status     string           `json:"status"`
+	Progress   *Progress        `json:"progress"`
+	StartedAt  *util.ProtosTime `json:"started-at,omitempty"`
+	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
 	taskType   Type
 
 	// Communication channels
@@ -56,7 +56,7 @@ func (t *Task) Run() {
 		t.Status = FINISHED
 	}
 	t.Progress.Percentage = 100
-	ts := time.Now().Truncate(time.Millisecond)
+	ts := util.ProtosTime(time.Now())
 	t.FinishedAt = &ts
 	t.Update()
 }
