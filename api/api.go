@@ -51,7 +51,27 @@ func uiRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ui/", 303)
 }
 
-func applyAPIroutes(r *mux.Router) {
+func applyInitAPIroutes(r *mux.Router) {
+	for _, route := range externalInitRoutes {
+		r.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+		if route.Capability != nil {
+			capability.SetMethodCap(route.Name, route.Capability)
+		}
+	}
+}
+
+func applyAuthRoutes(r *mux.Router, enableRegister bool) {
+	// Authentication routes
+	authRouter := mux.NewRouter().PathPrefix("/api/v1/auth").Subrouter().StrictSlash(true)
+	if enableRegister == true {
+		authRouter.Methods("POST").Path("/register").Name("register").Handler(http.HandlerFunc(RegisterHandler))
+	}
+	authRouter.Methods("POST").Path("/login").Name("login").Handler(http.HandlerFunc(LoginHandler))
+
+	r.PathPrefix("/api/v1/auth").Handler(authRouter)
+}
+
+func applyInternalAPIroutes(r *mux.Router) {
 
 	// Internal routes
 	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
@@ -66,10 +86,13 @@ func applyAPIroutes(r *mux.Router) {
 		negroni.HandlerFunc(InternalRequestValidator),
 		negroni.Wrap(internalRouter),
 	))
+}
+
+func applyExternalAPIroutes(r *mux.Router) *mux.Router {
 
 	// External routes (require auth)
 	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
-	for _, route := range clientRoutes {
+	for _, route := range externalRoutes {
 		externalRouter.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
 		if route.Capability != nil {
 			capability.SetMethodCap(route.Name, route.Capability)
@@ -80,18 +103,11 @@ func applyAPIroutes(r *mux.Router) {
 		negroni.HandlerFunc(ExternalRequestValidator),
 		negroni.Wrap(externalRouter),
 	))
+	return externalRouter
+}
 
-	// Authentication routes
-	authRouter := mux.NewRouter().PathPrefix("/api/v1/auth").Subrouter().StrictSlash(true)
-	if gconfig.InitMode == true {
-		authRouter.Methods("POST").Path("/register").Name("register").Handler(http.HandlerFunc(RegisterHandler))
-	}
-	authRouter.Methods("POST").Path("/login").Name("login").Handler(http.HandlerFunc(LoginHandler))
-
-	r.PathPrefix("/api/v1/auth").Handler(authRouter)
-
+func applyStaticRoutes(r *mux.Router) {
 	// UI routes
-
 	var fileHandler http.Handler
 	if gconfig.StaticAssets != "" {
 		log.Debugf("Running webserver with static assets from %s", gconfig.StaticAssets)
@@ -183,7 +199,10 @@ func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 func Websrv(quit chan bool) {
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAPIroutes(mainRtr)
+	applyAuthRoutes(mainRtr, false)
+	applyInternalAPIroutes(mainRtr)
+	applyExternalAPIroutes(mainRtr)
+	applyStaticRoutes(mainRtr)
 
 	// Negroni middleware
 	n := negroni.New()
@@ -197,7 +216,11 @@ func Websrv(quit chan bool) {
 // WebsrvInit starts an HTTP server used only during the initialisation process
 func WebsrvInit(quit chan bool) {
 	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAPIroutes(mainRtr)
+	applyAuthRoutes(mainRtr, true)
+	externalRouter := applyExternalAPIroutes(mainRtr)
+	applyInitAPIroutes(externalRouter)
+	applyInternalAPIroutes(mainRtr)
+	applyStaticRoutes(mainRtr)
 
 	// Negroni middleware
 	n := negroni.New()
