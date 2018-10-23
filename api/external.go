@@ -113,6 +113,13 @@ var externalRoutes = routes{
 		searchAppStore,
 		nil,
 	},
+	route{
+		"getInfo",
+		"GET",
+		"/info",
+		getInfo,
+		nil,
+	},
 }
 
 //
@@ -380,4 +387,17 @@ func searchAppStore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rend.JSON(w, http.StatusOK, installers)
+}
+
+//
+// Info endpoint is used for now only to retrieve some general information
+//
+
+func getInfo(w http.ResponseWriter, r *http.Request) {
+	info := struct {
+		Version string `json:"version"`
+	}{
+		Version: gconfig.Version.String(),
+	}
+	rend.JSON(w, http.StatusOK, info)
 }
