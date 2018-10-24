@@ -310,7 +310,7 @@ func getResource(w http.ResponseWriter, r *http.Request) {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
-	rend.JSON(w, http.StatusOK, rsc)
+	rend.JSON(w, http.StatusOK, rsc.Sanitize())
 
 }
 
