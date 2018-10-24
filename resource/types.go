@@ -1,16 +1,19 @@
 package resource
 
+// RType is a string wrapper used for typechecking the resource types
 type RType string
 
 const (
+	// Certificate represents a TLS/SSL certificate
 	Certificate = RType("certificate")
-	DNS         = RType("dns")
-	Mail        = RType("mail")
+	// DNS represents a DNS record
+	DNS = RType("dns")
+	// Mail is not used yet
+	Mail = RType("mail")
 )
 
 // Type is an interface that satisfies all the resource types
 type Type interface {
-	GetHash() string
 	Update(Type)
 	Sanitize() Type
 }
@@ -23,13 +26,11 @@ type DNSResource struct {
 	TTL   int    `json:"ttl" hash:"-"`
 }
 
-func (rsc *DNSResource) GetHash() string {
-	return ""
-}
-
+// Update method is not used for the DNS resource type
 func (rsc *DNSResource) Update(newValue Type) {
 }
 
+// Sanitize removes any sensitive information from the resource
 func (rsc *DNSResource) Sanitize() Type {
 	return rsc
 }
@@ -43,10 +44,7 @@ type CertificateResource struct {
 	CSR               []byte `json:"csr,omitempty" hash:"-"`
 }
 
-func (rsc *CertificateResource) GetHash() string {
-	return ""
-}
-
+// Update takes a new resource type value and updates the relevant fields
 func (rsc *CertificateResource) Update(newValue Type) {
 	newCert := newValue.(*CertificateResource)
 	rsc.PrivateKey = newCert.PrivateKey
@@ -55,11 +53,10 @@ func (rsc *CertificateResource) Update(newValue Type) {
 	rsc.CSR = newCert.CSR
 }
 
+// Sanitize removes any sensitive information from the resource
 func (rsc *CertificateResource) Sanitize() Type {
 	output := *rsc
 	output.PrivateKey = []byte{}
-	output.Certificate = []byte{}
-	output.IssuerCertificate = []byte{}
 	output.CSR = []byte{}
 	return &output
 }

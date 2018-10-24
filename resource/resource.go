@@ -14,14 +14,20 @@ import (
 
 var log = util.GetLogger("resource")
 
+// RStatus is a string wrapper used for typechecking the resource status
 type RStatus string
 
 const (
+	// Requested status is set at creation time and indicates that a resource provider should create this resource
 	Requested = RStatus("requested")
-	Created   = RStatus("created")
-	Unknown   = RStatus("unknown")
+	// Created status is the final final state of a resource, ready to be used by an application
+	Created = RStatus("created")
+	// Unknown status is for error or uknown states
+	Unknown = RStatus("unknown")
 )
 
+// Resource is the internal abstract representation of things like DNS or TLS certificates.
+// Anything that is required for an application to run correctly could and should be modeled as a resource. Think DNS, TLS, IPs, PORTs etc.
 type Resource struct {
 	ID     string  `json:"id" hash:"-"`
 	Type   RType   `json:"type"`
