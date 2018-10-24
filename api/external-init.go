@@ -69,8 +69,6 @@ func removeInitProvider(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
 				log.Error(err.Error())
-				rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-				return
 			}
 			err = a.Remove()
 			if err != nil {
