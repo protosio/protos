@@ -59,6 +59,7 @@ type App struct {
 	InstallerParams   map[string]string    `json:"installer-params"`
 	Capabilities      []string             `json:"capabilities"`
 	Resources         []string             `json:"resources"`
+	Tasks             []string             `json:"tasks"`
 }
 
 //
@@ -335,7 +336,7 @@ func (app App) ValidateCapability(cap *capability.Capability) error {
 //
 
 // Create takes an image and creates an application, without starting it
-func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata) (*App, error) {
+func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata, taskID string) (*App, error) {
 
 	var app *App
 	if name == "" {
@@ -349,7 +350,9 @@ func Create(installerID string, installerVersion string, name string, installerP
 
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app = &App{Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion, PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams, InstallerMetadata: installerMetadata}
+	app = &App{Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
+		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
+		InstallerMetadata: installerMetadata, Tasks: []string{taskID}}
 
 	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
 	if app.ValidateCapability(capability.PublicDNS) == nil {

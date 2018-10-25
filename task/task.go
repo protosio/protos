@@ -34,7 +34,7 @@ type Progress struct {
 type Task struct {
 	ID         string           `json:"id"`
 	Status     string           `json:"status"`
-	Progress   *Progress        `json:"progress"`
+	Progress   Progress         `json:"progress"`
 	StartedAt  *util.ProtosTime `json:"started-at,omitempty"`
 	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
 	taskType   Type

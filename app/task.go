@@ -31,7 +31,7 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
 
-	app, err := Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata)
+	app, err := Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, pt.ID)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
