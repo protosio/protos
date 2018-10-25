@@ -9,7 +9,7 @@ import (
 )
 
 // apps maintains a map of all the applications
-var apps = make(map[string]App)
+var apps map[string]App
 
 type readAppResp struct {
 	app App
@@ -39,7 +39,7 @@ var removeAppQueue = make(chan removeAppReq, 100)
 var readAllQueue = make(chan chan map[string]App)
 
 // initDB runs when Protos starts and loads all apps from the DB in memory
-func initDB() {
+func initDB() map[string]App {
 	log.WithField("proc", "appmanager").Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 	gob.Register(&platform.DockerContainer{})
@@ -47,18 +47,20 @@ func initDB() {
 	dbapps := []App{}
 	err := database.All(&dbapps)
 	if err != nil {
-		log.Fatal("Could not retrieve applications from the database: ", err)
+		log.Fatal("Could not retrieve applications from database: ", err)
 	}
 
+	lapps := make(map[string]App)
 	for _, app := range dbapps {
-		apps[app.ID] = app
+		lapps[app.ID] = app
 	}
+	return lapps
 }
 
 // Manager runs in its own goroutine and manages access to the app list
 func Manager(quit chan bool) {
 	log.WithField("proc", "appmanager").Info("Starting the app manager")
-	initDB()
+	apps = initDB()
 	for {
 		select {
 		case readReq := <-readAppQueue:
