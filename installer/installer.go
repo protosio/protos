@@ -230,10 +230,10 @@ func (inst Installer) IsPlatformImageAvailable(version string) bool {
 }
 
 // Remove Installer removes an installer image
-func (installer *Installer) Remove() error {
-	log.Info("Removing installer ", installer.Name, "[", installer.ID, "]")
+func (inst *Installer) Remove() error {
+	log.Info("Removing installer ", inst.Name, "[", inst.ID, "]")
 
-	for _, metadata := range installer.Versions {
+	for _, metadata := range inst.Versions {
 		err := platform.RemoveDockerImage(metadata.PlatformID)
 		if err != nil {
 			return errors.New("Failed to remove installer: " + err.Error())
