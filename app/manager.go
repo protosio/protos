@@ -8,8 +8,8 @@ import (
 	"github.com/protosio/protos/platform"
 )
 
-// apps maintains a map of all the applications
-var apps map[string]App
+// mapps maintains a map of all the applications
+var mapps map[string]App
 
 type readAppResp struct {
 	app App
@@ -60,26 +60,26 @@ func initDB() map[string]App {
 // Manager runs in its own goroutine and manages access to the app list
 func Manager(quit chan bool) {
 	log.WithField("proc", "appmanager").Info("Starting the app manager")
-	apps = initDB()
+	mapps = initDB()
 	for {
 		select {
 		case readReq := <-readAppQueue:
-			if app, found := apps[readReq.id]; found {
+			if app, found := mapps[readReq.id]; found {
 				readReq.resp <- readAppResp{app: app}
 			} else {
 				readReq.resp <- readAppResp{err: fmt.Errorf("Could not find app %s", readReq.id)}
 			}
 		case app := <-addAppQueue:
-			apps[app.ID] = app
+			mapps[app.ID] = app
 		case removeReq := <-removeAppQueue:
-			if app, found := apps[removeReq.id]; found {
-				delete(apps, app.ID)
+			if app, found := mapps[removeReq.id]; found {
+				delete(mapps, app.ID)
 				removeReq.resp <- nil
 			} else {
 				removeReq.resp <- fmt.Errorf("Could not find app %s", removeReq.id)
 			}
 		case readAllResp := <-readAllQueue:
-			readAllResp <- apps
+			readAllResp <- mapps
 		case <-quit:
 			log.Info("Shutting down app manager")
 			return
