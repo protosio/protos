@@ -22,6 +22,7 @@ const (
 // Type is the interface that all task types need to adhere too
 type Type interface {
 	Run(*Task) error
+	Name() string
 }
 
 // Progress tracks the percentage and message of a task

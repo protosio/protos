@@ -15,6 +15,10 @@ type CreateAppTask struct {
 	StartOnCreation  bool
 }
 
+// Name returns the task type name
+func (t CreateAppTask) Name() string {
+	return "Create application"
+}
 // Run starts the async task
 func (t CreateAppTask) Run(pt *task.Task) error {
 	log.WithField("proc", pt.ID).Debugf("Running app creation task [%s] based on installer %s:%s", t.InstallerID, t.InstallerVersion, t.AppName)

@@ -72,6 +72,7 @@ func createTask(taskType Type) Task {
 	ts := util.ProtosTime(time.Now())
 	tsk := Task{
 		ID:        xid.New().String(),
+		Name:      taskType.Name(),
 		Status:    REQUESTED,
 		Progress:  Progress{Percentage: 0},
 		StartedAt: &ts,
