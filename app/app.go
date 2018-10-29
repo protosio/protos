@@ -114,6 +114,12 @@ func (app *App) AddAction(action Action) error {
 	}
 }
 
+// AddTask adds a task owned by the applications
+func (app *App) AddTask(id string) {
+	app.Tasks = append(app.Tasks, id)
+	app.Save()
+}
+
 // Save - persists application data to database
 // ToDo: move db save in the manager?
 func (app *App) Save() {
