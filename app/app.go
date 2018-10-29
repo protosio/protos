@@ -7,6 +7,7 @@ import (
 
 	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/meta"
+	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/database"
@@ -340,6 +341,18 @@ func (app App) ValidateCapability(cap *capability.Capability) error {
 //
 // Package public methods
 //
+
+// CreateAsync creates, runs and returns a task of type CreateAppTask
+func CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) task.Task {
+	taskType := CreateAppTask{
+		InstallerID:      installerID,
+		InstallerVersion: installerVersion,
+		AppName:          appName,
+		InstallerParams:  installerParams,
+		StartOnCreation:  startOnCreation,
+	}
+	return task.New(taskType)
+}
 
 // Create takes an image and creates an application, without starting it
 func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata, taskID string) (*App, error) {

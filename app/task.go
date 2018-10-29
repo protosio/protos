@@ -15,18 +15,6 @@ type CreateAppTask struct {
 	StartOnCreation  bool
 }
 
-// CreateAppAsync creates, runs and returns a task of type CreateAppTask
-func CreateAppAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) task.Task {
-	taskType := CreateAppTask{
-		InstallerID:      installerID,
-		InstallerVersion: installerVersion,
-		AppName:          appName,
-		InstallerParams:  installerParams,
-		StartOnCreation:  startOnCreation,
-	}
-	return task.New(taskType)
-}
-
 // Name returns the task type name
 func (t CreateAppTask) Name() string {
 	return "Create application"

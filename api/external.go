@@ -145,7 +145,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task := app.CreateAppAsync(
+	task := app.CreateAsync(
 		appParams.InstallerID,
 		appParams.InstallerVersion,
 		appParams.Name,
