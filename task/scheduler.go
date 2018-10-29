@@ -78,7 +78,8 @@ func createTask(taskType Type) Task {
 		StartedAt: &ts,
 		taskType:  taskType,
 
-		quitChan: make(chan bool),
+		quitChan: make(chan bool, 1),
+		finish:   make(chan error, 1),
 	}
 	saveTask(tsk)
 	log.WithField("proc", "taskscheduler").Debugf("Created new task %s with id %s", reflect.TypeOf(taskType), tsk.ID)
