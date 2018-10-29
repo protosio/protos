@@ -72,10 +72,10 @@ func (t *Task) Update() {
 //
 
 // New creates a new task and returns it
-func New(taskType Type) (Task, error) {
+func New(taskType Type) Task {
 	rt := requestTask{t: taskType, resp: make(chan Task)}
 	schedulerQueue <- rt
-	return <-rt.resp, nil
+	return <-rt.resp
 }
 
 // GetAll returns all the available tasks
