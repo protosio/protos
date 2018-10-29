@@ -6,7 +6,7 @@ import (
 	"github.com/protosio/protos/task"
 )
 
-// CreateAppTask is an async task for creating an app
+// CreateAppTask creates an app and conforms to the task interface
 type CreateAppTask struct {
 	InstallerID      string
 	InstallerVersion string
@@ -15,13 +15,26 @@ type CreateAppTask struct {
 	StartOnCreation  bool
 }
 
+// CreateAppAsync creates, runs and returns a task of type CreateAppTask
+func CreateAppAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) task.Task {
+	taskType := CreateAppTask{
+		InstallerID:      installerID,
+		InstallerVersion: installerVersion,
+		AppName:          appName,
+		InstallerParams:  installerParams,
+		StartOnCreation:  startOnCreation,
+	}
+	return task.New(taskType)
+}
+
 // Name returns the task type name
 func (t CreateAppTask) Name() string {
 	return "Create application"
 }
+
 // Run starts the async task
 func (t CreateAppTask) Run(pt *task.Task) error {
-	log.WithField("proc", pt.ID).Debugf("Running app creation task [%s] based on installer %s:%s", t.InstallerID, t.InstallerVersion, t.AppName)
+	log.WithField("proc", pt.ID).Debugf("Running app creation task [%s] based on installer %s:%s", pt.ID, t.InstallerID, t.InstallerVersion)
 	pt.Status = task.INPROGRESS
 	pt.Update()
 

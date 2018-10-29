@@ -145,19 +145,13 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := task.New(app.CreateAppTask{
-		InstallerID:      appParams.InstallerID,
-		InstallerVersion: appParams.InstallerVersion,
-		AppName:          appParams.Name,
-		InstallerParams:  appParams.InstallerParams,
-		StartOnCreation:  true,
-	})
-
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+	task := app.CreateAppAsync(
+		appParams.InstallerID,
+		appParams.InstallerVersion,
+		appParams.Name,
+		appParams.InstallerParams,
+		true,
+	)
 
 	rend.JSON(w, http.StatusAccepted, task)
 }
