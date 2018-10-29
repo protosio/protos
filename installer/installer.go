@@ -213,8 +213,7 @@ func (inst Installer) Download(t *task.Task, version string) error {
 
 // DownloadAsync triggers an async installer download, returns a generic task
 func (inst Installer) DownloadAsync(version string) task.Task {
-	dt := DownloadTask{Inst: inst, Version: version}
-	return task.New(dt)
+	return task.New(DownloadTask{Inst: inst, Version: version})
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
