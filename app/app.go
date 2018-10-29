@@ -183,6 +183,11 @@ func (app *App) RefreshPlatform() {
 	app.Status = app.Rtu.GetStatus()
 }
 
+// StartAsync asynchronously starts an application and returns a task
+func (app App) StartAsync() task.Task {
+	return task.New(StartAppTask{app: app})
+}
+
 // Start starts an application
 func (app *App) Start() error {
 	log.Info("Starting application ", app.Name, "[", app.ID, "]")
@@ -199,6 +204,11 @@ func (app *App) Start() error {
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
 	return nil
+}
+
+// StopAsync asynchronously stops an application and returns a task
+func (app App) StopAsync() task.Task {
+	return task.New(StopAppTask{app: app})
 }
 
 // Stop stops an application

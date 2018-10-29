@@ -6,7 +6,7 @@ import (
 	"github.com/protosio/protos/task"
 )
 
-// CreateAppTask creates an app and conforms to the task interface
+// CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
 	InstallerID      string
 	InstallerVersion string
@@ -69,11 +69,53 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 	pt.Update()
 
 	if t.StartOnCreation {
-		err = app.Start()
+		tsk := app.StartAsync()
+		app.AddTask(tsk.ID)
+		err := tsk.Wait()
 		if err != nil {
 			return errors.Wrapf(err, "Could not create application %s", t.AppName)
 		}
 	}
 
 	return nil
+}
+
+//
+// Set app state tasks
+//
+
+// StartAppTask starts an app and implements the task interface
+type StartAppTask struct {
+	app App
+}
+
+// Name returns the task type name
+func (t StartAppTask) Name() string {
+	return "Start application"
+}
+
+// Run starts the async task
+func (t StartAppTask) Run(pt *task.Task) error {
+	pt.Status = task.INPROGRESS
+	pt.Progress.Percentage = 50
+	pt.Update()
+	return t.app.Start()
+}
+
+// StopAppTask stops an app and implements the task interface
+type StopAppTask struct {
+	app App
+}
+
+// Name returns the task type name
+func (t StopAppTask) Name() string {
+	return "Stop application"
+}
+
+// Run starts the async task
+func (t StopAppTask) Run(pt *task.Task) error {
+	pt.Status = task.INPROGRESS
+	pt.Progress.Percentage = 50
+	pt.Update()
+	return t.app.Stop()
 }
