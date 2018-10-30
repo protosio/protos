@@ -110,6 +110,6 @@ func finishInit(w http.ResponseWriter, r *http.Request) {
 	}{
 		Domain: meta.GetDashboardDomain(),
 	}
-	gconfig.ProcsQuit["initwebserver"] <- true
+	gconfig.ProcsQuit["initwebserver"] <- false
 	rend.JSON(w, http.StatusOK, dashboard)
 }

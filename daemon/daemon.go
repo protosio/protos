@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/Masterminds/semver"
 	"github.com/protosio/protos/api"
@@ -24,13 +26,29 @@ var log = util.GetLogger("daemon")
 
 func run(wg *sync.WaitGroup, manager func(chan bool), quit chan bool) {
 	go func() {
+		wg.Add(1)
 		manager(quit)
 		wg.Done()
 	}()
 }
 
+func catchSignals(sigs chan os.Signal) {
+	sig := <-sigs
+	log.Infof("Received OS signal %s. Terminating", sig.String())
+	for _, quitChan := range gconfig.ProcsQuit {
+		quitChan <- true
+	}
+}
+
 // StartUp triggers a sequence of steps required to start the application
 func StartUp(configFile string, init bool, version *semver.Version, incontainer bool) {
+	// Handle OS signals
+	sigs := make(chan os.Signal, 1)
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go catchSignals(sigs)
+
+	// Load config and print banner
 	config.Load(configFile, version)
 	log.Info("Starting up...")
 	var err error
@@ -60,7 +78,6 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	resource.LoadResourcesDB()       // required to register the resource structs with the DB
 	provider.LoadProvidersDB()       // required to register the provider structs with the DB
 
-	wg.Add(3)
 	// start app manager
 	gconfig.ProcsQuit["appmanager"] = make(chan bool)
 	run(&wg, app.Manager, gconfig.ProcsQuit["appmanager"])
@@ -68,19 +85,27 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	gconfig.ProcsQuit["taskscheduler"] = make(chan bool)
 	run(&wg, task.Scheduler, gconfig.ProcsQuit["taskscheduler"])
 
+	var initInterrupted bool
 	if gconfig.InitMode {
 		// run the init webserver in blocking mode
 		gconfig.ProcsQuit["initwebserver"] = make(chan bool)
-		api.WebsrvInit(gconfig.ProcsQuit["initwebserver"])
-		log.Info("Finished initialisation. Resuming normal operations")
+		wg.Add(1)
+		initInterrupted = api.WebsrvInit(gconfig.ProcsQuit["initwebserver"])
+		wg.Done()
 	}
-	gconfig.InitMode = false
 
-	meta.InitCheck()
-	// start tls web server
-	gconfig.ProcsQuit["webserver"] = make(chan bool)
-	run(&wg, api.Websrv, gconfig.ProcsQuit["webserver"])
+	if initInterrupted == false {
+		log.Info("Finished initialisation. Resuming normal operations")
+		gconfig.InitMode = false
+
+		meta.InitCheck()
+		// start tls web server
+		gconfig.ProcsQuit["webserver"] = make(chan bool)
+		run(&wg, api.Websrv, gconfig.ProcsQuit["webserver"])
+	}
+
 	wg.Wait()
+	log.Info("Terminating...")
 
 }
 

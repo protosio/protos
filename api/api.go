@@ -214,7 +214,7 @@ func Websrv(quit chan bool) {
 }
 
 // WebsrvInit starts an HTTP server used only during the initialisation process
-func WebsrvInit(quit chan bool) {
+func WebsrvInit(quit chan bool) bool {
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(mainRtr, true)
 	externalRouter := applyExternalAPIroutes(mainRtr)
@@ -246,10 +246,10 @@ func WebsrvInit(quit chan bool) {
 		}
 	}()
 
-	<-quit
+	interrupted := <-quit
 	log.Info("Shutting down init webserver")
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Error(errors.Wrap(err, "Something went wrong while shutting down the init webserver"))
 	}
-
+	return interrupted
 }
