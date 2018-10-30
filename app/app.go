@@ -10,7 +10,6 @@ import (
 	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
-	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/resource"
 	"github.com/protosio/protos/util"
@@ -45,22 +44,22 @@ type Action struct {
 
 // App represents the application state
 type App struct {
-	Name              string               `json:"name"`
-	ID                string               `json:"id"`
-	InstallerID       string               `json:"installer-id"`
-	InstallerVersion  string               `json:"installer-version"`
-	InstallerMetadata installer.Metadata   `json:"-"`
-	ContainerID       string               `json:"container-id"`
-	VolumeID          string               `json:"volumeid"`
-	Rtu               platform.RuntimeUnit `json:"-"`
-	Status            string               `json:"status"`
-	Actions           []Action             `json:"actions"`
-	IP                string               `json:"ip"`
-	PublicPorts       []util.Port          `json:"publicports"`
-	InstallerParams   map[string]string    `json:"installer-params"`
-	Capabilities      []string             `json:"capabilities"`
-	Resources         []string             `json:"resources"`
-	Tasks             []string             `json:"tasks"`
+	Name              string             `json:"name"`
+	ID                string             `json:"id"`
+	InstallerID       string             `json:"installer-id"`
+	InstallerVersion  string             `json:"installer-version"`
+	InstallerMetadata installer.Metadata `json:"-"`
+	ContainerID       string             `json:"container-id"`
+	VolumeID          string             `json:"volumeid"`
+	rtu               platform.RuntimeUnit
+	Status            string            `json:"status"`
+	Actions           []Action          `json:"actions"`
+	IP                string            `json:"ip"`
+	PublicPorts       []util.Port       `json:"publicports"`
+	InstallerParams   map[string]string `json:"installer-params"`
+	Capabilities      []string          `json:"capabilities"`
+	Resources         []string          `json:"resources"`
+	Tasks             []string          `json:"tasks"`
 }
 
 //
@@ -107,9 +106,13 @@ func (app *App) AddAction(action Action) error {
 
 	switch action.Name {
 	case "start":
-		return app.Start()
+		tsk := app.StartAsync()
+		app.AddTask(tsk.ID)
+		return tsk.Wait()
 	case "stop":
-		return app.Stop()
+		tsk := app.StopAsync()
+		app.AddTask(tsk.ID)
+		return tsk.Wait()
 	default:
 		return errors.New("Action not supported")
 	}
@@ -122,12 +125,7 @@ func (app *App) AddTask(id string) {
 }
 
 // Save - persists application data to database
-// ToDo: move db save in the manager?
 func (app *App) Save() {
-	err := database.Save(app)
-	if err != nil {
-		log.Panic(errors.Wrap(err, "Could not save app to database"))
-	}
 	addAppQueue <- *app
 }
 
@@ -146,16 +144,16 @@ func (app *App) createContainer() error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to create container")
 	}
-	app.Rtu = cnt
-	app.ContainerID = app.Rtu.GetID()
-	app.IP = app.Rtu.GetIP()
-	app.Status = app.Rtu.GetStatus()
+	app.rtu = cnt
+	app.ContainerID = app.rtu.GetID()
+	app.IP = app.rtu.GetIP()
+	app.Status = app.rtu.GetStatus()
 	app.Save()
 	return nil
 }
 
 func (app *App) containerMissing() bool {
-	if app.Rtu != nil && app.Rtu.Update() == nil {
+	if app.rtu != nil && app.rtu.Update() == nil {
 		return false
 	}
 	return true
@@ -163,24 +161,24 @@ func (app *App) containerMissing() bool {
 
 // RefreshPlatform updates the information about the underlying application container
 func (app *App) RefreshPlatform() {
-	if app.Rtu == nil {
+	if app.rtu == nil {
 		cnt, err := platform.GetDockerContainer(app.ContainerID)
 		if err != nil {
 			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
 			app.Status = statusMissingContainer
 			return
 		}
-		app.Rtu = cnt
+		app.rtu = cnt
 	} else {
-		err := app.Rtu.Update()
+		err := app.rtu.Update()
 		if err != nil {
 			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
 			app.Status = statusMissingContainer
 			return
 		}
 	}
-	app.IP = app.Rtu.GetIP()
-	app.Status = app.Rtu.GetStatus()
+	app.IP = app.rtu.GetIP()
+	app.Status = app.rtu.GetStatus()
 }
 
 // StartAsync asynchronously starts an application and returns a task
@@ -199,7 +197,7 @@ func (app *App) Start() error {
 		}
 	}
 
-	err := app.Rtu.Start()
+	err := app.rtu.Start()
 	if err != nil {
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
@@ -219,7 +217,7 @@ func (app *App) Stop() error {
 		return errors.New("Can't stop application " + app.ID + ". Container is missing.")
 	}
 
-	err := app.Rtu.Stop()
+	err := app.rtu.Stop()
 	if err != nil {
 		return err
 	}
@@ -233,7 +231,7 @@ func (app *App) Remove() error {
 	if app.containerMissing() {
 		log.Warn("App ", app.ID, " does not have a container.")
 	} else {
-		err := app.Rtu.Remove()
+		err := app.rtu.Remove()
 		if err != nil {
 			return err
 		}
@@ -260,14 +258,9 @@ func (app *App) Remove() error {
 		}
 	}
 
-	err := database.Remove(app)
-	if err != nil {
-		return err
-	}
-
 	ra := removeAppReq{id: app.ID, resp: make(chan error)}
 	removeAppQueue <- ra
-	err = <-ra.resp
+	err := <-ra.resp
 	if err != nil {
 		return err
 	}

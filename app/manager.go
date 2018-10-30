@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/platform"
 )
@@ -71,9 +72,17 @@ func Manager(quit chan bool) {
 			}
 		case app := <-addAppQueue:
 			mapps[app.ID] = app
+			err := database.Save(&app)
+			if err != nil {
+				log.Panic(errors.Wrap(err, "Could not save app to database"))
+			}
 		case removeReq := <-removeAppQueue:
 			if app, found := mapps[removeReq.id]; found {
 				delete(mapps, app.ID)
+				err := database.Remove(&app)
+				if err != nil {
+					removeReq.resp <- err
+				}
 				removeReq.resp <- nil
 			} else {
 				removeReq.resp <- fmt.Errorf("Could not find app %s", removeReq.id)
