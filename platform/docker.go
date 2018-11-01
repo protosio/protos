@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -97,6 +98,44 @@ func combineEnv(params map[string]string) []string {
 		env = append(env, id+"="+val)
 	}
 	return env
+}
+
+func allocateContainerIP() (string, error) {
+	protosNet, err := GetDockerNetwork(protosNetwork)
+	if err != nil {
+		return "", errors.Wrap(err, "Failed to allocate IP for container")
+	}
+
+	if len(protosNet.IPAM.Config) == 0 {
+		return "", fmt.Errorf("Failed to allocate IP for container: no network config for network %s(%s)", protosNet.Name, protosNet.ID)
+	}
+
+	_, protosSubnet, err := net.ParseCIDR(protosNet.IPAM.Config[0].Subnet)
+	if err != nil {
+		return "", errors.Wrap(err, "Failed to allocate IP for container")
+	}
+
+	gateway := net.ParseIP(protosNet.IPAM.Config[0].Gateway)
+	allocatedIPs := []net.IP{}
+	allocatedIPs = append(allocatedIPs, gateway)
+
+	for _, ipConfg := range protosNet.Containers {
+		cntIP, _, err := net.ParseCIDR(ipConfg.IPv4Address)
+		if err != nil {
+			return "", errors.Wrap(err, "Failed to allocate IP for container")
+		}
+		allocatedIPs = append(allocatedIPs, cntIP)
+	}
+
+	allIPs := util.AllNetworkIPs(*protosSubnet)
+	for _, ip := range allIPs {
+		if util.IPinList(ip, allocatedIPs) {
+			continue
+		}
+		return ip.String(), nil
+	}
+
+	return "", fmt.Errorf("Failed to allocate IP for container: all IPs have been allocated")
 }
 
 //
@@ -222,10 +261,16 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 		hostConfig.Links = []string{"protos"}
 	}
 
+	containerIP, err := allocateContainerIP()
+	if err != nil {
+		return &DockerContainer{}, errors.Wrap(err, "Failed to create container")
+	}
+
 	networkConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			protosNetwork: &network.EndpointSettings{
 				NetworkID: protosNetwork,
+				IPAddress: containerIP,
 			},
 		},
 	}
