@@ -32,6 +32,8 @@ const (
 	ErrDockerImageNotFound = 101
 	// ErrDockerNetworkNotFound means the requested docker network is not found locally
 	ErrDockerNetworkNotFound = 102
+	// ErrDockerContainerNotFound means the requested docker container is not found locally
+	ErrDockerContainerNotFound = 103
 )
 
 type downloadEvent struct {
@@ -243,7 +245,7 @@ func GetDockerContainer(id string) (*DockerContainer, error) {
 	cnt := DockerContainer{ID: id}
 	err := cnt.Update()
 	if err != nil {
-		return &DockerContainer{}, err
+		return &DockerContainer{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker container %s", id), "No such container", ErrDockerContainerNotFound)
 	}
 	return &cnt, nil
 }
