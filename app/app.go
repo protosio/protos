@@ -196,12 +196,11 @@ func (app *App) getOrCreateContainer() (platform.RuntimeUnit, error) {
 
 // RefreshPlatform updates the information about the underlying application container
 func (app *App) RefreshPlatform() {
-	if app.Status == statusCreating {
+	if app.Status == statusCreating || app.Status == statusFailed {
 		// not refreshing the platform until the app creation process is done
 		return
 	}
 
-	defer app.Save()
 	cnt, err := platform.GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) {
@@ -214,7 +213,6 @@ func (app *App) RefreshPlatform() {
 	}
 
 	app.Status = containerToAppStatus(cnt.Status, cnt.ExitCode)
-	app.IP = cnt.IP
 }
 
 // StartAsync asynchronously starts an application and returns a task
@@ -225,7 +223,6 @@ func (app App) StartAsync() task.Task {
 // Start starts an application
 func (app *App) Start() error {
 	log.Info("Starting application ", app.Name, "[", app.ID, "]")
-	defer app.Save()
 
 	cnt, err := app.getOrCreateContainer()
 	if err != nil {
