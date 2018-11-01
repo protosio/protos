@@ -132,7 +132,11 @@ func GetDockerNetwork(name string) (types.NetworkResource, error) {
 	if len(networks) == 0 {
 		return net, util.NewTypedError("Could not find network "+name, ErrDockerNetworkNotFound)
 	}
-	net = networks[0]
+	// Although networklist and networkinspect both return NetworkResource, the list doesn't populate all the fields of the structure so another network inspect call is needed
+	net, err = dockerClient.NetworkInspect(context.Background(), networks[0].ID, types.NetworkInspectOptions{})
+	if err != nil {
+		return net, util.NewTypedError("Could not find network "+name, ErrDockerNetworkNotFound)
+	}
 	return net, nil
 }
 
