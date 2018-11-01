@@ -49,3 +49,40 @@ func GetLocalIPs() ([]string, error) {
 
 	return ips, nil
 }
+
+// AllNetworkIPs receives an IP network and returns a list with all its IPs
+func AllNetworkIPs(ipnet net.IPNet) []net.IP {
+	ip, _, err := net.ParseCIDR(ipnet.String())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var ips []net.IP
+	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
+		dup := make(net.IP, len(ip))
+		copy(dup, ip)
+		ips = append(ips, dup)
+	}
+	// remove network address and broadcast address
+	return ips[1 : len(ips)-1]
+}
+
+// IPinList checks if an IP is in a list of IPs
+func IPinList(ip net.IP, ips []net.IP) bool {
+	for _, nip := range ips {
+		if ip.Equal(nip) {
+			return true
+		}
+	}
+	return false
+}
+
+//  http://play.golang.org/p/m8TNTtygK0
+func inc(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
