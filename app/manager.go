@@ -88,7 +88,11 @@ func Manager(quit chan bool) {
 				removeReq.resp <- fmt.Errorf("Could not find app %s", removeReq.id)
 			}
 		case readAllResp := <-readAllQueue:
-			readAllResp <- mapps
+			appsCopy := make(map[string]App)
+			for k, v := range mapps {
+				appsCopy[k] = v
+			}
+			readAllResp <- appsCopy
 		case <-quit:
 			log.Info("Shutting down app manager")
 			return
