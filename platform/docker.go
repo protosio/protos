@@ -63,9 +63,10 @@ type downloadProgress struct {
 
 // DockerContainer represents a container
 type DockerContainer struct {
-	ID     string
-	IP     string
-	Status string
+	ID       string
+	IP       string
+	Status   string
+	ExitCode int
 }
 
 // DockerVolume represents a persistent disk volume
@@ -274,6 +275,7 @@ func (cnt *DockerContainer) Update() error {
 		cnt.IP = network.IPAddress
 	}
 	cnt.Status = container.State.Status
+	cnt.ExitCode = container.State.ExitCode
 	return nil
 }
 
