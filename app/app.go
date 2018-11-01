@@ -22,10 +22,14 @@ var log = util.GetLogger("app")
 // Defines structure for config parameters
 // specific to each application
 const (
-	Running                = "Running"
-	Stopped                = "Stopped"
-	appBucket              = "app"
-	statusMissingContainer = "missing container"
+	// app states
+	statusRunning  = "running"
+	statusStopped  = "stopped"
+	statusCreating = "creating"
+	statusFailed   = "failed"
+	statusUnknown  = "unknown"
+
+	appBucket = "app"
 )
 
 // Config the application config
@@ -51,20 +55,45 @@ type App struct {
 	InstallerMetadata installer.Metadata `json:"-"`
 	ContainerID       string             `json:"container-id"`
 	VolumeID          string             `json:"volumeid"`
-	rtu               platform.RuntimeUnit
-	Status            string            `json:"status"`
-	Actions           []Action          `json:"actions"`
-	IP                string            `json:"ip"`
-	PublicPorts       []util.Port       `json:"publicports"`
-	InstallerParams   map[string]string `json:"installer-params"`
-	Capabilities      []string          `json:"capabilities"`
-	Resources         []string          `json:"resources"`
-	Tasks             []string          `json:"tasks"`
+	Status            string             `json:"status"`
+	Actions           []Action           `json:"actions"`
+	IP                string             `json:"ip"`
+	PublicPorts       []util.Port        `json:"publicports"`
+	InstallerParams   map[string]string  `json:"installer-params"`
+	Capabilities      []string           `json:"capabilities"`
+	Resources         []string           `json:"resources"`
+	Tasks             []string           `json:"tasks"`
 }
 
 //
 // Utilities
 //
+
+func containerToAppStatus(status string, exitCode int) string {
+	switch status {
+	case "created":
+		return statusStopped
+	case "container missing":
+		return statusStopped
+	case "restarting":
+		return statusStopped
+	case "paused":
+		return statusStopped
+	case "exited":
+		if exitCode == 0 {
+			return statusStopped
+		}
+		return statusFailed
+	case "dead":
+		return statusFailed
+	case "removing":
+		return statusRunning
+	case "running":
+		return statusRunning
+	default:
+		return statusUnknown
+	}
+}
 
 // validateInstallerParams makes sure that the params passed at app creation match what is requested by the installer
 func validateInstallerParams(paramsProvided map[string]string, paramsExpected []string) error {
@@ -130,55 +159,62 @@ func (app *App) Save() {
 }
 
 // reateContainer create the underlying Docker container
-func (app *App) createContainer() error {
+func (app *App) createContainer() (platform.RuntimeUnit, error) {
 	var volume *platform.DockerVolume
 	if app.InstallerMetadata.PersistancePath != "" {
 		volume, err := platform.GetOrCreateDockerVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
 		if err != nil {
-			return errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
+			return nil, errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
 		}
 		app.VolumeID = volume.ID
 	}
 
 	cnt, err := platform.NewDockerContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, volume, app.PublicPorts, app.InstallerParams)
 	if err != nil {
-		return errors.Wrap(err, "Failed to create container")
+		return nil, errors.Wrap(err, "Failed to create container")
 	}
-	app.rtu = cnt
-	app.ContainerID = app.rtu.GetID()
-	app.IP = app.rtu.GetIP()
-	app.Status = app.rtu.GetStatus()
+	app.ContainerID = cnt.GetID()
+	app.IP = cnt.GetIP()
 	app.Save()
-	return nil
+	return cnt, nil
 }
 
-func (app *App) containerMissing() bool {
-	if app.rtu != nil && app.rtu.Update() == nil {
-		return false
+func (app *App) getOrCreateContainer() (platform.RuntimeUnit, error) {
+	cnt, err := platform.GetDockerContainer(app.ContainerID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) {
+			cnt, err := app.createContainer()
+			if err != nil {
+				return nil, err
+			}
+			return cnt, nil
+		}
+		return nil, err
 	}
-	return true
+	return cnt, nil
 }
 
 // RefreshPlatform updates the information about the underlying application container
 func (app *App) RefreshPlatform() {
-	if app.rtu == nil {
-		cnt, err := platform.GetDockerContainer(app.ContainerID)
-		if err != nil {
-			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
-			app.Status = statusMissingContainer
-			return
-		}
-		app.rtu = cnt
-	} else {
-		err := app.rtu.Update()
-		if err != nil {
-			log.Warnf("Application %s(%s) has no container: %s", app.ID, app.Name, err.Error())
-			app.Status = statusMissingContainer
-			return
-		}
+	if app.Status == statusCreating {
+		// not refreshing the platform until the app creation process is done
+		return
 	}
-	app.IP = app.rtu.GetIP()
-	app.Status = app.rtu.GetStatus()
+
+	defer app.Save()
+	cnt, err := platform.GetDockerContainer(app.ContainerID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) {
+			log.Warnf("Application %s(%s) has no container: %s", app.Name, app.ID, err.Error())
+			app.Status = statusStopped
+			return
+		}
+		app.Status = statusUnknown
+		return
+	}
+
+	app.Status = containerToAppStatus(cnt.Status, cnt.ExitCode)
+	app.IP = cnt.IP
 }
 
 // StartAsync asynchronously starts an application and returns a task
@@ -189,16 +225,17 @@ func (app App) StartAsync() task.Task {
 // Start starts an application
 func (app *App) Start() error {
 	log.Info("Starting application ", app.Name, "[", app.ID, "]")
+	defer app.Save()
 
-	if app.containerMissing() {
-		err := app.createContainer()
-		if err != nil {
-			return err
-		}
+	cnt, err := app.getOrCreateContainer()
+	if err != nil {
+		app.Status = statusFailed
+		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
 
-	err := app.rtu.Start()
+	err = cnt.Start()
 	if err != nil {
+		app.Status = statusFailed
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
 	return nil
@@ -213,13 +250,18 @@ func (app App) StopAsync() task.Task {
 func (app *App) Stop() error {
 	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
 
-	if app.containerMissing() {
-		return errors.New("Can't stop application " + app.ID + ". Container is missing.")
+	cnt, err := platform.GetDockerContainer(app.ContainerID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) == false {
+			return err
+		}
+		log.Warnf("Application %s(%s) has no container to stop", app.Name, app.ID)
+		return nil
 	}
 
-	err := app.rtu.Stop()
+	err = cnt.Stop()
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "Can't stop application %s(%s)", app.Name, app.ID)
 	}
 	return nil
 }
@@ -228,10 +270,14 @@ func (app *App) Stop() error {
 func (app *App) Remove() error {
 	log.Info("Removing application ", app.Name, "[", app.ID, "]")
 
-	if app.containerMissing() {
-		log.Warn("App ", app.ID, " does not have a container.")
+	cnt, err := platform.GetDockerContainer(app.ContainerID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) == false {
+			return err
+		}
+		log.Warnf("Application %s(%s) has no container to remove", app.Name, app.ID)
 	} else {
-		err := app.rtu.Remove()
+		err := cnt.Remove()
 		if err != nil {
 			return err
 		}
@@ -240,7 +286,7 @@ func (app *App) Remove() error {
 	if app.VolumeID != "" {
 		err := platform.RemoveDockerVolume(app.VolumeID)
 		if err != nil {
-			log.Error(err)
+			return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
 		}
 	}
 
@@ -260,9 +306,9 @@ func (app *App) Remove() error {
 
 	ra := removeAppReq{id: app.ID, resp: make(chan error)}
 	removeAppQueue <- ra
-	err := <-ra.resp
+	err = <-ra.resp
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
 	}
 
 	return nil
@@ -374,7 +420,7 @@ func Create(installerID string, installerVersion string, name string, installerP
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
 	app = &App{Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
 		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
-		InstallerMetadata: installerMetadata, Tasks: []string{taskID}}
+		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating}
 
 	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
 	if app.ValidateCapability(capability.PublicDNS) == nil {

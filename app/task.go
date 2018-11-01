@@ -40,6 +40,7 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 	if err != nil {
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
+	defer app.Save()
 	pt.Progress.Percentage = 10
 	pt.Progress.State = "Created application"
 	pt.Update()
@@ -50,6 +51,7 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 		app.AddTask(tsk.ID)
 		err := tsk.Wait()
 		if err != nil {
+			app.Status = statusFailed
 			return errors.Wrapf(err, "Could not create application %s", t.AppName)
 		}
 	} else {
@@ -59,9 +61,9 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 		pt.Update()
 	}
 
-	err = app.createContainer()
+	_, err = app.createContainer()
 	if err != nil {
-		app.Remove()
+		app.Status = statusFailed
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
 	pt.Progress.Percentage = 70
@@ -73,10 +75,11 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 		app.AddTask(tsk.ID)
 		err := tsk.Wait()
 		if err != nil {
+			app.Status = statusFailed
 			return errors.Wrapf(err, "Could not create application %s", t.AppName)
 		}
 	}
-
+	app.Status = statusRunning
 	return nil
 }
 
