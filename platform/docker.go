@@ -125,7 +125,7 @@ func CreateDockerNetwork(name string) (types.NetworkResource, error) {
 // GetDockerNetwork returns a Docker network based on its name
 func GetDockerNetwork(name string) (types.NetworkResource, error) {
 	var net types.NetworkResource
-	networks, err := dockerClient.NetworkList(context.Background(), types.NetworkListOptions{Filters: filters.NewArgs(filters.KeyValuePair{Key: "name", Value: protosNetwork})})
+	networks, err := dockerClient.NetworkList(context.Background(), types.NetworkListOptions{Filters: filters.NewArgs(filters.KeyValuePair{Key: "name", Value: name})})
 	if err != nil {
 		return net, errors.Wrap(err, "Failed to retrieve network "+name)
 	}
