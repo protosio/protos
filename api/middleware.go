@@ -110,10 +110,18 @@ func ExternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 		httpErrStatus = http.StatusUnauthorized
 	}
 
-	token, err := request.ParseFromRequest(r, request.AuthorizationHeaderExtractor,
-		func(token *jwt.Token) (interface{}, error) {
-			return gconfig.Secret, nil
-		})
+	queryParams := r.URL.Query()
+	tokenString := queryParams.Get("access_token")
+
+	var token *jwt.Token
+	var err error
+	var getSecret = func(token *jwt.Token) (interface{}, error) { return gconfig.Secret, nil }
+
+	if tokenString != "" {
+		token, err = jwt.Parse(tokenString, getSecret)
+	} else {
+		token, err = request.ParseFromRequest(r, request.AuthorizationHeaderExtractor, getSecret)
+	}
 	if err != nil {
 		log.Errorf("Unauthorized access to resource %s with Error: %s", r.URL, err.Error())
 		rend.JSON(rw, httpErrStatus, httperr{Error: "Unauthorized access to this resource"})
