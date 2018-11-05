@@ -18,7 +18,6 @@ var externalInitRoutes = routes{
 		createProtosResources,
 		nil,
 	},
-
 	route{
 		"createProtosResources",
 		"POST",
