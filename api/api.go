@@ -53,7 +53,13 @@ func uiRedirect(w http.ResponseWriter, r *http.Request) {
 
 func applyAPIroutes(r *mux.Router, routes []route) *mux.Router {
 	for _, route := range routes {
-		r.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+		if route.Method != "" {
+			// if route method is set (GET, POST etc), the route is only valid for that method
+			r.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+		} else {
+			// if route method is not set, it will work for all methods. Useful for WS
+			r.Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+		}
 		if route.Capability != nil {
 			capability.SetMethodCap(route.Name, route.Capability)
 		}
