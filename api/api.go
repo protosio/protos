@@ -51,13 +51,14 @@ func uiRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ui/", 303)
 }
 
-func applyInitAPIroutes(r *mux.Router) {
-	for _, route := range externalInitRoutes {
+func applyAPIroutes(r *mux.Router, routes []route) *mux.Router {
+	for _, route := range routes {
 		r.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
 		if route.Capability != nil {
 			capability.SetMethodCap(route.Name, route.Capability)
 		}
 	}
+	return r
 }
 
 func applyAuthRoutes(r *mux.Router, enableRegister bool) {
@@ -93,7 +94,11 @@ func applyExternalAPIroutes(r *mux.Router) *mux.Router {
 	// External routes (require auth)
 	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
 	for _, route := range externalRoutes {
-		externalRouter.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+		if route.Method != "" {
+			externalRouter.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+		} else {
+			externalRouter.Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+		}
 		if route.Capability != nil {
 			capability.SetMethodCap(route.Name, route.Capability)
 		}
@@ -201,7 +206,8 @@ func Websrv(quit chan bool) {
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(mainRtr, false)
 	applyInternalAPIroutes(mainRtr)
-	applyExternalAPIroutes(mainRtr)
+	externalRouter := applyExternalAPIroutes(mainRtr)
+	applyAPIroutes(externalRouter, externalWSRoutes)
 	applyStaticRoutes(mainRtr)
 
 	// Negroni middleware
@@ -218,7 +224,8 @@ func WebsrvInit(quit chan bool) bool {
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(mainRtr, true)
 	externalRouter := applyExternalAPIroutes(mainRtr)
-	applyInitAPIroutes(externalRouter)
+	applyAPIroutes(externalRouter, externalInitRoutes)
+	applyAPIroutes(externalRouter, externalWSRoutes)
 	applyInternalAPIroutes(mainRtr)
 	applyStaticRoutes(mainRtr)
 
