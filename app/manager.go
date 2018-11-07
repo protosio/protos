@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/platform"
+	"github.com/protosio/protos/util"
 )
 
 // mapps maintains a map of all the applications
@@ -72,6 +73,7 @@ func Manager(quit chan bool) {
 			}
 		case app := <-addAppQueue:
 			mapps[app.ID] = app
+			gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: app}
 			err := database.Save(&app)
 			if err != nil {
 				log.Panic(errors.Wrap(err, "Could not save app to database"))

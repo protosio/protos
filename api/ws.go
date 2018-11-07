@@ -22,7 +22,6 @@ type wsConnection struct {
 var upgrader = websocket.Upgrader{}
 var wsConnections = make([]wsConnection, 0)
 var addWSQueue = make(chan wsConnection, 100)
-var publishQueue = make(chan interface{}, 100)
 
 //
 // WS connection manager
@@ -31,13 +30,12 @@ var publishQueue = make(chan interface{}, 100)
 // WSManager is the WS connection manager that owns the WS connection data
 func WSManager(quit chan bool) {
 	log.WithField("proc", "wsmanager").Info("Starting the WS connection manager")
-	gconfig.WSPublish = publishQueue
 
 	for {
 		select {
 		case wsCon := <-addWSQueue:
 			wsConnections = append(wsConnections, wsCon)
-		case publishMsg := <-publishQueue:
+		case publishMsg := <-gconfig.WSPublish:
 			for _, wsCon := range wsConnections {
 				wsCon.Send <- publishMsg
 			}

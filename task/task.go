@@ -3,10 +3,12 @@ package task
 import (
 	"time"
 
+	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/util"
 )
 
 var log = util.GetLogger("task")
+var gconfig = config.Get()
 
 const (
 	// REQUESTED - task has been created

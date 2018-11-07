@@ -27,6 +27,7 @@ type Config struct {
 	ProcsQuit      map[string]chan bool
 	InternalIP     string
 	Version        *semver.Version
+	WSPublish      chan interface{}
 }
 
 var config = Config{
@@ -37,7 +38,9 @@ var config = Config{
 	InitMode:       false,
 	AppStoreURL:    "https://apps.protos.io",
 	AppStoreHost:   "apps.protos.io",
-	ProcsQuit:      make(map[string]chan bool)}
+	ProcsQuit:      make(map[string]chan bool),
+	WSPublish:      make(chan interface{}, 100),
+}
 
 // Gconfig maintains a global view of the application configuration parameters.
 // var gconfig = &config

@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/task"
@@ -18,6 +19,7 @@ import (
 )
 
 var log = util.GetLogger("app")
+var gconfig = config.Get()
 
 // Defines structure for config parameters
 // specific to each application
@@ -153,7 +155,7 @@ func (app *App) AddTask(id string) {
 	app.Save()
 }
 
-// Save - persists application data to database
+// Save - sends update to the app manager which persists application data to database
 func (app *App) Save() {
 	addAppQueue <- *app
 }

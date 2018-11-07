@@ -101,6 +101,7 @@ func Scheduler(quit chan bool) {
 		case tsk := <-updateTaskQueue:
 			log.WithField("proc", "taskscheduler").Debugf("Updating task %s", tsk.ID)
 			tasks[tsk.ID] = tsk
+			gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: tsk}
 			saveTask(tsk)
 		case readReq := <-readTaskQueue:
 			if tsk, found := tasks[readReq.id]; found {

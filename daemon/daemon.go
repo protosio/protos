@@ -84,6 +84,9 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	// start task scheduler
 	gconfig.ProcsQuit["taskscheduler"] = make(chan bool)
 	run(&wg, task.Scheduler, gconfig.ProcsQuit["taskscheduler"])
+	// start ws connection manager
+	gconfig.ProcsQuit["wsmanager"] = make(chan bool)
+	run(&wg, api.WSManager, gconfig.ProcsQuit["wsmanager"])
 
 	var initInterrupted bool
 	if gconfig.InitMode {
