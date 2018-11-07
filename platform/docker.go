@@ -411,9 +411,12 @@ func (dp *downloadProgress) updatePercentage() {
 	extractedPercentage := (extracted * 100) / dp.totalSize
 	newPercentage := int(((downloadedPercentage * 4) + extractedPercentage) / 5)
 	if newPercentage != dp.percentage {
+		oldPercentage := dp.percentage
 		dp.percentage = newPercentage
 		dp.pt.Progress.Percentage = dp.initialPercentage + ((dp.percentage * dp.weight) / 100)
-		dp.pt.Update()
+		if (newPercentage - oldPercentage) > 5 {
+			dp.pt.Update()
+		}
 	}
 }
 
