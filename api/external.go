@@ -195,14 +195,14 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = appInstance.AddAction(action)
+	tsk, err := appInstance.AddAction(action)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
-	rend.JSON(w, http.StatusOK, nil)
+	rend.JSON(w, http.StatusOK, tsk)
 }
 
 func removeApp(w http.ResponseWriter, r *http.Request) {

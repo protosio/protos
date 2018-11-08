@@ -132,20 +132,20 @@ func refreshAppsPlatform(apps map[string]App) map[string]App {
 //
 
 // AddAction performs an action on an application
-func (app *App) AddAction(action Action) error {
+func (app *App) AddAction(action Action) (task.Task, error) {
 	log.Info("Performing action [", action.Name, "] on application ", app.Name, "[", app.ID, "]")
 
 	switch action.Name {
 	case "start":
 		tsk := app.StartAsync()
 		app.AddTask(tsk.ID)
-		return tsk.Wait()
+		return tsk, nil
 	case "stop":
 		tsk := app.StopAsync()
 		app.AddTask(tsk.ID)
-		return tsk.Wait()
+		return tsk, nil
 	default:
-		return errors.New("Action not supported")
+		return task.Task{}, errors.New("Action not supported")
 	}
 }
 
