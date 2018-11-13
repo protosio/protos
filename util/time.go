@@ -3,6 +3,8 @@ package util
 import (
 	"fmt"
 	"time"
+
+	"github.com/vjeantet/jodaTime"
 )
 
 // ProtosTime is a custom time that formats to a shorter form in all JSON messages
@@ -11,7 +13,7 @@ type ProtosTime time.Time
 // MarshalJSON is a customer JSON marshallers for the ProtosTime
 func (pt *ProtosTime) MarshalJSON() ([]byte, error) {
 	t := time.Time(*pt)
-	stamp := fmt.Sprintf("\"%s\"", t.Format(time.StampMilli))
+	stamp := fmt.Sprintf("\"%s\"", jodaTime.Format("yyyyMMdd'T'HHmmss.SSSZ", t))
 	return []byte(stamp), nil
 }
 
