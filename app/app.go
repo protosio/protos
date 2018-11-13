@@ -237,6 +237,8 @@ func (app *App) Start() error {
 		app.Status = statusFailed
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
+	app.Status = statusRunning
+	app.Save()
 	return nil
 }
 
@@ -262,6 +264,8 @@ func (app *App) Stop() error {
 	if err != nil {
 		return errors.Wrapf(err, "Can't stop application %s(%s)", app.Name, app.ID)
 	}
+	app.Status = statusStopped
+	app.Save()
 	return nil
 }
 
