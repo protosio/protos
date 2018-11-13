@@ -39,7 +39,7 @@
 
 [[constraint]]
   name = "github.com/docker/docker"
-  version = "v18.06.0-ce"
+  version = "=v18.06.1-ce"
   source = "https://github.com/docker/engine.git"
 
 [[constraint]]
