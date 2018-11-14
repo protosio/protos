@@ -138,11 +138,9 @@ func (app *App) AddAction(action Action) (task.Task, error) {
 	switch action.Name {
 	case "start":
 		tsk := app.StartAsync()
-		app.AddTask(tsk.ID)
 		return tsk, nil
 	case "stop":
 		tsk := app.StopAsync()
-		app.AddTask(tsk.ID)
 		return tsk, nil
 	default:
 		return task.Task{}, errors.New("Action not supported")

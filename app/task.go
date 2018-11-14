@@ -102,6 +102,7 @@ func (t StartAppTask) Run(pt *task.Task) error {
 	pt.Status = task.INPROGRESS
 	pt.Progress.Percentage = 50
 	pt.Update()
+	t.app.AddTask(pt.ID)
 	return t.app.Start()
 }
 
@@ -120,5 +121,6 @@ func (t StopAppTask) Run(pt *task.Task) error {
 	pt.Status = task.INPROGRESS
 	pt.Progress.Percentage = 50
 	pt.Update()
+	t.app.AddTask(pt.ID)
 	return t.app.Stop()
 }
