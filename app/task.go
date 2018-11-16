@@ -43,6 +43,7 @@ func (t CreateAppTask) Run(pt *task.Task) error {
 	defer app.Save()
 	pt.Progress.Percentage = 10
 	pt.Progress.State = "Created application"
+	pt.Apps = append(pt.Apps, app.ID)
 	pt.Update()
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {
@@ -101,8 +102,9 @@ func (t StartAppTask) Name() string {
 func (t StartAppTask) Run(pt *task.Task) error {
 	pt.Status = task.INPROGRESS
 	pt.Progress.Percentage = 50
-	pt.Update()
+	pt.Apps = append(pt.Apps, t.app.ID)
 	t.app.AddTask(pt.ID)
+	pt.Update()
 	return t.app.Start()
 }
 
@@ -120,7 +122,8 @@ func (t StopAppTask) Name() string {
 func (t StopAppTask) Run(pt *task.Task) error {
 	pt.Status = task.INPROGRESS
 	pt.Progress.Percentage = 50
-	pt.Update()
+	pt.Apps = append(pt.Apps, t.app.ID)
 	t.app.AddTask(pt.ID)
+	pt.Update()
 	return t.app.Stop()
 }

@@ -122,6 +122,21 @@
   revision = "aabc10ec26b754e797f9028f4589c5b7bd90dc20"
 
 [[projects]]
+  digest = "1:8be88ba8bf238edf713d9ccf959232c224919bd706ed27847357641916981c00"
+  name = "github.com/emirpasic/gods"
+  packages = [
+    "containers",
+    "lists",
+    "lists/doublylinkedlist",
+    "maps",
+    "maps/linkedhashmap",
+    "utils",
+  ]
+  pruneopts = "UT"
+  revision = "1615341f118ae12f353cc8a983f35b584342c9b3"
+  version = "v1.12.0"
+
+[[projects]]
   digest = "1:bbadccf3d3317ea03c0dac0b45b673b4b397c8f91a1d2eff550a3c51c4ad770e"
   name = "github.com/gogo/protobuf"
   packages = ["proto"]
@@ -282,7 +297,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d9f9f45d3383b93ce1c7e744b3ede6974917ae4d100e1a7abfc2906e5e5e2e28"
+  digest = "1:3866deb325971ae774d5844b70f058923b7757cd2eec6db2bd6d028143f6b65f"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -291,7 +306,7 @@
     "proxy",
   ]
   pruneopts = "UT"
-  revision = "03003ca0c849e57b6ea29a4bab8d3cb6e4d568fe"
+  revision = "adae6a3d119ae4890b46832a2e88a95adc62b8e7"
 
 [[projects]]
   branch = "master"
@@ -314,11 +329,11 @@
 
 [[projects]]
   branch = "v2"
-  digest = "1:342378ac4dcb378a5448dd723f0784ae519383532f5e70ade24132c4c8693202"
+  digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   pruneopts = "UT"
-  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -339,6 +354,7 @@
     "github.com/docker/docker/api/types/volume",
     "github.com/docker/docker/client",
     "github.com/docker/go-connections/nat",
+    "github.com/emirpasic/gods/maps/linkedhashmap",
     "github.com/gorilla/mux",
     "github.com/gorilla/websocket",
     "github.com/heroku/docker-registry-client/registry",

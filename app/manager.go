@@ -73,7 +73,7 @@ func Manager(quit chan bool) {
 			}
 		case app := <-addAppQueue:
 			mapps[app.ID] = app
-			gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: app}
+			gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: app.Public()}
 			err := database.Save(&app)
 			if err != nil {
 				log.Panic(errors.Wrap(err, "Could not save app to database"))

@@ -3,6 +3,7 @@ package task
 import (
 	"time"
 
+	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/util"
 )
@@ -41,9 +42,10 @@ type Task struct {
 	Progress   Progress         `json:"progress"`
 	StartedAt  *util.ProtosTime `json:"started-at,omitempty"`
 	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
+	Children   []string         `json:"-"`
+	Apps       []string         `json:"apps"`
 	taskType   Type
 	err        error
-	Children   []string
 
 	// Communication channels
 	quitChan chan bool
@@ -105,8 +107,8 @@ func New(taskType Type) Task {
 }
 
 // GetAll returns all the available tasks
-func GetAll() map[string]Task {
-	resp := make(chan map[string]Task)
+func GetAll() linkedhashmap.Map {
+	resp := make(chan linkedhashmap.Map)
 	readAllQueue <- resp
 	return <-resp
 }
@@ -117,4 +119,12 @@ func Get(id string) (Task, error) {
 	readTaskQueue <- rt
 	resp := <-rt.resp
 	return resp.tsk, resp.err
+}
+
+// GetIDs returns all tasks for the provided ids
+func GetIDs(ids []string) linkedhashmap.Map {
+	rt := readTasksReq{ids: ids, resp: make(chan linkedhashmap.Map)}
+	readTasksQueue <- rt
+	tasks := <-rt.resp
+	return tasks
 }

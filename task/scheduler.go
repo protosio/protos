@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
@@ -13,7 +14,7 @@ import (
 )
 
 // all ongoing tasks
-var tasks map[string]Task
+var tasks *linkedhashmap.Map
 
 type readTaskResp struct {
 	tsk Task
@@ -23,6 +24,11 @@ type readTaskResp struct {
 type readTaskReq struct {
 	id   string
 	resp chan readTaskResp
+}
+
+type readTasksReq struct {
+	ids  []string
+	resp chan linkedhashmap.Map
 }
 
 type requestTask struct {
@@ -36,13 +42,16 @@ var schedulerQueue = make(chan requestTask, 100)
 // readTaskQueue receives read requests for specific tasks, based on task id
 var readTaskQueue = make(chan readTaskReq)
 
+// readTasksQueue receives read requests for multiple tasks, based on task id
+var readTasksQueue = make(chan readTasksReq)
+
 // updateTaskQueue receives updated information for a task
 var updateTaskQueue = make(chan Task, 1000)
 
 // readAllQueue receives read requests for the whole task list
-var readAllQueue = make(chan chan map[string]Task)
+var readAllQueue = make(chan chan linkedhashmap.Map)
 
-func initDB() map[string]Task {
+func initDB() *linkedhashmap.Map {
 	log.WithField("proc", "taskscheduler").Debug("Retrieving tasks from DB")
 	gob.Register(&Task{})
 	gob.Register(&util.ProtosTime{})
@@ -53,9 +62,9 @@ func initDB() map[string]Task {
 		log.Fatal("Could not retrieve tasks from database: ", err)
 	}
 
-	ltasks := make(map[string]Task)
+	ltasks := linkedhashmap.New()
 	for _, task := range dbtasks {
-		ltasks[task.ID] = task
+		ltasks.Put(task.ID, task)
 	}
 	return ltasks
 }
@@ -94,23 +103,32 @@ func Scheduler(quit chan bool) {
 		select {
 		case taskReq := <-schedulerQueue:
 			tsk := createTask(taskReq.t)
-			tasks[tsk.ID] = tsk
+			tasks.Put(tsk.ID, tsk)
 			taskReq.resp <- tsk
 			log.WithField("proc", "taskscheduler").Infof("Running new task %s with id %s", reflect.TypeOf(taskReq.t), tsk.ID)
 			go tsk.Run()
 		case tsk := <-updateTaskQueue:
 			log.WithField("proc", "taskscheduler").Debugf("Updating task %s", tsk.ID)
-			tasks[tsk.ID] = tsk
+			tasks.Put(tsk.ID, tsk)
 			gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: tsk}
 			saveTask(tsk)
 		case readReq := <-readTaskQueue:
-			if tsk, found := tasks[readReq.id]; found {
-				readReq.resp <- readTaskResp{tsk: tsk}
+			if tsk, found := tasks.Get(readReq.id); found {
+				readReq.resp <- readTaskResp{tsk: tsk.(Task)}
 			} else {
 				readReq.resp <- readTaskResp{err: fmt.Errorf("Could not find task %s", readReq.id)}
 			}
+		case readReq := <-readTasksQueue:
+			filter := func(k interface{}, v interface{}) bool {
+				if found, _ := util.StringInSlice(k.(string), readReq.ids); found {
+					return true
+				}
+				return false
+			}
+			requestedTasks := tasks.Select(filter)
+			readReq.resp <- *requestedTasks
 		case readAllResp := <-readAllQueue:
-			readAllResp <- tasks
+			readAllResp <- *tasks
 		case <-quit:
 			log.Info("Shutting down task scheduler")
 			return

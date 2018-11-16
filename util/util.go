@@ -15,6 +15,9 @@ import (
 // log is the global logger
 var log = logrus.New()
 
+// Omit is field used for ommiting fields in public structs, when marshalling them to JSON or other serialization formats
+type Omit *struct{}
+
 // SetLogLevel sets the log level for the application
 func SetLogLevel(level logrus.Level) {
 	log.Formatter = &logrus.TextFormatter{FullTimestamp: true, QuoteEmptyFields: true}

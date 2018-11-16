@@ -128,7 +128,7 @@ var externalRoutes = routes{
 
 func getApps(w http.ResponseWriter, r *http.Request) {
 
-	apps := app.GetApps()
+	apps := app.GetAllPublic()
 	log.Debug("Sending response: ", apps)
 	json.NewEncoder(w).Encode(apps)
 }
@@ -169,7 +169,7 @@ func getApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debug("Sending response: ", app)
-	json.NewEncoder(w).Encode(app)
+	json.NewEncoder(w).Encode(app.Public())
 
 }
 
@@ -335,8 +335,12 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 
 func getTasks(w http.ResponseWriter, r *http.Request) {
 	tasks := task.GetAll()
+	json, err := tasks.ToJSON()
+	if err != nil {
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+	}
 	log.Debug("Retrieved and sending all tasks: ", tasks)
-	rend.JSON(w, http.StatusOK, tasks)
+	rend.Data(w, http.StatusOK, json)
 }
 
 func getTask(w http.ResponseWriter, r *http.Request) {

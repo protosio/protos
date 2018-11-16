@@ -64,7 +64,7 @@ type App struct {
 	InstallerParams   map[string]string  `json:"installer-params"`
 	Capabilities      []string           `json:"capabilities"`
 	Resources         []string           `json:"resources"`
-	Tasks             []string           `json:"tasks"`
+	Tasks             []string           `json:"-"`
 }
 
 //
@@ -115,16 +115,6 @@ func createCapabilities(installerCapabilities []*capability.Capability) []string
 		caps = append(caps, cap.Name)
 	}
 	return caps
-}
-
-// ToDo: do app refresh caching in the platform code
-func refreshAppsPlatform(apps map[string]App) map[string]App {
-	for _, app := range apps {
-		tmp := &app
-		tmp.RefreshPlatform()
-		apps[tmp.ID] = *tmp
-	}
-	return apps
 }
 
 //
@@ -194,8 +184,8 @@ func (app *App) getOrCreateContainer() (platform.RuntimeUnit, error) {
 	return cnt, nil
 }
 
-// RefreshPlatform updates the information about the underlying application container
-func (app *App) RefreshPlatform() {
+// enrichAppData updates the information about the underlying application
+func (app *App) enrichAppData() {
 	if app.Status == statusCreating || app.Status == statusFailed {
 		// not refreshing the platform until the app creation process is done
 		return
@@ -445,7 +435,7 @@ func Read(id string) (App, error) {
 	readAppQueue <- ra
 	resp := <-ra.resp
 	app := &resp.app
-	app.RefreshPlatform()
+	app.enrichAppData()
 	return *app, resp.err
 }
 
@@ -454,7 +444,7 @@ func Read(id string) (App, error) {
 func ReadByIP(appIP string) (App, error) {
 	log.Debug("Reading application with IP ", appIP)
 
-	apps := GetApps()
+	apps := GetAll()
 	for _, app := range apps {
 		if app.IP == appIP {
 			log.Debug("Found application '", app.Name, "' for IP ", appIP)
@@ -465,10 +455,9 @@ func ReadByIP(appIP string) (App, error) {
 
 }
 
-// GetApps refreshes the application list and returns it
-func GetApps() map[string]App {
+// GetAll returns all applications
+func GetAll() map[string]App {
 	resp := make(chan map[string]App)
 	readAllQueue <- resp
-	apps := refreshAppsPlatform(<-resp)
-	return apps
+	return <-resp
 }

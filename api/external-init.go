@@ -61,7 +61,7 @@ func removeInitProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apps := app.GetApps()
+	apps := app.GetAll()
 	for _, a := range apps {
 		if prov, _ := util.StringInSlice(provides, a.InstallerMetadata.Provides); prov {
 			err := a.Stop()
