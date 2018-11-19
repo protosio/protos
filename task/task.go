@@ -56,6 +56,25 @@ type Task struct {
 // Methods that run inside the goroutine and that own and update the task struct
 //
 
+func getLastNTasks(n int, tsks linkedhashmap.Map) linkedhashmap.Map {
+	reversedLastTasks := linkedhashmap.New()
+	lastTasks := linkedhashmap.New()
+	rit := tsks.Iterator()
+	i := 0
+	for rit.End(); rit.Prev(); {
+		if i == n {
+			break
+		}
+		reversedLastTasks.Put(rit.Key(), rit.Value())
+		i++
+	}
+	it := reversedLastTasks.Iterator()
+	for it.End(); it.Prev(); {
+		lastTasks.Put(it.Key(), it.Value())
+	}
+	return *lastTasks
+}
+
 // Run starts the task
 func (t *Task) Run() {
 	log.WithField("proc", t.ID).Infof("Started task %s", t.ID)
@@ -110,7 +129,7 @@ func New(taskType Type) Task {
 func GetAll() linkedhashmap.Map {
 	resp := make(chan linkedhashmap.Map)
 	readAllQueue <- resp
-	return <-resp
+	return getLastNTasks(36, <-resp)
 }
 
 // Get returns a task based on its id
@@ -125,6 +144,5 @@ func Get(id string) (Task, error) {
 func GetIDs(ids []string) linkedhashmap.Map {
 	rt := readTasksReq{ids: ids, resp: make(chan linkedhashmap.Map)}
 	readTasksQueue <- rt
-	tasks := <-rt.resp
-	return tasks
+	return getLastNTasks(10, <-rt.resp)
 }
