@@ -54,7 +54,7 @@ func (t CreateAppTask) Run() {
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {
 		log.WithField("proc", t.ID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
-		tsk := inst.DownloadAsync(t.InstallerVersion)
+		tsk := inst.DownloadAsync(t.InstallerVersion, app.ID)
 		app.AddTask(tsk.GetID())
 		err := tsk.Wait()
 		if err != nil {

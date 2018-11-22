@@ -9,6 +9,7 @@ import (
 type DownloadTask struct {
 	*task.Base
 	Inst    Installer
+	AppID   string
 	Version string
 }
 
@@ -26,6 +27,7 @@ func (t *DownloadTask) SetBase(base *task.Base) {
 func (t *DownloadTask) Run() {
 	log.WithField("proc", t.ID).Debugf("Running download installer task [%s] based on installer %s:%s", t.ID, t.Inst.ID, t.Version)
 	t.Status = task.INPROGRESS
+	t.Apps = append(t.Apps, t.AppID)
 	t.Save()
 
 	err := t.Inst.Download(t)
