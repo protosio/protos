@@ -79,19 +79,19 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	provider.LoadProvidersDB()       // required to register the provider structs with the DB
 
 	// start app manager
-	gconfig.ProcsQuit["appmanager"] = make(chan bool)
+	gconfig.ProcsQuit["appmanager"] = make(chan bool, 1)
 	run(&wg, app.Manager, gconfig.ProcsQuit["appmanager"])
 	// start task manager
-	gconfig.ProcsQuit["taskmanager"] = make(chan bool)
+	gconfig.ProcsQuit["taskmanager"] = make(chan bool, 1)
 	run(&wg, task.Manager, gconfig.ProcsQuit["taskmanager"])
 	// start ws connection manager
-	gconfig.ProcsQuit["wsmanager"] = make(chan bool)
+	gconfig.ProcsQuit["wsmanager"] = make(chan bool, 1)
 	run(&wg, api.WSManager, gconfig.ProcsQuit["wsmanager"])
 
 	var initInterrupted bool
 	if gconfig.InitMode {
 		// run the init webserver in blocking mode
-		gconfig.ProcsQuit["initwebserver"] = make(chan bool)
+		gconfig.ProcsQuit["initwebserver"] = make(chan bool, 1)
 		wg.Add(1)
 		initInterrupted = api.WebsrvInit(gconfig.ProcsQuit["initwebserver"])
 		wg.Done()
