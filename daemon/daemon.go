@@ -81,9 +81,9 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	// start app manager
 	gconfig.ProcsQuit["appmanager"] = make(chan bool)
 	run(&wg, app.Manager, gconfig.ProcsQuit["appmanager"])
-	// start task scheduler
-	gconfig.ProcsQuit["taskscheduler"] = make(chan bool)
-	run(&wg, task.Scheduler, gconfig.ProcsQuit["taskscheduler"])
+	// start task manager
+	gconfig.ProcsQuit["taskmanager"] = make(chan bool)
+	run(&wg, task.Manager, gconfig.ProcsQuit["taskmanager"])
 	// start ws connection manager
 	gconfig.ProcsQuit["wsmanager"] = make(chan bool)
 	run(&wg, api.WSManager, gconfig.ProcsQuit["wsmanager"])

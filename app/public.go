@@ -10,7 +10,7 @@ type taskMap linkedhashmap.Map
 
 // PublicApp is used for marshalling app data to the UI
 type PublicApp struct {
-	*App
+	App
 	Tasks taskMap `json:"tasks"`
 }
 
@@ -22,7 +22,7 @@ func enrichPublicApps(apps map[string]App) map[string]PublicApp {
 	for _, app := range apps {
 		tmp := app
 		tmp.enrichAppData()
-		papp := PublicApp{App: &tmp}
+		papp := PublicApp{App: tmp}
 		// using a closure to access the task ids stored in tmp.Tasks
 		filter := func(k interface{}, v interface{}) bool {
 			if found, _ := util.StringInSlice(k.(string), tmp.Tasks); found {
@@ -37,19 +37,19 @@ func enrichPublicApps(apps map[string]App) map[string]PublicApp {
 }
 
 // Public returns a public version of the app struct
-func (app *App) Public() PublicApp {
+func (app App) Public() PublicApp {
 	app.enrichAppData()
-	ap := PublicApp{
+	pa := PublicApp{
 		App: app,
 	}
-	ap.Tasks = taskMap(task.GetIDs(app.Tasks))
-	return ap
+	pa.Tasks = taskMap(task.GetIDs(app.Tasks))
+	return pa
 }
 
 // GetAllPublic returns all applications in their public form, enriched with the latest status message
 func GetAllPublic() map[string]PublicApp {
 	resp := make(chan map[string]App)
-	readAllQueue <- resp
+	readAllPublicQueue <- resp
 	papps := enrichPublicApps(<-resp)
 	return papps
 }

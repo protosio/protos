@@ -201,19 +201,26 @@ func (inst Installer) ReadVersion(version string) (Metadata, error) {
 }
 
 // Download downloads an installer from the application store
-func (inst Installer) Download(t *task.Task, version string) error {
-	metadata, err := inst.ReadVersion(version)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to download installer %s version %s", inst.ID, version)
+func (inst Installer) Download(t task.Task) error {
+	dt, ok := t.(*DownloadTask)
+	if ok != true {
+		log.Panic("Received wrong task type for installer downloading")
 	}
 
-	log.Infof("Downloading platform image for installer %s(%s) version %s", inst.Name, inst.ID, version)
-	return platform.PullDockerImage(t, metadata.PlatformID, inst.Name, version)
+	metadata, err := inst.ReadVersion(dt.Version)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to download installer %s version %s", inst.ID, dt.Version)
+	}
+
+	log.Infof("Downloading platform image for installer %s(%s) version %s", inst.Name, inst.ID, dt.Version)
+	return platform.PullDockerImage(t, metadata.PlatformID, inst.Name, dt.Version)
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task
 func (inst Installer) DownloadAsync(version string) task.Task {
-	return task.New(DownloadTask{Inst: inst, Version: version})
+	tsk := task.New(&DownloadTask{Inst: inst, Version: version})
+	task.Schedule(tsk)
+	return tsk
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally

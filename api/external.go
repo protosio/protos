@@ -161,7 +161,7 @@ func getApp(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	appID := vars["appID"]
 
-	app, err := app.Read(appID)
+	app, err := app.GetCopy(appID)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

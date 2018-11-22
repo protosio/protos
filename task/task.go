@@ -6,6 +6,7 @@ import (
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/util"
+	"github.com/rs/xid"
 )
 
 var log = util.GetLogger("task")
@@ -22,10 +23,18 @@ const (
 	FINISHED = "finished"
 )
 
-// Type is the interface that all task types need to adhere too
-type Type interface {
-	Run(*Task) error
+// Task is the interface that all task types need to adhere too
+type Task interface {
+	Run()
 	Name() string
+	SetBase(*Base)
+	// fulfilled by base
+	GetID() string
+	Wait() error
+	SetPercentage(int)
+	GetPercentage() int
+	SetState(string)
+	Save()
 }
 
 // Progress tracks the percentage and message of a task
@@ -34,8 +43,8 @@ type Progress struct {
 	State      string `json:"state"`
 }
 
-// Task represents an (a)synchronous piece of work that Protos acts upon
-type Task struct {
+// Base represents an (a)synchronous piece of work that Protos acts upon
+type Base struct {
 	ID         string           `json:"id"`
 	Name       string           `json:"name"`
 	Status     string           `json:"status"`
@@ -44,12 +53,60 @@ type Task struct {
 	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
 	Children   []string         `json:"-"`
 	Apps       []string         `json:"apps"`
-	taskType   Type
 	err        error
 
 	// Communication channels
 	quitChan chan bool
 	finish   chan error
+}
+
+// GetID returns the id of the task
+func (b *Base) GetID() string {
+	return b.ID
+}
+
+// SetPercentage sets the progress percentage of the task base
+func (b *Base) SetPercentage(percent int) {
+	b.Progress.Percentage = percent
+}
+
+// GetPercentage gets the progress percentage of the task base
+func (b *Base) GetPercentage() int {
+	return b.Progress.Percentage
+}
+
+// SetState sets the progress state of the task base
+func (b *Base) SetState(msg string) {
+	b.Progress.State = msg
+}
+
+// Save sends a copy of the running task to the task scheduler
+func (b *Base) Save() {
+	saveTaskQueue <- *b
+}
+
+// Wait waits for the task to finish and returns an error if there was one. Used to mimic a blocking call
+func (b *Base) Wait() error {
+	err := <-b.finish
+	return err
+}
+
+// Finish updates the task and signals the scheduler and the possible parent of the task
+func (b *Base) Finish(err error) {
+	b.Progress.Percentage = 100
+	ts := util.ProtosTime(time.Now())
+	b.FinishedAt = &ts
+	if err != nil {
+		log.WithField("proc", b.ID).Error("Failed to finish task: ", err.Error())
+		b.Progress.State = err.Error()
+		b.Status = FAILED
+		b.err = err
+	} else {
+		log.WithField("proc", b.ID).Infof("Task %s finished successfully", b.ID)
+		b.Status = FINISHED
+	}
+	b.Save()
+	b.finish <- err
 }
 
 //
@@ -75,54 +132,46 @@ func getLastNTasks(n int, tsks linkedhashmap.Map) linkedhashmap.Map {
 	return *lastTasks
 }
 
-// Run starts the task
-func (t *Task) Run() {
-	log.WithField("proc", t.ID).Infof("Started task %s", t.ID)
-	err := t.taskType.Run(t)
-	if err != nil {
-		log.WithField("proc", t.ID).Error("Failed to finish task: ", err.Error())
-		t.Progress.State = err.Error()
-		t.Status = FAILED
-		t.err = err
-	} else {
-		log.WithField("proc", t.ID).Infof("Task %s finished successfully", t.ID)
-		t.Status = FINISHED
-	}
-	t.Finish()
-}
-
-// Finish updates the task and signals the scheduler and the possible parent of the task
-func (t *Task) Finish() {
-	t.Progress.Percentage = 100
-	ts := util.ProtosTime(time.Now())
-	t.FinishedAt = &ts
-	t.finish <- t.err
-	t.Update()
-}
-
-// Update sends a copy of the running task to the task scheduler
-func (t *Task) Update() {
-	updateTaskQueue <- *t
-}
+// // Run starts the task
+// func (t *Task) Run() {
+// 	log.WithField("proc", t.ID).Infof("Started task %s", t.ID)
+// 	err := t.taskType.Run(t)
+// 	if err != nil {
+// 		log.WithField("proc", t.ID).Error("Failed to finish task: ", err.Error())
+// 		t.Progress.State = err.Error()
+// 		t.Status = FAILED
+// 		t.err = err
+// 	} else {
+// 		log.WithField("proc", t.ID).Infof("Task %s finished successfully", t.ID)
+// 		t.Status = FINISHED
+// 	}
+// 	t.Finish()
+// }
 
 //
 // Methods that act on a task copy, and they dont modify the struct
 //
-
-// Wait waits for the task to finish and returns an error if there was one. Used to mimic a blocking call
-func (t Task) Wait() error {
-	return <-t.finish
-}
 
 //
 // General methods
 //
 
 // New creates a new task and returns it
-func New(taskType Type) Task {
-	rt := requestTask{t: taskType, resp: make(chan Task)}
-	schedulerQueue <- rt
-	return <-rt.resp
+func New(tsk Task) Task {
+	ts := util.ProtosTime(time.Now())
+	base := &Base{
+		ID:        xid.New().String(),
+		Name:      tsk.Name(),
+		Status:    REQUESTED,
+		Progress:  Progress{Percentage: 0},
+		StartedAt: &ts,
+
+		quitChan: make(chan bool, 1),
+		finish:   make(chan error, 1),
+	}
+	base.Save()
+	tsk.SetBase(base)
+	return tsk
 }
 
 // GetAll returns all the available tasks
@@ -133,7 +182,7 @@ func GetAll() linkedhashmap.Map {
 }
 
 // Get returns a task based on its id
-func Get(id string) (Task, error) {
+func Get(id string) (Base, error) {
 	rt := readTaskReq{id: id, resp: make(chan readTaskResp)}
 	readTaskQueue <- rt
 	resp := <-rt.resp

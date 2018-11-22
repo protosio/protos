@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/pkg/errors"
 
@@ -50,6 +51,9 @@ type Action struct {
 
 // App represents the application state
 type App struct {
+	access *sync.Mutex
+
+	// Public members
 	Name              string             `json:"name"`
 	ID                string             `json:"id"`
 	InstallerID       string             `json:"installer-id"`
@@ -121,6 +125,14 @@ func createCapabilities(installerCapabilities []*capability.Capability) []string
 // Methods for application instance
 //
 
+// SetStatus is used to set the status of an application
+func (app *App) SetStatus(status string) {
+	app.access.Lock()
+	app.Status = status
+	app.access.Unlock()
+	app.Save()
+}
+
 // AddAction performs an action on an application
 func (app *App) AddAction(action Action) (task.Task, error) {
 	log.Info("Performing action [", action.Name, "] on application ", app.Name, "[", app.ID, "]")
@@ -133,38 +145,45 @@ func (app *App) AddAction(action Action) (task.Task, error) {
 		tsk := app.StopAsync()
 		return tsk, nil
 	default:
-		return task.Task{}, errors.New("Action not supported")
+		return nil, errors.New("Action not supported")
 	}
 }
 
 // AddTask adds a task owned by the applications
 func (app *App) AddTask(id string) {
+	app.access.Lock()
 	app.Tasks = append(app.Tasks, id)
+	app.access.Unlock()
 	app.Save()
 }
 
 // Save - sends update to the app manager which persists application data to database
 func (app *App) Save() {
-	addAppQueue <- *app
+	saveAppSignal <- app.ID
 }
 
 // reateContainer create the underlying Docker container
 func (app *App) createContainer() (platform.RuntimeUnit, error) {
 	var volume *platform.DockerVolume
+	var err error
 	if app.InstallerMetadata.PersistancePath != "" {
-		volume, err := platform.GetOrCreateDockerVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
+		volume, err = platform.GetOrCreateDockerVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
 		if err != nil {
 			return nil, errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
 		}
-		app.VolumeID = volume.ID
 	}
 
 	cnt, err := platform.NewDockerContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, volume, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create container")
 	}
+	app.access.Lock()
+	if volume != nil {
+		app.VolumeID = volume.ID
+	}
 	app.ContainerID = cnt.GetID()
 	app.IP = cnt.GetIP()
+	app.access.Unlock()
 	app.Save()
 	return cnt, nil
 }
@@ -206,8 +225,10 @@ func (app *App) enrichAppData() {
 }
 
 // StartAsync asynchronously starts an application and returns a task
-func (app App) StartAsync() task.Task {
-	return task.New(StartAppTask{app: app})
+func (app *App) StartAsync() task.Task {
+	tsk := task.New(&StartAppTask{app: app})
+	task.Schedule(tsk)
+	return tsk
 }
 
 // Start starts an application
@@ -216,23 +237,31 @@ func (app *App) Start() error {
 
 	cnt, err := app.getOrCreateContainer()
 	if err != nil {
+		app.access.Lock()
 		app.Status = statusFailed
+		app.access.Unlock()
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
 
 	err = cnt.Start()
 	if err != nil {
+		app.access.Lock()
 		app.Status = statusFailed
+		app.access.Unlock()
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
+	app.access.Lock()
 	app.Status = statusRunning
+	app.access.Unlock()
 	app.Save()
 	return nil
 }
 
 // StopAsync asynchronously stops an application and returns a task
-func (app App) StopAsync() task.Task {
-	return task.New(StopAppTask{app: app})
+func (app *App) StopAsync() task.Task {
+	tsk := task.New(&StopAppTask{app: app})
+	task.Schedule(tsk)
+	return tsk
 }
 
 // Stop stops an application
@@ -252,7 +281,9 @@ func (app *App) Stop() error {
 	if err != nil {
 		return errors.Wrapf(err, "Can't stop application %s(%s)", app.Name, app.ID)
 	}
+	app.access.Lock()
 	app.Status = statusStopped
+	app.access.Unlock()
 	app.Save()
 	return nil
 }
@@ -314,7 +345,9 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 	if err != nil {
 		return &resource.Resource{}, err
 	}
+	app.access.Lock()
 	app.Resources = append(app.Resources, rsc.ID)
+	app.access.Unlock()
 	app.Save()
 
 	return rsc, nil
@@ -331,7 +364,9 @@ func (app *App) DeleteResource(resourceID string) error {
 		if err != nil {
 			return err
 		}
+		app.access.Lock()
 		app.Resources = util.RemoveStringFromSlice(app.Resources, index)
+		app.access.Unlock()
 		app.Save()
 
 		return nil
@@ -369,7 +404,7 @@ func (app *App) GetResource(resourceID string) *resource.Resource {
 }
 
 // ValidateCapability implements the capability checker interface
-func (app App) ValidateCapability(cap *capability.Capability) error {
+func (app *App) ValidateCapability(cap *capability.Capability) error {
 	for _, appcap := range app.Capabilities {
 		if capability.Validate(cap, appcap) {
 			return nil
@@ -384,14 +419,16 @@ func (app App) ValidateCapability(cap *capability.Capability) error {
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
 func CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) task.Task {
-	taskType := CreateAppTask{
+	createApp := CreateAppTask{
 		InstallerID:      installerID,
 		InstallerVersion: installerVersion,
 		AppName:          appName,
 		InstallerParams:  installerParams,
 		StartOnCreation:  startOnCreation,
 	}
-	return task.New(taskType)
+	tsk := task.New(&createApp)
+	task.Schedule(tsk)
+	return tsk
 }
 
 // Create takes an image and creates an application, without starting it
@@ -409,7 +446,7 @@ func Create(installerID string, installerVersion string, name string, installerP
 
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app = &App{Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
+	app = &App{access: &sync.Mutex{}, Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
 		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
 		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating}
 
@@ -421,27 +458,25 @@ func Create(installerID string, installerVersion string, name string, installerP
 		}
 		app.Resources = append(app.Resources, rsc.ID)
 	}
-	app.Save()
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
 }
 
-// Read reads a fresh copy of the application
-func Read(id string) (App, error) {
+// Read returns an application based on its id
+func Read(id string) (*App, error) {
 	log.Info("Reading application ", id)
 
 	ra := readAppReq{id: id, resp: make(chan readAppResp)}
 	readAppQueue <- ra
 	resp := <-ra.resp
-	app := &resp.app
-	app.enrichAppData()
-	return *app, resp.err
+	app := resp.app.(*App)
+	return app, resp.err
 }
 
 // ReadByIP searches and returns an application based on it's IP address
 // ToDo: refresh IP data for all applications?
-func ReadByIP(appIP string) (App, error) {
+func ReadByIP(appIP string) (*App, error) {
 	log.Debug("Reading application with IP ", appIP)
 
 	apps := GetAll()
@@ -451,13 +486,13 @@ func ReadByIP(appIP string) (App, error) {
 			return app, nil
 		}
 	}
-	return App{}, errors.New("Could not find any application with IP " + appIP)
+	return nil, errors.New("Could not find any application with IP " + appIP)
 
 }
 
 // GetAll returns all applications
-func GetAll() map[string]App {
-	resp := make(chan map[string]App)
+func GetAll() map[string]*App {
+	resp := make(chan map[string]*App)
 	readAllQueue <- resp
 	return <-resp
 }
