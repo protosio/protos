@@ -132,26 +132,6 @@ func getLastNTasks(n int, tsks linkedhashmap.Map) linkedhashmap.Map {
 	return *lastTasks
 }
 
-// // Run starts the task
-// func (t *Task) Run() {
-// 	log.WithField("proc", t.ID).Infof("Started task %s", t.ID)
-// 	err := t.taskType.Run(t)
-// 	if err != nil {
-// 		log.WithField("proc", t.ID).Error("Failed to finish task: ", err.Error())
-// 		t.Progress.State = err.Error()
-// 		t.Status = FAILED
-// 		t.err = err
-// 	} else {
-// 		log.WithField("proc", t.ID).Infof("Task %s finished successfully", t.ID)
-// 		t.Status = FINISHED
-// 	}
-// 	t.Finish()
-// }
-
-//
-// Methods that act on a task copy, and they dont modify the struct
-//
-
 //
 // General methods
 //
