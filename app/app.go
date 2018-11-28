@@ -1,22 +1,18 @@
 package app
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/installer"
-	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/resource"
 	"github.com/protosio/protos/util"
-
-	"github.com/rs/xid"
 )
 
 var log = util.GetLogger("app")
@@ -159,7 +155,7 @@ func (app *App) AddTask(id string) {
 
 // Save - sends update to the app manager which persists application data to database
 func (app *App) Save() {
-	saveAppSignal <- app.ID
+	saveApp(app)
 }
 
 // reateContainer create the underlying Docker container
@@ -288,6 +284,13 @@ func (app *App) Stop() error {
 	return nil
 }
 
+// RemoveAsync asynchronously removes an applications and returns a task
+func (app *App) RemoveAsync() task.Task {
+	tsk := task.New(&RemoveAppTask{app: app})
+	task.Schedule(tsk)
+	return tsk
+}
+
 // Remove App removes an application container
 func (app *App) Remove() error {
 	log.Info("Removing application ", app.Name, "[", app.ID, "]")
@@ -326,9 +329,7 @@ func (app *App) Remove() error {
 		}
 	}
 
-	ra := removeAppReq{id: app.ID, resp: make(chan error)}
-	removeAppQueue <- ra
-	err = <-ra.resp
+	err = mapps.remove(app.ID)
 	if err != nil {
 		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
 	}
@@ -411,88 +412,4 @@ func (app *App) ValidateCapability(cap *capability.Capability) error {
 		}
 	}
 	return errors.New("Method capability " + cap.Name + " not satisfied by application " + app.ID)
-}
-
-//
-// Package public methods
-//
-
-// CreateAsync creates, runs and returns a task of type CreateAppTask
-func CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) task.Task {
-	createApp := CreateAppTask{
-		InstallerID:      installerID,
-		InstallerVersion: installerVersion,
-		AppName:          appName,
-		InstallerParams:  installerParams,
-		StartOnCreation:  startOnCreation,
-	}
-	tsk := task.New(&createApp)
-	task.Schedule(tsk)
-	return tsk
-}
-
-// Create takes an image and creates an application, without starting it
-func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata, taskID string) (*App, error) {
-
-	var app *App
-	if name == "" {
-		return app, fmt.Errorf("Application name cannot be empty")
-	}
-
-	err := validateInstallerParams(installerParams, installerMetadata.Params)
-	if err != nil {
-		return app, err
-	}
-
-	guid := xid.New()
-	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app = &App{access: &sync.Mutex{}, Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
-		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
-		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating}
-
-	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
-	if app.ValidateCapability(capability.PublicDNS) == nil {
-		rsc, err := resource.Create(resource.DNS, &resource.DNSResource{Host: app.Name, Value: meta.GetPublicIP(), Type: "A", TTL: 300})
-		if err != nil {
-			return app, err
-		}
-		app.Resources = append(app.Resources, rsc.ID)
-	}
-
-	log.Debug("Created application ", name, "[", guid.String(), "]")
-	return app, nil
-}
-
-// Read returns an application based on its id
-func Read(id string) (*App, error) {
-	log.Info("Reading application ", id)
-
-	ra := readAppReq{id: id, resp: make(chan readAppResp)}
-	readAppQueue <- ra
-	resp := <-ra.resp
-	app := resp.app.(*App)
-	return app, resp.err
-}
-
-// ReadByIP searches and returns an application based on it's IP address
-// ToDo: refresh IP data for all applications?
-func ReadByIP(appIP string) (*App, error) {
-	log.Debug("Reading application with IP ", appIP)
-
-	apps := GetAll()
-	for _, app := range apps {
-		if app.IP == appIP {
-			log.Debug("Found application '", app.Name, "' for IP ", appIP)
-			return app, nil
-		}
-	}
-	return nil, errors.New("Could not find any application with IP " + appIP)
-
-}
-
-// GetAll returns all applications
-func GetAll() map[string]*App {
-	resp := make(chan map[string]*App)
-	readAllQueue <- resp
-	return <-resp
 }

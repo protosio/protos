@@ -61,21 +61,26 @@ func removeInitProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apps := app.GetAll()
-	for _, a := range apps {
-		if prov, _ := util.StringInSlice(provides, a.InstallerMetadata.Provides); prov {
-			err := a.Stop()
-			if err != nil {
-				err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
-				log.Error(err.Error())
-			}
-			err = a.Remove()
-			if err != nil {
-				err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
-				log.Error(err.Error())
-				rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-				return
-			}
+	providerFilter := func(app *app.App) bool {
+		if prov, _ := util.StringInSlice(provides, app.InstallerMetadata.Provides); prov {
+			return true
+		}
+		return false
+	}
+
+	providerApps := app.Select(providerFilter)
+	for _, a := range providerApps {
+		err := a.Stop()
+		if err != nil {
+			err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
+			log.Error(err.Error())
+		}
+		err = a.Remove()
+		if err != nil {
+			err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
+			log.Error(err.Error())
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
 		}
 	}
 	rend.JSON(w, http.StatusOK, nil)

@@ -145,7 +145,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task := app.CreateAsync(
+	tsk := app.CreateAsync(
 		appParams.InstallerID,
 		appParams.InstallerVersion,
 		appParams.Name,
@@ -153,7 +153,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		true,
 	)
 
-	rend.JSON(w, http.StatusAccepted, task)
+	rend.JSON(w, http.StatusAccepted, tsk)
 }
 
 func getApp(w http.ResponseWriter, r *http.Request) {
@@ -217,14 +217,14 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.Remove()
+	tsk := app.RemoveAsync()
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
 
-	rend.JSON(w, http.StatusOK, nil)
+	rend.JSON(w, http.StatusOK, tsk)
 }
 
 //
@@ -334,7 +334,7 @@ func removeResource(w http.ResponseWriter, r *http.Request) {
 //
 
 func getTasks(w http.ResponseWriter, r *http.Request) {
-	tasks := task.GetAll()
+	tasks := task.GetLast()
 	json, err := tasks.ToJSON()
 	if err != nil {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

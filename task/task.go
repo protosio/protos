@@ -158,6 +158,13 @@ func New(tsk Task) Task {
 func GetAll() linkedhashmap.Map {
 	resp := make(chan linkedhashmap.Map)
 	readAllQueue <- resp
+	return <-resp
+}
+
+// GetLast returns last 36 available tasks
+func GetLast() linkedhashmap.Map {
+	resp := make(chan linkedhashmap.Map)
+	readAllQueue <- resp
 	return getLastNTasks(36, <-resp)
 }
 

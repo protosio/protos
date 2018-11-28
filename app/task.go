@@ -46,7 +46,7 @@ func (t CreateAppTask) Run() {
 	if err != nil {
 		t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
 	}
-	addToManager(app)
+	add(app)
 	t.Progress.Percentage = 10
 	t.Progress.State = "Created application"
 	t.Apps = append(t.Apps, app.ID)
@@ -144,4 +144,28 @@ func (t *StopAppTask) Run() {
 	t.app.AddTask(t.ID)
 	t.Save()
 	t.Finish(t.app.Stop())
+}
+
+// RemoveAppTask removes an application and implements the task interface
+type RemoveAppTask struct {
+	*task.Base
+	app *App
+}
+
+// Name returns the task type name
+func (t *RemoveAppTask) Name() string {
+	return "Stop application"
+}
+
+// SetBase embedds the task base details
+func (t *RemoveAppTask) SetBase(base *task.Base) {
+	t.Base = base
+}
+
+// Run starts the async task
+func (t *RemoveAppTask) Run() {
+	t.Status = task.INPROGRESS
+	t.Progress.Percentage = 30
+	t.Save()
+	t.Finish(t.app.Remove())
 }

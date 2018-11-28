@@ -48,9 +48,7 @@ func (app App) Public() PublicApp {
 
 // GetAllPublic returns all applications in their public form, enriched with the latest status message
 func GetAllPublic() map[string]PublicApp {
-	resp := make(chan map[string]App)
-	readAllPublicQueue <- resp
-	papps := enrichPublicApps(<-resp)
+	papps := enrichPublicApps(CopyAll())
 	return papps
 }
 

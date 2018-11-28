@@ -99,7 +99,8 @@ func Manager(quit chan bool) {
 			requestedTasks := tasks.Select(filter)
 			readReq.resp <- *requestedTasks
 		case readAllResp := <-readAllQueue:
-			readAllResp <- *tasks
+			tasksCopy := *tasks
+			readAllResp <- tasksCopy
 		case <-quit:
 			log.Info("Shutting down task manager")
 			return

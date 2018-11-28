@@ -6,54 +6,70 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/database"
+	"github.com/protosio/protos/installer"
+	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/platform"
+	"github.com/protosio/protos/resource"
+	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
+	"github.com/rs/xid"
 )
 
-// mapps maintains a map of all the applications, which are all mutable
-var mapps map[string]*App
-
-// papps maintains a map of all applications, which are immutable and and atomically swapped
-var papps map[string]App
-
-type readAppResp struct {
-	app interface{}
-	err error
+// Map is a thread save application map
+type Map struct {
+	access *sync.Mutex
+	apps   map[string]*App
 }
 
-type readAppReq struct {
-	id   string
-	copy bool
-	resp chan readAppResp
+// put saves an application into the application map
+func (am *Map) put(id string, app *App) {
+	am.access.Lock()
+	am.apps[id] = app
+	am.access.Unlock()
 }
 
-type removeAppReq struct {
-	id   string
-	resp chan error
+// get retrieves an application from the application map
+func (am *Map) get(id string) (*App, error) {
+	am.access.Lock()
+	app, found := am.apps[id]
+	am.access.Unlock()
+	if found {
+		return app, nil
+	}
+	return nil, fmt.Errorf("Could not find app %s", id)
 }
 
-// readAppQueue receives read requests for specific apps, based on app id
-var readAppQueue = make(chan readAppReq)
+func (am *Map) remove(id string) error {
+	am.access.Lock()
+	defer am.access.Unlock()
+	_, found := am.apps[id]
+	if found == false {
+		return fmt.Errorf("Could not find app %s", id)
+	}
+	delete(am.apps, id)
+	return nil
+}
 
-// addAppQueue receives apps and adds them to the app list
-var addAppQueue = make(chan *App, 100)
+// copy returns a copy of the applications map
+func (am *Map) copy() map[string]App {
+	apps := map[string]App{}
+	am.access.Lock()
+	for k, v := range am.apps {
+		app := *v
+		apps[k] = app
+	}
+	am.access.Unlock()
+	return apps
+}
 
-// saveAppSignal receives notifications to save the app to the db
-var saveAppSignal = make(chan string, 100)
-
-// removeAppQueue receives remove requests for specific apps, based on app id
-var removeAppQueue = make(chan removeAppReq, 100)
-
-// readAllQueue receives read requests for the whole app list
-var readAllQueue = make(chan chan map[string]*App)
-
-// readAllPublicQueue receives read requests for the whole immutable app list
-var readAllPublicQueue = make(chan chan map[string]App)
+// mapps maintains the main application map
+var mapps Map
 
 // initDB runs when Protos starts and loads all apps from the DB in memory
 func initDB() {
-	log.WithField("proc", "appmanager").Debug("Retrieving applications from DB")
+	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 	gob.Register(&platform.DockerContainer{})
 
@@ -63,13 +79,11 @@ func initDB() {
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
 
-	mapps = make(map[string]*App)
-	papps = make(map[string]App)
+	mapps = Map{access: &sync.Mutex{}, apps: map[string]*App{}}
 	for _, app := range dbapps {
-		papps[app.ID] = *app
 		tmp := app
 		tmp.access = &sync.Mutex{}
-		mapps[app.ID] = tmp
+		mapps.put(tmp.ID, tmp)
 	}
 }
 
@@ -78,7 +92,6 @@ func saveApp(app *App) {
 	papp := *app
 	app.access.Unlock()
 	papp.access = nil
-	papps[papp.ID] = papp
 	gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
 	err := database.Save(&papp)
 	if err != nil {
@@ -86,67 +99,116 @@ func saveApp(app *App) {
 	}
 }
 
-// Manager runs in its own goroutine and manages access to the app list
-func Manager(quit chan bool) {
-	log.WithField("proc", "appmanager").Info("Starting the app manager")
+func add(app *App) {
+	mapps.put(app.ID, app)
+	saveApp(app)
+}
+
+//
+// Public methods
+//
+
+// Init initializes the app package by loading all the applications from the database
+func Init() {
+	log.Info("Initializing application manager")
 	initDB()
-	for {
-		select {
-		case readReq := <-readAppQueue:
-			var app interface{}
-			var found bool
-			if readReq.copy {
-				app, found = papps[readReq.id]
-			} else {
-				app, found = mapps[readReq.id]
-			}
-			if found {
-				readReq.resp <- readAppResp{app: app}
-			} else {
-				readReq.resp <- readAppResp{err: fmt.Errorf("Could not find app %s", readReq.id)}
-			}
-		case app := <-addAppQueue:
-			mapps[app.ID] = app
-			saveApp(app)
-		case appID := <-saveAppSignal:
-			saveApp(mapps[appID])
-		case removeReq := <-removeAppQueue:
-			if app, found := mapps[removeReq.id]; found {
-				delete(mapps, app.ID)
-				delete(papps, app.ID)
-				err := database.Remove(app)
-				if err != nil {
-					removeReq.resp <- err
-				}
-				removeReq.resp <- nil
-			} else {
-				removeReq.resp <- fmt.Errorf("Could not find app %s", removeReq.id)
-			}
-		case readAllResp := <-readAllQueue:
-			appsCopy := make(map[string]*App)
-			for k, v := range mapps {
-				appsCopy[k] = v
-			}
-			readAllResp <- appsCopy
-		case readAllPublicResp := <-readAllPublicQueue:
-			readAllPublicResp <- papps
-		case <-quit:
-			log.Info("Shutting down app manager")
-			return
+}
+
+// GetCopy returns a copy of an application based on its id
+func GetCopy(id string) (App, error) {
+	log.Debug("Copying application ", id)
+	app, err := mapps.get(id)
+	app.access.Lock()
+	capp := *app
+	app.access.Unlock()
+	return capp, err
+}
+
+// CopyAll returns a copy of all the applications
+func CopyAll() map[string]App {
+	return mapps.copy()
+}
+
+// Read returns an application based on its id
+func Read(id string) (*App, error) {
+	log.Debug("Reading application ", id)
+	return mapps.get(id)
+}
+
+// Select takes a function and applies it to all the apps in the map. The ones that return true are returned
+func Select(filter func(*App) bool) map[string]*App {
+	apps := map[string]*App{}
+	mapps.access.Lock()
+	for k, v := range mapps.apps {
+		app := v
+		app.access.Lock()
+		if filter(app) {
+			apps[k] = app
+		}
+		app.access.Unlock()
+	}
+	mapps.access.Unlock()
+	return apps
+}
+
+// ReadByIP searches and returns an application based on it's IP address
+// ToDo: refresh IP data for all applications?
+func ReadByIP(appIP string) (*App, error) {
+	log.Debug("Reading application with IP ", appIP)
+
+	mapps.access.Lock()
+	defer mapps.access.Unlock()
+	for _, app := range mapps.apps {
+		if app.IP == appIP {
+			log.Debug("Found application '", app.Name, "' for IP ", appIP)
+			return app, nil
 		}
 	}
+	return nil, errors.New("Could not find any application with IP " + appIP)
 }
 
-func addToManager(app *App) {
-	addAppQueue <- app
+// CreateAsync creates, runs and returns a task of type CreateAppTask
+func CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) task.Task {
+	createApp := CreateAppTask{
+		InstallerID:      installerID,
+		InstallerVersion: installerVersion,
+		AppName:          appName,
+		InstallerParams:  installerParams,
+		StartOnCreation:  startOnCreation,
+	}
+	tsk := task.New(&createApp)
+	task.Schedule(tsk)
+	return tsk
 }
 
-// GetCopy returns a copy of application based on its id
-func GetCopy(id string) (App, error) {
-	log.Info("Reading application ", id)
-	ra := readAppReq{id: id, copy: true, resp: make(chan readAppResp)}
-	readAppQueue <- ra
-	resp := <-ra.resp
-	app := resp.app.(App)
-	return app, resp.err
+// Create takes an image and creates an application, without starting it
+func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata, taskID string) (*App, error) {
+
+	var app *App
+	if name == "" {
+		return app, fmt.Errorf("Application name cannot be empty")
+	}
+
+	err := validateInstallerParams(installerParams, installerMetadata.Params)
+	if err != nil {
+		return app, err
+	}
+
+	guid := xid.New()
+	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
+	app = &App{access: &sync.Mutex{}, Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
+		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
+		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating}
+
+	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
+	if app.ValidateCapability(capability.PublicDNS) == nil {
+		rsc, err := resource.Create(resource.DNS, &resource.DNSResource{Host: app.Name, Value: meta.GetPublicIP(), Type: "A", TTL: 300})
+		if err != nil {
+			return app, err
+		}
+		app.Resources = append(app.Resources, rsc.ID)
+	}
+
+	log.Debug("Created application ", name, "[", guid.String(), "]")
+	return app, nil
 }

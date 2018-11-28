@@ -78,9 +78,8 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	resource.LoadResourcesDB()       // required to register the resource structs with the DB
 	provider.LoadProvidersDB()       // required to register the provider structs with the DB
 
-	// start app manager
-	gconfig.ProcsQuit["appmanager"] = make(chan bool, 1)
-	run(&wg, app.Manager, gconfig.ProcsQuit["appmanager"])
+	// Init app package
+	app.Init()
 	// start task manager
 	gconfig.ProcsQuit["taskmanager"] = make(chan bool, 1)
 	run(&wg, task.Manager, gconfig.ProcsQuit["taskmanager"])
