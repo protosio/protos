@@ -29,14 +29,14 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if registerform.Password != registerform.ConfirmPassword {
 		err = errors.New("Cannot perform registration: passwords don't match")
 		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 		return
 	}
 
 	if registerform.Domain == "" {
 		err = errors.New("Cannot perform registration: domain cannot be empty")
 		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 		return
 	}
 
