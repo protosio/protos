@@ -26,7 +26,6 @@ var log = util.GetLogger("daemon")
 
 func run(wg *sync.WaitGroup, manager func(chan bool), quit chan bool) {
 	go func() {
-		wg.Add(1)
 		manager(quit)
 		wg.Done()
 	}()
@@ -81,9 +80,11 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	// Init app package
 	app.Init()
 	// start task manager
+	wg.Add(1)
 	gconfig.ProcsQuit["taskmanager"] = make(chan bool, 1)
 	run(&wg, task.Manager, gconfig.ProcsQuit["taskmanager"])
 	// start ws connection manager
+	wg.Add(1)
 	gconfig.ProcsQuit["wsmanager"] = make(chan bool, 1)
 	run(&wg, api.WSManager, gconfig.ProcsQuit["wsmanager"])
 
@@ -102,6 +103,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 
 		meta.InitCheck()
 		// start tls web server
+		wg.Add(1)
 		gconfig.ProcsQuit["webserver"] = make(chan bool)
 		run(&wg, api.Websrv, gconfig.ProcsQuit["webserver"])
 	}
