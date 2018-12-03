@@ -73,6 +73,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debug("Sending response: ", tokenResponse)
+	w.Header().Add("Content-Type", "application/json")
 	rend.JSON(w, http.StatusOK, tokenResponse)
 }
 
