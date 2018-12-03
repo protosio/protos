@@ -154,7 +154,7 @@ type RemoveAppTask struct {
 
 // Name returns the task type name
 func (t *RemoveAppTask) Name() string {
-	return "Stop application"
+	return "Remove application"
 }
 
 // SetBase embedds the task base details
