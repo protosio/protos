@@ -137,6 +137,14 @@
   version = "v1.12.0"
 
 [[projects]]
+  digest = "1:eceec69de4581189a65244bf958b2c4b3a121ed80700f92ae25c03ab2c8f61a2"
+  name = "github.com/getlantern/deepcopy"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "b923171e8640f94369e21e324b1b0465cb82ec9f"
+  version = "v1"
+
+[[projects]]
   digest = "1:bbadccf3d3317ea03c0dac0b45b673b4b397c8f91a1d2eff550a3c51c4ad770e"
   name = "github.com/gogo/protobuf"
   packages = ["proto"]
@@ -276,6 +284,30 @@
   revision = "be924ce213fb35f66c810b61e051965eb78b82d0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:f4e5276a3b356f4692107047fd2890f2fe534f4feeb6b1fd2f6dfbd87f1ccf54"
+  name = "github.com/xeipuuv/gojsonpointer"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4e3ac2762d5f479393488629ee9370b50873b3a6"
+
+[[projects]]
+  branch = "master"
+  digest = "1:dc6a6c28ca45d38cfce9f7cb61681ee38c5b99ec1425339bfc1e1a7ba769c807"
+  name = "github.com/xeipuuv/gojsonreference"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "bd5ef7bd5415a7ac448318e64f11a24cd21e594b"
+
+[[projects]]
+  digest = "1:41bd4de0a27c0b7affef4083bc8f86501b4c7d891f95809a0fb758a23eb5e78f"
+  name = "github.com/xeipuuv/gojsonschema"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "da425ebb7609ba06a0f395fc8a254d1c303364a0"
+  version = "v1.0"
+
+[[projects]]
   digest = "1:c28625428387b63dd7154eb857f51e700465cfbf7c06f619e71f2da33cefe47e"
   name = "go.etcd.io/bbolt"
   packages = ["."]
@@ -285,7 +317,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:001a4e7a40e50ff2ef32e2556bca50c4f77daa457db3ac6afc8bea9bb2122cfb"
+  digest = "1:427cdd2c12a3290ace873d2f9d3958d126c4d75596dbc09de05852da08a3dab5"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
@@ -293,31 +325,89 @@
     "ssh/terminal",
   ]
   pruneopts = "UT"
-  revision = "3d3f9f413869b949e48070b5bc593aa22cc2b8f2"
+  revision = "505ab145d0a99da450461ae2c1a9f6cd10d1f447"
 
 [[projects]]
   branch = "master"
-  digest = "1:3866deb325971ae774d5844b70f058923b7757cd2eec6db2bd6d028143f6b65f"
+  digest = "1:7320c5849f609128d3dc89de4956802c00f9fd66dcbf48c9c3a1d6e0151d27e3"
   name = "golang.org/x/net"
   packages = [
     "context",
     "context/ctxhttp",
+    "idna",
     "internal/socks",
     "proxy",
+    "publicsuffix",
   ]
   pruneopts = "UT"
-  revision = "adae6a3d119ae4890b46832a2e88a95adc62b8e7"
+  revision = "351d144fa1fc0bd934e2408202be0c29f25e35a0"
 
 [[projects]]
   branch = "master"
-  digest = "1:a089387bbfcfa884e5aafeebb85929993195bb8959766b1d20102841d47e0b0e"
+  digest = "1:0c7cb58af944f9690af91474a75371eecfe54c1ce3771a8dc08924430ee785d3"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "93218def8b18e66adbdab3eca8ec334700329f1f"
+  revision = "4ed8d59d0b35e1e29334a206d1b3f38b1e5dfb31"
+
+[[projects]]
+  digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
+  name = "golang.org/x/text"
+  packages = [
+    "collate",
+    "collate/build",
+    "internal/colltab",
+    "internal/gen",
+    "internal/tag",
+    "internal/triegen",
+    "internal/ucd",
+    "language",
+    "secure/bidirule",
+    "transform",
+    "unicode/bidi",
+    "unicode/cldr",
+    "unicode/norm",
+    "unicode/rangetable",
+  ]
+  pruneopts = "UT"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
+
+[[projects]]
+  digest = "1:3ca836158313fdffcb95d4a98fba8860e182aff2853c78d168cc9e021308ded4"
+  name = "gopkg.in/h2non/baloo.v3"
+  packages = [
+    ".",
+    "assert",
+  ]
+  pruneopts = "UT"
+  revision = "b9f462260906c6745b7326783fede3b92e7c465e"
+  version = "v3.0.2"
+
+[[projects]]
+  digest = "1:7fcbedcdf42d726e69027720ccca6d77cd7df9c430db9c7e3d3343dc97b63b01"
+  name = "gopkg.in/h2non/gentleman.v2"
+  packages = [
+    ".",
+    "context",
+    "middleware",
+    "mux",
+    "plugin",
+    "plugins/body",
+    "plugins/bodytype",
+    "plugins/cookies",
+    "plugins/headers",
+    "plugins/multipart",
+    "plugins/query",
+    "plugins/url",
+    "utils",
+  ]
+  pruneopts = "UT"
+  revision = "e0f81be2f4064ea7aa7470e9daddd2dc8e8152c7"
+  version = "v2.0.3"
 
 [[projects]]
   digest = "1:b24d38b282bacf9791408a080f606370efa3d364e4b5fd9ba0f7b87786d3b679"
@@ -355,6 +445,7 @@
     "github.com/docker/docker/client",
     "github.com/docker/go-connections/nat",
     "github.com/emirpasic/gods/maps/linkedhashmap",
+    "github.com/getlantern/deepcopy",
     "github.com/gorilla/mux",
     "github.com/gorilla/websocket",
     "github.com/heroku/docker-registry-client/registry",
@@ -368,6 +459,7 @@
     "github.com/vjeantet/jodaTime",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh/terminal",
+    "gopkg.in/h2non/baloo.v3",
     "gopkg.in/urfave/cli.v1",
     "gopkg.in/yaml.v2",
   ]
