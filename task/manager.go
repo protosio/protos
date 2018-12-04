@@ -82,8 +82,9 @@ func initDB() {
 
 	ltasks := linkedhashmap.New()
 	for _, task := range dbtasks {
-		task.access = &sync.Mutex{}
-		ltasks.Put(task.ID, task)
+		ltask := task
+		ltask.access = &sync.Mutex{}
+		ltasks.Put(task.ID, &ltask)
 	}
 	tasks = taskContainer{access: &sync.Mutex{}, all: ltasks}
 }
