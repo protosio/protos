@@ -79,10 +79,8 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 
 	// Init app package
 	app.Init()
-	// start task manager
-	wg.Add(1)
-	gconfig.ProcsQuit["taskmanager"] = make(chan bool, 1)
-	run(&wg, task.Manager, gconfig.ProcsQuit["taskmanager"])
+	// Init task manager
+	task.Init()
 	// start ws connection manager
 	wg.Add(1)
 	gconfig.ProcsQuit["wsmanager"] = make(chan bool, 1)

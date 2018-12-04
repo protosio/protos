@@ -223,7 +223,6 @@ func (app *App) enrichAppData() {
 // StartAsync asynchronously starts an application and returns a task
 func (app *App) StartAsync() task.Task {
 	tsk := task.New(&StartAppTask{app: app})
-	task.Schedule(tsk)
 	return tsk
 }
 
@@ -256,7 +255,6 @@ func (app *App) Start() error {
 // StopAsync asynchronously stops an application and returns a task
 func (app *App) StopAsync() task.Task {
 	tsk := task.New(&StopAppTask{app: app})
-	task.Schedule(tsk)
 	return tsk
 }
 
@@ -287,7 +285,6 @@ func (app *App) Stop() error {
 // RemoveAsync asynchronously removes an applications and returns a task
 func (app *App) RemoveAsync() task.Task {
 	tsk := task.New(&RemoveAppTask{app: app})
-	task.Schedule(tsk)
 	return tsk
 }
 

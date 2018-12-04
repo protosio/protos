@@ -29,7 +29,7 @@ func (t *CreateAppTask) SetBase(base *task.Base) {
 // Run starts the async task
 func (t CreateAppTask) Run() {
 	log.WithField("proc", t.ID).Debugf("Running app creation task [%s] based on installer %s:%s", t.ID, t.InstallerID, t.InstallerVersion)
-	t.Status = task.INPROGRESS
+	t.SetStatus(task.INPROGRESS)
 	t.Save()
 
 	inst, err := installer.StoreGetID(t.InstallerID)
@@ -47,9 +47,9 @@ func (t CreateAppTask) Run() {
 		t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
 	}
 	add(app)
-	t.Progress.Percentage = 10
-	t.Progress.State = "Created application"
-	t.Apps = append(t.Apps, app.ID)
+	t.SetPercentage(10)
+	t.SetState("Created application")
+	t.AddApp(app.ID)
 	t.Save()
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {
@@ -63,8 +63,8 @@ func (t CreateAppTask) Run() {
 		}
 	} else {
 		log.WithField("proc", t.ID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
-		t.Progress.Percentage = 50
-		t.Progress.State = "Docker image found locally"
+		t.SetPercentage(50)
+		t.SetState("Docker image found locally")
 		t.Save()
 	}
 
@@ -73,8 +73,8 @@ func (t CreateAppTask) Run() {
 		app.SetStatus(statusFailed)
 		t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
 	}
-	t.Progress.Percentage = 70
-	t.Progress.State = "Created Docker container"
+	t.SetPercentage(70)
+	t.SetState("Created Docker container")
 	t.Save()
 
 	if t.StartOnCreation {
@@ -112,9 +112,9 @@ func (t *StartAppTask) SetBase(base *task.Base) {
 
 // Run starts the async task
 func (t *StartAppTask) Run() {
-	t.Status = task.INPROGRESS
-	t.Progress.Percentage = 50
-	t.Apps = append(t.Apps, t.app.ID)
+	t.SetStatus(task.INPROGRESS)
+	t.SetPercentage(50)
+	t.AddApp(t.app.ID)
 	t.app.AddTask(t.ID)
 	t.Save()
 	t.Finish(t.app.Start())
@@ -138,9 +138,9 @@ func (t *StopAppTask) SetBase(base *task.Base) {
 
 // Run starts the async task
 func (t *StopAppTask) Run() {
-	t.Status = task.INPROGRESS
-	t.Progress.Percentage = 50
-	t.Apps = append(t.Apps, t.app.ID)
+	t.SetStatus(task.INPROGRESS)
+	t.SetPercentage(50)
+	t.AddApp(t.app.ID)
 	t.app.AddTask(t.ID)
 	t.Save()
 	t.Finish(t.app.Stop())
@@ -164,8 +164,8 @@ func (t *RemoveAppTask) SetBase(base *task.Base) {
 
 // Run starts the async task
 func (t *RemoveAppTask) Run() {
-	t.Status = task.INPROGRESS
-	t.Progress.Percentage = 30
+	t.SetStatus(task.INPROGRESS)
+	t.SetPercentage(50)
 	t.Save()
 	t.Finish(t.app.Remove())
 }

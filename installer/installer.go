@@ -219,7 +219,6 @@ func (inst Installer) Download(t task.Task) error {
 // DownloadAsync triggers an async installer download, returns a generic task
 func (inst Installer) DownloadAsync(version string, appID string) task.Task {
 	tsk := task.New(&DownloadTask{Inst: inst, Version: version, AppID: appID})
-	task.Schedule(tsk)
 	return tsk
 }
 

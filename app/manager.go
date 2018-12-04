@@ -17,7 +17,7 @@ import (
 	"github.com/rs/xid"
 )
 
-// Map is a thread save application map
+// Map is a thread safe application map
 type Map struct {
 	access *sync.Mutex
 	apps   map[string]*App
@@ -57,7 +57,9 @@ func (am *Map) copy() map[string]App {
 	apps := map[string]App{}
 	am.access.Lock()
 	for k, v := range am.apps {
+		v.access.Lock()
 		app := *v
+		v.access.Unlock()
 		apps[k] = app
 	}
 	am.access.Unlock()
@@ -177,7 +179,6 @@ func CreateAsync(installerID string, installerVersion string, appName string, in
 		StartOnCreation:  startOnCreation,
 	}
 	tsk := task.New(&createApp)
-	task.Schedule(tsk)
 	return tsk
 }
 

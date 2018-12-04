@@ -1,12 +1,14 @@
 package task
 
 import (
+	"errors"
+	"fmt"
+	"sync"
 	"time"
 
-	"github.com/emirpasic/gods/maps/linkedhashmap"
+	"github.com/icholy/killable"
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/util"
-	"github.com/rs/xid"
 )
 
 var log = util.GetLogger("task")
@@ -34,6 +36,9 @@ type Task interface {
 	SetPercentage(int)
 	GetPercentage() int
 	SetState(string)
+	SetStatus(string)
+	AddApp(string)
+	Copy() Base
 	Save()
 }
 
@@ -45,44 +50,88 @@ type Progress struct {
 
 // Base represents an (a)synchronous piece of work that Protos acts upon
 type Base struct {
-	ID         string           `json:"id"`
-	Name       string           `json:"name"`
-	Status     string           `json:"status"`
-	Progress   Progress         `json:"progress"`
-	StartedAt  *util.ProtosTime `json:"started-at,omitempty"`
-	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
-	Children   []string         `json:"-"`
-	Apps       []string         `json:"apps"`
+	access *sync.Mutex
+
+	// public members
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Status     string            `json:"status"`
+	Progress   Progress          `json:"progress"`
+	StartedAt  *util.ProtosTime  `json:"started-at,omitempty"`
+	FinishedAt *util.ProtosTime  `json:"finished-at,omitempty"`
+	Children   []string          `json:"-"`
+	Apps       []string          `json:"apps"`
+	Killable   killable.Killable `json:"killable"`
 	err        error
 
 	// Communication channels
-	quitChan chan bool
-	finish   chan error
+	finish chan error
 }
 
 // GetID returns the id of the task
 func (b *Base) GetID() string {
+	b.access.Lock()
+	defer b.access.Unlock()
 	return b.ID
 }
 
 // SetPercentage sets the progress percentage of the task base
 func (b *Base) SetPercentage(percent int) {
+	b.access.Lock()
 	b.Progress.Percentage = percent
+	b.access.Unlock()
 }
 
 // GetPercentage gets the progress percentage of the task base
 func (b *Base) GetPercentage() int {
+	b.access.Lock()
+	defer b.access.Unlock()
 	return b.Progress.Percentage
 }
 
 // SetState sets the progress state of the task base
 func (b *Base) SetState(msg string) {
+	b.access.Lock()
 	b.Progress.State = msg
+	b.access.Unlock()
+}
+
+// SetStatus sets the progress state of the task base
+func (b *Base) SetStatus(msg string) {
+	b.access.Lock()
+	b.Status = msg
+	b.access.Unlock()
+}
+
+// AddApp adds an app id to the task
+func (b *Base) AddApp(id string) {
+	b.access.Lock()
+	b.Apps = append(b.Apps, id)
+	b.access.Unlock()
+}
+
+// Kill stops a killable task
+func (b *Base) Kill() error {
+	b.access.Lock()
+	defer b.access.Unlock()
+	if b.Killable == nil {
+		return fmt.Errorf("Task %s(%s) is not cancellable", b.ID, b.Name)
+	}
+	b.Killable.Kill(errors.New("Killed by user"))
+	return nil
+}
+
+// Copy returns a copy of the task base
+func (b *Base) Copy() Base {
+	b.access.Lock()
+	baseCopy := *b
+	b.access.Unlock()
+	return baseCopy
 }
 
 // Save sends a copy of the running task to the task scheduler
 func (b *Base) Save() {
-	saveTaskQueue <- *b
+	saveTask(b)
 }
 
 // Wait waits for the task to finish and returns an error if there was one. Used to mimic a blocking call
@@ -93,6 +142,7 @@ func (b *Base) Wait() error {
 
 // Finish updates the task and signals the scheduler and the possible parent of the task
 func (b *Base) Finish(err error) {
+	b.access.Lock()
 	b.Progress.Percentage = 100
 	ts := util.ProtosTime(time.Now())
 	b.FinishedAt = &ts
@@ -105,80 +155,7 @@ func (b *Base) Finish(err error) {
 		log.WithField("proc", b.ID).Infof("Task %s finished successfully", b.ID)
 		b.Status = FINISHED
 	}
+	b.access.Unlock()
 	b.Save()
 	b.finish <- err
-}
-
-//
-// Methods that run inside the goroutine and that own and update the task struct
-//
-
-func getLastNTasks(n int, tsks linkedhashmap.Map) linkedhashmap.Map {
-	reversedLastTasks := linkedhashmap.New()
-	lastTasks := linkedhashmap.New()
-	rit := tsks.Iterator()
-	i := 0
-	for rit.End(); rit.Prev(); {
-		if i == n {
-			break
-		}
-		reversedLastTasks.Put(rit.Key(), rit.Value())
-		i++
-	}
-	it := reversedLastTasks.Iterator()
-	for it.End(); it.Prev(); {
-		lastTasks.Put(it.Key(), it.Value())
-	}
-	return *lastTasks
-}
-
-//
-// General methods
-//
-
-// New creates a new task and returns it
-func New(tsk Task) Task {
-	ts := util.ProtosTime(time.Now())
-	base := &Base{
-		ID:        xid.New().String(),
-		Name:      tsk.Name(),
-		Status:    REQUESTED,
-		Progress:  Progress{Percentage: 0},
-		StartedAt: &ts,
-
-		quitChan: make(chan bool, 1),
-		finish:   make(chan error, 1),
-	}
-	base.Save()
-	tsk.SetBase(base)
-	return tsk
-}
-
-// GetAll returns all the available tasks
-func GetAll() linkedhashmap.Map {
-	resp := make(chan linkedhashmap.Map)
-	readAllQueue <- resp
-	return <-resp
-}
-
-// GetLast returns last 36 available tasks
-func GetLast() linkedhashmap.Map {
-	resp := make(chan linkedhashmap.Map)
-	readAllQueue <- resp
-	return getLastNTasks(36, <-resp)
-}
-
-// Get returns a task based on its id
-func Get(id string) (Base, error) {
-	rt := readTaskReq{id: id, resp: make(chan readTaskResp)}
-	readTaskQueue <- rt
-	resp := <-rt.resp
-	return resp.tsk, resp.err
-}
-
-// GetIDs returns all tasks for the provided ids
-func GetIDs(ids []string) linkedhashmap.Map {
-	rt := readTasksReq{ids: ids, resp: make(chan linkedhashmap.Map)}
-	readTasksQueue <- rt
-	return getLastNTasks(10, <-rt.resp)
 }

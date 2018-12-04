@@ -185,6 +185,14 @@
   revision = "47ecf50fd8d4fba87593c00ca0959029c7d6b95c"
 
 [[projects]]
+  branch = "master"
+  digest = "1:29f7bed7067b3aa3a123bb51edf1cb967375f6e7352e3165d57685f4a9cdc0ee"
+  name = "github.com/icholy/killable"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "168925335d1e723ccac648dcfc2f1f609394b9ff"
+
+[[projects]]
   digest = "1:0a69a1c0db3591fcefb47f115b224592c8dfa4368b7ba9fae509d5e16cdc95c8"
   name = "github.com/konsorten/go-windows-terminal-sequences"
   packages = ["."]
@@ -449,6 +457,7 @@
     "github.com/gorilla/mux",
     "github.com/gorilla/websocket",
     "github.com/heroku/docker-registry-client/registry",
+    "github.com/icholy/killable",
     "github.com/pkg/errors",
     "github.com/rakyll/statik/fs",
     "github.com/rs/xid",

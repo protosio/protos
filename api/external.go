@@ -107,6 +107,13 @@ var externalRoutes = routes{
 		nil,
 	},
 	route{
+		"cancelTask",
+		"GET",
+		"/tasks/{taskID}/cancel",
+		cancelTask,
+		nil,
+	},
+	route{
 		"searchAppStore",
 		"GET",
 		"/store/search",
@@ -153,7 +160,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		true,
 	)
 
-	rend.JSON(w, http.StatusAccepted, tsk)
+	rend.JSON(w, http.StatusAccepted, tsk.Copy())
 }
 
 func getApp(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +209,7 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rend.JSON(w, http.StatusOK, tsk)
+	rend.JSON(w, http.StatusOK, tsk.Copy())
 }
 
 func removeApp(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +231,7 @@ func removeApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rend.JSON(w, http.StatusOK, tsk)
+	rend.JSON(w, http.StatusOK, tsk.Copy())
 }
 
 //
@@ -353,7 +360,21 @@ func getTask(w http.ResponseWriter, r *http.Request) {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
-	rend.JSON(w, http.StatusOK, tsk)
+	rend.JSON(w, http.StatusOK, tsk.Copy())
+
+}
+
+func cancelTask(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	taskID := vars["taskID"]
+
+	tsk, err := task.Get(taskID)
+	if err != nil {
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+	rend.JSON(w, http.StatusOK, tsk.Copy())
 
 }
 
