@@ -547,6 +547,15 @@ func PullDockerImage(t task.Task, id string, installerName string, installerVers
 	var e downloadEvent
 	d := json.NewDecoder(events)
 	for {
+		select {
+		case <-t.Dying():
+			err := events.Close()
+			if err != nil {
+				log.Error(errors.Wrap(err, "Failed to close the image pull while the task was canceled"))
+			}
+			return task.ErrKilledByUser
+		default:
+		}
 		if err := d.Decode(&e); err != nil {
 			if err == io.EOF {
 				break

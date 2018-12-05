@@ -1,7 +1,6 @@
 package installer
 
 import (
-	"github.com/icholy/killable"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/task"
 )
@@ -21,20 +20,21 @@ func (t *DownloadTask) Name() string {
 
 // SetBase embedds the task base details
 func (t *DownloadTask) SetBase(base *task.Base) {
+	base.SetKillable()
 	t.Base = base
-	t.Base.Killable = killable.New()
 }
 
 // Run starts the async task
 func (t *DownloadTask) Run() {
 	log.WithField("proc", t.ID).Debugf("Running download installer task [%s] based on installer %s:%s", t.ID, t.Inst.ID, t.Version)
-	t.Status = task.INPROGRESS
-	t.Apps = append(t.Apps, t.AppID)
+	t.SetStatus(task.INPROGRESS)
+	t.AddApp(t.AppID)
 	t.Save()
 
 	err := t.Inst.Download(t)
 	if err != nil {
 		t.Finish(errors.Wrapf(err, "Could not download installer %s:%s", t.Inst.ID, t.Version))
+		return
 	}
 
 	t.Finish(nil)

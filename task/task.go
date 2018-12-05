@@ -25,6 +25,9 @@ const (
 	FINISHED = "finished"
 )
 
+// ErrKilledByUser is returned when a task is canceled/killed by the user
+var ErrKilledByUser = errors.New("Task cancelled by user")
+
 // Task is the interface that all task types need to adhere too
 type Task interface {
 	Run()
@@ -39,6 +42,7 @@ type Task interface {
 	SetStatus(string)
 	AddApp(string)
 	Copy() Base
+	Dying() <-chan struct{}
 	Save()
 }
 
@@ -53,19 +57,20 @@ type Base struct {
 	access *sync.Mutex
 
 	// public members
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	Status     string            `json:"status"`
-	Progress   Progress          `json:"progress"`
-	StartedAt  *util.ProtosTime  `json:"started-at,omitempty"`
-	FinishedAt *util.ProtosTime  `json:"finished-at,omitempty"`
-	Children   []string          `json:"-"`
-	Apps       []string          `json:"apps"`
-	Killable   killable.Killable `json:"killable"`
+	ID         string           `json:"id"`
+	Name       string           `json:"name"`
+	Status     string           `json:"status"`
+	Progress   Progress         `json:"progress"`
+	StartedAt  *util.ProtosTime `json:"started-at,omitempty"`
+	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
+	Children   []string         `json:"-"`
+	Apps       []string         `json:"apps"`
+	Killable   bool             `json:"killable"`
 	err        error
 
 	// Communication channels
-	finish chan error
+	killable killable.Killable
+	finish   chan error
 }
 
 // GetID returns the id of the task
@@ -110,14 +115,22 @@ func (b *Base) AddApp(id string) {
 	b.access.Unlock()
 }
 
+// SetKillable makes a task killable
+func (b *Base) SetKillable() {
+	b.access.Lock()
+	b.Killable = true
+	b.killable = killable.New()
+	b.access.Unlock()
+}
+
 // Kill stops a killable task
 func (b *Base) Kill() error {
 	b.access.Lock()
 	defer b.access.Unlock()
-	if b.Killable == nil {
-		return fmt.Errorf("Task %s(%s) is not cancellable", b.ID, b.Name)
+	if b.Killable == false && b.Status != FINISHED && b.Status != FAILED {
+		return fmt.Errorf("Task %s(%s) is not cancellable or is not running anymore", b.ID, b.Name)
 	}
-	b.Killable.Kill(errors.New("Killed by user"))
+	b.killable.Kill(ErrKilledByUser)
 	return nil
 }
 
@@ -127,6 +140,11 @@ func (b *Base) Copy() Base {
 	baseCopy := *b
 	b.access.Unlock()
 	return baseCopy
+}
+
+// Dying returns a channel that can be used to listen for the kill command
+func (b *Base) Dying() <-chan struct{} {
+	return b.killable.Dying()
 }
 
 // Save sends a copy of the running task to the task scheduler

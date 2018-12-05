@@ -108,7 +108,7 @@ var externalRoutes = routes{
 	},
 	route{
 		"cancelTask",
-		"GET",
+		"PUT",
 		"/tasks/{taskID}/cancel",
 		cancelTask,
 		nil,
@@ -374,7 +374,12 @@ func cancelTask(w http.ResponseWriter, r *http.Request) {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
-	rend.JSON(w, http.StatusOK, tsk.Copy())
+	err = tsk.Kill()
+	if err != nil {
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+	rend.JSON(w, http.StatusOK, nil)
 
 }
 
