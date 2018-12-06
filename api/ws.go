@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -20,8 +21,9 @@ type wsConnection struct {
 }
 
 var upgrader = websocket.Upgrader{}
-var wsConnections = make([]wsConnection, 0)
+var wsConnections = map[string]wsConnection{}
 var addWSQueue = make(chan wsConnection, 100)
+var removeWSQueue = make(chan wsConnection, 100)
 
 //
 // WS connection manager
@@ -34,7 +36,13 @@ func WSManager(quit chan bool) {
 	for {
 		select {
 		case wsCon := <-addWSQueue:
-			wsConnections = append(wsConnections, wsCon)
+			conID := fmt.Sprintf("%p", &wsCon)
+			log.Debug("Registering WS connection ", conID)
+			wsConnections[conID] = wsCon
+		case wsCon := <-removeWSQueue:
+			conID := fmt.Sprintf("%p", &wsCon)
+			log.Debug("Deregistering WS connection ", conID)
+			delete(wsConnections, conID)
 		case publishMsg := <-gconfig.WSPublish:
 			for _, wsCon := range wsConnections {
 				wsCon.Send <- publishMsg
@@ -63,7 +71,7 @@ func ws(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case msg := <-wsCon.Send:
-			log.Debugf("Writing to websocket connection %p: %v", &c, msg)
+			log.Debugf("Writing to websocket connection %p: %v", &wsCon, msg)
 			jsonMsg, err := json.Marshal(msg)
 			if err != nil {
 				log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)
@@ -71,9 +79,10 @@ func ws(w http.ResponseWriter, r *http.Request) {
 			}
 			err = c.WriteMessage(1, jsonMsg)
 			if err != nil {
-				log.Errorf("Error writing to websocket connection %p: %s", &c, err)
+				log.Errorf("Error writing to websocket connection %p: %s", &wsCon, err)
 				c.Close()
-				break
+				removeWSQueue <- wsCon
+				return
 			}
 		}
 	}
