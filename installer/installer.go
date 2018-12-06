@@ -201,19 +201,14 @@ func (inst Installer) ReadVersion(version string) (Metadata, error) {
 }
 
 // Download downloads an installer from the application store
-func (inst Installer) Download(t task.Task) error {
-	dt, ok := t.(*DownloadTask)
-	if ok != true {
-		log.Panic("Received wrong task type for installer downloading")
-	}
-
+func (inst Installer) Download(dt DownloadTask) error {
 	metadata, err := inst.ReadVersion(dt.Version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer %s version %s", inst.ID, dt.Version)
 	}
 
 	log.Infof("Downloading platform image for installer %s(%s) version %s", inst.Name, inst.ID, dt.Version)
-	return platform.PullDockerImage(t, metadata.PlatformID, inst.Name, dt.Version)
+	return platform.PullDockerImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task

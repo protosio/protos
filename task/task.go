@@ -28,12 +28,15 @@ const (
 // ErrKilledByUser is returned when a task is canceled/killed by the user
 var ErrKilledByUser = errors.New("Task cancelled by user")
 
+// CustomTask is the interface that is implemented by custom tasks in various packages
+type CustomTask interface {
+	Run() error
+	Name() string
+	SetBase(Task)
+}
+
 // Task is the interface that all task types need to adhere too
 type Task interface {
-	Run()
-	Name() string
-	SetBase(*Base)
-	// fulfilled by base
 	GetID() string
 	Wait() error
 	SetPercentage(int)
@@ -42,6 +45,7 @@ type Task interface {
 	SetStatus(string)
 	AddApp(string)
 	Copy() Base
+	SetKillable()
 	Dying() <-chan struct{}
 	Save()
 }
@@ -55,6 +59,7 @@ type Progress struct {
 // Base represents an (a)synchronous piece of work that Protos acts upon
 type Base struct {
 	access *sync.Mutex
+	custom CustomTask
 
 	// public members
 	ID         string           `json:"id"`
@@ -158,8 +163,14 @@ func (b *Base) Wait() error {
 	return err
 }
 
-// Finish updates the task and signals the scheduler and the possible parent of the task
-func (b *Base) Finish(err error) {
+// Run starts the task
+func (b *Base) Run() {
+	b.SetStatus(INPROGRESS)
+	b.Save()
+
+	// run custom task
+	err := b.custom.Run()
+	// update final result and save task
 	b.access.Lock()
 	b.Progress.Percentage = 100
 	ts := util.ProtosTime(time.Now())
@@ -175,5 +186,6 @@ func (b *Base) Finish(err error) {
 	}
 	b.access.Unlock()
 	b.Save()
+	// return error on finish channel
 	b.finish <- err
 }

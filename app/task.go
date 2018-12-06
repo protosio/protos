@@ -8,7 +8,7 @@ import (
 
 // CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
-	*task.Base
+	b                task.Task
 	InstallerID      string
 	InstallerVersion string
 	AppName          string
@@ -22,60 +22,59 @@ func (t *CreateAppTask) Name() string {
 }
 
 // SetBase embedds the task base details
-func (t *CreateAppTask) SetBase(base *task.Base) {
-	t.Base = base
+func (t *CreateAppTask) SetBase(tsk task.Task) {
+	t.b = tsk
 }
 
 // Run starts the async task
-func (t CreateAppTask) Run() {
-	log.WithField("proc", t.ID).Debugf("Running app creation task [%s] based on installer %s:%s", t.ID, t.InstallerID, t.InstallerVersion)
-	t.SetStatus(task.INPROGRESS)
-	t.Save()
+func (t CreateAppTask) Run() error {
+	tskID := t.b.GetID()
+	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
 	inst, err := installer.StoreGetID(t.InstallerID)
 	if err != nil {
-		t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
+		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
 
 	metadata, err := inst.ReadVersion(t.InstallerVersion)
 	if err != nil {
-		t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
+		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
 
-	app, err := Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, t.ID)
+	app, err := Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
 	if err != nil {
-		t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
+		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
 	add(app)
-	t.SetPercentage(10)
-	t.SetState("Created application")
-	t.AddApp(app.ID)
-	t.Save()
+	t.b.SetPercentage(10)
+	t.b.SetState("Created application")
+	t.b.AddApp(app.ID)
+	t.b.Save()
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {
-		log.WithField("proc", t.ID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
+		log.WithField("proc", tskID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
 		tsk := inst.DownloadAsync(t.InstallerVersion, app.ID)
 		app.AddTask(tsk.GetID())
 		err := tsk.Wait()
 		if err != nil {
 			app.SetStatus(statusFailed)
-			t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
+			return errors.Wrapf(err, "Could not create application %s", t.AppName)
 		}
 	} else {
-		log.WithField("proc", t.ID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
-		t.SetPercentage(50)
-		t.SetState("Docker image found locally")
-		t.Save()
+		log.WithField("proc", tskID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
+		t.b.SetPercentage(50)
+		t.b.SetState("Docker image found locally")
+		t.b.Save()
 	}
 
 	_, err = app.createContainer()
 	if err != nil {
 		app.SetStatus(statusFailed)
-		t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
+		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
-	t.SetPercentage(70)
-	t.SetState("Created Docker container")
-	t.Save()
+	t.b.SetPercentage(70)
+	t.b.SetState("Created Docker container")
+	t.b.Save()
 
 	if t.StartOnCreation {
 		tsk := app.StartAsync()
@@ -83,11 +82,11 @@ func (t CreateAppTask) Run() {
 		err := tsk.Wait()
 		if err != nil {
 			app.SetStatus(statusFailed)
-			t.Finish(errors.Wrapf(err, "Could not create application %s", t.AppName))
+			return errors.Wrapf(err, "Could not create application %s", t.AppName)
 		}
 	}
 	app.SetStatus(statusRunning)
-	t.Finish(nil)
+	return nil
 }
 
 //
@@ -96,7 +95,7 @@ func (t CreateAppTask) Run() {
 
 // StartAppTask starts an app and implements the task interface
 type StartAppTask struct {
-	*task.Base
+	b   task.Task
 	app *App
 }
 
@@ -106,23 +105,23 @@ func (t *StartAppTask) Name() string {
 }
 
 // SetBase embedds the task base details
-func (t *StartAppTask) SetBase(base *task.Base) {
-	t.Base = base
+func (t *StartAppTask) SetBase(tsk task.Task) {
+	t.b = tsk
 }
 
 // Run starts the async task
-func (t *StartAppTask) Run() {
-	t.SetStatus(task.INPROGRESS)
-	t.SetPercentage(50)
-	t.AddApp(t.app.ID)
-	t.app.AddTask(t.ID)
-	t.Save()
-	t.Finish(t.app.Start())
+func (t *StartAppTask) Run() error {
+	t.b.SetStatus(task.INPROGRESS)
+	t.b.SetPercentage(50)
+	t.b.AddApp(t.app.ID)
+	t.app.AddTask(t.b.GetID())
+	t.b.Save()
+	return t.app.Start()
 }
 
 // StopAppTask stops an app and implements the task interface
 type StopAppTask struct {
-	*task.Base
+	b   task.Task
 	app *App
 }
 
@@ -132,23 +131,23 @@ func (t *StopAppTask) Name() string {
 }
 
 // SetBase embedds the task base details
-func (t *StopAppTask) SetBase(base *task.Base) {
-	t.Base = base
+func (t *StopAppTask) SetBase(tsk task.Task) {
+	t.b = tsk
 }
 
 // Run starts the async task
-func (t *StopAppTask) Run() {
-	t.SetStatus(task.INPROGRESS)
-	t.SetPercentage(50)
-	t.AddApp(t.app.ID)
-	t.app.AddTask(t.ID)
-	t.Save()
-	t.Finish(t.app.Stop())
+func (t *StopAppTask) Run() error {
+	t.b.SetStatus(task.INPROGRESS)
+	t.b.SetPercentage(50)
+	t.b.AddApp(t.app.ID)
+	t.app.AddTask(t.b.GetID())
+	t.b.Save()
+	return t.app.Stop()
 }
 
 // RemoveAppTask removes an application and implements the task interface
 type RemoveAppTask struct {
-	*task.Base
+	b   task.Task
 	app *App
 }
 
@@ -158,14 +157,14 @@ func (t *RemoveAppTask) Name() string {
 }
 
 // SetBase embedds the task base details
-func (t *RemoveAppTask) SetBase(base *task.Base) {
-	t.Base = base
+func (t *RemoveAppTask) SetBase(tsk task.Task) {
+	t.b = tsk
 }
 
 // Run starts the async task
-func (t *RemoveAppTask) Run() {
-	t.SetStatus(task.INPROGRESS)
-	t.SetPercentage(50)
-	t.Save()
-	t.Finish(t.app.Remove())
+func (t *RemoveAppTask) Run() error {
+	t.b.SetStatus(task.INPROGRESS)
+	t.b.SetPercentage(50)
+	t.b.Save()
+	return t.app.Remove()
 }

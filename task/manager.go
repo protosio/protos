@@ -131,22 +131,23 @@ func Init() {
 }
 
 // New creates a new task and returns it
-func New(tsk Task) Task {
+func New(ct CustomTask) Task {
 	ts := util.ProtosTime(time.Now())
-	base := &Base{
+	tsk := &Base{
 		access: &sync.Mutex{},
+		custom: ct,
 
 		ID:        xid.New().String(),
-		Name:      tsk.Name(),
+		Name:      ct.Name(),
 		Status:    REQUESTED,
 		Progress:  Progress{Percentage: 0},
 		StartedAt: &ts,
 
 		finish: make(chan error, 1),
 	}
-	base.Save()
-	tsk.SetBase(base)
-	tasks.put(base.ID, base)
+	tsk.Save()
+	ct.SetBase(tsk)
+	tasks.put(tsk.ID, tsk)
 	go tsk.Run()
 	return tsk
 }

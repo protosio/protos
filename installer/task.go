@@ -7,7 +7,7 @@ import (
 
 // DownloadTask downloads and installer and conforms to the task interface
 type DownloadTask struct {
-	*task.Base
+	b       task.Task
 	Inst    Installer
 	AppID   string
 	Version string
@@ -19,23 +19,22 @@ func (t *DownloadTask) Name() string {
 }
 
 // SetBase embedds the task base details
-func (t *DownloadTask) SetBase(base *task.Base) {
-	base.SetKillable()
-	t.Base = base
+func (t *DownloadTask) SetBase(tsk task.Task) {
+	tsk.SetKillable()
+	t.b = tsk
 }
 
 // Run starts the async task
-func (t *DownloadTask) Run() {
-	log.WithField("proc", t.ID).Debugf("Running download installer task [%s] based on installer %s:%s", t.ID, t.Inst.ID, t.Version)
-	t.SetStatus(task.INPROGRESS)
-	t.AddApp(t.AppID)
-	t.Save()
+func (t *DownloadTask) Run() error {
+	tskID := t.b.GetID()
+	log.WithField("proc", tskID).Debugf("Running download installer task [%s] based on installer %s:%s", tskID, t.Inst.ID, t.Version)
+	t.b.AddApp(t.AppID)
+	t.b.Save()
 
-	err := t.Inst.Download(t)
+	err := t.Inst.Download(*t)
 	if err != nil {
-		t.Finish(errors.Wrapf(err, "Could not download installer %s:%s", t.Inst.ID, t.Version))
-		return
+		return errors.Wrapf(err, "Could not download installer %s:%s", t.Inst.ID, t.Version)
 	}
 
-	t.Finish(nil)
+	return nil
 }
