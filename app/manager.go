@@ -24,14 +24,14 @@ type Map struct {
 }
 
 // put saves an application into the application map
-func (am *Map) put(id string, app *App) {
+func (am Map) put(id string, app *App) {
 	am.access.Lock()
 	am.apps[id] = app
 	am.access.Unlock()
 }
 
 // get retrieves an application from the application map
-func (am *Map) get(id string) (*App, error) {
+func (am Map) get(id string) (*App, error) {
 	am.access.Lock()
 	app, found := am.apps[id]
 	am.access.Unlock()
@@ -41,7 +41,7 @@ func (am *Map) get(id string) (*App, error) {
 	return nil, fmt.Errorf("Could not find app %s", id)
 }
 
-func (am *Map) remove(id string) error {
+func (am Map) remove(id string) error {
 	am.access.Lock()
 	defer am.access.Unlock()
 	app, found := am.apps[id]
@@ -57,7 +57,7 @@ func (am *Map) remove(id string) error {
 }
 
 // copy returns a copy of the applications map
-func (am *Map) copy() map[string]App {
+func (am Map) copy() map[string]App {
 	apps := map[string]App{}
 	am.access.Lock()
 	for k, v := range am.apps {
