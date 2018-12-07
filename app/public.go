@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/emirpasic/gods/maps/linkedhashmap"
+	"github.com/protosio/protos/resource"
 	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
 )
@@ -11,7 +12,9 @@ type taskMap linkedhashmap.Map
 // PublicApp is used for marshalling app data to the UI
 type PublicApp struct {
 	App
-	Tasks taskMap `json:"tasks"`
+
+	Tasks     taskMap                      `json:"tasks"`
+	Resources map[string]resource.Resource `json:"resources"`
 }
 
 // ToDo: do app refresh caching in the platform code
@@ -43,6 +46,14 @@ func (app App) Public() PublicApp {
 		App: app,
 	}
 	pa.Tasks = taskMap(task.GetIDs(app.Tasks))
+	resourceFilter := func(rsc *resource.Resource) bool {
+		found, _ := util.StringInSlice(rsc.ID, app.Resources)
+		if found {
+			return true
+		}
+		return false
+	}
+	pa.Resources = resource.Select(resourceFilter)
 	return pa
 }
 
