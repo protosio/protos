@@ -44,9 +44,13 @@ func (am *Map) get(id string) (*App, error) {
 func (am *Map) remove(id string) error {
 	am.access.Lock()
 	defer am.access.Unlock()
-	_, found := am.apps[id]
+	app, found := am.apps[id]
 	if found == false {
 		return fmt.Errorf("Could not find app %s", id)
+	}
+	err := database.Remove(app)
+	if err != nil {
+		log.Panicf("Failed to remove app from db: %s", err.Error())
 	}
 	delete(am.apps, id)
 	return nil
