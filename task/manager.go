@@ -13,7 +13,7 @@ import (
 	"github.com/rs/xid"
 )
 
-// tasks is a thread safe tasks map
+// taskContainer is a thread safe tasks map
 type taskContainer struct {
 	access *sync.Mutex
 	all    *linkedhashmap.Map

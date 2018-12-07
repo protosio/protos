@@ -96,21 +96,29 @@ func LoadProvidersDB() {
 
 //GetResources retrieves all resources of a specific resource provider.
 func (provider *Provider) GetResources() map[string]*resource.Resource {
-	res := map[string]*resource.Resource{}
-	for _, resource := range resource.GetForType(provider.Type) {
-		res[resource.ID] = resource
+	filter := func(rsc *resource.Resource) bool {
+		if rsc.Type == provider.Type {
+			return true
+		}
+		return false
 	}
-	return res
+	rscs := resource.Select(filter)
+	return rscs
 }
 
 //GetResource retrieves a resource that belongs to this provider
 func (provider *Provider) GetResource(resourceID string) *resource.Resource {
-	for _, resource := range resource.GetForType(provider.Type) {
-		if resource.ID == resourceID {
-			return resource
-		}
+	rsc, err := resource.Get(resourceID)
+	if err != nil {
+		log.Error(err)
+		return nil
 	}
-	return nil
+	if rsc.Type != provider.Type {
+		log.Errorf("Resource %s is not of type %s, but %s", resourceID, provider.Type, rsc.Type)
+		return nil
+	}
+
+	return rsc
 }
 
 //TypeName returns the name of the type of resource the provider provides

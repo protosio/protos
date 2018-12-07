@@ -74,7 +74,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 
 	capability.Initialize()
 	platform.Initialize(incontainer) // required to connect to the Docker daemon
-	resource.LoadResourcesDB()       // required to register the resource structs with the DB
+	resource.Init()                  // required to register the resource structs with the DB
 	provider.LoadProvidersDB()       // required to register the provider structs with the DB
 
 	// Init app package
