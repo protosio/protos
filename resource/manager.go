@@ -114,14 +114,14 @@ func CreateFromJSON(appJSON []byte) (*Resource, error) {
 }
 
 // Select takes a function and applies it to all the resources in the map. The ones that return true are returned
-func Select(filter func(*Resource) bool) map[string]*Resource {
-	selectedResources := map[string]*Resource{}
+func Select(filter func(*Resource) bool) map[string]Resource {
+	selectedResources := map[string]Resource{}
 	resources.access.Lock()
 	for k, v := range resources.all {
 		rsc := v
 		rsc.access.Lock()
 		if filter(rsc) {
-			selectedResources[k] = rsc
+			selectedResources[k] = *rsc
 		}
 		rsc.access.Unlock()
 	}
