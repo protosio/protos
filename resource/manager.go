@@ -72,7 +72,7 @@ var resources resourceContainer
 
 //Create creates a resource and adds it to the internal resources map.
 func Create(rtype RType, value Type) (*Resource, error) {
-	resource := &Resource{}
+	resource := &Resource{access: &sync.Mutex{}}
 	resource.Type = rtype
 	resource.Value = value
 
@@ -93,8 +93,7 @@ func Create(rtype RType, value Type) (*Resource, error) {
 
 //CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
 func CreateFromJSON(appJSON []byte) (*Resource, error) {
-
-	resource := &Resource{}
+	resource := &Resource{access: &sync.Mutex{}}
 	err := json.Unmarshal(appJSON, resource)
 	if err != nil {
 		return resource, err
