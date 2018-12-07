@@ -84,6 +84,13 @@ func initDB() {
 	for _, task := range dbtasks {
 		ltask := task
 		ltask.access = &sync.Mutex{}
+		if ltask.Status == INPROGRESS {
+			log.Debugf("Marking task %s as failed", ltask.ID)
+			ltask.Status = FAILED
+			ltask.Progress.Percentage = 100
+			ltask.Progress.State = "Task marked as failed when Protos started"
+			ltask.Save()
+		}
 		ltasks.Put(task.ID, &ltask)
 	}
 	tasks = taskContainer{access: &sync.Mutex{}, all: ltasks}
