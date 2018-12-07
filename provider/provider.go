@@ -95,7 +95,7 @@ func LoadProvidersDB() {
 //
 
 //GetResources retrieves all resources of a specific resource provider.
-func (provider *Provider) GetResources() map[string]*resource.Resource {
+func (provider *Provider) GetResources() map[string]resource.Resource {
 	filter := func(rsc *resource.Resource) bool {
 		if rsc.Type == provider.Type {
 			return true
