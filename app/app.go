@@ -339,11 +339,12 @@ func (app *App) Remove() error {
 //CreateResource adds a resource to the internal resources map.
 func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 
-	rsc, err := resource.CreateFromJSON(appJSON)
+	app.access.Lock()
+	rsc, err := resource.CreateFromJSON(appJSON, app.ID)
 	if err != nil {
+		app.access.Unlock()
 		return &resource.Resource{}, err
 	}
-	app.access.Lock()
 	app.Resources = append(app.Resources, rsc.ID)
 	app.access.Unlock()
 	app.Save()

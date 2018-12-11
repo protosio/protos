@@ -205,7 +205,7 @@ func CreateProtosResources() (map[string]*resource.Resource, error) {
 		Type:  "A",
 		TTL:   300,
 	}
-	dnsrsc, err := resource.Create(resource.DNS, &protosDNS)
+	dnsrsc, err := resource.Create(resource.DNS, &protosDNS, "protos")
 	if err != nil {
 		if strings.Contains(err.Error(), "already registered") == false {
 			return resources, errors.Wrap(err, "Failed to create Protos resources")
@@ -218,7 +218,7 @@ func CreateProtosResources() (map[string]*resource.Resource, error) {
 		Type:  "MX",
 		TTL:   300,
 	}
-	mxrsc, err := resource.Create(resource.DNS, &protosMX)
+	mxrsc, err := resource.Create(resource.DNS, &protosMX, "protos")
 	if err != nil {
 		if strings.Contains(err.Error(), "already registered") == false {
 			return resources, errors.Wrap(err, "Failed to create Protos resources")
@@ -229,7 +229,7 @@ func CreateProtosResources() (map[string]*resource.Resource, error) {
 	protosCert := resource.CertificateResource{
 		Domains: []string{"protos"},
 	}
-	certrsc, err := resource.Create(resource.Certificate, &protosCert)
+	certrsc, err := resource.Create(resource.Certificate, &protosCert, "protos")
 	if err != nil {
 		if strings.Contains(err.Error(), "already registered") == false {
 			return resources, errors.Wrap(err, "Failed to create Protos resources")

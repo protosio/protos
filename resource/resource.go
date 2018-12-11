@@ -31,6 +31,7 @@ type Resource struct {
 	Type   RType   `json:"type"`
 	Value  Type    `json:"value"`
 	Status RStatus `json:"status"`
+	App    string  `json:"app"`
 }
 
 //

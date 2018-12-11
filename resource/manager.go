@@ -71,8 +71,8 @@ var resources resourceContainer
 //
 
 //Create creates a resource and adds it to the internal resources map.
-func Create(rtype RType, value Type) (*Resource, error) {
-	resource := &Resource{access: &sync.Mutex{}}
+func Create(rtype RType, value Type, appID string) (*Resource, error) {
+	resource := &Resource{access: &sync.Mutex{}, App: appID}
 	resource.Type = rtype
 	resource.Value = value
 
@@ -83,6 +83,7 @@ func Create(rtype RType, value Type) (*Resource, error) {
 	}
 	resource.Status = Requested
 	resource.ID = rhash
+	resource.App = appID
 	resource.Save()
 
 	log.Debug("Adding resource ", rhash, ": ", resource)
@@ -92,7 +93,7 @@ func Create(rtype RType, value Type) (*Resource, error) {
 }
 
 //CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
-func CreateFromJSON(appJSON []byte) (*Resource, error) {
+func CreateFromJSON(appJSON []byte, appID string) (*Resource, error) {
 	resource := &Resource{access: &sync.Mutex{}}
 	err := json.Unmarshal(appJSON, resource)
 	if err != nil {
@@ -106,6 +107,7 @@ func CreateFromJSON(appJSON []byte) (*Resource, error) {
 	}
 	resource.Status = Requested
 	resource.ID = rhash
+	resource.App = appID
 	resource.Save()
 
 	log.Debug("Adding resource ", rhash, ": ", resource)
