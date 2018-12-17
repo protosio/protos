@@ -21,11 +21,12 @@ var log = util.GetLogger("meta")
 var gconfig = config.Get()
 
 type meta struct {
-	ID        string
-	Domain    string
-	PublicIP  string
-	AdminUser string
-	Resources []string
+	ID                 string
+	Domain             string
+	DashboardSubdomain string
+	PublicIP           string
+	AdminUser          string
+	Resources          []string
 }
 
 var metaRoot meta
@@ -84,7 +85,10 @@ func setPublicIP() {
 // Setup reads the domain and other information on first run and save this information to the database
 func Setup() {
 	log.Debug("Creating metaroot database entry")
-	metaRoot = meta{ID: "metaroot"}
+	metaRoot = meta{
+		ID:                 "metaroot",
+		DashboardSubdomain: "protos",
+	}
 	err := database.Save(&metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
@@ -189,7 +193,7 @@ func CleanProtosResources() error {
 
 // GetDashboardDomain returns the full domain through which the dashboard can be accessed
 func GetDashboardDomain() string {
-	dashboardDomain := "protos." + GetDomain()
+	dashboardDomain := metaRoot.DashboardSubdomain + "." + GetDomain()
 	if gconfig.HTTPSport != 443 {
 		dashboardDomain = fmt.Sprintf("%s:%d", dashboardDomain, gconfig.HTTPSport)
 	}
