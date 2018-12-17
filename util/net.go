@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"net"
+	"strconv"
 )
 
 // PortType defines a port type, that can hold TCP or UDP
@@ -18,6 +19,12 @@ var UDP = PortType("UDP")
 type Port struct {
 	Nr   int
 	Type PortType
+}
+
+// MarshalJSON is a customer JSON marshallers for Port
+func (port *Port) MarshalJSON() ([]byte, error) {
+	portStr := fmt.Sprintf("\"%s/%s\"", strconv.Itoa(port.Nr), string(port.Type))
+	return []byte(portStr), nil
 }
 
 // GetLocalIPs returns the locally configured IP address
