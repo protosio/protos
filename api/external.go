@@ -6,6 +6,7 @@ import (
 
 	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/installer"
+	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
@@ -125,6 +126,13 @@ var externalRoutes = routes{
 		"GET",
 		"/info",
 		getInfo,
+		nil,
+	},
+	route{
+		"getServices",
+		"GET",
+		"/services",
+		getServices,
 		nil,
 	},
 }
@@ -424,4 +432,11 @@ func getInfo(w http.ResponseWriter, r *http.Request) {
 		Version: gconfig.Version.String(),
 	}
 	rend.JSON(w, http.StatusOK, info)
+}
+
+func getServices(w http.ResponseWriter, r *http.Request) {
+	services := app.GetServices()
+	protosService := meta.GetService()
+	services = append(services, protosService)
+	rend.JSON(w, http.StatusOK, services)
 }

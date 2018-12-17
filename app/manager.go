@@ -217,3 +217,44 @@ func Create(installerID string, installerVersion string, name string, installerP
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
 }
+
+// GetServices returns a list of services performed by apps
+func GetServices() []util.Service {
+	services := []util.Service{}
+	apps := mapps.copy()
+
+	resourceFilter := func(rsc *resource.Resource) bool {
+		if rsc.Type == resource.DNS {
+			return true
+		}
+		return false
+	}
+	rscs := resource.Select(resourceFilter)
+
+	for _, app := range apps {
+		if len(app.PublicPorts) == 0 {
+			continue
+		}
+		service := util.Service{
+			Name:  app.Name,
+			Ports: app.PublicPorts,
+		}
+
+		if app.Status == statusRunning {
+			service.Status = util.StatusActive
+		} else {
+			service.Status = util.StatusInactive
+		}
+
+		for _, rsc := range rscs {
+			dnsrsc := rsc.Value.(*resource.DNSResource)
+			if rsc.App == app.ID && dnsrsc.Host == app.Name {
+				service.Domain = dnsrsc.Host + "." + meta.GetDomain()
+				service.IP = dnsrsc.Value
+				break
+			}
+		}
+		services = append(services, service)
+	}
+	return services
+}
