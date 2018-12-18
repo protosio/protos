@@ -273,8 +273,8 @@ func GetService() util.Service {
 	ports = append(ports, util.Port{Nr: gconfig.HTTPport, Type: util.TCP})
 	ports = append(ports, util.Port{Nr: gconfig.HTTPSport, Type: util.TCP})
 	protosService := util.Service{
-		Name:   "Protos dashboard",
-		Domain: GetDashboardDomain(),
+		Name:   "protos dashboard",
+		Domain: metaRoot.DashboardSubdomain + "." + GetDomain(),
 		IP:     GetPublicIP(),
 		Ports:  ports,
 		Status: util.StatusActive,
