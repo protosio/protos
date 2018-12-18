@@ -7,6 +7,7 @@ import (
 	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/meta"
+	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
@@ -133,6 +134,13 @@ var externalRoutes = routes{
 		"GET",
 		"/services",
 		getServices,
+		nil,
+	},
+	route{
+		"getHWStats",
+		"GET",
+		"/hwstats",
+		getHWStats,
 		nil,
 	},
 }
@@ -422,7 +430,7 @@ func searchAppStore(w http.ResponseWriter, r *http.Request) {
 }
 
 //
-// Info endpoint is used for now only to retrieve some general information
+// Info endpoints are used to retrieve some general information about the instance and hardware
 //
 
 func getInfo(w http.ResponseWriter, r *http.Request) {
@@ -439,4 +447,12 @@ func getServices(w http.ResponseWriter, r *http.Request) {
 	protosService := meta.GetService()
 	services = append(services, protosService)
 	rend.JSON(w, http.StatusOK, services)
+}
+
+func getHWStats(w http.ResponseWriter, r *http.Request) {
+	hwstats, err := platform.GetHWStats()
+	if err != nil {
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Failed to retrieve hardware stats: " + err.Error()})
+	}
+	rend.JSON(w, http.StatusOK, hwstats)
 }
