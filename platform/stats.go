@@ -22,20 +22,34 @@ type CPUStats struct {
 	Info  CPUInfo `json:"info"`
 }
 
+// MemoryInfo holds information bout memory usage
+type MemoryInfo struct {
+	Total     int `json:"total"`
+	Usage     int `json:"usage"`
+	Cached    int `json:"cached"`
+	Available int `json:"available"`
+}
+
 // HardwareStats holds information about the state and usage of the system
 type HardwareStats struct {
-	Memory  *mem.VirtualMemoryStat `json:"memory"`
-	CPU     CPUStats               `json:"cpu"`
-	Storage *disk.UsageStat        `json:"storage"`
+	Memory  MemoryInfo      `json:"memory"`
+	CPU     CPUStats        `json:"cpu"`
+	Storage *disk.UsageStat `json:"storage"`
 }
 
 // GetHWStats returns the current system stats
 func GetHWStats() (HardwareStats, error) {
 	hw := HardwareStats{}
 
-	memStat, err := mem.VirtualMemory()
+	memDetailedStat, err := mem.VirtualMemory()
 	if err != nil {
 		return hw, err
+	}
+	memStat := MemoryInfo{
+		Total:     int(memDetailedStat.Total / 1000000),
+		Usage:     int(memDetailedStat.UsedPercent),
+		Cached:    int(memDetailedStat.Cached / 1000000),
+		Available: int(memDetailedStat.Available / 1000000),
 	}
 
 	cpuDetailedInfo, err := cpu.Info()
