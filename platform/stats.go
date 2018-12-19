@@ -30,11 +30,19 @@ type MemoryInfo struct {
 	Available int `json:"available"`
 }
 
+// StorageStats holds information about disk usage
+type StorageStats struct {
+	Total     int    `json:"total"`
+	Path      string `json:"path"`
+	Usage     int    `json:"usage"`
+	Available int    `json:"available"`
+}
+
 // HardwareStats holds information about the state and usage of the system
 type HardwareStats struct {
-	Memory  MemoryInfo      `json:"memory"`
-	CPU     CPUStats        `json:"cpu"`
-	Storage *disk.UsageStat `json:"storage"`
+	Memory  MemoryInfo   `json:"memory"`
+	CPU     CPUStats     `json:"cpu"`
+	Storage StorageStats `json:"storage"`
 }
 
 // GetHWStats returns the current system stats
@@ -72,9 +80,16 @@ func GetHWStats() (HardwareStats, error) {
 	if err != nil {
 		return hw, err
 	}
+	storageStat := StorageStats{
+		Total:     int(diskStat.Total / 1000000),
+		Path:      "/",
+		Usage:     int(diskStat.UsedPercent),
+		Available: int(diskStat.Free / 1000000),
+	}
+
 	hw.CPU = cpuStat
 	hw.Memory = memStat
-	hw.Storage = diskStat
+	hw.Storage = storageStat
 
 	return hw, nil
 }
