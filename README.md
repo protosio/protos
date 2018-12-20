@@ -18,6 +18,10 @@ Some of the following features are not fully implemented yet but this project ai
 
 ## Screenshot ##
 
+<p align="center">
+<img src="https://protos.io/static/img/screenshot.png"  width="640" height="441" alt="screenshot" title="screenshot">
+</p>
+
 ## Running ##
 
 ## Developing ##
