@@ -8,12 +8,13 @@
 
 ## Features ##
 
-Some of the following features are currently half-baked or non-existent but this project aims to deliver at the minimum the following features:
+Some of the following features are not fully implemented yet but this project aims to deliver at the minimum the following features:
 
 - self-sovereign identity - currently a user is required to own a domain name that can be used with a Protos instance. In the future a harder form of cryptographic identity will be implemented based on public-key cryptography, leveraging the framework developed by [DIF](https://identity.foundation).
 - application store - installing an application is as easy as clicking a button.
 - service based architecture - applications can leverage resources and services provided by other applications installed on the platform.
-- full data ownership - applications store their data locally on the Protos instance. Local data is encrypted at rest while backups sent to 3rd party services are also encrypted. 
+- full data ownership - applications store their data locally on the Protos instance. Local data is encrypted at rest while backups sent to 3rd party services are also encrypted.
+- easy migration - the whole instances together with its data, can be easily migrated to a different hosting provider. DNS records are switched automatically and users can continue using their applications.
 
 ## Screenshot ##
 
