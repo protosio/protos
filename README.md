@@ -48,3 +48,4 @@ sudo /usr/local/bin/protos --config /etc/protos.yml --loglevel debug init
 
 ## Developing ##
 
+Protos is in dire needs of extra development hands so if you want to contribute send an email to [alex@protos.io](mailto:alex@protos.io) and I will personally on-board and run you through the project.
