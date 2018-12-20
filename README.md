@@ -22,7 +22,29 @@ Some of the following features are not fully implemented yet but this project ai
 <img src="https://protos.io/static/img/screenshot.png"  width="640" height="441" alt="screenshot" title="screenshot">
 </p>
 
+## Dependencies ##
+
+Protos leverages [docker-engine](https://docs.docker.com/install/) to run applications, and requires version `v18.03` or higher.
+
 ## Running ##
+
+- download the latest release from https://releases.protos.io
+```
+sudo wget https://releases.protos.io/0.0.1-alpha.1/protos -O /usr/local/bin/protos
+```
+- mark the Protos binary executable
+```
+sudo chmod +x /usr/local/bin/protos
+```
+- copy and customize a configuration based on [the one](https://github.com/protosio/protos/blob/master/protos.yaml) in this repository
+- create a data directory for Protos
+```
+sudo mkdir /opt/protos
+```
+- run Protos in init mode and complete the setup process
+```
+sudo /usr/local/bin/protos --config /etc/protos.yml --loglevel debug init
+```
 
 ## Developing ##
 
