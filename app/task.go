@@ -12,6 +12,7 @@ type CreateAppTask struct {
 	InstallerID      string
 	InstallerVersion string
 	AppName          string
+	InstallerMedata  *installer.Metadata
 	InstallerParams  map[string]string
 	StartOnCreation  bool
 }
@@ -31,14 +32,29 @@ func (t CreateAppTask) Run() error {
 	tskID := t.b.GetID()
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
-	inst, err := installer.StoreGetID(t.InstallerID)
-	if err != nil {
-		return errors.Wrapf(err, "Could not create application %s", t.AppName)
-	}
+	var inst installer.Installer
+	var metadata installer.Metadata
+	var err error
 
-	metadata, err := inst.ReadVersion(t.InstallerVersion)
-	if err != nil {
-		return errors.Wrapf(err, "Could not create application %s", t.AppName)
+	// normal app creation, using the app store
+	if t.InstallerMedata == nil {
+		inst, err = installer.StoreGetID(t.InstallerID)
+		if err != nil {
+			return errors.Wrapf(err, "Could not create application %s", t.AppName)
+		}
+
+		metadata, err = inst.ReadVersion(t.InstallerVersion)
+		if err != nil {
+			return errors.Wrapf(err, "Could not create application %s", t.AppName)
+		}
+		// app creation using local container (dev purposes)
+	} else {
+		log.Info("Creating application using local installer (DEV)")
+		metadata = *t.InstallerMedata
+		inst = installer.Installer{
+			ID:       t.InstallerID,
+			Versions: map[string]*installer.Metadata{t.InstallerVersion: t.InstallerMedata},
+		}
 	}
 
 	app, err := Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)

@@ -54,7 +54,7 @@ type App struct {
 	ID                string             `json:"id"`
 	InstallerID       string             `json:"installer-id"`
 	InstallerVersion  string             `json:"installer-version"`
-	InstallerMetadata installer.Metadata `json:"-"`
+	InstallerMetadata installer.Metadata `json:"installer-metadata"`
 	ContainerID       string             `json:"container-id"`
 	VolumeID          string             `json:"volumeid"`
 	Status            string             `json:"status"`

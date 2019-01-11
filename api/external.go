@@ -172,6 +172,7 @@ func createApp(w http.ResponseWriter, r *http.Request) {
 		appParams.InstallerID,
 		appParams.InstallerVersion,
 		appParams.Name,
+		&appParams.InstallerMetadata,
 		appParams.InstallerParams,
 		true,
 	)

@@ -174,11 +174,12 @@ func ReadByIP(appIP string) (*App, error) {
 }
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
-func CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) task.Task {
+func CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string, startOnCreation bool) task.Task {
 	createApp := CreateAppTask{
 		InstallerID:      installerID,
 		InstallerVersion: installerVersion,
 		AppName:          appName,
+		InstallerMedata:  installerMetadata,
 		InstallerParams:  installerParams,
 		StartOnCreation:  startOnCreation,
 	}
