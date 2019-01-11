@@ -532,6 +532,10 @@ func PullDockerImage(t task.Task, id string, installerName string, installerVers
 		return errors.Wrap(err, "Failed to pull image from app store")
 	}
 
+	if strings.Contains(id, "@") == false {
+		return fmt.Errorf("Failed to pull image from app store: invalid image id: %s", id)
+	}
+
 	idparts := strings.Split(id, "@")
 	manifest, err := regClient.ManifestV2(idparts[0], idparts[1])
 	if err != nil {
