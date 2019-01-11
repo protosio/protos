@@ -357,7 +357,14 @@ func (cnt *DockerContainer) Start() error {
 		}
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(out)
-		return fmt.Errorf("unexpected container termination: %s", buf.String()[0:300])
+		allOutput := buf.String()
+		var output string
+		if len(allOutput) > 300 {
+			output = allOutput[0:300]
+		} else {
+			output = allOutput
+		}
+		return fmt.Errorf("unexpected container termination: %s", output)
 	}
 	return nil
 }
