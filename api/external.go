@@ -53,6 +53,13 @@ var externalRoutes = routes{
 		nil,
 	},
 	route{
+		"replaceAppContainer",
+		"POST",
+		"/apps/{appID}/container",
+		replaceAppContainer,
+		nil,
+	},
+	route{
 		"getInstallers",
 		"GET",
 		"/installers",
@@ -227,6 +234,40 @@ func actionApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rend.JSON(w, http.StatusOK, tsk.Copy())
+}
+
+func replaceAppContainer(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	appInstance, err := app.Read(appID)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+
+	var cntID struct {
+		ID string `json:"id"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&cntID)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+
+	err = appInstance.ReplaceContainer(cntID.ID)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+
+	rend.JSON(w, http.StatusOK, nil)
 }
 
 func removeApp(w http.ResponseWriter, r *http.Request) {

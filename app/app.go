@@ -334,6 +334,22 @@ func (app *App) Remove() error {
 	return nil
 }
 
+// ReplaceContainer replaces the container of the app with the one provided. Used during development
+func (app *App) ReplaceContainer(id string) error {
+	log.Infof("Using container %s for app %s", id, app.Name)
+	cnt, err := platform.GetDockerContainer(id)
+	if err != nil {
+		return errors.Wrap(err, "Failed to replace container for app "+app.ID)
+	}
+
+	app.access.Lock()
+	app.ContainerID = id
+	app.IP = cnt.GetIP()
+	app.access.Unlock()
+	app.Save()
+	return nil
+}
+
 // Resource related methods
 
 //CreateResource adds a resource to the internal resources map.
