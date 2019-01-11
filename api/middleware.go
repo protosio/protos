@@ -71,19 +71,19 @@ func InternalRequestValidator(rw http.ResponseWriter, r *http.Request, next http
 
 	appID := r.Header.Get("Appid")
 	if appID == "" {
-		log.Debugf("Can't identify request to resource %s. App ID is missing.", r.URL)
+		log.Debugf("Can't identify request to %s. App ID is missing.", r.URL)
 		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Can't identify request. App ID is missing."})
 		return
 	}
 	appInstance, err := app.Read(appID)
 	if err != nil {
-		log.Errorf("Request for resource %s from non-existent app %s: %s", r.URL, appID, err.Error())
+		log.Errorf("Internal request to %s from non-existent app %s: %s", r.URL, appID, err.Error())
 		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Request for resource from non-existent app"})
 		return
 	}
 	ip := strings.Split(r.RemoteAddr, ":")[0]
 	if appInstance.IP != ip {
-		log.Errorf("App IP mismatch for request for resource %s: ip %s incorrect for %s", r.URL, ip, appID)
+		log.Errorf("App IP mismatch for request to %s: ip %s incorrect for %s", r.URL, ip, appID)
 		rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "App IP mismatch"})
 		return
 	}
