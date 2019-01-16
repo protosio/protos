@@ -45,6 +45,12 @@ type Action struct {
 	Name string
 }
 
+// WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
+type WSConnection struct {
+	Send  chan interface{}
+	Close chan bool
+}
+
 // App represents the application state
 type App struct {
 	access *sync.Mutex
@@ -65,6 +71,7 @@ type App struct {
 	Capabilities      []string           `json:"capabilities"`
 	Resources         []string           `json:"resources"`
 	Tasks             []string           `json:"-"`
+	MsgQ              *WSConnection      `json:"-"`
 }
 
 //
@@ -350,7 +357,49 @@ func (app *App) ReplaceContainer(id string) error {
 	return nil
 }
 
+//
+// WS connection related methods
+//
+
+// SetMsgQ sets the channel that can be used to send WS messages to the app
+func (app *App) SetMsgQ(msgq *WSConnection) {
+	app.access.Lock()
+	app.MsgQ = msgq
+	id := app.ID
+	app.access.Unlock()
+	log.Debug("New WS connection established for app ", id)
+}
+
+// CloseMsgQ closes and removes the WS connection to the application
+func (app *App) CloseMsgQ() {
+	app.access.Lock()
+	msgq := app.MsgQ
+	app.MsgQ = nil
+	id := app.ID
+	app.access.Unlock()
+	if msgq == nil {
+		return
+	}
+	log.Debug("Closing WS connection for app ", id)
+	msgq.Close <- true
+}
+
+// SendMsg sends a message to the app via the active WS connection. Returns error if no WS connection is active
+func (app *App) SendMsg(msg interface{}) error {
+	app.access.Lock()
+	msgq := app.MsgQ
+	id := app.ID
+	app.access.Unlock()
+	if msgq == nil {
+		return errors.Errorf("Application %s does not have a WS connection open", id)
+	}
+	msgq.Send <- msg
+	return nil
+}
+
+//
 // Resource related methods
+//
 
 //CreateResource adds a resource to the internal resources map.
 func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
