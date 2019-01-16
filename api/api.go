@@ -78,7 +78,7 @@ func applyAuthRoutes(r *mux.Router, enableRegister bool) {
 	r.PathPrefix("/api/v1/auth").Handler(authRouter)
 }
 
-func applyInternalAPIroutes(r *mux.Router) {
+func applyInternalAPIroutes(r *mux.Router) *mux.Router {
 
 	// Internal routes
 	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
@@ -93,6 +93,7 @@ func applyInternalAPIroutes(r *mux.Router) {
 		negroni.HandlerFunc(InternalRequestValidator),
 		negroni.Wrap(internalRouter),
 	))
+	return internalRouter
 }
 
 func applyExternalAPIroutes(r *mux.Router) *mux.Router {
@@ -172,6 +173,9 @@ func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 	}
 
+	// holds all the internal web servers
+	internalSrvs := []*http.Server{}
+
 	var ips []string
 	if gconfig.InternalIP != "" {
 		ips = []string{gconfig.InternalIP}
@@ -181,20 +185,29 @@ func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 			log.Fatal(errors.Wrap(err, "Failed to start HTTPS server"))
 		}
 	}
-	for _, ip := range ips {
+	for _, nip := range ips {
+		ip := nip
 		log.Infof("Listening internally on %s:%s (HTTP)", ip, httpport)
-		go func(ip string) {
-			log.Fatal(http.ListenAndServe(ip+":"+httpport, handler))
-		}(ip)
+		isrv := &http.Server{Addr: ip + ":" + httpport, Handler: handler}
+		internalSrvs = append(internalSrvs, isrv)
+		go func() {
+			if err := isrv.ListenAndServe(); err != nil {
+				if strings.Contains(err.Error(), "Server closed") {
+					log.Infof("Internal (%s) API webserver terminated successfully", ip)
+				} else {
+					log.Errorf("Internal (%s) API webserver died with error: %s", ip, err.Error())
+				}
+			}
+		}()
 	}
 
 	go func() {
 		log.Infof("Listening on %s (HTTPS)", srv.Addr)
 		if err := srv.ListenAndServeTLS("", ""); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
-				log.Info("Init webserver terminated successfully")
+				log.Info("HTTPS API webserver terminated successfully")
 			} else {
-				log.Errorf("HTTPS webserver died with error: %s", err.Error())
+				log.Errorf("HTTPS API webserver died with error: %s", err.Error())
 			}
 		}
 	}()
@@ -204,6 +217,12 @@ func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Error(errors.Wrap(err, "Something went wrong while shutting down the HTTPS webserver"))
 	}
+
+	for _, isrv := range internalSrvs {
+		if err := isrv.Shutdown(context.Background()); err != nil {
+			log.Error(errors.Wrap(err, "Something went wrong while shutting down the internal API webserver"))
+		}
+	}
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
@@ -211,7 +230,8 @@ func Websrv(quit chan bool) {
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(mainRtr, false)
-	applyInternalAPIroutes(mainRtr)
+	internalRouter := applyInternalAPIroutes(mainRtr)
+	applyAPIroutes(internalRouter, internalWSRoutes)
 	externalRouter := applyExternalAPIroutes(mainRtr)
 	applyAPIroutes(externalRouter, externalWSRoutes)
 	applyStaticRoutes(mainRtr)
