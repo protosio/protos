@@ -83,43 +83,6 @@ func WSManager(quit chan bool) {
 
 }
 
-//
-// External API endpoint
-//
-
-func wsExternal(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Error("Error upgrading external websocket connection: ", err)
-		return
-	}
-	log.Debugf("Upgraded external websocket connection %p", &c)
-	wsCon := &wsConnection{Send: make(chan interface{}, 100)}
-	addWSQueue <- wsCon
-	for {
-		select {
-		case msg := <-wsCon.Send:
-			log.Debugf("Writing to external websocket connection %p: %v", &wsCon, msg)
-			jsonMsg, err := json.Marshal(msg)
-			if err != nil {
-				log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)
-				continue
-			}
-			err = c.WriteMessage(1, jsonMsg)
-			if err != nil {
-				log.Errorf("Error writing to external websocket connection %p: %s", &wsCon, err)
-				c.Close()
-				removeWSQueue <- wsCon
-				return
-			}
-		}
-	}
-}
-
-//
-// Internal API endpoint
-//
-
 func wsMessageReader(c *websocket.Conn, id string, quit chan bool) {
 	// read message from client and process it
 	for {
@@ -133,6 +96,55 @@ func wsMessageReader(c *websocket.Conn, id string, quit chan bool) {
 		}
 	}
 }
+
+//
+// External API endpoint
+//
+
+func wsExternal(w http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Error("Error upgrading external websocket connection: ", err)
+		return
+	}
+	wsCon := &wsConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
+	conID := fmt.Sprintf("%p", wsCon)
+	remoteQuit := make(chan bool, 1)
+	go wsMessageReader(c, conID, remoteQuit)
+	addWSQueue <- wsCon
+	log.Debugf("Upgraded external websocket connection %s", conID)
+	for {
+		select {
+		case msg := <-wsCon.Send:
+			log.Debugf("Writing to external websocket connection %s: %v", conID, msg)
+			jsonMsg, err := json.Marshal(msg)
+			if err != nil {
+				log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)
+				continue
+			}
+			err = c.WriteMessage(1, jsonMsg)
+			if err != nil {
+				log.Errorf("Error writing to external websocket connection %s: %s", conID, err)
+				c.Close()
+				removeWSQueue <- wsCon
+				return
+			}
+		case <-wsCon.Close:
+			log.Debug("Closing external WS connection ", conID)
+			c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "terminating"))
+			c.Close()
+			return
+		case <-remoteQuit:
+			removeWSQueue <- wsCon
+			log.Debugf("WS connection %s remotely closed ", conID)
+			return
+		}
+	}
+}
+
+//
+// Internal API endpoint
+//
 
 func wsInternal(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
