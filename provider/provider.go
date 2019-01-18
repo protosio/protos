@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/gob"
 	"errors"
+	"fmt"
 
 	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/database"
@@ -33,9 +34,13 @@ func init() {
 // Register registers a resource provider
 func Register(appInstance *app.App, rtype resource.RType) error {
 	if providers[rtype].AppID != "" {
+		if appInstance.ID == providers[rtype].AppID {
+			return fmt.Errorf("App %s already registered as a provider for resource type %s", appInstance.ID, string(rtype))
+		}
+
 		_, err := app.Read(providers[rtype].AppID)
 		if err == nil {
-			return errors.New("Provider already registered for resource type " + string(rtype))
+			return errors.New("Another application is registered as a provider for resource type " + string(rtype))
 		}
 	}
 
