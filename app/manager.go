@@ -188,7 +188,7 @@ func CreateAsync(installerID string, installerVersion string, appName string, in
 }
 
 // Create takes an image and creates an application, without starting it
-func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.Metadata, taskID string) (*App, error) {
+func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata *installer.Metadata, taskID string) (*App, error) {
 
 	var app *App
 	if name == "" {

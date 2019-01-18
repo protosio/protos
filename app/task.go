@@ -33,7 +33,7 @@ func (t CreateAppTask) Run() error {
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
 	var inst installer.Installer
-	var metadata installer.Metadata
+	var metadata *installer.Metadata
 	var err error
 
 	// normal app creation, using the app store
@@ -50,7 +50,7 @@ func (t CreateAppTask) Run() error {
 		// app creation using local container (dev purposes)
 	} else {
 		log.Info("Creating application using local installer (DEV)")
-		metadata = *t.InstallerMedata
+		metadata = t.InstallerMedata
 		inst = installer.Installer{
 			ID:       t.InstallerID,
 			Versions: map[string]*installer.Metadata{t.InstallerVersion: t.InstallerMedata},

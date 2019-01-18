@@ -56,22 +56,22 @@ type App struct {
 	access *sync.Mutex
 
 	// Public members
-	Name              string             `json:"name"`
-	ID                string             `json:"id"`
-	InstallerID       string             `json:"installer-id"`
-	InstallerVersion  string             `json:"installer-version"`
-	InstallerMetadata installer.Metadata `json:"installer-metadata"`
-	ContainerID       string             `json:"container-id"`
-	VolumeID          string             `json:"volumeid"`
-	Status            string             `json:"status"`
-	Actions           []Action           `json:"actions"`
-	IP                string             `json:"ip"`
-	PublicPorts       []util.Port        `json:"publicports"`
-	InstallerParams   map[string]string  `json:"installer-params"`
-	Capabilities      []string           `json:"capabilities"`
-	Resources         []string           `json:"resources"`
-	Tasks             []string           `json:"-"`
-	MsgQ              *WSConnection      `json:"-"`
+	Name              string              `json:"name"`
+	ID                string              `json:"id"`
+	InstallerID       string              `json:"installer-id"`
+	InstallerVersion  string              `json:"installer-version"`
+	InstallerMetadata *installer.Metadata `json:"installer-metadata"`
+	ContainerID       string              `json:"container-id"`
+	VolumeID          string              `json:"volumeid"`
+	Status            string              `json:"status"`
+	Actions           []Action            `json:"actions"`
+	IP                string              `json:"ip"`
+	PublicPorts       []util.Port         `json:"publicports"`
+	InstallerParams   map[string]string   `json:"installer-params"`
+	Capabilities      []string            `json:"capabilities"`
+	Resources         []string            `json:"resources"`
+	Tasks             []string            `json:"-"`
+	msgq              *WSConnection
 }
 
 //
@@ -364,7 +364,7 @@ func (app *App) ReplaceContainer(id string) error {
 // SetMsgQ sets the channel that can be used to send WS messages to the app
 func (app *App) SetMsgQ(msgq *WSConnection) {
 	app.access.Lock()
-	app.MsgQ = msgq
+	app.msgq = msgq
 	id := app.ID
 	app.access.Unlock()
 	log.Debug("New WS connection established for app ", id)
@@ -373,8 +373,8 @@ func (app *App) SetMsgQ(msgq *WSConnection) {
 // CloseMsgQ closes and removes the WS connection to the application
 func (app *App) CloseMsgQ() {
 	app.access.Lock()
-	msgq := app.MsgQ
-	app.MsgQ = nil
+	msgq := app.msgq
+	app.msgq = nil
 	id := app.ID
 	app.access.Unlock()
 	if msgq == nil {
@@ -387,7 +387,7 @@ func (app *App) CloseMsgQ() {
 // SendMsg sends a message to the app via the active WS connection. Returns error if no WS connection is active
 func (app *App) SendMsg(msg interface{}) error {
 	app.access.Lock()
-	msgq := app.MsgQ
+	msgq := app.msgq
 	id := app.ID
 	app.access.Unlock()
 	if msgq == nil {
