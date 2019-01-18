@@ -146,7 +146,10 @@ func applyStaticRoutes(r *mux.Router) {
 }
 
 func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
-	cert := certrsc.(*resource.CertificateResource)
+	cert, ok := certrsc.(*resource.CertificateResource)
+	if ok == false {
+		log.Fatal("Failed to read TLS certificate")
+	}
 	tlscert, err := tls.X509KeyPair(cert.Certificate, cert.PrivateKey)
 	if err != nil {
 		log.Fatalf("Failed to parse the TLS certificate: %s", err.Error())
