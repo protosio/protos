@@ -252,10 +252,11 @@ func Websrv(quit chan bool) {
 func WebsrvInit(quit chan bool) bool {
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(mainRtr, true)
+	internalRouter := applyInternalAPIroutes(mainRtr)
+	applyAPIroutes(internalRouter, internalWSRoutes)
 	externalRouter := applyExternalAPIroutes(mainRtr)
 	applyAPIroutes(externalRouter, externalInitRoutes)
 	applyAPIroutes(externalRouter, externalWSRoutes)
-	applyInternalAPIroutes(mainRtr)
 	applyStaticRoutes(mainRtr)
 
 	// Negroni middleware
