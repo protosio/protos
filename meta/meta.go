@@ -85,11 +85,18 @@ func setPublicIP() {
 // Setup reads the domain and other information on first run and save this information to the database
 func Setup() {
 	log.Debug("Creating metaroot database entry")
-	metaRoot = meta{
-		ID:                 "metaroot",
-		DashboardSubdomain: "protos",
+	err := database.One("ID", "metaroot", &metaRoot)
+	if err != nil {
+		metaRoot = meta{
+			ID:                 "metaroot",
+			DashboardSubdomain: "protos",
+		}
+	} else {
+		metaRoot.ID = "metaroot"
+		metaRoot.DashboardSubdomain = "protos"
 	}
-	err := database.Save(&metaRoot)
+
+	err = database.Save(&metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
 	}
