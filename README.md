@@ -1,7 +1,7 @@
 # Protos - own your digital identity and data by self-hosting
 
 <p align="center">
-<img src="https://protos.io/static/img/protos_logo.png"  width="320" height="117" alt="Protos logo" title="Protos logo">
+<img src="https://protos.io/img/protos_logo.png"  width="320" height="117" alt="Protos logo" title="Protos logo">
 </p>
 
 **Protos** is an open-source project that enables individuals and small organizations to take full control of their digital identity and data, by allowing them to self-host applications on public cloud providers or their own hardware. Currently Protos is under heavy development and only has alpha quality releases.
@@ -19,7 +19,7 @@ Some of the following features are not fully implemented yet but this project ai
 ## Screenshot ##
 
 <p align="center">
-<img src="https://protos.io/static/img/screenshot.png"  width="640" height="441" alt="screenshot" title="screenshot">
+<img src="https://protos.io/img/screenshot.png"  width="640" height="441" alt="screenshot" title="screenshot">
 </p>
 
 ## Dependencies ##
