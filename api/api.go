@@ -78,17 +78,9 @@ func applyAuthRoutes(r *mux.Router, enableRegister bool) {
 	r.PathPrefix("/api/v1/auth").Handler(authRouter)
 }
 
-func applyInternalAPIroutes(r *mux.Router) *mux.Router {
-
-	// Internal routes
+func createInternalAPIrouter(r *mux.Router) *mux.Router {
 	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
-	for _, route := range internalRoutes {
-		internalRouter.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
-		if route.Capability != nil {
-			capability.SetMethodCap(route.Name, route.Capability)
-		}
-	}
-
+	// add the external router to the main router
 	r.PathPrefix("/api/v1/i").Handler(negroni.New(
 		negroni.HandlerFunc(InternalRequestValidator),
 		negroni.Wrap(internalRouter),
@@ -96,21 +88,9 @@ func applyInternalAPIroutes(r *mux.Router) *mux.Router {
 	return internalRouter
 }
 
-func applyExternalAPIroutes(r *mux.Router) *mux.Router {
-
-	// External routes (require auth)
+func createExternalAPIrouter(r *mux.Router) *mux.Router {
 	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
-	for _, route := range externalRoutes {
-		if route.Method != "" {
-			externalRouter.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
-		} else {
-			externalRouter.Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
-		}
-		if route.Capability != nil {
-			capability.SetMethodCap(route.Name, route.Capability)
-		}
-	}
-
+	// add the external router to the main router
 	r.PathPrefix("/api/v1/e").Handler(negroni.New(
 		negroni.HandlerFunc(ExternalRequestValidator),
 		negroni.Wrap(externalRouter),
@@ -228,46 +208,11 @@ func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
 	}
 }
 
-// Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool) {
-
-	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAuthRoutes(mainRtr, false)
-	internalRouter := applyInternalAPIroutes(mainRtr)
-	applyAPIroutes(internalRouter, internalWSRoutes)
-	externalRouter := applyExternalAPIroutes(mainRtr)
-	applyAPIroutes(externalRouter, externalWSRoutes)
-	applyStaticRoutes(mainRtr)
-
-	// Negroni middleware
-	n := negroni.New()
-	n.Use(negroni.HandlerFunc(HTTPLogger))
-	n.UseHandler(mainRtr)
-
-	cert := meta.GetTLSCertificate()
-	secureListen(n, cert.Value, quit)
-}
-
-// WebsrvInit starts an HTTP server used only during the initialisation process
-func WebsrvInit(quit chan bool) bool {
-	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAuthRoutes(mainRtr, true)
-	internalRouter := applyInternalAPIroutes(mainRtr)
-	applyAPIroutes(internalRouter, internalWSRoutes)
-	externalRouter := applyExternalAPIroutes(mainRtr)
-	applyAPIroutes(externalRouter, externalInitRoutes)
-	applyAPIroutes(externalRouter, externalWSRoutes)
-	applyStaticRoutes(mainRtr)
-
-	// Negroni middleware
-	n := negroni.New()
-	n.Use(negroni.HandlerFunc(HTTPLogger))
-	n.UseHandler(mainRtr)
-
+func insecureListen(handler http.Handler, quit chan bool) bool {
 	httpport := strconv.Itoa(gconfig.HTTPport)
 	srv := &http.Server{
 		Addr:           "0.0.0.0:" + httpport,
-		Handler:        n,
+		Handler:        handler,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
@@ -289,4 +234,68 @@ func WebsrvInit(quit chan bool) bool {
 		log.Error(errors.Wrap(err, "Something went wrong while shutting down the init webserver"))
 	}
 	return interrupted
+}
+
+// Websrv starts an HTTP(S) server that exposes all the application functionality
+func Websrv(quit chan bool, devmode bool) {
+
+	mainRtr := mux.NewRouter().StrictSlash(true)
+	applyAuthRoutes(mainRtr, false)
+
+	// internal routes
+	internalRouter := createInternalAPIrouter(mainRtr)
+	applyAPIroutes(internalRouter, internalRoutes)
+	applyAPIroutes(internalRouter, internalWSRoutes)
+
+	// external routes
+	externalRouter := createExternalAPIrouter(mainRtr)
+	applyAPIroutes(externalRouter, externalRoutes)
+	applyAPIroutes(externalRouter, externalWSRoutes)
+
+	// if dev mode is enabled we add the dev routes
+	if devmode {
+		applyAPIroutes(externalRouter, externalDevRoutes)
+	}
+
+	// static file routes
+	applyStaticRoutes(mainRtr)
+
+	// Negroni middleware
+	n := negroni.New()
+	n.Use(negroni.HandlerFunc(HTTPLogger))
+	n.UseHandler(mainRtr)
+
+	cert := meta.GetTLSCertificate()
+	secureListen(n, cert.Value, quit)
+}
+
+// WebsrvInit starts an HTTP server used only during the initialisation process
+func WebsrvInit(quit chan bool, devmode bool) bool {
+	mainRtr := mux.NewRouter().StrictSlash(true)
+	applyAuthRoutes(mainRtr, true)
+
+	// internal routes
+	internalRouter := createInternalAPIrouter(mainRtr)
+	applyAPIroutes(internalRouter, internalRoutes)
+	applyAPIroutes(internalRouter, internalWSRoutes)
+
+	// external routes
+	externalRouter := createExternalAPIrouter(mainRtr)
+	applyAPIroutes(externalRouter, externalRoutes)
+	applyAPIroutes(externalRouter, externalWSRoutes)
+
+	// if dev mode is enabled we add the dev routes
+	if devmode {
+		applyAPIroutes(externalRouter, externalDevRoutes)
+	}
+
+	// static file routes
+	applyStaticRoutes(mainRtr)
+
+	// Negroni middleware
+	n := negroni.New()
+	n.Use(negroni.HandlerFunc(HTTPLogger))
+	n.UseHandler(mainRtr)
+
+	return insecureListen(n, quit)
 }

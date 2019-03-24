@@ -176,12 +176,12 @@ func ReadByIP(appIP string) (*App, error) {
 // CreateAsync creates, runs and returns a task of type CreateAppTask
 func CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string, startOnCreation bool) task.Task {
 	createApp := CreateAppTask{
-		InstallerID:      installerID,
-		InstallerVersion: installerVersion,
-		AppName:          appName,
-		InstallerMedata:  installerMetadata,
-		InstallerParams:  installerParams,
-		StartOnCreation:  startOnCreation,
+		InstallerID:       installerID,
+		InstallerVersion:  installerVersion,
+		AppName:           appName,
+		InstallerMetadata: installerMetadata,
+		InstallerParams:   installerParams,
+		StartOnCreation:   startOnCreation,
 	}
 	tsk := task.New(&createApp)
 	return tsk
@@ -258,4 +258,24 @@ func GetServices() []util.Service {
 		services = append(services, service)
 	}
 	return services
+}
+
+//
+// Dev related methods
+//
+
+// CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
+func CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string) error {
+
+	// app creation (dev purposes)
+	log.Info("Creating application using local installer (DEV)")
+
+	app, err := Create(installerID, installerVersion, appName, installerParams, installerMetadata, "sync")
+	if err != nil {
+		return errors.Wrapf(err, "Could not create application %s", appName)
+	}
+	add(app)
+
+	app.SetStatus(statusUnknown)
+	return nil
 }

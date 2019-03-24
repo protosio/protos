@@ -114,6 +114,12 @@ func finishInit(w http.ResponseWriter, r *http.Request) {
 	}{
 		Domain: meta.GetDashboardDomain(),
 	}
-	gconfig.ProcsQuit["initwebserver"] <- false
+	quitChan, ok := gconfig.ProcsQuit.Load("initwebserver")
+	if ok == false {
+		log.Error("Failed to find quit channel for initwebserver")
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Failed to stop init web server"})
+		return
+	}
+	quitChan.(chan bool) <- false
 	rend.JSON(w, http.StatusOK, dashboard)
 }
