@@ -80,7 +80,7 @@ func applyAuthRoutes(r *mux.Router, enableRegister bool) {
 
 func createInternalAPIrouter(r *mux.Router) *mux.Router {
 	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
-	// add the external router to the main router
+	// add the internal router to the main router
 	r.PathPrefix("/api/v1/i").Handler(negroni.New(
 		negroni.HandlerFunc(InternalRequestValidator),
 		negroni.Wrap(internalRouter),
@@ -96,6 +96,13 @@ func createExternalAPIrouter(r *mux.Router) *mux.Router {
 		negroni.Wrap(externalRouter),
 	))
 	return externalRouter
+}
+
+func createDevAPIrouter(r *mux.Router) *mux.Router {
+	devRouter := mux.NewRouter().PathPrefix("/api/v1/dev").Subrouter().StrictSlash(true)
+	// add the dev router to the main router
+	r.PathPrefix("/api/v1/dev").Handler(devRouter)
+	return devRouter
 }
 
 func applyStaticRoutes(r *mux.Router) {
@@ -254,7 +261,8 @@ func Websrv(quit chan bool, devmode bool) {
 
 	// if dev mode is enabled we add the dev routes
 	if devmode {
-		applyAPIroutes(externalRouter, externalDevRoutes)
+		devRouter := createDevAPIrouter(mainRtr)
+		applyAPIroutes(devRouter, externalDevRoutes)
 	}
 
 	// static file routes
@@ -286,7 +294,8 @@ func WebsrvInit(quit chan bool, devmode bool) bool {
 
 	// if dev mode is enabled we add the dev routes
 	if devmode {
-		applyAPIroutes(externalRouter, externalDevRoutes)
+		devRouter := createDevAPIrouter(mainRtr)
+		applyAPIroutes(devRouter, externalDevRoutes)
 	}
 
 	// static file routes
