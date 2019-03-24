@@ -8,13 +8,13 @@ import (
 
 // CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
-	b                task.Task
-	InstallerID      string
-	InstallerVersion string
-	AppName          string
-	InstallerMedata  *installer.Metadata
-	InstallerParams  map[string]string
-	StartOnCreation  bool
+	b                 task.Task
+	InstallerID       string
+	InstallerVersion  string
+	AppName           string
+	InstallerMetadata *installer.Metadata
+	InstallerParams   map[string]string
+	StartOnCreation   bool
 }
 
 // Name returns the task type name
@@ -36,8 +36,8 @@ func (t CreateAppTask) Run() error {
 	var metadata *installer.Metadata
 	var err error
 
-	// normal app creation, using the app store
-	if t.InstallerMedata == nil {
+	if t.InstallerMetadata == nil {
+		// normal app creation, using the app store
 		inst, err = installer.StoreGetID(t.InstallerID)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create application %s", t.AppName)
@@ -47,13 +47,13 @@ func (t CreateAppTask) Run() error {
 		if err != nil {
 			return errors.Wrapf(err, "Could not create application %s", t.AppName)
 		}
-		// app creation using local container (dev purposes)
 	} else {
+		// app creation using local container (dev purposes)
 		log.Info("Creating application using local installer (DEV)")
-		metadata = t.InstallerMedata
+		metadata = t.InstallerMetadata
 		inst = installer.Installer{
 			ID:       t.InstallerID,
-			Versions: map[string]*installer.Metadata{t.InstallerVersion: t.InstallerMedata},
+			Versions: map[string]*installer.Metadata{t.InstallerVersion: t.InstallerMetadata},
 		}
 	}
 
