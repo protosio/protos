@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/protosio/protos/app"
 )
 
@@ -13,6 +14,13 @@ var externalDevRoutes = routes{
 		"POST",
 		"/apps",
 		createDevApp,
+		nil,
+	},
+	route{
+		"replaceAppContainer",
+		"POST",
+		"/apps/{appID}/container",
+		replaceAppContainer,
 		nil,
 	},
 }
@@ -39,5 +47,39 @@ func createDevApp(w http.ResponseWriter, r *http.Request) {
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
+	rend.JSON(w, http.StatusOK, nil)
+}
+
+func replaceAppContainer(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	appID := vars["appID"]
+
+	appInstance, err := app.Read(appID)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+
+	var cntID struct {
+		ID string `json:"id"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&cntID)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+
+	err = appInstance.ReplaceContainer(cntID.ID)
+	if err != nil {
+		log.Error(err)
+		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		return
+	}
+
 	rend.JSON(w, http.StatusOK, nil)
 }
