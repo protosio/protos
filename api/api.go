@@ -290,6 +290,7 @@ func WebsrvInit(quit chan bool, devmode bool) bool {
 	// external routes
 	externalRouter := createExternalAPIrouter(mainRtr)
 	applyAPIroutes(externalRouter, externalRoutes)
+	applyAPIroutes(externalRouter, externalInitRoutes)
 	applyAPIroutes(externalRouter, externalWSRoutes)
 
 	// if dev mode is enabled we add the dev routes
