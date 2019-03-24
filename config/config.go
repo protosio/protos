@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
@@ -24,7 +25,7 @@ type Config struct {
 	InitMode       bool
 	AppStoreURL    string
 	AppStoreHost   string
-	ProcsQuit      map[string]chan bool
+	ProcsQuit      sync.Map
 	InternalIP     string
 	Version        *semver.Version
 	WSPublish      chan interface{}
@@ -38,7 +39,7 @@ var config = Config{
 	InitMode:       false,
 	AppStoreURL:    "https://apps.protos.io",
 	AppStoreHost:   "apps.protos.io",
-	ProcsQuit:      make(map[string]chan bool),
+	ProcsQuit:      sync.Map{},
 	WSPublish:      make(chan interface{}, 100),
 }
 

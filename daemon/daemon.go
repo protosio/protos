@@ -24,23 +24,18 @@ import (
 var gconfig = config.Get()
 var log = util.GetLogger("daemon")
 
-func run(wg *sync.WaitGroup, manager func(chan bool), quit chan bool) {
-	go func() {
-		manager(quit)
-		wg.Done()
-	}()
-}
-
 func catchSignals(sigs chan os.Signal) {
 	sig := <-sigs
 	log.Infof("Received OS signal %s. Terminating", sig.String())
-	for _, quitChan := range gconfig.ProcsQuit {
+	gconfig.ProcsQuit.Range(func(k, v interface{}) bool {
+		quitChan := v.(chan bool)
 		quitChan <- true
-	}
+		return true
+	})
 }
 
 // StartUp triggers a sequence of steps required to start the application
-func StartUp(configFile string, init bool, version *semver.Version, incontainer bool) {
+func StartUp(configFile string, init bool, version *semver.Version, incontainer bool, devmode bool) {
 	// Handle OS signals
 	sigs := make(chan os.Signal, 1)
 
@@ -83,15 +78,20 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	task.Init()
 	// start ws connection manager
 	wg.Add(1)
-	gconfig.ProcsQuit["wsmanager"] = make(chan bool, 1)
-	run(&wg, api.WSManager, gconfig.ProcsQuit["wsmanager"])
+	wsmanagerQuit := make(chan bool, 1)
+	gconfig.ProcsQuit.Store("wsmanager", wsmanagerQuit)
+	go func() {
+		api.WSManager(wsmanagerQuit)
+		wg.Done()
+	}()
 
 	var initInterrupted bool
 	if gconfig.InitMode {
 		// run the init webserver in blocking mode
-		gconfig.ProcsQuit["initwebserver"] = make(chan bool, 1)
+		initwebserverQuit := make(chan bool, 1)
+		gconfig.ProcsQuit.Store("initwebserver", initwebserverQuit)
 		wg.Add(1)
-		initInterrupted = api.WebsrvInit(gconfig.ProcsQuit["initwebserver"])
+		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode)
 		wg.Done()
 	}
 
@@ -102,8 +102,12 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		meta.InitCheck()
 		// start tls web server
 		wg.Add(1)
-		gconfig.ProcsQuit["webserver"] = make(chan bool)
-		run(&wg, api.Websrv, gconfig.ProcsQuit["webserver"])
+		webserverQuit := make(chan bool, 1)
+		gconfig.ProcsQuit.Store("webserver", webserverQuit)
+		go func() {
+			api.Websrv(webserverQuit, devmode)
+			wg.Done()
+		}()
 	}
 
 	wg.Wait()
