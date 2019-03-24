@@ -23,6 +23,7 @@ type Config struct {
 	StaticAssets   string
 	Secret         []byte
 	InitMode       bool
+	DevMode        bool
 	AppStoreURL    string
 	AppStoreHost   string
 	ProcsQuit      sync.Map
@@ -37,6 +38,7 @@ var config = Config{
 	HTTPSport:      8443,
 	DockerEndpoint: "unix:///var/run/docker.sock",
 	InitMode:       false,
+	DevMode:        false,
 	AppStoreURL:    "https://apps.protos.io",
 	AppStoreHost:   "apps.protos.io",
 	ProcsQuit:      sync.Map{},
