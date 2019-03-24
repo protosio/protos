@@ -48,6 +48,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	var err error
 	var wg sync.WaitGroup
 	gconfig.InitMode = (database.Exists() == false) || init
+	gconfig.DevMode = devmode
 	meta.PrintBanner()
 
 	// Generate secret key used for JWT

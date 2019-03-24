@@ -12,15 +12,15 @@ const banner = `                 ###########
       ####                         ####
      ###                            ####
     ###                              ####
-   ####                               ####      Protos %s
-   ####                               ####      PID: %d
-   #######################################      HTTP port: %d    HTTPS port: %d
-       ###                         ###          Data dir: %s
-       ###############################          Init mode: %t
-       ###############################
+   ####                               ####      Protos      %s
+   ####                               ####      PID:        %d
+   #######################################      HTTP port:  %d
+       ###                         ###          HTTPS port: %d
+       ###############################          Data dir:   %s
+       ###############################          Init mode:  %t
+            ///   ///   ///  ////               Dev mode:   %t
+            ///   ///   ///  ////
             ///   ///   ///  ////               https://protos.io
-            ///   ///   ///  ////
-            ///   ///   ///  ////
             ///   ///   ///  ////
             ///   ///   ///  ////
      //     ///   ///   ///  ////    ///
@@ -42,5 +42,6 @@ func PrintBanner() {
 		gconfig.HTTPport,
 		gconfig.HTTPSport,
 		gconfig.WorkDir,
-		gconfig.InitMode))
+		gconfig.InitMode,
+		gconfig.DevMode))
 }
