@@ -265,17 +265,17 @@ func GetServices() []util.Service {
 //
 
 // CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
-func CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string) error {
+func CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string) (*App, error) {
 
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")
 
 	app, err := Create(installerID, installerVersion, appName, installerParams, installerMetadata, "sync")
 	if err != nil {
-		return errors.Wrapf(err, "Could not create application %s", appName)
+		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}
 	add(app)
 
 	app.SetStatus(statusUnknown)
-	return nil
+	return app, nil
 }

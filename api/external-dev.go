@@ -41,13 +41,13 @@ func createDevApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.CreateDevApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerMetadata, appParams.InstallerParams)
+	app, err := app.CreateDevApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerMetadata, appParams.InstallerParams)
 	if err != nil {
 		log.Error(err)
 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 		return
 	}
-	rend.JSON(w, http.StatusOK, nil)
+	rend.JSON(w, http.StatusOK, app)
 }
 
 func replaceAppContainer(w http.ResponseWriter, r *http.Request) {
