@@ -137,7 +137,6 @@ func CopyAll() map[string]App {
 
 // Read returns an application based on its id
 func Read(id string) (*App, error) {
-	log.Debug("Reading application ", id)
 	return mapps.get(id)
 }
 
@@ -160,13 +159,10 @@ func Select(filter func(*App) bool) map[string]*App {
 // ReadByIP searches and returns an application based on it's IP address
 // ToDo: refresh IP data for all applications?
 func ReadByIP(appIP string) (*App, error) {
-	log.Debug("Reading application with IP ", appIP)
-
 	mapps.access.Lock()
 	defer mapps.access.Unlock()
 	for _, app := range mapps.apps {
 		if app.IP == appIP {
-			log.Debug("Found application '", app.Name, "' for IP ", appIP)
 			return app, nil
 		}
 	}
