@@ -19,4 +19,4 @@ docker run \
        --hostname protos \
        --network protosnet \
        golang:1.11.2 \
-       go run --race cmd/protos/protos.go --incontainer --loglevel debug --config protos.dev.yaml daemon
+       go run --race cmd/protos/protos.go --incontainer --loglevel debug --config protos.dev.yaml --dev init

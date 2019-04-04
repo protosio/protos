@@ -101,95 +101,99 @@ func wsMessageReader(c *websocket.Conn, id string, quit chan bool) {
 // External API endpoint
 //
 
-func wsExternal(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Error("Error upgrading external websocket connection: ", err)
-		return
-	}
-	wsCon := &wsConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
-	conID := fmt.Sprintf("%p", wsCon)
-	remoteQuit := make(chan bool, 1)
-	go wsMessageReader(c, conID, remoteQuit)
-	addWSQueue <- wsCon
-	log.Debugf("Upgraded external websocket connection %s", conID)
-	for {
-		select {
-		case msg := <-wsCon.Send:
-			log.Debugf("Writing to external websocket connection %s: %v", conID, msg)
-			jsonMsg, err := json.Marshal(msg)
-			if err != nil {
-				log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)
-				continue
-			}
-			err = c.WriteMessage(1, jsonMsg)
-			if err != nil {
-				log.Errorf("Error writing to external websocket connection %s: %s", conID, err)
-				c.Close()
-				removeWSQueue <- wsCon
-				return
-			}
-		case <-wsCon.Close:
-			log.Debug("Closing external WS connection ", conID)
-			c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "terminating"))
-			c.Close()
-			return
-		case <-remoteQuit:
-			removeWSQueue <- wsCon
-			log.Debugf("WS connection %s remotely closed ", conID)
+func wsExternal(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Error("Error upgrading external websocket connection: ", err)
 			return
 		}
-	}
+		wsCon := &wsConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
+		conID := fmt.Sprintf("%p", wsCon)
+		remoteQuit := make(chan bool, 1)
+		go wsMessageReader(c, conID, remoteQuit)
+		addWSQueue <- wsCon
+		log.Debugf("Upgraded external websocket connection %s", conID)
+		for {
+			select {
+			case msg := <-wsCon.Send:
+				log.Debugf("Writing to external websocket connection %s: %v", conID, msg)
+				jsonMsg, err := json.Marshal(msg)
+				if err != nil {
+					log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)
+					continue
+				}
+				err = c.WriteMessage(1, jsonMsg)
+				if err != nil {
+					log.Errorf("Error writing to external websocket connection %s: %s", conID, err)
+					c.Close()
+					removeWSQueue <- wsCon
+					return
+				}
+			case <-wsCon.Close:
+				log.Debug("Closing external WS connection ", conID)
+				c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "terminating"))
+				c.Close()
+				return
+			case <-remoteQuit:
+				removeWSQueue <- wsCon
+				log.Debugf("WS connection %s remotely closed ", conID)
+				return
+			}
+		}
+	})
 }
 
 //
 // Internal API endpoint
 //
 
-func wsInternal(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Error("Error upgrading websocket connection: ", err)
-		return
-	}
-
-	ctx := r.Context()
-	appInstance := ctx.Value(appKey).(*app.App)
-	msgq := &app.WSConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
-	appInstance.SetMsgQ(msgq)
-
-	remoteQuit := make(chan bool, 1)
-	conID := fmt.Sprintf("%p", msgq)
-	go wsMessageReader(c, conID, remoteQuit)
-
-	log.Debugf("Upgraded internal websocket connection %s", conID)
-	for {
-		select {
-		case msg := <-msgq.Send:
-			log.Debugf("Writing to internal websocket connection %s: %v", conID, msg)
-			jsonMsg, err := json.Marshal(msg)
-			if err != nil {
-				log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)
-				continue
-			}
-			err = c.WriteMessage(1, jsonMsg)
-			if err != nil {
-				log.Errorf("Error writing to internal websocket connection %s: %s", conID, err)
-				c.Close()
-				appInstance.SetMsgQ(nil)
-				return
-			}
-		// happens when Protos is shutting down and all WS connections need to terminate
-		case <-msgq.Close:
-			log.Debug("Closing WS connection ", conID)
-			c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "terminating"))
-			c.Close()
-			return
-		// happens when the connection has been closed from the other side and this routine needs to terminate
-		case <-remoteQuit:
-			appInstance.CloseMsgQ()
-			log.Debugf("WS connection %s remotely closed ", conID)
+func wsInternal(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Error("Error upgrading websocket connection: ", err)
 			return
 		}
-	}
+
+		ctx := r.Context()
+		appInstance := ctx.Value(appKey).(*app.App)
+		msgq := &app.WSConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
+		appInstance.SetMsgQ(msgq)
+
+		remoteQuit := make(chan bool, 1)
+		conID := fmt.Sprintf("%p", msgq)
+		go wsMessageReader(c, conID, remoteQuit)
+
+		log.Debugf("Upgraded internal websocket connection %s", conID)
+		for {
+			select {
+			case msg := <-msgq.Send:
+				log.Debugf("Writing to internal websocket connection %s: %v", conID, msg)
+				jsonMsg, err := json.Marshal(msg)
+				if err != nil {
+					log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)
+					continue
+				}
+				err = c.WriteMessage(1, jsonMsg)
+				if err != nil {
+					log.Errorf("Error writing to internal websocket connection %s: %s", conID, err)
+					c.Close()
+					appInstance.SetMsgQ(nil)
+					return
+				}
+			// happens when Protos is shutting down and all WS connections need to terminate
+			case <-msgq.Close:
+				log.Debug("Closing WS connection ", conID)
+				c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "terminating"))
+				c.Close()
+				return
+			// happens when the connection has been closed from the other side and this routine needs to terminate
+			case <-remoteQuit:
+				appInstance.CloseMsgQ()
+				log.Debugf("WS connection %s remotely closed ", conID)
+				return
+			}
+		}
+	})
 }

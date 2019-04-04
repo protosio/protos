@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/resource"
 
@@ -37,8 +38,14 @@ type route struct {
 	Name        string
 	Method      string
 	Pattern     string
-	HandlerFunc http.HandlerFunc
+	HandlerFunc func(handlerAccess) http.Handler
 	Capability  *capability.Capability
+}
+
+type handlerAccess struct {
+	pm core.ProviderManager
+	rm core.ResourceManager
+	am core.AppManager
 }
 
 type routes []route
@@ -52,13 +59,14 @@ func uiRedirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func applyAPIroutes(r *mux.Router, routes []route) *mux.Router {
+	ha := handlerAccess{}
 	for _, route := range routes {
 		if route.Method != "" {
 			// if route method is set (GET, POST etc), the route is only valid for that method
-			r.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+			r.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc(ha))
 		} else {
 			// if route method is not set, it will work for all methods. Useful for WS
-			r.Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
+			r.Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc(ha))
 		}
 		if route.Capability != nil {
 			capability.SetMethodCap(route.Name, route.Capability)

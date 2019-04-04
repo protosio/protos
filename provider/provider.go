@@ -23,30 +23,34 @@ type Provider struct {
 	AppID string
 }
 
-var providers = make(map[resource.RType]*Provider)
-
-func init() {
-	providers[resource.DNS] = &Provider{Type: resource.DNS}
-	providers[resource.Certificate] = &Provider{Type: resource.Certificate}
-	providers[resource.Mail] = &Provider{Type: resource.Mail}
+type Manager struct {
+	providers map[resource.RType]*Provider
 }
 
+// var
+
+// func init() {
+// 	providers[resource.DNS] = &Provider{Type: resource.DNS}
+// 	providers[resource.Certificate] = &Provider{Type: resource.Certificate}
+// 	providers[resource.Mail] = &Provider{Type: resource.Mail}
+// }
+
 // Register registers a resource provider
-func Register(appInstance *app.App, rtype resource.RType) error {
-	if providers[rtype].AppID != "" {
-		if appInstance.ID == providers[rtype].AppID {
+func (pm *Manager) Register(appInstance *app.App, rtype resource.RType) error {
+	if pm.providers[rtype].AppID != "" {
+		if appInstance.ID == pm.providers[rtype].AppID {
 			return fmt.Errorf("App %s already registered as a provider for resource type %s", appInstance.ID, string(rtype))
 		}
 
-		_, err := app.Read(providers[rtype].AppID)
+		_, err := app.Read(pm.providers[rtype].AppID)
 		if err == nil {
 			return errors.New("Another application is registered as a provider for resource type " + string(rtype))
 		}
 	}
 
 	log.Info("Registering provider for resource " + string(rtype))
-	providers[rtype].AppID = appInstance.ID
-	err := database.Save(providers[rtype])
+	pm.providers[rtype].AppID = appInstance.ID
+	err := database.Save(pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}
@@ -55,15 +59,15 @@ func Register(appInstance *app.App, rtype resource.RType) error {
 }
 
 // Deregister deregisters a resource provider
-func Deregister(app *app.App, rtype resource.RType) error {
+func (pm *Manager) Deregister(app *app.App, rtype resource.RType) error {
 
-	if providers[rtype].AppID != "" && providers[rtype].AppID != app.ID {
+	if pm.providers[rtype].AppID != "" && pm.providers[rtype].AppID != app.ID {
 		return errors.New("Application '" + app.Name + "' is NOT registered for resource type " + string(rtype))
 	}
 
 	log.Infof("Deregistering application %s(%s) as a provider for %s", app.Name, app.ID, string(rtype))
-	providers[rtype].AppID = ""
-	err := database.Save(providers[rtype])
+	pm.providers[rtype].AppID = ""
+	err := database.Save(pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}
@@ -71,8 +75,8 @@ func Deregister(app *app.App, rtype resource.RType) error {
 }
 
 // Get retrieves the resource provider associated with an app
-func Get(app *app.App) (*Provider, error) {
-	for _, provider := range providers {
+func (pm *Manager) Get(app *app.App) (*Provider, error) {
+	for _, provider := range pm.providers {
 		if provider.AppID != "" && provider.AppID == app.ID {
 			return provider, nil
 		}
@@ -81,7 +85,7 @@ func Get(app *app.App) (*Provider, error) {
 }
 
 // LoadProvidersDB loads the providers from the database
-func LoadProvidersDB() {
+func (pm *Manager) LoadProvidersDB() {
 	log.Info("Retrieving providers from DB")
 	gob.Register(&Provider{})
 
@@ -91,7 +95,7 @@ func LoadProvidersDB() {
 		log.Fatalf("Could not retrieve providers from the database: %s", err.Error())
 	}
 	for idx, provider := range prvs {
-		providers[provider.Type] = &prvs[idx]
+		pm.providers[provider.Type] = &prvs[idx]
 	}
 }
 

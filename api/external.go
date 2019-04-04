@@ -149,311 +149,347 @@ var externalRoutes = routes{
 // Apps
 //
 
-func getApps(w http.ResponseWriter, r *http.Request) {
+func getApps(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	apps := app.GetAllPublic()
-	log.Debug("Sending response: ", apps)
-	json.NewEncoder(w).Encode(apps)
+		apps := app.GetAllPublic()
+		log.Debug("Sending response: ", apps)
+		json.NewEncoder(w).Encode(apps)
+	})
 }
 
-func createApp(w http.ResponseWriter, r *http.Request) {
-	var appParams app.App
-	defer r.Body.Close()
+func createApp(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var appParams app.App
+		defer r.Body.Close()
 
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&appParams)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&appParams)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	tsk := app.CreateAsync(
-		appParams.InstallerID,
-		appParams.InstallerVersion,
-		appParams.Name,
-		appParams.InstallerMetadata,
-		appParams.InstallerParams,
-		true,
-	)
+		tsk := app.CreateAsync(
+			appParams.InstallerID,
+			appParams.InstallerVersion,
+			appParams.Name,
+			appParams.InstallerMetadata,
+			appParams.InstallerParams,
+			true,
+		)
 
-	rend.JSON(w, http.StatusAccepted, tsk.Copy())
+		rend.JSON(w, http.StatusAccepted, tsk.Copy())
+	})
 }
 
-func getApp(w http.ResponseWriter, r *http.Request) {
+func getApp(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	appID := vars["appID"]
+		vars := mux.Vars(r)
+		appID := vars["appID"]
 
-	app, err := app.GetCopy(appID)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		app, err := app.GetCopy(appID)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	log.Debug("Sending response: ", app)
-	json.NewEncoder(w).Encode(app.Public())
+		log.Debug("Sending response: ", app)
+		json.NewEncoder(w).Encode(app.Public())
 
+	})
 }
 
-func actionApp(w http.ResponseWriter, r *http.Request) {
+func actionApp(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	appID := vars["appID"]
+		vars := mux.Vars(r)
+		appID := vars["appID"]
 
-	appInstance, err := app.Read(appID)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		appInstance, err := app.Read(appID)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	var action app.Action
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	err = decoder.Decode(&action)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		var action app.Action
+		decoder := json.NewDecoder(r.Body)
+		defer r.Body.Close()
+		err = decoder.Decode(&action)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	tsk, err := appInstance.AddAction(action)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		tsk, err := appInstance.AddAction(action)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	rend.JSON(w, http.StatusOK, tsk.Copy())
+		rend.JSON(w, http.StatusOK, tsk.Copy())
+	})
 }
 
-func removeApp(w http.ResponseWriter, r *http.Request) {
+func removeApp(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	appID := vars["appID"]
+		vars := mux.Vars(r)
+		appID := vars["appID"]
 
-	app, err := app.Read(appID)
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		app, err := app.Read(appID)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	tsk := app.RemoveAsync()
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		tsk := app.RemoveAsync()
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	rend.JSON(w, http.StatusOK, tsk.Copy())
+		rend.JSON(w, http.StatusOK, tsk.Copy())
+	})
 }
 
 //
 // Installers
 //
 
-func getInstallers(w http.ResponseWriter, r *http.Request) {
+func getInstallers(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	installers, err := installer.GetAll()
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		installers, err := installer.GetAll()
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	log.Debug("Sending response: ", installers)
-	json.NewEncoder(w).Encode(installers)
+		log.Debug("Sending response: ", installers)
+		json.NewEncoder(w).Encode(installers)
 
+	})
 }
 
-func getInstaller(w http.ResponseWriter, r *http.Request) {
+func getInstaller(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	installerID := vars["installerID"]
+		vars := mux.Vars(r)
+		installerID := vars["installerID"]
 
-	installer, err := installer.Read(installerID)
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		installer, err := installer.Read(installerID)
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	log.Debug("Sending response: ", installer)
-	json.NewEncoder(w).Encode(installer)
+		log.Debug("Sending response: ", installer)
+		json.NewEncoder(w).Encode(installer)
 
+	})
 }
 
-func removeInstaller(w http.ResponseWriter, r *http.Request) {
+func removeInstaller(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	installerID := vars["installerID"]
+		vars := mux.Vars(r)
+		installerID := vars["installerID"]
 
-	installer, err := installer.Read(installerID)
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
-	err = installer.Remove()
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		installer, err := installer.Read(installerID)
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+		err = installer.Remove()
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	rend.JSON(w, http.StatusOK, nil)
+		rend.JSON(w, http.StatusOK, nil)
 
+	})
 }
 
 //
 // Resources
 //
 
-func getResources(w http.ResponseWriter, r *http.Request) {
+func getResources(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	resources := resource.GetAll(true)
+		resources := resource.GetAll(true)
 
-	log.Debug("Sending response: ", resources)
-	json.NewEncoder(w).Encode(resources)
+		log.Debug("Sending response: ", resources)
+		json.NewEncoder(w).Encode(resources)
 
+	})
 }
 
-func getResource(w http.ResponseWriter, r *http.Request) {
+func getResource(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	resourceID := vars["resourceID"]
+		vars := mux.Vars(r)
+		resourceID := vars["resourceID"]
 
-	rsc, err := resource.Get(resourceID)
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
-	rend.JSON(w, http.StatusOK, rsc.Sanitize())
+		rsc, err := resource.Get(resourceID)
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+		rend.JSON(w, http.StatusOK, rsc.Sanitize())
 
+	})
 }
 
-func removeResource(w http.ResponseWriter, r *http.Request) {
+func removeResource(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	resourceID := vars["resourceID"]
+		vars := mux.Vars(r)
+		resourceID := vars["resourceID"]
 
-	rsc, err := resource.Get(resourceID)
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
-	err = rsc.Delete()
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
+		rsc, err := resource.Get(resourceID)
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+		err = rsc.Delete()
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
 
-	rend.JSON(w, http.StatusOK, nil)
+		rend.JSON(w, http.StatusOK, nil)
 
+	})
 }
 
 //
 // Tasks
 //
 
-func getTasks(w http.ResponseWriter, r *http.Request) {
-	tasks := task.GetLast()
-	json, err := tasks.ToJSON()
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-	}
-	log.Debug("Retrieved and sending all tasks: ", tasks)
-	rend.Data(w, http.StatusOK, json)
+func getTasks(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tasks := task.GetLast()
+		json, err := tasks.ToJSON()
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		}
+		log.Debug("Retrieved and sending all tasks: ", tasks)
+		rend.Data(w, http.StatusOK, json)
+	})
 }
 
-func getTask(w http.ResponseWriter, r *http.Request) {
+func getTask(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	taskID := vars["taskID"]
+		vars := mux.Vars(r)
+		taskID := vars["taskID"]
 
-	tsk, err := task.Get(taskID)
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
-	rend.JSON(w, http.StatusOK, tsk.Copy())
+		tsk, err := task.Get(taskID)
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+		rend.JSON(w, http.StatusOK, tsk.Copy())
 
+	})
 }
 
-func cancelTask(w http.ResponseWriter, r *http.Request) {
+func cancelTask(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	vars := mux.Vars(r)
-	taskID := vars["taskID"]
+		vars := mux.Vars(r)
+		taskID := vars["taskID"]
 
-	tsk, err := task.Get(taskID)
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
-	err = tsk.Kill()
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		return
-	}
-	rend.JSON(w, http.StatusOK, nil)
+		tsk, err := task.Get(taskID)
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+		err = tsk.Kill()
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+		rend.JSON(w, http.StatusOK, nil)
 
+	})
 }
 
 //
 // App store
 //
 
-func searchAppStore(w http.ResponseWriter, r *http.Request) {
-	queryParams := r.URL.Query()
-	var err error
-	var installers map[string]installer.Installer
+func searchAppStore(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queryParams := r.URL.Query()
+		var err error
+		var installers map[string]installer.Installer
 
-	if len(queryParams) == 0 {
-		installers, err = installer.StoreGetAll()
-	} else if len(queryParams) == 1 {
-		if val := queryParams.Get("provides"); val != "" {
-			installers, err = installer.StoreSearch("provides", val)
-		} else if val := queryParams.Get("general"); val != "" {
-			installers, err = installer.StoreSearch("general", val)
-		} else {
+		if len(queryParams) == 0 {
 			installers, err = installer.StoreGetAll()
+		} else if len(queryParams) == 1 {
+			if val := queryParams.Get("provides"); val != "" {
+				installers, err = installer.StoreSearch("provides", val)
+			} else if val := queryParams.Get("general"); val != "" {
+				installers, err = installer.StoreSearch("general", val)
+			} else {
+				installers, err = installer.StoreGetAll()
+			}
 		}
-	}
 
-	if err != nil {
-		log.Error(err)
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
-		return
-	}
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not query the application store"})
+			return
+		}
 
-	rend.JSON(w, http.StatusOK, installers)
+		rend.JSON(w, http.StatusOK, installers)
+	})
 }
 
 //
 // Info endpoints are used to retrieve some general information about the instance and hardware
 //
 
-func getInfo(w http.ResponseWriter, r *http.Request) {
-	info := struct {
-		Version string `json:"version"`
-	}{
-		Version: gconfig.Version.String(),
-	}
-	rend.JSON(w, http.StatusOK, info)
+func getInfo(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		info := struct {
+			Version string `json:"version"`
+		}{
+			Version: gconfig.Version.String(),
+		}
+		rend.JSON(w, http.StatusOK, info)
+	})
 }
 
-func getServices(w http.ResponseWriter, r *http.Request) {
-	services := app.GetServices()
-	protosService := meta.GetService()
-	services = append(services, protosService)
-	rend.JSON(w, http.StatusOK, services)
+func getServices(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		services := app.GetServices()
+		protosService := meta.GetService()
+		services = append(services, protosService)
+		rend.JSON(w, http.StatusOK, services)
+	})
 }
 
-func getHWStats(w http.ResponseWriter, r *http.Request) {
-	hwstats, err := platform.GetHWStats()
-	if err != nil {
-		rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Failed to retrieve hardware stats: " + err.Error()})
-	}
-	rend.JSON(w, http.StatusOK, hwstats)
+func getHWStats(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hwstats, err := platform.GetHWStats()
+		if err != nil {
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Failed to retrieve hardware stats: " + err.Error()})
+		}
+		rend.JSON(w, http.StatusOK, hwstats)
+	})
 }
