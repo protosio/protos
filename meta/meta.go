@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/config"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/resource"
 
 	"github.com/protosio/protos/database"
@@ -164,7 +165,7 @@ func GetTLSCertificate() resource.Resource {
 			log.Errorf("Could not find protos resource: %s", err.Error())
 			continue
 		}
-		if rsc.Type == resource.RType("certificate") {
+		if rsc.Type == core.RType("certificate") {
 			return *rsc
 		}
 	}
@@ -179,7 +180,7 @@ func CleanProtosResources() error {
 			log.Errorf("Could not find protos resource: %s", err.Error())
 			continue
 		}
-		if rsc.Type == resource.RType("dns") {
+		if rsc.Type == core.RType("dns") {
 			val := rsc.Value.(*resource.DNSResource)
 			if val.Type == "MX" {
 				err = rsc.Delete()

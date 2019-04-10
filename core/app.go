@@ -1,10 +1,11 @@
 package core
 
 type AppManager interface {
-	Get(string) App
+	Read(string) (App, error)
 }
 
 type App interface {
 	Start() error
 	GetID() string
+	GetName() string
 }

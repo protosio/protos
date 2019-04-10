@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/protosio/protos/app"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/database"
-	"github.com/protosio/protos/resource"
 	"github.com/protosio/protos/util"
 )
 
@@ -19,37 +18,43 @@ var log = util.GetLogger("provider")
 
 // Provider defines a Protos resource provider
 type Provider struct {
-	Type  resource.RType `storm:"id"`
+	Type  core.RType `storm:"id"`
 	AppID string
+	rm    core.ResourceManager
 }
 
+// Manager keeps track of all the providers
 type Manager struct {
-	providers map[resource.RType]*Provider
+	providers map[core.RType]*Provider
+	am        core.AppManager
 }
 
-// var
+// CreateManager returns a Manager, which implements the core.ProviderManager interfaces
+func CreateManager(rm core.ResourceManager, am core.AppManager) core.ProviderManager {
+	providers := map[core.RType]*Provider{}
+	providers[core.DNS] = &Provider{Type: core.DNS, rm: rm}
+	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
+	providers[core.Mail] = &Provider{Type: core.Mail, rm: rm}
 
-// func init() {
-// 	providers[resource.DNS] = &Provider{Type: resource.DNS}
-// 	providers[resource.Certificate] = &Provider{Type: resource.Certificate}
-// 	providers[resource.Mail] = &Provider{Type: resource.Mail}
-// }
+	manager := Manager{providers: providers, am: am}
+	return &manager
+}
 
 // Register registers a resource provider
-func (pm *Manager) Register(appInstance *app.App, rtype resource.RType) error {
+func (pm *Manager) Register(app core.App, rtype core.RType) error {
 	if pm.providers[rtype].AppID != "" {
-		if appInstance.ID == pm.providers[rtype].AppID {
-			return fmt.Errorf("App %s already registered as a provider for resource type %s", appInstance.ID, string(rtype))
+		if app.GetID() == pm.providers[rtype].AppID {
+			return fmt.Errorf("App %s already registered as a provider for resource type %s", app.GetID(), string(rtype))
 		}
 
-		_, err := app.Read(pm.providers[rtype].AppID)
+		_, err := pm.am.Read(pm.providers[rtype].AppID)
 		if err == nil {
 			return errors.New("Another application is registered as a provider for resource type " + string(rtype))
 		}
 	}
 
 	log.Info("Registering provider for resource " + string(rtype))
-	pm.providers[rtype].AppID = appInstance.ID
+	pm.providers[rtype].AppID = app.GetID()
 	err := database.Save(pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
@@ -59,13 +64,13 @@ func (pm *Manager) Register(appInstance *app.App, rtype resource.RType) error {
 }
 
 // Deregister deregisters a resource provider
-func (pm *Manager) Deregister(app *app.App, rtype resource.RType) error {
+func (pm *Manager) Deregister(app core.App, rtype core.RType) error {
 
-	if pm.providers[rtype].AppID != "" && pm.providers[rtype].AppID != app.ID {
-		return errors.New("Application '" + app.Name + "' is NOT registered for resource type " + string(rtype))
+	if pm.providers[rtype].AppID != "" && pm.providers[rtype].AppID != app.GetID() {
+		return errors.New("Application '" + app.GetName() + "' is NOT registered for resource type " + string(rtype))
 	}
 
-	log.Infof("Deregistering application %s(%s) as a provider for %s", app.Name, app.ID, string(rtype))
+	log.Infof("Deregistering application %s(%s) as a provider for %s", app.GetName(), app.GetID(), string(rtype))
 	pm.providers[rtype].AppID = ""
 	err := database.Save(pm.providers[rtype])
 	if err != nil {
@@ -75,13 +80,13 @@ func (pm *Manager) Deregister(app *app.App, rtype resource.RType) error {
 }
 
 // Get retrieves the resource provider associated with an app
-func (pm *Manager) Get(app *app.App) (*Provider, error) {
+func (pm *Manager) Get(app core.App) (core.Provider, error) {
 	for _, provider := range pm.providers {
-		if provider.AppID != "" && provider.AppID == app.ID {
+		if provider.AppID != "" && provider.AppID == app.GetID() {
 			return provider, nil
 		}
 	}
-	return nil, errors.New("Application '" + app.Name + "' is NOT a resource provider")
+	return nil, errors.New("Application '" + app.GetName() + "' is NOT a resource provider")
 }
 
 // LoadProvidersDB loads the providers from the database
@@ -104,26 +109,26 @@ func (pm *Manager) LoadProvidersDB() {
 //
 
 //GetResources retrieves all resources of a specific resource provider.
-func (provider *Provider) GetResources() map[string]resource.Resource {
-	filter := func(rsc *resource.Resource) bool {
-		if rsc.Type == provider.Type {
+func (provider *Provider) GetResources() map[string]core.Resource {
+	filter := func(rsc core.Resource) bool {
+		if rsc.GetType() == provider.Type {
 			return true
 		}
 		return false
 	}
-	rscs := resource.Select(filter)
+	rscs := provider.rm.Select(filter)
 	return rscs
 }
 
 //GetResource retrieves a resource that belongs to this provider
-func (provider *Provider) GetResource(resourceID string) *resource.Resource {
-	rsc, err := resource.Get(resourceID)
+func (provider *Provider) GetResource(resourceID string) core.Resource {
+	rsc, err := provider.rm.Get(resourceID)
 	if err != nil {
 		log.Error(err)
 		return nil
 	}
-	if rsc.Type != provider.Type {
-		log.Errorf("Resource %s is not of type %s, but %s", resourceID, provider.Type, rsc.Type)
+	if rsc.GetType() != provider.Type {
+		log.Errorf("Resource %s is not of type %s, but %s", resourceID, provider.Type, rsc.GetType())
 		return nil
 	}
 

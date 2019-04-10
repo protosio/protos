@@ -1,22 +1,15 @@
 package resource
 
-// RType is a string wrapper used for typechecking the resource types
-type RType string
+import "github.com/protosio/protos/core"
 
 const (
 	// Certificate represents a TLS/SSL certificate
-	Certificate = RType("certificate")
+	Certificate = core.RType("certificate")
 	// DNS represents a DNS record
-	DNS = RType("dns")
+	DNS = core.RType("dns")
 	// Mail is not used yet
-	Mail = RType("mail")
+	Mail = core.RType("mail")
 )
-
-// Type is an interface that satisfies all the resource types
-type Type interface {
-	Update(Type)
-	Sanitize() Type
-}
 
 // DNSResource represents a DNS resource
 type DNSResource struct {
@@ -27,11 +20,11 @@ type DNSResource struct {
 }
 
 // Update method is not used for the DNS resource type
-func (rsc *DNSResource) Update(newValue Type) {
+func (rsc *DNSResource) Update(newValue core.Type) {
 }
 
 // Sanitize removes any sensitive information from the resource
-func (rsc *DNSResource) Sanitize() Type {
+func (rsc *DNSResource) Sanitize() core.Type {
 	return rsc
 }
 
@@ -45,7 +38,7 @@ type CertificateResource struct {
 }
 
 // Update takes a new resource type value and updates the relevant fields
-func (rsc *CertificateResource) Update(newValue Type) {
+func (rsc *CertificateResource) Update(newValue core.Type) {
 	newCert := newValue.(*CertificateResource)
 	rsc.PrivateKey = newCert.PrivateKey
 	rsc.Certificate = newCert.Certificate
@@ -54,7 +47,7 @@ func (rsc *CertificateResource) Update(newValue Type) {
 }
 
 // Sanitize removes any sensitive information from the resource
-func (rsc *CertificateResource) Sanitize() Type {
+func (rsc *CertificateResource) Sanitize() core.Type {
 	output := *rsc
 	output.PrivateKey = []byte{}
 	output.CSR = []byte{}

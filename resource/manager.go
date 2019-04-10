@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/cnf/structhash"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/database"
 )
 
@@ -64,36 +65,67 @@ func (rc resourceContainer) copy() map[string]Resource {
 	return copyResources
 }
 
-var resources resourceContainer
+// Manager keeps track of all the resources
+type Manager struct {
+	resources resourceContainer
+}
 
 //
 // Public methods
 //
 
+// CreateManager returns a Manager, which implements the core.ProviderManager interfaces
+func CreateManager(rm core.ResourceManager, am core.AppManager) core.ResourceManager {
+	log.Info("Retrieving resources from DB")
+	gob.Register(&Resource{})
+	gob.Register(&DNSResource{})
+	gob.Register(&CertificateResource{})
+
+	rscs := []Resource{}
+	err := database.All(&rscs)
+	if err != nil {
+		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
+	}
+	resources := resourceContainer{access: &sync.Mutex{}, all: map[string]*Resource{}}
+	for _, rsc := range rscs {
+		rscCopy := rsc
+		rscCopy.access = &sync.Mutex{}
+		resources.put(rsc.ID, &rscCopy)
+	}
+
+	manager := Manager{resources: resources}
+	return &manager
+}
+
 //Create creates a resource and adds it to the internal resources map.
-func Create(rtype RType, value Type, appID string) (*Resource, error) {
+func (rm *Manager) Create(rtype core.RType, value core.Type, appID string) (*Resource, error) {
 	resource := &Resource{access: &sync.Mutex{}, App: appID}
 	resource.Type = rtype
 	resource.Value = value
 
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
-	rsc, err := resources.get(rhash)
+	rsc, err := rm.resources.get(rhash)
 	if err == nil {
 		return rsc, errors.New("Resource " + rhash + " already registered")
 	}
-	resource.Status = Requested
+	resource.Status = core.Requested
 	resource.ID = rhash
 	resource.App = appID
 	resource.Save()
 
 	log.Debug("Adding resource ", rhash, ": ", resource)
-	resources.put(rhash, resource)
+	rm.resources.put(rhash, resource)
 	return resource, nil
 
 }
 
+//Delete deletes a resource
+func (rm *Manager) Delete(appID string) error {
+	return rm.resources.remove(appID)
+}
+
 //CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
-func CreateFromJSON(appJSON []byte, appID string) (*Resource, error) {
+func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (*Resource, error) {
 	resource := &Resource{access: &sync.Mutex{}}
 	err := json.Unmarshal(appJSON, resource)
 	if err != nil {
@@ -101,39 +133,39 @@ func CreateFromJSON(appJSON []byte, appID string) (*Resource, error) {
 	}
 
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
-	rsc, err := resources.get(rhash)
+	rsc, err := rm.resources.get(rhash)
 	if err == nil {
 		return rsc, errors.New("Resource " + rhash + " already registered")
 	}
-	resource.Status = Requested
+	resource.Status = core.Requested
 	resource.ID = rhash
 	resource.App = appID
 	resource.Save()
 
 	log.Debug("Adding resource ", rhash, ": ", resource)
-	resources.put(rhash, resource)
+	rm.resources.put(rhash, resource)
 	return resource, nil
 }
 
 // Select takes a function and applies it to all the resources in the map. The ones that return true are returned
-func Select(filter func(*Resource) bool) map[string]Resource {
-	selectedResources := map[string]Resource{}
-	resources.access.Lock()
-	for k, v := range resources.all {
+func (rm *Manager) Select(filter func(core.Resource) bool) map[string]core.Resource {
+	selectedResources := map[string]core.Resource{}
+	rm.resources.access.Lock()
+	for k, v := range rm.resources.all {
 		rsc := v
 		rsc.access.Lock()
 		if filter(rsc) {
-			selectedResources[k] = *rsc
+			selectedResources[k] = rsc
 		}
 		rsc.access.Unlock()
 	}
-	resources.access.Unlock()
+	rm.resources.access.Unlock()
 	return selectedResources
 }
 
 //GetAll retrieves all the saved resources
-func GetAll(sanitize bool) map[string]Resource {
-	rscs := resources.copy()
+func (rm *Manager) GetAll(sanitize bool) map[string]Resource {
+	rscs := rm.resources.copy()
 	if sanitize == false {
 		return rscs
 	}
@@ -145,52 +177,32 @@ func GetAll(sanitize bool) map[string]Resource {
 }
 
 //Get retrieves a resources based on the provided id
-func Get(resourceID string) (*Resource, error) {
-	return resources.get(resourceID)
+func (rm *Manager) Get(resourceID string) (core.Resource, error) {
+	return rm.resources.get(resourceID)
 }
 
 //GetType retrieves a resource type based on the provided string
-func GetType(typename string) (RType, Type, error) {
+func (rm *Manager) GetType(typename string) (core.RType, core.Type, error) {
 	switch typename {
 	case "certificate":
 		return Certificate, &CertificateResource{}, nil
 	case "dns":
 		return DNS, &DNSResource{}, nil
 	default:
-		return RType(""), nil, errors.New("Resource type " + typename + " does not exist")
+		return core.RType(""), nil, errors.New("Resource type " + typename + " does not exist")
 	}
 }
 
 //GetStatus retrieves a resource status based on the provided string
-func GetStatus(statusname string) (RStatus, error) {
+func (rm *Manager) GetStatus(statusname string) (core.RStatus, error) {
 	switch statusname {
 	case "requested":
-		return Requested, nil
+		return core.Requested, nil
 	case "created":
-		return Created, nil
+		return core.Created, nil
 	case "unknown":
-		return Unknown, nil
+		return core.Unknown, nil
 	default:
-		return RStatus(""), errors.New("Resource status " + statusname + " does not exist")
-	}
-}
-
-// Init loads resources from the database
-func Init() {
-	log.Info("Retrieving resources from DB")
-	gob.Register(&Resource{})
-	gob.Register(&DNSResource{})
-	gob.Register(&CertificateResource{})
-
-	rscs := []Resource{}
-	err := database.All(&rscs)
-	if err != nil {
-		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
-	}
-	resources = resourceContainer{access: &sync.Mutex{}, all: map[string]*Resource{}}
-	for _, rsc := range rscs {
-		rscCopy := rsc
-		rscCopy.access = &sync.Mutex{}
-		resources.put(rsc.ID, &rscCopy)
+		return core.RStatus(""), errors.New("Resource status " + statusname + " does not exist")
 	}
 }

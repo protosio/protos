@@ -4,34 +4,24 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
 )
 
 var log = util.GetLogger("resource")
 
-// RStatus is a string wrapper used for typechecking the resource status
-type RStatus string
-
-const (
-	// Requested status is set at creation time and indicates that a resource provider should create this resource
-	Requested = RStatus("requested")
-	// Created status is the final final state of a resource, ready to be used by an application
-	Created = RStatus("created")
-	// Unknown status is for error or uknown states
-	Unknown = RStatus("unknown")
-)
-
 // Resource is the internal abstract representation of things like DNS or TLS certificates.
 // Anything that is required for an application to run correctly could and should be modeled as a resource. Think DNS, TLS, IPs, PORTs etc.
 type Resource struct {
 	access *sync.Mutex
+	parent *Manager
 
-	ID     string  `json:"id" hash:"-"`
-	Type   RType   `json:"type"`
-	Value  Type    `json:"value"`
-	Status RStatus `json:"status"`
-	App    string  `json:"app"`
+	ID     string       `json:"id" hash:"-"`
+	Type   core.RType   `json:"type"`
+	Value  core.Type    `json:"value"`
+	Status core.RStatus `json:"status"`
+	App    string       `json:"app"`
 }
 
 //
@@ -48,14 +38,8 @@ func (rsc *Resource) Save() {
 	}
 }
 
-//Delete deletes a resource
-func (rsc *Resource) Delete() error {
-	log.Debug("Deleting resource " + rsc.ID)
-	return resources.remove(rsc.ID)
-}
-
 // SetStatus sets the status on a resource instance
-func (rsc *Resource) SetStatus(status RStatus) {
+func (rsc *Resource) SetStatus(status core.RStatus) {
 	rsc.access.Lock()
 	rsc.Status = status
 	rsc.access.Unlock()
@@ -63,11 +47,16 @@ func (rsc *Resource) SetStatus(status RStatus) {
 }
 
 // UpdateValue updates the value of a resource
-func (rsc *Resource) UpdateValue(value Type) {
+func (rsc *Resource) UpdateValue(value core.Type) {
 	rsc.access.Lock()
 	rsc.Value.Update(value)
 	rsc.access.Unlock()
 	rsc.Save()
+}
+
+// GetType returns the type of the resources
+func (rsc *Resource) GetType() core.RType {
+	return rsc.Type
 }
 
 // Sanitize returns a sanitized version of the resource, with sensitive fields removed
@@ -83,9 +72,9 @@ func (rsc *Resource) Sanitize() Resource {
 func (rsc *Resource) UnmarshalJSON(b []byte) error {
 	resdata := struct {
 		ID     string          `json:"id" hash:"-"`
-		Type   RType           `json:"type"`
+		Type   core.RType      `json:"type"`
 		Value  json.RawMessage `json:"value"`
-		Status RStatus         `json:"status"`
+		Status core.RStatus    `json:"status"`
 	}{}
 	err := json.Unmarshal(b, &resdata)
 	if err != nil {
@@ -95,7 +84,7 @@ func (rsc *Resource) UnmarshalJSON(b []byte) error {
 	rsc.ID = resdata.ID
 	rsc.Type = resdata.Type
 	rsc.Status = resdata.Status
-	_, resourceStruct, err := GetType(string(resdata.Type))
+	_, resourceStruct, err := rsc.parent.GetType(string(resdata.Type))
 	if err != nil {
 		return err
 	}
