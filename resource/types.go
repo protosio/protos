@@ -28,6 +28,11 @@ func (rsc *DNSResource) Sanitize() core.Type {
 	return rsc
 }
 
+// IsType is used to check if the DNS resource is of a specific type
+func (rsc *DNSResource) IsType(t string) bool {
+	return rsc.Type == t
+}
+
 // CertificateResource represents an SSL certificate resource
 type CertificateResource struct {
 	Domains           []string

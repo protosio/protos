@@ -25,17 +25,27 @@ const (
 
 // ResourceManager manages the list of resources
 type ResourceManager interface {
-	Get(string) (Resource, error)
-	Delete(string) error
-	GetType(string) (RType, Type, error)
+	// Create(rtype RType, value Type, appID string) (Resource, error)
+	Get(id string) (Resource, error)
+	Delete(id string) error
+	GetType(name string) (RType, Type, error)
 	Select(func(Resource) bool) map[string]Resource
 }
 
+// ResourceCreator allows for the creation of all the supported Resource types
+type ResourceCreator interface {
+	CreateDNS(appID string, name string, rtype string, value string, ttl int) (Resource, error)
+	CreateCert(appID string, domains []string) (Resource, error)
+}
+
+// Resource represents a Protos resource
 type Resource interface {
 	Save()
+	GetID() string
+	GetType() RType
+	GetValue() Type
 	UpdateValue(Type)
 	SetStatus(RStatus)
-	GetType() RType
 }
 
 // Type is an interface that satisfies all the resource types

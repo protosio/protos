@@ -28,7 +28,12 @@ type Resource struct {
 // Resource
 //
 
-// Save - persists application data to database
+// GetID returns the string ID of the resource
+func (rsc *Resource) GetID() string {
+	return rsc.ID
+}
+
+// Save persists application data to database
 func (rsc *Resource) Save() {
 	rsc.access.Lock()
 	err := database.Save(rsc)
@@ -57,6 +62,11 @@ func (rsc *Resource) UpdateValue(value core.Type) {
 // GetType returns the type of the resources
 func (rsc *Resource) GetType() core.RType {
 	return rsc.Type
+}
+
+// GetValue returns the encapsulated value of the resource
+func (rsc *Resource) GetValue() core.Type {
+	return rsc.Value
 }
 
 // Sanitize returns a sanitized version of the resource, with sensitive fields removed

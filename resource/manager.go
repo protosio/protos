@@ -71,7 +71,7 @@ type Manager struct {
 }
 
 //
-// Public methods
+// Public methods that satisfy core.ResourceManager
 //
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
@@ -205,4 +205,41 @@ func (rm *Manager) GetStatus(statusname string) (core.RStatus, error) {
 	default:
 		return core.RStatus(""), errors.New("Resource status " + statusname + " does not exist")
 	}
+}
+
+//
+// Public methods that satisfy core.ResourceCreator
+//
+
+// CreateDNS creates a Resource of type DNS with the proivded values
+func (rm *Manager) CreateDNS(appID string, name string, rtype string, value string, ttl int) (core.Resource, error) {
+	val := &DNSResource{
+		Host:  name,
+		Type:  rtype,
+		Value: value,
+		TTL:   ttl,
+	}
+	rhash := fmt.Sprintf("%x", structhash.Md5(val, 1))
+	rsc, err := rm.resources.get(rhash)
+	if err == nil {
+		return rsc, errors.New("Resource " + rhash + " already registered")
+	}
+	resource := &Resource{access: &sync.Mutex{}, ID: rhash, App: appID, Type: DNS, Value: val, Status: core.Requested}
+	resource.Save()
+
+	return resource, nil
+}
+
+// CreateCert creates a Resource of type Certificate with the proivded values
+func (rm *Manager) CreateCert(appID string, domains []string) (core.Resource, error) {
+	val := &CertificateResource{Domains: domains}
+	rhash := fmt.Sprintf("%x", structhash.Md5(val, 1))
+	rsc, err := rm.resources.get(rhash)
+	if err == nil {
+		return rsc, errors.New("Resource " + rhash + " already registered")
+	}
+	resource := &Resource{access: &sync.Mutex{}, ID: rhash, App: appID, Type: Certificate, Value: val, Status: core.Requested}
+	resource.Save()
+
+	return resource, nil
 }
