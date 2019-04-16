@@ -34,13 +34,8 @@ type dnsResource interface {
 	IsType(string) bool
 }
 
-// Meta holds information about the protos instance
-type Meta interface {
-	InitCheck()
-}
-
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup(rm core.ResourceManager) Meta {
+func Setup(rm core.ResourceManager) core.Meta {
 	metaRoot := meta{}
 	log.Debug("Reading instance information from database")
 	err := database.One("ID", "metaroot", &metaRoot)

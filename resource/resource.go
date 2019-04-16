@@ -33,6 +33,11 @@ func (rsc *Resource) GetID() string {
 	return rsc.ID
 }
 
+// GetAppID returns the ID of the parent application
+func (rsc *Resource) GetAppID() string {
+	return rsc.App
+}
+
 // Save persists application data to database
 func (rsc *Resource) Save() {
 	rsc.access.Lock()

@@ -125,7 +125,7 @@ func (rm *Manager) Delete(appID string) error {
 }
 
 //CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
-func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (*Resource, error) {
+func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (core.Resource, error) {
 	resource := &Resource{access: &sync.Mutex{}}
 	err := json.Unmarshal(appJSON, resource)
 	if err != nil {

@@ -2,7 +2,7 @@ package app
 
 import (
 	"github.com/emirpasic/gods/maps/linkedhashmap"
-	"github.com/protosio/protos/resource"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
 )
@@ -13,8 +13,8 @@ type taskMap linkedhashmap.Map
 type PublicApp struct {
 	App
 
-	Tasks     taskMap                      `json:"tasks"`
-	Resources map[string]resource.Resource `json:"resources"`
+	Tasks     taskMap                  `json:"tasks"`
+	Resources map[string]core.Resource `json:"resources"`
 }
 
 // ToDo: do app refresh caching in the platform code
@@ -46,20 +46,20 @@ func (app App) Public() PublicApp {
 		App: app,
 	}
 	pa.Tasks = taskMap(task.GetIDs(app.Tasks))
-	resourceFilter := func(rsc *resource.Resource) bool {
-		found, _ := util.StringInSlice(rsc.ID, app.Resources)
+	resourceFilter := func(rsc core.Resource) bool {
+		found, _ := util.StringInSlice(rsc.GetID(), app.Resources)
 		if found {
 			return true
 		}
 		return false
 	}
-	pa.Resources = resource.Select(resourceFilter)
+	pa.Resources = app.parent.rm.Select(resourceFilter)
 	return pa
 }
 
 // GetAllPublic returns all applications in their public form, enriched with the latest status message
-func GetAllPublic() map[string]PublicApp {
-	papps := enrichPublicApps(CopyAll())
+func (am *Manager) GetAllPublic() map[string]PublicApp {
+	papps := enrichPublicApps(am.CopyAll())
 	return papps
 }
 

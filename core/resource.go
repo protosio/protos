@@ -36,6 +36,7 @@ type ResourceManager interface {
 type ResourceCreator interface {
 	CreateDNS(appID string, name string, rtype string, value string, ttl int) (Resource, error)
 	CreateCert(appID string, domains []string) (Resource, error)
+	CreateFromJSON(rscJSON []byte, appID string) (Resource, error)
 }
 
 // Resource represents a Protos resource
@@ -46,6 +47,7 @@ type Resource interface {
 	GetValue() Type
 	UpdateValue(Type)
 	SetStatus(RStatus)
+	GetAppID() string
 }
 
 // Type is an interface that satisfies all the resource types

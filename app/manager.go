@@ -7,11 +7,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/capability"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/installer"
-	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/platform"
-	"github.com/protosio/protos/resource"
 	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
@@ -70,29 +69,6 @@ func (am Map) copy() map[string]App {
 	return apps
 }
 
-// mapps maintains the main application map
-var mapps Map
-
-// initDB runs when Protos starts and loads all apps from the DB in memory
-func initDB() {
-	log.Debug("Retrieving applications from DB")
-	gob.Register(&App{})
-	gob.Register(&platform.DockerContainer{})
-
-	dbapps := []*App{}
-	err := database.All(&dbapps)
-	if err != nil {
-		log.Fatal("Could not retrieve applications from database: ", err)
-	}
-
-	mapps = Map{access: &sync.Mutex{}, apps: map[string]*App{}}
-	for _, app := range dbapps {
-		tmp := app
-		tmp.access = &sync.Mutex{}
-		mapps.put(tmp.ID, tmp)
-	}
-}
-
 func saveApp(app *App) {
 	app.access.Lock()
 	papp := *app
@@ -105,25 +81,47 @@ func saveApp(app *App) {
 	}
 }
 
-func add(app *App) {
-	mapps.put(app.ID, app)
-	saveApp(app)
+// func add(app *App) {
+// 	am.apps.put(app.ID, app)
+// 	saveApp(app)
+// }
+
+// Manager keeps track of all the apps
+type Manager struct {
+	apps Map
+	rm   core.ResourceManager
+	m    core.Meta
 }
 
 //
 // Public methods
 //
 
-// Init initializes the app package by loading all the applications from the database
-func Init() {
-	log.Info("Initializing application manager")
-	initDB()
+// CreateManager returns a Manager, which implements the core.AppManager interface
+func CreateManager(rm core.ResourceManager) core.AppManager {
+	log.Debug("Retrieving applications from DB")
+	gob.Register(&App{})
+	gob.Register(&platform.DockerContainer{})
+
+	dbapps := []*App{}
+	err := database.All(&dbapps)
+	if err != nil {
+		log.Fatal("Could not retrieve applications from database: ", err)
+	}
+
+	apps := Map{access: &sync.Mutex{}, apps: map[string]*App{}}
+	for _, app := range dbapps {
+		tmp := app
+		tmp.access = &sync.Mutex{}
+		apps.put(tmp.ID, tmp)
+	}
+	return &Manager{apps: apps, rm: rm}
 }
 
 // GetCopy returns a copy of an application based on its id
-func GetCopy(id string) (App, error) {
+func (am *Manager) GetCopy(id string) (App, error) {
 	log.Debug("Copying application ", id)
-	app, err := mapps.get(id)
+	app, err := am.apps.get(id)
 	app.access.Lock()
 	capp := *app
 	app.access.Unlock()
@@ -131,20 +129,20 @@ func GetCopy(id string) (App, error) {
 }
 
 // CopyAll returns a copy of all the applications
-func CopyAll() map[string]App {
-	return mapps.copy()
+func (am *Manager) CopyAll() map[string]App {
+	return am.apps.copy()
 }
 
 // Read returns an application based on its id
-func Read(id string) (*App, error) {
-	return mapps.get(id)
+func (am *Manager) Read(id string) (core.App, error) {
+	return am.apps.get(id)
 }
 
 // Select takes a function and applies it to all the apps in the map. The ones that return true are returned
-func Select(filter func(*App) bool) map[string]*App {
+func (am *Manager) Select(filter func(*App) bool) map[string]*App {
 	apps := map[string]*App{}
-	mapps.access.Lock()
-	for k, v := range mapps.apps {
+	am.apps.access.Lock()
+	for k, v := range am.apps.apps {
 		app := v
 		app.access.Lock()
 		if filter(app) {
@@ -152,16 +150,16 @@ func Select(filter func(*App) bool) map[string]*App {
 		}
 		app.access.Unlock()
 	}
-	mapps.access.Unlock()
+	am.apps.access.Unlock()
 	return apps
 }
 
 // ReadByIP searches and returns an application based on it's IP address
 // ToDo: refresh IP data for all applications?
-func ReadByIP(appIP string) (*App, error) {
-	mapps.access.Lock()
-	defer mapps.access.Unlock()
-	for _, app := range mapps.apps {
+func (am *Manager) ReadByIP(appIP string) (*App, error) {
+	am.apps.access.Lock()
+	defer am.apps.access.Unlock()
+	for _, app := range am.apps.apps {
 		if app.IP == appIP {
 			return app, nil
 		}
@@ -170,7 +168,7 @@ func ReadByIP(appIP string) (*App, error) {
 }
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
-func CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string, startOnCreation bool) task.Task {
+func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string, startOnCreation bool) task.Task {
 	createApp := CreateAppTask{
 		InstallerID:       installerID,
 		InstallerVersion:  installerVersion,
@@ -184,7 +182,7 @@ func CreateAsync(installerID string, installerVersion string, appName string, in
 }
 
 // Create takes an image and creates an application, without starting it
-func Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata *installer.Metadata, taskID string) (*App, error) {
+func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata *installer.Metadata, taskID string) (*App, error) {
 
 	var app *App
 	if name == "" {
@@ -204,29 +202,36 @@ func Create(installerID string, installerVersion string, name string, installerP
 
 	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
 	if app.ValidateCapability(capability.PublicDNS) == nil {
-		rsc, err := resource.Create(resource.DNS, &resource.DNSResource{Host: app.Name, Value: meta.GetPublicIP(), Type: "A", TTL: 300}, app.ID)
+		rc := am.rm.(core.ResourceCreator)
+		rsc, err := rc.CreateDNS(app.ID, app.Name, "A", am.m.GetPublicIP(), 300)
 		if err != nil {
 			return app, err
 		}
-		app.Resources = append(app.Resources, rsc.ID)
+		app.Resources = append(app.Resources, rsc.GetID())
 	}
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
 }
 
-// GetServices returns a list of services performed by apps
-func GetServices() []util.Service {
-	services := []util.Service{}
-	apps := mapps.copy()
+// dnsResource is only used locally to retrieve the Name of a DNS record
+type dnsResource interface {
+	GetName() string
+	GetValue() string
+}
 
-	resourceFilter := func(rsc *resource.Resource) bool {
-		if rsc.Type == resource.DNS {
+// GetServices returns a list of services performed by apps
+func (am *Manager) GetServices() []util.Service {
+	services := []util.Service{}
+	apps := am.apps.copy()
+
+	resourceFilter := func(rsc core.Resource) bool {
+		if rsc.GetType() == core.DNS {
 			return true
 		}
 		return false
 	}
-	rscs := resource.Select(resourceFilter)
+	rscs := am.rm.Select(resourceFilter)
 
 	for _, app := range apps {
 		if len(app.PublicPorts) == 0 {
@@ -244,10 +249,10 @@ func GetServices() []util.Service {
 		}
 
 		for _, rsc := range rscs {
-			dnsrsc := rsc.Value.(*resource.DNSResource)
-			if rsc.App == app.ID && dnsrsc.Host == app.Name {
-				service.Domain = dnsrsc.Host + "." + meta.GetDomain()
-				service.IP = dnsrsc.Value
+			dnsrsc := rsc.GetValue().(dnsResource)
+			if rsc.GetAppID() == app.ID && dnsrsc.GetName() == app.Name {
+				service.Domain = dnsrsc.GetName() + "." + am.m.GetDomain()
+				service.IP = dnsrsc.GetValue()
 				break
 			}
 		}
@@ -256,21 +261,36 @@ func GetServices() []util.Service {
 	return services
 }
 
+// Remove removes an application based on the provided id
+func (am *Manager) Remove(appID string) error {
+	app, err := am.apps.get(appID)
+	if err != nil {
+		return errors.Wrapf(err, "Can't remove application %s", app.ID)
+	}
+
+	err = app.remove()
+	if err != nil {
+		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
+	}
+	return nil
+}
+
 //
 // Dev related methods
 //
 
 // CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
-func CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string) (*App, error) {
+func (am *Manager) CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string) (*App, error) {
 
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")
 
-	app, err := Create(installerID, installerVersion, appName, installerParams, installerMetadata, "sync")
+	app, err := am.Create(installerID, installerVersion, appName, installerParams, installerMetadata, "sync")
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}
-	add(app)
+	am.apps.put(app.ID, app)
+	saveApp(app)
 
 	app.SetStatus(statusUnknown)
 	return app, nil

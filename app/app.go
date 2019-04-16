@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/config"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/task"
 
@@ -54,6 +55,7 @@ type WSConnection struct {
 // App represents the application state
 type App struct {
 	access *sync.Mutex
+	parent *Manager
 
 	// Public members
 	Name              string              `json:"name"`
@@ -127,6 +129,16 @@ func createCapabilities(installerCapabilities []*capability.Capability) []string
 //
 // Methods for application instance
 //
+
+// GetID returns the id of the application
+func (app *App) GetID() string {
+	return app.ID
+}
+
+// GetName returns the id of the application
+func (app *App) GetName() string {
+	return app.Name
+}
 
 // SetStatus is used to set the status of an application
 func (app *App) SetStatus(status string) {
@@ -295,9 +307,9 @@ func (app *App) RemoveAsync() task.Task {
 	return tsk
 }
 
-// Remove App removes an application container
-func (app *App) Remove() error {
-	log.Info("Removing application ", app.Name, "[", app.ID, "]")
+// remove App removes an application container
+func (app *App) remove() error {
+	log.Debug("Removing application ", app.Name, "[", app.ID, "]")
 
 	cnt, err := platform.GetDockerContainer(app.ContainerID)
 	if err != nil {
@@ -315,27 +327,22 @@ func (app *App) Remove() error {
 	if app.VolumeID != "" {
 		err := platform.RemoveDockerVolume(app.VolumeID)
 		if err != nil {
-			return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
+			return err
 		}
 	}
 
 	// Removing resources requested by this app
 	for _, rscID := range app.Resources {
-		rsc, err := resource.Get(rscID)
+		rsc, err := app.parent.rm.Get(rscID)
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-		err = rsc.Delete()
+		err = app.parent.rm.Delete(rscID)
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-	}
-
-	err = mapps.remove(app.ID)
-	if err != nil {
-		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
 	}
 
 	return nil
@@ -402,15 +409,16 @@ func (app *App) SendMsg(msg interface{}) error {
 //
 
 //CreateResource adds a resource to the internal resources map.
-func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
+func (app *App) CreateResource(appJSON []byte) (core.Resource, error) {
 
 	app.access.Lock()
-	rsc, err := resource.CreateFromJSON(appJSON, app.ID)
+	rc := app.parent.rm.(core.ResourceCreator)
+	rsc, err := rc.CreateFromJSON(appJSON, app.ID)
 	if err != nil {
 		app.access.Unlock()
 		return &resource.Resource{}, err
 	}
-	app.Resources = append(app.Resources, rsc.ID)
+	app.Resources = append(app.Resources, rsc.GetID())
 	app.access.Unlock()
 	app.Save()
 
@@ -420,11 +428,7 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 //DeleteResource deletes a resource
 func (app *App) DeleteResource(resourceID string) error {
 	if v, index := util.StringInSlice(resourceID, app.Resources); v {
-		rsc, err := resource.Get(resourceID)
-		if err != nil {
-			return err
-		}
-		err = rsc.Delete()
+		err := app.parent.rm.Delete(resourceID)
 		if err != nil {
 			return err
 		}
@@ -440,10 +444,10 @@ func (app *App) DeleteResource(resourceID string) error {
 }
 
 // GetResources retrieves all the resources that belong to an application
-func (app *App) GetResources() map[string]*resource.Resource {
-	resources := make(map[string]*resource.Resource)
+func (app *App) GetResources() map[string]core.Resource {
+	resources := make(map[string]core.Resource)
 	for _, rscid := range app.Resources {
-		rsc, err := resource.Get(rscid)
+		rsc, err := app.parent.rm.Get(rscid)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -454,10 +458,10 @@ func (app *App) GetResources() map[string]*resource.Resource {
 }
 
 // GetResource returns resource with provided ID, if it belongs to this app
-func (app *App) GetResource(resourceID string) *resource.Resource {
+func (app *App) GetResource(resourceID string) core.Resource {
 	for _, rscid := range app.Resources {
 		if rscid == resourceID {
-			rsc, err := resource.Get(rscid)
+			rsc, err := app.parent.rm.Get(rscid)
 			if err != nil {
 				log.Error(err)
 			}

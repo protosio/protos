@@ -33,6 +33,16 @@ func (rsc *DNSResource) IsType(t string) bool {
 	return rsc.Type == t
 }
 
+// GetName returns the host field of the DNS record
+func (rsc *DNSResource) GetName() string {
+	return rsc.Host
+}
+
+// GetValue returns the value field of the DNS record
+func (rsc *DNSResource) GetValue() string {
+	return rsc.Value
+}
+
 // CertificateResource represents an SSL certificate resource
 type CertificateResource struct {
 	Domains           []string
