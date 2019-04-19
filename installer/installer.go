@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/protosio/protos/task"
+	"github.com/protosio/protos/core"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/capability"
@@ -212,8 +212,8 @@ func (inst Installer) Download(dt DownloadTask) error {
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task
-func (inst Installer) DownloadAsync(version string, appID string) task.Task {
-	tsk := task.New(&DownloadTask{Inst: inst, Version: version, AppID: appID})
+func (inst Installer) DownloadAsync(tm core.TaskManager, version string, appID string) core.Task {
+	tsk := tm.New(&DownloadTask{Inst: inst, Version: version, AppID: appID})
 	return tsk
 }
 

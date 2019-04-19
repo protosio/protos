@@ -11,7 +11,6 @@ import (
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/platform"
-	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
 )
@@ -90,6 +89,7 @@ func saveApp(app *App) {
 type Manager struct {
 	apps Map
 	rm   core.ResourceManager
+	tm   core.TaskManager
 	m    core.Meta
 }
 
@@ -98,7 +98,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager) core.AppManager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager) core.AppManager {
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 	gob.Register(&platform.DockerContainer{})
@@ -115,7 +115,7 @@ func CreateManager(rm core.ResourceManager) core.AppManager {
 		tmp.access = &sync.Mutex{}
 		apps.put(tmp.ID, tmp)
 	}
-	return &Manager{apps: apps, rm: rm}
+	return &Manager{apps: apps, rm: rm, tm: tm}
 }
 
 // GetCopy returns a copy of an application based on its id
@@ -168,7 +168,7 @@ func (am *Manager) ReadByIP(appIP string) (*App, error) {
 }
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
-func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string, startOnCreation bool) task.Task {
+func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string, startOnCreation bool) core.CustomTask {
 	createApp := CreateAppTask{
 		InstallerID:       installerID,
 		InstallerVersion:  installerVersion,
@@ -177,8 +177,7 @@ func (am *Manager) CreateAsync(installerID string, installerVersion string, appN
 		InstallerParams:   installerParams,
 		StartOnCreation:   startOnCreation,
 	}
-	tsk := task.New(&createApp)
-	return tsk
+	return &createApp
 }
 
 // Create takes an image and creates an application, without starting it
@@ -209,6 +208,9 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		}
 		app.Resources = append(app.Resources, rsc.GetID())
 	}
+
+	am.apps.put(app.ID, app)
+	saveApp(app)
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
@@ -275,6 +277,11 @@ func (am *Manager) Remove(appID string) error {
 	return nil
 }
 
+// RemoveAsync asynchronously removes an applications and returns a task
+func (am *Manager) RemoveAsync(appID string) core.Task {
+	return am.tm.New(&RemoveAppTask{am: am, appID: appID})
+}
+
 //
 // Dev related methods
 //
@@ -289,8 +296,6 @@ func (am *Manager) CreateDevApp(installerID string, installerVersion string, app
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}
-	am.apps.put(app.ID, app)
-	saveApp(app)
 
 	app.SetStatus(statusUnknown)
 	return app, nil

@@ -5,4 +5,5 @@ type Meta interface {
 	InitCheck()
 	GetPublicIP() string
 	GetDomain() string
+	GetTLSCertificate() Resource
 }

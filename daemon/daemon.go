@@ -73,6 +73,8 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	resource.Init()                  // required to register the resource structs with the DB
 	rm := resource.CreateManager()
 	pm := provider.CreateManager() // required to register the provider structs with the DB
+	tm := task.CreateManager()
+	am := app.CreateManager(rm, tm)
 
 	// Init app package
 	app.Init()

@@ -8,6 +8,7 @@ import (
 
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
@@ -66,36 +67,6 @@ func (tm taskContainer) copy() *linkedhashmap.Map {
 	return tsks
 }
 
-// all tasks
-var tasks taskContainer
-
-func initDB() {
-	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
-	gob.Register(&Base{})
-	gob.Register(&util.ProtosTime{})
-
-	dbtasks := []Base{}
-	err := database.All(&dbtasks)
-	if err != nil {
-		log.Fatal("Could not retrieve tasks from database: ", err)
-	}
-
-	ltasks := linkedhashmap.New()
-	for _, task := range dbtasks {
-		ltask := task
-		ltask.access = &sync.Mutex{}
-		if ltask.Status == INPROGRESS {
-			log.Debugf("Marking task %s as failed", ltask.ID)
-			ltask.Status = FAILED
-			ltask.Progress.Percentage = 100
-			ltask.Progress.State = "Task marked as failed when Protos started"
-			ltask.Save()
-		}
-		ltasks.Put(task.ID, &ltask)
-	}
-	tasks = taskContainer{access: &sync.Mutex{}, all: ltasks}
-}
-
 func saveTask(btsk *Base) {
 	log.WithField("proc", "taskManager").Debugf("Saving task %s to database", btsk.ID)
 	btsk.access.Lock()
@@ -127,18 +98,44 @@ func getLastNTasks(n int, tsks *linkedhashmap.Map) linkedhashmap.Map {
 	return *lastTasks
 }
 
+// Manager keeps track of all the tasks
+type Manager struct {
+	tasks taskContainer
+}
+
+func CreateManager() core.TaskManager {
+	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
+	gob.Register(&Base{})
+	gob.Register(&util.ProtosTime{})
+
+	dbtasks := []Base{}
+	err := database.All(&dbtasks)
+	if err != nil {
+		log.Fatal("Could not retrieve tasks from database: ", err)
+	}
+
+	ltasks := linkedhashmap.New()
+	for _, task := range dbtasks {
+		ltask := task
+		ltask.access = &sync.Mutex{}
+		if ltask.Status == INPROGRESS {
+			log.Debugf("Marking task %s as failed", ltask.ID)
+			ltask.Status = FAILED
+			ltask.Progress.Percentage = 100
+			ltask.Progress.State = "Task marked as failed when Protos started"
+			ltask.Save()
+		}
+		ltasks.Put(task.ID, &ltask)
+	}
+	return &Manager{tasks: taskContainer{access: &sync.Mutex{}, all: ltasks}}
+}
+
 //
 // Public methods
 //
 
-// Init initializes the app package by loading all the applications from the database
-func Init() {
-	log.Info("Initializing application manager")
-	initDB()
-}
-
 // New creates a new task and returns it
-func New(ct CustomTask) Task {
+func (tm *Manager) New(ct core.CustomTask) core.Task {
 	ts := util.ProtosTime(time.Now())
 	tsk := &Base{
 		access: &sync.Mutex{},
@@ -153,31 +150,31 @@ func New(ct CustomTask) Task {
 		finish: make(chan error, 1),
 	}
 	tsk.Save()
-	ct.SetBase(tsk)
-	tasks.put(tsk.ID, tsk)
+	// ct.SetBase(tsk)
+	tm.tasks.put(tsk.ID, tsk)
 	go tsk.Run()
 	return tsk
 }
 
 // GetAll returns all the available tasks
-func GetAll() *linkedhashmap.Map {
-	return tasks.copy()
+func (tm *Manager) GetAll() *linkedhashmap.Map {
+	return tm.tasks.copy()
 }
 
 // GetLast returns last 36 available tasks
-func GetLast() linkedhashmap.Map {
-	tasksCopy := tasks.copy()
+func (tm *Manager) GetLast() linkedhashmap.Map {
+	tasksCopy := tm.tasks.copy()
 	return getLastNTasks(36, tasksCopy)
 }
 
 // Get returns a task based on its id
-func Get(id string) (*Base, error) {
-	return tasks.get(id)
+func (tm *Manager) Get(id string) (*Base, error) {
+	return tm.tasks.get(id)
 }
 
 // GetIDs returns all tasks for the provided ids
-func GetIDs(ids []string) linkedhashmap.Map {
-	tasksCopy := tasks.copy()
+func (tm *Manager) GetIDs(ids []string) linkedhashmap.Map {
+	tasksCopy := tm.tasks.copy()
 	filter := func(k interface{}, v interface{}) bool {
 		if found, _ := util.StringInSlice(k.(string), ids); found {
 			return true

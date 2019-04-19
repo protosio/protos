@@ -8,6 +8,7 @@ import (
 
 	"github.com/icholy/killable"
 	"github.com/protosio/protos/config"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/util"
 )
 
@@ -28,27 +29,27 @@ const (
 // ErrKilledByUser is returned when a task is canceled/killed by the user
 var ErrKilledByUser = errors.New("Task cancelled by user")
 
-// CustomTask is the interface that is implemented by custom tasks in various packages
-type CustomTask interface {
-	Run() error
-	Name() string
-	SetBase(Task)
-}
+// // CustomTask is the interface that is implemented by custom tasks in various packages
+// type CustomTask interface {
+// 	Run() error
+// 	Name() string
+// 	SetBase(Task)
+// }
 
-// Task is the interface that all task types need to adhere too
-type Task interface {
-	GetID() string
-	Wait() error
-	SetPercentage(int)
-	GetPercentage() int
-	SetState(string)
-	SetStatus(string)
-	AddApp(string)
-	Copy() Base
-	SetKillable()
-	Dying() <-chan struct{}
-	Save()
-}
+// // Task is the interface that all task types need to adhere too
+// type Task interface {
+// 	GetID() string
+// 	Wait() error
+// 	SetPercentage(int)
+// 	GetPercentage() int
+// 	SetState(string)
+// 	SetStatus(string)
+// 	AddApp(string)
+// 	Copy() Base
+// 	SetKillable()
+// 	Dying() <-chan struct{}
+// 	Save()
+// }
 
 // Progress tracks the percentage and message of a task
 type Progress struct {
@@ -59,7 +60,7 @@ type Progress struct {
 // Base represents an (a)synchronous piece of work that Protos acts upon
 type Base struct {
 	access *sync.Mutex
-	custom CustomTask
+	custom core.CustomTask
 
 	// public members
 	ID         string           `json:"id"`
@@ -140,11 +141,11 @@ func (b *Base) Kill() error {
 }
 
 // Copy returns a copy of the task base
-func (b *Base) Copy() Base {
+func (b *Base) Copy() core.Task {
 	b.access.Lock()
 	baseCopy := *b
 	b.access.Unlock()
-	return baseCopy
+	return &baseCopy
 }
 
 // Dying returns a channel that can be used to listen for the kill command
@@ -169,7 +170,7 @@ func (b *Base) Run() {
 	b.Save()
 
 	// run custom task
-	err := b.custom.Run()
+	err := b.custom.Run(b.ID, b)
 	// update final result and save task
 	b.access.Lock()
 	b.Progress.Percentage = 100

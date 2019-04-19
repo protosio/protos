@@ -2,13 +2,13 @@ package app
 
 import (
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/installer"
-	"github.com/protosio/protos/task"
 )
 
 // CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
-	b                 task.Task
+	am                *Manager
 	InstallerID       string
 	InstallerVersion  string
 	AppName           string
@@ -22,14 +22,8 @@ func (t *CreateAppTask) Name() string {
 	return "Create application"
 }
 
-// SetBase embedds the task base details
-func (t *CreateAppTask) SetBase(tsk task.Task) {
-	t.b = tsk
-}
-
 // Run starts the async task
-func (t CreateAppTask) Run() error {
-	tskID := t.b.GetID()
+func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
 	var inst installer.Installer
@@ -57,19 +51,17 @@ func (t CreateAppTask) Run() error {
 		}
 	}
 
-	app, err := Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
+	app, err := t.am.Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
-	add(app)
-	t.b.SetPercentage(10)
-	t.b.SetState("Created application")
-	t.b.AddApp(app.ID)
-	t.b.Save()
+	app.AddTask(tskID)
+	p.SetPercentage(10)
+	p.SetState("Created application")
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {
 		log.WithField("proc", tskID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
-		tsk := inst.DownloadAsync(t.InstallerVersion, app.ID)
+		tsk := inst.DownloadAsync(t.am.tm, t.InstallerVersion, app.ID)
 		app.AddTask(tsk.GetID())
 		err := tsk.Wait()
 		if err != nil {
@@ -78,9 +70,8 @@ func (t CreateAppTask) Run() error {
 		}
 	} else {
 		log.WithField("proc", tskID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
-		t.b.SetPercentage(50)
-		t.b.SetState("Docker image found locally")
-		t.b.Save()
+		p.SetPercentage(50)
+		p.SetState("Docker image found locally")
 	}
 
 	_, err = app.createContainer()
@@ -88,9 +79,8 @@ func (t CreateAppTask) Run() error {
 		app.SetStatus(statusFailed)
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
-	t.b.SetPercentage(70)
-	t.b.SetState("Created Docker container")
-	t.b.Save()
+	p.SetPercentage(70)
+	p.SetState("Created Docker container")
 
 	if t.StartOnCreation {
 		tsk := app.StartAsync()
@@ -111,7 +101,6 @@ func (t CreateAppTask) Run() error {
 
 // StartAppTask starts an app and implements the task interface
 type StartAppTask struct {
-	b   task.Task
 	app *App
 }
 
@@ -120,24 +109,15 @@ func (t *StartAppTask) Name() string {
 	return "Start application"
 }
 
-// SetBase embedds the task base details
-func (t *StartAppTask) SetBase(tsk task.Task) {
-	t.b = tsk
-}
-
 // Run starts the async task
-func (t *StartAppTask) Run() error {
-	t.b.SetStatus(task.INPROGRESS)
-	t.b.SetPercentage(50)
-	t.b.AddApp(t.app.ID)
-	t.app.AddTask(t.b.GetID())
-	t.b.Save()
+func (t *StartAppTask) Run(tskID string, p core.Progress) error {
+	p.SetPercentage(50)
+	t.app.AddTask(tskID)
 	return t.app.Start()
 }
 
 // StopAppTask stops an app and implements the task interface
 type StopAppTask struct {
-	b   task.Task
 	app *App
 }
 
@@ -146,25 +126,17 @@ func (t *StopAppTask) Name() string {
 	return "Stop application"
 }
 
-// SetBase embedds the task base details
-func (t *StopAppTask) SetBase(tsk task.Task) {
-	t.b = tsk
-}
-
 // Run starts the async task
-func (t *StopAppTask) Run() error {
-	t.b.SetStatus(task.INPROGRESS)
-	t.b.SetPercentage(50)
-	t.b.AddApp(t.app.ID)
-	t.app.AddTask(t.b.GetID())
-	t.b.Save()
+func (t *StopAppTask) Run(tskID string, p core.Progress) error {
+	p.SetPercentage(50)
+	t.app.AddTask(tskID)
 	return t.app.Stop()
 }
 
 // RemoveAppTask removes an application and implements the task interface
 type RemoveAppTask struct {
-	b   task.Task
-	app *App
+	am    *Manager
+	appID string
 }
 
 // Name returns the task type name
@@ -172,15 +144,9 @@ func (t *RemoveAppTask) Name() string {
 	return "Remove application"
 }
 
-// SetBase embedds the task base details
-func (t *RemoveAppTask) SetBase(tsk task.Task) {
-	t.b = tsk
-}
-
 // Run starts the async task
-func (t *RemoveAppTask) Run() error {
-	t.b.SetStatus(task.INPROGRESS)
-	t.b.SetPercentage(50)
-	t.b.Save()
-	return t.app.Remove()
+func (t *RemoveAppTask) Run(tskID string, p core.Progress) error {
+	p.SetState("Deleting application")
+	p.SetPercentage(50)
+	return t.am.Remove(t.appID)
 }

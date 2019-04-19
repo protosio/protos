@@ -23,6 +23,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
 )
@@ -57,7 +58,7 @@ type imageLayer struct {
 
 type downloadProgress struct {
 	layers            map[string]imageLayer
-	t                 task.Task
+	t                 core.Task
 	totalSize         int64
 	percentage        int
 	weight            int
@@ -531,7 +532,7 @@ func RemoveDockerImage(id string) error {
 }
 
 // PullDockerImage pulls a docker image from the Protos app store
-func PullDockerImage(t task.Task, id string, installerName string, installerVersion string) error {
+func PullDockerImage(t core.Task, id string, installerName string, installerVersion string) error {
 	repoImage := gconfig.AppStoreHost + "/" + id
 	progress := &downloadProgress{t: t, layers: make(map[string]imageLayer), weight: 85, initialPercentage: t.GetPercentage()}
 	regClient, err := registry.New(fmt.Sprintf("https://%s/", gconfig.AppStoreHost), "", "")

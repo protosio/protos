@@ -3,7 +3,6 @@ package app
 import (
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/task"
 	"github.com/protosio/protos/util"
 )
 
@@ -18,9 +17,9 @@ type PublicApp struct {
 }
 
 // ToDo: do app refresh caching in the platform code
-func enrichPublicApps(apps map[string]App) map[string]PublicApp {
-	tasks := task.GetAll()
-	papps := map[string]PublicApp{}
+func (am *Manager) enrichPublicApps(apps map[string]App) map[string]core.App {
+	tasks := am.tm.GetAll()
+	papps := map[string]core.App{}
 
 	for _, app := range apps {
 		tmp := app
@@ -34,7 +33,7 @@ func enrichPublicApps(apps map[string]App) map[string]PublicApp {
 			return false
 		}
 		papp.Tasks = taskMap(*tasks.Select(filter))
-		papps[papp.ID] = papp
+		papps[papp.ID] = &papp
 	}
 	return papps
 }
@@ -45,7 +44,7 @@ func (app App) Public() PublicApp {
 	pa := PublicApp{
 		App: app,
 	}
-	pa.Tasks = taskMap(task.GetIDs(app.Tasks))
+	pa.Tasks = taskMap(app.parent.tm.GetIDs(app.Tasks))
 	resourceFilter := func(rsc core.Resource) bool {
 		found, _ := util.StringInSlice(rsc.GetID(), app.Resources)
 		if found {
@@ -58,8 +57,8 @@ func (app App) Public() PublicApp {
 }
 
 // GetAllPublic returns all applications in their public form, enriched with the latest status message
-func (am *Manager) GetAllPublic() map[string]PublicApp {
-	papps := enrichPublicApps(am.CopyAll())
+func (am *Manager) GetAllPublic() map[string]core.App {
+	papps := am.enrichPublicApps(am.CopyAll())
 	return papps
 }
 

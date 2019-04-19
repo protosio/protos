@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/resource"
 
 	// statik package is use to embed static web assets in the protos binary
@@ -46,6 +45,7 @@ type handlerAccess struct {
 	pm core.ProviderManager
 	rm core.ResourceManager
 	am core.AppManager
+	tm core.TaskManager
 }
 
 type routes []route
@@ -140,7 +140,7 @@ func applyStaticRoutes(r *mux.Router) {
 
 }
 
-func secureListen(handler http.Handler, certrsc resource.Type, quit chan bool) {
+func secureListen(handler http.Handler, certrsc core.Type, quit chan bool) {
 	cert, ok := certrsc.(*resource.CertificateResource)
 	if ok == false {
 		log.Fatal("Failed to read TLS certificate")
@@ -252,7 +252,7 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool) {
+func Websrv(quit chan bool, devmode bool, m core.Meta) {
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(mainRtr, false)
@@ -281,8 +281,8 @@ func Websrv(quit chan bool, devmode bool) {
 	n.Use(negroni.HandlerFunc(HTTPLogger))
 	n.UseHandler(mainRtr)
 
-	cert := meta.GetTLSCertificate()
-	secureListen(n, cert.Value, quit)
+	cert := m.GetTLSCertificate()
+	secureListen(n, cert.GetValue(), quit)
 }
 
 // WebsrvInit starts an HTTP server used only during the initialisation process

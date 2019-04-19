@@ -152,7 +152,7 @@ var externalRoutes = routes{
 func getApps(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		apps := app.GetAllPublic()
+		apps := ha.am.GetAllPublic()
 		log.Debug("Sending response: ", apps)
 		json.NewEncoder(w).Encode(apps)
 	})
@@ -171,7 +171,7 @@ func createApp(ha handlerAccess) http.Handler {
 			return
 		}
 
-		tsk := app.CreateAsync(
+		tsk := ha.am.CreateAsync(
 			appParams.InstallerID,
 			appParams.InstallerVersion,
 			appParams.Name,
@@ -250,7 +250,7 @@ func removeApp(ha handlerAccess) http.Handler {
 			return
 		}
 
-		tsk := app.RemoveAsync()
+		tsk := ha.am.RemoveAsync(appID)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

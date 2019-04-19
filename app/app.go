@@ -8,7 +8,6 @@ import (
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/installer"
-	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/platform"
@@ -149,7 +148,7 @@ func (app *App) SetStatus(status string) {
 }
 
 // AddAction performs an action on an application
-func (app *App) AddAction(action Action) (task.Task, error) {
+func (app *App) AddAction(action Action) (core.Task, error) {
 	log.Info("Performing action [", action.Name, "] on application ", app.Name, "[", app.ID, "]")
 
 	switch action.Name {
@@ -240,8 +239,8 @@ func (app *App) enrichAppData() {
 }
 
 // StartAsync asynchronously starts an application and returns a task
-func (app *App) StartAsync() task.Task {
-	tsk := task.New(&StartAppTask{app: app})
+func (app *App) StartAsync() core.Task {
+	tsk := app.parent.tm.New(&StartAppTask{app: app})
 	return tsk
 }
 
@@ -272,8 +271,8 @@ func (app *App) Start() error {
 }
 
 // StopAsync asynchronously stops an application and returns a task
-func (app *App) StopAsync() task.Task {
-	tsk := task.New(&StopAppTask{app: app})
+func (app *App) StopAsync() core.Task {
+	tsk := app.parent.tm.New(&StopAppTask{app: app})
 	return tsk
 }
 
@@ -299,12 +298,6 @@ func (app *App) Stop() error {
 	app.access.Unlock()
 	app.Save()
 	return nil
-}
-
-// RemoveAsync asynchronously removes an applications and returns a task
-func (app *App) RemoveAsync() task.Task {
-	tsk := task.New(&RemoveAppTask{app: app})
-	return tsk
 }
 
 // remove App removes an application container
@@ -333,7 +326,7 @@ func (app *App) remove() error {
 
 	// Removing resources requested by this app
 	for _, rscID := range app.Resources {
-		rsc, err := app.parent.rm.Get(rscID)
+		_, err := app.parent.rm.Get(rscID)
 		if err != nil {
 			log.Error(err)
 			continue
