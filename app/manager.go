@@ -9,7 +9,6 @@ import (
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/database"
-	"github.com/protosio/protos/installer"
 	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
@@ -119,18 +118,22 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager) core.AppManager
 }
 
 // GetCopy returns a copy of an application based on its id
-func (am *Manager) GetCopy(id string) (App, error) {
+func (am *Manager) GetCopy(id string) (core.App, error) {
 	log.Debug("Copying application ", id)
 	app, err := am.apps.get(id)
 	app.access.Lock()
 	capp := *app
 	app.access.Unlock()
-	return capp, err
+	return &capp, err
 }
 
 // CopyAll returns a copy of all the applications
-func (am *Manager) CopyAll() map[string]App {
-	return am.apps.copy()
+func (am *Manager) CopyAll() map[string]core.App {
+	apps := map[string]core.App{}
+	for id, app := range am.apps.copy() {
+		apps[id] = &app
+	}
+	return apps
 }
 
 // Read returns an application based on its id
@@ -139,8 +142,8 @@ func (am *Manager) Read(id string) (core.App, error) {
 }
 
 // Select takes a function and applies it to all the apps in the map. The ones that return true are returned
-func (am *Manager) Select(filter func(*App) bool) map[string]*App {
-	apps := map[string]*App{}
+func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
+	apps := map[string]core.App{}
 	am.apps.access.Lock()
 	for k, v := range am.apps.apps {
 		app := v
@@ -168,20 +171,20 @@ func (am *Manager) ReadByIP(appIP string) (*App, error) {
 }
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
-func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string, startOnCreation bool) core.CustomTask {
+func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
 	createApp := CreateAppTask{
 		InstallerID:       installerID,
 		InstallerVersion:  installerVersion,
 		AppName:           appName,
-		InstallerMetadata: installerMetadata,
+		InstallerMetadata: &installerMetadata,
 		InstallerParams:   installerParams,
 		StartOnCreation:   startOnCreation,
 	}
-	return &createApp
+	return am.tm.New(&createApp)
 }
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata *installer.Metadata, taskID string) (*App, error) {
+func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error) {
 
 	var app *App
 	if name == "" {
@@ -287,7 +290,7 @@ func (am *Manager) RemoveAsync(appID string) core.Task {
 //
 
 // CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
-func (am *Manager) CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata *installer.Metadata, installerParams map[string]string) (*App, error) {
+func (am *Manager) CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string) (core.App, error) {
 
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")

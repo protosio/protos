@@ -29,7 +29,9 @@ type ResourceManager interface {
 	Get(id string) (Resource, error)
 	Delete(id string) error
 	GetType(name string) (RType, Type, error)
+	GetAll(sanitize bool) map[string]Resource
 	Select(func(Resource) bool) map[string]Resource
+	GetStatus(string) (RStatus, error)
 }
 
 // ResourceCreator allows for the creation of all the supported Resource types
@@ -48,6 +50,7 @@ type Resource interface {
 	UpdateValue(Type)
 	SetStatus(RStatus)
 	GetAppID() string
+	Sanitize() Resource
 }
 
 // Type is an interface that satisfies all the resource types

@@ -46,6 +46,7 @@ type handlerAccess struct {
 	rm core.ResourceManager
 	am core.AppManager
 	tm core.TaskManager
+	m  core.Meta
 }
 
 type routes []route
@@ -58,8 +59,7 @@ func uiRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ui/", 303)
 }
 
-func applyAPIroutes(r *mux.Router, routes []route) *mux.Router {
-	ha := handlerAccess{}
+func applyAPIroutes(ha handlerAccess, r *mux.Router, routes []route) *mux.Router {
 	for _, route := range routes {
 		if route.Method != "" {
 			// if route method is set (GET, POST etc), the route is only valid for that method
@@ -75,32 +75,32 @@ func applyAPIroutes(r *mux.Router, routes []route) *mux.Router {
 	return r
 }
 
-func applyAuthRoutes(r *mux.Router, enableRegister bool) {
+func applyAuthRoutes(ha handlerAccess, r *mux.Router, enableRegister bool) {
 	// Authentication routes
 	authRouter := mux.NewRouter().PathPrefix("/api/v1/auth").Subrouter().StrictSlash(true)
 	if enableRegister == true {
-		authRouter.Methods("POST").Path("/register").Name("register").Handler(http.HandlerFunc(RegisterHandler))
+		authRouter.Methods("POST").Path("/register").Name("register").Handler(registerHandler(ha))
 	}
-	authRouter.Methods("POST").Path("/login").Name("login").Handler(http.HandlerFunc(LoginHandler))
+	authRouter.Methods("POST").Path("/login").Name("login").Handler(loginHandler(ha))
 
 	r.PathPrefix("/api/v1/auth").Handler(authRouter)
 }
 
-func createInternalAPIrouter(r *mux.Router) *mux.Router {
+func createInternalAPIrouter(ha handlerAccess, r *mux.Router) *mux.Router {
 	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
 	// add the internal router to the main router
 	r.PathPrefix("/api/v1/i").Handler(negroni.New(
-		negroni.HandlerFunc(InternalRequestValidator),
+		InternalRequestValidator(ha),
 		negroni.Wrap(internalRouter),
 	))
 	return internalRouter
 }
 
-func createExternalAPIrouter(r *mux.Router) *mux.Router {
+func createExternalAPIrouter(ha handlerAccess, r *mux.Router) *mux.Router {
 	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
 	// add the external router to the main router
 	r.PathPrefix("/api/v1/e").Handler(negroni.New(
-		negroni.HandlerFunc(ExternalRequestValidator),
+		ExternalRequestValidator(ha),
 		negroni.Wrap(externalRouter),
 	))
 	return externalRouter
@@ -252,25 +252,33 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool, m core.Meta) {
+func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager) {
+
+	ha := handlerAccess{
+		m:  m,
+		am: am,
+		rm: rm,
+		tm: tm,
+		pm: pm,
+	}
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAuthRoutes(mainRtr, false)
+	applyAuthRoutes(ha, mainRtr, false)
 
 	// internal routes
-	internalRouter := createInternalAPIrouter(mainRtr)
-	applyAPIroutes(internalRouter, internalRoutes)
-	applyAPIroutes(internalRouter, internalWSRoutes)
+	internalRouter := createInternalAPIrouter(ha, mainRtr)
+	applyAPIroutes(ha, internalRouter, internalRoutes)
+	applyAPIroutes(ha, internalRouter, internalWSRoutes)
 
 	// external routes
-	externalRouter := createExternalAPIrouter(mainRtr)
-	applyAPIroutes(externalRouter, externalRoutes)
-	applyAPIroutes(externalRouter, externalWSRoutes)
+	externalRouter := createExternalAPIrouter(ha, mainRtr)
+	applyAPIroutes(ha, externalRouter, externalRoutes)
+	applyAPIroutes(ha, externalRouter, externalWSRoutes)
 
 	// if dev mode is enabled we add the dev routes
 	if devmode {
 		devRouter := createDevAPIrouter(mainRtr)
-		applyAPIroutes(devRouter, externalDevRoutes)
+		applyAPIroutes(ha, devRouter, externalDevRoutes)
 	}
 
 	// static file routes
@@ -286,25 +294,34 @@ func Websrv(quit chan bool, devmode bool, m core.Meta) {
 }
 
 // WebsrvInit starts an HTTP server used only during the initialisation process
-func WebsrvInit(quit chan bool, devmode bool) bool {
+func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager) bool {
+
+	ha := handlerAccess{
+		m:  m,
+		am: am,
+		rm: rm,
+		tm: tm,
+		pm: pm,
+	}
+
 	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAuthRoutes(mainRtr, true)
+	applyAuthRoutes(ha, mainRtr, true)
 
 	// internal routes
-	internalRouter := createInternalAPIrouter(mainRtr)
-	applyAPIroutes(internalRouter, internalRoutes)
-	applyAPIroutes(internalRouter, internalWSRoutes)
+	internalRouter := createInternalAPIrouter(ha, mainRtr)
+	applyAPIroutes(ha, internalRouter, internalRoutes)
+	applyAPIroutes(ha, internalRouter, internalWSRoutes)
 
 	// external routes
-	externalRouter := createExternalAPIrouter(mainRtr)
-	applyAPIroutes(externalRouter, externalRoutes)
-	applyAPIroutes(externalRouter, externalInitRoutes)
-	applyAPIroutes(externalRouter, externalWSRoutes)
+	externalRouter := createExternalAPIrouter(ha, mainRtr)
+	applyAPIroutes(ha, externalRouter, externalRoutes)
+	applyAPIroutes(ha, externalRouter, externalInitRoutes)
+	applyAPIroutes(ha, externalRouter, externalWSRoutes)
 
 	// if dev mode is enabled we add the dev routes
 	if devmode {
 		devRouter := createDevAPIrouter(mainRtr)
-		applyAPIroutes(devRouter, externalDevRoutes)
+		applyAPIroutes(ha, devRouter, externalDevRoutes)
 	}
 
 	// static file routes

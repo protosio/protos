@@ -6,12 +6,9 @@ import (
 
 	"github.com/protosio/protos/app"
 	"github.com/protosio/protos/installer"
-	"github.com/protosio/protos/meta"
 	"github.com/protosio/protos/platform"
-	"github.com/protosio/protos/task"
 
 	"github.com/protosio/protos/capability"
-	"github.com/protosio/protos/resource"
 
 	"github.com/gorilla/mux"
 )
@@ -190,7 +187,7 @@ func getApp(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		appID := vars["appID"]
 
-		app, err := app.GetCopy(appID)
+		app, err := ha.am.GetCopy(appID)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -209,14 +206,16 @@ func actionApp(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		appID := vars["appID"]
 
-		appInstance, err := app.Read(appID)
+		appInstance, err := ha.am.Read(appID)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
 
-		var action app.Action
+		var action struct {
+			Name string
+		}
 		decoder := json.NewDecoder(r.Body)
 		defer r.Body.Close()
 		err = decoder.Decode(&action)
@@ -226,7 +225,7 @@ func actionApp(ha handlerAccess) http.Handler {
 			return
 		}
 
-		tsk, err := appInstance.AddAction(action)
+		tsk, err := appInstance.AddAction(action.Name)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -243,7 +242,7 @@ func removeApp(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		appID := vars["appID"]
 
-		app, err := app.Read(appID)
+		_, err := ha.am.Read(appID)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -251,11 +250,6 @@ func removeApp(ha handlerAccess) http.Handler {
 		}
 
 		tsk := ha.am.RemoveAsync(appID)
-		if err != nil {
-			log.Error(err)
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
 
 		rend.JSON(w, http.StatusOK, tsk.Copy())
 	})
@@ -328,7 +322,7 @@ func removeInstaller(ha handlerAccess) http.Handler {
 func getResources(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		resources := resource.GetAll(true)
+		resources := ha.rm.GetAll(true)
 
 		log.Debug("Sending response: ", resources)
 		json.NewEncoder(w).Encode(resources)
@@ -342,7 +336,7 @@ func getResource(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		resourceID := vars["resourceID"]
 
-		rsc, err := resource.Get(resourceID)
+		rsc, err := ha.rm.Get(resourceID)
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
@@ -358,14 +352,8 @@ func removeResource(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		resourceID := vars["resourceID"]
 
-		rsc, err := resource.Get(resourceID)
+		err := ha.rm.Delete(resourceID)
 		if err != nil {
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
-		err = rsc.Delete()
-		if err != nil {
-			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
@@ -381,7 +369,7 @@ func removeResource(ha handlerAccess) http.Handler {
 
 func getTasks(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tasks := task.GetLast()
+		tasks := ha.tm.GetLast()
 		json, err := tasks.ToJSON()
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -397,7 +385,7 @@ func getTask(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		taskID := vars["taskID"]
 
-		tsk, err := task.Get(taskID)
+		tsk, err := ha.tm.Get(taskID)
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
@@ -413,11 +401,12 @@ func cancelTask(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		taskID := vars["taskID"]
 
-		tsk, err := task.Get(taskID)
+		tsk, err := ha.tm.Get(taskID)
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
+
 		err = tsk.Kill()
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -477,8 +466,8 @@ func getInfo(ha handlerAccess) http.Handler {
 
 func getServices(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		services := app.GetServices()
-		protosService := meta.GetService()
+		services := ha.am.GetServices()
+		protosService := ha.m.GetService()
 		services = append(services, protosService)
 		rend.JSON(w, http.StatusOK, services)
 	})

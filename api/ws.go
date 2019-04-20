@@ -8,6 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/protosio/protos/app"
+	"github.com/protosio/protos/core"
 )
 
 var externalWSRoutes = routes{
@@ -41,7 +42,7 @@ var removeWSQueue = make(chan *wsConnection, 100)
 //
 
 // WSManager is the WS connection manager that owns the WS connection data
-func WSManager(quit chan bool) {
+func WSManager(am core.AppManager, quit chan bool) {
 	log.WithField("proc", "wsmanager").Info("Starting the WS connection manager")
 
 	for {
@@ -70,10 +71,9 @@ func WSManager(quit chan bool) {
 			}
 
 			// terminating internal WS connections
-			apps := app.CopyAll()
+			apps := am.CopyAll()
 			for _, app := range apps {
-				appi := &app
-				appi.CloseMsgQ()
+				app.CloseMsgQ()
 			}
 
 			log.WithField("proc", "wsmanager").Info("Shutting down WS connection manager")

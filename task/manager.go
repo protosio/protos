@@ -168,7 +168,7 @@ func (tm *Manager) GetLast() linkedhashmap.Map {
 }
 
 // Get returns a task based on its id
-func (tm *Manager) Get(id string) (*Base, error) {
+func (tm *Manager) Get(id string) (core.Task, error) {
 	return tm.tasks.get(id)
 }
 

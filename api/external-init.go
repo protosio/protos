@@ -4,10 +4,8 @@ import (
 	"net/http"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/app"
-	"github.com/protosio/protos/meta"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/resource"
-	"github.com/protosio/protos/util"
 )
 
 var externalInitRoutes = routes{
@@ -62,21 +60,18 @@ func removeInitProvider(ha handlerAccess) http.Handler {
 			return
 		}
 
-		providerFilter := func(app *app.App) bool {
-			if prov, _ := util.StringInSlice(provides, app.InstallerMetadata.Provides); prov {
-				return true
-			}
-			return false
+		providerFilter := func(app core.App) bool {
+			return app.Provides(provides)
 		}
 
-		providerApps := app.Select(providerFilter)
-		for _, a := range providerApps {
+		providerApps := ha.am.Select(providerFilter)
+		for id, a := range providerApps {
 			err := a.Stop()
 			if err != nil {
 				err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
 				log.Error(err.Error())
 			}
-			err = a.Remove()
+			err = ha.am.Remove(id)
 			if err != nil {
 				err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
 				log.Error(err.Error())
@@ -90,7 +85,7 @@ func removeInitProvider(ha handlerAccess) http.Handler {
 
 func createProtosResources(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resources, err := meta.CreateProtosResources()
+		resources, err := ha.m.CreateProtosResources()
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
@@ -103,14 +98,14 @@ func createProtosResources(ha handlerAccess) http.Handler {
 
 func getProtosResources(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resources := meta.GetProtosResources()
+		resources := ha.m.GetProtosResources()
 		rend.JSON(w, http.StatusOK, resources)
 	})
 }
 
 func finishInit(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := meta.CleanProtosResources()
+		err := ha.m.CleanProtosResources()
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
@@ -119,7 +114,7 @@ func finishInit(ha handlerAccess) http.Handler {
 		dashboard := struct {
 			Domain string `json:"domain"`
 		}{
-			Domain: meta.GetDashboardDomain(),
+			Domain: ha.m.GetDashboardDomain(),
 		}
 		quitChan, ok := gconfig.ProcsQuit.Load("initwebserver")
 		if ok == false {

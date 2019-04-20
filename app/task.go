@@ -12,7 +12,7 @@ type CreateAppTask struct {
 	InstallerID       string
 	InstallerVersion  string
 	AppName           string
-	InstallerMetadata *installer.Metadata
+	InstallerMetadata *core.InstallerMetadata
 	InstallerParams   map[string]string
 	StartOnCreation   bool
 }
@@ -27,7 +27,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
 	var inst installer.Installer
-	var metadata *installer.Metadata
+	var metadata core.InstallerMetadata
 	var err error
 
 	if t.InstallerMetadata == nil {
@@ -44,10 +44,10 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	} else {
 		// app creation using local container (dev purposes)
 		log.Info("Creating application using local installer (DEV)")
-		metadata = t.InstallerMetadata
+		metadata = *t.InstallerMetadata
 		inst = installer.Installer{
 			ID:       t.InstallerID,
-			Versions: map[string]*installer.Metadata{t.InstallerVersion: t.InstallerMetadata},
+			Versions: map[string]core.InstallerMetadata{t.InstallerVersion: *t.InstallerMetadata},
 		}
 	}
 

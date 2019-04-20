@@ -62,30 +62,20 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	database.Open()
 	defer database.Close()
 
-	// If db does not exist or init is set to true, need to run in init mode and create the db
-	if gconfig.InitMode {
-		log.Info("Database file doesn't exists or init mode requested. Running in web init mode")
-		meta.Setup()
-	}
-
 	capability.Initialize()
 	platform.Initialize(incontainer) // required to connect to the Docker daemon
-	resource.Init()                  // required to register the resource structs with the DB
-	rm := resource.CreateManager()
-	pm := provider.CreateManager() // required to register the provider structs with the DB
+	rm := resource.CreateManager()   // required to register the resource structs with the DB
 	tm := task.CreateManager()
 	am := app.CreateManager(rm, tm)
+	pm := provider.CreateManager(rm, am) // required to register the provider structs with the DB
+	m := meta.Setup(rm)
 
-	// Init app package
-	app.Init()
-	// Init task manager
-	task.Init()
 	// start ws connection manager
 	wg.Add(1)
 	wsmanagerQuit := make(chan bool, 1)
 	gconfig.ProcsQuit.Store("wsmanager", wsmanagerQuit)
 	go func() {
-		api.WSManager(wsmanagerQuit)
+		api.WSManager(am, wsmanagerQuit)
 		wg.Done()
 	}()
 
@@ -95,7 +85,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		initwebserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("initwebserver", initwebserverQuit)
 		wg.Add(1)
-		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode)
+		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm)
 		wg.Done()
 	}
 
@@ -103,13 +93,13 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		log.Info("Finished initialisation. Resuming normal operations")
 		gconfig.InitMode = false
 
-		meta.InitCheck()
+		m.InitCheck()
 		// start tls web server
 		wg.Add(1)
 		webserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("webserver", webserverQuit)
 		go func() {
-			api.Websrv(webserverQuit, devmode)
+			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm)
 			wg.Done()
 		}()
 	}

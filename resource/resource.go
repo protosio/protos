@@ -75,12 +75,12 @@ func (rsc *Resource) GetValue() core.Type {
 }
 
 // Sanitize returns a sanitized version of the resource, with sensitive fields removed
-func (rsc *Resource) Sanitize() Resource {
+func (rsc *Resource) Sanitize() core.Resource {
 	rsc.access.Lock()
 	srsc := *rsc
 	rsc.access.Unlock()
-	srsc.Value = rsc.Value.Sanitize()
-	return srsc
+	srsc.Value = srsc.Value.Sanitize()
+	return &srsc
 }
 
 // UnmarshalJSON is a custom json unmarshaller for resource

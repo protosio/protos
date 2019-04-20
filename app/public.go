@@ -39,7 +39,7 @@ func (am *Manager) enrichPublicApps(apps map[string]App) map[string]core.App {
 }
 
 // Public returns a public version of the app struct
-func (app App) Public() PublicApp {
+func (app App) Public() core.App {
 	app.enrichAppData()
 	pa := PublicApp{
 		App: app,
@@ -53,12 +53,12 @@ func (app App) Public() PublicApp {
 		return false
 	}
 	pa.Resources = app.parent.rm.Select(resourceFilter)
-	return pa
+	return &pa
 }
 
 // GetAllPublic returns all applications in their public form, enriched with the latest status message
 func (am *Manager) GetAllPublic() map[string]core.App {
-	papps := am.enrichPublicApps(am.CopyAll())
+	papps := am.enrichPublicApps(am.apps.copy())
 	return papps
 }
 

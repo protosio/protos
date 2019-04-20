@@ -20,25 +20,12 @@ import (
 var gconfig = config.Get()
 var log = util.GetLogger("installer")
 
-// Metadata holds metadata for the installer
-type Metadata struct {
-	Params          []string                 `json:"params"`
-	Provides        []string                 `json:"provides"`
-	Requires        []string                 `json:"requires"`
-	PublicPorts     []util.Port              `json:"publicports"`
-	Description     string                   `json:"description"`
-	PlatformID      string                   `json:"platformid"`
-	PlatformType    string                   `json:"platformtype"`
-	PersistancePath string                   `json:"persistancepath"`
-	Capabilities    []*capability.Capability `json:"capabilities"`
-}
-
 // Installer represents an application installer
 type Installer struct {
-	Name      string               `json:"name"`
-	ID        string               `json:"id"`
-	Thumbnail string               `json:"thumbnail,omitempty"`
-	Versions  map[string]*Metadata `json:"versions"`
+	Name      string                            `json:"name"`
+	ID        string                            `json:"id"`
+	Thumbnail string                            `json:"thumbnail,omitempty"`
+	Versions  map[string]core.InstallerMetadata `json:"versions"`
 }
 
 func parseInstallerCapabilities(capstring string) []*capability.Capability {
@@ -86,9 +73,9 @@ func parsePublicPorts(publicports string) []util.Port {
 }
 
 // GetMetadata parses the image metadata from the image labels
-func GetMetadata(labels map[string]string) (Metadata, error) {
+func GetMetadata(labels map[string]string) (core.InstallerMetadata, error) {
 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
-	metadata := Metadata{}
+	metadata := core.InstallerMetadata{}
 	for label, value := range labels {
 		labelParts := r.FindStringSubmatch(label)
 		if len(labelParts) == 3 {
@@ -132,7 +119,7 @@ func GetAll() (map[string]Installer, error) {
 		installerStr := strings.Split(img.RepoTags[0], ":")
 		installerName := installerStr[0]
 		installerID := util.String2SHA1(installerName)
-		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]*Metadata{}}
+		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]core.InstallerMetadata{}}
 	}
 
 	return installers, nil
@@ -147,7 +134,7 @@ func Read(installerID string) (Installer, error) {
 		return Installer{}, errors.New("Error retrieving installer " + installerID + ": " + err.Error())
 	}
 
-	installer := Installer{ID: installerID, Versions: map[string]*Metadata{}}
+	installer := Installer{ID: installerID, Versions: map[string]core.InstallerMetadata{}}
 
 	for _, img := range imgs {
 		if img.RepoTags[0] == "n/a" {
@@ -178,7 +165,7 @@ func Read(installerID string) (Installer, error) {
 		}
 		metadata.PersistancePath = persistancePath
 		metadata.PlatformID = img.ID
-		installer.Versions[installerVersion] = &metadata
+		installer.Versions[installerVersion] = metadata
 
 	}
 
@@ -190,8 +177,8 @@ func Read(installerID string) (Installer, error) {
 }
 
 // ReadVersion returns the metadata for a specific installer version
-func (inst Installer) ReadVersion(version string) (*Metadata, error) {
-	var metadata *Metadata
+func (inst Installer) ReadVersion(version string) (core.InstallerMetadata, error) {
+	var metadata core.InstallerMetadata
 	var found bool
 
 	if metadata, found = inst.Versions[version]; found == false {

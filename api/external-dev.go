@@ -42,7 +42,7 @@ func createDevApp(ha handlerAccess) http.Handler {
 			return
 		}
 
-		app, err := app.CreateDevApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerMetadata, appParams.InstallerParams)
+		app, err := ha.am.CreateDevApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerMetadata, appParams.InstallerParams)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -58,7 +58,7 @@ func replaceAppContainer(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		appID := vars["appID"]
 
-		appInstance, err := app.Read(appID)
+		appInstance, err := ha.am.Read(appID)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

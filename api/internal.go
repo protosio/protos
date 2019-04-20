@@ -10,8 +10,6 @@ import (
 	"github.com/protosio/protos/auth"
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/meta"
-	"github.com/protosio/protos/resource"
 
 	"github.com/gorilla/mux"
 	"github.com/tidwall/gjson"
@@ -119,7 +117,7 @@ func registerResourceProvider(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		app := r.Context().Value(appKey).(core.App)
 
-		rtype, err := ha.rm.GetType(mux.Vars(r)["resourceType"])
+		rtype, _, err := ha.rm.GetType(mux.Vars(r)["resourceType"])
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -142,7 +140,7 @@ func deregisterResourceProvider(ha handlerAccess) http.Handler {
 
 		app := r.Context().Value(appKey).(core.App)
 
-		rtype, err := ha.rm.GetType(mux.Vars(r)["resourceType"])
+		rtype, _, err := ha.rm.GetType(mux.Vars(r)["resourceType"])
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -209,23 +207,18 @@ func updateResourceValue(ha handlerAccess) http.Handler {
 			return
 		}
 
-		// _, newValue, err := resource.GetType(string(rsc.Type))
-		// if err != nil {
-		// 	log.Error(err)
-		// 	rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		// }
-		// err = json.Unmarshal(bodyJSON, newValue)
-		// if err != nil {
-		// 	log.Error(err)
-		// 	rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-		// }
-
-		err = rsc.UpdateValue(bodyJSON)
+		_, newValue, err := ha.rm.GetType(string(rsc.GetType()))
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
 		}
+		err = json.Unmarshal(bodyJSON, newValue)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		}
+
+		rsc.UpdateValue(newValue)
 		w.WriteHeader(http.StatusOK)
 
 	})
@@ -255,7 +248,7 @@ func setResourceStatus(ha handlerAccess) http.Handler {
 		}
 
 		statusName := gjson.GetBytes(bodyJSON, "status").Str
-		status, err := resource.GetStatus(statusName)
+		status, err := ha.rm.GetStatus(statusName)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -270,7 +263,7 @@ func setResourceStatus(ha handlerAccess) http.Handler {
 			return
 		}
 
-		rsc.SetStatus(string(status))
+		rsc.SetStatus(status)
 		w.WriteHeader(http.StatusOK)
 
 	})
@@ -281,7 +274,7 @@ func getDomainInfo(ha handlerAccess) http.Handler {
 		domain := struct {
 			Domain string `json:"domain"`
 		}{
-			Domain: meta.GetDomain(),
+			Domain: ha.m.GetDomain(),
 		}
 
 		json.NewEncoder(w).Encode(domain)
@@ -294,7 +287,7 @@ func getAdminUser(ha handlerAccess) http.Handler {
 			Username string `json:"username"`
 		}{}
 
-		username := meta.GetAdminUser()
+		username := ha.m.GetAdminUser()
 		user, err := auth.GetUser(username)
 		if err != nil {
 			log.Error(err)

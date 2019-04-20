@@ -7,7 +7,6 @@ import (
 
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/installer"
 
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/platform"
@@ -39,12 +38,6 @@ type Config struct {
 	Data        string
 }
 
-// Action represents an action that can be executed on
-// an application
-type Action struct {
-	Name string
-}
-
 // WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
 type WSConnection struct {
 	Send  chan interface{}
@@ -57,21 +50,21 @@ type App struct {
 	parent *Manager
 
 	// Public members
-	Name              string              `json:"name"`
-	ID                string              `json:"id"`
-	InstallerID       string              `json:"installer-id"`
-	InstallerVersion  string              `json:"installer-version"`
-	InstallerMetadata *installer.Metadata `json:"installer-metadata"`
-	ContainerID       string              `json:"container-id"`
-	VolumeID          string              `json:"volumeid"`
-	Status            string              `json:"status"`
-	Actions           []Action            `json:"actions"`
-	IP                string              `json:"ip"`
-	PublicPorts       []util.Port         `json:"publicports"`
-	InstallerParams   map[string]string   `json:"installer-params"`
-	Capabilities      []string            `json:"capabilities"`
-	Resources         []string            `json:"resources"`
-	Tasks             []string            `json:"-"`
+	Name              string                 `json:"name"`
+	ID                string                 `json:"id"`
+	InstallerID       string                 `json:"installer-id"`
+	InstallerVersion  string                 `json:"installer-version"`
+	InstallerMetadata core.InstallerMetadata `json:"installer-metadata"`
+	ContainerID       string                 `json:"container-id"`
+	VolumeID          string                 `json:"volumeid"`
+	Status            string                 `json:"status"`
+	Actions           []string               `json:"actions"`
+	IP                string                 `json:"ip"`
+	PublicPorts       []util.Port            `json:"publicports"`
+	InstallerParams   map[string]string      `json:"installer-params"`
+	Capabilities      []string               `json:"capabilities"`
+	Resources         []string               `json:"resources"`
+	Tasks             []string               `json:"-"`
 	msgq              *WSConnection
 }
 
@@ -148,10 +141,10 @@ func (app *App) SetStatus(status string) {
 }
 
 // AddAction performs an action on an application
-func (app *App) AddAction(action Action) (core.Task, error) {
-	log.Info("Performing action [", action.Name, "] on application ", app.Name, "[", app.ID, "]")
+func (app *App) AddAction(action string) (core.Task, error) {
+	log.Info("Performing action [", action, "] on application ", app.Name, "[", app.ID, "]")
 
-	switch action.Name {
+	switch action {
 	case "start":
 		tsk := app.StartAsync()
 		return tsk, nil
@@ -357,6 +350,11 @@ func (app *App) ReplaceContainer(id string) error {
 	return nil
 }
 
+// GetIP returns the ip address of the app
+func (app *App) GetIP() string {
+	return app.IP
+}
+
 //
 // WS connection related methods
 //
@@ -472,4 +470,12 @@ func (app *App) ValidateCapability(cap *capability.Capability) error {
 		}
 	}
 	return errors.New("Method capability " + cap.Name + " not satisfied by application " + app.ID)
+}
+
+// Provides returns true if the application is a provider for a specific type of resource
+func (app *App) Provides(rscType string) bool {
+	if prov, _ := util.StringInSlice(rscType, app.InstallerMetadata.Provides); prov {
+		return true
+	}
+	return false
 }

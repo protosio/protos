@@ -75,7 +75,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
-func CreateManager(rm core.ResourceManager, am core.AppManager) core.ResourceManager {
+func CreateManager() core.ResourceManager {
 	log.Info("Retrieving resources from DB")
 	gob.Register(&Resource{})
 	gob.Register(&DNSResource{})
@@ -164,14 +164,15 @@ func (rm *Manager) Select(filter func(core.Resource) bool) map[string]core.Resou
 }
 
 //GetAll retrieves all the saved resources
-func (rm *Manager) GetAll(sanitize bool) map[string]Resource {
+func (rm *Manager) GetAll(sanitize bool) map[string]core.Resource {
 	rscs := rm.resources.copy()
-	if sanitize == false {
-		return rscs
-	}
-	var sanitizedResources = make(map[string]Resource, len(rscs))
+	var sanitizedResources = make(map[string]core.Resource, len(rscs))
 	for _, rsc := range rscs {
-		sanitizedResources[rsc.ID] = rsc.Sanitize()
+		if sanitize == false {
+			sanitizedResources[rsc.ID] = &rsc
+		} else {
+			sanitizedResources[rsc.ID] = rsc.Sanitize()
+		}
 	}
 	return sanitizedResources
 }

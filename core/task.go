@@ -4,8 +4,10 @@ import "github.com/emirpasic/gods/maps/linkedhashmap"
 
 type TaskManager interface {
 	New(CustomTask) Task
+	Get(string) (Task, error)
 	GetAll() *linkedhashmap.Map
 	GetIDs([]string) linkedhashmap.Map
+	GetLast() linkedhashmap.Map
 }
 
 // CustomTask is the interface that is implemented by custom tasks in various packages
@@ -30,6 +32,7 @@ type Task interface {
 	AddApp(string)
 	Copy() Task
 	SetKillable()
+	Kill() error
 	Dying() <-chan struct{}
 	Save()
 }
