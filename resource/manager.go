@@ -1,7 +1,6 @@
 package resource
 
 import (
-	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,13 +8,13 @@ import (
 
 	"github.com/cnf/structhash"
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/database"
 )
 
 // resourceContainer is a thread safe application map
 type resourceContainer struct {
 	access *sync.Mutex
 	all    map[string]*Resource
+	db     core.DB
 }
 
 // put saves an application into the application map
@@ -43,7 +42,7 @@ func (rc resourceContainer) remove(id string) error {
 	if found == false {
 		return fmt.Errorf("Could not find app %s", id)
 	}
-	err := database.Remove(rsc)
+	err := rc.db.Remove(rsc)
 	if err != nil {
 		log.Panicf("Failed to remove resource from db: %s", err.Error())
 	}
@@ -68,6 +67,7 @@ func (rc resourceContainer) copy() map[string]Resource {
 // Manager keeps track of all the resources
 type Manager struct {
 	resources resourceContainer
+	db        core.DB
 }
 
 //
@@ -75,26 +75,28 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
-func CreateManager() core.ResourceManager {
-	log.Info("Retrieving resources from DB")
-	gob.Register(&Resource{})
-	gob.Register(&DNSResource{})
-	gob.Register(&CertificateResource{})
+func CreateManager(db core.DB) core.ResourceManager {
+	log.Debug("Retrieving resources from DB")
+	db.Register(&Resource{})
+	db.Register(&DNSResource{})
+	db.Register(&CertificateResource{})
+	manager := &Manager{db: db}
 
 	rscs := []Resource{}
-	err := database.All(&rscs)
+	err := db.All(&rscs)
 	if err != nil {
 		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
 	}
-	resources := resourceContainer{access: &sync.Mutex{}, all: map[string]*Resource{}}
+	resources := resourceContainer{access: &sync.Mutex{}, all: map[string]*Resource{}, db: db}
 	for _, rsc := range rscs {
 		rscCopy := rsc
 		rscCopy.access = &sync.Mutex{}
+		rscCopy.parent = manager
 		resources.put(rsc.ID, &rscCopy)
 	}
 
-	manager := Manager{resources: resources}
-	return &manager
+	manager.resources = resources
+	return manager
 }
 
 //Create creates a resource and adds it to the internal resources map.
@@ -225,7 +227,7 @@ func (rm *Manager) CreateDNS(appID string, name string, rtype string, value stri
 	if err == nil {
 		return rsc, errors.New("Resource " + rhash + " already registered")
 	}
-	resource := &Resource{access: &sync.Mutex{}, ID: rhash, App: appID, Type: DNS, Value: val, Status: core.Requested}
+	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: DNS, Value: val, Status: core.Requested}
 	resource.Save()
 
 	return resource, nil
@@ -239,7 +241,7 @@ func (rm *Manager) CreateCert(appID string, domains []string) (core.Resource, er
 	if err == nil {
 		return rsc, errors.New("Resource " + rhash + " already registered")
 	}
-	resource := &Resource{access: &sync.Mutex{}, ID: rhash, App: appID, Type: Certificate, Value: val, Status: core.Requested}
+	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: Certificate, Value: val, Status: core.Requested}
 	resource.Save()
 
 	return resource, nil

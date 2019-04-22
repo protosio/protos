@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
 )
 
@@ -41,7 +40,7 @@ func (rsc *Resource) GetAppID() string {
 // Save persists application data to database
 func (rsc *Resource) Save() {
 	rsc.access.Lock()
-	err := database.Save(rsc)
+	err := rsc.parent.db.Save(rsc)
 	rsc.access.Unlock()
 	if err != nil {
 		log.Panicf("Failed to save resource to db: %s", err.Error())
