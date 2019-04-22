@@ -67,23 +67,14 @@ func TestResourceManager(t *testing.T) {
 
 }
 
-func TestResoureCreator(t *testing.T) {
+func TestResoureCreatorAndResource(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	dbMock := mock.NewMockDB(ctrl)
-	dbMock.EXPECT().
-		Register(gomock.Any()).
-		Return().
-		Times(3)
-	dbMock.EXPECT().
-		All(gomock.Any()).
-		Return(nil).
-		Times(1)
-	dbMock.EXPECT().
-		Save(gomock.Any()).
-		Return(nil).
-		Times(2)
+	dbMock.EXPECT().Register(gomock.Any()).Return().Times(3)
+	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(5)
 
 	rm := CreateManager(dbMock)
 	rc := rm.(core.ResourceCreator)
@@ -93,6 +84,12 @@ func TestResoureCreator(t *testing.T) {
 	if err != nil {
 		t.Error("rm/rc.CreateDNS should not return an error:", err.Error())
 	}
+
+	//
+	// Resource related tests
+	//
+
+	rscstruct := rsc.(*Resource)
 	// AppID should be equal to what was provided when the rsc was created
 	if rsc.GetAppID() != "appid1" {
 		t.Error("AppID should be appid1 but is", rsc.GetAppID())
@@ -101,10 +98,27 @@ func TestResoureCreator(t *testing.T) {
 	if rsc.GetType() != DNS {
 		t.Error("Resource type should be dns but is", rsc.GetType())
 	}
+	// Resource should have status created
+	if rscstruct.Status != core.Requested {
+		t.Error("Resource status should be requested, but is", rscstruct.Status)
+	}
+	rsc.SetStatus(core.Created)
+	if rscstruct.Status != core.Created {
+		t.Error("Resource status should be created, but is", rscstruct.Status)
+	}
+
 	// Test DNS resource values
 	rscval := rsc.GetValue().(*DNSResource)
 	if rscval.Host != "app1" || rscval.Type != "MX" || rscval.Value != "1.2.3.4" || rscval.TTL != 300 {
 		t.Error("DNS details should be (app1 MX 1.2.3.4 300) but are (", rscval.Host, rscval.Type, rscval.Value, rscval.TTL, ")")
+	}
+
+	// test resource UpdateValue
+	rscval.Host = "app2"
+	rsc.UpdateValue(rscval)
+	rscval2 := rsc.GetValue().(*DNSResource)
+	if rscval2.Host != "app2" {
+		t.Error("rsc.UpdateValue failed to update value correctly. Host should be app2 but is", rscval2.Host)
 	}
 
 	// test Certificate resource creation
@@ -112,9 +126,17 @@ func TestResoureCreator(t *testing.T) {
 	if err != nil {
 		t.Error("rm/rc.CreateCert should not return an error:", err.Error())
 	}
-	// Test Certificate resource values
+	// test Certificate resource values
 	cert := rsc.GetValue().(*CertificateResource)
 	if cert.Domains[0] != "protos.io" {
 		t.Error("Certificate details should be (protos.io) but are (", cert.Domains[0], ")")
+	}
+	// test resource sanitize
+	cert.PrivateKey = []byte("secret")
+	rsc.UpdateValue(cert)
+	srsc := rsc.Sanitize()
+	cert = srsc.GetValue().(*CertificateResource)
+	if len(cert.PrivateKey) != 0 {
+		t.Error("Certificate resource shuld sanitize the privatekey")
 	}
 }
