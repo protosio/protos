@@ -13,22 +13,13 @@ func TestResourceManager(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbMock := mock.NewMockDB(ctrl)
-	dbMock.EXPECT().
-		Register(gomock.Any()).
-		Return().
-		Times(3)
-	dbMock.EXPECT().
-		All(gomock.Any()).
-		Return(nil).
-		Times(1).
+	dbMock.EXPECT().Register(gomock.Any()).Return().Times(3)
+	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
 		Do(func(to interface{}) {
 			rs := to.(*[]Resource)
 			*rs = append(*rs, Resource{ID: "0001"}, Resource{ID: "0002"}, Resource{ID: "0003"})
 		})
-	dbMock.EXPECT().
-		Remove(gomock.Any()).
-		Return(nil).
-		Times(1)
+	dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 
 	rm := CreateManager(dbMock)
 
