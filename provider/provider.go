@@ -1,12 +1,10 @@
 package provider
 
 import (
-	"encoding/gob"
 	"errors"
 	"fmt"
 
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
 )
 
@@ -27,16 +25,28 @@ type Provider struct {
 type Manager struct {
 	providers map[core.RType]*Provider
 	am        core.AppManager
+	db        core.DB
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
-func CreateManager(rm core.ResourceManager, am core.AppManager) core.ProviderManager {
+func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) core.ProviderManager {
 	providers := map[core.RType]*Provider{}
 	providers[core.DNS] = &Provider{Type: core.DNS, rm: rm}
 	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
 	providers[core.Mail] = &Provider{Type: core.Mail, rm: rm}
 
-	manager := Manager{providers: providers, am: am}
+	db.Register(&Provider{})
+
+	prvs := []Provider{}
+	err := db.All(&prvs)
+	if err != nil {
+		log.Fatalf("Could not retrieve providers from the database: %s", err.Error())
+	}
+	for idx, provider := range prvs {
+		providers[provider.Type] = &prvs[idx]
+	}
+
+	manager := Manager{providers: providers, am: am, db: db}
 	return &manager
 }
 
@@ -55,7 +65,7 @@ func (pm *Manager) Register(app core.App, rtype core.RType) error {
 
 	log.Info("Registering provider for resource " + string(rtype))
 	pm.providers[rtype].AppID = app.GetID()
-	err := database.Save(pm.providers[rtype])
+	err := pm.db.Save(pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}
@@ -72,7 +82,7 @@ func (pm *Manager) Deregister(app core.App, rtype core.RType) error {
 
 	log.Infof("Deregistering application %s(%s) as a provider for %s", app.GetName(), app.GetID(), string(rtype))
 	pm.providers[rtype].AppID = ""
-	err := database.Save(pm.providers[rtype])
+	err := pm.db.Save(pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}
@@ -89,46 +99,31 @@ func (pm *Manager) Get(app core.App) (core.Provider, error) {
 	return nil, errors.New("Application '" + app.GetName() + "' is NOT a resource provider")
 }
 
-// LoadProvidersDB loads the providers from the database
-func (pm *Manager) LoadProvidersDB() {
-	log.Info("Retrieving providers from DB")
-	gob.Register(&Provider{})
-
-	prvs := []Provider{}
-	err := database.All(&prvs)
-	if err != nil {
-		log.Fatalf("Could not retrieve providers from the database: %s", err.Error())
-	}
-	for idx, provider := range prvs {
-		pm.providers[provider.Type] = &prvs[idx]
-	}
-}
-
 //
 // Instance methods
 //
 
 //GetResources retrieves all resources of a specific resource provider.
-func (provider *Provider) GetResources() map[string]core.Resource {
+func (p *Provider) GetResources() map[string]core.Resource {
 	filter := func(rsc core.Resource) bool {
-		if rsc.GetType() == provider.Type {
+		if rsc.GetType() == p.Type {
 			return true
 		}
 		return false
 	}
-	rscs := provider.rm.Select(filter)
+	rscs := p.rm.Select(filter)
 	return rscs
 }
 
 //GetResource retrieves a resource that belongs to this provider
-func (provider *Provider) GetResource(resourceID string) core.Resource {
-	rsc, err := provider.rm.Get(resourceID)
+func (p *Provider) GetResource(resourceID string) core.Resource {
+	rsc, err := p.rm.Get(resourceID)
 	if err != nil {
 		log.Error(err)
 		return nil
 	}
-	if rsc.GetType() != provider.Type {
-		log.Errorf("Resource %s is not of type %s, but %s", resourceID, provider.Type, rsc.GetType())
+	if rsc.GetType() != p.Type {
+		log.Errorf("Resource %s is not of type %s, but %s", resourceID, p.Type, rsc.GetType())
 		return nil
 	}
 
@@ -136,6 +131,6 @@ func (provider *Provider) GetResource(resourceID string) core.Resource {
 }
 
 //TypeName returns the name of the type of resource the provider provides
-func (provider *Provider) TypeName() string {
-	return string(provider.Type)
+func (p *Provider) TypeName() string {
+	return string(p.Type)
 }
