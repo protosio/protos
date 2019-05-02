@@ -18,7 +18,11 @@ func TestProviderManager(t *testing.T) {
 	appMock := mock.NewMockApp(ctrl)
 	rmMock := mock.NewMockResourceManager(ctrl)
 
-	// Testing app creation
+	//
+	// ProviderManager
+	//
+
+	// Testing provider manager creation
 	dbMock.EXPECT().Register(gomock.Any()).Return().Times(1)
 	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1)
 	pm := CreateManager(rmMock, amMock, dbMock)
@@ -51,5 +55,30 @@ func TestProviderManager(t *testing.T) {
 	err = pm.Register(appMock, core.DNS)
 	if err != nil {
 		t.Error("pm.Register should not fail when non-existent app is registered as a provider ")
+	}
+
+	// Get
+	appMock.EXPECT().GetID().Return("appid01").Times(1)
+	prov, err := pm.Get(appMock)
+	if err != nil {
+		t.Error("Get should return the correct provider (DNS)")
+	}
+
+	appMock.EXPECT().GetID().Return("appid02").Times(1)
+	appMock.EXPECT().GetName().Return("appname").Times(1)
+	_, err = pm.Get(appMock)
+	if err == nil {
+		t.Error("Get should fail because the appID is different")
+	}
+
+	//
+	// Provider
+	//
+
+	rscMock := mock.NewMockResource(ctrl)
+	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{"rscid01": rscMock}).Times(1)
+	rscs := prov.GetResources()
+	if len(rscs) != 1 {
+		t.Errorf("The resource map should have 1 element but it has %d: %v", len(rscs), rscs)
 	}
 }
