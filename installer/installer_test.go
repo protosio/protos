@@ -16,7 +16,7 @@ func TestInstaller(t *testing.T) {
 		t.Errorf("Wrong capability returned by the parse function")
 	}
 
-	ports := parsePublicPorts("1/TCP,2/UDP,sfdsf,80000,50/SH")
+	ports := parsePublicPorts("1/TCP,2/UDP,sfdsf,80000/TCP,50/SH")
 	if len(ports) != 2 {
 		t.Errorf("Wrong number of ports returned. %d instead of 2", len(caps))
 	}
