@@ -119,6 +119,7 @@ func (p *Provider) GetResources() map[string]core.Resource {
 func (p *Provider) GetResource(resourceID string) core.Resource {
 	rsc, err := p.rm.Get(resourceID)
 	if err != nil {
+		// ToDo: add custom error reporting or remove the error logging alltogether
 		log.Error(err)
 		return nil
 	}
