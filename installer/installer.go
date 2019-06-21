@@ -55,7 +55,7 @@ func parsePublicPorts(publicports string) []util.Port {
 			continue
 		}
 		if portNr < 1 || portNr > 0xffff {
-			log.Errorf("Installer port is out of range %s", portstr)
+			log.Errorf("Installer port is out of range %s (valid range is 1-65535)", portstr)
 			continue
 		}
 		port := util.Port{Nr: portNr}
@@ -64,7 +64,7 @@ func parsePublicPorts(publicports string) []util.Port {
 		} else if strings.ToUpper(portParts[1]) == string(util.UDP) {
 			port.Type = util.UDP
 		} else {
-			log.Errorf("Installer port protocol is invalid %s", portstr)
+			log.Errorf("Invalid protocol(%s) for port(%s)", portParts[1], portParts[0])
 			continue
 		}
 		ports = append(ports, port)
