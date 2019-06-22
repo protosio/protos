@@ -32,7 +32,7 @@ func TestInstaller(t *testing.T) {
 	testMetadata := map[string]string{
 		"protos.installer.metadata.capabilities": "ResourceProvider,ResourceConsumer,InternetAccess,GetInformation,PublicDNS,AuthUser",
 		"protos.installer.metadata.requires":     "dns",
-		"protos.installer.metadata.provides":     "mail",
+		"protos.installer.metadata.provides":     "mail,backup",
 		"protos.installer.metadata.publicports":  "80/tcp,443/tcp,9999/udp",
 		"protos.installer.metadata.name":         "testapp",
 	}
@@ -55,6 +55,14 @@ func TestInstaller(t *testing.T) {
 
 	if (len(metadata.Requires) == 1 && metadata.Requires[0] != "dns") || len(metadata.Requires) != 1 {
 		t.Errorf("metadata.Requires should only have 'dns' stored: %v", metadata.Requires)
+	}
+
+	if (len(metadata.Provides) == 2 && metadata.Provides[0] != "mail" && metadata.Provides[1] != "backup") || len(metadata.Provides) != 2 {
+		t.Errorf("metadata.Provides should only have 'mail,backup' stored: %v", metadata.Requires)
+	}
+
+	if len(metadata.Capabilities) != 5 {
+		t.Errorf("metadata.Capabilities should have 5 elements, but it has %d", len(metadata.Capabilities))
 	}
 
 }
