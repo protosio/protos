@@ -25,9 +25,9 @@ func TestInstaller(t *testing.T) {
 		t.Errorf("Wrong data in the ports array returned by the parsePublicPorts: %v", ports)
 	}
 
-	//
-	// installer metadata tests
-	//
+}
+
+func TestInstallerMetadata(t *testing.T) {
 
 	testMetadata := map[string]string{
 		"protos.installer.metadata.capabilities": "ResourceProvider,ResourceConsumer,InternetAccess,GetInformation,PublicDNS,AuthUser",
