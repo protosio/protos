@@ -39,6 +39,7 @@ type Progress struct {
 type Base struct {
 	access *sync.Mutex
 	custom core.CustomTask
+	parent *Manager
 
 	// public members
 	ID         string           `json:"id"`
@@ -133,7 +134,7 @@ func (b *Base) Dying() <-chan struct{} {
 
 // Save sends a copy of the running task to the task scheduler
 func (b *Base) Save() {
-	saveTask(b)
+	b.parent.saveTask(b)
 }
 
 // Wait waits for the task to finish and returns an error if there was one. Used to mimic a blocking call

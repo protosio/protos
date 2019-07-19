@@ -9,7 +9,6 @@ import (
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
 )
@@ -67,18 +66,6 @@ func (tm taskContainer) copy() *linkedhashmap.Map {
 	return tsks
 }
 
-func saveTask(btsk *Base) {
-	log.WithField("proc", "taskManager").Debugf("Saving task %s to database", btsk.ID)
-	btsk.access.Lock()
-	ltask := *btsk
-	btsk.access.Unlock()
-	gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: ltask}
-	err := database.Save(&ltask)
-	if err != nil {
-		log.Panic(errors.Wrapf(err, "Could not save task %s to database", ltask.ID))
-	}
-}
-
 func getLastNTasks(n int, tsks *linkedhashmap.Map) linkedhashmap.Map {
 	reversedLastTasks := linkedhashmap.New()
 	lastTasks := linkedhashmap.New()
@@ -101,15 +88,17 @@ func getLastNTasks(n int, tsks *linkedhashmap.Map) linkedhashmap.Map {
 // Manager keeps track of all the tasks
 type Manager struct {
 	tasks taskContainer
+	db    core.DB
 }
 
-func CreateManager() core.TaskManager {
+// CreateManager creates and returns a TaskManager
+func CreateManager(db core.DB) core.TaskManager {
 	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
 	gob.Register(&Base{})
 	gob.Register(&util.ProtosTime{})
 
 	dbtasks := []Base{}
-	err := database.All(&dbtasks)
+	err := db.All(&dbtasks)
 	if err != nil {
 		log.Fatal("Could not retrieve tasks from database: ", err)
 	}
@@ -127,7 +116,7 @@ func CreateManager() core.TaskManager {
 		}
 		ltasks.Put(task.ID, &ltask)
 	}
-	return &Manager{tasks: taskContainer{access: &sync.Mutex{}, all: ltasks}}
+	return &Manager{db: db, tasks: taskContainer{access: &sync.Mutex{}, all: ltasks}}
 }
 
 //
@@ -183,4 +172,16 @@ func (tm *Manager) GetIDs(ids []string) linkedhashmap.Map {
 	}
 	selectedTasks := tasksCopy.Select(filter)
 	return getLastNTasks(10, selectedTasks)
+}
+
+func (tm *Manager) saveTask(btsk *Base) {
+	log.WithField("proc", "taskManager").Debugf("Saving task %s to database", btsk.ID)
+	btsk.access.Lock()
+	ltask := *btsk
+	btsk.access.Unlock()
+	gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: ltask}
+	err := tm.db.Save(&ltask)
+	if err != nil {
+		log.Panic(errors.Wrapf(err, "Could not save task %s to database", ltask.ID))
+	}
 }
