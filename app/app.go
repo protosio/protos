@@ -9,7 +9,6 @@ import (
 	"github.com/protosio/protos/core"
 
 	"github.com/protosio/protos/capability"
-	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/resource"
 	"github.com/protosio/protos/util"
 )
@@ -170,24 +169,23 @@ func (app *App) Save() {
 }
 
 // reateContainer create the underlying Docker container
-func (app *App) createContainer() (platform.RuntimeUnit, error) {
-	var volume *platform.DockerVolume
+func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
+	// var volume *platform.DockerVolume
 	var err error
+	var volumeID string
 	if app.InstallerMetadata.PersistancePath != "" {
-		volume, err = platform.GetOrCreateDockerVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
+		volumeID, err = app.parent.platform.GetOrCreateVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
 		if err != nil {
 			return nil, errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
 		}
 	}
 
-	cnt, err := platform.NewDockerContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, volume, app.PublicPorts, app.InstallerParams)
+	cnt, err := app.parent.platform.NewContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create container")
 	}
 	app.access.Lock()
-	if volume != nil {
-		app.VolumeID = volume.ID
-	}
+	app.VolumeID = volumeID
 	app.ContainerID = cnt.GetID()
 	app.IP = cnt.GetIP()
 	app.access.Unlock()
@@ -195,10 +193,10 @@ func (app *App) createContainer() (platform.RuntimeUnit, error) {
 	return cnt, nil
 }
 
-func (app *App) getOrCreateContainer() (platform.RuntimeUnit, error) {
-	cnt, err := platform.GetDockerContainer(app.ContainerID)
+func (app *App) getOrCreateContainer() (core.PlatformRuntimeUnit, error) {
+	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) {
+		if util.IsErrorType(err, core.ErrContainerNotFound) {
 			cnt, err := app.createContainer()
 			if err != nil {
 				return nil, err
@@ -217,9 +215,9 @@ func (app *App) enrichAppData() {
 		return
 	}
 
-	cnt, err := platform.GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) {
+		if util.IsErrorType(err, core.ErrContainerNotFound) {
 			log.Warnf("Application %s(%s) has no container: %s", app.Name, app.ID, err.Error())
 			app.Status = statusStopped
 			return
@@ -228,7 +226,7 @@ func (app *App) enrichAppData() {
 		return
 	}
 
-	app.Status = containerToAppStatus(cnt.Status, cnt.ExitCode)
+	app.Status = containerToAppStatus(cnt.GetStatus(), cnt.GetExitCode())
 }
 
 // StartAsync asynchronously starts an application and returns a task
@@ -273,9 +271,9 @@ func (app *App) StopAsync() core.Task {
 func (app *App) Stop() error {
 	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
 
-	cnt, err := platform.GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) == false {
+		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			return err
 		}
 		log.Warnf("Application %s(%s) has no container to stop", app.Name, app.ID)
@@ -297,9 +295,9 @@ func (app *App) Stop() error {
 func (app *App) remove() error {
 	log.Debug("Removing application ", app.Name, "[", app.ID, "]")
 
-	cnt, err := platform.GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrDockerContainerNotFound) == false {
+		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			return err
 		}
 		log.Warnf("Application %s(%s) has no container to remove", app.Name, app.ID)
@@ -311,7 +309,7 @@ func (app *App) remove() error {
 	}
 
 	if app.VolumeID != "" {
-		err := platform.RemoveDockerVolume(app.VolumeID)
+		err := app.parent.platform.RemoveVolume(app.VolumeID)
 		if err != nil {
 			return err
 		}
@@ -337,7 +335,7 @@ func (app *App) remove() error {
 // ReplaceContainer replaces the container of the app with the one provided. Used during development
 func (app *App) ReplaceContainer(id string) error {
 	log.Infof("Using container %s for app %s", id, app.Name)
-	cnt, err := platform.GetDockerContainer(id)
+	cnt, err := app.parent.platform.GetDockerContainer(id)
 	if err != nil {
 		return errors.Wrap(err, "Failed to replace container for app "+app.ID)
 	}

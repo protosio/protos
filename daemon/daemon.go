@@ -59,12 +59,13 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	}
 
 	// open databse
-	database.Open()
-	defer database.Close()
+	db := database.CreateDatabase()
+	db.Open()
+	defer db.Close()
 
 	capability.Initialize()
-	platform.Initialize(incontainer) // required to connect to the Docker daemon
-	rm := resource.CreateManager()   // required to register the resource structs with the DB
+	p := platform.Initialize(incontainer) // required to connect to the Docker daemon
+	rm := resource.CreateManager(db)      // required to register the resource structs with the DB
 	tm := task.CreateManager()
 	am := app.CreateManager(rm, tm)
 	pm := provider.CreateManager(rm, am) // required to register the provider structs with the DB

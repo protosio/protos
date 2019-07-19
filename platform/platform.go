@@ -3,6 +3,7 @@ package platform
 import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/config"
+	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/util"
 )
 
@@ -15,29 +16,19 @@ type platform struct {
 	NetworkName string
 }
 
-// RuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.
-type RuntimeUnit interface {
-	Start() error
-	Stop() error
-	Update() error
-	Remove() error
-	GetID() string
-	GetIP() string
-	GetStatus() string
-}
-
 // Initialize checks if the Protos network exists
-func Initialize(inContainer bool) {
-	ConnectDocker()
+func Initialize(inContainer bool) core.RuntimePlatform {
+	dp := &dockerPlatform{}
+	dp.Connect()
 	if inContainer {
 		// if running in container the user needs to take care that the correct protos network is created
-		return
+		return nil
 	}
-	protosNet, err := GetDockerNetwork(protosNetwork)
+	protosNet, err := dp.GetNetwork(protosNetwork)
 	if err != nil {
-		if util.IsErrorType(err, ErrDockerNetworkNotFound) {
+		if util.IsErrorType(err, core.ErrNetworkNotFound) {
 			// if network is not found it should be created
-			protosNet, err = CreateDockerNetwork(protosNetwork)
+			protosNet, err = dp.CreateNetwork(protosNetwork)
 			if err != nil {
 				log.Fatal(errors.Wrap(err, "Failed to initialize Docker platform"))
 			}
@@ -51,4 +42,6 @@ func Initialize(inContainer bool) {
 	netConfig := protosNet.IPAM.Config[0]
 	log.Debugf("Running using internal Docker network %s(%s), gateway %s in subnet %s", protosNet.Name, protosNet.ID, netConfig.Gateway, netConfig.Subnet)
 	gconfig.InternalIP = netConfig.Gateway
+
+	return dp
 }

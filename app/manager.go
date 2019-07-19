@@ -9,7 +9,6 @@ import (
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/database"
-	"github.com/protosio/protos/platform"
 	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
 )
@@ -86,10 +85,11 @@ func saveApp(app *App) {
 
 // Manager keeps track of all the apps
 type Manager struct {
-	apps Map
-	rm   core.ResourceManager
-	tm   core.TaskManager
-	m    core.Meta
+	apps     Map
+	rm       core.ResourceManager
+	tm       core.TaskManager
+	m        core.Meta
+	platform core.RuntimePlatform
 }
 
 //
@@ -97,10 +97,9 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager) core.AppManager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform) core.AppManager {
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
-	gob.Register(&platform.DockerContainer{})
 
 	dbapps := []*App{}
 	err := database.All(&dbapps)
@@ -114,7 +113,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager) core.AppManager
 		tmp.access = &sync.Mutex{}
 		apps.put(tmp.ID, tmp)
 	}
-	return &Manager{apps: apps, rm: rm, tm: tm}
+	return &Manager{apps: apps, rm: rm, tm: tm, platform: platform}
 }
 
 // GetCopy returns a copy of an application based on its id

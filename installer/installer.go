@@ -13,12 +13,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/config"
-	"github.com/protosio/protos/platform"
+
+	// "github.com/protosio/protos/platform"
 	"github.com/protosio/protos/util"
 )
 
 var gconfig = config.Get()
 var log = util.GetLogger("installer")
+var platform core.RuntimePlatform
 
 // Installer represents an application installer
 type Installer struct {
@@ -214,7 +216,7 @@ func (inst Installer) IsPlatformImageAvailable(version string) bool {
 
 	_, err = platform.GetDockerImage(metadata.PlatformID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrDockerImageNotFound) == false {
+		if util.IsErrorType(err, core.ErrImageNotFound) == false {
 			log.Error(err)
 		}
 		return false

@@ -30,12 +30,6 @@ import (
 
 const (
 	protosNetwork = "protosnet"
-	// ErrDockerImageNotFound means the requested docker image is not found locally
-	ErrDockerImageNotFound = 101
-	// ErrDockerNetworkNotFound means the requested docker network is not found locally
-	ErrDockerNetworkNotFound = 102
-	// ErrDockerContainerNotFound means the requested docker container is not found locally
-	ErrDockerContainerNotFound = 103
 )
 
 type downloadEvent struct {
@@ -71,22 +65,19 @@ type DockerContainer struct {
 	IP       string
 	Status   string
 	ExitCode int
+	p        *dockerPlatform
 }
 
-// DockerVolume represents a persistent disk volume
-type DockerVolume struct {
-	ID              string
-	PersistencePath string
+type dockerPlatform struct {
+	client *docker.Client
 }
-
-var dockerClient *docker.Client
 
 // ConnectDocker connects to the Docker daemon
-func ConnectDocker() {
+func (dp *dockerPlatform) Connect() {
 	log.Info("Connecting to the docker daemon")
 	var err error
 
-	dockerClient, err = docker.NewEnvClient()
+	dp.client, err = docker.NewEnvClient()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,8 +92,8 @@ func combineEnv(params map[string]string) []string {
 	return env
 }
 
-func allocateContainerIP() (string, error) {
-	protosNet, err := GetDockerNetwork(protosNetwork)
+func (dp *dockerPlatform) allocateContainerIP() (string, error) {
+	protosNet, err := dp.GetNetwork(protosNetwork)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to allocate IP for container")
 	}
@@ -143,10 +134,10 @@ func allocateContainerIP() (string, error) {
 // Docker network operations
 //
 
-// CreateDockerNetwork creates the Protos Docker network
-func CreateDockerNetwork(name string) (types.NetworkResource, error) {
+// Create Network creates the Protos Docker network
+func (dp *dockerPlatform) CreateNetwork(name string) (types.NetworkResource, error) {
 	var net types.NetworkResource
-	netResponse, err := dockerClient.NetworkCreate(context.Background(), name, types.NetworkCreate{
+	netResponse, err := dp.client.NetworkCreate(context.Background(), name, types.NetworkCreate{
 		CheckDuplicate: true,
 		Driver:         "bridge",
 		EnableIPv6:     false,
@@ -155,27 +146,27 @@ func CreateDockerNetwork(name string) (types.NetworkResource, error) {
 	if err != nil {
 		return net, errors.Wrap(err, "Failed to create network "+name)
 	}
-	net, err = dockerClient.NetworkInspect(context.Background(), netResponse.ID, types.NetworkInspectOptions{})
+	net, err = dp.client.NetworkInspect(context.Background(), netResponse.ID, types.NetworkInspectOptions{})
 	if err != nil {
 		return net, errors.Wrap(err, "Failed to create network "+name)
 	}
 	return net, nil
 }
 
-// GetDockerNetwork returns a Docker network based on its name
-func GetDockerNetwork(name string) (types.NetworkResource, error) {
+// GetNetwork returns a Docker network based on its name
+func (dp *dockerPlatform) GetNetwork(name string) (types.NetworkResource, error) {
 	var net types.NetworkResource
-	networks, err := dockerClient.NetworkList(context.Background(), types.NetworkListOptions{Filters: filters.NewArgs(filters.KeyValuePair{Key: "name", Value: name})})
+	networks, err := dp.client.NetworkList(context.Background(), types.NetworkListOptions{Filters: filters.NewArgs(filters.KeyValuePair{Key: "name", Value: name})})
 	if err != nil {
 		return net, errors.Wrap(err, "Failed to retrieve network "+name)
 	}
 	if len(networks) == 0 {
-		return net, util.NewTypedError("Could not find network "+name, ErrDockerNetworkNotFound)
+		return net, util.NewTypedError("Could not find network "+name, core.ErrNetworkNotFound)
 	}
 	// Although networklist and networkinspect both return NetworkResource, the list doesn't populate all the fields of the structure so another network inspect call is needed
-	net, err = dockerClient.NetworkInspect(context.Background(), networks[0].ID, types.NetworkInspectOptions{})
+	net, err = dp.client.NetworkInspect(context.Background(), networks[0].ID, types.NetworkInspectOptions{})
 	if err != nil {
-		return net, util.NewTypedError("Could not find network "+name, ErrDockerNetworkNotFound)
+		return net, util.NewTypedError("Could not find network "+name, core.ErrNetworkNotFound)
 	}
 	return net, nil
 }
@@ -184,40 +175,39 @@ func GetDockerNetwork(name string) (types.NetworkResource, error) {
 // Docker volume operations
 //
 
-// GetOrCreateDockerVolume returns a volume, either an existing one or a new one
-func GetOrCreateDockerVolume(volumeID string, persistencePath string) (*DockerVolume, error) {
-	volume := DockerVolume{PersistencePath: persistencePath}
+// GetOrCreateVolume returns a volume, either an existing one or a new one
+func (dp *dockerPlatform) GetOrCreateVolume(volumeID string, persistencePath string) (string, error) {
+	// volume := DockerVolume{PersistencePath: persistencePath}
+
 	if volumeID != "" {
 		log.Debug("Retrieving Docker volume " + volumeID)
-		dockerVolume, err := dockerClient.VolumeInspect(context.Background(), volumeID)
+		dockerVolume, err := dp.client.VolumeInspect(context.Background(), volumeID)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		volume.ID = dockerVolume.Name
-		return &volume, nil
+		return dockerVolume.Name, nil
 	}
 	log.Debug("Creating new Docker volume")
-	dockerVolume, err := dockerClient.VolumeCreate(context.Background(), volumetypes.VolumeCreateBody{Labels: map[string]string{"protos": "0.0.1"}})
+	dockerVolume, err := dp.client.VolumeCreate(context.Background(), volumetypes.VolumeCreateBody{Labels: map[string]string{"protos": "0.0.1", "persistencePath": persistencePath}})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	log.Debug("Created docker volume " + dockerVolume.Name)
-	volume.ID = dockerVolume.Name
-	return &volume, nil
+	return dockerVolume.Name, nil
 }
 
-// RemoveDockerVolume removes a Docker volume
-func RemoveDockerVolume(volumeID string) error {
+// RemoveVolume removes a Docker volume
+func (dp *dockerPlatform) RemoveVolume(volumeID string) error {
 	log.Debug("Removing Docker volume " + volumeID)
-	return dockerClient.VolumeRemove(context.Background(), volumeID, false)
+	return dp.client.VolumeRemove(context.Background(), volumeID, false)
 }
 
 //
 // Docker container operations
 //
 
-// NewDockerContainer creates and returns a docker container reference
-func NewDockerContainer(name string, appid string, imageid string, volume *DockerVolume, publicPorts []util.Port, installerParams map[string]string) (*DockerContainer, error) {
+// NewContainer creates and returns a docker container reference
+func (dp *dockerPlatform) NewContainer(name string, appid string, imageid string, volumeid string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
 	if imageid == "" {
 		return nil, errors.New("Docker imageid is empty")
 	}
@@ -239,11 +229,11 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 
 	// mounting container volumes
 	mounts := []mount.Mount{}
-	if volume != nil {
+	if volumeid != "" && volumeMountPath != "" {
 		mounts = append(mounts, mount.Mount{
 			Type:   mount.TypeVolume,
-			Source: volume.ID,
-			Target: volume.PersistencePath,
+			Source: volumeid,
+			Target: volumeMountPath,
 		})
 	}
 
@@ -262,7 +252,7 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 		hostConfig.Links = []string{"protos"}
 	}
 
-	containerIP, err := allocateContainerIP()
+	containerIP, err := dp.allocateContainerIP()
 	if err != nil {
 		return &DockerContainer{}, errors.Wrap(err, "Failed to create container")
 	}
@@ -276,11 +266,11 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 		},
 	}
 
-	dcnt, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, networkConfig, name)
+	dcnt, err := dp.client.ContainerCreate(context.Background(), containerConfig, hostConfig, networkConfig, name)
 	if err != nil {
 		return &DockerContainer{}, err
 	}
-	cnt := DockerContainer{ID: dcnt.ID}
+	cnt := DockerContainer{ID: dcnt.ID, p: dp}
 	err = cnt.Update()
 	if err != nil {
 		return &DockerContainer{}, err
@@ -291,21 +281,21 @@ func NewDockerContainer(name string, appid string, imageid string, volume *Docke
 }
 
 // GetDockerContainer retrieves and returns a docker container based on the id
-func GetDockerContainer(id string) (*DockerContainer, error) {
+func (dp *dockerPlatform) GetDockerContainer(id string) (core.PlatformRuntimeUnit, error) {
 	cnt := DockerContainer{ID: id}
 	err := cnt.Update()
 	if err != nil {
-		return &DockerContainer{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker container %s", id), "No such container", ErrDockerContainerNotFound)
+		return &DockerContainer{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker container %s", id), "No such container", core.ErrContainerNotFound)
 	}
 	return &cnt, nil
 }
 
 // GetAllDockerContainers retrieves all docker containers
-func GetAllDockerContainers() (map[string]*DockerContainer, error) {
+func (dp *dockerPlatform) GetAllDockerContainers() (map[string]core.PlatformRuntimeUnit, error) {
 
-	cnts := map[string]*DockerContainer{}
+	cnts := map[string]core.PlatformRuntimeUnit{}
 
-	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{All: true})
+	containers, err := dp.client.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
 		return cnts, nil
 	}
@@ -319,7 +309,7 @@ func GetAllDockerContainers() (map[string]*DockerContainer, error) {
 
 // Update reads the container and updates the struct fields
 func (cnt *DockerContainer) Update() error {
-	container, err := dockerClient.ContainerInspect(context.Background(), cnt.ID)
+	container, err := cnt.p.client.ContainerInspect(context.Background(), cnt.ID)
 	if err != nil {
 		return errors.Wrap(err, "Error retrieving container "+cnt.ID)
 	}
@@ -334,7 +324,7 @@ func (cnt *DockerContainer) Update() error {
 // Start starts a Docker container
 func (cnt *DockerContainer) Start() error {
 	log.Debug("Starting container " + cnt.ID)
-	err := dockerClient.ContainerStart(context.Background(), cnt.ID, types.ContainerStartOptions{})
+	err := cnt.p.client.ContainerStart(context.Background(), cnt.ID, types.ContainerStartOptions{})
 	if err != nil {
 		return err
 	}
@@ -342,7 +332,7 @@ func (cnt *DockerContainer) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	statusCh, errCh := dockerClient.ContainerWait(ctx, cnt.ID, container.WaitConditionNotRunning)
+	statusCh, errCh := cnt.p.client.ContainerWait(ctx, cnt.ID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -352,7 +342,7 @@ func (cnt *DockerContainer) Start() error {
 			errors.Wrap(err, "Error while waiting for container")
 		}
 	case <-statusCh:
-		out, err := dockerClient.ContainerLogs(ctx, cnt.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+		out, err := cnt.p.client.ContainerLogs(ctx, cnt.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
 		if err != nil {
 			panic(err)
 		}
@@ -373,7 +363,7 @@ func (cnt *DockerContainer) Start() error {
 // Stop stops a Docker container
 func (cnt *DockerContainer) Stop() error {
 	stopTimeout := time.Duration(10) * time.Second
-	err := dockerClient.ContainerStop(context.Background(), cnt.ID, &stopTimeout)
+	err := cnt.p.client.ContainerStop(context.Background(), cnt.ID, &stopTimeout)
 	if err != nil {
 		return err
 	}
@@ -382,7 +372,7 @@ func (cnt *DockerContainer) Stop() error {
 
 // Remove removes a Docker container
 func (cnt *DockerContainer) Remove() error {
-	err := dockerClient.ContainerRemove(context.Background(), cnt.ID, types.ContainerRemoveOptions{})
+	err := cnt.p.client.ContainerRemove(context.Background(), cnt.ID, types.ContainerRemoveOptions{})
 	if err != nil {
 		return err
 	}
@@ -402,6 +392,11 @@ func (cnt *DockerContainer) GetIP() string {
 // GetStatus returns the status of the container, as a string
 func (cnt *DockerContainer) GetStatus() string {
 	return cnt.Status
+}
+
+// GetExitCode returns the exit code of the container, as an int
+func (cnt *DockerContainer) GetExitCode() int {
+	return cnt.ExitCode
 }
 
 //
@@ -459,8 +454,8 @@ func (dp *downloadProgress) addLayers(layers []distribution.Descriptor) {
 // Docker image operations
 //
 
-// GetDockerImageDataPath returns the path inside the container where data is persisted
-func GetDockerImageDataPath(image types.ImageInspect) (string, error) {
+// DataPath returns the path inside the container where data is persisted
+func (dp *dockerPlatform) GetDockerImageDataPath(image types.ImageInspect) (string, error) {
 	vlen := len(image.Config.Volumes)
 	if vlen == 0 {
 		return "", nil
@@ -476,12 +471,12 @@ func GetDockerImageDataPath(image types.ImageInspect) (string, error) {
 }
 
 // GetDockerImage returns a docker image by id, if it is labeled for protos
-func GetDockerImage(id string) (types.ImageInspect, error) {
+func (dp *dockerPlatform) GetDockerImage(id string) (types.ImageInspect, error) {
 	log.Debugf("Retrieving Docker image %s", id)
 	repoImage := gconfig.AppStoreHost + "/" + id
-	image, _, err := dockerClient.ImageInspectWithRaw(context.Background(), repoImage)
+	image, _, err := dp.client.ImageInspectWithRaw(context.Background(), repoImage)
 	if err != nil {
-		return types.ImageInspect{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image %s", id), "No such image", ErrDockerImageNotFound)
+		return types.ImageInspect{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image %s", id), "No such image", core.ErrImageNotFound)
 	}
 
 	if _, valid := image.Config.Labels["protos"]; valid == false {
@@ -497,10 +492,10 @@ func GetDockerImage(id string) (types.ImageInspect, error) {
 }
 
 // GetAllDockerImages returns all docker images
-func GetAllDockerImages() (map[string]types.ImageSummary, error) {
+func (dp *dockerPlatform) GetAllDockerImages() (map[string]types.ImageSummary, error) {
 
 	imgs := map[string]types.ImageSummary{}
-	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
+	images, err := dp.client.ImageList(context.Background(), types.ImageListOptions{})
 	if err != nil {
 		return map[string]types.ImageSummary{}, err
 	}
@@ -523,8 +518,8 @@ func GetAllDockerImages() (map[string]types.ImageSummary, error) {
 }
 
 // RemoveDockerImage removes a docker image
-func RemoveDockerImage(id string) error {
-	_, err := dockerClient.ImageRemove(context.Background(), id, types.ImageRemoveOptions{PruneChildren: true})
+func (dp *dockerPlatform) RemoveDockerImage(id string) error {
+	_, err := dp.client.ImageRemove(context.Background(), id, types.ImageRemoveOptions{PruneChildren: true})
 	if err != nil {
 		return err
 	}
@@ -532,7 +527,7 @@ func RemoveDockerImage(id string) error {
 }
 
 // PullDockerImage pulls a docker image from the Protos app store
-func PullDockerImage(t core.Task, id string, installerName string, installerVersion string) error {
+func (dp *dockerPlatform) PullDockerImage(t core.Task, id string, installerName string, installerVersion string) error {
 	repoImage := gconfig.AppStoreHost + "/" + id
 	progress := &downloadProgress{t: t, layers: make(map[string]imageLayer), weight: 85, initialPercentage: t.GetPercentage()}
 	regClient, err := registry.New(fmt.Sprintf("https://%s/", gconfig.AppStoreHost), "", "")
@@ -551,7 +546,7 @@ func PullDockerImage(t core.Task, id string, installerName string, installerVers
 	}
 	progress.addLayers(manifest.Layers)
 
-	events, err := dockerClient.ImageCreate(context.Background(), repoImage, types.ImageCreateOptions{})
+	events, err := dp.client.ImageCreate(context.Background(), repoImage, types.ImageCreateOptions{})
 	if err != nil {
 		return errors.Wrap(err, "Failed to pull image from app store")
 	}
