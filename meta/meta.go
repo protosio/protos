@@ -12,7 +12,6 @@ import (
 	"github.com/protosio/protos/config"
 	"github.com/protosio/protos/core"
 
-	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
 	"github.com/tidwall/gjson"
 )
@@ -28,6 +27,7 @@ type meta struct {
 	AdminUser          string
 	Resources          []string
 	rm                 core.ResourceManager
+	db                 core.DB
 }
 
 type dnsResource interface {
@@ -35,10 +35,10 @@ type dnsResource interface {
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup(rm core.ResourceManager) core.Meta {
-	metaRoot := meta{}
+func Setup(rm core.ResourceManager, db core.DB) core.Meta {
+	metaRoot := meta{db: db}
 	log.Debug("Reading instance information from database")
-	err := database.One("ID", "metaroot", &metaRoot)
+	err := db.One("ID", "metaroot", &metaRoot)
 	if err != nil {
 		log.Debug("Creating metaroot database entry")
 		metaRoot = meta{
@@ -50,7 +50,7 @@ func Setup(rm core.ResourceManager) core.Meta {
 		metaRoot.DashboardSubdomain = "protos"
 	}
 
-	err = database.Save(&metaRoot)
+	err = db.Save(&metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
 	}
@@ -59,7 +59,7 @@ func Setup(rm core.ResourceManager) core.Meta {
 }
 
 func (m *meta) save() {
-	err := database.Save(m)
+	err := m.db.Save(m)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot domain to database: %s", err.Error())
 	}
