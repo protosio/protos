@@ -29,28 +29,6 @@ const (
 // ErrKilledByUser is returned when a task is canceled/killed by the user
 var ErrKilledByUser = errors.New("Task cancelled by user")
 
-// // CustomTask is the interface that is implemented by custom tasks in various packages
-// type CustomTask interface {
-// 	Run() error
-// 	Name() string
-// 	SetBase(Task)
-// }
-
-// // Task is the interface that all task types need to adhere too
-// type Task interface {
-// 	GetID() string
-// 	Wait() error
-// 	SetPercentage(int)
-// 	GetPercentage() int
-// 	SetState(string)
-// 	SetStatus(string)
-// 	AddApp(string)
-// 	Copy() Base
-// 	SetKillable()
-// 	Dying() <-chan struct{}
-// 	Save()
-// }
-
 // Progress tracks the percentage and message of a task
 type Progress struct {
 	Percentage int    `json:"percentage"`
