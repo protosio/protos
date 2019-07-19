@@ -65,11 +65,11 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 
 	capability.Initialize()
 	p := platform.Initialize(incontainer) // required to connect to the Docker daemon
-	rm := resource.CreateManager(db)      // required to register the resource structs with the DB
+	rm := resource.CreateManager(db)
 	tm := task.CreateManager(db)
-	am := app.CreateManager(rm, tm)
-	pm := provider.CreateManager(rm, am) // required to register the provider structs with the DB
-	m := meta.Setup(rm)
+	am := app.CreateManager(rm, tm, p, db)
+	pm := provider.CreateManager(rm, am, db)
+	m := meta.Setup(rm, db)
 
 	// start ws connection manager
 	wg.Add(1)
