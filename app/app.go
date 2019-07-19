@@ -165,7 +165,7 @@ func (app *App) AddTask(id string) {
 
 // Save - sends update to the app manager which persists application data to database
 func (app *App) Save() {
-	saveApp(app)
+	app.parent.saveApp(app)
 }
 
 // reateContainer create the underlying Docker container

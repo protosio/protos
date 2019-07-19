@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/capability"
 	"github.com/protosio/protos/core"
-	"github.com/protosio/protos/database"
 	"github.com/protosio/protos/util"
 	"github.com/rs/xid"
 )
@@ -17,6 +16,7 @@ import (
 type Map struct {
 	access *sync.Mutex
 	apps   map[string]*App
+	db     core.DB
 }
 
 // put saves an application into the application map
@@ -44,7 +44,7 @@ func (am Map) remove(id string) error {
 	if found == false {
 		return fmt.Errorf("Could not find app %s", id)
 	}
-	err := database.Remove(app)
+	err := am.db.Remove(app)
 	if err != nil {
 		log.Panicf("Failed to remove app from db: %s", err.Error())
 	}
@@ -66,18 +66,6 @@ func (am Map) copy() map[string]App {
 	return apps
 }
 
-func saveApp(app *App) {
-	app.access.Lock()
-	papp := *app
-	app.access.Unlock()
-	papp.access = nil
-	gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
-	err := database.Save(&papp)
-	if err != nil {
-		log.Panic(errors.Wrap(err, "Could not save app to database"))
-	}
-}
-
 // func add(app *App) {
 // 	am.apps.put(app.ID, app)
 // 	saveApp(app)
@@ -89,6 +77,7 @@ type Manager struct {
 	rm       core.ResourceManager
 	tm       core.TaskManager
 	m        core.Meta
+	db       core.DB
 	platform core.RuntimePlatform
 }
 
@@ -97,12 +86,12 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform) core.AppManager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB) core.AppManager {
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 
 	dbapps := []*App{}
-	err := database.All(&dbapps)
+	err := db.All(&dbapps)
 	if err != nil {
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
@@ -113,7 +102,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 		tmp.access = &sync.Mutex{}
 		apps.put(tmp.ID, tmp)
 	}
-	return &Manager{apps: apps, rm: rm, tm: tm, platform: platform}
+	return &Manager{apps: apps, rm: rm, tm: tm, db: db, platform: platform}
 }
 
 // GetCopy returns a copy of an application based on its id
@@ -212,7 +201,7 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 	}
 
 	am.apps.put(app.ID, app)
-	saveApp(app)
+	am.saveApp(app)
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
@@ -282,6 +271,18 @@ func (am *Manager) Remove(appID string) error {
 // RemoveAsync asynchronously removes an applications and returns a task
 func (am *Manager) RemoveAsync(appID string) core.Task {
 	return am.tm.New(&RemoveAppTask{am: am, appID: appID})
+}
+
+func (am *Manager) saveApp(app *App) {
+	app.access.Lock()
+	papp := *app
+	app.access.Unlock()
+	papp.access = nil
+	gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
+	err := am.db.Save(&papp)
+	if err != nil {
+		log.Panic(errors.Wrap(err, "Could not save app to database"))
+	}
 }
 
 //
