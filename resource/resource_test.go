@@ -25,7 +25,7 @@ func TestResourceManager(t *testing.T) {
 
 	// test if GetAll returns the right number of elements
 	if len(rm.GetAll(false)) != 3 {
-		t.Error("rm.GetAll should return 1 element, but it returned", len(rm.GetAll(false)))
+		t.Error("rm.GetAll should return 3 elements, but it returned", len(rm.GetAll(false)))
 	}
 	// if a non-existent resources is requested, an error should be returned
 	_, err := rm.Get("bogus")
