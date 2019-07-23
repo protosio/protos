@@ -186,9 +186,9 @@ func (tm *Manager) saveTask(btsk *Base) {
 	btsk.access.Lock()
 	ltask := *btsk
 	btsk.access.Unlock()
-	tm.publisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: ltask}
 	err := tm.db.Save(&ltask)
 	if err != nil {
 		log.Panic(errors.Wrapf(err, "Could not save task %s to database", ltask.ID))
 	}
+	tm.publisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: ltask}
 }
