@@ -1,7 +1,6 @@
 package task
 
 import (
-	"encoding/gob"
 	"fmt"
 	"sync"
 	"time"
@@ -17,6 +16,10 @@ import (
 type taskContainer struct {
 	access *sync.Mutex
 	all    *linkedhashmap.Map
+}
+
+type wsPublisher interface {
+	GetWSPublishChannel() chan interface{}
 }
 
 // put saves an task into the task map
@@ -87,15 +90,16 @@ func getLastNTasks(n int, tsks *linkedhashmap.Map) linkedhashmap.Map {
 
 // Manager keeps track of all the tasks
 type Manager struct {
-	tasks taskContainer
-	db    core.DB
+	tasks     taskContainer
+	db        core.DB
+	publisher wsPublisher
 }
 
 // CreateManager creates and returns a TaskManager
-func CreateManager(db core.DB) core.TaskManager {
+func CreateManager(db core.DB, publisher wsPublisher) core.TaskManager {
 	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
-	gob.Register(&Base{})
-	gob.Register(&util.ProtosTime{})
+	db.Register(&Base{})
+	db.Register(&util.ProtosTime{})
 
 	dbtasks := []Base{}
 	err := db.All(&dbtasks)
@@ -104,9 +108,11 @@ func CreateManager(db core.DB) core.TaskManager {
 	}
 
 	ltasks := linkedhashmap.New()
+	manager := &Manager{db: db, publisher: publisher, tasks: taskContainer{access: &sync.Mutex{}, all: ltasks}}
 	for _, task := range dbtasks {
 		ltask := task
 		ltask.access = &sync.Mutex{}
+		ltask.parent = manager
 		if ltask.Status == INPROGRESS {
 			log.Debugf("Marking task %s as failed", ltask.ID)
 			ltask.Status = FAILED
@@ -116,7 +122,8 @@ func CreateManager(db core.DB) core.TaskManager {
 		}
 		ltasks.Put(task.ID, &ltask)
 	}
-	return &Manager{db: db, tasks: taskContainer{access: &sync.Mutex{}, all: ltasks}}
+
+	return manager
 }
 
 //
@@ -161,7 +168,7 @@ func (tm *Manager) Get(id string) (core.Task, error) {
 	return tm.tasks.get(id)
 }
 
-// GetIDs returns all tasks for the provided ids
+// GetIDs returns all tasks for the provided ids (only the first 20 selected tasks will be returned)
 func (tm *Manager) GetIDs(ids []string) linkedhashmap.Map {
 	tasksCopy := tm.tasks.copy()
 	filter := func(k interface{}, v interface{}) bool {
@@ -171,7 +178,7 @@ func (tm *Manager) GetIDs(ids []string) linkedhashmap.Map {
 		return false
 	}
 	selectedTasks := tasksCopy.Select(filter)
-	return getLastNTasks(10, selectedTasks)
+	return getLastNTasks(20, selectedTasks)
 }
 
 func (tm *Manager) saveTask(btsk *Base) {
@@ -179,7 +186,7 @@ func (tm *Manager) saveTask(btsk *Base) {
 	btsk.access.Lock()
 	ltask := *btsk
 	btsk.access.Unlock()
-	gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: ltask}
+	tm.publisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: ltask}
 	err := tm.db.Save(&ltask)
 	if err != nil {
 		log.Panic(errors.Wrapf(err, "Could not save task %s to database", ltask.ID))

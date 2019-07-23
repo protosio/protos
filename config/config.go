@@ -45,12 +45,17 @@ var config = Config{
 	WSPublish:      make(chan interface{}, 100),
 }
 
+// GetWSPublishChannel returns the channel that can be used to publish messages to the available websockets
+func (cfg *Config) GetWSPublishChannel() chan interface{} {
+	return cfg.WSPublish
+}
+
 // Gconfig maintains a global view of the application configuration parameters.
 // var gconfig = &config
 var log = util.GetLogger("config")
 
 // Load reads the configuration from a file and maps it to the config struct
-func Load(configFile string, version *semver.Version) {
+func Load(configFile string, version *semver.Version) *Config {
 	log.Info("Reading main config [", configFile, "]")
 	filename, _ := filepath.Abs(configFile)
 	yamlFile, err := ioutil.ReadFile(filename)
@@ -67,6 +72,7 @@ func Load(configFile string, version *semver.Version) {
 		log.Fatal(err)
 	}
 	config.Version = version
+	return &config
 }
 
 // Get returns a pointer to the global config structure
