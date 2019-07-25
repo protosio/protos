@@ -143,6 +143,7 @@ func (b *Base) Wait() error {
 
 // Run starts the task
 func (b *Base) Run() {
+	log.Info("Running base task ", b.ID)
 	b.SetStatus(INPROGRESS)
 	b.Save()
 

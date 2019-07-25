@@ -87,6 +87,30 @@ func TestTaskManager(t *testing.T) {
 		t.Errorf("tsk2 should return task with id 0004, instead of %s", tsk2.ID)
 	}
 
+	// testing the creation of a new task
+	// Note: the wait() needs to be called on the newly created task or else the test fails because
+	// it continues to run while the task runs in a separate routine
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(3)
+	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(3)
+	customTask := mock.NewMockCustomTask(ctrl)
+	customTask.EXPECT().Name().Return("customTaskName").Times(1)
+	customTask.EXPECT().Run(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	tsk3 := tm.New(customTask)
+
+	err = tsk3.Wait()
+	if err != nil {
+		t.Errorf("tsk3.Wait() should not return an error. Err: %s", err.Error())
+	}
+
+	if tsk3.GetPercentage() != 100 {
+		t.Errorf("tsk3.GetPercentage() should return percentage 100, instead of %d", tsk3.GetPercentage())
+	}
+
+	tsk3base := tsk3.(*Base)
+	if tsk3base.Name != "customTaskName" || tsk3base.Status != FINISHED || tsk3base.parent != tm || tsk3base.custom != customTask {
+		t.Errorf("tsk3 has one or more incorrect fields: %+v", tsk3base)
+	}
+
 	// test db failure during saveTask
 	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("db error")).Times(1)
 	defer func() {

@@ -136,6 +136,7 @@ func (tm *Manager) New(ct core.CustomTask) core.Task {
 	tsk := &Base{
 		access: &sync.Mutex{},
 		custom: ct,
+		parent: tm,
 
 		ID:        xid.New().String(),
 		Name:      ct.Name(),
