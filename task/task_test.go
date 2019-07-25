@@ -4,10 +4,12 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/protosio/protos/mock"
 	"github.com/protosio/protos/util"
+	"github.com/rs/xid"
 )
 
 func TestTaskManager(t *testing.T) {
@@ -116,9 +118,105 @@ func TestTaskManager(t *testing.T) {
 	defer func() {
 		r := recover()
 		if r == nil {
-			t.Fatalf("A DB error in saveTask should lead to a panic")
+			t.Errorf("A DB error in saveTask should lead to a panic")
 		}
 	}()
 	tms.saveTask(&Base{ID: "0005", Status: INPROGRESS, access: &sync.Mutex{}})
+
+}
+
+func TestTask(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dbMock := mock.NewMockDB(ctrl)
+	dbMock.EXPECT().Register(gomock.Any()).Return().Times(2)
+	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
+		Do(func(to interface{}) {
+			tasks := to.(*[]Base)
+			*tasks = append(*tasks, Base{ID: "0001", Status: INPROGRESS}, Base{ID: "0002", Status: FINISHED}, Base{ID: "0003", Status: REQUESTED})
+		})
+	// Save() gets called only once because only the tasks with INPROGRESS status get changed and saved
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+
+	wsPublisherMock := mock.NewMockwsPublisher(ctrl)
+	wschan := make(chan interface{}, 100)
+	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(1)
+
+	tm := CreateManager(dbMock, wsPublisherMock)
+	customTask := mock.NewMockCustomTask(ctrl)
+	ts := util.ProtosTime(time.Now())
+
+	task := &Base{
+		access: &sync.Mutex{},
+		custom: customTask,
+		parent: tm.(*Manager),
+
+		ID:        xid.New().String(),
+		Name:      "taskName",
+		Status:    REQUESTED,
+		Progress:  Progress{Percentage: 0},
+		StartedAt: &ts,
+
+		finish: make(chan error, 1),
+	}
+
+	if task.GetID() != task.ID {
+		t.Errorf("task.GetID() should return %s instead of %s", task.ID, task.GetID())
+	}
+
+	task.SetPercentage(45)
+	if task.Progress.Percentage != 45 {
+		t.Errorf("task.SetPercentage(45) should set the progress to %d instead of %d", 45, task.Progress.Percentage)
+	}
+
+	if task.GetPercentage() != task.Progress.Percentage {
+		t.Errorf("task.GetPercentage() should return %d instead of %d", task.Progress.Percentage, task.GetPercentage())
+	}
+
+	state1 := "state1"
+	task.SetState(state1)
+	if task.Progress.State != state1 {
+		t.Errorf("task.SetState(%s) should set the state to %s instead of %s", state1, state1, task.Progress.State)
+	}
+
+	status1 := "status1"
+	task.SetStatus(status1)
+	if task.Status != status1 {
+		t.Errorf("task.SetStatus(%s) should set the status to %s instead of %s", status1, status1, task.Status)
+	}
+
+	appid := "appid"
+	task.AddApp(appid)
+	if found, _ := util.StringInSlice(appid, task.Apps); found != true {
+		t.Errorf("task.AddApp(%s) did not add app with id '%s' to the internal list of apps", appid, appid)
+	}
+
+	// tests for kill related behaviour
+	err := task.Kill()
+	if err == nil {
+		t.Errorf("task.Kill() should have returned an error")
+	}
+
+	task.SetKillable()
+	if task.Killable != true || task.killable == nil {
+		t.Errorf("task.SetKillable() did not correctly set the killable fields")
+	}
+
+	task.SetStatus(FINISHED)
+	err = task.Kill()
+	if err == nil {
+		t.Errorf("task.Kill() should have returned an error")
+	}
+
+	task.SetStatus(REQUESTED)
+	err = task.Kill()
+	if err != nil {
+		t.Fatalf("task.Kill() returned an error: %s", err.Error())
+	}
+	err = task.killable.Err()
+	if err == nil || err.Error() != "Task cancelled by user" {
+		t.Errorf("task.Kill() did not kill the task correctly: %s", err.Error())
+	}
 
 }
