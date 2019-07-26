@@ -192,7 +192,7 @@ func TestTask(t *testing.T) {
 		t.Errorf("task.AddApp(%s) did not add app with id '%s' to the internal list of apps", appid, appid)
 	}
 
-	// tests for kill related behaviour
+	// tests for Kill() related behaviour
 	err := task.Kill()
 	if err == nil {
 		t.Errorf("task.Kill() should have returned an error")
@@ -218,5 +218,23 @@ func TestTask(t *testing.T) {
 	if err == nil || err.Error() != "Task cancelled by user" {
 		t.Errorf("task.Kill() did not kill the task correctly: %s", err.Error())
 	}
+
+	// tests for Dying() behaviour. Soll purpose of this test is to see it return and not block the test
+	dchan := task.Dying()
+	<-dchan
+
+	// tests for Copy() behaviour
+	cp := (task.Copy()).(*Base)
+	if cp.ID != task.ID || cp == task {
+		t.Error("task.Copy() did not produce a valid copy of the task")
+	}
+
+	// tests for Save() behaviour
+	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(1)
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	task.Save()
+
+	// tests for Run() behaviour are implemented in the previous method because a task is
+	// also started when it is created
 
 }
