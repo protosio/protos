@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/icholy/killable"
+	"github.com/jinzhu/copier"
 	"github.com/protosio/protos/core"
 	"github.com/protosio/protos/util"
 )
@@ -119,9 +120,13 @@ func (b *Base) Kill() error {
 
 // Copy returns a copy of the task base
 func (b *Base) Copy() core.Task {
+	var baseCopy Base
 	b.access.Lock()
-	baseCopy := *b
+	err := copier.Copy(&baseCopy, b)
 	b.access.Unlock()
+	if err != nil {
+		log.Panic(err)
+	}
 	return &baseCopy
 }
 
