@@ -1,3 +1,3 @@
 #!/bin/bash
 
-go test -v ./task ./resource ./provider ./installer
+go test -v ./internal/task ./internal/resource ./internal/provider ./internal/installer

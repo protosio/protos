@@ -1,4 +1,4 @@
-module github.com/protosio/protos
+module protos
 
 go 1.13
 

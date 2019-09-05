@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/protosio/protos/daemon"
-	"github.com/protosio/protos/util"
+	"protos/internal/daemon"
+	"protos/internal/util"
 
 	"github.com/Masterminds/semver"
 	"github.com/sirupsen/logrus"
