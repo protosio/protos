@@ -18,5 +18,5 @@ docker run \
        --name protos \
        --hostname protos \
        --network protosnet \
-       golang:1.11.2 \
+       golang:1.13 \
        go run --race cmd/protos/protos.go --incontainer --loglevel debug --config protos.dev.yaml --dev init
