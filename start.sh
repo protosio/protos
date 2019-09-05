@@ -13,6 +13,7 @@ docker run \
        -v "$PROTOS_FRONTEND_PATH":/protosfrontend \
        -v /var/run/docker.sock:/var/run/docker.sock \
        -w /go/src/github.com/protosio/protos \
+       -e GOFLAGS=-mod=vendor \
        -p 8080:8080 \
        -p 8443:8443 \
        --name protos \
