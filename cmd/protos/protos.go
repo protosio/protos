@@ -8,7 +8,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/sirupsen/logrus"
-	cli "gopkg.in/urfave/cli.v1"
+	cli "github.com/urfave/cli"
 )
 
 func main() {
