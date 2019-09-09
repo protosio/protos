@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/pkg/errors"
 	"protos/internal/capability"
 	"protos/internal/core"
 	"protos/internal/util"
+
+	"github.com/pkg/errors"
 	"github.com/rs/xid"
 )
 
@@ -109,6 +110,9 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 func (am *Manager) GetCopy(id string) (core.App, error) {
 	log.Debug("Copying application ", id)
 	app, err := am.apps.get(id)
+	if err != nil {
+		return app, err
+	}
 	app.access.Lock()
 	capp := *app
 	app.access.Unlock()
