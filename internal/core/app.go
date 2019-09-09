@@ -6,13 +6,13 @@ import (
 )
 
 type AppManager interface {
-	Read(string) (App, error)
+	Read(id string) (App, error)
 	GetAllPublic() map[string]App
 	Select(func(App) bool) map[string]App
 	CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata InstallerMetadata, installerParams map[string]string) (App, error)
 	CreateAsync(installerID string, installerVersion string, appName string, installerMetadata InstallerMetadata, installerParams map[string]string, startOnCreation bool) Task
 	GetCopy(id string) (App, error)
-	Remove(string) error
+	Remove(id string) error
 	RemoveAsync(string) Task
 	GetServices() []util.Service
 	CopyAll() map[string]App
