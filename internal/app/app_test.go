@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 
+	"protos/internal/core"
 	"protos/internal/mock"
 
 	"github.com/golang/mock/gomock"
@@ -23,7 +24,10 @@ func TestAppManager(t *testing.T) {
 	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
 		Do(func(to interface{}) {
 			apps := to.(*[]*App)
-			*apps = append(*apps, &App{ID: "id1", Name: "app1", access: &sync.Mutex{}})
+			*apps = append(*apps,
+				&App{ID: "id1", Name: "app1", access: &sync.Mutex{}},
+				&App{ID: "id2", Name: "app2", access: &sync.Mutex{}},
+				&App{ID: "id3", Name: "app3", access: &sync.Mutex{}})
 		})
 	am := CreateManager(rmMock, tmMock, rpMock, dbMock)
 
@@ -47,8 +51,8 @@ func TestAppManager(t *testing.T) {
 	//
 	// CopyAll
 	//
-	if len(am.CopyAll()) != 1 {
-		t.Errorf("CopyAll should return 1 app. Instead it return %d", len(am.CopyAll()))
+	if len(am.CopyAll()) != 3 {
+		t.Errorf("CopyAll should return 3 apps. Instead it returned %d", len(am.CopyAll()))
 	}
 
 	//
@@ -67,4 +71,25 @@ func TestAppManager(t *testing.T) {
 			t.Errorf("App id 'id1' should have name app1, NOT %s", app.GetName())
 		}
 	}
+
+	//
+	// Select
+	//
+	filter := func(app core.App) bool {
+		if app.GetName() == "app2" {
+			return true
+		}
+		return false
+	}
+
+	apps := am.Select(filter)
+	if len(apps) != 1 {
+		t.Errorf("Select(filter) should return 1 app. Instead it returned %d", len(apps))
+	}
+	for _, app := range apps {
+		if app.GetName() != "app2" || app.GetID() != "id2" {
+			t.Errorf("Expected app id '%s' and app name '%s', but found '%s' and '%s'", "id2", "app2", app.GetID(), app.GetName())
+		}
+	}
+
 }
