@@ -149,19 +149,6 @@ func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
 	return apps
 }
 
-// ReadByIP searches and returns an application based on it's IP address
-// ToDo: refresh IP data for all applications?
-func (am *Manager) ReadByIP(appIP string) (*App, error) {
-	am.apps.access.Lock()
-	defer am.apps.access.Unlock()
-	for _, app := range am.apps.apps {
-		if app.IP == appIP {
-			return app, nil
-		}
-	}
-	return nil, errors.New("Could not find any application with IP " + appIP)
-}
-
 // CreateAsync creates, runs and returns a task of type CreateAppTask
 func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
 	createApp := CreateAppTask{
