@@ -8,11 +8,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkg/errors"
 	"protos/internal/config"
 	"protos/internal/core"
 
+	"github.com/pkg/errors"
+
 	"protos/internal/util"
+
 	"github.com/tidwall/gjson"
 )
 
@@ -206,24 +208,23 @@ func (m *meta) GetDashboardDomain() string {
 // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
 func (m *meta) CreateProtosResources() (map[string]core.Resource, error) {
 	resources := map[string]core.Resource{}
-	rc := m.rm.(core.ResourceCreator)
 
 	// creating the protos subdomain for the dashboard
-	dnsrsc, err := rc.CreateDNS("protos", "protos", "A", m.PublicIP, 300)
+	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP, 300)
 	if err != nil {
 		if strings.Contains(err.Error(), "already registered") == false {
 			return resources, errors.Wrap(err, "Failed to create Protos resources")
 		}
 	}
 	// creating the bogus MX record, which is checked by LetsEncrypt before creating a certificate
-	mxrsc, err := rc.CreateDNS("protos", "@", "MX", "protos."+m.Domain, 300)
+	mxrsc, err := m.rm.CreateDNS("protos", "@", "MX", "protos."+m.Domain, 300)
 	if err != nil {
 		if strings.Contains(err.Error(), "already registered") == false {
 			return resources, errors.Wrap(err, "Failed to create Protos resources")
 		}
 	}
 	// creating a TLS certificate for the protos subdomain
-	certrsc, err := rc.CreateCert("protos", []string{"protos"})
+	certrsc, err := m.rm.CreateCert("protos", []string{"protos"})
 	if err != nil {
 		if strings.Contains(err.Error(), "already registered") == false {
 			return resources, errors.Wrap(err, "Failed to create Protos resources")

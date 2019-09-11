@@ -32,10 +32,6 @@ type ResourceManager interface {
 	GetAll(sanitize bool) map[string]Resource
 	Select(func(Resource) bool) map[string]Resource
 	GetStatus(string) (RStatus, error)
-}
-
-// ResourceCreator allows for the creation of all the supported Resource types
-type ResourceCreator interface {
 	CreateDNS(appID string, name string, rtype string, value string, ttl int) (Resource, error)
 	CreateCert(appID string, domains []string) (Resource, error)
 	CreateFromJSON(rscJSON []byte, appID string) (Resource, error)

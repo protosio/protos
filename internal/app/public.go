@@ -1,9 +1,10 @@
 package app
 
 import (
-	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"protos/internal/core"
 	"protos/internal/util"
+
+	"github.com/emirpasic/gods/maps/linkedhashmap"
 )
 
 type taskMap linkedhashmap.Map
