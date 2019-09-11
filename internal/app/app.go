@@ -401,8 +401,7 @@ func (app *App) SendMsg(msg interface{}) error {
 func (app *App) CreateResource(appJSON []byte) (core.Resource, error) {
 
 	app.access.Lock()
-	rc := app.parent.rm.(core.ResourceCreator)
-	rsc, err := rc.CreateFromJSON(appJSON, app.ID)
+	rsc, err := app.parent.rm.CreateFromJSON(appJSON, app.ID)
 	if err != nil {
 		app.access.Unlock()
 		return &resource.Resource{}, err

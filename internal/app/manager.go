@@ -67,19 +67,15 @@ func (am Map) copy() map[string]App {
 	return apps
 }
 
-// func add(app *App) {
-// 	am.apps.put(app.ID, app)
-// 	saveApp(app)
-// }
-
 // Manager keeps track of all the apps
 type Manager struct {
-	apps     Map
-	rm       core.ResourceManager
-	tm       core.TaskManager
-	m        core.Meta
-	db       core.DB
-	platform core.RuntimePlatform
+	apps        Map
+	rm          core.ResourceManager
+	tm          core.TaskManager
+	m           core.Meta
+	db          core.DB
+	platform    core.RuntimePlatform
+	wspublisher core.WSPublisher
 }
 
 //
@@ -87,7 +83,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB) core.AppManager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher) core.AppManager {
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 
@@ -103,7 +99,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 		tmp.access = &sync.Mutex{}
 		apps.put(tmp.ID, tmp)
 	}
-	return &Manager{apps: apps, rm: rm, tm: tm, db: db, platform: platform}
+	return &Manager{apps: apps, rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher}
 }
 
 // GetCopy returns a copy of an application based on its id
@@ -179,12 +175,11 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
 	app = &App{access: &sync.Mutex{}, Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
 		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
-		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating}
+		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating, parent: am}
 
 	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
 	if app.ValidateCapability(capability.PublicDNS) == nil {
-		rc := am.rm.(core.ResourceCreator)
-		rsc, err := rc.CreateDNS(app.ID, app.Name, "A", am.m.GetPublicIP(), 300)
+		rsc, err := am.rm.CreateDNS(app.ID, app.Name, "A", am.m.GetPublicIP(), 300)
 		if err != nil {
 			return app, err
 		}
@@ -269,7 +264,7 @@ func (am *Manager) saveApp(app *App) {
 	papp := *app
 	app.access.Unlock()
 	papp.access = nil
-	gconfig.WSPublish <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
+	am.wspublisher.GetPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
 	err := am.db.Save(&papp)
 	if err != nil {
 		log.Panic(errors.Wrap(err, "Could not save app to database"))

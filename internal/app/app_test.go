@@ -1,12 +1,15 @@
 package app
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
+	"protos/internal/capability"
 	"protos/internal/core"
 	"protos/internal/mock"
 
+	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/golang/mock/gomock"
 )
 
@@ -19,6 +22,8 @@ func TestAppManager(t *testing.T) {
 	tmMock := mock.NewMockTaskManager(ctrl)
 	rpMock := mock.NewMockRuntimePlatform(ctrl)
 	dbMock := mock.NewMockDB(ctrl)
+	wspMock := mock.NewMockWSPublisher(ctrl)
+	metaMock := mock.NewMockMeta(ctrl)
 
 	// test app manager creation and initial app loading from db
 	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
@@ -29,7 +34,7 @@ func TestAppManager(t *testing.T) {
 				&App{ID: "id2", Name: "app2", access: &sync.Mutex{}},
 				&App{ID: "id3", Name: "app3", access: &sync.Mutex{}})
 		})
-	am := CreateManager(rmMock, tmMock, rpMock, dbMock)
+	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock)
 
 	//
 	// GetCopy
@@ -92,4 +97,42 @@ func TestAppManager(t *testing.T) {
 		}
 	}
 
+	//
+	// CreateAsync
+	//
+
+	tmMock.EXPECT().New(gomock.Any()).Return(nil).Times(1)
+	_ = am.CreateAsync("a", "b", "c", core.InstallerMetadata{}, map[string]string{}, false)
+
+	//
+	// Create
+	//
+
+	appMgr := am.(*Manager)
+	_, err = appMgr.Create("a", "b", "", map[string]string{}, core.InstallerMetadata{}, "taskid")
+	if err == nil {
+		t.Errorf("Creating an app using a blank name should result in an error")
+	}
+
+	// installer params test
+	_, err = appMgr.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Params: []string{"test"}}, "taskid")
+	if err == nil {
+		t.Errorf("Creating an app and not providing the mandatory params should result in an error")
+	}
+
+	// capability test, error while creating DNS for app
+	metaMock.EXPECT().GetPublicIP().Return("1.1.1.1").Times(1)
+	rmMock.EXPECT().CreateDNS(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("test error")).Times(1)
+	_, err = appMgr.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []*capability.Capability{capability.PublicDNS}}, "taskid")
+	if err == nil {
+		t.Errorf("Creating an app and having a DNS creation error should result in an error")
+	}
+
+	// happy case
+	c := make(chan interface{}, 10)
+	wspMock.EXPECT().GetPublishChannel().Return(c).Times(1)
+	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(1)
+	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(1)
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	_, err = appMgr.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{}, "taskid")
 }
