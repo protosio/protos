@@ -31,3 +31,8 @@ type App interface {
 	CloseMsgQ()
 	Public() App
 }
+
+// WSPublisher returns a channel that can be used to publish WS messages to the frontend
+type WSPublisher interface {
+	GetPublishChannel() chan interface{}
+}
