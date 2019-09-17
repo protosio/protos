@@ -3,9 +3,10 @@ package resource
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"protos/internal/core"
 	"protos/internal/mock"
+
+	"github.com/golang/mock/gomock"
 )
 
 func TestResourceManager(t *testing.T) {
@@ -68,10 +69,9 @@ func TestResoureCreatorAndResource(t *testing.T) {
 	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(5)
 
 	rm := CreateManager(dbMock)
-	rc := rm.(core.ResourceCreator)
 
 	// test DNS resource creation
-	rsc, err := rc.CreateDNS("appid1", "app1", "MX", "1.2.3.4", 300)
+	rsc, err := rm.CreateDNS("appid1", "app1", "MX", "1.2.3.4", 300)
 	if err != nil {
 		t.Error("rm/rc.CreateDNS should not return an error:", err.Error())
 	}
@@ -113,7 +113,7 @@ func TestResoureCreatorAndResource(t *testing.T) {
 	}
 
 	// test Certificate resource creation
-	rsc, err = rc.CreateCert("appid1", []string{"protos.io"})
+	rsc, err = rm.CreateCert("appid1", []string{"protos.io"})
 	if err != nil {
 		t.Error("rm/rc.CreateCert should not return an error:", err.Error())
 	}
