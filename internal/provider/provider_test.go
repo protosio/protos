@@ -4,9 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"protos/internal/core"
 	"protos/internal/mock"
+
+	"github.com/golang/mock/gomock"
 )
 
 func TestProviderManager(t *testing.T) {

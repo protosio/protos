@@ -29,7 +29,7 @@ type Manager struct {
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
-func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) core.ProviderManager {
+func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Manager {
 	providers := map[core.RType]*Provider{}
 	providers[core.DNS] = &Provider{Type: core.DNS, rm: rm}
 	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
