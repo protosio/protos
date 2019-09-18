@@ -244,7 +244,7 @@ func (am *Manager) GetServices() []util.Service {
 func (am *Manager) Remove(appID string) error {
 	app, err := am.apps.get(appID)
 	if err != nil {
-		return errors.Wrapf(err, "Can't remove application %s", app.ID)
+		return errors.Wrapf(err, "Can't remove application %s", appID)
 	}
 
 	err = app.remove()
