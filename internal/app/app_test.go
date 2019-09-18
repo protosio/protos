@@ -12,6 +12,7 @@ import (
 
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/golang/mock/gomock"
+	"github.com/pkg/errors"
 )
 
 func TestAppManager(t *testing.T) {
@@ -25,6 +26,9 @@ func TestAppManager(t *testing.T) {
 	dbMock := mock.NewMockDB(ctrl)
 	wspMock := mock.NewMockWSPublisher(ctrl)
 	metaMock := mock.NewMockMeta(ctrl)
+	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
+
+	c := make(chan interface{}, 10)
 
 	// test app manager creation and initial app loading from db
 	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
@@ -130,7 +134,6 @@ func TestAppManager(t *testing.T) {
 	}
 
 	// happy case
-	c := make(chan interface{}, 10)
 	wspMock.EXPECT().GetPublishChannel().Return(c).Times(1)
 	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(1)
 	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(1)
@@ -181,7 +184,6 @@ func TestAppManager(t *testing.T) {
 	}
 
 	// existent app id - happy path
-	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
 	pruMock.EXPECT().Remove().Return(nil).Times(1)
 	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
 	err = am.Remove("id2")
@@ -199,5 +201,33 @@ func TestAppManager(t *testing.T) {
 	if removeTask != taskMock {
 		t.Error("RemoveAsync returned an incorrect task")
 	}
+
+	//
+	// saveApp
+	//
+
+	app2 := &App{ID: "id2", Name: "app2", access: &sync.Mutex{}, parent: am.(*Manager)}
+	wspMock.EXPECT().GetPublishChannel().Return(c).Times(2)
+	pruMock.EXPECT().GetStatus().Return("exited").Times(2)
+	pruMock.EXPECT().GetExitCode().Return(0).Times(2)
+	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(2)
+	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(2)
+	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
+
+	// happy path
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	appMgr.saveApp(app2)
+
+	// db error should lead to panic
+	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("test db error")).Times(1)
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Errorf("A DB error in saveApp should lead to a panic")
+			}
+		}()
+		appMgr.saveApp(app2)
+	}()
 
 }
