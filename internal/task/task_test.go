@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"protos/internal/mock"
 	"protos/internal/util"
+
+	"github.com/golang/mock/gomock"
 	"github.com/rs/xid"
 )
 
@@ -114,14 +115,16 @@ func TestTaskManager(t *testing.T) {
 	}
 
 	// test db failure during saveTask
-	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("db error")).Times(1)
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Errorf("A DB error in saveTask should lead to a panic")
-		}
+	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("test db error")).Times(1)
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Errorf("A DB error in saveTask should lead to a panic")
+			}
+		}()
+		tms.saveTask(&Base{ID: "0005", Status: INPROGRESS, access: &sync.Mutex{}})
 	}()
-	tms.saveTask(&Base{ID: "0005", Status: INPROGRESS, access: &sync.Mutex{}})
 
 }
 
