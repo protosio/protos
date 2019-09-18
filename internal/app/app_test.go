@@ -230,4 +230,27 @@ func TestAppManager(t *testing.T) {
 		appMgr.saveApp(app2)
 	}()
 
+	//
+	// CreateDevApp
+	//
+
+	// app creation returns error
+	_, err = appMgr.CreateDevApp("a", "b", "", core.InstallerMetadata{}, map[string]string{})
+	if err == nil {
+		t.Error("CreateDevApp should fail when the app creation step fails")
+	}
+
+	// happy case
+	wspMock.EXPECT().GetPublishChannel().Return(c).Times(2)
+	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(2)
+	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(2)
+	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
+	pruMock.EXPECT().GetStatus().Return("exited").Times(1)
+	pruMock.EXPECT().GetExitCode().Return(0).Times(1)
+	_, err = appMgr.CreateDevApp("a", "b", "c", core.InstallerMetadata{}, map[string]string{})
+	if err != nil {
+		t.Errorf("CreateDevApp(...) should NOT return an error: %s", err.Error())
+	}
+
 }
