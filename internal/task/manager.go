@@ -5,10 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/emirpasic/gods/maps/linkedhashmap"
-	"github.com/pkg/errors"
 	"protos/internal/core"
 	"protos/internal/util"
+
+	"github.com/emirpasic/gods/maps/linkedhashmap"
+	"github.com/pkg/errors"
 	"github.com/rs/xid"
 )
 
@@ -96,7 +97,7 @@ type Manager struct {
 }
 
 // CreateManager creates and returns a TaskManager
-func CreateManager(db core.DB, publisher wsPublisher) core.TaskManager {
+func CreateManager(db core.DB, publisher wsPublisher) *Manager {
 	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
 	db.Register(&Base{})
 	db.Register(&util.ProtosTime{})

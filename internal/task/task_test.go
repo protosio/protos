@@ -76,10 +76,9 @@ func TestTaskManager(t *testing.T) {
 	}
 
 	// test if saveTask makes all the right calls
-	tms := tm.(*Manager)
 	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(1)
 	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
-	tms.saveTask(&Base{ID: "0004", Status: INPROGRESS, access: &sync.Mutex{}})
+	tm.saveTask(&Base{ID: "0004", Status: INPROGRESS, access: &sync.Mutex{}})
 
 	msg2 := (<-wschan).(util.WSMessage)
 	if msg2.MsgType != util.WSMsgTypeUpdate || msg2.PayloadType != util.WSPayloadTypeTask {
@@ -123,7 +122,7 @@ func TestTaskManager(t *testing.T) {
 				t.Errorf("A DB error in saveTask should lead to a panic")
 			}
 		}()
-		tms.saveTask(&Base{ID: "0005", Status: INPROGRESS, access: &sync.Mutex{}})
+		tm.saveTask(&Base{ID: "0005", Status: INPROGRESS, access: &sync.Mutex{}})
 	}()
 
 }
@@ -153,7 +152,7 @@ func TestTask(t *testing.T) {
 	task := &Base{
 		access: &sync.Mutex{},
 		custom: customTask,
-		parent: tm.(*Manager),
+		parent: tm,
 
 		ID:        xid.New().String(),
 		Name:      "taskName",
