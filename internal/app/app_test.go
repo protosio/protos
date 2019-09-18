@@ -189,4 +189,15 @@ func TestAppManager(t *testing.T) {
 		t.Errorf("Remove(id2) should NOT return an error: %s", err.Error())
 	}
 
+	//
+	// RemoveAsync
+	//
+
+	taskMock := mock.NewMockTask(ctrl)
+	tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(1)
+	removeTask := am.RemoveAsync("id4")
+	if removeTask != taskMock {
+		t.Error("RemoveAsync returned an incorrect task")
+	}
+
 }
