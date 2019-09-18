@@ -93,13 +93,16 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
 
+	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher}
 	apps := Map{access: &sync.Mutex{}, apps: map[string]*App{}}
 	for _, app := range dbapps {
 		tmp := app
 		tmp.access = &sync.Mutex{}
+		tmp.parent = manager
 		apps.put(tmp.ID, tmp)
 	}
-	return &Manager{apps: apps, rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher}
+	manager.apps = apps
+	return manager
 }
 
 // GetCopy returns a copy of an application based on its id
