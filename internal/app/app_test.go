@@ -149,6 +149,7 @@ func TestAppManager(t *testing.T) {
 	rscMock.EXPECT().GetValue().Return(dnsRscType).Times(1)
 	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{"1": rscMock}).Times(1)
 	metaMock.EXPECT().GetDomain().Return("giurgiu.io").Times(1)
+
 	services := am.GetServices()
 	if len(services) != 1 {
 		t.Fatalf("GetServices should only return 1 service in this test, but %d were returned", len(services))
@@ -160,6 +161,32 @@ func TestAppManager(t *testing.T) {
 		svc.Name != "app1" ||
 		svc.Domain != "app1.giurgiu.io" {
 		t.Error("GetServices returned a service with incorrect values")
+	}
+
+	//
+	// Remove
+	//
+
+	// non-existent app id
+	err = am.Remove("id4")
+	if err == nil {
+		t.Error("Remove(id4) should return an error because id4 does not exist")
+	}
+
+	// existent app id which returns an error on app.remove()
+	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(nil, fmt.Errorf("test error")).Times(1)
+	err = am.Remove("id3")
+	if err == nil {
+		t.Error("Remove(id3) should return an error because app.remove() returns an error")
+	}
+
+	// existent app id - happy path
+	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
+	pruMock.EXPECT().Remove().Return(nil).Times(1)
+	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
+	err = am.Remove("id2")
+	if err != nil {
+		t.Errorf("Remove(id2) should NOT return an error: %s", err.Error())
 	}
 
 }
