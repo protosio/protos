@@ -113,14 +113,13 @@ func TestAppManager(t *testing.T) {
 	// Create
 	//
 
-	appMgr := am.(*Manager)
-	_, err = appMgr.Create("a", "b", "", map[string]string{}, core.InstallerMetadata{}, "taskid")
+	_, err = am.Create("a", "b", "", map[string]string{}, core.InstallerMetadata{}, "taskid")
 	if err == nil {
 		t.Errorf("Creating an app using a blank name should result in an error")
 	}
 
 	// installer params test
-	_, err = appMgr.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Params: []string{"test"}}, "taskid")
+	_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Params: []string{"test"}}, "taskid")
 	if err == nil {
 		t.Errorf("Creating an app and not providing the mandatory params should result in an error")
 	}
@@ -128,7 +127,7 @@ func TestAppManager(t *testing.T) {
 	// capability test, error while creating DNS for app
 	metaMock.EXPECT().GetPublicIP().Return("1.1.1.1").Times(1)
 	rmMock.EXPECT().CreateDNS(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("test error")).Times(1)
-	_, err = appMgr.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []*capability.Capability{capability.PublicDNS}}, "taskid")
+	_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []*capability.Capability{capability.PublicDNS}}, "taskid")
 	if err == nil {
 		t.Error("Creating an app and having a DNS creation error should result in an error")
 	}
@@ -138,7 +137,7 @@ func TestAppManager(t *testing.T) {
 	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(1)
 	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(1)
 	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
-	_, err = appMgr.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{}, "taskid")
+	_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{}, "taskid")
 
 	//
 	// GetServices
@@ -206,7 +205,7 @@ func TestAppManager(t *testing.T) {
 	// saveApp
 	//
 
-	app2 := &App{ID: "id2", Name: "app2", access: &sync.Mutex{}, parent: am.(*Manager)}
+	app2 := &App{ID: "id2", Name: "app2", access: &sync.Mutex{}, parent: am}
 	wspMock.EXPECT().GetPublishChannel().Return(c).Times(2)
 	pruMock.EXPECT().GetStatus().Return("exited").Times(2)
 	pruMock.EXPECT().GetExitCode().Return(0).Times(2)
@@ -216,7 +215,7 @@ func TestAppManager(t *testing.T) {
 
 	// happy path
 	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
-	appMgr.saveApp(app2)
+	am.saveApp(app2)
 
 	// db error should lead to panic
 	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("test db error")).Times(1)
@@ -227,7 +226,7 @@ func TestAppManager(t *testing.T) {
 				t.Errorf("A DB error in saveApp should lead to a panic")
 			}
 		}()
-		appMgr.saveApp(app2)
+		am.saveApp(app2)
 	}()
 
 	//
@@ -235,7 +234,7 @@ func TestAppManager(t *testing.T) {
 	//
 
 	// app creation returns error
-	_, err = appMgr.CreateDevApp("a", "b", "", core.InstallerMetadata{}, map[string]string{})
+	_, err = am.CreateDevApp("a", "b", "", core.InstallerMetadata{}, map[string]string{})
 	if err == nil {
 		t.Error("CreateDevApp should fail when the app creation step fails")
 	}
@@ -248,7 +247,7 @@ func TestAppManager(t *testing.T) {
 	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
 	pruMock.EXPECT().GetStatus().Return("exited").Times(1)
 	pruMock.EXPECT().GetExitCode().Return(0).Times(1)
-	_, err = appMgr.CreateDevApp("a", "b", "c", core.InstallerMetadata{}, map[string]string{})
+	_, err = am.CreateDevApp("a", "b", "c", core.InstallerMetadata{}, map[string]string{})
 	if err != nil {
 		t.Errorf("CreateDevApp(...) should NOT return an error: %s", err.Error())
 	}
