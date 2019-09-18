@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cnf/structhash"
 	"protos/internal/core"
+
+	"github.com/cnf/structhash"
 )
 
 // resourceContainer is a thread safe application map
@@ -75,7 +76,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
-func CreateManager(db core.DB) core.ResourceManager {
+func CreateManager(db core.DB) *Manager {
 	log.Debug("Retrieving resources from DB")
 	db.Register(&Resource{})
 	db.Register(&DNSResource{})
