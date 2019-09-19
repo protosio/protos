@@ -143,7 +143,7 @@ func TestAppManager(t *testing.T) {
 	// GetServices
 	//
 
-	dnsRscType := mock.NewMockType(ctrl)
+	dnsRscType := NewMockdnsResource(ctrl)
 	dnsRscType.EXPECT().GetName().Return("app1").Times(2)
 	dnsRscType.EXPECT().GetValue().Return("1.1.1.1").Times(1)
 	rscMock := mock.NewMockResource(ctrl)
