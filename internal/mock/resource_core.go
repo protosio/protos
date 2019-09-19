@@ -5,10 +5,9 @@
 package mock
 
 import (
+	gomock "github.com/golang/mock/gomock"
 	core "protos/internal/core"
 	reflect "reflect"
-
-	gomock "github.com/golang/mock/gomock"
 )
 
 // MockResourceManager is a mock of ResourceManager interface
@@ -343,32 +342,4 @@ func (m *MockType) Sanitize() core.Type {
 func (mr *MockTypeMockRecorder) Sanitize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sanitize", reflect.TypeOf((*MockType)(nil).Sanitize))
-}
-
-// GetName mocks base method
-func (m *MockType) GetName() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetName")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetName indicates an expected call of GetName
-func (mr *MockTypeMockRecorder) GetName() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetName", reflect.TypeOf((*MockdnsResource)(nil).GetName))
-}
-
-// GetValue mocks base method
-func (m *MockType) GetValue() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetValue")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetValue indicates an expected call of GetValue
-func (mr *MockTypeMockRecorder) GetValue() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValue", reflect.TypeOf((*MockdnsResource)(nil).GetValue))
 }
