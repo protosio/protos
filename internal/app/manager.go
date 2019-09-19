@@ -105,6 +105,20 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 	return manager
 }
 
+// methods to satisfy the parent interface
+
+func (am *Manager) getPlatform() core.RuntimePlatform {
+	return am.platform
+}
+
+func (am *Manager) getResourceManager() core.ResourceManager {
+	return am.rm
+}
+
+func (am *Manager) getTaskManager() core.TaskManager {
+	return am.tm
+}
+
 // GetCopy returns a copy of an application based on its id
 func (am *Manager) GetCopy(id string) (core.App, error) {
 	log.Debug("Copying application ", id)

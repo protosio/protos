@@ -29,6 +29,13 @@ const (
 	appBucket = "app"
 )
 
+type parent interface {
+	saveApp(app *App)
+	getPlatform() core.RuntimePlatform
+	getTaskManager() core.TaskManager
+	getResourceManager() core.ResourceManager
+}
+
 // Config the application config
 type Config struct {
 	Description string
@@ -46,7 +53,7 @@ type WSConnection struct {
 // App represents the application state
 type App struct {
 	access *sync.Mutex
-	parent *Manager
+	parent parent
 
 	// Public members
 	Name              string                 `json:"name"`
@@ -174,13 +181,13 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 	var err error
 	var volumeID string
 	if app.InstallerMetadata.PersistancePath != "" {
-		volumeID, err = app.parent.platform.GetOrCreateVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
+		volumeID, err = app.parent.getPlatform().GetOrCreateVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
 		if err != nil {
 			return nil, errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
 		}
 	}
 
-	cnt, err := app.parent.platform.NewContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
+	cnt, err := app.parent.getPlatform().NewContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create container")
 	}
@@ -194,7 +201,7 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 }
 
 func (app *App) getOrCreateContainer() (core.PlatformRuntimeUnit, error) {
-	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
 			cnt, err := app.createContainer()
@@ -215,7 +222,7 @@ func (app *App) enrichAppData() {
 		return
 	}
 
-	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
 			log.Warnf("Application %s(%s) has no container: %s", app.Name, app.ID, err.Error())
@@ -231,7 +238,7 @@ func (app *App) enrichAppData() {
 
 // StartAsync asynchronously starts an application and returns a task
 func (app *App) StartAsync() core.Task {
-	tsk := app.parent.tm.New(&StartAppTask{app: app})
+	tsk := app.parent.getTaskManager().New(&StartAppTask{app: app})
 	return tsk
 }
 
@@ -263,7 +270,7 @@ func (app *App) Start() error {
 
 // StopAsync asynchronously stops an application and returns a task
 func (app *App) StopAsync() core.Task {
-	tsk := app.parent.tm.New(&StopAppTask{app: app})
+	tsk := app.parent.getTaskManager().New(&StopAppTask{app: app})
 	return tsk
 }
 
@@ -271,7 +278,7 @@ func (app *App) StopAsync() core.Task {
 func (app *App) Stop() error {
 	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
 
-	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			return err
@@ -295,7 +302,7 @@ func (app *App) Stop() error {
 func (app *App) remove() error {
 	log.Debug("Removing application ", app.Name, "[", app.ID, "]")
 
-	cnt, err := app.parent.platform.GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			return err
@@ -309,7 +316,7 @@ func (app *App) remove() error {
 	}
 
 	if app.VolumeID != "" {
-		err := app.parent.platform.RemoveVolume(app.VolumeID)
+		err := app.parent.getPlatform().RemoveVolume(app.VolumeID)
 		if err != nil {
 			return err
 		}
@@ -317,12 +324,12 @@ func (app *App) remove() error {
 
 	// Removing resources requested by this app
 	for _, rscID := range app.Resources {
-		_, err := app.parent.rm.Get(rscID)
+		_, err := app.parent.getResourceManager().Get(rscID)
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-		err = app.parent.rm.Delete(rscID)
+		err = app.parent.getResourceManager().Delete(rscID)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -335,7 +342,7 @@ func (app *App) remove() error {
 // ReplaceContainer replaces the container of the app with the one provided. Used during development
 func (app *App) ReplaceContainer(id string) error {
 	log.Infof("Using container %s for app %s", id, app.Name)
-	cnt, err := app.parent.platform.GetDockerContainer(id)
+	cnt, err := app.parent.getPlatform().GetDockerContainer(id)
 	if err != nil {
 		return errors.Wrap(err, "Failed to replace container for app "+app.ID)
 	}
@@ -401,7 +408,7 @@ func (app *App) SendMsg(msg interface{}) error {
 func (app *App) CreateResource(appJSON []byte) (core.Resource, error) {
 
 	app.access.Lock()
-	rsc, err := app.parent.rm.CreateFromJSON(appJSON, app.ID)
+	rsc, err := app.parent.getResourceManager().CreateFromJSON(appJSON, app.ID)
 	if err != nil {
 		app.access.Unlock()
 		return &resource.Resource{}, err
@@ -416,7 +423,7 @@ func (app *App) CreateResource(appJSON []byte) (core.Resource, error) {
 //DeleteResource deletes a resource
 func (app *App) DeleteResource(resourceID string) error {
 	if v, index := util.StringInSlice(resourceID, app.Resources); v {
-		err := app.parent.rm.Delete(resourceID)
+		err := app.parent.getResourceManager().Delete(resourceID)
 		if err != nil {
 			return err
 		}
@@ -435,7 +442,7 @@ func (app *App) DeleteResource(resourceID string) error {
 func (app *App) GetResources() map[string]core.Resource {
 	resources := make(map[string]core.Resource)
 	for _, rscid := range app.Resources {
-		rsc, err := app.parent.rm.Get(rscid)
+		rsc, err := app.parent.getResourceManager().Get(rscid)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -449,7 +456,7 @@ func (app *App) GetResources() map[string]core.Resource {
 func (app *App) GetResource(resourceID string) core.Resource {
 	for _, rscid := range app.Resources {
 		if rscid == resourceID {
-			rsc, err := app.parent.rm.Get(rscid)
+			rsc, err := app.parent.getResourceManager().Get(rscid)
 			if err != nil {
 				log.Error(err)
 			}

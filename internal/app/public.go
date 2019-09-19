@@ -45,7 +45,7 @@ func (app App) Public() core.App {
 	pa := PublicApp{
 		App: app,
 	}
-	pa.Tasks = taskMap(app.parent.tm.GetIDs(app.Tasks))
+	pa.Tasks = taskMap(app.parent.getTaskManager().GetIDs(app.Tasks))
 	resourceFilter := func(rsc core.Resource) bool {
 		found, _ := util.StringInSlice(rsc.GetID(), app.Resources)
 		if found {
@@ -53,7 +53,7 @@ func (app App) Public() core.App {
 		}
 		return false
 	}
-	pa.Resources = app.parent.rm.Select(resourceFilter)
+	pa.Resources = app.parent.getResourceManager().Select(resourceFilter)
 	return &pa
 }
 
