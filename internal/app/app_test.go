@@ -253,3 +253,44 @@ func TestAppManager(t *testing.T) {
 	}
 
 }
+
+func TestApp(t *testing.T) {
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	parentMock := NewMockparent(ctrl)
+
+	app := &App{
+		ID:          "id1",
+		Name:        "app1",
+		Status:      "initial",
+		parent:      parentMock,
+		access:      &sync.Mutex{},
+		PublicPorts: []util.Port{util.Port{Nr: 10000, Type: util.TCP}}}
+
+	//
+	// GetID
+	//
+	if app.GetID() != "id1" {
+		t.Error("GetID should return id1")
+	}
+
+	//
+	// GetName
+	//
+	if app.GetName() != "app1" {
+		t.Error("GetName should return app1")
+	}
+
+	//
+	// SetStatus
+	//
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	teststatus := "teststatus"
+	app.SetStatus(teststatus)
+	if app.Status != teststatus {
+		t.Errorf("SetStatus did not set the correct status. Status should be %s but is %s", teststatus, app.Status)
+	}
+
+}
