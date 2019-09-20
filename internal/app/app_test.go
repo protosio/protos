@@ -260,6 +260,7 @@ func TestApp(t *testing.T) {
 	defer ctrl.Finish()
 
 	parentMock := NewMockparent(ctrl)
+	tmMock := mock.NewMockTaskManager(ctrl)
 
 	app := &App{
 		ID:          "id1",
@@ -291,6 +292,33 @@ func TestApp(t *testing.T) {
 	app.SetStatus(teststatus)
 	if app.Status != teststatus {
 		t.Errorf("SetStatus did not set the correct status. Status should be %s but is %s", teststatus, app.Status)
+	}
+
+	//
+	// AddAction
+	//
+
+	_, err := app.AddAction("bogus")
+	if err == nil {
+		t.Error("AddAction(bogus) should fail and return an error")
+	}
+
+	taskMock := mock.NewMockTask(ctrl)
+	parentMock.EXPECT().getTaskManager().Return(tmMock).Times(2)
+	tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(2)
+	tsk, err := app.AddAction("start")
+	if err != nil {
+		t.Error("AddAction(start) should NOT return an error")
+	}
+	if tsk != taskMock {
+		t.Error("AddAction(start) returned an incorrect task")
+	}
+	tsk, err = app.AddAction("stop")
+	if err != nil {
+		t.Error("AddAction(stop) should NOT return an error")
+	}
+	if tsk != taskMock {
+		t.Error("AddAction(stop) returned an incorrect task")
 	}
 
 }
