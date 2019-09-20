@@ -184,13 +184,13 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 	if app.InstallerMetadata.PersistancePath != "" {
 		volumeID, err = app.parent.getPlatform().GetOrCreateVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
 		if err != nil {
-			return nil, errors.New("Failed to create volume for app " + app.ID + ":" + err.Error())
+			return nil, errors.Wrapf(err, "Failed to create volume for app '%s'", app.ID)
 		}
 	}
 
 	cnt, err := app.parent.getPlatform().NewContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create container")
+		return nil, errors.Wrapf(err, "Failed to create container for app '%s'", app.ID)
 	}
 	app.access.Lock()
 	app.VolumeID = volumeID
