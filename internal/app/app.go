@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -158,7 +159,7 @@ func (app *App) AddAction(action string) (core.Task, error) {
 		tsk := app.StopAsync()
 		return tsk, nil
 	default:
-		return nil, errors.New("Action not supported")
+		return nil, fmt.Errorf("Action '%s' not supported", action)
 	}
 }
 
