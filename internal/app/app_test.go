@@ -260,6 +260,7 @@ func TestApp(t *testing.T) {
 	defer ctrl.Finish()
 
 	parentMock := NewMockparent(ctrl)
+	platformMock := mock.NewMockRuntimePlatform(ctrl)
 	tmMock := mock.NewMockTaskManager(ctrl)
 
 	app := &App{
@@ -319,6 +320,58 @@ func TestApp(t *testing.T) {
 	}
 	if tsk != taskMock {
 		t.Error("AddAction(stop) returned an incorrect task")
+	}
+
+	//
+	// AddTask
+	//
+
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	app.AddTask("tskid")
+	if present, _ := util.StringInSlice("tskid", app.Tasks); present == false {
+		t.Error("AddTask(tskid) did not lead to 'tskid' being present in the Tasks slice")
+	}
+
+	//
+	// Save
+	//
+
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	app.Save()
+
+	//
+	// createContainer
+	//
+
+	app.InstallerMetadata.PersistancePath = "/data"
+	// volume creation error
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetOrCreateVolume(gomock.Any(), gomock.Any()).Return("volumeid", errors.New("volume error")).Times(1)
+	_, err = app.createContainer()
+	if err == nil {
+		t.Error("createContainer should return an error when the volume creation errors out")
+	}
+
+	// new container error
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
+	platformMock.EXPECT().GetOrCreateVolume(gomock.Any(), gomock.Any()).Return("volumeid", nil).Times(1)
+	platformMock.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("container error")).Times(1)
+	_, err = app.createContainer()
+	if err == nil {
+		t.Error("createContainer should return an error when the container creation errors out")
+	}
+
+	// happy case
+	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
+	pruMock.EXPECT().GetID().Return("cntid").Times(1)
+	pruMock.EXPECT().GetIP().Return("cntip").Times(1)
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	platformMock.EXPECT().GetOrCreateVolume(gomock.Any(), gomock.Any()).Return("volumeid", nil).Times(1)
+	platformMock.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(pruMock, nil).Times(1)
+	_, err = app.createContainer()
+	if err != nil {
+		t.Error("createContainer should NOT return an error")
 	}
 
 }
