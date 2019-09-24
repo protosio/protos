@@ -641,4 +641,14 @@ func TestApp(t *testing.T) {
 		t.Errorf("remove() should NOT return an error when the is removed successfully: %s", err.Error())
 	}
 
+	//
+	// GetIP
+	//
+
+	app.IP = "1.1.1.1"
+	ip := app.GetIP()
+	if ip != app.IP {
+		t.Errorf("GetIP() returned an incorrect IP address. Should be '%s' but is '%s'", app.IP, ip)
+	}
+
 }
