@@ -211,7 +211,7 @@ func (app *App) getOrCreateContainer() (core.PlatformRuntimeUnit, error) {
 			}
 			return cnt, nil
 		}
-		return nil, err
+		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
 	}
 	return cnt, nil
 }
