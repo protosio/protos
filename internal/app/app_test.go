@@ -480,6 +480,7 @@ func TestApp(t *testing.T) {
 
 	// failed container retrieval
 	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
 	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, errors.New("container retrieval error"))
 	err = app.Start()
 	if err == nil {
@@ -491,6 +492,7 @@ func TestApp(t *testing.T) {
 
 	// container failes to start
 	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
 	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
 	pruMock.EXPECT().Start().Return(errors.New("failed to start test container"))
 	err = app.Start()

@@ -249,23 +249,16 @@ func (app *App) Start() error {
 
 	cnt, err := app.getOrCreateContainer()
 	if err != nil {
-		app.access.Lock()
-		app.Status = statusFailed
-		app.access.Unlock()
+		app.SetStatus(statusFailed)
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
 
 	err = cnt.Start()
 	if err != nil {
-		app.access.Lock()
-		app.Status = statusFailed
-		app.access.Unlock()
+		app.SetStatus(statusFailed)
 		return errors.Wrap(err, "Failed to start application "+app.ID)
 	}
-	app.access.Lock()
-	app.Status = statusRunning
-	app.access.Unlock()
-	app.Save()
+	app.SetStatus(statusRunning)
 	return nil
 }
 
