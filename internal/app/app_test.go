@@ -580,4 +580,65 @@ func TestApp(t *testing.T) {
 	if app.Status != statusStopped {
 		t.Errorf("App status on successful stop should be '%s' but is '%s'", statusStopped, app.Status)
 	}
+
+	//
+	// remove
+	//
+
+	// can't retrieve container
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, errors.New("container retrieval error"))
+	err = app.remove()
+	if err == nil {
+		t.Error("remove() should return an error when the container can't be retrieved")
+	}
+
+	// container not found
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound))
+	err = app.remove()
+	if err != nil {
+		t.Errorf("remove() should NOT return an error when the container is not found: %s", err.Error())
+	}
+
+	// container retrieved and failed to remove it
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Remove().Return(errors.New("container removal error")).Times(1)
+	err = app.remove()
+	if err == nil {
+		t.Error("remove() should return an error when the container can't be removed")
+	}
+
+	// container retrieved and removed
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Remove().Return(nil).Times(1)
+	err = app.remove()
+	if err != nil {
+		t.Errorf("remove() should NOT return an error when the container is removed successfully: %s", err.Error())
+	}
+
+	// failed to remove volume
+	app.VolumeID = "testvol"
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Remove().Return(nil).Times(1)
+	platformMock.EXPECT().RemoveVolume(app.VolumeID).Return(errors.New("volume removal error"))
+	err = app.remove()
+	if err == nil {
+		t.Error("remove() should return an error when the volume can't be removed")
+	}
+
+	// volume removed
+	app.VolumeID = "testvol"
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Remove().Return(nil).Times(1)
+	platformMock.EXPECT().RemoveVolume(app.VolumeID).Return(nil)
+	err = app.remove()
+	if err != nil {
+		t.Errorf("remove() should NOT return an error when the is removed successfully: %s", err.Error())
+	}
+
 }

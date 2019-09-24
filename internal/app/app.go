@@ -297,20 +297,20 @@ func (app *App) remove() error {
 	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
-			return err
+			return errors.Wrapf(err, "Failed to remove application %s(%s)", app.Name, app.ID)
 		}
 		log.Warnf("Application %s(%s) has no container to remove", app.Name, app.ID)
 	} else {
 		err := cnt.Remove()
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "Failed to remove application %s(%s)", app.Name, app.ID)
 		}
 	}
 
 	if app.VolumeID != "" {
 		err := app.parent.getPlatform().RemoveVolume(app.VolumeID)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "Failed to remove application %s(%s)", app.Name, app.ID)
 		}
 	}
 
