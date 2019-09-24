@@ -262,6 +262,7 @@ func TestApp(t *testing.T) {
 	parentMock := NewMockparent(ctrl)
 	platformMock := mock.NewMockRuntimePlatform(ctrl)
 	tmMock := mock.NewMockTaskManager(ctrl)
+	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
 
 	app := &App{
 		ID:          "id1",
@@ -362,7 +363,6 @@ func TestApp(t *testing.T) {
 	}
 
 	// happy case
-	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
 	pruMock.EXPECT().GetID().Return("cntid").Times(1)
 	pruMock.EXPECT().GetIP().Return("cntip").Times(1)
 	parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
@@ -371,7 +371,54 @@ func TestApp(t *testing.T) {
 	platformMock.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(pruMock, nil).Times(1)
 	_, err = app.createContainer()
 	if err != nil {
-		t.Error("createContainer should NOT return an error")
+		t.Errorf("createContainer should NOT return an error: %s", err.Error())
 	}
 
+	//
+	// getOrCreateContainer
+	//
+	app.InstallerMetadata.PersistancePath = ""
+
+	// container retrieval error
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, errors.New("container error"))
+	_, err = app.getOrCreateContainer()
+	if err == nil {
+		t.Error("getOrCreateContainer() should return an error when the container can't be retrieved")
+	}
+
+	// container retrieval returns err of type core.ErrContainerNotFound, and container creation fails
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, util.NewTypedError("container error", core.ErrContainerNotFound))
+	platformMock.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("container creation error")).Times(1)
+	_, err = app.getOrCreateContainer()
+	if err == nil {
+		t.Error("getOrCreateContainer() should return an error when no container exists and the creation of one fails")
+	}
+
+	// container retrieval returns err and creation of a new container works
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, util.NewTypedError("container error", core.ErrContainerNotFound))
+	platformMock.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(pruMock, nil).Times(1)
+	pruMock.EXPECT().GetID().Return("cntid").Times(1)
+	pruMock.EXPECT().GetIP().Return("cntip").Times(1)
+	cnt, err := app.getOrCreateContainer()
+	if err != nil {
+		t.Errorf("getOrCreateContainer() should not return an error: %s", err.Error())
+	}
+	if cnt != pruMock {
+		t.Errorf("getOrCreateContainer() returned an incorrect container: %p vs %p", cnt, pruMock)
+	}
+
+	// container retrieval works
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	cnt, err = app.getOrCreateContainer()
+	if err != nil {
+		t.Errorf("getOrCreateContainer() should not return an error: %s", err.Error())
+	}
+	if cnt != pruMock {
+		t.Errorf("getOrCreateContainer() returned an incorrect container: %p vs %p", cnt, pruMock)
+	}
 }
