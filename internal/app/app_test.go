@@ -515,4 +515,15 @@ func TestApp(t *testing.T) {
 	if app.Status != statusRunning {
 		t.Errorf("App status on successful start should be '%s' but is '%s'", statusRunning, app.Status)
 	}
+
+	//
+	// StopAsync
+	//
+
+	parentMock.EXPECT().getTaskManager().Return(tmMock).Times(1)
+	tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(1)
+	tsk = app.StopAsync()
+	if tsk != taskMock {
+		t.Errorf("StopAsync() returned an incorrect task: %p vs %p", tsk, taskMock)
+	}
 }

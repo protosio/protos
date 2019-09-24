@@ -239,8 +239,7 @@ func (app *App) enrichAppData() {
 
 // StartAsync asynchronously starts an application and returns a task
 func (app *App) StartAsync() core.Task {
-	tsk := app.parent.getTaskManager().New(&StartAppTask{app: app})
-	return tsk
+	return app.parent.getTaskManager().New(&StartAppTask{app: app})
 }
 
 // Start starts an application
@@ -264,8 +263,7 @@ func (app *App) Start() error {
 
 // StopAsync asynchronously stops an application and returns a task
 func (app *App) StopAsync() core.Task {
-	tsk := app.parent.getTaskManager().New(&StopAppTask{app: app})
-	return tsk
+	return app.parent.getTaskManager().New(&StopAppTask{app: app})
 }
 
 // Stop stops an application
