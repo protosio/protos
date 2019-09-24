@@ -526,4 +526,58 @@ func TestApp(t *testing.T) {
 	if tsk != taskMock {
 		t.Errorf("StopAsync() returned an incorrect task: %p vs %p", tsk, taskMock)
 	}
+
+	//
+	// Stop
+	//
+
+	// failed container retrieval
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, errors.New("container retrieval error"))
+	err = app.Stop()
+	if err == nil {
+		t.Error("Stop() should return an error when the container can't be retrieved")
+	}
+	if app.Status != statusUnknown {
+		t.Errorf("App status when Stop() fails (because of failure to retrieve container) should be '%s' but is '%s'", statusUnknown, app.Status)
+	}
+
+	// container not found
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound))
+	err = app.Stop()
+	if err != nil {
+		t.Error("Stop() should NOT return an error when the container of an app does not exist")
+	}
+	if app.Status != statusStopped {
+		t.Errorf("App status when Stop() succeeds (and app container does not exist) should be '%s' but is '%s'", statusStopped, app.Status)
+	}
+
+	// container fails to stop
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Stop().Return(errors.New("failed to stop container"))
+	err = app.Stop()
+	if err == nil {
+		t.Error("Stop() should return an error when the container can't be stopped")
+	}
+	if app.Status != statusUnknown {
+		t.Errorf("App status on unsuccessful stop should be '%s' but is '%s'", statusUnknown, app.Status)
+	}
+
+	// happy case
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Stop().Return(nil)
+	err = app.Stop()
+	if err != nil {
+		t.Errorf("Stop() should NOT return an error: %s", err.Error())
+	}
+	if app.Status != statusStopped {
+		t.Errorf("App status on successful stop should be '%s' but is '%s'", statusStopped, app.Status)
+	}
 }

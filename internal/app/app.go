@@ -273,20 +273,20 @@ func (app *App) Stop() error {
 	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
+			app.SetStatus(statusUnknown)
 			return err
 		}
 		log.Warnf("Application %s(%s) has no container to stop", app.Name, app.ID)
+		app.SetStatus(statusStopped)
 		return nil
 	}
 
 	err = cnt.Stop()
 	if err != nil {
+		app.SetStatus(statusUnknown)
 		return errors.Wrapf(err, "Can't stop application %s(%s)", app.Name, app.ID)
 	}
-	app.access.Lock()
-	app.Status = statusStopped
-	app.access.Unlock()
-	app.Save()
+	app.SetStatus(statusStopped)
 	return nil
 }
 
