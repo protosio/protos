@@ -263,6 +263,7 @@ func TestApp(t *testing.T) {
 	platformMock := mock.NewMockRuntimePlatform(ctrl)
 	tmMock := mock.NewMockTaskManager(ctrl)
 	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
+	taskMock := mock.NewMockTask(ctrl)
 
 	app := &App{
 		ID:          "id1",
@@ -305,7 +306,6 @@ func TestApp(t *testing.T) {
 		t.Error("AddAction(bogus) should fail and return an error")
 	}
 
-	taskMock := mock.NewMockTask(ctrl)
 	parentMock.EXPECT().getTaskManager().Return(tmMock).Times(2)
 	tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(2)
 	tsk, err := app.AddAction("start")
@@ -461,5 +461,16 @@ func TestApp(t *testing.T) {
 	app.enrichAppData()
 	if app.Status != statusFailed {
 		t.Errorf("enrichAppData failed. App status should be '%s' but is '%s'", statusStopped, app.Status)
+	}
+
+	//
+	// StartAsync
+	//
+
+	parentMock.EXPECT().getTaskManager().Return(tmMock).Times(1)
+	tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(1)
+	tsk = app.StartAsync()
+	if tsk != taskMock {
+		t.Errorf("StartAsync() returned an incorrect task: %p vs %p", tsk, taskMock)
 	}
 }
