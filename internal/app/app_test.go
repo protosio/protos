@@ -473,4 +473,44 @@ func TestApp(t *testing.T) {
 	if tsk != taskMock {
 		t.Errorf("StartAsync() returned an incorrect task: %p vs %p", tsk, taskMock)
 	}
+
+	//
+	// Start
+	//
+
+	// failed container retrieval
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(nil, errors.New("container retrieval error"))
+	err = app.Start()
+	if err == nil {
+		t.Error("Start() should return an error when the container can't be retrieved")
+	}
+	if app.Status != statusFailed {
+		t.Errorf("App status on failed start should be '%s' but is '%s'", statusFailed, app.Status)
+	}
+
+	// container failes to start
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Start().Return(errors.New("failed to start test container"))
+	err = app.Start()
+	if err == nil {
+		t.Error("Start() should return an error when the container can't be started")
+	}
+	if app.Status != statusFailed {
+		t.Errorf("App status on failed start should be '%s' but is '%s'", statusFailed, app.Status)
+	}
+
+	// happy case
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
+	platformMock.EXPECT().GetDockerContainer("cntid").Return(pruMock, nil)
+	pruMock.EXPECT().Start().Return(nil)
+	err = app.Start()
+	if err != nil {
+		t.Errorf("Start() should not return an error: %s", err.Error())
+	}
+	if app.Status != statusRunning {
+		t.Errorf("App status on successful start should be '%s' but is '%s'", statusRunning, app.Status)
+	}
 }
