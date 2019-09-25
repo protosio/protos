@@ -416,7 +416,7 @@ func (app *App) DeleteResource(resourceID string) error {
 	if v, index := util.StringInSlice(resourceID, app.Resources); v {
 		err := app.parent.getResourceManager().Delete(resourceID)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "Failed to delete resource for app "+app.ID)
 		}
 		app.access.Lock()
 		app.Resources = util.RemoveStringFromSlice(app.Resources, index)

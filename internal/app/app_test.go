@@ -735,6 +735,7 @@ func TestApp(t *testing.T) {
 	// CreateResource
 	//
 	rscPayload := []byte("payload")
+	rscMock := mock.NewMockResource(ctrl)
 
 	// error creating rsc by ResourceManager
 	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
@@ -745,7 +746,6 @@ func TestApp(t *testing.T) {
 	}
 
 	// happy case
-	rscMock := mock.NewMockResource(ctrl)
 	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
 	rmMock.EXPECT().CreateFromJSON(rscPayload, app.ID).Return(rscMock, nil)
 	rscMock.EXPECT().GetID().Return("rscid").Times(1)
@@ -758,4 +758,34 @@ func TestApp(t *testing.T) {
 		t.Errorf("CreateResource() returned an incorrect resource instance: %p vs %p", rsc, rscMock)
 	}
 
+	//
+	// DeleteResource
+	//
+	app.Resources = []string{"rscid"}
+
+	// rsc id not owned by app
+	err = app.DeleteResource("rscid2")
+	if err == nil {
+		t.Error("DeleteResource() should return an error when the resource id is not owned by the app")
+	}
+
+	// rsc can't be deleted by the resource manager
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().Delete("rscid").Return(errors.New("can't delete resource"))
+	err = app.DeleteResource("rscid")
+	if err == nil {
+		t.Error("DeleteResource() should return an error when the resource can't be deleted by the resource manager")
+	}
+
+	// happy case
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().Delete("rscid").Return(nil)
+	parentMock.EXPECT().saveApp(app).Return().Times(1)
+	err = app.DeleteResource("rscid")
+	if err != nil {
+		t.Errorf("DeleteResource() should NOT return an error: %s", err.Error())
+	}
+	if len(app.Resources) != 0 {
+		t.Error("DeleteResource() did not correctly remove the resource id from the app struct")
+	}
 }
