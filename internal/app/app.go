@@ -432,10 +432,11 @@ func (app *App) DeleteResource(resourceID string) error {
 // GetResources retrieves all the resources that belong to an application
 func (app *App) GetResources() map[string]core.Resource {
 	resources := make(map[string]core.Resource)
+	rm := app.parent.getResourceManager()
 	for _, rscid := range app.Resources {
-		rsc, err := app.parent.getResourceManager().Get(rscid)
+		rsc, err := rm.Get(rscid)
 		if err != nil {
-			log.Error(err)
+			log.Error(errors.Wrap(err, "Failed to get resource for app "+app.ID))
 			continue
 		}
 		resources[rscid] = rsc

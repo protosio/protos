@@ -788,4 +788,49 @@ func TestApp(t *testing.T) {
 	if len(app.Resources) != 0 {
 		t.Error("DeleteResource() did not correctly remove the resource id from the app struct")
 	}
+
+	//
+	// GetResources
+	//
+	// rscids := []string{"rscid1", "rscid2"}
+
+	// 0 resources
+	rscids := []string{}
+	app.Resources = rscids
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rscs := app.GetResources()
+	if len(rscs) != len(rscids) {
+		t.Errorf("GetResources() should return %d resources but it returned %d", len(rscids), len(rscs))
+	}
+
+	// 2 resources, 1 is not retrieved by the resource manager
+	rscids = []string{"rscid1", "rscid2"}
+	rsc1 := mock.NewMockResource(ctrl)
+	app.Resources = rscids
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().Get(rscids[0]).Return(rsc1, nil)
+	rmMock.EXPECT().Get(rscids[1]).Return(nil, errors.New("couldn't retrieve resource"))
+	rscs = app.GetResources()
+	if len(rscs) != 1 {
+		t.Errorf("GetResources() should return %d resources but it returned %d", 1, len(rscs))
+	}
+	if rscs[rscids[0]] != rsc1 {
+		t.Errorf("GetResources() returned the wrong resource. Id should be %s but is %s", rscids[0], rsc1.GetID())
+	}
+
+	// happy case, 2 resources, both successfully retrieved
+	rscids = []string{"rscid1", "rscid2"}
+	rsc1 = mock.NewMockResource(ctrl)
+	rsc2 := mock.NewMockResource(ctrl)
+	app.Resources = rscids
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().Get(rscids[0]).Return(rsc1, nil)
+	rmMock.EXPECT().Get(rscids[1]).Return(rsc2, nil)
+	rscs = app.GetResources()
+	if len(rscs) != len(rscids) {
+		t.Errorf("GetResources() should return %d resources but it returned %d", len(rscids), len(rscs))
+	}
+	if rscs[rscids[0]] != rsc1 || rscs[rscids[1]] != rsc2 {
+		t.Error("GetResources() returned the wrong resources")
+	}
 }
