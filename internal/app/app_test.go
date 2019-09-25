@@ -880,4 +880,16 @@ func TestApp(t *testing.T) {
 		t.Errorf("ValidateCapability() should NOT return an error when the app has that capability: %s", err.Error())
 	}
 
+	//
+	// Provides
+	//
+
+	if app.Provides("non-existent rsc type") != false {
+		t.Error("Provides() should return false when called with a rsc type that is not provided by the app")
+	}
+	app.InstallerMetadata.Provides = []string{"rsctype"}
+	if app.Provides("rsctype") != true {
+		t.Error("Provides() should return true when called with a rsc type that is provided by the app")
+	}
+
 }
