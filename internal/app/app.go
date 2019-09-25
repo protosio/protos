@@ -362,7 +362,7 @@ func (app *App) SetMsgQ(msgq *WSConnection) {
 	app.msgq = msgq
 	id := app.ID
 	app.access.Unlock()
-	log.Debug("New WS connection established for app ", id)
+	log.Debug("New WS connection available for app ", id)
 }
 
 // CloseMsgQ closes and removes the WS connection to the application

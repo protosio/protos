@@ -689,4 +689,13 @@ func TestApp(t *testing.T) {
 		t.Errorf("GetIP() returned an incorrect IP address. Should be '%s' but is '%s'", app.IP, ip)
 	}
 
+	//
+	// SetMsgQ
+	//
+
+	wsc := &WSConnection{}
+	app.SetMsgQ(wsc)
+	if app.msgq != wsc {
+		t.Error("SetMsgQ() set an incorrect msgq on the app struct")
+	}
 }
