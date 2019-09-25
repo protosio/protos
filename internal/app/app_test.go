@@ -862,4 +862,22 @@ func TestApp(t *testing.T) {
 		t.Errorf("GetResource() returned an incorrect resource: %p vs %p", rsc, rsc1)
 	}
 
+	//
+	// ValidateCapability
+	//
+
+	// app doesn't have AuthUser capability
+	app.Capabilities = []string{}
+	err = app.ValidateCapability(capability.AuthUser)
+	if err == nil {
+		t.Error("ValidateCapability() should return an error when the app doesn't have that capability")
+	}
+
+	// app has AuthUser capability
+	app.Capabilities = []string{capability.AuthUser.Name}
+	err = app.ValidateCapability(capability.AuthUser)
+	if err != nil {
+		t.Errorf("ValidateCapability() should NOT return an error when the app has that capability: %s", err.Error())
+	}
+
 }
