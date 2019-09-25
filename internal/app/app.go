@@ -445,17 +445,16 @@ func (app *App) GetResources() map[string]core.Resource {
 }
 
 // GetResource returns resource with provided ID, if it belongs to this app
-func (app *App) GetResource(resourceID string) core.Resource {
-	for _, rscid := range app.Resources {
-		if rscid == resourceID {
-			rsc, err := app.parent.getResourceManager().Get(rscid)
-			if err != nil {
-				log.Error(err)
-			}
-			return rsc
+func (app *App) GetResource(resourceID string) (core.Resource, error) {
+	if found, _ := util.StringInSlice(resourceID, app.Resources); found {
+		rsc, err := app.parent.getResourceManager().Get(resourceID)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to get resource %s for app %s", resourceID, app.ID)
 		}
+		return rsc, nil
+
 	}
-	return nil
+	return nil, errors.New("Resource " + resourceID + " not owned by application " + app.ID)
 }
 
 // ValidateCapability implements the capability checker interface

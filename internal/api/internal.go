@@ -352,9 +352,8 @@ func getAppResource(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		resourceID := vars["resourceID"]
 		app := r.Context().Value(appKey).(*app.App)
-		rsc := app.GetResource(resourceID)
-		if rsc == nil {
-			err := errors.New("Could not find resource " + resourceID)
+		rsc, err := app.GetResource(resourceID)
+		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
