@@ -41,22 +41,23 @@ func TestAppManager(t *testing.T) {
 		})
 
 	// one of the inputs is nil
-	am, err := CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock)
-	log.Info(err)
-	if err == nil {
-		t.Errorf("CreateManager should return an error when any of the inputs is nil")
-	}
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Errorf("A nil input in the CreateManager call should lead to a panic")
+			}
+		}()
+		CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock)
+	}()
 
 	// happy case
-	am, err = CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock)
-	if err != nil {
-		t.Errorf("CreateManager should not return an error: %s", err.Error())
-	}
+	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock)
 
 	//
 	// GetCopy
 	//
-	_, err = am.GetCopy("wrongId")
+	_, err := am.GetCopy("wrongId")
 	if err == nil {
 		t.Errorf("GetCopy(wrongId) should return an error")
 	}

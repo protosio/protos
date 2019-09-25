@@ -83,10 +83,10 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher) (*Manager, error) {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher) *Manager {
 
 	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil {
-		return nil, errors.New("Failed to create app manager: none of the inputs can be nil")
+		log.Panic("Failed to create app manager: none of the inputs can be nil")
 	}
 
 	log.Debug("Retrieving applications from DB")
@@ -107,7 +107,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 		apps.put(tmp.ID, tmp)
 	}
 	manager.apps = apps
-	return manager, nil
+	return manager
 }
 
 // methods to satisfy the parent interface
