@@ -39,12 +39,24 @@ func TestAppManager(t *testing.T) {
 				&App{ID: "id2", Name: "app2", access: &sync.Mutex{}},
 				&App{ID: "id3", Name: "app3", access: &sync.Mutex{}})
 		})
-	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock)
+
+	// one of the inputs is nil
+	am, err := CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock)
+	log.Info(err)
+	if err == nil {
+		t.Errorf("CreateManager should return an error when any of the inputs is nil")
+	}
+
+	// happy case
+	am, err = CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock)
+	if err != nil {
+		t.Errorf("CreateManager should not return an error: %s", err.Error())
+	}
 
 	//
 	// GetCopy
 	//
-	_, err := am.GetCopy("wrongId")
+	_, err = am.GetCopy("wrongId")
 	if err == nil {
 		t.Errorf("GetCopy(wrongId) should return an error")
 	}
