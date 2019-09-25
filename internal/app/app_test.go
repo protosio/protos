@@ -792,7 +792,6 @@ func TestApp(t *testing.T) {
 	//
 	// GetResources
 	//
-	// rscids := []string{"rscid1", "rscid2"}
 
 	// 0 resources
 	rscids := []string{}
@@ -833,4 +832,34 @@ func TestApp(t *testing.T) {
 	if rscs[rscids[0]] != rsc1 || rscs[rscids[1]] != rsc2 {
 		t.Error("GetResources() returned the wrong resources")
 	}
+
+	//
+	// GetResource
+	//
+
+	// bad resource id which does not belong to the app
+	_, err = app.GetResource("rscid3")
+	if err == nil {
+		t.Error("GetResource() should return an error when the resource id does not belong to the app")
+	}
+
+	// correct resource ID but resource manager can't retrieve it
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().Get("rscid2").Return(nil, errors.New("couldn't retrieve resource"))
+	_, err = app.GetResource("rscid2")
+	if err == nil {
+		t.Error("GetResource() should return an error when the resource id cannot be retrieved by the resource manager")
+	}
+
+	// happy case
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().Get("rscid2").Return(rsc1, nil)
+	rsc, err = app.GetResource("rscid2")
+	if err != nil {
+		t.Errorf("GetResource() should NOT return an error: %s", err.Error())
+	}
+	if rsc != rsc1 {
+		t.Errorf("GetResource() returned an incorrect resource: %p vs %p", rsc, rsc1)
+	}
+
 }
