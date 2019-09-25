@@ -693,9 +693,41 @@ func TestApp(t *testing.T) {
 	// SetMsgQ
 	//
 
-	wsc := &WSConnection{}
+	wsc := &WSConnection{Close: make(chan bool, 1), Send: make(chan interface{}, 1)}
 	app.SetMsgQ(wsc)
 	if app.msgq != wsc {
 		t.Error("SetMsgQ() set an incorrect msgq on the app struct")
 	}
+
+	//
+	// CloseMsgQ
+	//
+
+	app.CloseMsgQ()
+	if <-wsc.Close != true {
+		t.Error("CloseMsgQ() did not lead to a close message in the Close channel")
+	}
+
+	//
+	// SendMsg
+	//
+
+	// msgq is nil
+	err = app.SendMsg("test")
+	if err == nil {
+		t.Error("SendMsg() should return an error when the app msgq is nil")
+	}
+
+	// happy case
+	app.SetMsgQ(wsc)
+	msg1 := "qmsg"
+	err = app.SendMsg(msg1)
+	if err != nil {
+		t.Errorf("SendMsg() should not return an error when the msgq is set: %s", err.Error())
+	}
+	msg2 := <-wsc.Send
+	if msg2 != msg2 {
+		t.Errorf("SendMsg() sent an incorrect message: '%s' vs '%s'", msg2, msg1)
+	}
+
 }
