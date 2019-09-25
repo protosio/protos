@@ -642,6 +642,31 @@ func TestApp(t *testing.T) {
 	}
 
 	//
+	// ReplaceContainer
+	//
+
+	// container can't be retrieved
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("newcntid").Return(nil, errors.New("container retrieval error"))
+	err = app.ReplaceContainer("newcntid")
+	if err == nil {
+		t.Error("ReplaceContainer() should return an error when the container can't be retrieved")
+	}
+
+	// happy case
+	parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+	platformMock.EXPECT().GetDockerContainer("newcntid").Return(pruMock, nil)
+	pruMock.EXPECT().GetIP().Return("1.1.1.1").Times(1)
+	parentMock.EXPECT().saveApp(gomock.Any()).Times(1)
+	err = app.ReplaceContainer("newcntid")
+	if err != nil {
+		t.Errorf("ReplaceContainer() should NOT return an error: %s", err.Error())
+	}
+	if app.ContainerID != "newcntid" || app.GetIP() != "1.1.1.1" {
+		t.Errorf("ReplaceContainer() should lead to different data in app struct: %#v", app)
+	}
+
+	//
 	// GetIP
 	//
 
