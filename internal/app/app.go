@@ -10,7 +10,6 @@ import (
 	"protos/internal/core"
 
 	"protos/internal/capability"
-	"protos/internal/resource"
 	"protos/internal/util"
 )
 
@@ -403,7 +402,7 @@ func (app *App) CreateResource(appJSON []byte) (core.Resource, error) {
 	rsc, err := app.parent.getResourceManager().CreateFromJSON(appJSON, app.ID)
 	if err != nil {
 		app.access.Unlock()
-		return &resource.Resource{}, err
+		return nil, errors.Wrap(err, "Failed to create resource for app "+app.ID)
 	}
 	app.Resources = append(app.Resources, rsc.GetID())
 	app.access.Unlock()

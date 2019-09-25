@@ -277,6 +277,7 @@ func TestApp(t *testing.T) {
 	tmMock := mock.NewMockTaskManager(ctrl)
 	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
 	taskMock := mock.NewMockTask(ctrl)
+	rmMock := mock.NewMockResourceManager(ctrl)
 
 	app := &App{
 		ID:          "id1",
@@ -728,6 +729,33 @@ func TestApp(t *testing.T) {
 	msg2 := <-wsc.Send
 	if msg2 != msg2 {
 		t.Errorf("SendMsg() sent an incorrect message: '%s' vs '%s'", msg2, msg1)
+	}
+
+	//
+	// CreateResource
+	//
+	rscPayload := []byte("payload")
+
+	// error creating rsc by ResourceManager
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().CreateFromJSON(rscPayload, app.ID).Return(nil, errors.New("failed to create resource"))
+	_, err = app.CreateResource(rscPayload)
+	if err == nil {
+		t.Error("CreateResource() should return an error when the resource manager fails to create the resource")
+	}
+
+	// happy case
+	rscMock := mock.NewMockResource(ctrl)
+	parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+	rmMock.EXPECT().CreateFromJSON(rscPayload, app.ID).Return(rscMock, nil)
+	rscMock.EXPECT().GetID().Return("rscid").Times(1)
+	parentMock.EXPECT().saveApp(app).Return().Times(1)
+	rsc, err := app.CreateResource(rscPayload)
+	if err != nil {
+		t.Errorf("CreateResource() should NOT return an error: %s", err.Error())
+	}
+	if rsc != rscMock {
+		t.Errorf("CreateResource() returned an incorrect resource instance: %p vs %p", rsc, rscMock)
 	}
 
 }
