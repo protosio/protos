@@ -35,9 +35,9 @@ func TestAppManager(t *testing.T) {
 		Do(func(to interface{}) {
 			apps := to.(*[]*App)
 			*apps = append(*apps,
-				&App{ID: "id1", Name: "app1", Status: statusUnknown, access: &sync.Mutex{}, PublicPorts: []util.Port{util.Port{Nr: 10000, Type: util.TCP}}},
-				&App{ID: "id2", Name: "app2", Status: statusUnknown, access: &sync.Mutex{}},
-				&App{ID: "id3", Name: "app3", Status: statusUnknown, access: &sync.Mutex{}})
+				&App{ID: "id1", Name: "app1", Status: statusUnknown, Tasks: []string{"1", "2"}, access: &sync.Mutex{}, PublicPorts: []util.Port{util.Port{Nr: 10000, Type: util.TCP}}},
+				&App{ID: "id2", Name: "app2", Status: statusUnknown, Tasks: []string{"1"}, access: &sync.Mutex{}},
+				&App{ID: "id3", Name: "app3", Status: statusUnknown, Tasks: []string{"1"}, access: &sync.Mutex{}})
 		})
 
 	// one of the inputs is nil
@@ -305,6 +305,33 @@ func TestAppManager(t *testing.T) {
 		am.Remove(app.GetID())
 	})
 
+	//
+	// GetAllPublic
+	//
+
+	t.Run("GetAllPublic", func(t *testing.T) {
+		nrOfApps := len(am.apps.apps)
+		tasks := linkedhashmap.New()
+		tasks.Put("1", gomock.Any())
+		tasks.Put("2", gomock.Any())
+		tmMock.EXPECT().GetAll().Return(tasks).Times(1)
+		rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(nrOfApps)
+		pruMock.EXPECT().GetStatus().Return("exited").Times(nrOfApps)
+		pruMock.EXPECT().GetExitCode().Return(0).Times(nrOfApps)
+		papps := am.GetAllPublic()
+		if len(papps) != nrOfApps {
+			t.Errorf("GetAllPublic() should return %d apps, but it returned %d", nrOfApps, len(papps))
+		}
+		tsks1 := linkedhashmap.Map(papps["id1"].(*PublicApp).Tasks)
+		if len(tsks1.Keys()) != 2 {
+			t.Errorf("There should be 2 tasks in the public app with id1, but there are %d", len(tsks1.Keys()))
+		}
+		tsks2 := linkedhashmap.Map(papps["id3"].(*PublicApp).Tasks)
+		if len(tsks2.Keys()) != 1 {
+			t.Errorf("There should be 1 tasks in the public app with id2, but there are %d", len(tsks2.Keys()))
+		}
+
+	})
 
 }
 

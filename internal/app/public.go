@@ -7,6 +7,7 @@ import (
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 )
 
+// taskMap is a local type that implements MarshalJSON interface
 type taskMap linkedhashmap.Map
 
 // PublicApp is used for marshalling app data to the UI
@@ -15,28 +16,6 @@ type PublicApp struct {
 
 	Tasks     taskMap                  `json:"tasks"`
 	Resources map[string]core.Resource `json:"resources"`
-}
-
-// ToDo: do app refresh caching in the platform code
-func (am *Manager) enrichPublicApps(apps map[string]App) map[string]core.App {
-	tasks := am.tm.GetAll()
-	papps := map[string]core.App{}
-
-	for _, app := range apps {
-		tmp := app
-		tmp.enrichAppData()
-		papp := PublicApp{App: tmp}
-		// using a closure to access the task ids stored in tmp.Tasks
-		filter := func(k interface{}, v interface{}) bool {
-			if found, _ := util.StringInSlice(k.(string), tmp.Tasks); found {
-				return true
-			}
-			return false
-		}
-		papp.Tasks = taskMap(*tasks.Select(filter))
-		papps[papp.ID] = &papp
-	}
-	return papps
 }
 
 // Public returns a public version of the app struct
@@ -59,7 +38,24 @@ func (app App) Public() core.App {
 
 // GetAllPublic returns all applications in their public form, enriched with the latest status message
 func (am *Manager) GetAllPublic() map[string]core.App {
-	papps := am.enrichPublicApps(am.apps.copy())
+	// ToDo: do app refresh caching in the platform code
+	tasks := am.tm.GetAll()
+	papps := map[string]core.App{}
+
+	for _, app := range am.apps.copy() {
+		tmp := app
+		tmp.enrichAppData()
+		papp := PublicApp{App: tmp}
+		// using a closure to access the task ids stored in tmp.Tasks
+		filter := func(k interface{}, v interface{}) bool {
+			if found, _ := util.StringInSlice(k.(string), tmp.Tasks); found {
+				return true
+			}
+			return false
+		}
+		papp.Tasks = taskMap(*tasks.Select(filter))
+		papps[papp.ID] = &papp
+	}
 	return papps
 }
 
