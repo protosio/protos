@@ -35,9 +35,9 @@ func TestAppManager(t *testing.T) {
 		Do(func(to interface{}) {
 			apps := to.(*[]*App)
 			*apps = append(*apps,
-				&App{ID: "id1", Name: "app1", access: &sync.Mutex{}, PublicPorts: []util.Port{util.Port{Nr: 10000, Type: util.TCP}}},
-				&App{ID: "id2", Name: "app2", access: &sync.Mutex{}},
-				&App{ID: "id3", Name: "app3", access: &sync.Mutex{}})
+				&App{ID: "id1", Name: "app1", Status: statusUnknown, access: &sync.Mutex{}, PublicPorts: []util.Port{util.Port{Nr: 10000, Type: util.TCP}}},
+				&App{ID: "id2", Name: "app2", Status: statusUnknown, access: &sync.Mutex{}},
+				&App{ID: "id3", Name: "app3", Status: statusUnknown, access: &sync.Mutex{}})
 		})
 
 	// one of the inputs is nil
