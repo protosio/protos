@@ -960,4 +960,36 @@ func TestApp(t *testing.T) {
 		t.Error("Provides() should return true when called with a rsc type that is provided by the app")
 	}
 
+	//
+	// Public
+	//
+
+	t.Run("Public", func(t *testing.T) {
+		app.Tasks = []string{"1"}
+		app.Resources = []string{"1"}
+		tasks := linkedhashmap.New()
+		tasks.Put("1", gomock.Any())
+		resources := map[string]core.Resource{"1": mock.NewMockResource(ctrl)}
+		parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
+		platformMock.EXPECT().GetDockerContainer(app.ContainerID).Return(pruMock, nil).Times(1)
+		pruMock.EXPECT().GetStatus().Return("yolo").Times(1)
+		pruMock.EXPECT().GetExitCode().Return(0).Times(1)
+		parentMock.EXPECT().getTaskManager().Return(tmMock).Times(1)
+		tmMock.EXPECT().GetIDs(app.Tasks).Return(*tasks).Times(1)
+		parentMock.EXPECT().getResourceManager().Return(rmMock).Times(1)
+		rmMock.EXPECT().Select(gomock.Any()).Return(resources).Times(1)
+
+		papp := app.Public()
+		ptasks := linkedhashmap.Map(papp.(*PublicApp).Tasks)
+		_, found := ptasks.Get("1")
+		if found == false {
+			t.Error("Public() returned a public app that does not contain the correct tasks")
+		}
+		presources := papp.(*PublicApp).Resources
+		if presources["1"] != resources["1"] {
+			t.Errorf("Public() returned a public app with an incorrect resources var: %p vs %p", presources["1"], resources["1"])
+		}
+	})
+
+}
 }
