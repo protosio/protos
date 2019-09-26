@@ -99,7 +99,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 	}
 
 	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher}
-	apps := Map{access: &sync.Mutex{}, apps: map[string]*App{}}
+	apps := Map{access: &sync.Mutex{}, apps: map[string]*App{}, db: db}
 	for _, app := range dbapps {
 		tmp := app
 		tmp.access = &sync.Mutex{}
@@ -273,6 +273,7 @@ func (am *Manager) Remove(appID string) error {
 	if err != nil {
 		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
 	}
+	am.apps.remove(app.ID)
 	return nil
 }
 

@@ -166,10 +166,10 @@ func TestAppManager(t *testing.T) {
 		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
 		app, err := am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{}, "taskid")
 
+		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 		rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		am.Remove(app.ID)
-		log.Info(am.apps.apps)
 	})
 
 	//
@@ -203,25 +203,37 @@ func TestAppManager(t *testing.T) {
 	// Remove
 	//
 	t.Run("Remove", func(t *testing.T) {
+		initialNr := len(am.apps.apps)
 		// non-existent app id
 		err := am.Remove("id4")
 		if err == nil {
 			t.Error("Remove(id4) should return an error because id4 does not exist")
 		}
+		if len(am.apps.apps) != initialNr {
+			t.Errorf("Wrong number of apps found: %d vs %d", len(am.apps.apps), initialNr)
+		}
 
 		// existent app id which returns an error on app.remove()
 		rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(nil, fmt.Errorf("test error")).Times(1)
+		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 		err = am.Remove("id3")
 		if err == nil {
 			t.Error("Remove(id3) should return an error because app.remove() returns an error")
+		}
+		if len(am.apps.apps) != initialNr {
+			t.Errorf("Wrong number of apps found: %d vs %d", len(am.apps.apps), initialNr)
 		}
 
 		// existent app id - happy path
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
+		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 		err = am.Remove("id2")
 		if err != nil {
 			t.Errorf("Remove(id2) should NOT return an error: %s", err.Error())
+		}
+		if len(am.apps.apps) != initialNr-1 {
+			t.Errorf("Wrong number of apps found: %d vs %d", len(am.apps.apps), initialNr-1)
 		}
 	})
 
