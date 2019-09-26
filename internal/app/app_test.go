@@ -147,7 +147,7 @@ func TestAppManager(t *testing.T) {
 
 	// happy case
 	wspMock.EXPECT().GetPublishChannel().Return(c).Times(1)
-	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(1)
+	tmMock.EXPECT().GetIDs(gomock.Any()).Return(*linkedhashmap.New()).Times(1)
 	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(1)
 	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
 	_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{}, "taskid")
@@ -223,7 +223,7 @@ func TestAppManager(t *testing.T) {
 	pruMock.EXPECT().GetStatus().Return("exited").Times(2)
 	pruMock.EXPECT().GetExitCode().Return(0).Times(2)
 	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(2)
-	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(2)
+	tmMock.EXPECT().GetIDs(gomock.Any()).Return(*linkedhashmap.New()).Times(2)
 	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
 
 	// happy path
@@ -254,7 +254,7 @@ func TestAppManager(t *testing.T) {
 
 	// happy case
 	wspMock.EXPECT().GetPublishChannel().Return(c).Times(2)
-	tmMock.EXPECT().GetIDs(gomock.Any()).Return(linkedhashmap.Map{}).Times(2)
+	tmMock.EXPECT().GetIDs(gomock.Any()).Return(*linkedhashmap.New()).Times(2)
 	rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
 	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(2)
 	rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
