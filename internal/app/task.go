@@ -7,9 +7,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+type app interface {
+	Start() error
+	Stop() error
+	AddTask(string)
+	GetID() string
+	SetStatus(string)
+	StartAsync() core.Task
+	createContainer() (core.PlatformRuntimeUnit, error)
+}
+
 // CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
-	am                *Manager
+	am                parent
 	InstallerID       string
 	InstallerVersion  string
 	AppName           string
@@ -52,7 +62,8 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 		}
 	}
 
-	app, err := t.am.Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
+	var app app
+	app, err = t.am.Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create application %s", t.AppName)
 	}
@@ -62,7 +73,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 
 	if inst.IsPlatformImageAvailable(t.InstallerVersion) != true {
 		log.WithField("proc", tskID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
-		tsk := inst.DownloadAsync(t.am.tm, t.InstallerVersion, app.ID)
+		tsk := inst.DownloadAsync(t.am.getTaskManager(), t.InstallerVersion, app.GetID())
 		app.AddTask(tsk.GetID())
 		err := tsk.Wait()
 		if err != nil {
@@ -102,7 +113,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 
 // StartAppTask starts an app and implements the task interface
 type StartAppTask struct {
-	app *App
+	app app
 }
 
 // Name returns the task type name
@@ -119,7 +130,7 @@ func (t *StartAppTask) Run(tskID string, p core.Progress) error {
 
 // StopAppTask stops an app and implements the task interface
 type StopAppTask struct {
-	app *App
+	app app
 }
 
 // Name returns the task type name
@@ -136,7 +147,7 @@ func (t *StopAppTask) Run(tskID string, p core.Progress) error {
 
 // RemoveAppTask removes an application and implements the task interface
 type RemoveAppTask struct {
-	am    *Manager
+	am    parent
 	appID string
 }
 
