@@ -34,18 +34,6 @@ func (m *Mockparent) EXPECT() *MockparentMockRecorder {
 	return m.recorder
 }
 
-// saveApp mocks base method
-func (m *Mockparent) saveApp(app *App) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "saveApp", app)
-}
-
-// saveApp indicates an expected call of saveApp
-func (mr *MockparentMockRecorder) saveApp(app interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "saveApp", reflect.TypeOf((*Mockparent)(nil).saveApp), app)
-}
-
 // Create mocks base method
 func (m *Mockparent) Create(installerID, installerVersion, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error) {
 	m.ctrl.T.Helper()
@@ -59,6 +47,32 @@ func (m *Mockparent) Create(installerID, installerVersion, name string, installe
 func (mr *MockparentMockRecorder) Create(installerID, installerVersion, name, installerParams, installerMetadata, taskID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*Mockparent)(nil).Create), installerID, installerVersion, name, installerParams, installerMetadata, taskID)
+}
+
+// Remove mocks base method
+func (m *Mockparent) Remove(appID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Remove", appID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Remove indicates an expected call of Remove
+func (mr *MockparentMockRecorder) Remove(appID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*Mockparent)(nil).Remove), appID)
+}
+
+// saveApp mocks base method
+func (m *Mockparent) saveApp(app *App) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "saveApp", app)
+}
+
+// saveApp indicates an expected call of saveApp
+func (mr *MockparentMockRecorder) saveApp(app interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "saveApp", reflect.TypeOf((*Mockparent)(nil).saveApp), app)
 }
 
 // getPlatform mocks base method
