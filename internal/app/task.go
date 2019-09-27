@@ -69,7 +69,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	var app app
 	app, err = t.am.Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
 	if err != nil {
-		return errors.Wrapf(err, "Could not create application %s", t.AppName)
+		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
 	app.AddTask(tskID)
 	p.SetPercentage(10)

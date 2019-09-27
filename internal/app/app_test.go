@@ -1048,4 +1048,69 @@ func TestApp(t *testing.T) {
 	})
 
 }
+
+func TestTask(t *testing.T) {
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	amMock := NewMockparent(ctrl)
+
+	t.Run("CreateAppTask", func(t *testing.T) {
+		task := CreateAppTask{
+			am:                amMock,
+			InstallerID:       "1",
+			InstallerVersion:  "1",
+			AppName:           "testapp",
+			InstallerMetadata: nil,
+			InstallerParams:   map[string]string{},
+			StartOnCreation:   false,
+		}
+		tskID := "1"
+		p := mock.NewMockProgress(ctrl)
+		store := NewMockstore(ctrl)
+		inst := mock.NewMockInstaller(ctrl)
+
+		//
+		// Name
+		//
+
+		name := "Create application"
+		if task.Name() != name {
+			t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
+		}
+
+		//
+		// Run
+		//
+
+		// failed to get installer metadata from the store
+		amMock.EXPECT().getStore().Return(store).Times(1)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(nil, errors.New("failed to retrieve image")).Times(1)
+		err := task.Run(tskID, p)
+		if err == nil {
+			t.Error("Run() should return an error when the retrieval of the installer from the store fails")
+		}
+
+		// failed to retrieve installer metadata
+		amMock.EXPECT().getStore().Return(store).Times(1)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
+		inst.EXPECT().ReadVersion(task.InstallerVersion).Return(core.InstallerMetadata{}, errors.New("failed to retrieve install metadata")).Times(1)
+		err = task.Run(tskID, p)
+		if err == nil {
+			t.Error("Run() should return an error when the retrieval of the installer metadata fails")
+		}
+
+		// app manager fails to create app
+		amMock.EXPECT().getStore().Return(store).Times(1)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
+		inst.EXPECT().ReadVersion(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
+		amMock.EXPECT().Create(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(nil, errors.New("failed to create app")).Times(1)
+		err = task.Run(tskID, p)
+		if err == nil {
+			t.Error("Run() should return an error when the app manager fails to create the app")
+		}
+
+	})
+
 }
