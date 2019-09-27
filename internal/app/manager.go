@@ -70,6 +70,7 @@ func (am Map) copy() map[string]App {
 // Manager keeps track of all the apps
 type Manager struct {
 	apps        Map
+	store       store
 	rm          core.ResourceManager
 	tm          core.TaskManager
 	m           core.Meta
@@ -122,6 +123,10 @@ func (am *Manager) getResourceManager() core.ResourceManager {
 
 func (am *Manager) getTaskManager() core.TaskManager {
 	return am.tm
+}
+
+func (am *Manager) getStore() store {
+	return am.store
 }
 
 // GetCopy returns a copy of an application based on its id

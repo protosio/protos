@@ -17,6 +17,10 @@ type app interface {
 	createContainer() (core.PlatformRuntimeUnit, error)
 }
 
+type store interface {
+	GetById(string) (core.Installer, error)
+}
+
 // CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
 	am                parent
