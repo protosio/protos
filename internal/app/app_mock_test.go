@@ -46,6 +46,21 @@ func (mr *MockparentMockRecorder) saveApp(app interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "saveApp", reflect.TypeOf((*Mockparent)(nil).saveApp), app)
 }
 
+// Create mocks base method
+func (m *Mockparent) Create(installerID, installerVersion, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", installerID, installerVersion, name, installerParams, installerMetadata, taskID)
+	ret0, _ := ret[0].(*App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create
+func (mr *MockparentMockRecorder) Create(installerID, installerVersion, name, installerParams, installerMetadata, taskID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*Mockparent)(nil).Create), installerID, installerVersion, name, installerParams, installerMetadata, taskID)
+}
+
 // getPlatform mocks base method
 func (m *Mockparent) getPlatform() core.RuntimePlatform {
 	m.ctrl.T.Helper()

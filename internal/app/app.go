@@ -31,6 +31,7 @@ const (
 
 type parent interface {
 	saveApp(app *App)
+	Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error)
 	getPlatform() core.RuntimePlatform
 	getTaskManager() core.TaskManager
 	getResourceManager() core.ResourceManager
