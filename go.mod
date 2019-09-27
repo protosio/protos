@@ -37,6 +37,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/protosio/protos v0.0.0-20190330154629-9bb971d91698
 	github.com/rakyll/statik v0.1.6
 	github.com/rs/xid v1.2.1
 	github.com/shirou/gopsutil v2.18.12+incompatible
