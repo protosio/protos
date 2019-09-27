@@ -18,7 +18,7 @@ type app interface {
 }
 
 type store interface {
-	GetById(string) (core.Installer, error)
+	GetInstaller(string) (core.Installer, error)
 }
 
 // CreateAppTask creates an app and implements the task interface
@@ -41,20 +41,20 @@ func (t *CreateAppTask) Name() string {
 func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
-	var inst installer.Installer
+	var inst core.Installer
 	var metadata core.InstallerMetadata
 	var err error
 
 	if t.InstallerMetadata == nil {
 		// normal app creation, using the app store
-		inst, err = installer.StoreGetID(t.InstallerID)
+		inst, err = t.am.getStore().GetInstaller(t.InstallerID)
 		if err != nil {
-			return errors.Wrapf(err, "Could not create application %s", t.AppName)
+			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 
 		metadata, err = inst.ReadVersion(t.InstallerVersion)
 		if err != nil {
-			return errors.Wrapf(err, "Could not create application %s", t.AppName)
+			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 	} else {
 		// app creation using local container (dev purposes)
