@@ -24,6 +24,7 @@ type App interface {
 	GetID() string
 	GetName() string
 	GetIP() string
+	AddTask(string)
 	ValidateCapability(*capability.Capability) error
 	Provides(string) bool
 	ReplaceContainer(string) error

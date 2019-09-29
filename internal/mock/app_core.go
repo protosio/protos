@@ -5,11 +5,12 @@
 package mock
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	capability "protos/internal/capability"
 	core "protos/internal/core"
 	util "protos/internal/util"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockAppManager is a mock of AppManager interface
@@ -269,6 +270,18 @@ func (m *MockApp) GetIP() string {
 func (mr *MockAppMockRecorder) GetIP() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIP", reflect.TypeOf((*MockApp)(nil).GetIP))
+}
+
+// AddTask mocks base method
+func (m *MockApp) AddTask(arg0 string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddTask", arg0)
+}
+
+// AddTask indicates an expected call of AddTask
+func (mr *MockAppMockRecorder) AddTask(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTask", reflect.TypeOf((*MockApp)(nil).AddTask), arg0)
 }
 
 // ValidateCapability mocks base method
