@@ -31,6 +31,20 @@ type Installer struct {
 	Versions  map[string]core.InstallerMetadata `json:"versions"`
 }
 
+// AppStore manages and downloads application installers
+type AppStore struct {
+	rp core.RuntimePlatform
+}
+
+// CreateAppStore creates and returns an app store instance
+func CreateAppStore(rp core.RuntimePlatform) *AppStore {
+	if rp == nil {
+		log.Panic("Failed to create app store: none of the inputs can be nil")
+	}
+
+	return &AppStore{rp: rp}
+}
+
 // SetPlatform sets the package RuntimePlatform
 func SetPlatform(p core.RuntimePlatform) {
 	platform = p
@@ -244,12 +258,14 @@ func (inst *Installer) Remove() error {
 }
 
 //
-// App store operations
+// AppStore operations
 //
 
-// StoreGetAll returns all installers from the application store
-func StoreGetAll() (map[string]Installer, error) {
-	installers := map[string]Installer{}
+// GetInstallers returns all installers from the application store
+func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
+	installers := map[string]core.Installer{}
+	localInstallers := map[string]Installer{}
+
 	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
 	if err != nil {
 		return installers, err
@@ -259,16 +275,19 @@ func StoreGetAll() (map[string]Installer, error) {
 		return installers, err
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&installers)
+	err = json.NewDecoder(resp.Body).Decode(&localInstallers)
 	defer resp.Body.Close()
 	if err != nil {
 		return installers, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
 	}
+	for id, inst := range localInstallers {
+		installers[id] = inst
+	}
 	return installers, nil
 }
 
-// StoreGetID returns a single installer based on its id
-func StoreGetID(id string) (Installer, error) {
+// GetInstaller returns a single installer based on its id
+func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 	installer := Installer{}
 	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/" + id)
 	if err != nil {
@@ -287,9 +306,10 @@ func StoreGetID(id string) (Installer, error) {
 	return installer, nil
 }
 
-// StoreSearch takes a map of search terms and performs a search on the app store
-func StoreSearch(key string, value string) (map[string]Installer, error) {
-	var installers map[string]Installer
+// Search takes a map of search terms and performs a search on the app store
+func (as *AppStore) Search(key string, value string) (map[string]core.Installer, error) {
+	installers := map[string]core.Installer{}
+	localInstallers := map[string]Installer{}
 
 	resp, err := http.Get(fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value))
 	if err != nil {
@@ -304,6 +324,9 @@ func StoreSearch(key string, value string) (map[string]Installer, error) {
 	defer resp.Body.Close()
 	if err != nil {
 		return installers, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
+	}
+	for id, inst := range localInstallers {
+		installers[id] = inst
 	}
 	return installers, nil
 

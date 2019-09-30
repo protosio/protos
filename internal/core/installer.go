@@ -18,6 +18,13 @@ type InstallerMetadata struct {
 	Capabilities    []*capability.Capability `json:"capabilities"`
 }
 
+// AppStore manages and downloads application installers
+type AppStore interface {
+	GetInstallers() (map[string]Installer, error)
+	GetInstaller(id string) (Installer, error)
+	Search(key string, value string) (map[string]Installer, error)
+}
+
 // Installer represents a Protos installed
 type Installer interface {
 	GetMetadata(version string) (InstallerMetadata, error)
