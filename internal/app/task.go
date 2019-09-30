@@ -48,6 +48,10 @@ func (t *CreateAppTask) Name() string {
 func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
+	if t.am == nil {
+		log.Panic("Failed to run CreateAppTask: application manager is nil")
+	}
+
 	var inst core.Installer
 	var metadata core.InstallerMetadata
 	var err error
