@@ -5,10 +5,10 @@
 package app
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	app "protos/internal/app"
 	core "protos/internal/core"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockappParent is a mock of appParent interface
@@ -49,7 +49,7 @@ func (mr *MockappParentMockRecorder) Remove(appID interface{}) *gomock.Call {
 }
 
 // saveApp mocks base method
-func (m *MockappParent) saveApp(app *app.App) {
+func (m *MockappParent) saveApp(app *App) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "saveApp", app)
 }
