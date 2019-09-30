@@ -1094,7 +1094,7 @@ func TestTask(t *testing.T) {
 		// Run
 		//
 
-		// amMock is nil
+		// application manager is nil
 		func() {
 			defer func() {
 				r := recover()
@@ -1301,6 +1301,48 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetPercentage(50).Times(1)
 		app.EXPECT().AddTask("1").Times(1)
 		app.EXPECT().Stop().Times(1)
+		err := task.Run("1", p)
+		if err != nil {
+			t.Errorf("Run() should NOT return an error: %s", err.Error())
+		}
+	})
+
+	t.Run("RemoveAppTask", func(t *testing.T) {
+
+		p := mock.NewMockProgress(ctrl)
+		task := RemoveAppTask{
+			am:    nil,
+			appID: "1",
+		}
+
+		//
+		// Name
+		//
+
+		name := "Remove application"
+		if task.Name() != name {
+			t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
+		}
+
+		//
+		// Run
+		//
+
+		// application manager is nil
+		func() {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Errorf("RemoveAppTask should panic when the am field is not set")
+				}
+			}()
+			task.Run("1", p)
+		}()
+
+		task.am = amMock
+		p.EXPECT().SetState("Deleting application").Times(1)
+		p.EXPECT().SetPercentage(50).Times(1)
+		amMock.EXPECT().Remove("1")
 		err := task.Run("1", p)
 		if err != nil {
 			t.Errorf("Run() should NOT return an error: %s", err.Error())

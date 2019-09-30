@@ -173,6 +173,10 @@ func (t *RemoveAppTask) Name() string {
 
 // Run starts the async task
 func (t *RemoveAppTask) Run(tskID string, p core.Progress) error {
+	if t.am == nil {
+		log.Panic("Failed to run RemoveAppTask: application manager is nil")
+	}
+
 	p.SetState("Deleting application")
 	p.SetPercentage(50)
 	return t.am.Remove(t.appID)
