@@ -5,9 +5,10 @@
 package mock
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	core "protos/internal/core"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockInstaller is a mock of Installer interface
@@ -33,19 +34,19 @@ func (m *MockInstaller) EXPECT() *MockInstallerMockRecorder {
 	return m.recorder
 }
 
-// ReadVersion mocks base method
-func (m *MockInstaller) ReadVersion(version string) (core.InstallerMetadata, error) {
+// GetMetadata mocks base method
+func (m *MockInstaller) GetMetadata(version string) (core.InstallerMetadata, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadVersion", version)
+	ret := m.ctrl.Call(m, "GetMetadata", version)
 	ret0, _ := ret[0].(core.InstallerMetadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadVersion indicates an expected call of ReadVersion
-func (mr *MockInstallerMockRecorder) ReadVersion(version interface{}) *gomock.Call {
+// GetMetadata indicates an expected call of GetMetadata
+func (mr *MockInstallerMockRecorder) GetMetadata(version interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadVersion", reflect.TypeOf((*MockInstaller)(nil).ReadVersion), version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetadata", reflect.TypeOf((*MockInstaller)(nil).GetMetadata), version)
 }
 
 // IsPlatformImageAvailable mocks base method

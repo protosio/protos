@@ -20,7 +20,7 @@ type InstallerMetadata struct {
 
 // Installer represents a Protos installed
 type Installer interface {
-	ReadVersion(version string) (InstallerMetadata, error)
+	GetMetadata(version string) (InstallerMetadata, error)
 	IsPlatformImageAvailable(version string) bool
 	DownloadAsync(tm TaskManager, version string, appID string) Task
 }

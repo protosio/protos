@@ -184,8 +184,8 @@ func Read(installerID string) (Installer, error) {
 	return installer, nil
 }
 
-// ReadVersion returns the metadata for a specific installer version
-func (inst Installer) ReadVersion(version string) (core.InstallerMetadata, error) {
+// GetMetadata returns the metadata for a specific installer version
+func (inst Installer) GetMetadata(version string) (core.InstallerMetadata, error) {
 	var metadata core.InstallerMetadata
 	var found bool
 
@@ -197,7 +197,7 @@ func (inst Installer) ReadVersion(version string) (core.InstallerMetadata, error
 
 // Download downloads an installer from the application store
 func (inst Installer) Download(dt DownloadTask) error {
-	metadata, err := inst.ReadVersion(dt.Version)
+	metadata, err := inst.GetMetadata(dt.Version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer %s version %s", inst.ID, dt.Version)
 	}
@@ -214,7 +214,7 @@ func (inst Installer) DownloadAsync(tm core.TaskManager, version string, appID s
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
 func (inst Installer) IsPlatformImageAvailable(version string) bool {
-	metadata, err := inst.ReadVersion(version)
+	metadata, err := inst.GetMetadata(version)
 	if err != nil {
 		log.Error()
 		return false

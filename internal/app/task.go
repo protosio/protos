@@ -63,7 +63,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 
-		metadata, err = inst.ReadVersion(t.InstallerVersion)
+		metadata, err = inst.GetMetadata(t.InstallerVersion)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
