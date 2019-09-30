@@ -5,11 +5,78 @@
 package mock
 
 import (
+	gomock "github.com/golang/mock/gomock"
 	core "protos/internal/core"
 	reflect "reflect"
-
-	gomock "github.com/golang/mock/gomock"
 )
+
+// MockAppStore is a mock of AppStore interface
+type MockAppStore struct {
+	ctrl     *gomock.Controller
+	recorder *MockAppStoreMockRecorder
+}
+
+// MockAppStoreMockRecorder is the mock recorder for MockAppStore
+type MockAppStoreMockRecorder struct {
+	mock *MockAppStore
+}
+
+// NewMockAppStore creates a new mock instance
+func NewMockAppStore(ctrl *gomock.Controller) *MockAppStore {
+	mock := &MockAppStore{ctrl: ctrl}
+	mock.recorder = &MockAppStoreMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockAppStore) EXPECT() *MockAppStoreMockRecorder {
+	return m.recorder
+}
+
+// GetInstallers mocks base method
+func (m *MockAppStore) GetInstallers() (map[string]core.Installer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInstallers")
+	ret0, _ := ret[0].(map[string]core.Installer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInstallers indicates an expected call of GetInstallers
+func (mr *MockAppStoreMockRecorder) GetInstallers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstallers", reflect.TypeOf((*MockAppStore)(nil).GetInstallers))
+}
+
+// GetInstaller mocks base method
+func (m *MockAppStore) GetInstaller(id string) (core.Installer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInstaller", id)
+	ret0, _ := ret[0].(core.Installer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInstaller indicates an expected call of GetInstaller
+func (mr *MockAppStoreMockRecorder) GetInstaller(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstaller", reflect.TypeOf((*MockAppStore)(nil).GetInstaller), id)
+}
+
+// Search mocks base method
+func (m *MockAppStore) Search(key, value string) (map[string]core.Installer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Search", key, value)
+	ret0, _ := ret[0].(map[string]core.Installer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Search indicates an expected call of Search
+func (mr *MockAppStoreMockRecorder) Search(key, value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockAppStore)(nil).Search), key, value)
+}
 
 // MockInstaller is a mock of Installer interface
 type MockInstaller struct {
