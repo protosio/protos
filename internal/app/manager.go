@@ -96,9 +96,9 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher) *Manager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher, appStore appStore) *Manager {
 
-	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil {
+	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
 	}
 
@@ -111,7 +111,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
 
-	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher}
+	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore}
 	apps := Map{access: &sync.Mutex{}, apps: map[string]*App{}, db: db}
 	for _, app := range dbapps {
 		tmp := app

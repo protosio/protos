@@ -29,6 +29,7 @@ func TestAppManager(t *testing.T) {
 	wspMock := mock.NewMockWSPublisher(ctrl)
 	metaMock := mock.NewMockMeta(ctrl)
 	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
+	appStoreMock := NewMockappStore(ctrl)
 
 	c := make(chan interface{}, 10)
 
@@ -50,11 +51,11 @@ func TestAppManager(t *testing.T) {
 				t.Errorf("A nil input in the CreateManager call should lead to a panic")
 			}
 		}()
-		CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock)
+		CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock, nil)
 	}()
 
 	// happy case
-	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock)
+	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock, appStoreMock)
 
 	//
 	// GetCopy
