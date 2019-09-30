@@ -5,12 +5,11 @@
 package mock
 
 import (
+	gomock "github.com/golang/mock/gomock"
 	capability "protos/internal/capability"
 	core "protos/internal/core"
 	util "protos/internal/util"
 	reflect "reflect"
-
-	gomock "github.com/golang/mock/gomock"
 )
 
 // MockAppManager is a mock of AppManager interface
@@ -390,16 +389,16 @@ func (m *MockWSPublisher) EXPECT() *MockWSPublisherMockRecorder {
 	return m.recorder
 }
 
-// GetPublishChannel mocks base method
-func (m *MockWSPublisher) GetPublishChannel() chan interface{} {
+// GetWSPublishChannel mocks base method
+func (m *MockWSPublisher) GetWSPublishChannel() chan interface{} {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPublishChannel")
+	ret := m.ctrl.Call(m, "GetWSPublishChannel")
 	ret0, _ := ret[0].(chan interface{})
 	return ret0
 }
 
-// GetPublishChannel indicates an expected call of GetPublishChannel
-func (mr *MockWSPublisherMockRecorder) GetPublishChannel() *gomock.Call {
+// GetWSPublishChannel indicates an expected call of GetWSPublishChannel
+func (mr *MockWSPublisherMockRecorder) GetWSPublishChannel() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublishChannel", reflect.TypeOf((*MockWSPublisher)(nil).GetPublishChannel))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWSPublishChannel", reflect.TypeOf((*MockWSPublisher)(nil).GetWSPublishChannel))
 }

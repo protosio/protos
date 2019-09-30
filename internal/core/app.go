@@ -5,6 +5,7 @@ import (
 	"protos/internal/util"
 )
 
+// AppManager manages applications
 type AppManager interface {
 	Read(id string) (App, error)
 	GetAllPublic() map[string]App
@@ -18,6 +19,7 @@ type AppManager interface {
 	CopyAll() map[string]App
 }
 
+// App interface represents an application
 type App interface {
 	Start() error
 	Stop() error
@@ -35,5 +37,5 @@ type App interface {
 
 // WSPublisher returns a channel that can be used to publish WS messages to the frontend
 type WSPublisher interface {
-	GetPublishChannel() chan interface{}
+	GetWSPublishChannel() chan interface{}
 }

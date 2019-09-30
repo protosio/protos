@@ -163,7 +163,7 @@ func TestAppManager(t *testing.T) {
 		}
 
 		// happy case
-		wspMock.EXPECT().GetPublishChannel().Return(c).Times(1)
+		wspMock.EXPECT().GetWSPublishChannel().Return(c).Times(1)
 		tmMock.EXPECT().GetIDs(gomock.Any()).Return(*linkedhashmap.New()).Times(1)
 		rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(1)
 		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
@@ -257,7 +257,7 @@ func TestAppManager(t *testing.T) {
 	//
 	t.Run("saveApp", func(t *testing.T) {
 		app2 := &App{ID: "id2", Name: "app2", access: &sync.Mutex{}, parent: am}
-		wspMock.EXPECT().GetPublishChannel().Return(c).Times(2)
+		wspMock.EXPECT().GetWSPublishChannel().Return(c).Times(2)
 		pruMock.EXPECT().GetStatus().Return("exited").Times(2)
 		pruMock.EXPECT().GetExitCode().Return(0).Times(2)
 		rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(2)
@@ -292,7 +292,7 @@ func TestAppManager(t *testing.T) {
 		}
 
 		// happy case
-		wspMock.EXPECT().GetPublishChannel().Return(c).Times(2)
+		wspMock.EXPECT().GetWSPublishChannel().Return(c).Times(2)
 		tmMock.EXPECT().GetIDs(gomock.Any()).Return(*linkedhashmap.New()).Times(2)
 		rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
 		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(2)

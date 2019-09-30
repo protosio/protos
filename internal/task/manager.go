@@ -19,10 +19,6 @@ type taskContainer struct {
 	all    *linkedhashmap.Map
 }
 
-type wsPublisher interface {
-	GetWSPublishChannel() chan interface{}
-}
-
 // put saves an task into the task map
 func (tm taskContainer) put(id string, task *Base) {
 	tm.access.Lock()
@@ -93,11 +89,11 @@ func getLastNTasks(n int, tsks *linkedhashmap.Map) linkedhashmap.Map {
 type Manager struct {
 	tasks     taskContainer
 	db        core.DB
-	publisher wsPublisher
+	publisher core.WSPublisher
 }
 
 // CreateManager creates and returns a TaskManager
-func CreateManager(db core.DB, publisher wsPublisher) *Manager {
+func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
 	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
 	db.Register(&Base{})
 	db.Register(&util.ProtosTime{})

@@ -303,7 +303,7 @@ func (am *Manager) saveApp(app *App) {
 	papp := *app
 	app.access.Unlock()
 	papp.access = nil
-	am.wspublisher.GetPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
+	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
 	err := am.db.Save(&papp)
 	if err != nil {
 		log.Panic(errors.Wrap(err, "Could not save app to database"))
