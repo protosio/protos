@@ -268,17 +268,17 @@ func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 
 	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
 	if err != nil {
-		return installers, err
+		return installers, errors.Wrap(err, "Could not retrieve installers from app store")
 	}
 
 	if err := util.HTTPBadResponse(resp); err != nil {
-		return installers, err
+		return installers, errors.Wrap(err, "Could not retrieve installers from app store")
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&localInstallers)
 	defer resp.Body.Close()
 	if err != nil {
-		return installers, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
+		return installers, errors.Wrap(err, "Could not retrieve installers from app store. Decoding error")
 	}
 	for id, inst := range localInstallers {
 		installers[id] = inst
@@ -291,17 +291,17 @@ func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 	installer := Installer{}
 	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/" + id)
 	if err != nil {
-		return installer, err
+		return installer, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
 	}
 
 	if err := util.HTTPBadResponse(resp); err != nil {
-		return installer, err
+		return installer, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&installer)
 	defer resp.Body.Close()
 	if err != nil {
-		return installer, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
+		return installer, errors.Wrapf(err, "Could not retrieve installer '%s' from app store. Decoding error", id)
 	}
 	return installer, nil
 }
@@ -313,17 +313,17 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 
 	resp, err := http.Get(fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value))
 	if err != nil {
-		return installers, err
+		return installers, errors.Wrap(err, "Could not retrieve search results from the app store")
 	}
 
 	if err := util.HTTPBadResponse(resp); err != nil {
-		return installers, err
+		return installers, errors.Wrap(err, "Could not retrieve search results from the app store")
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&installers)
 	defer resp.Body.Close()
 	if err != nil {
-		return installers, fmt.Errorf("Something went wrong decoding the response from the application store: %s", err.Error())
+		return installers, errors.Wrap(err, "Could not retrieve search results from the app store. Decoding error")
 	}
 	for id, inst := range localInstallers {
 		installers[id] = inst
