@@ -48,6 +48,7 @@ type handlerAccess struct {
 	am core.AppManager
 	tm core.TaskManager
 	m  core.Meta
+	as core.AppStore
 }
 
 type routes []route
@@ -253,14 +254,19 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager) {
+func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore) {
 
 	ha := handlerAccess{
-		m:  m,
-		am: am,
-		rm: rm,
-		tm: tm,
 		pm: pm,
+		rm: rm,
+		am: am,
+		tm: tm,
+		m:  m,
+		as: as,
+	}
+
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil {
+		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
 	mainRtr := mux.NewRouter().StrictSlash(true)

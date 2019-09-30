@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"protos/internal/app"
+	"protos/internal/core"
 	"protos/internal/installer"
 	"protos/internal/platform"
 
@@ -425,17 +426,17 @@ func searchAppStore(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		var err error
-		var installers map[string]installer.Installer
+		var installers map[string]core.Installer
 
 		if len(queryParams) == 0 {
-			installers, err = installer.StoreGetAll()
+			installers, err = ha.as.GetInstallers()
 		} else if len(queryParams) == 1 {
 			if val := queryParams.Get("provides"); val != "" {
-				installers, err = installer.StoreSearch("provides", val)
+				installers, err = ha.as.Search("provides", val)
 			} else if val := queryParams.Get("general"); val != "" {
-				installers, err = installer.StoreSearch("general", val)
+				installers, err = ha.as.Search("general", val)
 			} else {
-				installers, err = installer.StoreGetAll()
+				installers, err = ha.as.GetInstallers()
 			}
 		}
 
