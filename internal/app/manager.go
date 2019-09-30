@@ -14,14 +14,14 @@ import (
 )
 
 type appStore interface {
-	GetInstaller(string) (core.Installer, error)
+	GetInstaller(id string) (core.Installer, error)
 }
 
 // dnsResource is only used locally to retrieve the Name of a DNS record
 type dnsResource interface {
 	GetName() string
 	GetValue() string
-	Update(core.Type)
+	Update(value core.Type)
 	Sanitize() core.Type
 }
 

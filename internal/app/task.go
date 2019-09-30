@@ -17,9 +17,9 @@ type taskParent interface {
 type app interface {
 	Start() error
 	Stop() error
-	AddTask(string)
+	AddTask(id string)
 	GetID() string
-	SetStatus(string)
+	SetStatus(status string)
 	StartAsync() core.Task
 	createContainer() (core.PlatformRuntimeUnit, error)
 }
