@@ -1277,4 +1277,34 @@ func TestTask(t *testing.T) {
 		}
 	})
 
+	t.Run("StopAppTask", func(t *testing.T) {
+
+		p := mock.NewMockProgress(ctrl)
+		app := NewMockapp(ctrl)
+		task := StopAppTask{
+			app: app,
+		}
+
+		//
+		// Name
+		//
+
+		name := "Stop application"
+		if task.Name() != name {
+			t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
+		}
+
+		//
+		// Run
+		//
+
+		p.EXPECT().SetPercentage(50).Times(1)
+		app.EXPECT().AddTask("1").Times(1)
+		app.EXPECT().Stop().Times(1)
+		err := task.Run("1", p)
+		if err != nil {
+			t.Errorf("Run() should NOT return an error: %s", err.Error())
+		}
+	})
+
 }
