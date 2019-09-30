@@ -340,7 +340,7 @@ func TestApp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	parentMock := NewMockparent(ctrl)
+	parentMock := NewMockappParent(ctrl)
 	platformMock := mock.NewMockRuntimePlatform(ctrl)
 	tmMock := mock.NewMockTaskManager(ctrl)
 	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
@@ -1054,7 +1054,8 @@ func TestTask(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	amMock := NewMockparent(ctrl)
+	amMock := NewMocktaskParent(ctrl)
+	tmMock := mock.NewMockTaskManager(ctrl)
 
 	t.Run("CreateAppTask", func(t *testing.T) {
 		task := CreateAppTask{
@@ -1070,6 +1071,8 @@ func TestTask(t *testing.T) {
 		p := mock.NewMockProgress(ctrl)
 		store := NewMockstore(ctrl)
 		inst := mock.NewMockInstaller(ctrl)
+		app := NewMockapp(ctrl)
+		downloadTaskMock := mock.NewMockTask(ctrl)
 
 		//
 		// Name
