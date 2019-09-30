@@ -101,17 +101,3 @@ func (mr *MockappParentMockRecorder) getResourceManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getResourceManager", reflect.TypeOf((*MockappParent)(nil).getResourceManager))
 }
-
-// getStore mocks base method
-func (m *MockappParent) getStore() store {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "getStore")
-	ret0, _ := ret[0].(store)
-	return ret0
-}
-
-// getStore indicates an expected call of getStore
-func (mr *MockappParentMockRecorder) getStore() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getStore", reflect.TypeOf((*MockappParent)(nil).getStore))
-}

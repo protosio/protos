@@ -35,7 +35,6 @@ type appParent interface {
 	getPlatform() core.RuntimePlatform
 	getTaskManager() core.TaskManager
 	getResourceManager() core.ResourceManager
-	getStore() store
 }
 
 // Config the application config

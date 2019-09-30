@@ -11,7 +11,7 @@ type taskParent interface {
 	createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error)
 	Remove(appID string) error
 	getTaskManager() core.TaskManager
-	getStore() store
+	getAppStore() appStore
 }
 
 type app interface {
@@ -22,10 +22,6 @@ type app interface {
 	SetStatus(string)
 	StartAsync() core.Task
 	createContainer() (core.PlatformRuntimeUnit, error)
-}
-
-type store interface {
-	GetInstaller(string) (core.Installer, error)
 }
 
 // CreateAppTask creates an app and implements the task interface
@@ -58,7 +54,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 
 	if t.InstallerMetadata == nil {
 		// normal app creation, using the app store
-		inst, err = t.am.getStore().GetInstaller(t.InstallerID)
+		inst, err = t.am.getAppStore().GetInstaller(t.InstallerID)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}

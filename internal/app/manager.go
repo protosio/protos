@@ -13,6 +13,18 @@ import (
 	"github.com/rs/xid"
 )
 
+type appStore interface {
+	GetInstaller(string) (core.Installer, error)
+}
+
+// dnsResource is only used locally to retrieve the Name of a DNS record
+type dnsResource interface {
+	GetName() string
+	GetValue() string
+	Update(core.Type)
+	Sanitize() core.Type
+}
+
 // Map is a thread safe application map
 type Map struct {
 	access *sync.Mutex
@@ -70,7 +82,7 @@ func (am Map) copy() map[string]App {
 // Manager keeps track of all the apps
 type Manager struct {
 	apps        Map
-	store       store
+	store       appStore
 	rm          core.ResourceManager
 	tm          core.TaskManager
 	m           core.Meta
@@ -125,7 +137,7 @@ func (am *Manager) getTaskManager() core.TaskManager {
 	return am.tm
 }
 
-func (am *Manager) getStore() store {
+func (am *Manager) getAppStore() appStore {
 	return am.store
 }
 
@@ -223,12 +235,6 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
-}
-
-// dnsResource is only used locally to retrieve the Name of a DNS record
-type dnsResource interface {
-	GetName() string
-	GetValue() string
 }
 
 // GetServices returns a list of services performed by apps

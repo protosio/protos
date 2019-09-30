@@ -1071,7 +1071,7 @@ func TestTask(t *testing.T) {
 		}
 		tskID := "1"
 		p := mock.NewMockProgress(ctrl)
-		store := NewMockstore(ctrl)
+		store := NewMockappStore(ctrl)
 		inst := mock.NewMockInstaller(ctrl)
 		app := NewMockapp(ctrl)
 		downloadTaskMock := mock.NewMockTask(ctrl)
@@ -1107,7 +1107,7 @@ func TestTask(t *testing.T) {
 
 		task.am = amMock
 		// failed to get installer metadata from the store
-		amMock.EXPECT().getStore().Return(store).Times(1)
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(nil, errors.New("failed to retrieve image")).Times(1)
 		err := task.Run(tskID, p)
 		if err == nil {
@@ -1115,7 +1115,7 @@ func TestTask(t *testing.T) {
 		}
 
 		// failed to retrieve installer metadata
-		amMock.EXPECT().getStore().Return(store).Times(1)
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, errors.New("failed to retrieve install metadata")).Times(1)
 		err = task.Run(tskID, p)
@@ -1124,7 +1124,7 @@ func TestTask(t *testing.T) {
 		}
 
 		// app manager fails to create app
-		amMock.EXPECT().getStore().Return(store).Times(1)
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(nil, errors.New("failed to create app")).Times(1)
@@ -1134,7 +1134,7 @@ func TestTask(t *testing.T) {
 		}
 
 		// image not available locally and download task returns an error
-		amMock.EXPECT().getStore().Return(store).Times(1)
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
@@ -1155,7 +1155,7 @@ func TestTask(t *testing.T) {
 		}
 
 		// image available locally and create container fails
-		amMock.EXPECT().getStore().Return(store).Times(1)
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
@@ -1173,7 +1173,7 @@ func TestTask(t *testing.T) {
 		}
 
 		// start on creation is true and app fails to start
-		amMock.EXPECT().getStore().Return(store).Times(1)
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
@@ -1198,7 +1198,7 @@ func TestTask(t *testing.T) {
 		}
 
 		// happy case, start on creation is false, installer metadata is nil, docker image is available locally
-		amMock.EXPECT().getStore().Return(store).Times(1)
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)

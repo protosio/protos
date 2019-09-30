@@ -5,10 +5,9 @@
 package app
 
 import (
+	gomock "github.com/golang/mock/gomock"
 	core "protos/internal/core"
 	reflect "reflect"
-
-	gomock "github.com/golang/mock/gomock"
 )
 
 // MocktaskParent is a mock of taskParent interface
@@ -77,18 +76,18 @@ func (mr *MocktaskParentMockRecorder) getTaskManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getTaskManager", reflect.TypeOf((*MocktaskParent)(nil).getTaskManager))
 }
 
-// getStore mocks base method
-func (m *MocktaskParent) getStore() store {
+// getAppStore mocks base method
+func (m *MocktaskParent) getAppStore() appStore {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "getStore")
-	ret0, _ := ret[0].(store)
+	ret := m.ctrl.Call(m, "getAppStore")
+	ret0, _ := ret[0].(appStore)
 	return ret0
 }
 
-// getStore indicates an expected call of getStore
-func (mr *MocktaskParentMockRecorder) getStore() *gomock.Call {
+// getAppStore indicates an expected call of getAppStore
+func (mr *MocktaskParentMockRecorder) getAppStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getStore", reflect.TypeOf((*MocktaskParent)(nil).getStore))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getAppStore", reflect.TypeOf((*MocktaskParent)(nil).getAppStore))
 }
 
 // Mockapp is a mock of app interface
@@ -207,42 +206,4 @@ func (m *Mockapp) createContainer() (core.PlatformRuntimeUnit, error) {
 func (mr *MockappMockRecorder) createContainer() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createContainer", reflect.TypeOf((*Mockapp)(nil).createContainer))
-}
-
-// Mockstore is a mock of store interface
-type Mockstore struct {
-	ctrl     *gomock.Controller
-	recorder *MockstoreMockRecorder
-}
-
-// MockstoreMockRecorder is the mock recorder for Mockstore
-type MockstoreMockRecorder struct {
-	mock *Mockstore
-}
-
-// NewMockstore creates a new mock instance
-func NewMockstore(ctrl *gomock.Controller) *Mockstore {
-	mock := &Mockstore{ctrl: ctrl}
-	mock.recorder = &MockstoreMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *Mockstore) EXPECT() *MockstoreMockRecorder {
-	return m.recorder
-}
-
-// GetInstaller mocks base method
-func (m *Mockstore) GetInstaller(arg0 string) (core.Installer, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInstaller", arg0)
-	ret0, _ := ret[0].(core.Installer)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetInstaller indicates an expected call of GetInstaller
-func (mr *MockstoreMockRecorder) GetInstaller(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstaller", reflect.TypeOf((*Mockstore)(nil).GetInstaller), arg0)
 }
