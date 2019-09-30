@@ -111,7 +111,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 	return manager
 }
 
-// methods to satisfy the parent interface
+// methods to satisfy local interfaces
 
 func (am *Manager) getPlatform() core.RuntimePlatform {
 	return am.platform
@@ -127,6 +127,10 @@ func (am *Manager) getTaskManager() core.TaskManager {
 
 func (am *Manager) getStore() store {
 	return am.store
+}
+
+func (am *Manager) createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error) {
+	return am.Create(installerID, installerVersion, name, installerParams, installerMetadata, taskID)
 }
 
 // GetCopy returns a copy of an application based on its id
@@ -175,6 +179,7 @@ func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
 // CreateAsync creates, runs and returns a task of type CreateAppTask
 func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
 	createApp := CreateAppTask{
+		am:                am,
 		InstallerID:       installerID,
 		InstallerVersion:  installerVersion,
 		AppName:           appName,

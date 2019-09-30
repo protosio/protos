@@ -7,6 +7,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+type taskParent interface {
+	createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error)
+	Remove(appID string) error
+	getTaskManager() core.TaskManager
+	getStore() store
+}
+
 type app interface {
 	Start() error
 	Stop() error
@@ -23,7 +30,7 @@ type store interface {
 
 // CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
-	am                parent
+	am                taskParent
 	InstallerID       string
 	InstallerVersion  string
 	AppName           string
@@ -67,7 +74,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	}
 
 	var app app
-	app, err = t.am.Create(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
+	app, err = t.am.createAppForTask(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
@@ -151,7 +158,7 @@ func (t *StopAppTask) Run(tskID string, p core.Progress) error {
 
 // RemoveAppTask removes an application and implements the task interface
 type RemoveAppTask struct {
-	am    parent
+	am    taskParent
 	appID string
 }
 

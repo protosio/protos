@@ -5,10 +5,91 @@
 package app
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	core "protos/internal/core"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
+
+// MocktaskParent is a mock of taskParent interface
+type MocktaskParent struct {
+	ctrl     *gomock.Controller
+	recorder *MocktaskParentMockRecorder
+}
+
+// MocktaskParentMockRecorder is the mock recorder for MocktaskParent
+type MocktaskParentMockRecorder struct {
+	mock *MocktaskParent
+}
+
+// NewMocktaskParent creates a new mock instance
+func NewMocktaskParent(ctrl *gomock.Controller) *MocktaskParent {
+	mock := &MocktaskParent{ctrl: ctrl}
+	mock.recorder = &MocktaskParentMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MocktaskParent) EXPECT() *MocktaskParentMockRecorder {
+	return m.recorder
+}
+
+// createAppForTask mocks base method
+func (m *MocktaskParent) createAppForTask(installerID, installerVersion, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "createAppForTask", installerID, installerVersion, name, installerParams, installerMetadata, taskID)
+	ret0, _ := ret[0].(app)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// createAppForTask indicates an expected call of createAppForTask
+func (mr *MocktaskParentMockRecorder) createAppForTask(installerID, installerVersion, name, installerParams, installerMetadata, taskID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createAppForTask", reflect.TypeOf((*MocktaskParent)(nil).createAppForTask), installerID, installerVersion, name, installerParams, installerMetadata, taskID)
+}
+
+// Remove mocks base method
+func (m *MocktaskParent) Remove(appID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Remove", appID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Remove indicates an expected call of Remove
+func (mr *MocktaskParentMockRecorder) Remove(appID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MocktaskParent)(nil).Remove), appID)
+}
+
+// getTaskManager mocks base method
+func (m *MocktaskParent) getTaskManager() core.TaskManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getTaskManager")
+	ret0, _ := ret[0].(core.TaskManager)
+	return ret0
+}
+
+// getTaskManager indicates an expected call of getTaskManager
+func (mr *MocktaskParentMockRecorder) getTaskManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getTaskManager", reflect.TypeOf((*MocktaskParent)(nil).getTaskManager))
+}
+
+// getStore mocks base method
+func (m *MocktaskParent) getStore() store {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getStore")
+	ret0, _ := ret[0].(store)
+	return ret0
+}
+
+// getStore indicates an expected call of getStore
+func (mr *MocktaskParentMockRecorder) getStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getStore", reflect.TypeOf((*MocktaskParent)(nil).getStore))
+}
 
 // Mockapp is a mock of app interface
 type Mockapp struct {

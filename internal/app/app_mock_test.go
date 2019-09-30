@@ -5,52 +5,37 @@
 package app
 
 import (
+	gomock "github.com/golang/mock/gomock"
+	app "protos/internal/app"
 	core "protos/internal/core"
 	reflect "reflect"
-
-	gomock "github.com/golang/mock/gomock"
 )
 
-// Mockparent is a mock of parent interface
-type Mockparent struct {
+// MockappParent is a mock of appParent interface
+type MockappParent struct {
 	ctrl     *gomock.Controller
-	recorder *MockparentMockRecorder
+	recorder *MockappParentMockRecorder
 }
 
-// MockparentMockRecorder is the mock recorder for Mockparent
-type MockparentMockRecorder struct {
-	mock *Mockparent
+// MockappParentMockRecorder is the mock recorder for MockappParent
+type MockappParentMockRecorder struct {
+	mock *MockappParent
 }
 
-// NewMockparent creates a new mock instance
-func NewMockparent(ctrl *gomock.Controller) *Mockparent {
-	mock := &Mockparent{ctrl: ctrl}
-	mock.recorder = &MockparentMockRecorder{mock}
+// NewMockappParent creates a new mock instance
+func NewMockappParent(ctrl *gomock.Controller) *MockappParent {
+	mock := &MockappParent{ctrl: ctrl}
+	mock.recorder = &MockappParentMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *Mockparent) EXPECT() *MockparentMockRecorder {
+func (m *MockappParent) EXPECT() *MockappParentMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method
-func (m *Mockparent) Create(installerID, installerVersion, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", installerID, installerVersion, name, installerParams, installerMetadata, taskID)
-	ret0, _ := ret[0].(*App)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Create indicates an expected call of Create
-func (mr *MockparentMockRecorder) Create(installerID, installerVersion, name, installerParams, installerMetadata, taskID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*Mockparent)(nil).Create), installerID, installerVersion, name, installerParams, installerMetadata, taskID)
-}
-
 // Remove mocks base method
-func (m *Mockparent) Remove(appID string) error {
+func (m *MockappParent) Remove(appID string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Remove", appID)
 	ret0, _ := ret[0].(error)
@@ -58,25 +43,25 @@ func (m *Mockparent) Remove(appID string) error {
 }
 
 // Remove indicates an expected call of Remove
-func (mr *MockparentMockRecorder) Remove(appID interface{}) *gomock.Call {
+func (mr *MockappParentMockRecorder) Remove(appID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*Mockparent)(nil).Remove), appID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockappParent)(nil).Remove), appID)
 }
 
 // saveApp mocks base method
-func (m *Mockparent) saveApp(app *App) {
+func (m *MockappParent) saveApp(app *app.App) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "saveApp", app)
 }
 
 // saveApp indicates an expected call of saveApp
-func (mr *MockparentMockRecorder) saveApp(app interface{}) *gomock.Call {
+func (mr *MockappParentMockRecorder) saveApp(app interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "saveApp", reflect.TypeOf((*Mockparent)(nil).saveApp), app)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "saveApp", reflect.TypeOf((*MockappParent)(nil).saveApp), app)
 }
 
 // getPlatform mocks base method
-func (m *Mockparent) getPlatform() core.RuntimePlatform {
+func (m *MockappParent) getPlatform() core.RuntimePlatform {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "getPlatform")
 	ret0, _ := ret[0].(core.RuntimePlatform)
@@ -84,13 +69,13 @@ func (m *Mockparent) getPlatform() core.RuntimePlatform {
 }
 
 // getPlatform indicates an expected call of getPlatform
-func (mr *MockparentMockRecorder) getPlatform() *gomock.Call {
+func (mr *MockappParentMockRecorder) getPlatform() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getPlatform", reflect.TypeOf((*Mockparent)(nil).getPlatform))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getPlatform", reflect.TypeOf((*MockappParent)(nil).getPlatform))
 }
 
 // getTaskManager mocks base method
-func (m *Mockparent) getTaskManager() core.TaskManager {
+func (m *MockappParent) getTaskManager() core.TaskManager {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "getTaskManager")
 	ret0, _ := ret[0].(core.TaskManager)
@@ -98,13 +83,13 @@ func (m *Mockparent) getTaskManager() core.TaskManager {
 }
 
 // getTaskManager indicates an expected call of getTaskManager
-func (mr *MockparentMockRecorder) getTaskManager() *gomock.Call {
+func (mr *MockappParentMockRecorder) getTaskManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getTaskManager", reflect.TypeOf((*Mockparent)(nil).getTaskManager))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getTaskManager", reflect.TypeOf((*MockappParent)(nil).getTaskManager))
 }
 
 // getResourceManager mocks base method
-func (m *Mockparent) getResourceManager() core.ResourceManager {
+func (m *MockappParent) getResourceManager() core.ResourceManager {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "getResourceManager")
 	ret0, _ := ret[0].(core.ResourceManager)
@@ -112,13 +97,13 @@ func (m *Mockparent) getResourceManager() core.ResourceManager {
 }
 
 // getResourceManager indicates an expected call of getResourceManager
-func (mr *MockparentMockRecorder) getResourceManager() *gomock.Call {
+func (mr *MockappParentMockRecorder) getResourceManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getResourceManager", reflect.TypeOf((*Mockparent)(nil).getResourceManager))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getResourceManager", reflect.TypeOf((*MockappParent)(nil).getResourceManager))
 }
 
 // getStore mocks base method
-func (m *Mockparent) getStore() store {
+func (m *MockappParent) getStore() store {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "getStore")
 	ret0, _ := ret[0].(store)
@@ -126,7 +111,7 @@ func (m *Mockparent) getStore() store {
 }
 
 // getStore indicates an expected call of getStore
-func (mr *MockparentMockRecorder) getStore() *gomock.Call {
+func (mr *MockappParentMockRecorder) getStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getStore", reflect.TypeOf((*Mockparent)(nil).getStore))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getStore", reflect.TypeOf((*MockappParent)(nil).getStore))
 }

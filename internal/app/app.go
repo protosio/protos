@@ -29,8 +29,7 @@ const (
 	appBucket = "app"
 )
 
-type parent interface {
-	Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error)
+type appParent interface {
 	Remove(appID string) error
 	saveApp(app *App)
 	getPlatform() core.RuntimePlatform
@@ -56,7 +55,7 @@ type WSConnection struct {
 // App represents the application state
 type App struct {
 	access *sync.Mutex
-	parent parent
+	parent appParent
 
 	// Public members
 	Name              string                 `json:"name"`
