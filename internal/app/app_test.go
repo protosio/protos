@@ -7,9 +7,11 @@ import (
 
 	"protos/internal/capability"
 	"protos/internal/core"
+	"protos/internal/installer"
 	"protos/internal/mock"
 	"protos/internal/util"
 
+	"github.com/docker/docker/api/types"
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
@@ -1059,7 +1061,7 @@ func TestTask(t *testing.T) {
 
 	t.Run("CreateAppTask", func(t *testing.T) {
 		task := CreateAppTask{
-			am:                amMock,
+			am:                nil,
 			InstallerID:       "1",
 			InstallerVersion:  "1",
 			AppName:           "testapp",
@@ -1073,6 +1075,11 @@ func TestTask(t *testing.T) {
 		inst := mock.NewMockInstaller(ctrl)
 		app := NewMockapp(ctrl)
 		downloadTaskMock := mock.NewMockTask(ctrl)
+		startAsyncTaskMock := mock.NewMockTask(ctrl)
+		pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
+		platformMock := mock.NewMockRuntimePlatform(ctrl)
+
+		installer.SetPlatform(platformMock)
 
 		//
 		// Name
@@ -1087,6 +1094,18 @@ func TestTask(t *testing.T) {
 		// Run
 		//
 
+		// amMock is nil
+		func() {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Errorf("CreateAppTask should panic when the am field is not set")
+				}
+			}()
+			task.Run(tskID, p)
+		}()
+
+		task.am = amMock
 		// failed to get installer metadata from the store
 		amMock.EXPECT().getStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(nil, errors.New("failed to retrieve image")).Times(1)
@@ -1133,6 +1152,97 @@ func TestTask(t *testing.T) {
 		err = task.Run(tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the download image task fails")
+		}
+
+		// image available locally and create container fails
+		amMock.EXPECT().getStore().Return(store).Times(1)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
+		inst.EXPECT().ReadVersion(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
+		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
+		app.EXPECT().AddTask(tskID).Times(1)
+		p.EXPECT().SetPercentage(10).Times(1)
+		p.EXPECT().SetState("Created application").Times(1)
+		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true).Times(1)
+		p.EXPECT().SetPercentage(50).Times(1)
+		p.EXPECT().SetState("Docker image found locally").Times(1)
+		app.EXPECT().createContainer().Return(nil, errors.New("failed to create container"))
+		app.EXPECT().SetStatus(statusFailed).Times(1)
+		err = task.Run(tskID, p)
+		if err == nil {
+			t.Error("Run() should return an error when the app container fails to be created")
+		}
+
+		// start on creation is true and app fails to start
+		amMock.EXPECT().getStore().Return(store).Times(1)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
+		inst.EXPECT().ReadVersion(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
+		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
+		app.EXPECT().AddTask(tskID).Times(1)
+		p.EXPECT().SetPercentage(10).Times(1)
+		p.EXPECT().SetState("Created application").Times(1)
+		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true).Times(1)
+		p.EXPECT().SetPercentage(50).Times(1)
+		p.EXPECT().SetState("Docker image found locally").Times(1)
+		app.EXPECT().createContainer().Return(pruMock, nil)
+		p.EXPECT().SetPercentage(70)
+		p.EXPECT().SetState("Created Docker container")
+		task.StartOnCreation = true
+		app.EXPECT().StartAsync().Return(startAsyncTaskMock).Times(1)
+		startAsyncTaskMock.EXPECT().GetID().Return(tskID).Times(1)
+		app.EXPECT().AddTask(tskID).Times(1)
+		startAsyncTaskMock.EXPECT().Wait().Return(errors.New("failed to start app")).Times(1)
+		app.EXPECT().SetStatus(statusFailed).Times(1)
+		err = task.Run(tskID, p)
+		if err == nil {
+			t.Error("Run() should return an error when the app fails to start")
+		}
+
+		// happy case, start on creation is false, installer metadata is nil, docker image is available locally
+		amMock.EXPECT().getStore().Return(store).Times(1)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
+		inst.EXPECT().ReadVersion(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
+		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
+		app.EXPECT().AddTask(tskID).Times(1)
+		p.EXPECT().SetPercentage(10).Times(1)
+		p.EXPECT().SetState("Created application").Times(1)
+		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true).Times(1)
+		p.EXPECT().SetPercentage(50).Times(1)
+		p.EXPECT().SetState("Docker image found locally").Times(1)
+		app.EXPECT().createContainer().Return(pruMock, nil)
+		p.EXPECT().SetPercentage(70)
+		p.EXPECT().SetState("Created Docker container")
+		task.StartOnCreation = false
+		app.EXPECT().SetStatus(statusRunning).Times(1)
+		err = task.Run(tskID, p)
+		if err != nil {
+			t.Errorf("Run() should NOT return an error: %s", err.Error())
+		}
+
+		// happy case, installer metadata is available, start on creation is true, docker image is available locally
+		task.InstallerMetadata = &core.InstallerMetadata{}
+		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
+		app.EXPECT().AddTask(tskID).Times(1)
+		p.EXPECT().SetPercentage(10).Times(1)
+		p.EXPECT().SetState("Created application").Times(1)
+		// docker image download
+		platformMock.EXPECT().GetDockerImage(task.InstallerMetadata.PlatformID).Return(types.ImageInspect{}, nil)
+		p.EXPECT().SetPercentage(50).Times(1)
+		p.EXPECT().SetState("Docker image found locally").Times(1)
+		// create container
+		app.EXPECT().createContainer().Return(pruMock, nil)
+		p.EXPECT().SetPercentage(70)
+		p.EXPECT().SetState("Created Docker container")
+		// start on boot
+		task.StartOnCreation = true
+		app.EXPECT().StartAsync().Return(startAsyncTaskMock).Times(1)
+		startAsyncTaskMock.EXPECT().GetID().Return(tskID).Times(1)
+		app.EXPECT().AddTask(tskID).Times(1)
+		startAsyncTaskMock.EXPECT().Wait().Return(nil).Times(1)
+		// set status running
+		app.EXPECT().SetStatus(statusRunning).Times(1)
+		err = task.Run(tskID, p)
+		if err != nil {
+			t.Errorf("Run() should NOT return an error: %s", err.Error())
 		}
 
 	})
