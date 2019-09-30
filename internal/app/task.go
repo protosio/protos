@@ -100,7 +100,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	_, err = app.createContainer()
 	if err != nil {
 		app.SetStatus(statusFailed)
-		return errors.Wrapf(err, "Could not create application %s", t.AppName)
+		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
 	p.SetPercentage(70)
 	p.SetState("Created Docker container")
@@ -111,7 +111,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 		err := tsk.Wait()
 		if err != nil {
 			app.SetStatus(statusFailed)
-			return errors.Wrapf(err, "Could not create application %s", t.AppName)
+			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 	}
 	app.SetStatus(statusRunning)
