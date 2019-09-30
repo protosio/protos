@@ -13,6 +13,7 @@ import (
 	"protos/internal/capability"
 	"protos/internal/config"
 	"protos/internal/database"
+	"protos/internal/installer"
 	"protos/internal/meta"
 	"protos/internal/platform"
 	"protos/internal/provider"
@@ -65,11 +66,12 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 
 	capability.Initialize()
 	p := platform.Initialize(incontainer) // required to connect to the Docker daemon
+	as := installer.CreateAppStore(p)
 	rm := resource.CreateManager(db)
 	tm := task.CreateManager(db, gconfig)
-	am := app.CreateManager(rm, tm, p, db)
-	pm := provider.CreateManager(rm, am, db)
 	m := meta.Setup(rm, db)
+	am := app.CreateManager(rm, tm, p, db, m, gconfig, as)
+	pm := provider.CreateManager(rm, am, db)
 
 	// start ws connection manager
 	wg.Add(1)
@@ -100,7 +102,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		webserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("webserver", webserverQuit)
 		go func() {
-			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm)
+			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as)
 			wg.Done()
 		}()
 	}
