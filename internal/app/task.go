@@ -89,7 +89,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 		err := tsk.Wait()
 		if err != nil {
 			app.SetStatus(statusFailed)
-			return errors.Wrapf(err, "Could not create application %s", t.AppName)
+			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 	} else {
 		log.WithField("proc", tskID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)

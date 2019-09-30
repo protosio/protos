@@ -1105,10 +1105,31 @@ func TestTask(t *testing.T) {
 		amMock.EXPECT().getStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().ReadVersion(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
-		amMock.EXPECT().Create(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(nil, errors.New("failed to create app")).Times(1)
+		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(nil, errors.New("failed to create app")).Times(1)
 		err = task.Run(tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the app manager fails to create the app")
+		}
+
+		// image not available locally and download task returns an error
+		amMock.EXPECT().getStore().Return(store).Times(1)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
+		inst.EXPECT().ReadVersion(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
+		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
+		app.EXPECT().AddTask(tskID).Times(1)
+		p.EXPECT().SetPercentage(10).Times(1)
+		p.EXPECT().SetState("Created application").Times(1)
+		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(false).Times(1)
+		amMock.EXPECT().getTaskManager().Return(tmMock).Times(1)
+		app.EXPECT().GetID().Return("appid1").Times(1)
+		inst.EXPECT().DownloadAsync(tmMock, task.InstallerVersion, "appid1").Return(downloadTaskMock).Times(1)
+		downloadTaskMock.EXPECT().GetID().Return("2")
+		app.EXPECT().AddTask("2").Times(1)
+		downloadTaskMock.EXPECT().Wait().Return(errors.New("download task error"))
+		app.EXPECT().SetStatus(statusFailed).Times(1)
+		err = task.Run(tskID, p)
+		if err == nil {
+			t.Error("Run() should return an error when the download image task fails")
 		}
 
 	})
