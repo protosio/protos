@@ -10,9 +10,10 @@ import (
 
 	"protos/internal/core"
 
-	"github.com/pkg/errors"
 	"protos/internal/capability"
 	"protos/internal/config"
+
+	"github.com/pkg/errors"
 
 	// "protos/internal/platform"
 	"protos/internal/util"
@@ -28,6 +29,11 @@ type Installer struct {
 	ID        string                            `json:"id"`
 	Thumbnail string                            `json:"thumbnail,omitempty"`
 	Versions  map[string]core.InstallerMetadata `json:"versions"`
+}
+
+// SetPlatform sets the package RuntimePlatform
+func SetPlatform(p core.RuntimePlatform) {
+	platform = p
 }
 
 func parseInstallerCapabilities(capstring string) []*capability.Capability {
