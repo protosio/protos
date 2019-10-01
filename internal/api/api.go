@@ -304,11 +304,15 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager) bool {
 
 	ha := handlerAccess{
-		m:  m,
-		am: am,
-		rm: rm,
-		tm: tm,
 		pm: pm,
+		rm: rm,
+		am: am,
+		tm: tm,
+		m:  m,
+	}
+
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil {
+		log.Panic("Failed to create init web server: none of the inputs can be nil")
 	}
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
