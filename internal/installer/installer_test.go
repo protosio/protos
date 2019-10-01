@@ -44,16 +44,16 @@ func TestInstallerMetadata(t *testing.T) {
 		"protos.installer.metadata.name":         "testapp",
 	}
 
-	_, err := GetMetadata(testMetadata)
+	_, err := parseMetadata(testMetadata)
 	if err == nil {
-		t.Errorf("GetMetadata(testMetadata) should return an error on missing description")
+		t.Errorf("parseMetadata(testMetadata) should return an error on missing description")
 	}
 
 	testMetadata["protos.installer.metadata.description"] = "Small app description"
 
-	metadata, err := GetMetadata(testMetadata)
+	metadata, err := parseMetadata(testMetadata)
 	if err != nil {
-		t.Errorf("GetMetadata(testMetadata) should not return an error, but it did: %s", err)
+		t.Errorf("parseMetadata(testMetadata) should not return an error, but it did: %s", err)
 	}
 
 	if len(metadata.PublicPorts) != 3 {

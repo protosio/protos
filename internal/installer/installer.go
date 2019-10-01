@@ -92,8 +92,8 @@ func parsePublicPorts(publicports string) []util.Port {
 	return ports
 }
 
-// GetMetadata parses the image metadata from the image labels
-func GetMetadata(labels map[string]string) (core.InstallerMetadata, error) {
+// parseMetadata parses the image metadata from the image labels
+func parseMetadata(labels map[string]string) (core.InstallerMetadata, error) {
 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
 	metadata := core.InstallerMetadata{}
 	for label, value := range labels {
@@ -247,7 +247,7 @@ func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
 			return Installer{}, errors.New("Installer " + id + " is invalid: " + err.Error())
 		}
 
-		metadata, err := GetMetadata(img.Config.Labels)
+		metadata, err := parseMetadata(img.Config.Labels)
 		if err != nil {
 			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", id, installerVersion, err)
 		}
