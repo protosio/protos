@@ -102,7 +102,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		webserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("webserver", webserverQuit)
 		go func() {
-			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as)
+			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, as)
 			wg.Done()
 		}()
 	}
