@@ -94,6 +94,11 @@ type Manager struct {
 
 // CreateManager creates and returns a TaskManager
 func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
+
+	if db == nil || publisher == nil {
+		log.Panic("Failed to create task manager: none of the inputs can be nil")
+	}
+
 	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
 	db.Register(&Base{})
 	db.Register(&util.ProtosTime{})
