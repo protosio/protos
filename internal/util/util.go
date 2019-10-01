@@ -84,7 +84,7 @@ func HTTPBadResponse(resp *http.Response) error {
 		if err != nil {
 			log.Fatal(err)
 		}
-		return fmt.Errorf("Error (HTTP %d) while querying the application store: \"%s\"", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("Error (HTTP %d) while performing HTTP request: \"%s\"", resp.StatusCode, string(bodyBytes))
 	}
 	return nil
 }
