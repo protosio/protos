@@ -7,8 +7,46 @@ package installer
 import (
 	gomock "github.com/golang/mock/gomock"
 	http "net/http"
+	core "protos/internal/core"
 	reflect "reflect"
 )
+
+// MockinstallerParent is a mock of installerParent interface
+type MockinstallerParent struct {
+	ctrl     *gomock.Controller
+	recorder *MockinstallerParentMockRecorder
+}
+
+// MockinstallerParentMockRecorder is the mock recorder for MockinstallerParent
+type MockinstallerParentMockRecorder struct {
+	mock *MockinstallerParent
+}
+
+// NewMockinstallerParent creates a new mock instance
+func NewMockinstallerParent(ctrl *gomock.Controller) *MockinstallerParent {
+	mock := &MockinstallerParent{ctrl: ctrl}
+	mock.recorder = &MockinstallerParentMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockinstallerParent) EXPECT() *MockinstallerParentMockRecorder {
+	return m.recorder
+}
+
+// getPlatform mocks base method
+func (m *MockinstallerParent) getPlatform() core.RuntimePlatform {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getPlatform")
+	ret0, _ := ret[0].(core.RuntimePlatform)
+	return ret0
+}
+
+// getPlatform indicates an expected call of getPlatform
+func (mr *MockinstallerParentMockRecorder) getPlatform() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getPlatform", reflect.TypeOf((*MockinstallerParent)(nil).getPlatform))
+}
 
 // MockhttpClient is a mock of httpClient interface
 type MockhttpClient struct {

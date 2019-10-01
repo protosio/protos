@@ -21,7 +21,7 @@ import (
 var gconfig = config.Get()
 var log = util.GetLogger("installer")
 
-type appParent interface {
+type installerParent interface {
 	getPlatform() core.RuntimePlatform
 }
 
@@ -31,7 +31,7 @@ type Installer struct {
 	ID        string                            `json:"id"`
 	Thumbnail string                            `json:"thumbnail,omitempty"`
 	Versions  map[string]core.InstallerMetadata `json:"versions"`
-	parent    appParent
+	parent    installerParent
 }
 
 // AppStore manages and downloads application installers
