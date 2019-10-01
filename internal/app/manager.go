@@ -15,6 +15,7 @@ import (
 
 type appStore interface {
 	GetInstaller(id string) (core.Installer, error)
+	CreateTemporaryInstaller(id string, metadata map[string]core.InstallerMetadata) core.Installer
 }
 
 // dnsResource is only used locally to retrieve the Name of a DNS record

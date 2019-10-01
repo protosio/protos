@@ -34,18 +34,32 @@ func (m *MockappStore) EXPECT() *MockappStoreMockRecorder {
 }
 
 // GetInstaller mocks base method
-func (m *MockappStore) GetInstaller(arg0 string) (core.Installer, error) {
+func (m *MockappStore) GetInstaller(id string) (core.Installer, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInstaller", arg0)
+	ret := m.ctrl.Call(m, "GetInstaller", id)
 	ret0, _ := ret[0].(core.Installer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetInstaller indicates an expected call of GetInstaller
-func (mr *MockappStoreMockRecorder) GetInstaller(arg0 interface{}) *gomock.Call {
+func (mr *MockappStoreMockRecorder) GetInstaller(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstaller", reflect.TypeOf((*MockappStore)(nil).GetInstaller), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstaller", reflect.TypeOf((*MockappStore)(nil).GetInstaller), id)
+}
+
+// CreateTemporaryInstaller mocks base method
+func (m *MockappStore) CreateTemporaryInstaller(id string, metadata map[string]core.InstallerMetadata) core.Installer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateTemporaryInstaller", id, metadata)
+	ret0, _ := ret[0].(core.Installer)
+	return ret0
+}
+
+// CreateTemporaryInstaller indicates an expected call of CreateTemporaryInstaller
+func (mr *MockappStoreMockRecorder) CreateTemporaryInstaller(id, metadata interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTemporaryInstaller", reflect.TypeOf((*MockappStore)(nil).CreateTemporaryInstaller), id, metadata)
 }
 
 // MockdnsResource is a mock of dnsResource interface
@@ -100,15 +114,15 @@ func (mr *MockdnsResourceMockRecorder) GetValue() *gomock.Call {
 }
 
 // Update mocks base method
-func (m *MockdnsResource) Update(arg0 core.Type) {
+func (m *MockdnsResource) Update(value core.Type) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Update", arg0)
+	m.ctrl.Call(m, "Update", value)
 }
 
 // Update indicates an expected call of Update
-func (mr *MockdnsResourceMockRecorder) Update(arg0 interface{}) *gomock.Call {
+func (mr *MockdnsResourceMockRecorder) Update(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockdnsResource)(nil).Update), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockdnsResource)(nil).Update), value)
 }
 
 // Sanitize mocks base method
