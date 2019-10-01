@@ -39,7 +39,7 @@ type AppStore struct {
 // CreateAppStore creates and returns an app store instance
 func CreateAppStore(rp core.RuntimePlatform) *AppStore {
 	if rp == nil {
-		log.Panic("Failed to create app store: none of the inputs can be nil")
+		log.Panic("Failed to create AppStore: none of the inputs can be nil")
 	}
 
 	return &AppStore{rp: rp}
@@ -274,7 +274,9 @@ func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 	installers := map[string]core.Installer{}
 	localInstallers := map[string]Installer{}
 
-	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
+	client := getHTTPClient()
+
+	resp, err := client.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve installers from app store")
 	}
@@ -297,7 +299,8 @@ func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 // GetInstaller returns a single installer based on its id
 func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 	installer := Installer{}
-	resp, err := http.Get(gconfig.AppStoreURL + "/api/v1/installers/" + id)
+	client := getHTTPClient()
+	resp, err := client.Get(gconfig.AppStoreURL + "/api/v1/installers/" + id)
 	if err != nil {
 		return installer, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
 	}
@@ -319,7 +322,9 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 	installers := map[string]core.Installer{}
 	localInstallers := map[string]Installer{}
 
-	resp, err := http.Get(fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value))
+	client := getHTTPClient()
+
+	resp, err := client.Get(fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value))
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store")
 	}
@@ -328,7 +333,7 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store")
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&installers)
+	err = json.NewDecoder(resp.Body).Decode(&localInstallers)
 	defer resp.Body.Close()
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store. Decoding error")
