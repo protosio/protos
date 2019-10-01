@@ -6,7 +6,6 @@ import (
 
 	"protos/internal/app"
 	"protos/internal/core"
-	"protos/internal/installer"
 	"protos/internal/platform"
 
 	"protos/internal/capability"
@@ -263,7 +262,7 @@ func removeApp(ha handlerAccess) http.Handler {
 func getInstallers(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		installers, err := installer.GetAll()
+		installers, err := ha.ic.GetLocalInstallers()
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
@@ -281,7 +280,7 @@ func getInstaller(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		installerID := vars["installerID"]
 
-		installer, err := installer.Read(installerID)
+		installer, err := ha.ic.GetLocalInstaller(installerID)
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
@@ -299,12 +298,7 @@ func removeInstaller(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		installerID := vars["installerID"]
 
-		installer, err := installer.Read(installerID)
-		if err != nil {
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
-		err = installer.Remove()
+		err := ha.ic.RemoveLocalInstaller(installerID)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

@@ -49,6 +49,7 @@ type handlerAccess struct {
 	tm core.TaskManager
 	m  core.Meta
 	as core.AppStore
+	ic core.InstallerCache
 }
 
 type routes []route
@@ -254,7 +255,7 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore) {
+func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache) {
 
 	ha := handlerAccess{
 		pm: pm,
@@ -263,9 +264,10 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 		tm: tm,
 		m:  m,
 		as: as,
+		ic: ic,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil {
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
