@@ -261,6 +261,14 @@ func (inst *Installer) Remove() error {
 // AppStore operations
 //
 
+type httpClient interface {
+	Get(url string) (resp *http.Response, err error)
+}
+
+var getHTTPClient = func() httpClient {
+	return http.DefaultClient
+}
+
 // GetInstallers returns all installers from the application store
 func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 	installers := map[string]core.Installer{}
