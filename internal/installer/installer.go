@@ -132,7 +132,7 @@ func (inst Installer) GetMetadata(version string) (core.InstallerMetadata, error
 	var found bool
 
 	if metadata, found = inst.Versions[version]; found == false {
-		return metadata, fmt.Errorf("Could not find version %s for installer %s", version, inst.ID)
+		return metadata, fmt.Errorf("Could not find version '%s' for installer with id '%s'", version, inst.ID)
 	}
 	return metadata, nil
 }

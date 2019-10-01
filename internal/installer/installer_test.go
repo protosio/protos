@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"protos/internal/capability"
+	"protos/internal/core"
 	"protos/internal/mock"
 	"protos/internal/util"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func TestInstaller(t *testing.T) {
+func TestParserFunctions(t *testing.T) {
 
 	caps := parseInstallerCapabilities("ResourceProvider,WrongCap")
 	if len(caps) != 1 {
@@ -34,7 +35,7 @@ func TestInstaller(t *testing.T) {
 
 }
 
-func TestInstallerMetadata(t *testing.T) {
+func TestMetadata(t *testing.T) {
 
 	testMetadata := map[string]string{
 		"protos.installer.metadata.capabilities": "ResourceProvider,ResourceConsumer,InternetAccess,GetInformation,PublicDNS,AuthUser",
@@ -72,6 +73,34 @@ func TestInstallerMetadata(t *testing.T) {
 		t.Errorf("metadata.Capabilities should have 5 elements, but it has %d", len(metadata.Capabilities))
 	}
 
+}
+
+func TestInstaller(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	installerParent := NewMockinstallerParent(ctrl)
+
+	inst := Installer{Name: "TestInstaller", ID: "id1", Versions: map[string]core.InstallerMetadata{}, parent: installerParent}
+
+	//
+	// GetMetadata
+	//
+
+	t.Run("GetMetadata", func(t *testing.T) {
+		// metadata for the supplied version does not exist
+		_, err := inst.GetMetadata("1.0")
+		if err == nil {
+			t.Error("GetMetadata() should return an error when metadata for the supplied version does not exist")
+		}
+
+		inst.Versions["1.0"] = core.InstallerMetadata{}
+		_, err = inst.GetMetadata("1.0")
+		if err != nil {
+			t.Errorf("GetMetadata() should NOT return an error: %s", err.Error())
+		}
+
+	})
 }
 
 func TestAppStore(t *testing.T) {
