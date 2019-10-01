@@ -2,7 +2,6 @@ package app
 
 import (
 	"protos/internal/core"
-	"protos/internal/installer"
 
 	"github.com/pkg/errors"
 )
@@ -67,10 +66,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 		// app creation using local container (dev purposes)
 		log.Info("Creating application using local installer (DEV)")
 		metadata = *t.InstallerMetadata
-		inst = installer.Installer{
-			ID:       t.InstallerID,
-			Versions: map[string]core.InstallerMetadata{t.InstallerVersion: *t.InstallerMetadata},
-		}
+		inst = t.am.getAppStore().CreateTemporaryInstaller(t.InstallerID, map[string]core.InstallerMetadata{t.InstallerVersion: *t.InstallerMetadata})
 	}
 
 	var app app

@@ -7,11 +7,9 @@ import (
 
 	"protos/internal/capability"
 	"protos/internal/core"
-	"protos/internal/installer"
 	"protos/internal/mock"
 	"protos/internal/util"
 
-	"github.com/docker/docker/api/types"
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
@@ -1078,9 +1076,6 @@ func TestTask(t *testing.T) {
 		downloadTaskMock := mock.NewMockTask(ctrl)
 		startAsyncTaskMock := mock.NewMockTask(ctrl)
 		pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
-		platformMock := mock.NewMockRuntimePlatform(ctrl)
-
-		installer.SetPlatform(platformMock)
 
 		//
 		// Name
@@ -1221,12 +1216,14 @@ func TestTask(t *testing.T) {
 
 		// happy case, installer metadata is available, start on creation is true, docker image is available locally
 		task.InstallerMetadata = &core.InstallerMetadata{}
+		amMock.EXPECT().getAppStore().Return(store).Times(1)
+		store.EXPECT().CreateTemporaryInstaller(task.InstallerID, map[string]core.InstallerMetadata{task.InstallerVersion: *task.InstallerMetadata}).Return(inst)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
 		app.EXPECT().AddTask(tskID).Times(1)
 		p.EXPECT().SetPercentage(10).Times(1)
 		p.EXPECT().SetState("Created application").Times(1)
 		// docker image download
-		platformMock.EXPECT().GetDockerImage(task.InstallerMetadata.PlatformID).Return(types.ImageInspect{}, nil)
+		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
 		p.EXPECT().SetState("Docker image found locally").Times(1)
 		// create container
