@@ -15,13 +15,15 @@ import (
 
 	"github.com/pkg/errors"
 
-	// "protos/internal/platform"
 	"protos/internal/util"
 )
 
 var gconfig = config.Get()
 var log = util.GetLogger("installer")
-var platform core.RuntimePlatform
+
+type appParent interface {
+	getPlatform() core.RuntimePlatform
+}
 
 // Installer represents an application installer
 type Installer struct {
@@ -29,6 +31,7 @@ type Installer struct {
 	ID        string                            `json:"id"`
 	Thumbnail string                            `json:"thumbnail,omitempty"`
 	Versions  map[string]core.InstallerMetadata `json:"versions"`
+	parent    appParent
 }
 
 // AppStore manages and downloads application installers
@@ -43,11 +46,6 @@ func CreateAppStore(rp core.RuntimePlatform) *AppStore {
 	}
 
 	return &AppStore{rp: rp}
-}
-
-// SetPlatform sets the package RuntimePlatform
-func SetPlatform(p core.RuntimePlatform) {
-	platform = p
 }
 
 func parseInstallerCapabilities(capstring string) []*capability.Capability {
@@ -124,79 +122,9 @@ func GetMetadata(labels map[string]string) (core.InstallerMetadata, error) {
 	return metadata, nil
 }
 
-// GetAll gets all the local images and returns them
-func GetAll() (map[string]Installer, error) {
-	installers := make(map[string]Installer)
-	log.Info("Retrieving installers")
-
-	imgs, err := platform.GetAllDockerImages()
-	if err != nil {
-		return installers, errors.New("Error retrieving docker images: " + err.Error())
-	}
-
-	for _, img := range imgs {
-		if img.RepoTags[0] == "n/a" {
-			continue
-		}
-		installerStr := strings.Split(img.RepoTags[0], ":")
-		installerName := installerStr[0]
-		installerID := util.String2SHA1(installerName)
-		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]core.InstallerMetadata{}}
-	}
-
-	return installers, nil
-}
-
-// Read reads a fresh copy of the installer
-func Read(installerID string) (Installer, error) {
-	log.Info("Reading installer ", installerID)
-
-	imgs, err := platform.GetAllDockerImages()
-	if err != nil {
-		return Installer{}, errors.New("Error retrieving installer " + installerID + ": " + err.Error())
-	}
-
-	installer := Installer{ID: installerID, Versions: map[string]core.InstallerMetadata{}}
-
-	for _, img := range imgs {
-		if img.RepoTags[0] == "n/a" {
-			continue
-		}
-		installerStr := strings.Split(img.RepoTags[0], ":")
-		installerName := installerStr[0]
-		installerVersion := installerStr[1]
-		instID := util.String2SHA1(installerName)
-		if installerID != instID {
-			continue
-		}
-		installer.Name = installerName
-
-		img, err := platform.GetDockerImage(img.ID)
-		if err != nil {
-			return Installer{}, errors.New("Error retrieving docker image: " + err.Error())
-		}
-
-		persistancePath, err := platform.GetDockerImageDataPath(img)
-		if err != nil {
-			return Installer{}, errors.New("Installer " + installerID + " is invalid: " + err.Error())
-		}
-
-		metadata, err := GetMetadata(img.Config.Labels)
-		if err != nil {
-			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", installerID, installerVersion, err)
-		}
-		metadata.PersistancePath = persistancePath
-		metadata.PlatformID = img.ID
-		installer.Versions[installerVersion] = metadata
-
-	}
-
-	if len(installer.Versions) == 0 {
-		return Installer{}, errors.New("Could not find installer " + installerID)
-	}
-
-	return installer, nil
-}
+//
+// Installer methods
+//
 
 // GetMetadata returns the metadata for a specific installer version
 func (inst Installer) GetMetadata(version string) (core.InstallerMetadata, error) {
@@ -217,7 +145,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 	}
 
 	log.Infof("Downloading platform image for installer %s(%s) version %s", inst.Name, inst.ID, dt.Version)
-	return platform.PullDockerImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
+	return inst.parent.getPlatform().PullDockerImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task
@@ -234,7 +162,7 @@ func (inst Installer) IsPlatformImageAvailable(version string) bool {
 		return false
 	}
 
-	_, err = platform.GetDockerImage(metadata.PlatformID)
+	_, err = inst.parent.getPlatform().GetDockerImage(metadata.PlatformID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrImageNotFound) == false {
 			log.Error(err)
@@ -249,7 +177,7 @@ func (inst *Installer) Remove() error {
 	log.Info("Removing installer ", inst.Name, "[", inst.ID, "]")
 
 	for _, metadata := range inst.Versions {
-		err := platform.RemoveDockerImage(metadata.PlatformID)
+		err := inst.parent.getPlatform().RemoveDockerImage(metadata.PlatformID)
 		if err != nil {
 			return errors.New("Failed to remove installer: " + err.Error())
 		}
@@ -264,17 +192,76 @@ func (inst *Installer) Remove() error {
 // GetLocalInstallers retrieves all locally available installers
 func (as *AppStore) GetLocalInstallers() (map[string]core.Installer, error) {
 	installers := map[string]core.Installer{}
-	localInstallers, err := GetAll()
-	for id, inst := range localInstallers {
-		installers[id] = inst
+	log.Info("Retrieving installers")
+
+	imgs, err := as.rp.GetAllDockerImages()
+	if err != nil {
+		return installers, errors.New("Error retrieving docker images: " + err.Error())
 	}
+
+	for _, img := range imgs {
+		if img.RepoTags[0] == "n/a" {
+			continue
+		}
+		installerStr := strings.Split(img.RepoTags[0], ":")
+		installerName := installerStr[0]
+		installerID := util.String2SHA1(installerName)
+		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]core.InstallerMetadata{}, parent: as}
+	}
+
 	return installers, err
 
 }
 
 // GetLocalInstaller retrieves an installer if its available locally
 func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
-	return Read(id)
+	log.Info("Reading installer ", id)
+
+	imgs, err := as.rp.GetAllDockerImages()
+	if err != nil {
+		return Installer{}, errors.New("Error retrieving installer " + id + ": " + err.Error())
+	}
+
+	installer := Installer{ID: id, Versions: map[string]core.InstallerMetadata{}, parent: as}
+
+	for _, img := range imgs {
+		if img.RepoTags[0] == "n/a" {
+			continue
+		}
+		installerStr := strings.Split(img.RepoTags[0], ":")
+		installerName := installerStr[0]
+		installerVersion := installerStr[1]
+		instID := util.String2SHA1(installerName)
+		if id != instID {
+			continue
+		}
+		installer.Name = installerName
+
+		img, err := as.rp.GetDockerImage(img.ID)
+		if err != nil {
+			return Installer{}, errors.New("Error retrieving docker image: " + err.Error())
+		}
+
+		persistancePath, err := as.rp.GetDockerImageDataPath(img)
+		if err != nil {
+			return Installer{}, errors.New("Installer " + id + " is invalid: " + err.Error())
+		}
+
+		metadata, err := GetMetadata(img.Config.Labels)
+		if err != nil {
+			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", id, installerVersion, err)
+		}
+		metadata.PersistancePath = persistancePath
+		metadata.PlatformID = img.ID
+		installer.Versions[installerVersion] = metadata
+
+	}
+
+	if len(installer.Versions) == 0 {
+		return Installer{}, errors.New("Could not find installer " + id)
+	}
+
+	return installer, nil
 }
 
 // RemoveLocalInstaller removes an installer image that has been downloaded locally
@@ -287,7 +274,7 @@ func (as *AppStore) RemoveLocalInstaller(id string) error {
 	log.Info("Removing installer ", inst.(Installer).Name, "[", inst.(Installer).ID, "]")
 
 	for _, metadata := range inst.(Installer).Versions {
-		err := platform.RemoveDockerImage(metadata.PlatformID)
+		err := as.rp.RemoveDockerImage(metadata.PlatformID)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to remove installer %s[%s]", inst.(Installer).Name, id)
 		}
@@ -329,6 +316,7 @@ func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 		return installers, errors.Wrap(err, "Could not retrieve installers from app store. Decoding error")
 	}
 	for id, inst := range localInstallers {
+		inst.parent = as
 		installers[id] = inst
 	}
 	return installers, nil
@@ -352,6 +340,8 @@ func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 	if err != nil {
 		return installer, errors.Wrapf(err, "Could not retrieve installer '%s' from app store. Decoding error", id)
 	}
+
+	installer.parent = as
 	return installer, nil
 }
 
@@ -377,8 +367,17 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store. Decoding error")
 	}
 	for id, inst := range localInstallers {
+		inst.parent = as
 		installers[id] = inst
 	}
 	return installers, nil
 
+}
+
+//
+// AppStore methods that satisfy the installerParent interface
+//
+
+func (as *AppStore) getPlatform() core.RuntimePlatform {
+	return as.rp
 }
