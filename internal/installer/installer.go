@@ -258,6 +258,44 @@ func (inst *Installer) Remove() error {
 }
 
 //
+// InstallerCache operations (AppStore implements the core.InstallerCache interface for now)
+//
+
+// GetLocalInstallers retrieves all locally available installers
+func (as *AppStore) GetLocalInstallers() (map[string]core.Installer, error) {
+	installers := map[string]core.Installer{}
+	localInstallers, err := GetAll()
+	for id, inst := range localInstallers {
+		installers[id] = inst
+	}
+	return installers, err
+
+}
+
+// GetLocalInstaller retrieves an installer if its available locally
+func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
+	return Read(id)
+}
+
+// RemoveLocalInstaller removes an installer image that has been downloaded locally
+func (as *AppStore) RemoveLocalInstaller(id string) error {
+	inst, err := as.GetLocalInstaller(id)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to remove installer %s", id)
+	}
+
+	log.Info("Removing installer ", inst.(Installer).Name, "[", inst.(Installer).ID, "]")
+
+	for _, metadata := range inst.(Installer).Versions {
+		err := platform.RemoveDockerImage(metadata.PlatformID)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to remove installer %s[%s]", inst.(Installer).Name, id)
+		}
+	}
+	return nil
+}
+
+//
 // AppStore operations
 //
 
