@@ -80,8 +80,9 @@ func TestInstaller(t *testing.T) {
 	defer ctrl.Finish()
 
 	installerParent := NewMockinstallerParent(ctrl)
+	rpMock := mock.NewMockRuntimePlatform(ctrl)
 
-	inst := Installer{Name: "TestInstaller", ID: "id1", Versions: map[string]core.InstallerMetadata{}, parent: installerParent}
+	inst := Installer{Name: "TestInstaller", ID: "id1", Versions: map[string]core.InstallerMetadata{"1.0": core.InstallerMetadata{PlatformID: "id1"}}, parent: installerParent}
 
 	//
 	// GetMetadata
@@ -89,15 +90,46 @@ func TestInstaller(t *testing.T) {
 
 	t.Run("GetMetadata", func(t *testing.T) {
 		// metadata for the supplied version does not exist
-		_, err := inst.GetMetadata("1.0")
+		_, err := inst.GetMetadata("2.0")
 		if err == nil {
 			t.Error("GetMetadata() should return an error when metadata for the supplied version does not exist")
 		}
 
-		inst.Versions["1.0"] = core.InstallerMetadata{}
+		// happy case
 		_, err = inst.GetMetadata("1.0")
 		if err != nil {
 			t.Errorf("GetMetadata() should NOT return an error: %s", err.Error())
+		}
+	})
+
+	//
+	// Download
+	//
+
+	t.Run("Download", func(t *testing.T) {
+		// metadata for the supplied version does not exist
+		dt := DownloadTask{Version: "2.0"}
+		err := inst.Download(dt)
+		if err == nil {
+			t.Error("Download() should return an error when metadata for the supplied version does not exist")
+		}
+
+		dt.Version = "1.0"
+
+		// docker image download fails
+		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
+		rpMock.EXPECT().PullDockerImage(dt.b, inst.Versions[dt.Version].PlatformID, inst.Name, dt.Version).Return(errors.New("error downloading docker image")).Times(1)
+		err = inst.Download(dt)
+		if err == nil {
+			t.Error("Download() should return an error when the docker image download fails")
+		}
+
+		// happy case
+		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
+		rpMock.EXPECT().PullDockerImage(dt.b, inst.Versions[dt.Version].PlatformID, inst.Name, dt.Version).Return(nil).Times(1)
+		err = inst.Download(dt)
+		if err != nil {
+			t.Errorf("Download() should NOT return an error: %s", err.Error())
 		}
 
 	})
