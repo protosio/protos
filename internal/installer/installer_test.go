@@ -11,6 +11,7 @@ import (
 	"protos/internal/mock"
 	"protos/internal/util"
 
+	"github.com/docker/docker/api/types"
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
 )
@@ -81,6 +82,7 @@ func TestInstaller(t *testing.T) {
 
 	installerParent := NewMockinstallerParent(ctrl)
 	rpMock := mock.NewMockRuntimePlatform(ctrl)
+	tmMock := mock.NewMockTaskManager(ctrl)
 
 	inst := Installer{Name: "TestInstaller", ID: "id1", Versions: map[string]core.InstallerMetadata{"1.0": core.InstallerMetadata{PlatformID: "id1"}}, parent: installerParent}
 
@@ -131,7 +133,67 @@ func TestInstaller(t *testing.T) {
 		if err != nil {
 			t.Errorf("Download() should NOT return an error: %s", err.Error())
 		}
+	})
 
+	//
+	// DownloadAsync
+	//
+
+	t.Run("DownloadAsync", func(t *testing.T) {
+		tskMock := mock.NewMockTask(ctrl)
+		tmMock.EXPECT().New(gomock.Any()).Return(tskMock).Times(1)
+		task := inst.DownloadAsync(tmMock, "1.0", "id1")
+		if task != tskMock {
+			t.Errorf("DownloadAsync() returned the wrong task: %p vs %p", tskMock, task)
+		}
+	})
+
+	//
+	// IsPlatformImageAvailable
+	//
+
+	t.Run("IsPlatformImageAvailable", func(t *testing.T) {
+		// metadata for the supplied version does not exist
+		if inst.IsPlatformImageAvailable("2.0") {
+			t.Error("IsPlatformImageAvailable() should return false when the metadata is not available for an image version")
+		}
+
+		// error retrieving Docker image
+		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
+		rpMock.EXPECT().GetDockerImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, errors.New("failed to retrieve image")).Times(1)
+		if inst.IsPlatformImageAvailable("1.0") {
+			t.Error("IsPlatformImageAvailable() should return false when retrieving the image fails ")
+		}
+
+		// happy case
+		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
+		rpMock.EXPECT().GetDockerImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, nil).Times(1)
+		if inst.IsPlatformImageAvailable("1.0") == false {
+			t.Error("IsPlatformImageAvailable() should return true")
+		}
+	})
+
+	//
+	// Remove
+	//
+
+	t.Run("Remove", func(t *testing.T) {
+		// error removing Docker image
+		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
+		rpMock.EXPECT().RemoveDockerImage(inst.Versions["1.0"].PlatformID).Return(errors.New("failed to remove image")).Times(1)
+		err := inst.Remove()
+		log.Info(err)
+		if err == nil {
+			t.Error("Remove() should return an error when removing the image fails")
+		}
+
+		// happy case
+		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
+		rpMock.EXPECT().RemoveDockerImage(inst.Versions["1.0"].PlatformID).Return(nil).Times(1)
+		err = inst.Remove()
+		if err != nil {
+			t.Errorf("Remove() should NOT return an error: %s", err.Error())
+		}
 	})
 }
 
