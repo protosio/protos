@@ -141,11 +141,15 @@ func (inst Installer) GetMetadata(version string) (core.InstallerMetadata, error
 func (inst Installer) Download(dt DownloadTask) error {
 	metadata, err := inst.GetMetadata(dt.Version)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to download installer %s version %s", inst.ID, dt.Version)
+		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
 	}
 
-	log.Infof("Downloading platform image for installer %s(%s) version %s", inst.Name, inst.ID, dt.Version)
-	return inst.parent.getPlatform().PullDockerImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
+	log.Infof("Downloading platform image for installer %s(%s) version '%s'", inst.Name, inst.ID, dt.Version)
+	err = inst.parent.getPlatform().PullDockerImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
+	}
+	return nil
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task
