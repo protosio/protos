@@ -162,14 +162,14 @@ func (inst Installer) DownloadAsync(tm core.TaskManager, version string, appID s
 func (inst Installer) IsPlatformImageAvailable(version string) bool {
 	metadata, err := inst.GetMetadata(version)
 	if err != nil {
-		log.Error()
+		log.Error(errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID))
 		return false
 	}
 
 	_, err = inst.parent.getPlatform().GetDockerImage(metadata.PlatformID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrImageNotFound) == false {
-			log.Error(err)
+			log.Error(errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID))
 		}
 		return false
 	}
@@ -183,7 +183,7 @@ func (inst *Installer) Remove() error {
 	for _, metadata := range inst.Versions {
 		err := inst.parent.getPlatform().RemoveDockerImage(metadata.PlatformID)
 		if err != nil {
-			return errors.New("Failed to remove installer: " + err.Error())
+			return errors.Wrapf(err, "Failed to remove install %s(%s)", inst.Name, inst.ID)
 		}
 	}
 	return nil
