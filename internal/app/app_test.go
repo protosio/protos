@@ -1056,7 +1056,6 @@ func TestTask(t *testing.T) {
 	defer ctrl.Finish()
 
 	amMock := NewMocktaskParent(ctrl)
-	tmMock := mock.NewMockTaskManager(ctrl)
 
 	t.Run("CreateAppTask", func(t *testing.T) {
 		task := CreateAppTask{
@@ -1138,9 +1137,8 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetPercentage(10).Times(1)
 		p.EXPECT().SetState("Created application").Times(1)
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(false).Times(1)
-		amMock.EXPECT().getTaskManager().Return(tmMock).Times(1)
 		app.EXPECT().GetID().Return("appid1").Times(1)
-		inst.EXPECT().DownloadAsync(tmMock, task.InstallerVersion, "appid1").Return(downloadTaskMock).Times(1)
+		inst.EXPECT().DownloadAsync(task.InstallerVersion, "appid1").Return(downloadTaskMock).Times(1)
 		downloadTaskMock.EXPECT().GetID().Return("2")
 		app.EXPECT().AddTask("2").Times(1)
 		downloadTaskMock.EXPECT().Wait().Return(errors.New("download task error"))

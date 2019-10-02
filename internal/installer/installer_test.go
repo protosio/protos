@@ -142,8 +142,9 @@ func TestInstaller(t *testing.T) {
 
 	t.Run("DownloadAsync", func(t *testing.T) {
 		tskMock := mock.NewMockTask(ctrl)
+		installerParent.EXPECT().getTaskManager().Return(tmMock).Times(1)
 		tmMock.EXPECT().New(gomock.Any()).Return(tskMock).Times(1)
-		task := inst.DownloadAsync(tmMock, "1.0", "id1")
+		task := inst.DownloadAsync("1.0", "id1")
 		if task != tskMock {
 			t.Errorf("DownloadAsync() returned the wrong task: %p vs %p", tskMock, task)
 		}
@@ -324,6 +325,7 @@ func TestAppStore(t *testing.T) {
 	defer ctrl.Finish()
 
 	rp := mock.NewMockRuntimePlatform(ctrl)
+	tm := mock.NewMockTaskManager(ctrl)
 	clientMock := NewMockhttpClient(ctrl)
 	getHTTPClient = func() httpClient {
 		return clientMock
@@ -337,11 +339,11 @@ func TestAppStore(t *testing.T) {
 				t.Errorf("A nil input in CreateAppStore call should lead to a panic")
 			}
 		}()
-		CreateAppStore(nil)
+		CreateAppStore(nil, nil)
 	}()
 
 	// happy case
-	appStore := CreateAppStore(rp)
+	appStore := CreateAppStore(rp, tm)
 	if appStore.rp != rp {
 		t.Errorf("appStore instance should have the same rp instance as the mock: %p vs %p", appStore.rp, rp)
 	}

@@ -48,6 +48,20 @@ func (mr *MockinstallerParentMockRecorder) getPlatform() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getPlatform", reflect.TypeOf((*MockinstallerParent)(nil).getPlatform))
 }
 
+// getTaskManager mocks base method
+func (m *MockinstallerParent) getTaskManager() core.TaskManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getTaskManager")
+	ret0, _ := ret[0].(core.TaskManager)
+	return ret0
+}
+
+// getTaskManager indicates an expected call of getTaskManager
+func (mr *MockinstallerParentMockRecorder) getTaskManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getTaskManager", reflect.TypeOf((*MockinstallerParent)(nil).getTaskManager))
+}
+
 // MockhttpClient is a mock of httpClient interface
 type MockhttpClient struct {
 	ctrl     *gomock.Controller

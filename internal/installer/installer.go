@@ -23,6 +23,7 @@ var log = util.GetLogger("installer")
 
 type installerParent interface {
 	getPlatform() core.RuntimePlatform
+	getTaskManager() core.TaskManager
 }
 
 // Installer represents an application installer
@@ -37,15 +38,16 @@ type Installer struct {
 // AppStore manages and downloads application installers
 type AppStore struct {
 	rp core.RuntimePlatform
+	tm core.TaskManager
 }
 
 // CreateAppStore creates and returns an app store instance
-func CreateAppStore(rp core.RuntimePlatform) *AppStore {
-	if rp == nil {
+func CreateAppStore(rp core.RuntimePlatform, tm core.TaskManager) *AppStore {
+	if rp == nil || tm == nil {
 		log.Panic("Failed to create AppStore: none of the inputs can be nil")
 	}
 
-	return &AppStore{rp: rp}
+	return &AppStore{rp: rp, tm: tm}
 }
 
 func parseInstallerCapabilities(capstring string) []*capability.Capability {
@@ -153,9 +155,8 @@ func (inst Installer) Download(dt DownloadTask) error {
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task
-func (inst Installer) DownloadAsync(tm core.TaskManager, version string, appID string) core.Task {
-	tsk := tm.New(&DownloadTask{Inst: inst, Version: version, AppID: appID})
-	return tsk
+func (inst Installer) DownloadAsync(version string, appID string) core.Task {
+	return inst.parent.getTaskManager().New(&DownloadTask{Inst: inst, Version: version, AppID: appID})
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
@@ -392,4 +393,8 @@ func (as *AppStore) CreateTemporaryInstaller(id string, metadata map[string]core
 
 func (as *AppStore) getPlatform() core.RuntimePlatform {
 	return as.rp
+}
+
+func (as *AppStore) getTaskManager() core.TaskManager {
+	return as.tm
 }

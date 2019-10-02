@@ -36,5 +36,5 @@ type InstallerCache interface {
 type Installer interface {
 	GetMetadata(version string) (InstallerMetadata, error)
 	IsPlatformImageAvailable(version string) bool
-	DownloadAsync(tm TaskManager, version string, appID string) Task
+	DownloadAsync(version string, appID string) Task
 }

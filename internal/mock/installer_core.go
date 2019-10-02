@@ -78,6 +78,73 @@ func (mr *MockAppStoreMockRecorder) Search(key, value interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockAppStore)(nil).Search), key, value)
 }
 
+// MockInstallerCache is a mock of InstallerCache interface
+type MockInstallerCache struct {
+	ctrl     *gomock.Controller
+	recorder *MockInstallerCacheMockRecorder
+}
+
+// MockInstallerCacheMockRecorder is the mock recorder for MockInstallerCache
+type MockInstallerCacheMockRecorder struct {
+	mock *MockInstallerCache
+}
+
+// NewMockInstallerCache creates a new mock instance
+func NewMockInstallerCache(ctrl *gomock.Controller) *MockInstallerCache {
+	mock := &MockInstallerCache{ctrl: ctrl}
+	mock.recorder = &MockInstallerCacheMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockInstallerCache) EXPECT() *MockInstallerCacheMockRecorder {
+	return m.recorder
+}
+
+// GetLocalInstallers mocks base method
+func (m *MockInstallerCache) GetLocalInstallers() (map[string]core.Installer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLocalInstallers")
+	ret0, _ := ret[0].(map[string]core.Installer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLocalInstallers indicates an expected call of GetLocalInstallers
+func (mr *MockInstallerCacheMockRecorder) GetLocalInstallers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLocalInstallers", reflect.TypeOf((*MockInstallerCache)(nil).GetLocalInstallers))
+}
+
+// GetLocalInstaller mocks base method
+func (m *MockInstallerCache) GetLocalInstaller(id string) (core.Installer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLocalInstaller", id)
+	ret0, _ := ret[0].(core.Installer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLocalInstaller indicates an expected call of GetLocalInstaller
+func (mr *MockInstallerCacheMockRecorder) GetLocalInstaller(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLocalInstaller", reflect.TypeOf((*MockInstallerCache)(nil).GetLocalInstaller), id)
+}
+
+// RemoveLocalInstaller mocks base method
+func (m *MockInstallerCache) RemoveLocalInstaller(id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveLocalInstaller", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveLocalInstaller indicates an expected call of RemoveLocalInstaller
+func (mr *MockInstallerCacheMockRecorder) RemoveLocalInstaller(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveLocalInstaller", reflect.TypeOf((*MockInstallerCache)(nil).RemoveLocalInstaller), id)
+}
+
 // MockInstaller is a mock of Installer interface
 type MockInstaller struct {
 	ctrl     *gomock.Controller
@@ -131,15 +198,15 @@ func (mr *MockInstallerMockRecorder) IsPlatformImageAvailable(version interface{
 }
 
 // DownloadAsync mocks base method
-func (m *MockInstaller) DownloadAsync(tm core.TaskManager, version, appID string) core.Task {
+func (m *MockInstaller) DownloadAsync(version, appID string) core.Task {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DownloadAsync", tm, version, appID)
+	ret := m.ctrl.Call(m, "DownloadAsync", version, appID)
 	ret0, _ := ret[0].(core.Task)
 	return ret0
 }
 
 // DownloadAsync indicates an expected call of DownloadAsync
-func (mr *MockInstallerMockRecorder) DownloadAsync(tm, version, appID interface{}) *gomock.Call {
+func (mr *MockInstallerMockRecorder) DownloadAsync(version, appID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadAsync", reflect.TypeOf((*MockInstaller)(nil).DownloadAsync), tm, version, appID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadAsync", reflect.TypeOf((*MockInstaller)(nil).DownloadAsync), version, appID)
 }
