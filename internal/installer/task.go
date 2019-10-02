@@ -1,8 +1,9 @@
 package installer
 
 import (
-	"github.com/pkg/errors"
 	"protos/internal/core"
+
+	"github.com/pkg/errors"
 )
 
 // DownloadTask downloads and installer and conforms to the task interface
@@ -15,13 +16,11 @@ type DownloadTask struct {
 
 // Name returns the name of the task type
 func (t *DownloadTask) Name() string {
-	return "Download application"
+	return "Download application installer"
 }
 
 // Run starts the async task
 func (t *DownloadTask) Run(tskID string, p core.Progress) error {
-	// SetKillable is left from the previous code
-	// tsk.SetKillable()
 
 	log.WithField("proc", tskID).Debugf("Running download installer task [%s] based on installer %s:%s", tskID, t.Inst.ID, t.Version)
 	t.b.AddApp(t.AppID)
@@ -29,7 +28,7 @@ func (t *DownloadTask) Run(tskID string, p core.Progress) error {
 
 	err := t.Inst.Download(*t)
 	if err != nil {
-		return errors.Wrapf(err, "Could not download installer %s:%s", t.Inst.ID, t.Version)
+		return errors.Wrapf(err, "Could not download installer id '%s' version '%s'", t.Inst.ID, t.Version)
 	}
 
 	return nil
