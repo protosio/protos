@@ -1,8 +1,9 @@
 package core
 
 import (
-	"github.com/docker/docker/api/types"
 	"protos/internal/util"
+
+	"github.com/docker/docker/api/types"
 )
 
 const (
@@ -16,16 +17,16 @@ const (
 
 // RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
 type RuntimePlatform interface {
-	GetDockerContainer(string) (PlatformRuntimeUnit, error)
+	GetDockerContainer(id string) (PlatformRuntimeUnit, error)
 	GetAllDockerContainers() (map[string]PlatformRuntimeUnit, error)
-	GetDockerImage(string) (types.ImageInspect, error)
+	GetDockerImage(id string) (types.ImageInspect, error)
 	GetAllDockerImages() (map[string]types.ImageSummary, error)
-	GetDockerImageDataPath(types.ImageInspect) (string, error)
-	PullDockerImage(Task, string, string, string) error
+	GetDockerImageDataPath(image types.ImageInspect) (string, error)
+	PullDockerImage(task Task, id string, name string, version string) error
 	RemoveDockerImage(id string) error
-	GetOrCreateVolume(string, string) (string, error)
-	RemoveVolume(string) error
-	NewContainer(string, string, string, string, string, []util.Port, map[string]string) (PlatformRuntimeUnit, error)
+	GetOrCreateVolume(id string, path string) (string, error)
+	RemoveVolume(id string) error
+	NewContainer(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
 }
 
 // PlatformRuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.
