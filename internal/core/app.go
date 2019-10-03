@@ -5,6 +5,12 @@ import (
 	"protos/internal/util"
 )
 
+// WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
+type WSConnection struct {
+	Send  chan interface{}
+	Close chan bool
+}
+
 // AppManager manages applications
 type AppManager interface {
 	Read(id string) (App, error)
@@ -35,6 +41,7 @@ type App interface {
 	GetResource(id string) (Resource, error)
 	CreateResource(jsonPayload []byte) (Resource, error)
 	DeleteResource(id string) error
+	SetMsgQ(msgq *WSConnection)
 	CloseMsgQ()
 	Public() App
 }

@@ -398,6 +398,18 @@ func (mr *MockAppMockRecorder) DeleteResource(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteResource", reflect.TypeOf((*MockApp)(nil).DeleteResource), id)
 }
 
+// SetMsgQ mocks base method
+func (m *MockApp) SetMsgQ(msgq *core.WSConnection) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetMsgQ", msgq)
+}
+
+// SetMsgQ indicates an expected call of SetMsgQ
+func (mr *MockAppMockRecorder) SetMsgQ(msgq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMsgQ", reflect.TypeOf((*MockApp)(nil).SetMsgQ), msgq)
+}
+
 // CloseMsgQ mocks base method
 func (m *MockApp) CloseMsgQ() {
 	m.ctrl.T.Helper()

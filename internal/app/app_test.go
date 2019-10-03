@@ -804,7 +804,7 @@ func TestApp(t *testing.T) {
 		//
 		// SetMsgQ
 		//
-		wsc := &WSConnection{Close: make(chan bool, 1), Send: make(chan interface{}, 1)}
+		wsc := &core.WSConnection{Close: make(chan bool, 1), Send: make(chan interface{}, 1)}
 		app.SetMsgQ(wsc)
 		if app.msgq != wsc {
 			t.Error("SetMsgQ() set an incorrect msgq on the app struct")

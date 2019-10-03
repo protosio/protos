@@ -45,12 +45,6 @@ type Config struct {
 	Data        string
 }
 
-// WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
-type WSConnection struct {
-	Send  chan interface{}
-	Close chan bool
-}
-
 // App represents the application state
 type App struct {
 	access *sync.Mutex
@@ -72,7 +66,7 @@ type App struct {
 	Capabilities      []string               `json:"capabilities"`
 	Resources         []string               `json:"resources"`
 	Tasks             []string               `json:"-"`
-	msgq              *WSConnection
+	msgq              *core.WSConnection
 }
 
 //
@@ -357,7 +351,7 @@ func (app *App) GetIP() string {
 //
 
 // SetMsgQ sets the channel that can be used to send WS messages to the app
-func (app *App) SetMsgQ(msgq *WSConnection) {
+func (app *App) SetMsgQ(msgq *core.WSConnection) {
 	app.access.Lock()
 	app.msgq = msgq
 	id := app.ID
