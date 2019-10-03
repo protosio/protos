@@ -10,6 +10,7 @@ import (
 
 	"protos/internal/api"
 	"protos/internal/app"
+	"protos/internal/auth"
 	"protos/internal/capability"
 	"protos/internal/config"
 	"protos/internal/database"
@@ -43,12 +44,17 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go catchSignals(sigs)
 
+	// open databse
+	db := database.CreateDatabase()
+	db.Open()
+	defer db.Close()
+
 	// Load config and print banner
 	config.Load(configFile, version)
 	log.Info("Starting up...")
 	var err error
 	var wg sync.WaitGroup
-	gconfig.InitMode = (database.Exists() == false) || init
+	gconfig.InitMode = (db.Exists() == false) || init
 	gconfig.DevMode = devmode
 	meta.PrintBanner()
 
@@ -59,13 +65,9 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		log.Fatal(err)
 	}
 
-	// open databse
-	db := database.CreateDatabase()
-	db.Open()
-	defer db.Close()
-
 	capability.Initialize()
 	p := platform.Initialize(incontainer) // required to connect to the Docker daemon
+	um := auth.CreateUserManager(db)
 	tm := task.CreateManager(db, gconfig)
 	as := installer.CreateAppStore(p, tm)
 	rm := resource.CreateManager(db)
@@ -88,7 +90,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		initwebserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("initwebserver", initwebserverQuit)
 		wg.Add(1)
-		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm)
+		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, as, um)
 		wg.Done()
 	}
 
@@ -102,7 +104,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		webserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("webserver", webserverQuit)
 		go func() {
-			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, as)
+			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, as, um)
 			wg.Done()
 		}()
 	}
