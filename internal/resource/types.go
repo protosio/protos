@@ -68,3 +68,13 @@ func (rsc *CertificateResource) Sanitize() core.Type {
 	output.CSR = []byte{}
 	return &output
 }
+
+// GetCertificate returns the resource certificate
+func (rsc *CertificateResource) GetCertificate() []byte {
+	return rsc.Certificate
+}
+
+// GetPrivateKey returns the private key of the certificate
+func (rsc *CertificateResource) GetPrivateKey() []byte {
+	return rsc.PrivateKey
+}

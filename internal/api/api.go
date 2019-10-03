@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"protos/internal/core"
-	"protos/internal/resource"
 
 	"github.com/pkg/errors"
 
@@ -52,6 +51,11 @@ type handlerAccess struct {
 	ic core.InstallerCache
 	um core.UserManager
 	rp core.RuntimePlatform
+}
+
+type certificate interface {
+	GetCertificate() []byte
+	GetPrivateKey() []byte
 }
 
 type routes []route
@@ -146,11 +150,11 @@ func applyStaticRoutes(r *mux.Router) {
 }
 
 func secureListen(handler http.Handler, certrsc core.Type, quit chan bool) {
-	cert, ok := certrsc.(*resource.CertificateResource)
+	cert, ok := certrsc.(certificate)
 	if ok == false {
 		log.Fatal("Failed to read TLS certificate")
 	}
-	tlscert, err := tls.X509KeyPair(cert.Certificate, cert.PrivateKey)
+	tlscert, err := tls.X509KeyPair(cert.GetCertificate(), cert.GetPrivateKey())
 	if err != nil {
 		log.Fatalf("Failed to parse the TLS certificate: %s", err.Error())
 	}
