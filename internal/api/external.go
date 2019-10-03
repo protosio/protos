@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"protos/internal/core"
-
 	"protos/internal/capability"
+	"protos/internal/core"
 
 	"github.com/gorilla/mux"
 )

@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/websocket"
-	"protos/internal/app"
 	"protos/internal/core"
+
+	"github.com/gorilla/websocket"
 )
 
 var externalWSRoutes = routes{
@@ -157,8 +157,8 @@ func wsInternal(ha handlerAccess) http.Handler {
 		}
 
 		ctx := r.Context()
-		appInstance := ctx.Value(appKey).(*app.App)
-		msgq := &app.WSConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
+		appInstance := ctx.Value(appKey).(core.App)
+		msgq := &core.WSConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
 		appInstance.SetMsgQ(msgq)
 
 		remoteQuit := make(chan bool, 1)
