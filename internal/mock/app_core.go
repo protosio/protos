@@ -272,72 +272,72 @@ func (mr *MockAppMockRecorder) GetIP() *gomock.Call {
 }
 
 // AddTask mocks base method
-func (m *MockApp) AddTask(arg0 string) {
+func (m *MockApp) AddTask(id string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddTask", arg0)
+	m.ctrl.Call(m, "AddTask", id)
 }
 
 // AddTask indicates an expected call of AddTask
-func (mr *MockAppMockRecorder) AddTask(arg0 interface{}) *gomock.Call {
+func (mr *MockAppMockRecorder) AddTask(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTask", reflect.TypeOf((*MockApp)(nil).AddTask), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTask", reflect.TypeOf((*MockApp)(nil).AddTask), id)
 }
 
 // ValidateCapability mocks base method
-func (m *MockApp) ValidateCapability(arg0 *capability.Capability) error {
+func (m *MockApp) ValidateCapability(cap *capability.Capability) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ValidateCapability", arg0)
+	ret := m.ctrl.Call(m, "ValidateCapability", cap)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ValidateCapability indicates an expected call of ValidateCapability
-func (mr *MockAppMockRecorder) ValidateCapability(arg0 interface{}) *gomock.Call {
+func (mr *MockAppMockRecorder) ValidateCapability(cap interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateCapability", reflect.TypeOf((*MockApp)(nil).ValidateCapability), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateCapability", reflect.TypeOf((*MockApp)(nil).ValidateCapability), cap)
 }
 
 // Provides mocks base method
-func (m *MockApp) Provides(arg0 string) bool {
+func (m *MockApp) Provides(resourceType string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Provides", arg0)
+	ret := m.ctrl.Call(m, "Provides", resourceType)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Provides indicates an expected call of Provides
-func (mr *MockAppMockRecorder) Provides(arg0 interface{}) *gomock.Call {
+func (mr *MockAppMockRecorder) Provides(resourceType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provides", reflect.TypeOf((*MockApp)(nil).Provides), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provides", reflect.TypeOf((*MockApp)(nil).Provides), resourceType)
 }
 
 // ReplaceContainer mocks base method
-func (m *MockApp) ReplaceContainer(arg0 string) error {
+func (m *MockApp) ReplaceContainer(id string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReplaceContainer", arg0)
+	ret := m.ctrl.Call(m, "ReplaceContainer", id)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReplaceContainer indicates an expected call of ReplaceContainer
-func (mr *MockAppMockRecorder) ReplaceContainer(arg0 interface{}) *gomock.Call {
+func (mr *MockAppMockRecorder) ReplaceContainer(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceContainer", reflect.TypeOf((*MockApp)(nil).ReplaceContainer), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceContainer", reflect.TypeOf((*MockApp)(nil).ReplaceContainer), id)
 }
 
 // AddAction mocks base method
-func (m *MockApp) AddAction(arg0 string) (core.Task, error) {
+func (m *MockApp) AddAction(action string) (core.Task, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddAction", arg0)
+	ret := m.ctrl.Call(m, "AddAction", action)
 	ret0, _ := ret[0].(core.Task)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AddAction indicates an expected call of AddAction
-func (mr *MockAppMockRecorder) AddAction(arg0 interface{}) *gomock.Call {
+func (mr *MockAppMockRecorder) AddAction(action interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAction", reflect.TypeOf((*MockApp)(nil).AddAction), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAction", reflect.TypeOf((*MockApp)(nil).AddAction), action)
 }
 
 // GetResources mocks base method
@@ -352,6 +352,50 @@ func (m *MockApp) GetResources() map[string]core.Resource {
 func (mr *MockAppMockRecorder) GetResources() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResources", reflect.TypeOf((*MockApp)(nil).GetResources))
+}
+
+// GetResource mocks base method
+func (m *MockApp) GetResource(id string) (core.Resource, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetResource", id)
+	ret0, _ := ret[0].(core.Resource)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetResource indicates an expected call of GetResource
+func (mr *MockAppMockRecorder) GetResource(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResource", reflect.TypeOf((*MockApp)(nil).GetResource), id)
+}
+
+// CreateResource mocks base method
+func (m *MockApp) CreateResource(jsonPayload []byte) (core.Resource, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateResource", jsonPayload)
+	ret0, _ := ret[0].(core.Resource)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateResource indicates an expected call of CreateResource
+func (mr *MockAppMockRecorder) CreateResource(jsonPayload interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateResource", reflect.TypeOf((*MockApp)(nil).CreateResource), jsonPayload)
+}
+
+// DeleteResource mocks base method
+func (m *MockApp) DeleteResource(id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteResource", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteResource indicates an expected call of DeleteResource
+func (mr *MockAppMockRecorder) DeleteResource(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteResource", reflect.TypeOf((*MockApp)(nil).DeleteResource), id)
 }
 
 // CloseMsgQ mocks base method

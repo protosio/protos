@@ -26,12 +26,15 @@ type App interface {
 	GetID() string
 	GetName() string
 	GetIP() string
-	AddTask(string)
-	ValidateCapability(*capability.Capability) error
-	Provides(string) bool
-	ReplaceContainer(string) error
-	AddAction(string) (Task, error)
+	AddTask(id string)
+	ValidateCapability(cap *capability.Capability) error
+	Provides(resourceType string) bool
+	ReplaceContainer(id string) error
+	AddAction(action string) (Task, error)
 	GetResources() map[string]Resource
+	GetResource(id string) (Resource, error)
+	CreateResource(jsonPayload []byte) (Resource, error)
+	DeleteResource(id string) error
 	CloseMsgQ()
 	Public() App
 }
