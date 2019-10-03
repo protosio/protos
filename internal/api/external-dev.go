@@ -3,9 +3,9 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"protos/internal/core"
 
 	"github.com/gorilla/mux"
-	"protos/internal/app"
 )
 
 var externalDevRoutes = routes{
@@ -31,7 +31,13 @@ var externalDevRoutes = routes{
 
 func createDevApp(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var appParams app.App
+		var appParams struct {
+			InstallerID       string
+			InstallerVersion  string
+			Name              string
+			InstallerMetadata core.InstallerMetadata
+			InstallerParams   map[string]string
+		}
 		defer r.Body.Close()
 
 		decoder := json.NewDecoder(r.Body)

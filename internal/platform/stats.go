@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"protos/internal/core"
 	"time"
 
 	"github.com/shirou/gopsutil/cpu"
@@ -46,7 +47,7 @@ type HardwareStats struct {
 }
 
 // GetHWStats returns the current system stats
-func GetHWStats() (HardwareStats, error) {
+func (dp *dockerPlatform) GetHWStats() (core.HardwareStats, error) {
 	hw := HardwareStats{}
 
 	memDetailedStat, err := mem.VirtualMemory()

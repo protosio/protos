@@ -27,6 +27,7 @@ type RuntimePlatform interface {
 	GetOrCreateVolume(id string, path string) (string, error)
 	RemoveVolume(id string) error
 	NewContainer(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
+	GetHWStats() (HardwareStats, error)
 }
 
 // PlatformRuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.
@@ -39,4 +40,7 @@ type PlatformRuntimeUnit interface {
 	GetIP() string
 	GetStatus() string
 	GetExitCode() int
+}
+
+type HardwareStats interface {
 }

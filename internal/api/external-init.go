@@ -3,9 +3,9 @@ package api
 import (
 	"net/http"
 
-	"github.com/pkg/errors"
 	"protos/internal/core"
-	"protos/internal/resource"
+
+	"github.com/pkg/errors"
 )
 
 var externalInitRoutes = routes{
@@ -54,7 +54,7 @@ func removeInitProvider(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		provides := queryParams.Get("provides")
-		if (provides != string(resource.DNS)) && (provides != string(resource.Certificate)) {
+		if (provides != string(core.DNS)) && (provides != string(core.Certificate)) {
 			log.Errorf("removeInitProvider called with invalid resource type: '%s'", provides)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Invalid resource provider type. The only allowed values are 'dns' and  'certificate'"})
 			return

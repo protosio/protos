@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"protos/internal/app"
 	"protos/internal/core"
-	"protos/internal/platform"
 
 	"protos/internal/capability"
 
@@ -157,7 +155,13 @@ func getApps(ha handlerAccess) http.Handler {
 
 func createApp(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var appParams app.App
+		var appParams struct {
+			InstallerID       string
+			InstallerVersion  string
+			Name              string
+			InstallerMetadata core.InstallerMetadata
+			InstallerParams   map[string]string
+		}
 		defer r.Body.Close()
 
 		decoder := json.NewDecoder(r.Body)
@@ -470,7 +474,7 @@ func getServices(ha handlerAccess) http.Handler {
 
 func getHWStats(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hwstats, err := platform.GetHWStats()
+		hwstats, err := ha.rp.GetHWStats()
 		if err != nil {
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Failed to retrieve hardware stats: " + err.Error()})
 		}

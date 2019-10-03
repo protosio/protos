@@ -1,10 +1,11 @@
 package platform
 
 import (
-	"github.com/pkg/errors"
 	"protos/internal/config"
 	"protos/internal/core"
 	"protos/internal/util"
+
+	"github.com/pkg/errors"
 )
 
 var gconfig = config.Get()
