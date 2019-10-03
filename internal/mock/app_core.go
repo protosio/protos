@@ -340,6 +340,20 @@ func (mr *MockAppMockRecorder) AddAction(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAction", reflect.TypeOf((*MockApp)(nil).AddAction), arg0)
 }
 
+// GetResources mocks base method
+func (m *MockApp) GetResources() map[string]core.Resource {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetResources")
+	ret0, _ := ret[0].(map[string]core.Resource)
+	return ret0
+}
+
+// GetResources indicates an expected call of GetResources
+func (mr *MockAppMockRecorder) GetResources() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResources", reflect.TypeOf((*MockApp)(nil).GetResources))
+}
+
 // CloseMsgQ mocks base method
 func (m *MockApp) CloseMsgQ() {
 	m.ctrl.T.Helper()

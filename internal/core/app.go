@@ -31,6 +31,7 @@ type App interface {
 	Provides(string) bool
 	ReplaceContainer(string) error
 	AddAction(string) (Task, error)
+	GetResources() map[string]Resource
 	CloseMsgQ()
 	Public() App
 }
