@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"protos/internal/app"
-	"protos/internal/auth"
 	"protos/internal/capability"
 	"protos/internal/core"
 
@@ -288,7 +287,7 @@ func getAdminUser(ha handlerAccess) http.Handler {
 		}{}
 
 		username := ha.m.GetAdminUser()
-		user, err := auth.GetUser(username)
+		user, err := ha.um.GetUser(username)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
@@ -296,11 +295,11 @@ func getAdminUser(ha handlerAccess) http.Handler {
 		}
 
 		if user.IsAdmin() != true {
-			log.Errorf("User %s is not admin, as recorded in meta", user.Username)
+			log.Errorf("User %s is not admin, as recorded in meta", user.GetUsername())
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not find the admin user"})
 			return
 		}
-		response.Username = user.Username
+		response.Username = user.GetUsername()
 
 		rend.JSON(w, http.StatusOK, response)
 	})
@@ -413,7 +412,7 @@ func authUser(ha handlerAccess) http.Handler {
 			return
 		}
 
-		user, err := auth.ValidateAndGetUser(userform.Username, userform.Password)
+		user, err := ha.um.ValidateAndGetUser(userform.Username, userform.Password)
 		if err != nil {
 			log.Debug(err)
 			http.Error(w, err.Error(), http.StatusUnauthorized)

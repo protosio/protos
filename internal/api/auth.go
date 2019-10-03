@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-
-	"protos/internal/auth"
 )
 
 // registerHandler is used in the initial user and domain registration. Should be disabled after the initial setup
@@ -42,13 +40,13 @@ func registerHandler(ha handlerAccess) http.Handler {
 
 		ha.m.SetDomain(registerform.Domain)
 
-		user, err := auth.CreateUser(registerform.Username, registerform.Password, registerform.Name, true)
+		user, err := ha.um.CreateUser(registerform.Username, registerform.Password, registerform.Name, true)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 			return
 		}
-		ha.m.SetAdminUser(user.Username)
+		ha.m.SetAdminUser(user.GetUsername())
 
 		tokenString, sstring, err := createToken()
 		if err != nil {
@@ -64,7 +62,7 @@ func registerHandler(ha handlerAccess) http.Handler {
 			Username string `json:"username"`
 		}{
 			Token:    tokenString,
-			Username: user.Username,
+			Username: user.GetUsername(),
 		}
 
 		log.Debug("Sending response: ", tokenResponse)
@@ -88,7 +86,7 @@ func loginHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		user, err := auth.ValidateAndGetUser(userform.Username, userform.Password)
+		user, err := ha.um.ValidateAndGetUser(userform.Username, userform.Password)
 		if err != nil {
 			log.Debug(err)
 			rend.JSON(w, http.StatusForbidden, httperr{Error: err.Error()})
@@ -116,7 +114,7 @@ func loginHandler(ha handlerAccess) http.Handler {
 			Role     string `json:"role"`
 		}{
 			Token:    tokenString,
-			Username: user.Username,
+			Username: user.GetUsername(),
 			Role:     role,
 		}
 

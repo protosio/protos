@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"protos/internal/capability"
+
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/dgrijalva/jwt-go/request"
 	"github.com/gorilla/mux"
-	"protos/internal/auth"
-	"protos/internal/capability"
 	"github.com/urfave/negroni"
 )
 
@@ -144,7 +144,7 @@ func ExternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
 			return
 		}
 
-		user, err := auth.GetUserForToken(sstring)
+		user, err := ha.um.GetUserForToken(sstring)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(rw, httpErrStatus, httperr{Error: err.Error()})

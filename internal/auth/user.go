@@ -9,8 +9,8 @@ import (
 	"syscall"
 
 	"protos/internal/capability"
+	"protos/internal/core"
 
-	"protos/internal/database"
 	"protos/internal/util"
 
 	"golang.org/x/crypto/bcrypt"
@@ -30,13 +30,7 @@ type User struct {
 	Name         string   `json:"name"`
 	IsDisabled   bool     `json:"isdisabled"`
 	Capabilities []string `json:"capabilities"`
-}
-
-// UserInfo holds information about a user that is meant to be returned to external applications or the web interface
-type UserInfo struct {
-	Username string `json:"username"`
-	Name     string `json:"name"`
-	IsAdmin  bool   `json:"isadmin"`
+	parent       *UserManager
 }
 
 var usersTokens = map[string]*User{}
@@ -86,10 +80,15 @@ func generatePasswordHash(password string) (string, error) {
 // User instance methods
 //
 
+// GetUsername returns the username of the user in string format
+func (user *User) GetUsername() string {
+	return user.Username
+}
+
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
 	log.Debugf("Writing username %s to database", user.Username)
-	return database.Save(user)
+	return user.parent.db.Save(user)
 }
 
 // AddToken associates a JWT token with a username
@@ -123,8 +122,8 @@ func (user *User) IsAdmin() bool {
 }
 
 // GetInfo returns public information about a user
-func (user *User) GetInfo() UserInfo {
-	return UserInfo{
+func (user *User) GetInfo() core.UserInfo {
+	return core.UserInfo{
 		Username: user.Username,
 		Name:     user.Name,
 		IsAdmin:  user.IsAdmin(),
@@ -135,8 +134,22 @@ func (user *User) GetInfo() UserInfo {
 // Public package methods
 //
 
+// UserManager implements the core.UserManager interface, which manages users
+type UserManager struct {
+	db core.DB
+}
+
+// CreateUserManager return a UserManager instance, which implements the core.UserManager interface
+func CreateUserManager(db core.DB) *UserManager {
+	if db == nil {
+		log.Panic("Failed to create app manager: none of the inputs can be nil")
+	}
+
+	return &UserManager{db: db}
+}
+
 // CreateUser creates and returns a user
-func CreateUser(username string, password string, name string, isadmin bool) (*User, error) {
+func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool) (core.User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {
@@ -149,6 +162,7 @@ func CreateUser(username string, password string, name string, isadmin bool) (*U
 		Name:         name,
 		IsDisabled:   false,
 		Capabilities: []string{},
+		parent:       um,
 	}
 	if isadmin {
 		user.Capabilities = append(user.Capabilities, capability.UserAdmin.Name)
@@ -158,12 +172,12 @@ func CreateUser(username string, password string, name string, isadmin bool) (*U
 }
 
 // ValidateAndGetUser takes a username and password and returns the full User struct if credentials are valid
-func ValidateAndGetUser(username string, password string) (*User, error) {
+func (um *UserManager) ValidateAndGetUser(username string, password string) (core.User, error) {
 	log.Debugf("Searching for username %s", username)
 
 	errInvalid := errors.New("Invalid credentials")
 	var user User
-	err := database.One("Username", username, &user)
+	err := um.db.One("Username", username, &user)
 	if err != nil {
 		log.Debugf("Can't find user %s (%s)", username, err)
 		return nil, errInvalid
@@ -181,23 +195,25 @@ func ValidateAndGetUser(username string, password string) (*User, error) {
 	}
 
 	log.Debugf("User %s logged in successfuly", username)
+	user.parent = um
 	return &user, nil
 }
 
 // GetUser returns a user based on the username
-func GetUser(username string) (*User, error) {
+func (um *UserManager) GetUser(username string) (core.User, error) {
 	errInvalid := errors.New("Invalid username")
 	var user User
-	err := database.One("Username", username, &user)
+	err := um.db.One("Username", username, &user)
 	if err != nil {
 		log.Debugf("Can't find user %s (%s)", username, err)
 		return nil, errInvalid
 	}
+	user.parent = um
 	return &user, nil
 }
 
 // GetUserForToken returns a user for a specific token
-func GetUserForToken(token string) (*User, error) {
+func (um *UserManager) GetUserForToken(token string) (core.User, error) {
 	if usr, ok := usersTokens[token]; ok {
 		return usr, nil
 	}
@@ -205,11 +221,11 @@ func GetUserForToken(token string) (*User, error) {
 }
 
 // SetupAdmin creates and initial admin user
-func SetupAdmin() {
+func (um *UserManager) SetupAdmin() {
 	username, clearpassword, name := readCredentials()
-	user, err := CreateUser(username, clearpassword, name, true)
+	user, err := um.CreateUser(username, clearpassword, name, true)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Infof("User %s has been created.", user.Username)
+	log.Infof("User %s has been created.", user.GetUsername())
 }

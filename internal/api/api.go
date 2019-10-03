@@ -50,6 +50,7 @@ type handlerAccess struct {
 	m  core.Meta
 	as core.AppStore
 	ic core.InstallerCache
+	um core.UserManager
 }
 
 type routes []route
@@ -255,7 +256,7 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache) {
+func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager) {
 
 	ha := handlerAccess{
 		pm: pm,
@@ -265,9 +266,10 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 		m:  m,
 		as: as,
 		ic: ic,
+		um: um,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil {
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
@@ -303,7 +305,7 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 }
 
 // WebsrvInit starts an HTTP server used only during the initialisation process
-func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager) bool {
+func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager) bool {
 
 	ha := handlerAccess{
 		pm: pm,
@@ -311,10 +313,13 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 		am: am,
 		tm: tm,
 		m:  m,
+		as: as,
+		ic: ic,
+		um: um,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil {
-		log.Panic("Failed to create init web server: none of the inputs can be nil")
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil {
+		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
