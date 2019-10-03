@@ -182,6 +182,21 @@ func (mr *MockRuntimePlatformMockRecorder) NewContainer(name, appID, imageID, vo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewContainer", reflect.TypeOf((*MockRuntimePlatform)(nil).NewContainer), name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams)
 }
 
+// GetHWStats mocks base method
+func (m *MockRuntimePlatform) GetHWStats() (core.HardwareStats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHWStats")
+	ret0, _ := ret[0].(core.HardwareStats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHWStats indicates an expected call of GetHWStats
+func (mr *MockRuntimePlatformMockRecorder) GetHWStats() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHWStats", reflect.TypeOf((*MockRuntimePlatform)(nil).GetHWStats))
+}
+
 // MockPlatformRuntimeUnit is a mock of PlatformRuntimeUnit interface
 type MockPlatformRuntimeUnit struct {
 	ctrl     *gomock.Controller
@@ -315,4 +330,27 @@ func (m *MockPlatformRuntimeUnit) GetExitCode() int {
 func (mr *MockPlatformRuntimeUnitMockRecorder) GetExitCode() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExitCode", reflect.TypeOf((*MockPlatformRuntimeUnit)(nil).GetExitCode))
+}
+
+// MockHardwareStats is a mock of HardwareStats interface
+type MockHardwareStats struct {
+	ctrl     *gomock.Controller
+	recorder *MockHardwareStatsMockRecorder
+}
+
+// MockHardwareStatsMockRecorder is the mock recorder for MockHardwareStats
+type MockHardwareStatsMockRecorder struct {
+	mock *MockHardwareStats
+}
+
+// NewMockHardwareStats creates a new mock instance
+func NewMockHardwareStats(ctrl *gomock.Controller) *MockHardwareStats {
+	mock := &MockHardwareStats{ctrl: ctrl}
+	mock.recorder = &MockHardwareStatsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockHardwareStats) EXPECT() *MockHardwareStatsMockRecorder {
+	return m.recorder
 }
