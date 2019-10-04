@@ -37,7 +37,7 @@ type Manager struct {
 }
 
 // CreateManager creates the root capability and returns a core.CapabilityManager
-func CreateManager() core.CapabilityManager {
+func CreateManager() *Manager {
 	log.Info("Initializing capabilities")
 	cm := &Manager{}
 	cm.root = cm.New("RootCapability")

@@ -65,14 +65,14 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		log.Fatal(err)
 	}
 
-	capability.Initialize()
 	p := platform.Initialize(incontainer) // required to connect to the Docker daemon
+	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db)
 	tm := task.CreateManager(db, gconfig)
-	as := installer.CreateAppStore(p, tm)
+	as := installer.CreateAppStore(p, tm, cm)
 	rm := resource.CreateManager(db)
 	m := meta.Setup(rm, db)
-	am := app.CreateManager(rm, tm, p, db, m, gconfig, as)
+	am := app.CreateManager(rm, tm, p, db, m, gconfig, as, cm)
 	pm := provider.CreateManager(rm, am, db)
 
 	// start ws connection manager
@@ -90,7 +90,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		initwebserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("initwebserver", initwebserverQuit)
 		wg.Add(1)
-		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p)
+		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p, cm)
 		wg.Done()
 	}
 
@@ -104,7 +104,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		webserverQuit := make(chan bool, 1)
 		gconfig.ProcsQuit.Store("webserver", webserverQuit)
 		go func() {
-			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p)
+			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p, cm)
 			wg.Done()
 		}()
 	}
