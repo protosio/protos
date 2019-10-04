@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"protos/internal/capability"
 	"protos/internal/core"
 	"protos/internal/mock"
 	"protos/internal/util"
@@ -19,11 +18,18 @@ import (
 
 func TestParserFunctions(t *testing.T) {
 
-	caps := parseInstallerCapabilities("ResourceProvider,WrongCap")
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	cm := mock.NewMockCapabilityManager(ctrl)
+	capabilityMock := mock.NewMockCapability(ctrl)
+
+	cm.EXPECT().GetByName("ResourceProvider").Return(capabilityMock, nil).Times(1)
+	cm.EXPECT().GetByName("WrongCap").Return(nil, errors.New("wrong capability")).Times(1)
+	caps := parseInstallerCapabilities(cm, "ResourceProvider,WrongCap")
 	if len(caps) != 1 {
 		t.Errorf("Wrong number of capabilities returned. %d instead of 1", len(caps))
 	}
-	if caps[0] != capability.ResourceProvider {
+	if caps[0] != capabilityMock {
 		t.Errorf("Wrong capability returned by the parse function")
 	}
 
@@ -39,6 +45,11 @@ func TestParserFunctions(t *testing.T) {
 
 func TestMetadata(t *testing.T) {
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	cm := mock.NewMockCapabilityManager(ctrl)
+	capabilityMock := mock.NewMockCapability(ctrl)
+
 	testMetadata := map[string]string{
 		"protos.installer.metadata.capabilities": "ResourceProvider,ResourceConsumer,InternetAccess,GetInformation,PublicDNS,AuthUser",
 		"protos.installer.metadata.requires":     "dns",
@@ -47,14 +58,18 @@ func TestMetadata(t *testing.T) {
 		"protos.installer.metadata.name":         "testapp",
 	}
 
-	_, err := parseMetadata(testMetadata)
+	cm.EXPECT().GetByName(gomock.Any()).Return(capabilityMock, nil).Times(5)
+	cm.EXPECT().GetByName(gomock.Any()).Return(nil, errors.New("wrong capability")).Times(1)
+	_, err := parseMetadata(cm, testMetadata)
 	if err == nil {
 		t.Errorf("parseMetadata(testMetadata) should return an error on missing description")
 	}
 
 	testMetadata["protos.installer.metadata.description"] = "Small app description"
 
-	metadata, err := parseMetadata(testMetadata)
+	cm.EXPECT().GetByName(gomock.Any()).Return(capabilityMock, nil).Times(5)
+	cm.EXPECT().GetByName(gomock.Any()).Return(nil, errors.New("wrong capability")).Times(1)
+	metadata, err := parseMetadata(cm, testMetadata)
 	if err != nil {
 		t.Errorf("parseMetadata(testMetadata) should not return an error, but it did: %s", err)
 	}
@@ -326,6 +341,7 @@ func TestAppStore(t *testing.T) {
 
 	rp := mock.NewMockRuntimePlatform(ctrl)
 	tm := mock.NewMockTaskManager(ctrl)
+	cm := mock.NewMockCapabilityManager(ctrl)
 	clientMock := NewMockhttpClient(ctrl)
 	getHTTPClient = func() httpClient {
 		return clientMock
@@ -339,11 +355,11 @@ func TestAppStore(t *testing.T) {
 				t.Errorf("A nil input in CreateAppStore call should lead to a panic")
 			}
 		}()
-		CreateAppStore(nil, nil)
+		CreateAppStore(nil, nil, nil)
 	}()
 
 	// happy case
-	appStore := CreateAppStore(rp, tm)
+	appStore := CreateAppStore(rp, tm, cm)
 	if appStore.rp != rp {
 		t.Errorf("appStore instance should have the same rp instance as the mock: %p vs %p", appStore.rp, rp)
 	}

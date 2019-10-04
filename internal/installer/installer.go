@@ -10,7 +10,6 @@ import (
 
 	"protos/internal/core"
 
-	"protos/internal/capability"
 	"protos/internal/config"
 
 	"github.com/pkg/errors"
@@ -39,21 +38,22 @@ type Installer struct {
 type AppStore struct {
 	rp core.RuntimePlatform
 	tm core.TaskManager
+	cm core.CapabilityManager
 }
 
 // CreateAppStore creates and returns an app store instance
-func CreateAppStore(rp core.RuntimePlatform, tm core.TaskManager) *AppStore {
-	if rp == nil || tm == nil {
+func CreateAppStore(rp core.RuntimePlatform, tm core.TaskManager, cm core.CapabilityManager) *AppStore {
+	if rp == nil || tm == nil || cm == nil {
 		log.Panic("Failed to create AppStore: none of the inputs can be nil")
 	}
 
-	return &AppStore{rp: rp, tm: tm}
+	return &AppStore{rp: rp, tm: tm, cm: cm}
 }
 
-func parseInstallerCapabilities(capstring string) []*capability.Capability {
-	caps := []*capability.Capability{}
+func parseInstallerCapabilities(cm core.CapabilityManager, capstring string) []core.Capability {
+	caps := []core.Capability{}
 	for _, capname := range strings.Split(capstring, ",") {
-		cap, err := capability.GetByName(capname)
+		cap, err := cm.GetByName(capname)
 		if err != nil {
 			log.Error(err)
 		} else {
@@ -95,7 +95,7 @@ func parsePublicPorts(publicports string) []util.Port {
 }
 
 // parseMetadata parses the image metadata from the image labels
-func parseMetadata(labels map[string]string) (core.InstallerMetadata, error) {
+func parseMetadata(cm core.CapabilityManager, labels map[string]string) (core.InstallerMetadata, error) {
 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
 	metadata := core.InstallerMetadata{}
 	for label, value := range labels {
@@ -103,7 +103,7 @@ func parseMetadata(labels map[string]string) (core.InstallerMetadata, error) {
 		if len(labelParts) == 3 {
 			switch labelParts[2] {
 			case "capabilities":
-				metadata.Capabilities = parseInstallerCapabilities(value)
+				metadata.Capabilities = parseInstallerCapabilities(cm, value)
 			case "params":
 				metadata.Params = strings.Split(value, ",")
 			case "provides":
@@ -252,7 +252,7 @@ func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
 			return nil, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
 		}
 
-		metadata, err := parseMetadata(imgDetailed.Config.Labels)
+		metadata, err := parseMetadata(as.cm, imgDetailed.Config.Labels)
 		if err != nil {
 			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", id, installerVersion, err)
 		}
