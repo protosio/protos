@@ -15,7 +15,6 @@ import (
 	// statik package is use to embed static web assets in the protos binary
 	_ "protos/internal/statik"
 
-	"protos/internal/capability"
 	"protos/internal/config"
 	"protos/internal/util"
 
@@ -38,7 +37,7 @@ type route struct {
 	Method      string
 	Pattern     string
 	HandlerFunc func(handlerAccess) http.Handler
-	Capability  *capability.Capability
+	Capability  core.Capability
 }
 
 type handlerAccess struct {
@@ -51,6 +50,7 @@ type handlerAccess struct {
 	ic core.InstallerCache
 	um core.UserManager
 	rp core.RuntimePlatform
+	cm core.CapabilityManager
 }
 
 type certificate interface {
@@ -78,7 +78,7 @@ func applyAPIroutes(ha handlerAccess, r *mux.Router, routes []route) *mux.Router
 			r.Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc(ha))
 		}
 		if route.Capability != nil {
-			capability.SetMethodCap(route.Name, route.Capability)
+			ha.cm.SetMethodCap(route.Name, route.Capability)
 		}
 	}
 	return r
@@ -261,7 +261,7 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager, rp core.RuntimePlatform) {
+func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) {
 
 	ha := handlerAccess{
 		pm: pm,
@@ -273,9 +273,10 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 		ic: ic,
 		um: um,
 		rp: rp,
+		cm: cm,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil || ha.rp == nil {
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
@@ -284,11 +285,13 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 
 	// internal routes
 	internalRouter := createInternalAPIrouter(ha, mainRtr)
+	internalRoutes := createInternalRoutes(ha.cm)
 	applyAPIroutes(ha, internalRouter, internalRoutes)
 	applyAPIroutes(ha, internalRouter, internalWSRoutes)
 
 	// external routes
 	externalRouter := createExternalAPIrouter(ha, mainRtr)
+	externalRoutes := createExternalRoutes(ha.cm)
 	applyAPIroutes(ha, externalRouter, externalRoutes)
 	applyAPIroutes(ha, externalRouter, externalWSRoutes)
 
@@ -311,7 +314,7 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 }
 
 // WebsrvInit starts an HTTP server used only during the initialisation process
-func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager, rp core.RuntimePlatform) bool {
+func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) bool {
 
 	ha := handlerAccess{
 		pm: pm,
@@ -323,9 +326,10 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 		ic: ic,
 		um: um,
 		rp: rp,
+		cm: cm,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil || ha.rp == nil {
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
@@ -334,11 +338,13 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 
 	// internal routes
 	internalRouter := createInternalAPIrouter(ha, mainRtr)
+	internalRoutes := createInternalRoutes(ha.cm)
 	applyAPIroutes(ha, internalRouter, internalRoutes)
 	applyAPIroutes(ha, internalRouter, internalWSRoutes)
 
 	// external routes
 	externalRouter := createExternalAPIrouter(ha, mainRtr)
+	externalRoutes := createExternalRoutes(ha.cm)
 	applyAPIroutes(ha, externalRouter, externalRoutes)
 	applyAPIroutes(ha, externalRouter, externalInitRoutes)
 	applyAPIroutes(ha, externalRouter, externalWSRoutes)

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"protos/internal/capability"
+	"protos/internal/core"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/dgrijalva/jwt-go/request"
@@ -20,13 +20,13 @@ const (
 	appKey key = iota
 )
 
-func checkCapability(capChecker capability.Checker, routeName string) error {
-	methodcap, err := capability.GetMethodCap(routeName)
+func checkCapability(cm core.CapabilityManager, capChecker core.CapabilityChecker, routeName string) error {
+	methodcap, err := cm.GetMethodCap(routeName)
 	if err != nil {
 		log.Warn(err.Error())
 		return nil
 	}
-	log.Debugf("Required capability for route %s is %s", routeName, methodcap.Name)
+	log.Debugf("Required capability for route %s is %s", routeName, methodcap.GetName())
 	err = capChecker.ValidateCapability(methodcap)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func InternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
 		log.Debugf("Validated %s request to %s as coming from app %s(%s)", r.Method, r.URL.Path, appID, appInstance.GetName())
 
 		routeName := mux.CurrentRoute(r).GetName()
-		err = checkCapability(appInstance, routeName)
+		err = checkCapability(ha.cm, appInstance, routeName)
 		if err != nil {
 			log.Error(err.Error())
 			http.Error(rw, "Application not authorized to access that resource", http.StatusUnauthorized)
@@ -152,7 +152,7 @@ func ExternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
 		}
 
 		routeName := mux.CurrentRoute(r).GetName()
-		err = checkCapability(user, routeName)
+		err = checkCapability(ha.cm, user, routeName)
 		if err != nil {
 			log.Error(err.Error())
 			rend.JSON(rw, httpErrStatus, httperr{Error: "User not authorized to access that resource"})
