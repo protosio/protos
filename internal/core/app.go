@@ -1,7 +1,6 @@
 package core
 
 import (
-	"protos/internal/capability"
 	"protos/internal/util"
 )
 
@@ -11,7 +10,7 @@ type WSConnection struct {
 	Close chan bool
 }
 
-// AppManager manages applications
+// AppManager manages applications and their lifecycle
 type AppManager interface {
 	Read(id string) (App, error)
 	GetAllPublic() map[string]App
@@ -33,7 +32,7 @@ type App interface {
 	GetName() string
 	GetIP() string
 	AddTask(id string)
-	ValidateCapability(cap *capability.Capability) error
+	ValidateCapability(cap Capability) error
 	Provides(resourceType string) bool
 	ReplaceContainer(id string) error
 	AddAction(action string) (Task, error)

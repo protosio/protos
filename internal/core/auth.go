@@ -1,7 +1,5 @@
 package core
 
-import "protos/internal/capability"
-
 // UserInfo holds information about a user that is meant to be returned to external applications or the web interface
 type UserInfo struct {
 	Username string `json:"username"`
@@ -21,7 +19,7 @@ type UserManager interface {
 type User interface {
 	Save() error
 	AddToken(token string)
-	ValidateCapability(cap *capability.Capability) error
+	ValidateCapability(cap Capability) error
 	IsAdmin() bool
 	GetInfo() UserInfo
 	GetUsername() string

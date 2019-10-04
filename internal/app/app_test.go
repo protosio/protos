@@ -5,7 +5,6 @@ import (
 	"sync"
 	"testing"
 
-	"protos/internal/capability"
 	"protos/internal/core"
 	"protos/internal/mock"
 	"protos/internal/util"
@@ -25,9 +24,11 @@ func TestAppManager(t *testing.T) {
 	rpMock := mock.NewMockRuntimePlatform(ctrl)
 	dbMock := mock.NewMockDB(ctrl)
 	wspMock := mock.NewMockWSPublisher(ctrl)
+	cmMock := mock.NewMockCapabilityManager(ctrl)
 	metaMock := mock.NewMockMeta(ctrl)
 	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
 	appStoreMock := NewMockappStore(ctrl)
+	capMock := mock.NewMockCapability(ctrl)
 
 	c := make(chan interface{}, 10)
 
@@ -49,11 +50,11 @@ func TestAppManager(t *testing.T) {
 				t.Errorf("A nil input in the CreateManager call should lead to a panic")
 			}
 		}()
-		CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock, nil)
+		CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock, nil, cmMock)
 	}()
 
 	// happy case
-	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock, appStoreMock)
+	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock, appStoreMock, cmMock)
 
 	//
 	// GetCopy
@@ -155,7 +156,10 @@ func TestAppManager(t *testing.T) {
 		// capability test, error while creating DNS for app
 		metaMock.EXPECT().GetPublicIP().Return("1.1.1.1").Times(1)
 		rmMock.EXPECT().CreateDNS(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("test error")).Times(1)
-		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []*capability.Capability{capability.PublicDNS}}, "taskid")
+		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(1)
+		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
+		cmMock.EXPECT().Validate(capMock, gomock.Any()).Return(true).Times(1)
+		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []core.Capability{capMock}}, "taskid")
 		if err == nil {
 			t.Error("Creating an app and having a DNS creation error should result in an error")
 		}
@@ -164,6 +168,8 @@ func TestAppManager(t *testing.T) {
 		wspMock.EXPECT().GetWSPublishChannel().Return(c).Times(1)
 		tmMock.EXPECT().GetIDs(gomock.Any()).Return(*linkedhashmap.New()).Times(1)
 		rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(1)
+		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(1)
+		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
 		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
 		app, err := am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{}, "taskid")
 
@@ -293,6 +299,8 @@ func TestAppManager(t *testing.T) {
 		wspMock.EXPECT().GetWSPublishChannel().Return(c).Times(2)
 		tmMock.EXPECT().GetIDs(gomock.Any()).Return(*linkedhashmap.New()).Times(2)
 		rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
+		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(1)
+		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
 		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(2)
 		rpMock.EXPECT().GetDockerContainer(gomock.Any()).Return(pruMock, nil).Times(1)
 		pruMock.EXPECT().GetStatus().Return("exited").Times(1)
@@ -347,6 +355,8 @@ func TestApp(t *testing.T) {
 	pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
 	taskMock := mock.NewMockTask(ctrl)
 	rmMock := mock.NewMockResourceManager(ctrl)
+	capMock := mock.NewMockCapability(ctrl)
+	cmMock := mock.NewMockCapabilityManager(ctrl)
 
 	app := &App{
 		ID:          "id1",
@@ -991,14 +1001,17 @@ func TestApp(t *testing.T) {
 	t.Run("ValidateCapability", func(t *testing.T) {
 		// app doesn't have AuthUser capability
 		app.Capabilities = []string{}
-		err := app.ValidateCapability(capability.AuthUser)
+		capMock.EXPECT().GetName().Return("AuthUser").Times(1)
+		err := app.ValidateCapability(capMock)
 		if err == nil {
 			t.Error("ValidateCapability() should return an error when the app doesn't have that capability")
 		}
 
 		// app has AuthUser capability
-		app.Capabilities = []string{capability.AuthUser.Name}
-		err = app.ValidateCapability(capability.AuthUser)
+		app.Capabilities = []string{"AuthUser"}
+		parentMock.EXPECT().getCapabilityManager().Return(cmMock).Times(1)
+		cmMock.EXPECT().Validate(capMock, "AuthUser").Return(true).Times(1)
+		err = app.ValidateCapability(capMock)
 		if err != nil {
 			t.Errorf("ValidateCapability() should NOT return an error when the app has that capability: %s", err.Error())
 		}

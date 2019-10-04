@@ -101,3 +101,17 @@ func (mr *MockappParentMockRecorder) getResourceManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getResourceManager", reflect.TypeOf((*MockappParent)(nil).getResourceManager))
 }
+
+// getCapabilityManager mocks base method
+func (m *MockappParent) getCapabilityManager() core.CapabilityManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getCapabilityManager")
+	ret0, _ := ret[0].(core.CapabilityManager)
+	return ret0
+}
+
+// getCapabilityManager indicates an expected call of getCapabilityManager
+func (mr *MockappParentMockRecorder) getCapabilityManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getCapabilityManager", reflect.TypeOf((*MockappParent)(nil).getCapabilityManager))
+}

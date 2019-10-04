@@ -9,7 +9,6 @@ import (
 	"protos/internal/config"
 	"protos/internal/core"
 
-	"protos/internal/capability"
 	"protos/internal/util"
 )
 
@@ -35,6 +34,7 @@ type appParent interface {
 	getPlatform() core.RuntimePlatform
 	getTaskManager() core.TaskManager
 	getResourceManager() core.ResourceManager
+	getCapabilityManager() core.CapabilityManager
 }
 
 // Config the application config
@@ -111,10 +111,10 @@ func validateInstallerParams(paramsProvided map[string]string, paramsExpected []
 	return nil
 }
 
-func createCapabilities(installerCapabilities []*capability.Capability) []string {
+func createCapabilities(installerCapabilities []core.Capability) []string {
 	caps := []string{}
 	for _, cap := range installerCapabilities {
-		caps = append(caps, cap.Name)
+		caps = append(caps, cap.GetName())
 	}
 	return caps
 }
@@ -453,13 +453,13 @@ func (app *App) GetResource(resourceID string) (core.Resource, error) {
 }
 
 // ValidateCapability implements the capability checker interface
-func (app *App) ValidateCapability(cap *capability.Capability) error {
-	for _, appcap := range app.Capabilities {
-		if capability.Validate(cap, appcap) {
+func (app *App) ValidateCapability(cap core.Capability) error {
+	for _, capName := range app.Capabilities {
+		if app.parent.getCapabilityManager().Validate(cap, capName) {
 			return nil
 		}
 	}
-	return errors.New("Method capability " + cap.Name + " not satisfied by application " + app.ID)
+	return errors.New("Method capability " + cap.GetName() + " not satisfied by application " + app.ID)
 }
 
 // Provides returns true if the application is a provider for a specific type of resource

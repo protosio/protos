@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"protos/internal/capability"
 	"protos/internal/core"
 	"protos/internal/util"
 
@@ -88,6 +87,7 @@ type Manager struct {
 	tm          core.TaskManager
 	m           core.Meta
 	db          core.DB
+	cm          core.CapabilityManager
 	platform    core.RuntimePlatform
 	wspublisher core.WSPublisher
 }
@@ -97,9 +97,9 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher, appStore appStore) *Manager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher, appStore appStore, cm core.CapabilityManager) *Manager {
 
-	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil {
+	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
 	}
 
@@ -112,7 +112,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
 
-	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore}
+	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore, cm: cm}
 	apps := Map{access: &sync.Mutex{}, apps: map[string]*App{}, db: db}
 	for _, app := range dbapps {
 		tmp := app
@@ -140,6 +140,10 @@ func (am *Manager) getTaskManager() core.TaskManager {
 
 func (am *Manager) getAppStore() appStore {
 	return am.store
+}
+
+func (am *Manager) getCapabilityManager() core.CapabilityManager {
+	return am.cm
 }
 
 func (am *Manager) createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error) {
@@ -223,7 +227,11 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating, parent: am}
 
 	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
-	if app.ValidateCapability(capability.PublicDNS) == nil {
+	publicDNSCapability, err := am.cm.GetByName("PublicDNS")
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
+	}
+	if app.ValidateCapability(publicDNSCapability) == nil {
 		rsc, err := am.rm.CreateDNS(app.ID, app.Name, "A", am.m.GetPublicIP(), 300)
 		if err != nil {
 			return app, err

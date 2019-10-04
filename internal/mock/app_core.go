@@ -6,7 +6,6 @@ package mock
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	capability "protos/internal/capability"
 	core "protos/internal/core"
 	util "protos/internal/util"
 	reflect "reflect"
@@ -284,7 +283,7 @@ func (mr *MockAppMockRecorder) AddTask(id interface{}) *gomock.Call {
 }
 
 // ValidateCapability mocks base method
-func (m *MockApp) ValidateCapability(cap *capability.Capability) error {
+func (m *MockApp) ValidateCapability(cap core.Capability) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateCapability", cap)
 	ret0, _ := ret[0].(error)
