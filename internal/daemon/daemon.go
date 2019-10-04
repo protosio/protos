@@ -67,7 +67,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 
 	p := platform.Initialize(incontainer) // required to connect to the Docker daemon
 	cm := capability.CreateManager()
-	um := auth.CreateUserManager(db)
+	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, gconfig)
 	as := installer.CreateAppStore(p, tm, cm)
 	rm := resource.CreateManager(db)

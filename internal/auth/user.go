@@ -8,7 +8,6 @@ import (
 	"strings"
 	"syscall"
 
-	"protos/internal/capability"
 	"protos/internal/core"
 
 	"protos/internal/util"
@@ -104,18 +103,22 @@ func (user *User) AddToken(token string) {
 }
 
 // ValidateCapability implements the capability checker interface
-func (user *User) ValidateCapability(cap *capability.Capability) error {
+func (user *User) ValidateCapability(cap core.Capability) error {
 	for _, usercap := range user.Capabilities {
-		if capability.Validate(cap, usercap) {
+		if user.parent.cm.Validate(cap, usercap) {
 			return nil
 		}
 	}
-	return errors.New("Method capability " + cap.Name + " not satisfied by user " + user.Username)
+	return errors.New("Method capability " + cap.GetName() + " not satisfied by user " + user.Username)
 }
 
 // IsAdmin checks if a user is an admin or not
 func (user *User) IsAdmin() bool {
-	if user.ValidateCapability(capability.UserAdmin) != nil {
+	userAdminCap, err := user.parent.cm.GetByName("UserAdmin")
+	if err != nil {
+		return false
+	}
+	if user.ValidateCapability(userAdminCap) != nil {
 		return false
 	}
 	return true
@@ -137,15 +140,16 @@ func (user *User) GetInfo() core.UserInfo {
 // UserManager implements the core.UserManager interface, which manages users
 type UserManager struct {
 	db core.DB
+	cm core.CapabilityManager
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db core.DB) *UserManager {
-	if db == nil {
+func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
+	if db == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
 	}
 
-	return &UserManager{db: db}
+	return &UserManager{db: db, cm: cm}
 }
 
 // CreateUser creates and returns a user
@@ -165,7 +169,7 @@ func (um *UserManager) CreateUser(username string, password string, name string,
 		parent:       um,
 	}
 	if isadmin {
-		user.Capabilities = append(user.Capabilities, capability.UserAdmin.Name)
+		user.Capabilities = append(user.Capabilities, "UserAdmin")
 	}
 
 	return &user, user.Save()
