@@ -1,26 +1,26 @@
 package capability
 
-// ResourceProvider capabilities
-var ResourceProvider = New("ResourceProvider")
-var RegisterResourceProvider = New("RegisterResourceProvider")
-var DeregisterResourceProvider = New("DeregisterResourceProvider")
-var GetProviderResources = New("GetProviderResources")
-var SetResourceStatus = New("SetResourceStatus")
+func (cm *Manager) createTree(root *Capability) {
+	// ResourceProvider capabilities
+	ResourceProvider := cm.New("ResourceProvider")
+	RegisterResourceProvider := cm.New("RegisterResourceProvider")
+	DeregisterResourceProvider := cm.New("DeregisterResourceProvider")
+	GetProviderResources := cm.New("GetProviderResources")
+	SetResourceStatus := cm.New("SetResourceStatus")
 
-// ResourceConsumer capabilities
-var ResourceConsumer = New("ResourceConsumer")
+	// ResourceConsumer capabilities
+	ResourceConsumer := cm.New("ResourceConsumer")
 
-// Information capabilities
-var GetInformation = New("GetInformation")
+	// Information capabilities
+	GetInformation := cm.New("GetInformation")
 
-// User capabilities
-var UserAdmin = New("UserAdmin")
-var AuthUser = New("AuthUser")
+	// User capabilities
+	UserAdmin := cm.New("UserAdmin")
+	AuthUser := cm.New("AuthUser")
 
-// PublicDNS capability tells the platform to create a public dns record using the applications name
-var PublicDNS = New("PublicDNS")
+	// PublicDNS capability tells the platform to create a public dns record using the applications name
+	PublicDNS := cm.New("PublicDNS")
 
-func createTree(root *Capability) {
 	RegisterResourceProvider.SetParent(ResourceProvider)
 	DeregisterResourceProvider.SetParent(ResourceProvider)
 	GetProviderResources.SetParent(ResourceProvider)

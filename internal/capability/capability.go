@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"runtime"
 
+	"protos/internal/core"
 	"protos/internal/util"
 )
 
@@ -30,45 +31,49 @@ type Capability struct {
 	Parent *Capability
 }
 
-// Initialize creates the root capability and retrieves any tokens that are stored in the db
-func Initialize() {
+// Manager implements the core.CapabilityManager interface
+type Manager struct {
+	root *Capability
+}
+
+// CreateManager creates the root capability and returns a core.CapabilityManager
+func CreateManager() core.CapabilityManager {
 	log.Info("Initializing capabilities")
-	RC = New("RootCapability")
-	createTree(RC)
+	cm := &Manager{}
+	cm.root = cm.New("RootCapability")
+	cm.createTree(cm.root)
+
+	return cm
 }
 
 // New returns a new capability
-func New(name string) *Capability {
+func (cm *Manager) New(name string) *Capability {
 	log.Debugf("Creating capability %s", name)
 	cap := &Capability{Name: name}
 	AllCapabilities = append(AllCapabilities, cap)
 	return cap
 }
 
-// SetParent takes a capability and sets it as the parent
-func (cap *Capability) SetParent(parent *Capability) {
-	cap.Parent = parent
-}
-
 // Validate validates a capability
-func Validate(methodcap *Capability, appcap string) bool {
-	if methodcap.Name == appcap {
-		log.Debug("Matched capability at " + methodcap.Name)
+func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
+	if methodcap.GetName() == appcap {
+		log.Debug("Matched capability at " + methodcap.GetName())
 		return true
-	} else if methodcap.Parent != nil {
-		return Validate(methodcap.Parent, appcap)
+	} else if methodcap.GetParent() != nil {
+		return cm.Validate(methodcap.GetParent(), appcap)
 	}
 	return false
 }
 
 // SetMethodCap adds a capability for a specific method
-func SetMethodCap(method string, cap *Capability) {
-	log.Debugf("Setting capability %s for method %s", cap.Name, method)
-	CapMap[method] = cap
+func (cm *Manager) SetMethodCap(method string, cap core.Capability) {
+	lcap := cap.(*Capability)
+	log.Debugf("Setting capability %s for method %s", lcap.Name, method)
+	CapMap[method] = lcap
 }
 
 // GetMethodCap returns a capability for a specific method
-func GetMethodCap(method string) (*Capability, error) {
+func (cm *Manager) GetMethodCap(method string) (core.Capability, error) {
 	if cap, ok := CapMap[method]; ok {
 		return cap, nil
 	}
@@ -76,7 +81,7 @@ func GetMethodCap(method string) (*Capability, error) {
 }
 
 // GetByName returns the capability based on the provided name, if one exists
-func GetByName(name string) (*Capability, error) {
+func (cm *Manager) GetByName(name string) (core.Capability, error) {
 	for _, cap := range AllCapabilities {
 		if cap.Name == name {
 			return cap, nil
@@ -85,7 +90,37 @@ func GetByName(name string) (*Capability, error) {
 	return nil, errors.New("Capability " + name + " does not exist")
 }
 
+// GetOrPanic returns the capability based on the provided name. It panics if it's not found
+func (cm *Manager) GetOrPanic(name string) core.Capability {
+	for _, cap := range AllCapabilities {
+		if cap.Name == name {
+			return cap
+		}
+	}
+	log.Panicf("Could not find capability '%s'", name)
+	return nil
+}
+
 // GetMethodName returns a string representation of the passed method
 func GetMethodName(method interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(method).Pointer()).Name()
+}
+
+//
+// Capability methods that implement the core.Capability interface
+//
+
+// SetParent takes a capability and sets it as the parent
+func (cap *Capability) SetParent(parent *Capability) {
+	cap.Parent = parent
+}
+
+// GetName returns the name of the capability
+func (cap *Capability) GetName() string {
+	return cap.Name
+}
+
+// GetParent returns the parent of the capability
+func (cap *Capability) GetParent() core.Capability {
+	return cap.Parent
 }
