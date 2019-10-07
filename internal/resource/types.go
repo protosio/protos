@@ -2,15 +2,6 @@ package resource
 
 import "protos/internal/core"
 
-const (
-	// Certificate represents a TLS/SSL certificate
-	Certificate = core.ResourceType("certificate")
-	// DNS represents a DNS record
-	DNS = core.ResourceType("dns")
-	// Mail is not used yet
-	Mail = core.ResourceType("mail")
-)
-
 // DNSResource represents a DNS resource
 type DNSResource struct {
 	Host  string `json:"host"`

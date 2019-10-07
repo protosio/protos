@@ -97,7 +97,7 @@ func TestResoureCreatorAndResource(t *testing.T) {
 		t.Error("AppID should be appid1 but is", rsc.GetAppID())
 	}
 	// Resource type should be equal to what was provided when the rsc was created
-	if rsc.GetType() != DNS {
+	if rsc.GetType() != core.DNS {
 		t.Error("Resource type should be dns but is", rsc.GetType())
 	}
 	// Resource should have status created

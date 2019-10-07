@@ -193,9 +193,9 @@ func (rm *Manager) Get(resourceID string) (core.Resource, error) {
 func (rm *Manager) GetType(typename string) (core.ResourceType, core.ResourceValue, error) {
 	switch typename {
 	case "certificate":
-		return Certificate, &CertificateResource{}, nil
+		return core.Certificate, &CertificateResource{}, nil
 	case "dns":
-		return DNS, &DNSResource{}, nil
+		return core.DNS, &DNSResource{}, nil
 	default:
 		return core.ResourceType(""), nil, errors.New("Resource type " + typename + " does not exist")
 	}
@@ -232,7 +232,7 @@ func (rm *Manager) CreateDNS(appID string, name string, rtype string, value stri
 	if err == nil {
 		return rsc, errors.New("Resource " + rhash + " already registered")
 	}
-	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: DNS, Value: val, Status: core.Requested}
+	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: core.DNS, Value: val, Status: core.Requested}
 	resource.Save()
 
 	return resource, nil
@@ -246,7 +246,7 @@ func (rm *Manager) CreateCert(appID string, domains []string) (core.Resource, er
 	if err == nil {
 		return rsc, errors.New("Resource " + rhash + " already registered")
 	}
-	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: Certificate, Value: val, Status: core.Requested}
+	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: core.Certificate, Value: val, Status: core.Requested}
 	resource.Save()
 
 	return resource, nil
