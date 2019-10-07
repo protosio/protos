@@ -77,6 +77,10 @@ type Manager struct {
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
 func CreateManager(db core.DB) *Manager {
+	if db == nil {
+		log.Panic("Failed to create  resource manager: none of the inputs can be nil")
+	}
+
 	log.Debug("Retrieving resources from DB")
 	db.Register(&Resource{})
 	db.Register(&DNSResource{})

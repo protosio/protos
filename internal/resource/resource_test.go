@@ -22,6 +22,17 @@ func TestResourceManager(t *testing.T) {
 		})
 	dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 
+	// one of the inputs is nil
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Errorf("A nil input in the CreateManager call should lead to a panic")
+			}
+		}()
+		CreateManager(nil)
+	}()
+
 	rm := CreateManager(dbMock)
 
 	// test if GetAll returns the right number of elements
