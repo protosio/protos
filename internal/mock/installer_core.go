@@ -184,11 +184,12 @@ func (mr *MockInstallerMockRecorder) GetMetadata(version interface{}) *gomock.Ca
 }
 
 // IsPlatformImageAvailable mocks base method
-func (m *MockInstaller) IsPlatformImageAvailable(version string) bool {
+func (m *MockInstaller) IsPlatformImageAvailable(version string) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsPlatformImageAvailable", version)
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // IsPlatformImageAvailable indicates an expected call of IsPlatformImageAvailable

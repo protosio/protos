@@ -160,21 +160,20 @@ func (inst Installer) DownloadAsync(version string, appID string) core.Task {
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
-func (inst Installer) IsPlatformImageAvailable(version string) bool {
+func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
 	metadata, err := inst.GetMetadata(version)
 	if err != nil {
-		log.Error(errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID))
-		return false
+		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
 	}
 
 	_, err = inst.parent.getPlatform().GetDockerImage(metadata.PlatformID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrImageNotFound) == false {
-			log.Error(errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID))
+			return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
 		}
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
 // Remove Installer removes an installer image

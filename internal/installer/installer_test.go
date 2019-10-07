@@ -171,21 +171,27 @@ func TestInstaller(t *testing.T) {
 
 	t.Run("IsPlatformImageAvailable", func(t *testing.T) {
 		// metadata for the supplied version does not exist
-		if inst.IsPlatformImageAvailable("2.0") {
-			t.Error("IsPlatformImageAvailable() should return false when the metadata is not available for an image version")
+		_, err := inst.IsPlatformImageAvailable("2.0")
+		if err == nil {
+			t.Error("IsPlatformImageAvailable() should return and error when the metadata is not available for an image version")
 		}
 
 		// error retrieving Docker image
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
 		rpMock.EXPECT().GetDockerImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, errors.New("failed to retrieve image")).Times(1)
-		if inst.IsPlatformImageAvailable("1.0") {
-			t.Error("IsPlatformImageAvailable() should return false when retrieving the image fails ")
+		_, err = inst.IsPlatformImageAvailable("1.0")
+		if err == nil {
+			t.Error("IsPlatformImageAvailable() should return an error when retrieving the image fails ")
 		}
 
 		// happy case
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
 		rpMock.EXPECT().GetDockerImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, nil).Times(1)
-		if inst.IsPlatformImageAvailable("1.0") == false {
+		found, err := inst.IsPlatformImageAvailable("1.0")
+		if err != nil {
+			t.Errorf("IsPlatformImageAvailable() should not return an error: %s", err.Error())
+		}
+		if found == false {
 			t.Error("IsPlatformImageAvailable() should return true")
 		}
 	})
