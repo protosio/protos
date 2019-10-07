@@ -115,5 +115,8 @@ func (cap *Capability) GetName() string {
 
 // GetParent returns the parent of the capability
 func (cap *Capability) GetParent() core.Capability {
+	if cap.Parent == nil {
+		return nil
+	}
 	return cap.Parent
 }
