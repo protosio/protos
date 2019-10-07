@@ -2,13 +2,13 @@ package resource
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 
 	"protos/internal/core"
 
 	"github.com/cnf/structhash"
+	"github.com/pkg/errors"
 )
 
 // resourceContainer is a thread safe application map
@@ -135,17 +135,20 @@ func (rm *Manager) Delete(appID string) error {
 
 //CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
 func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (core.Resource, error) {
-	resource := &Resource{access: &sync.Mutex{}}
-	err := json.Unmarshal(appJSON, resource)
+	rscInitial := &Resource{}
+	err := json.Unmarshal(appJSON, rscInitial)
 	if err != nil {
-		return resource, err
+		return nil, errors.Wrapf(err, "Could not create resource for app '%s'. Error unmarshalling JSON", appID)
 	}
 
+	resource := &Resource{Value: rscInitial.Value, Type: rscInitial.Type}
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
 	rsc, err := rm.resources.get(rhash)
 	if err == nil {
-		return rsc, errors.New("Resource " + rhash + " already registered")
+		return rsc, errors.New("Could not create resource with hash '" + rhash + "' because it already exists")
 	}
+	resource.parent = rm
+	resource.access = &sync.Mutex{}
 	resource.Status = core.Requested
 	resource.ID = rhash
 	resource.App = appID

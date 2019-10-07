@@ -13,7 +13,7 @@ func TestResourceManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	rscVal := &DNSResource{}
+	rscVal := &DNSResource{Host: "protos.io"}
 	dbMock := mock.NewMockDB(ctrl)
 	dbMock.EXPECT().Register(gomock.Any()).Return().Times(3)
 	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
@@ -36,6 +36,10 @@ func TestResourceManager(t *testing.T) {
 
 	rm := CreateManager(dbMock)
 
+	//
+	// Create
+	//
+
 	t.Run("Create", func(t *testing.T) {
 		dbMock.EXPECT().Save(gomock.Any()).Times(1)
 		_, err := rm.Create(core.DNS, rscVal, "testApp")
@@ -49,9 +53,53 @@ func TestResourceManager(t *testing.T) {
 		}
 	})
 
+	//
+	// CreateFromJSON
+	//
+
+	t.Run("CreateFromJSON", func(t *testing.T) {
+		jsonResource1 := []byte("{\"type\": \"dns\", \"value\": {\"host: \"protos.io\"}}")
+		_, err := rm.CreateFromJSON(jsonResource1, "testApp")
+		log.Info(err)
+		if err == nil {
+			t.Error("CreateFromJSON should return an error when a invalid JSON is passed")
+		}
+
+		jsonResource2 := []byte("{\"type\": \"dns\", \"value\": {\"host\": \"protos.io\"}}")
+		_, err = rm.CreateFromJSON(jsonResource2, "testApp")
+		if err == nil {
+			t.Error("CreateFromJSON should return an error when a resource with the same hash already exists")
+		}
+
+		dbMock.EXPECT().Save(gomock.Any()).Times(1)
+		jsonResource3 := []byte("{\"type\": \"dns\", \"value\": {\"host\": \"protos.com\"}}")
+		_, err = rm.CreateFromJSON(jsonResource3, "testApp")
+		if err != nil {
+			t.Errorf("CreateFromJSON should NOT return an error: %s", err.Error())
+		}
+
+	})
+
+	//
+	// Select
+	//
+
+	t.Run("Select", func(t *testing.T) {
+		selector := func(rsc core.Resource) bool {
+			if rsc.GetID() == "0001" {
+				return true
+			}
+			return false
+		}
+		resources := rm.Select(selector)
+		if len(resources) != 1 {
+			t.Errorf("There should only be 1 element in the selected resource list but there are %d", len(resources))
+		}
+	})
+
 	// test if GetAll returns the right number of elements
-	if len(rm.GetAll(false)) != 4 {
-		t.Error("rm.GetAll should return 3 elements, but it returned", len(rm.GetAll(false)))
+	if len(rm.GetAll(false)) != 5 {
+		t.Error("rm.GetAll should return 5 elements, but it returned", len(rm.GetAll(false)))
 	}
 	// if a non-existent resources is requested, an error should be returned
 	_, err := rm.Get("bogus")
