@@ -16,11 +16,11 @@ type Resource struct {
 	access *sync.Mutex
 	parent *Manager
 
-	ID     string       `json:"id" hash:"-"`
-	Type   core.RType   `json:"type"`
-	Value  core.Type    `json:"value"`
-	Status core.RStatus `json:"status"`
-	App    string       `json:"app"`
+	ID     string              `json:"id" hash:"-"`
+	Type   core.ResourceType   `json:"type"`
+	Value  core.ResourceValue  `json:"value"`
+	Status core.ResourceStatus `json:"status"`
+	App    string              `json:"app"`
 }
 
 //
@@ -48,7 +48,7 @@ func (rsc *Resource) Save() {
 }
 
 // SetStatus sets the status on a resource instance
-func (rsc *Resource) SetStatus(status core.RStatus) {
+func (rsc *Resource) SetStatus(status core.ResourceStatus) {
 	rsc.access.Lock()
 	rsc.Status = status
 	rsc.access.Unlock()
@@ -56,7 +56,7 @@ func (rsc *Resource) SetStatus(status core.RStatus) {
 }
 
 // UpdateValue updates the value of a resource
-func (rsc *Resource) UpdateValue(value core.Type) {
+func (rsc *Resource) UpdateValue(value core.ResourceValue) {
 	rsc.access.Lock()
 	rsc.Value.Update(value)
 	rsc.access.Unlock()
@@ -64,12 +64,12 @@ func (rsc *Resource) UpdateValue(value core.Type) {
 }
 
 // GetType returns the type of the resources
-func (rsc *Resource) GetType() core.RType {
+func (rsc *Resource) GetType() core.ResourceType {
 	return rsc.Type
 }
 
 // GetValue returns the encapsulated value of the resource
-func (rsc *Resource) GetValue() core.Type {
+func (rsc *Resource) GetValue() core.ResourceValue {
 	return rsc.Value
 }
 
@@ -85,10 +85,10 @@ func (rsc *Resource) Sanitize() core.Resource {
 // UnmarshalJSON is a custom json unmarshaller for resource
 func (rsc *Resource) UnmarshalJSON(b []byte) error {
 	resdata := struct {
-		ID     string          `json:"id" hash:"-"`
-		Type   core.RType      `json:"type"`
-		Value  json.RawMessage `json:"value"`
-		Status core.RStatus    `json:"status"`
+		ID     string              `json:"id" hash:"-"`
+		Type   core.ResourceType   `json:"type"`
+		Value  json.RawMessage     `json:"value"`
+		Status core.ResourceStatus `json:"status"`
 	}{}
 	err := json.Unmarshal(b, &resdata)
 	if err != nil {

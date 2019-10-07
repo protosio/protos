@@ -21,8 +21,8 @@ type appStore interface {
 type dnsResource interface {
 	GetName() string
 	GetValue() string
-	Update(value core.Type)
-	Sanitize() core.Type
+	Update(value core.ResourceValue)
+	Sanitize() core.ResourceValue
 }
 
 // Map is a thread safe application map

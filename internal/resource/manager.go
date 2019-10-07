@@ -101,7 +101,7 @@ func CreateManager(db core.DB) *Manager {
 }
 
 //Create creates a resource and adds it to the internal resources map.
-func (rm *Manager) Create(rtype core.RType, value core.Type, appID string) (*Resource, error) {
+func (rm *Manager) Create(rtype core.ResourceType, value core.ResourceValue, appID string) (*Resource, error) {
 	resource := &Resource{access: &sync.Mutex{}, App: appID}
 	resource.Type = rtype
 	resource.Value = value
@@ -186,19 +186,19 @@ func (rm *Manager) Get(resourceID string) (core.Resource, error) {
 }
 
 //GetType retrieves a resource type based on the provided string
-func (rm *Manager) GetType(typename string) (core.RType, core.Type, error) {
+func (rm *Manager) GetType(typename string) (core.ResourceType, core.ResourceValue, error) {
 	switch typename {
 	case "certificate":
 		return Certificate, &CertificateResource{}, nil
 	case "dns":
 		return DNS, &DNSResource{}, nil
 	default:
-		return core.RType(""), nil, errors.New("Resource type " + typename + " does not exist")
+		return core.ResourceType(""), nil, errors.New("Resource type " + typename + " does not exist")
 	}
 }
 
 //GetStatus retrieves a resource status based on the provided string
-func (rm *Manager) GetStatus(statusname string) (core.RStatus, error) {
+func (rm *Manager) GetStatus(statusname string) (core.ResourceStatus, error) {
 	switch statusname {
 	case "requested":
 		return core.Requested, nil
@@ -207,7 +207,7 @@ func (rm *Manager) GetStatus(statusname string) (core.RStatus, error) {
 	case "unknown":
 		return core.Unknown, nil
 	default:
-		return core.RStatus(""), errors.New("Resource status " + statusname + " does not exist")
+		return core.ResourceStatus(""), errors.New("Resource status " + statusname + " does not exist")
 	}
 }
 

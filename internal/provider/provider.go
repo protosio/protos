@@ -16,21 +16,21 @@ var log = util.GetLogger("provider")
 
 // Provider defines a Protos resource provider
 type Provider struct {
-	Type  core.RType `storm:"id"`
+	Type  core.ResourceType `storm:"id"`
 	AppID string
 	rm    core.ResourceManager
 }
 
 // Manager keeps track of all the providers
 type Manager struct {
-	providers map[core.RType]*Provider
+	providers map[core.ResourceType]*Provider
 	am        core.AppManager
 	db        core.DB
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
 func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Manager {
-	providers := map[core.RType]*Provider{}
+	providers := map[core.ResourceType]*Provider{}
 	providers[core.DNS] = &Provider{Type: core.DNS, rm: rm}
 	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
 	providers[core.Mail] = &Provider{Type: core.Mail, rm: rm}
@@ -51,7 +51,7 @@ func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Man
 }
 
 // Register registers a resource provider
-func (pm *Manager) Register(app core.App, rtype core.RType) error {
+func (pm *Manager) Register(app core.App, rtype core.ResourceType) error {
 	if pm.providers[rtype].AppID != "" {
 		if app.GetID() == pm.providers[rtype].AppID {
 			return fmt.Errorf("App %s already registered as a provider for resource type %s", app.GetID(), string(rtype))
@@ -74,7 +74,7 @@ func (pm *Manager) Register(app core.App, rtype core.RType) error {
 }
 
 // Deregister deregisters a resource provider
-func (pm *Manager) Deregister(app core.App, rtype core.RType) error {
+func (pm *Manager) Deregister(app core.App, rtype core.ResourceType) error {
 
 	if pm.providers[rtype].AppID != "" && pm.providers[rtype].AppID != app.GetID() {
 		return errors.New("Application '" + app.GetName() + "' is NOT registered for resource type " + string(rtype))

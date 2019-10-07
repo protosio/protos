@@ -4,11 +4,11 @@ import "protos/internal/core"
 
 const (
 	// Certificate represents a TLS/SSL certificate
-	Certificate = core.RType("certificate")
+	Certificate = core.ResourceType("certificate")
 	// DNS represents a DNS record
-	DNS = core.RType("dns")
+	DNS = core.ResourceType("dns")
 	// Mail is not used yet
-	Mail = core.RType("mail")
+	Mail = core.ResourceType("mail")
 )
 
 // DNSResource represents a DNS resource
@@ -20,11 +20,11 @@ type DNSResource struct {
 }
 
 // Update method is not used for the DNS resource type
-func (rsc *DNSResource) Update(newValue core.Type) {
+func (rsc *DNSResource) Update(newValue core.ResourceValue) {
 }
 
 // Sanitize removes any sensitive information from the resource
-func (rsc *DNSResource) Sanitize() core.Type {
+func (rsc *DNSResource) Sanitize() core.ResourceValue {
 	return rsc
 }
 
@@ -53,7 +53,7 @@ type CertificateResource struct {
 }
 
 // Update takes a new resource type value and updates the relevant fields
-func (rsc *CertificateResource) Update(newValue core.Type) {
+func (rsc *CertificateResource) Update(newValue core.ResourceValue) {
 	newCert := newValue.(*CertificateResource)
 	rsc.PrivateKey = newCert.PrivateKey
 	rsc.Certificate = newCert.Certificate
@@ -62,7 +62,7 @@ func (rsc *CertificateResource) Update(newValue core.Type) {
 }
 
 // Sanitize removes any sensitive information from the resource
-func (rsc *CertificateResource) Sanitize() core.Type {
+func (rsc *CertificateResource) Sanitize() core.ResourceValue {
 	output := *rsc
 	output.PrivateKey = []byte{}
 	output.CSR = []byte{}

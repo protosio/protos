@@ -5,9 +5,10 @@
 package mock
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	core "protos/internal/core"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockResourceManager is a mock of ResourceManager interface
@@ -63,11 +64,11 @@ func (mr *MockResourceManagerMockRecorder) Delete(id interface{}) *gomock.Call {
 }
 
 // GetType mocks base method
-func (m *MockResourceManager) GetType(name string) (core.RType, core.Type, error) {
+func (m *MockResourceManager) GetType(name string) (core.ResourceType, core.ResourceValue, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetType", name)
-	ret0, _ := ret[0].(core.RType)
-	ret1, _ := ret[1].(core.Type)
+	ret0, _ := ret[0].(core.ResourceType)
+	ret1, _ := ret[1].(core.ResourceValue)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -107,10 +108,10 @@ func (mr *MockResourceManagerMockRecorder) Select(arg0 interface{}) *gomock.Call
 }
 
 // GetStatus mocks base method
-func (m *MockResourceManager) GetStatus(arg0 string) (core.RStatus, error) {
+func (m *MockResourceManager) GetStatus(arg0 string) (core.ResourceStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStatus", arg0)
-	ret0, _ := ret[0].(core.RStatus)
+	ret0, _ := ret[0].(core.ResourceStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -216,10 +217,10 @@ func (mr *MockResourceMockRecorder) GetID() *gomock.Call {
 }
 
 // GetType mocks base method
-func (m *MockResource) GetType() core.RType {
+func (m *MockResource) GetType() core.ResourceType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetType")
-	ret0, _ := ret[0].(core.RType)
+	ret0, _ := ret[0].(core.ResourceType)
 	return ret0
 }
 
@@ -230,10 +231,10 @@ func (mr *MockResourceMockRecorder) GetType() *gomock.Call {
 }
 
 // GetValue mocks base method
-func (m *MockResource) GetValue() core.Type {
+func (m *MockResource) GetValue() core.ResourceValue {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetValue")
-	ret0, _ := ret[0].(core.Type)
+	ret0, _ := ret[0].(core.ResourceValue)
 	return ret0
 }
 
@@ -244,7 +245,7 @@ func (mr *MockResourceMockRecorder) GetValue() *gomock.Call {
 }
 
 // UpdateValue mocks base method
-func (m *MockResource) UpdateValue(arg0 core.Type) {
+func (m *MockResource) UpdateValue(arg0 core.ResourceValue) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UpdateValue", arg0)
 }
@@ -256,7 +257,7 @@ func (mr *MockResourceMockRecorder) UpdateValue(arg0 interface{}) *gomock.Call {
 }
 
 // SetStatus mocks base method
-func (m *MockResource) SetStatus(arg0 core.RStatus) {
+func (m *MockResource) SetStatus(arg0 core.ResourceStatus) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetStatus", arg0)
 }
@@ -319,7 +320,7 @@ func (m *MockType) EXPECT() *MockTypeMockRecorder {
 }
 
 // Update mocks base method
-func (m *MockType) Update(arg0 core.Type) {
+func (m *MockType) Update(arg0 core.ResourceValue) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Update", arg0)
 }
@@ -331,10 +332,10 @@ func (mr *MockTypeMockRecorder) Update(arg0 interface{}) *gomock.Call {
 }
 
 // Sanitize mocks base method
-func (m *MockType) Sanitize() core.Type {
+func (m *MockType) Sanitize() core.ResourceValue {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Sanitize")
-	ret0, _ := ret[0].(core.Type)
+	ret0, _ := ret[0].(core.ResourceValue)
 	return ret0
 }
 

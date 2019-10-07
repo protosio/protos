@@ -1,37 +1,38 @@
 package core
 
-// RType is a string wrapper used for typechecking the resource types
-type RType string
+// ResourceType is a string wrapper used for typechecking the resource types
+type ResourceType string
 
 const (
 	// Certificate represents a TLS/SSL certificate
-	Certificate = RType("certificate")
+	Certificate = ResourceType("certificate")
 	// DNS represents a DNS record
-	DNS = RType("dns")
+	DNS = ResourceType("dns")
 	// Mail is not used yet
-	Mail = RType("mail")
+	Mail = ResourceType("mail")
 )
 
-type RStatus string
+// ResourceStatus is a string wrapper used for typechecking the resource status
+type ResourceStatus string
 
 const (
 	// Requested status is set at creation time and indicates that a resource provider should create this resource
-	Requested = RStatus("requested")
+	Requested = ResourceStatus("requested")
 	// Created status is the final final state of a resource, ready to be used by an application
-	Created = RStatus("created")
+	Created = ResourceStatus("created")
 	// Unknown status is for error or uknown states
-	Unknown = RStatus("unknown")
+	Unknown = ResourceStatus("unknown")
 )
 
 // ResourceManager manages the list of resources
 type ResourceManager interface {
-	// Create(rtype RType, value Type, appID string) (Resource, error)
+	// Create(rtype ResourceType, value Type, appID string) (Resource, error)
 	Get(id string) (Resource, error)
 	Delete(id string) error
-	GetType(name string) (RType, Type, error)
+	GetType(name string) (ResourceType, ResourceValue, error)
 	GetAll(sanitize bool) map[string]Resource
 	Select(func(Resource) bool) map[string]Resource
-	GetStatus(string) (RStatus, error)
+	GetStatus(string) (ResourceStatus, error)
 	CreateDNS(appID string, name string, rtype string, value string, ttl int) (Resource, error)
 	CreateCert(appID string, domains []string) (Resource, error)
 	CreateFromJSON(rscJSON []byte, appID string) (Resource, error)
@@ -41,16 +42,16 @@ type ResourceManager interface {
 type Resource interface {
 	Save()
 	GetID() string
-	GetType() RType
-	GetValue() Type
-	UpdateValue(Type)
-	SetStatus(RStatus)
+	GetType() ResourceType
+	GetValue() ResourceValue
+	UpdateValue(ResourceValue)
+	SetStatus(ResourceStatus)
 	GetAppID() string
 	Sanitize() Resource
 }
 
-// Type is an interface that satisfies all the resource types
-type Type interface {
-	Update(Type)
-	Sanitize() Type
+// ResourceValue is an interface that satisfies all the resource values
+type ResourceValue interface {
+	Update(ResourceValue)
+	Sanitize() ResourceValue
 }

@@ -165,7 +165,7 @@ func (m *meta) GetTLSCertificate() core.Resource {
 			log.Errorf("Could not find protos resource: %s", err.Error())
 			continue
 		}
-		if rsc.GetType() == core.RType("certificate") {
+		if rsc.GetType() == core.ResourceType("certificate") {
 			return rsc
 		}
 	}

@@ -114,7 +114,7 @@ func (mr *MockdnsResourceMockRecorder) GetValue() *gomock.Call {
 }
 
 // Update mocks base method
-func (m *MockdnsResource) Update(value core.Type) {
+func (m *MockdnsResource) Update(value core.ResourceValue) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Update", value)
 }
@@ -126,10 +126,10 @@ func (mr *MockdnsResourceMockRecorder) Update(value interface{}) *gomock.Call {
 }
 
 // Sanitize mocks base method
-func (m *MockdnsResource) Sanitize() core.Type {
+func (m *MockdnsResource) Sanitize() core.ResourceValue {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Sanitize")
-	ret0, _ := ret[0].(core.Type)
+	ret0, _ := ret[0].(core.ResourceValue)
 	return ret0
 }
 

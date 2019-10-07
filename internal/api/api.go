@@ -149,7 +149,7 @@ func applyStaticRoutes(r *mux.Router) {
 
 }
 
-func secureListen(handler http.Handler, certrsc core.Type, quit chan bool) {
+func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bool) {
 	cert, ok := certrsc.(certificate)
 	if ok == false {
 		log.Fatal("Failed to read TLS certificate")
