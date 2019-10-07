@@ -106,18 +106,20 @@ func CreateManager(db core.DB) *Manager {
 
 //Create creates a resource and adds it to the internal resources map.
 func (rm *Manager) Create(rtype core.ResourceType, value core.ResourceValue, appID string) (*Resource, error) {
-	resource := &Resource{access: &sync.Mutex{}, App: appID}
-	resource.Type = rtype
-	resource.Value = value
-
+	resource := &Resource{Type: rtype, Value: value}
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
 	rsc, err := rm.resources.get(rhash)
+
 	if err == nil {
-		return rsc, errors.New("Resource " + rhash + " already registered")
+		return rsc, errors.New("Could not create resource with hash '" + rhash + "' because it already exists")
 	}
+
+	resource.App = appID
+	resource.access = &sync.Mutex{}
 	resource.Status = core.Requested
 	resource.ID = rhash
 	resource.App = appID
+	resource.parent = rm
 	resource.Save()
 
 	log.Debug("Adding resource ", rhash, ": ", resource)

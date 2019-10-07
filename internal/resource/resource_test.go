@@ -13,6 +13,7 @@ func TestResourceManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	rscVal := &DNSResource{}
 	dbMock := mock.NewMockDB(ctrl)
 	dbMock.EXPECT().Register(gomock.Any()).Return().Times(3)
 	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
@@ -35,8 +36,21 @@ func TestResourceManager(t *testing.T) {
 
 	rm := CreateManager(dbMock)
 
+	t.Run("Create", func(t *testing.T) {
+		dbMock.EXPECT().Save(gomock.Any()).Times(1)
+		_, err := rm.Create(core.DNS, rscVal, "testApp")
+		if err != nil {
+			t.Errorf("Create should NOT return an error: %s", err.Error())
+		}
+
+		_, err = rm.Create(core.DNS, rscVal, "secondApp")
+		if err == nil {
+			t.Error("Create should return an error when a resource with the same hash already exists")
+		}
+	})
+
 	// test if GetAll returns the right number of elements
-	if len(rm.GetAll(false)) != 3 {
+	if len(rm.GetAll(false)) != 4 {
 		t.Error("rm.GetAll should return 3 elements, but it returned", len(rm.GetAll(false)))
 	}
 	// if a non-existent resources is requested, an error should be returned
