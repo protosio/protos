@@ -2,8 +2,6 @@ package capability
 
 import (
 	"errors"
-	"reflect"
-	"runtime"
 
 	"protos/internal/core"
 	"protos/internal/util"
@@ -99,11 +97,6 @@ func (cm *Manager) GetOrPanic(name string) core.Capability {
 	}
 	log.Panicf("Could not find capability '%s'", name)
 	return nil
-}
-
-// GetMethodName returns a string representation of the passed method
-func GetMethodName(method interface{}) string {
-	return runtime.FuncForPC(reflect.ValueOf(method).Pointer()).Name()
 }
 
 //
