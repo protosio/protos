@@ -5,4 +5,5 @@ go test -v \
     ./internal/resource \
 	./internal/provider \
 	./internal/installer \
-	./internal/app 
+	./internal/app \
+	./internal/capability
