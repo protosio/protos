@@ -1,8 +1,10 @@
 package installer
 
 import (
+	"bufio"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -495,18 +497,22 @@ func TestAppStore(t *testing.T) {
 		}
 
 		// happy case
-		body = ioutil.NopCloser(strings.NewReader("{\"id1\": {\"name\": \"installer name\", \"ID\": \"id1\"}}"))
+		fd, err := os.Open("../mock/app_store_response.json")
+		if err != nil {
+			t.Fatal("Failed to open ../mock/app_store_response.json file")
+		}
+		body = ioutil.NopCloser(bufio.NewReader(fd))
 		resp = &http.Response{Status: "200 OK", StatusCode: 200, Body: body}
 		clientMock.EXPECT().Get("https://apps.protos.io/api/v1/search?key=value").Return(resp, nil)
 		installers, err := appStore.Search("key", "value")
 		if err != nil {
-			t.Errorf("Search() should not return an error: %s", err.Error())
+			t.Fatalf("Search() should not return an error: %s", err.Error())
 		}
 		if len(installers) != 1 {
-			t.Errorf("Search() returned the wrong nr of installers: 1 vs %d", len(installers))
+			t.Fatalf("Search() returned the wrong nr of installers: 1 vs %d", len(installers))
 		}
-		inst := installers["id1"].(Installer)
-		if inst.Name != "installer name" {
+		inst := installers["924bbbfeabb039828c0066ab90b2bfa8cde41024"].(Installer)
+		if inst.Name != "namecheap-dns" {
 			t.Errorf("Search() returned the wrong installer: %v", inst)
 		}
 

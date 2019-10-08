@@ -356,8 +356,8 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 		Installer
 		Versions map[string]struct {
 			core.InstallerMetadata
-			Capabilities []map[string]string
-		}
+			Capabilities []map[string]string `json:"capabilities"`
+		} `json:"versions"`
 	}{}
 
 	client := getHTTPClient()
@@ -377,6 +377,7 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store. Decoding error")
 	}
 	for id, inst := range localInstallers {
+		inst.Installer.Versions = map[string]core.InstallerMetadata{}
 		for version, metadata := range inst.Versions {
 			for _, cap := range metadata.Capabilities {
 				if capName, ok := cap["name"]; ok {
