@@ -23,7 +23,7 @@ func Initialize(inContainer bool) core.RuntimePlatform {
 	dp.Connect()
 	if inContainer {
 		// if running in container the user needs to take care that the correct protos network is created
-		return nil
+		return dp
 	}
 	protosNet, err := dp.GetNetwork(protosNetwork)
 	if err != nil {
