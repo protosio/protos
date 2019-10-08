@@ -403,18 +403,22 @@ func TestAppStore(t *testing.T) {
 		}
 
 		// happy case
-		body = ioutil.NopCloser(strings.NewReader("{\"id1\": {\"name\": \"installer name\", \"ID\": \"id1\"}}"))
+		fd, err := os.Open("../mock/app_store_all_response.json")
+		if err != nil {
+			t.Fatal("Failed to open ../mock/app_store_all_response.json file")
+		}
+		body = ioutil.NopCloser(bufio.NewReader(fd))
 		resp = &http.Response{Status: "200 OK", StatusCode: 200, Body: body}
 		clientMock.EXPECT().Get(gconfig.AppStoreURL+"/api/v1/installers/all").Return(resp, nil)
 		installers, err := appStore.GetInstallers()
 		if err != nil {
-			t.Errorf("GetInstallers() should not return an error: %s", err.Error())
+			t.Fatalf("GetInstallers() should not return an error: %s", err.Error())
 		}
 		if len(installers) != 1 {
-			t.Errorf("GetInstallers() returned the wrong nr of installers: 1 vs %d", len(installers))
+			t.Fatalf("GetInstallers() returned the wrong nr of installers: 1 vs %d", len(installers))
 		}
-		inst := installers["id1"].(Installer)
-		if inst.Name != "installer name" {
+		inst := installers["09eda098ec82bcf862df67933ef6451cdbab3a4b"].(Installer)
+		if inst.Name != "mailu" {
 			t.Errorf("GetInstallers() returned the wrong installer: %v", inst)
 		}
 
@@ -497,9 +501,9 @@ func TestAppStore(t *testing.T) {
 		}
 
 		// happy case
-		fd, err := os.Open("../mock/app_store_response.json")
+		fd, err := os.Open("../mock/app_store_search_response.json")
 		if err != nil {
-			t.Fatal("Failed to open ../mock/app_store_response.json file")
+			t.Fatal("Failed to open ../mock/app_store_search_response.json file")
 		}
 		body = ioutil.NopCloser(bufio.NewReader(fd))
 		resp = &http.Response{Status: "200 OK", StatusCode: 200, Body: body}

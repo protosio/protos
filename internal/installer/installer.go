@@ -25,6 +25,36 @@ type installerParent interface {
 	getTaskManager() core.TaskManager
 }
 
+type localInstaller struct {
+	Installer
+	Versions map[string]struct {
+		core.InstallerMetadata
+		Capabilities []map[string]string `json:"capabilities"`
+	} `json:"versions"`
+}
+
+type localInstallers map[string]localInstaller
+
+func (li localInstallers) convert(as *AppStore) map[string]core.Installer {
+	installers := map[string]core.Installer{}
+	for id, inst := range li {
+		inst.Installer.Versions = map[string]core.InstallerMetadata{}
+		for version, metadata := range inst.Versions {
+			for _, cap := range metadata.Capabilities {
+				if capName, ok := cap["name"]; ok {
+					if _, err := as.cm.GetByName(capName); err == nil {
+						metadata.InstallerMetadata.Capabilities = append(metadata.InstallerMetadata.Capabilities, capName)
+					}
+				}
+			}
+			inst.Installer.Versions[version] = metadata.InstallerMetadata
+		}
+		inst.Installer.parent = as
+		installers[id] = inst.Installer
+	}
+	return installers
+}
+
 // Installer represents an application installer
 type Installer struct {
 	Name      string                            `json:"name"`
@@ -301,11 +331,13 @@ var getHTTPClient = func() httpClient {
 // GetInstallers returns all installers from the application store
 func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 	installers := map[string]core.Installer{}
-	localInstallers := map[string]Installer{}
+	localInstallers := localInstallers{}
 
 	client := getHTTPClient()
 
-	resp, err := client.Get(gconfig.AppStoreURL + "/api/v1/installers/all")
+	url := gconfig.AppStoreURL + "/api/v1/installers/all"
+	log.Debugf("Querying app store at %s", url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve installers from app store")
 	}
@@ -319,18 +351,17 @@ func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve installers from app store. Decoding error")
 	}
-	for id, inst := range localInstallers {
-		inst.parent = as
-		installers[id] = inst
-	}
-	return installers, nil
+
+	return localInstallers.convert(as), nil
 }
 
 // GetInstaller returns a single installer based on its id
 func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 	installer := Installer{}
 	client := getHTTPClient()
-	resp, err := client.Get(gconfig.AppStoreURL + "/api/v1/installers/" + id)
+	url := fmt.Sprintf("%s/api/v1/installers/%s", gconfig.AppStoreURL, id)
+	log.Debugf("Querying app store at %s", url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return installer, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
 	}
@@ -352,16 +383,11 @@ func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 // Search takes a map of search terms and performs a search on the app store
 func (as *AppStore) Search(key string, value string) (map[string]core.Installer, error) {
 	installers := map[string]core.Installer{}
-	localInstallers := map[string]struct {
-		Installer
-		Versions map[string]struct {
-			core.InstallerMetadata
-			Capabilities []map[string]string `json:"capabilities"`
-		} `json:"versions"`
-	}{}
+	localInstallers := localInstallers{}
 
 	client := getHTTPClient()
 	url := fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value)
+	log.Debugf("Querying app store at %s", url)
 	resp, err := client.Get(url)
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store")
@@ -376,23 +402,8 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store. Decoding error")
 	}
-	for id, inst := range localInstallers {
-		inst.Installer.Versions = map[string]core.InstallerMetadata{}
-		for version, metadata := range inst.Versions {
-			for _, cap := range metadata.Capabilities {
-				if capName, ok := cap["name"]; ok {
-					if _, err := as.cm.GetByName(capName); err == nil {
-						metadata.InstallerMetadata.Capabilities = append(metadata.InstallerMetadata.Capabilities, capName)
-					}
-				}
-			}
-			inst.Installer.Versions[version] = metadata.InstallerMetadata
-		}
-		inst.Installer.parent = as
-		installers[id] = inst.Installer
-	}
-	return installers, nil
 
+	return localInstallers.convert(as), nil
 }
 
 // CreateTemporaryInstaller returns a core.Installer interface. Satisfies the appStore interface from the app package
