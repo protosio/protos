@@ -50,14 +50,14 @@ func CreateAppStore(rp core.RuntimePlatform, tm core.TaskManager, cm core.Capabi
 	return &AppStore{rp: rp, tm: tm, cm: cm}
 }
 
-func parseInstallerCapabilities(cm core.CapabilityManager, capstring string) []core.Capability {
-	caps := []core.Capability{}
+func validateInstallerCapabilities(cm core.CapabilityManager, capstring string) []string {
+	caps := []string{}
 	for _, capname := range strings.Split(capstring, ",") {
-		cap, err := cm.GetByName(capname)
+		_, err := cm.GetByName(capname)
 		if err != nil {
 			log.Error(err)
 		} else {
-			caps = append(caps, cap)
+			caps = append(caps, capname)
 		}
 	}
 	return caps
@@ -103,7 +103,7 @@ func parseMetadata(cm core.CapabilityManager, labels map[string]string) (core.In
 		if len(labelParts) == 3 {
 			switch labelParts[2] {
 			case "capabilities":
-				metadata.Capabilities = parseInstallerCapabilities(cm, value)
+				metadata.Capabilities = validateInstallerCapabilities(cm, value)
 			case "params":
 				metadata.Params = strings.Split(value, ",")
 			case "provides":
@@ -352,11 +352,17 @@ func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 // Search takes a map of search terms and performs a search on the app store
 func (as *AppStore) Search(key string, value string) (map[string]core.Installer, error) {
 	installers := map[string]core.Installer{}
-	localInstallers := map[string]Installer{}
+	localInstallers := map[string]struct {
+		Installer
+		Versions map[string]struct {
+			core.InstallerMetadata
+			Capabilities []map[string]string
+		}
+	}{}
 
 	client := getHTTPClient()
-
-	resp, err := client.Get(fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value))
+	url := fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value)
+	resp, err := client.Get(url)
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store")
 	}
@@ -371,8 +377,18 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store. Decoding error")
 	}
 	for id, inst := range localInstallers {
-		inst.parent = as
-		installers[id] = inst
+		for version, metadata := range inst.Versions {
+			for _, cap := range metadata.Capabilities {
+				if capName, ok := cap["name"]; ok {
+					if _, err := as.cm.GetByName(capName); err == nil {
+						metadata.InstallerMetadata.Capabilities = append(metadata.InstallerMetadata.Capabilities, capName)
+					}
+				}
+			}
+			inst.Installer.Versions[version] = metadata.InstallerMetadata
+		}
+		inst.Installer.parent = as
+		installers[id] = inst.Installer
 	}
 	return installers, nil
 

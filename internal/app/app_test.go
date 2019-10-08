@@ -156,10 +156,10 @@ func TestAppManager(t *testing.T) {
 		// capability test, error while creating DNS for app
 		metaMock.EXPECT().GetPublicIP().Return("1.1.1.1").Times(1)
 		rmMock.EXPECT().CreateDNS(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("test error")).Times(1)
-		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(1)
+		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(2)
 		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
 		cmMock.EXPECT().Validate(capMock, gomock.Any()).Return(true).Times(1)
-		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []core.Capability{capMock}}, "taskid")
+		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []string{"PublicDNS"}}, "taskid")
 		if err == nil {
 			t.Error("Creating an app and having a DNS creation error should result in an error")
 		}

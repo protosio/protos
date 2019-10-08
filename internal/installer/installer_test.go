@@ -25,11 +25,11 @@ func TestParserFunctions(t *testing.T) {
 
 	cm.EXPECT().GetByName("ResourceProvider").Return(capabilityMock, nil).Times(1)
 	cm.EXPECT().GetByName("WrongCap").Return(nil, errors.New("wrong capability")).Times(1)
-	caps := parseInstallerCapabilities(cm, "ResourceProvider,WrongCap")
+	caps := validateInstallerCapabilities(cm, "ResourceProvider,WrongCap")
 	if len(caps) != 1 {
 		t.Errorf("Wrong number of capabilities returned. %d instead of 1", len(caps))
 	}
-	if caps[0] != capabilityMock {
+	if caps[0] != "ResourceProvider" {
 		t.Errorf("Wrong capability returned by the parse function")
 	}
 

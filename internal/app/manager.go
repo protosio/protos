@@ -227,7 +227,7 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
 		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating, parent: am}
 
-	app.Capabilities = createCapabilities(installerMetadata.Capabilities)
+	app.Capabilities = createCapabilities(am.cm, installerMetadata.Capabilities)
 	publicDNSCapability, err := am.cm.GetByName("PublicDNS")
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)

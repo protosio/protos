@@ -111,10 +111,15 @@ func validateInstallerParams(paramsProvided map[string]string, paramsExpected []
 	return nil
 }
 
-func createCapabilities(installerCapabilities []core.Capability) []string {
+func createCapabilities(cm core.CapabilityManager, installerCapabilities []string) []string {
 	caps := []string{}
 	for _, cap := range installerCapabilities {
-		caps = append(caps, cap.GetName())
+		cap, err := cm.GetByName(cap)
+		if err != nil {
+			log.Error(err)
+		} else {
+			caps = append(caps, cap.GetName())
+		}
 	}
 	return caps
 }
