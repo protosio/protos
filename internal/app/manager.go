@@ -105,6 +105,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
+	gob.Register(&core.InstallerMetadata{})
 
 	dbapps := []*App{}
 	err := db.All(&dbapps)

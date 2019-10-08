@@ -1,6 +1,7 @@
 package capability
 
 import (
+	"encoding/gob"
 	"errors"
 
 	"protos/internal/core"
@@ -40,6 +41,7 @@ func CreateManager() *Manager {
 	cm := &Manager{}
 	cm.root = cm.New("RootCapability")
 	cm.createTree(cm.root)
+	gob.Register(&Capability{})
 
 	return cm
 }
