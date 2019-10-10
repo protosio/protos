@@ -414,8 +414,8 @@ func TestAppStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetInstallers() should not return an error: %s", err.Error())
 		}
-		if len(installers) != 1 {
-			t.Fatalf("GetInstallers() returned the wrong nr of installers: 1 vs %d", len(installers))
+		if len(installers) != 4 {
+			t.Fatalf("GetInstallers() returned the wrong nr of installers: 4 vs %d", len(installers))
 		}
 		inst := installers["09eda098ec82bcf862df67933ef6451cdbab3a4b"].(Installer)
 		if inst.Name != "mailu" {
