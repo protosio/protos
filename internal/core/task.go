@@ -2,34 +2,36 @@ package core
 
 import "github.com/emirpasic/gods/maps/linkedhashmap"
 
+// TaskManager manages all tasks
 type TaskManager interface {
-	New(CustomTask) Task
-	Get(string) (Task, error)
+	New(customTask CustomTask) Task
+	Get(id string) (Task, error)
 	GetAll() *linkedhashmap.Map
-	GetIDs([]string) linkedhashmap.Map
+	GetIDs(ids []string) linkedhashmap.Map
 	GetLast() linkedhashmap.Map
 }
 
 // CustomTask is the interface that is implemented by custom tasks in various packages
 type CustomTask interface {
-	Run(string, Progress) error
+	Run(id string, progress Progress) error
 	Name() string
 }
 
+// Progress is an interface used to communicate progress inside a task
 type Progress interface {
-	SetPercentage(int)
-	SetState(string)
+	SetPercentage(percent int)
+	SetState(stateText string)
 }
 
 // Task is the interface that all task types need to adhere too
 type Task interface {
 	GetID() string
 	Wait() error
-	SetPercentage(int)
+	SetPercentage(percentage int)
 	GetPercentage() int
-	SetState(string)
-	SetStatus(string)
-	AddApp(string)
+	SetState(stateText string)
+	SetStatus(statusText string)
+	AddApp(id string)
 	Copy() Task
 	SetKillable()
 	Kill() error

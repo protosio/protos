@@ -22,7 +22,7 @@ func (t *DownloadTask) Name() string {
 // Run starts the async task
 func (t *DownloadTask) Run(tskID string, p core.Progress) error {
 
-	log.WithField("proc", tskID).Debugf("Running download installer task [%s] based on installer %s:%s", tskID, t.Inst.ID, t.Version)
+	log.WithField("proc", tskID).Debugf("Running download installer task [%s] based on installer '%s' version '%s'", tskID, t.Inst.ID, t.Version)
 	t.b.AddApp(t.AppID)
 	t.b.Save()
 
