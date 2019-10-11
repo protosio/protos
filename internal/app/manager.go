@@ -196,6 +196,9 @@ func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
 func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
+	if installerID == "" || installerVersion == "" || appName == "" {
+		log.Panic("CreateAsync doesn't have all the required parameters")
+	}
 	createApp := CreateAppTask{
 		am:                am,
 		InstallerID:       installerID,
