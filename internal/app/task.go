@@ -64,7 +64,7 @@ func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 		}
 	} else {
 		// app creation using local container (dev purposes)
-		log.Info("Creating application using local installer (DEV)")
+		log.Infof("Creating application using local installer (DEV) '%s' version '%s'", t.InstallerID, t.InstallerVersion)
 		metadata = *t.InstallerMetadata
 		inst = t.am.getAppStore().CreateTemporaryInstaller(t.InstallerID, map[string]core.InstallerMetadata{t.InstallerVersion: *t.InstallerMetadata})
 	}

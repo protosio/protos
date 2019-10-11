@@ -409,6 +409,7 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 // CreateTemporaryInstaller returns a core.Installer interface. Satisfies the appStore interface from the app package
 func (as *AppStore) CreateTemporaryInstaller(id string, metadata map[string]core.InstallerMetadata) core.Installer {
 	return &Installer{
+		parent:   as,
 		ID:       id,
 		Versions: metadata,
 	}
