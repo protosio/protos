@@ -43,8 +43,8 @@ func (t *CreateAppTask) Name() string {
 func (t CreateAppTask) Run(tskID string, p core.Progress) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
-	if t.am == nil {
-		log.Panic("Failed to run CreateAppTask: application manager is nil")
+	if t.InstallerID == "" || t.InstallerVersion == "" || t.AppName == "" || t.am == nil {
+		return errors.Errorf("Failed to run CreateAppTask '%s' because required task fields are missing: id(%s), version(%s), app name(%s), app manager(%v)", tskID, t.InstallerID, t.InstallerVersion, t.AppName, t.am)
 	}
 
 	var inst core.Installer

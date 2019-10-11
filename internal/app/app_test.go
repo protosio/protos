@@ -1074,7 +1074,7 @@ func TestTask(t *testing.T) {
 		task := CreateAppTask{
 			am:                nil,
 			InstallerID:       "1",
-			InstallerVersion:  "1",
+			InstallerVersion:  "",
 			AppName:           "testapp",
 			InstallerMetadata: nil,
 			InstallerParams:   map[string]string{},
@@ -1102,22 +1102,19 @@ func TestTask(t *testing.T) {
 		// Run
 		//
 
-		// application manager is nil
-		func() {
-			defer func() {
-				r := recover()
-				if r == nil {
-					t.Errorf("CreateAppTask should panic when the am field is not set")
-				}
-			}()
-			task.Run(tskID, p)
-		}()
-
+		// required inputs are missing for the task
+		err := task.Run(tskID, p)
+		log.Info(err)
+		if err == nil {
+			t.Error("Run() should return an error when one of the required task fields is empty")
+		}
 		task.am = amMock
+		task.InstallerVersion = "1"
+
 		// failed to get installer metadata from the store
 		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(nil, errors.New("failed to retrieve image")).Times(1)
-		err := task.Run(tskID, p)
+		err = task.Run(tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the retrieval of the installer from the store fails")
 		}
