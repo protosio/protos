@@ -7,6 +7,7 @@ import (
 	"protos/internal/core"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 )
 
 var createExternalRoutes = func(cm core.CapabilityManager) routes {
@@ -169,6 +170,13 @@ func createApp(ha handlerAccess) http.Handler {
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+
+		if appParams.InstallerID == "" || appParams.InstallerVersion == "" || appParams.Name == "" {
+			err = errors.Errorf("App creation failed because of missing required input: installer id(%s), installer version(%s), app name(%s)", appParams.InstallerID, appParams.InstallerVersion, appParams.Name)
+			log.Error(err)
+			rend.JSON(w, http.StatusExpectationFailed, httperr{Error: err.Error()})
 			return
 		}
 
