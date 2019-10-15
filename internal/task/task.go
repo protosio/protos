@@ -6,10 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/icholy/killable"
-	"github.com/jinzhu/copier"
 	"protos/internal/core"
 	"protos/internal/util"
+
+	"github.com/icholy/killable"
+	"github.com/jinzhu/copier"
 )
 
 var log = util.GetLogger("task")
@@ -153,7 +154,7 @@ func (b *Base) Run() {
 	b.Save()
 
 	// run custom task
-	err := b.custom.Run(b.ID, b)
+	err := b.custom.Run(b, b.ID, b)
 	// update final result and save task
 	b.access.Lock()
 	b.Progress.Percentage = 100

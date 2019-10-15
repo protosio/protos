@@ -34,13 +34,8 @@ type CreateAppTask struct {
 	StartOnCreation   bool
 }
 
-// Name returns the task type name
-func (t *CreateAppTask) Name() string {
-	return "Create application"
-}
-
 // Run starts the async task
-func (t CreateAppTask) Run(tskID string, p core.Progress) error {
+func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
 
 	if t.InstallerID == "" || t.InstallerVersion == "" || t.AppName == "" || t.am == nil {
@@ -127,13 +122,8 @@ type StartAppTask struct {
 	app app
 }
 
-// Name returns the task type name
-func (t *StartAppTask) Name() string {
-	return "Start application"
-}
-
 // Run starts the async task
-func (t *StartAppTask) Run(tskID string, p core.Progress) error {
+func (t *StartAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
 	return t.app.Start()
@@ -144,13 +134,8 @@ type StopAppTask struct {
 	app app
 }
 
-// Name returns the task type name
-func (t *StopAppTask) Name() string {
-	return "Stop application"
-}
-
 // Run starts the async task
-func (t *StopAppTask) Run(tskID string, p core.Progress) error {
+func (t *StopAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
 	return t.app.Stop()
@@ -162,13 +147,8 @@ type RemoveAppTask struct {
 	appID string
 }
 
-// Name returns the task type name
-func (t *RemoveAppTask) Name() string {
-	return "Remove application"
-}
-
 // Run starts the async task
-func (t *RemoveAppTask) Run(tskID string, p core.Progress) error {
+func (t *RemoveAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
 	if t.am == nil {
 		log.Panic("Failed to run RemoveAppTask: application manager is nil")
 	}

@@ -160,7 +160,7 @@ func TestInstaller(t *testing.T) {
 	t.Run("DownloadAsync", func(t *testing.T) {
 		tskMock := mock.NewMockTask(ctrl)
 		installerParent.EXPECT().getTaskManager().Return(tmMock).Times(1)
-		tmMock.EXPECT().New(gomock.Any()).Return(tskMock).Times(1)
+		tmMock.EXPECT().New("Download application installer", gomock.Any()).Return(tskMock).Times(1)
 		task := inst.DownloadAsync("1.0", "id1")
 		if task != tskMock {
 			t.Errorf("DownloadAsync() returned the wrong task: %p vs %p", tskMock, task)
@@ -547,16 +547,7 @@ func TestTask(t *testing.T) {
 	rpMock := mock.NewMockRuntimePlatform(ctrl)
 	taskMock := mock.NewMockTask(ctrl)
 	inst := Installer{ID: "installer1", parent: parent}
-	task := DownloadTask{Inst: inst, b: taskMock, AppID: "app1", Version: "0.1"}
-
-	//
-	// Name
-	//
-
-	name := "Download application installer"
-	if task.Name() != name {
-		t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
-	}
+	task := DownloadTask{Inst: inst, AppID: "app1", Version: "0.1"}
 
 	//
 	// Run
@@ -565,7 +556,7 @@ func TestTask(t *testing.T) {
 	// installer fails to download
 	taskMock.EXPECT().AddApp("app1").Times(1)
 	taskMock.EXPECT().Save().Times(1)
-	err := task.Run("id1", p)
+	err := task.Run(taskMock, "id1", p)
 	if err == nil {
 		t.Error("Run() should return an error when the installer fails to download")
 	}
@@ -576,7 +567,7 @@ func TestTask(t *testing.T) {
 	taskMock.EXPECT().Save().Times(1)
 	parent.EXPECT().getPlatform().Return(rpMock).Times(1)
 	rpMock.EXPECT().PullDockerImage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
-	err = task.Run("id1", p)
+	err = task.Run(taskMock, "id1", p)
 	if err != nil {
 		t.Errorf("Run() should NOT return an error: %s", err.Error())
 	}

@@ -14,13 +14,9 @@ type DownloadTask struct {
 	Version string
 }
 
-// Name returns the name of the task type
-func (t *DownloadTask) Name() string {
-	return "Download application installer"
-}
-
 // Run starts the async task
-func (t *DownloadTask) Run(tskID string, p core.Progress) error {
+func (t *DownloadTask) Run(parent core.Task, tskID string, p core.Progress) error {
+	t.b = parent
 
 	log.WithField("proc", tskID).Debugf("Running download installer task [%s] based on installer '%s' version '%s'", tskID, t.Inst.ID, t.Version)
 	t.b.AddApp(t.AppID)

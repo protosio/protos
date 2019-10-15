@@ -133,7 +133,7 @@ func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
 //
 
 // New creates a new task and returns it
-func (tm *Manager) New(ct core.CustomTask) core.Task {
+func (tm *Manager) New(name string, ct core.CustomTask) core.Task {
 	ts := util.ProtosTime(time.Now())
 	tsk := &Base{
 		access: &sync.Mutex{},
@@ -141,7 +141,7 @@ func (tm *Manager) New(ct core.CustomTask) core.Task {
 		parent: tm,
 
 		ID:        xid.New().String(),
-		Name:      ct.Name(),
+		Name:      name,
 		Status:    REQUESTED,
 		Progress:  Progress{Percentage: 0},
 		StartedAt: &ts,

@@ -4,7 +4,7 @@ import "github.com/emirpasic/gods/maps/linkedhashmap"
 
 // TaskManager manages all tasks
 type TaskManager interface {
-	New(customTask CustomTask) Task
+	New(name string, customTask CustomTask) Task
 	Get(id string) (Task, error)
 	GetAll() *linkedhashmap.Map
 	GetIDs(ids []string) linkedhashmap.Map
@@ -13,8 +13,7 @@ type TaskManager interface {
 
 // CustomTask is the interface that is implemented by custom tasks in various packages
 type CustomTask interface {
-	Run(id string, progress Progress) error
-	Name() string
+	Run(parent Task, id string, progress Progress) error
 }
 
 // Progress is an interface used to communicate progress inside a task

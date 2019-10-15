@@ -35,17 +35,17 @@ func (m *MockTaskManager) EXPECT() *MockTaskManagerMockRecorder {
 }
 
 // New mocks base method
-func (m *MockTaskManager) New(customTask core.CustomTask) core.Task {
+func (m *MockTaskManager) New(name string, customTask core.CustomTask) core.Task {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "New", customTask)
+	ret := m.ctrl.Call(m, "New", name, customTask)
 	ret0, _ := ret[0].(core.Task)
 	return ret0
 }
 
 // New indicates an expected call of New
-func (mr *MockTaskManagerMockRecorder) New(customTask interface{}) *gomock.Call {
+func (mr *MockTaskManagerMockRecorder) New(name, customTask interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "New", reflect.TypeOf((*MockTaskManager)(nil).New), customTask)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "New", reflect.TypeOf((*MockTaskManager)(nil).New), name, customTask)
 }
 
 // Get mocks base method
@@ -129,31 +129,17 @@ func (m *MockCustomTask) EXPECT() *MockCustomTaskMockRecorder {
 }
 
 // Run mocks base method
-func (m *MockCustomTask) Run(id string, progress core.Progress) error {
+func (m *MockCustomTask) Run(parent core.Task, id string, progress core.Progress) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", id, progress)
+	ret := m.ctrl.Call(m, "Run", parent, id, progress)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Run indicates an expected call of Run
-func (mr *MockCustomTaskMockRecorder) Run(id, progress interface{}) *gomock.Call {
+func (mr *MockCustomTaskMockRecorder) Run(parent, id, progress interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCustomTask)(nil).Run), id, progress)
-}
-
-// Name mocks base method
-func (m *MockCustomTask) Name() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Name")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Name indicates an expected call of Name
-func (mr *MockCustomTaskMockRecorder) Name() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockCustomTask)(nil).Name))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCustomTask)(nil).Run), parent, id, progress)
 }
 
 // MockProgress is a mock of Progress interface

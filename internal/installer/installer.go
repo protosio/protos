@@ -186,7 +186,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 
 // DownloadAsync triggers an async installer download, returns a generic task
 func (inst Installer) DownloadAsync(version string, appID string) core.Task {
-	return inst.parent.getTaskManager().New(&DownloadTask{Inst: inst, Version: version, AppID: appID})
+	return inst.parent.getTaskManager().New("Download application installer", &DownloadTask{Inst: inst, Version: version, AppID: appID})
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally

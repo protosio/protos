@@ -143,7 +143,7 @@ func TestAppManager(t *testing.T) {
 			}()
 			am.CreateAsync("a", "", "c", core.InstallerMetadata{}, map[string]string{}, false)
 		}()
-		tmMock.EXPECT().New(gomock.Any()).Return(nil).Times(1)
+		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 		_ = am.CreateAsync("a", "b", "c", core.InstallerMetadata{}, map[string]string{}, false)
 	})
 
@@ -259,7 +259,7 @@ func TestAppManager(t *testing.T) {
 	//
 	t.Run("RemoveAsync", func(t *testing.T) {
 		taskMock := mock.NewMockTask(ctrl)
-		tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(1)
+		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(taskMock).Times(1)
 		removeTask := am.RemoveAsync("id4")
 		if removeTask != taskMock {
 			t.Error("RemoveAsync returned an incorrect task")
@@ -420,7 +420,7 @@ func TestApp(t *testing.T) {
 		}
 
 		parentMock.EXPECT().getTaskManager().Return(tmMock).Times(2)
-		tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(2)
+		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(taskMock).Times(2)
 		tsk, err := app.AddAction("start")
 		if err != nil {
 			t.Error("AddAction(start) should NOT return an error")
@@ -595,7 +595,7 @@ func TestApp(t *testing.T) {
 
 	t.Run("StartAsync", func(t *testing.T) {
 		parentMock.EXPECT().getTaskManager().Return(tmMock).Times(1)
-		tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(1)
+		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(taskMock).Times(1)
 		tsk := app.StartAsync()
 		if tsk != taskMock {
 			t.Errorf("StartAsync() returned an incorrect task: %p vs %p", tsk, taskMock)
@@ -652,7 +652,7 @@ func TestApp(t *testing.T) {
 
 	t.Run("StopAsync", func(t *testing.T) {
 		parentMock.EXPECT().getTaskManager().Return(tmMock).Times(1)
-		tmMock.EXPECT().New(gomock.Any()).Return(taskMock).Times(1)
+		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(taskMock).Times(1)
 		tsk := app.StopAsync()
 		if tsk != taskMock {
 			t.Errorf("StopAsync() returned an incorrect task: %p vs %p", tsk, taskMock)
@@ -1095,25 +1095,17 @@ func TestTask(t *testing.T) {
 		store := NewMockappStore(ctrl)
 		inst := mock.NewMockInstaller(ctrl)
 		app := NewMockapp(ctrl)
+		baseTaskMock := mock.NewMockTask(ctrl)
 		downloadTaskMock := mock.NewMockTask(ctrl)
 		startAsyncTaskMock := mock.NewMockTask(ctrl)
 		pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
-
-		//
-		// Name
-		//
-
-		name := "Create application"
-		if task.Name() != name {
-			t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
-		}
 
 		//
 		// Run
 		//
 
 		// required inputs are missing for the task
-		err := task.Run(tskID, p)
+		err := task.Run(baseTaskMock, tskID, p)
 		log.Info(err)
 		if err == nil {
 			t.Error("Run() should return an error when one of the required task fields is empty")
@@ -1124,7 +1116,7 @@ func TestTask(t *testing.T) {
 		// failed to get installer metadata from the store
 		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(nil, errors.New("failed to retrieve image")).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the retrieval of the installer from the store fails")
 		}
@@ -1133,7 +1125,7 @@ func TestTask(t *testing.T) {
 		amMock.EXPECT().getAppStore().Return(store).Times(1)
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, errors.New("failed to retrieve install metadata")).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the retrieval of the installer metadata fails")
 		}
@@ -1143,7 +1135,7 @@ func TestTask(t *testing.T) {
 		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
 		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(nil, errors.New("failed to create app")).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the app manager fails to create the app")
 		}
@@ -1163,7 +1155,7 @@ func TestTask(t *testing.T) {
 		app.EXPECT().AddTask("2").Times(1)
 		downloadTaskMock.EXPECT().Wait().Return(errors.New("download task error"))
 		app.EXPECT().SetStatus(statusFailed).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the download image task fails")
 		}
@@ -1181,7 +1173,7 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetState("Docker image found locally").Times(1)
 		app.EXPECT().createContainer().Return(nil, errors.New("failed to create container"))
 		app.EXPECT().SetStatus(statusFailed).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the app container fails to be created")
 		}
@@ -1206,7 +1198,7 @@ func TestTask(t *testing.T) {
 		app.EXPECT().AddTask(tskID).Times(1)
 		startAsyncTaskMock.EXPECT().Wait().Return(errors.New("failed to start app")).Times(1)
 		app.EXPECT().SetStatus(statusFailed).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err == nil {
 			t.Error("Run() should return an error when the app fails to start")
 		}
@@ -1227,7 +1219,7 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetState("Created Docker container")
 		task.StartOnCreation = false
 		app.EXPECT().SetStatus(statusRunning).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err != nil {
 			t.Errorf("Run() should NOT return an error: %s", err.Error())
 		}
@@ -1256,7 +1248,7 @@ func TestTask(t *testing.T) {
 		startAsyncTaskMock.EXPECT().Wait().Return(nil).Times(1)
 		// set status running
 		app.EXPECT().SetStatus(statusRunning).Times(1)
-		err = task.Run(tskID, p)
+		err = task.Run(baseTaskMock, tskID, p)
 		if err != nil {
 			t.Errorf("Run() should NOT return an error: %s", err.Error())
 		}
@@ -1266,18 +1258,10 @@ func TestTask(t *testing.T) {
 	t.Run("StartAppTask", func(t *testing.T) {
 
 		p := mock.NewMockProgress(ctrl)
+		baseTaskMock := mock.NewMockTask(ctrl)
 		app := NewMockapp(ctrl)
 		task := StartAppTask{
 			app: app,
-		}
-
-		//
-		// Name
-		//
-
-		name := "Start application"
-		if task.Name() != name {
-			t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
 		}
 
 		//
@@ -1287,7 +1271,7 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetPercentage(50).Times(1)
 		app.EXPECT().AddTask("1").Times(1)
 		app.EXPECT().Start().Times(1)
-		err := task.Run("1", p)
+		err := task.Run(baseTaskMock, "1", p)
 		if err != nil {
 			t.Errorf("Run() should NOT return an error: %s", err.Error())
 		}
@@ -1296,18 +1280,10 @@ func TestTask(t *testing.T) {
 	t.Run("StopAppTask", func(t *testing.T) {
 
 		p := mock.NewMockProgress(ctrl)
+		baseTaskMock := mock.NewMockTask(ctrl)
 		app := NewMockapp(ctrl)
 		task := StopAppTask{
 			app: app,
-		}
-
-		//
-		// Name
-		//
-
-		name := "Stop application"
-		if task.Name() != name {
-			t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
 		}
 
 		//
@@ -1317,7 +1293,7 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetPercentage(50).Times(1)
 		app.EXPECT().AddTask("1").Times(1)
 		app.EXPECT().Stop().Times(1)
-		err := task.Run("1", p)
+		err := task.Run(baseTaskMock, "1", p)
 		if err != nil {
 			t.Errorf("Run() should NOT return an error: %s", err.Error())
 		}
@@ -1326,18 +1302,10 @@ func TestTask(t *testing.T) {
 	t.Run("RemoveAppTask", func(t *testing.T) {
 
 		p := mock.NewMockProgress(ctrl)
+		baseTaskMock := mock.NewMockTask(ctrl)
 		task := RemoveAppTask{
 			am:    nil,
 			appID: "1",
-		}
-
-		//
-		// Name
-		//
-
-		name := "Remove application"
-		if task.Name() != name {
-			t.Errorf("Name() should return '%s' but returned '%s'", name, task.Name())
 		}
 
 		//
@@ -1352,14 +1320,14 @@ func TestTask(t *testing.T) {
 					t.Errorf("RemoveAppTask should panic when the am field is not set")
 				}
 			}()
-			task.Run("1", p)
+			task.Run(baseTaskMock, "1", p)
 		}()
 
 		task.am = amMock
 		p.EXPECT().SetState("Deleting application").Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
 		amMock.EXPECT().Remove("1")
-		err := task.Run("1", p)
+		err := task.Run(baseTaskMock, "1", p)
 		if err != nil {
 			t.Errorf("Run() should NOT return an error: %s", err.Error())
 		}

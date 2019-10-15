@@ -208,7 +208,7 @@ func (am *Manager) CreateAsync(installerID string, installerVersion string, appN
 		InstallerParams:   installerParams,
 		StartOnCreation:   startOnCreation,
 	}
-	return am.tm.New(&createApp)
+	return am.tm.New("Create application", &createApp)
 }
 
 // Create takes an image and creates an application, without starting it
@@ -308,7 +308,7 @@ func (am *Manager) Remove(appID string) error {
 
 // RemoveAsync asynchronously removes an applications and returns a task
 func (am *Manager) RemoveAsync(appID string) core.Task {
-	return am.tm.New(&RemoveAppTask{am: am, appID: appID})
+	return am.tm.New("Remove application", &RemoveAppTask{am: am, appID: appID})
 }
 
 func (am *Manager) saveApp(app *App) {

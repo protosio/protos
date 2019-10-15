@@ -95,9 +95,8 @@ func TestTaskManager(t *testing.T) {
 	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(3)
 	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(3)
 	customTask := mock.NewMockCustomTask(ctrl)
-	customTask.EXPECT().Name().Return("customTaskName").Times(1)
-	customTask.EXPECT().Run(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-	tsk3 := tm.New(customTask)
+	customTask.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	tsk3 := tm.New("customTaskName", customTask)
 
 	err = tsk3.Wait()
 	if err != nil {
