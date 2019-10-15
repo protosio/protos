@@ -13,6 +13,10 @@ import (
 
 	"github.com/docker/distribution"
 
+	"protos/internal/core"
+	"protos/internal/task"
+	"protos/internal/util"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -23,9 +27,6 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/pkg/errors"
-	"protos/internal/core"
-	"protos/internal/task"
-	"protos/internal/util"
 )
 
 const (
@@ -536,7 +537,7 @@ func (dp *dockerPlatform) PullDockerImage(t core.Task, id string, installerName 
 	}
 
 	if strings.Contains(id, "@") == false {
-		return fmt.Errorf("Failed to pull image from app store: invalid image id: %s", id)
+		return fmt.Errorf("Failed to pull image from app store: invalid image id: '%s'", id)
 	}
 
 	idparts := strings.Split(id, "@")
