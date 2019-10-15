@@ -176,7 +176,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
 	}
 
-	log.Infof("Downloading platform image for installer %s(%s) version '%s'", inst.Name, inst.ID, dt.Version)
+	log.Infof("Downloading platform image for installer '%s'(%s) version '%s'", inst.Name, inst.ID, dt.Version)
 	err = inst.parent.getPlatform().PullDockerImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
@@ -387,7 +387,7 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 
 	client := getHTTPClient()
 	url := fmt.Sprintf("%s/api/v1/search?%s=%s", gconfig.AppStoreURL, key, value)
-	log.Debugf("Querying app store at %s", url)
+	log.Debugf("Querying app store at '%s'", url)
 	resp, err := client.Get(url)
 	if err != nil {
 		return installers, errors.Wrap(err, "Could not retrieve search results from the app store")
