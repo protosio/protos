@@ -161,7 +161,7 @@ func (b *Base) Run() {
 	ts := util.ProtosTime(time.Now())
 	b.FinishedAt = &ts
 	if err != nil {
-		log.WithField("proc", b.ID).Error("Failed to finish task: ", err.Error())
+		log.WithField("proc", b.ID).Errorf("Failed to finish task '%s': %s", b.ID, err.Error())
 		b.Progress.State = err.Error()
 		b.Status = FAILED
 		b.err = err
