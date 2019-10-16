@@ -141,10 +141,10 @@ func TestAppManager(t *testing.T) {
 					t.Errorf("An empty required input in the CreateAsync call should lead to a panic")
 				}
 			}()
-			am.CreateAsync("a", "", "c", core.InstallerMetadata{}, map[string]string{}, false)
+			am.CreateAsync("a", "", "c", &core.InstallerMetadata{}, map[string]string{}, false)
 		}()
 		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-		_ = am.CreateAsync("a", "b", "c", core.InstallerMetadata{}, map[string]string{}, false)
+		_ = am.CreateAsync("a", "b", "c", &core.InstallerMetadata{}, map[string]string{}, false)
 	})
 
 	//

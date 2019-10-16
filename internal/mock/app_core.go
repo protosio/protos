@@ -93,7 +93,7 @@ func (mr *MockAppManagerMockRecorder) CreateDevApp(installerID, installerVersion
 }
 
 // CreateAsync mocks base method
-func (m *MockAppManager) CreateAsync(installerID, installerVersion, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
+func (m *MockAppManager) CreateAsync(installerID, installerVersion, appName string, installerMetadata *core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAsync", installerID, installerVersion, appName, installerMetadata, installerParams, startOnCreation)
 	ret0, _ := ret[0].(core.Task)
