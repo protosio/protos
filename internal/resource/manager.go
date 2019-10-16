@@ -33,7 +33,7 @@ func (rc resourceContainer) get(id string) (*Resource, error) {
 	if found {
 		return app, nil
 	}
-	return nil, fmt.Errorf("Could not find app %s", id)
+	return nil, fmt.Errorf("Could not find resource '%s'", id)
 }
 
 func (rc resourceContainer) remove(id string) error {
@@ -41,7 +41,7 @@ func (rc resourceContainer) remove(id string) error {
 	defer rc.access.Unlock()
 	rsc, found := rc.all[id]
 	if found == false {
-		return fmt.Errorf("Could not find app %s", id)
+		return fmt.Errorf("Could not find resource '%s'", id)
 	}
 	err := rc.db.Remove(rsc)
 	if err != nil {
@@ -122,7 +122,7 @@ func (rm *Manager) Create(rtype core.ResourceType, value core.ResourceValue, app
 	resource.parent = rm
 	resource.Save()
 
-	log.Debug("Adding resource ", rhash, ": ", resource)
+	log.Debugf("Adding resource '%s:%p'", rhash, resource)
 	rm.resources.put(rhash, resource)
 	return resource, nil
 
@@ -145,7 +145,7 @@ func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (core.Resource, 
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
 	rsc, err := rm.resources.get(rhash)
 	if err == nil {
-		return rsc, errors.New("Could not create resource with hash '" + rhash + "' because it already exists")
+		return rsc, errors.Errorf("Could not create resource with hash '%s' because it already exists", rhash)
 	}
 	resource.parent = rm
 	resource.access = &sync.Mutex{}
@@ -154,7 +154,7 @@ func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (core.Resource, 
 	resource.App = appID
 	resource.Save()
 
-	log.Debug("Adding resource ", rhash, ": ", resource)
+	log.Debugf("Adding resource '%s:%p'", rhash, resource)
 	rm.resources.put(rhash, resource)
 	return resource, nil
 }
