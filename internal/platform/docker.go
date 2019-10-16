@@ -283,7 +283,7 @@ func (dp *dockerPlatform) NewContainer(name string, appid string, imageid string
 
 // GetDockerContainer retrieves and returns a docker container based on the id
 func (dp *dockerPlatform) GetDockerContainer(id string) (core.PlatformRuntimeUnit, error) {
-	cnt := DockerContainer{ID: id}
+	cnt := DockerContainer{ID: id, p: dp}
 	err := cnt.Update()
 	if err != nil {
 		return &DockerContainer{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker container %s", id), "No such container", core.ErrContainerNotFound)
@@ -302,7 +302,7 @@ func (dp *dockerPlatform) GetAllDockerContainers() (map[string]core.PlatformRunt
 	}
 
 	for _, container := range containers {
-		cnts[container.ID] = &DockerContainer{ID: container.ID, Status: container.Status, IP: container.NetworkSettings.Networks[protosNetwork].IPAddress}
+		cnts[container.ID] = &DockerContainer{ID: container.ID, p: dp, Status: container.Status, IP: container.NetworkSettings.Networks[protosNetwork].IPAddress}
 	}
 
 	return cnts, nil
