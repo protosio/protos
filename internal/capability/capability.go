@@ -2,10 +2,11 @@ package capability
 
 import (
 	"encoding/gob"
-	"errors"
 
 	"protos/internal/core"
 	"protos/internal/util"
+
+	"github.com/pkg/errors"
 )
 
 var log = util.GetLogger("capability")
@@ -48,7 +49,7 @@ func CreateManager() *Manager {
 
 // New returns a new capability
 func (cm *Manager) New(name string) *Capability {
-	log.Debugf("Creating capability %s", name)
+	log.Debugf("Creating capability '%s'", name)
 	cap := &Capability{Name: name}
 	AllCapabilities = append(AllCapabilities, cap)
 	return cap
@@ -57,7 +58,7 @@ func (cm *Manager) New(name string) *Capability {
 // Validate validates a capability
 func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
 	if methodcap.GetName() == appcap {
-		log.Debug("Matched capability at " + methodcap.GetName())
+		log.Debugf("Matched capability at '%s'", methodcap.GetName())
 		return true
 	} else if methodcap.GetParent() != nil {
 		return cm.Validate(methodcap.GetParent(), appcap)
@@ -68,7 +69,7 @@ func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
 // SetMethodCap adds a capability for a specific method
 func (cm *Manager) SetMethodCap(method string, cap core.Capability) {
 	lcap := cap.(*Capability)
-	log.Debugf("Setting capability %s for method %s", lcap.Name, method)
+	log.Debugf("Setting capability '%s' for method '%s'", lcap.Name, method)
 	CapMap[method] = lcap
 }
 
@@ -77,7 +78,7 @@ func (cm *Manager) GetMethodCap(method string) (core.Capability, error) {
 	if cap, ok := CapMap[method]; ok {
 		return cap, nil
 	}
-	return nil, errors.New("Can't find capability for method " + method)
+	return nil, errors.Errorf("Can't find capability for method '%s'", method)
 }
 
 // GetByName returns the capability based on the provided name, if one exists
@@ -87,7 +88,7 @@ func (cm *Manager) GetByName(name string) (core.Capability, error) {
 			return cap, nil
 		}
 	}
-	return nil, errors.New("Capability " + name + " does not exist")
+	return nil, errors.Errorf("Capability '%s' does not exist", name)
 }
 
 // GetOrPanic returns the capability based on the provided name. It panics if it's not found
