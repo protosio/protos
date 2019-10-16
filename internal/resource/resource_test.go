@@ -143,10 +143,20 @@ func TestResoureCreatorAndResource(t *testing.T) {
 
 	rm := CreateManager(dbMock)
 
+	//
+	// CreateDNS
+	//
+
 	// test DNS resource creation
 	rsc, err := rm.CreateDNS("appid1", "app1", "MX", "1.2.3.4", 300)
 	if err != nil {
 		t.Error("rm/rc.CreateDNS should not return an error:", err.Error())
+	}
+
+	// DNS resource creation should fail because of duplications
+	_, err = rm.CreateDNS("appid1", "app1", "MX", "1.2.3.4", 300)
+	if err == nil {
+		t.Errorf("rm/rc.CreateDNS should return an error because of a duplicate DNS resource")
 	}
 
 	//
@@ -185,11 +195,22 @@ func TestResoureCreatorAndResource(t *testing.T) {
 		t.Error("rsc.UpdateValue failed to update value correctly. Host should be app2 but is", rscval2.Host)
 	}
 
+	//
+	// CreateCert
+	//
+
 	// test Certificate resource creation
 	rsc, err = rm.CreateCert("appid1", []string{"protos.io"})
 	if err != nil {
 		t.Error("rm/rc.CreateCert should not return an error:", err.Error())
 	}
+
+	// Certificate resource creation should fail because of duplications
+	_, err = rm.CreateCert("appid1", []string{"protos.io"})
+	if err == nil {
+		t.Errorf("rm/rc.CreateCert should return an error because of a duplicate Certificate resource")
+	}
+
 	// test Certificate resource values
 	cert := rsc.GetValue().(*CertificateResource)
 	if cert.Domains[0] != "protos.io" {

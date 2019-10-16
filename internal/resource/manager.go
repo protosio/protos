@@ -232,27 +232,13 @@ func (rm *Manager) CreateDNS(appID string, name string, rtype string, value stri
 		Value: value,
 		TTL:   ttl,
 	}
-	rhash := fmt.Sprintf("%x", structhash.Md5(val, 1))
-	rsc, err := rm.resources.get(rhash)
-	if err == nil {
-		return rsc, errors.New("Resource " + rhash + " already registered")
-	}
-	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: core.DNS, Value: val, Status: core.Requested}
-	resource.Save()
 
-	return resource, nil
+	return rm.Create(core.DNS, val, appID)
 }
 
 // CreateCert creates a Resource of type Certificate with the proivded values
 func (rm *Manager) CreateCert(appID string, domains []string) (core.Resource, error) {
 	val := &CertificateResource{Domains: domains}
-	rhash := fmt.Sprintf("%x", structhash.Md5(val, 1))
-	rsc, err := rm.resources.get(rhash)
-	if err == nil {
-		return rsc, errors.New("Resource " + rhash + " already registered")
-	}
-	resource := &Resource{access: &sync.Mutex{}, parent: rm, ID: rhash, App: appID, Type: core.Certificate, Value: val, Status: core.Requested}
-	resource.Save()
 
-	return resource, nil
+	return rm.Create(core.Certificate, val, appID)
 }
