@@ -43,6 +43,7 @@ func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Man
 		log.Fatalf("Could not retrieve providers from the database: %s", err.Error())
 	}
 	for idx, provider := range prvs {
+		prvs[idx].rm = rm
 		providers[provider.Type] = &prvs[idx]
 	}
 

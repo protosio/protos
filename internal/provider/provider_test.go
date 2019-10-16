@@ -25,7 +25,11 @@ func TestProviderManager(t *testing.T) {
 
 	// Testing provider manager creation
 	dbMock.EXPECT().Register(gomock.Any()).Return().Times(1)
-	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
+		Do(func(to interface{}) {
+			providers := to.(*[]Provider)
+			*providers = append(*providers, Provider{Type: core.DNS})
+		})
 	pm := CreateManager(rmMock, amMock, dbMock)
 
 	// If no app is registered as a provider for DNS, registration should be successful
@@ -62,7 +66,10 @@ func TestProviderManager(t *testing.T) {
 	appMock.EXPECT().GetID().Return("appid01").Times(1)
 	prov, err := pm.Get(appMock)
 	if err != nil {
-		t.Error("Get should return the correct provider (DNS)")
+		t.Error("Get() should return the correct provider (DNS)")
+	}
+	if prov.TypeName() != "dns" {
+		t.Errorf("TypeName() should return the correct provider type: dns vs %s", prov.TypeName())
 	}
 
 	appMock.EXPECT().GetID().Return("appid02").Times(1)
