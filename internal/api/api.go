@@ -109,7 +109,7 @@ func createExternalAPIrouter(ha handlerAccess, r *mux.Router) *mux.Router {
 	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
 	// add the external router to the main router
 	r.PathPrefix("/api/v1/e").Handler(negroni.New(
-		ExternalRequestValidator(ha),
+		ExternalRequestValidator(ha, externalRouter),
 		negroni.Wrap(externalRouter),
 	))
 	return externalRouter

@@ -104,7 +104,7 @@ func InternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
 }
 
 // ExternalRequestValidator validates client request contains a valid JWT token
-func ExternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
+func ExternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.HandlerFunc {
 	return negroni.HandlerFunc(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		var httpErrStatus int
 		if gconfig.InitMode {
@@ -151,8 +151,9 @@ func ExternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
 			return
 		}
 
-		routeName := mux.CurrentRoute(r).GetName()
-		err = checkCapability(ha.cm, user, routeName)
+		rmatch := &mux.RouteMatch{}
+		router.Match(r, rmatch)
+		err = checkCapability(ha.cm, user, rmatch.Route.GetName())
 		if err != nil {
 			log.Error(err.Error())
 			rend.JSON(rw, httpErrStatus, httperr{Error: "User not authorized to access that resource"})
