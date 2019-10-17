@@ -103,7 +103,7 @@ func findPublicIP() (string, error) {
 
 // SetDomain sets the instance domain name
 func (m *Meta) SetDomain(domainName string) {
-	log.Debugf("Setting instance domain name to %s", domainName)
+	log.Debugf("Setting instance domain name to '%s'", domainName)
 	m.Domain = domainName
 	m.save()
 }
@@ -114,7 +114,7 @@ func (m *Meta) setPublicIP() {
 	if err != nil {
 		log.Fatalf("Could not find instance public ip: %s", err.Error())
 	}
-	log.Debugf("Setting instance IP address to %s", ip)
+	log.Debugf("Setting instance IP address to '%s'", ip)
 	m.PublicIP = ip
 	m.save()
 
@@ -122,7 +122,7 @@ func (m *Meta) setPublicIP() {
 
 // SetAdminUser takes a username that gets saved as the instance admin user
 func (m *Meta) SetAdminUser(username string) {
-	log.Debugf("Setting admin user to [%s]", username)
+	log.Debugf("Setting admin user to '%s'", username)
 	m.AdminUser = username
 	m.save()
 }
@@ -147,7 +147,7 @@ func (m *Meta) InitCheck() {
 		log.Fatal("Instance admin user is empty. Please run init")
 	}
 
-	log.Infof("Running under domain %s using public IP %s", m.Domain, m.PublicIP)
+	log.Infof("Running under domain '%s' using public IP '%s'", m.Domain, m.PublicIP)
 	if len(m.Resources) < 2 {
 		log.Fatal("DNS and TLS certificate resources have not been created. Please run init")
 	}
