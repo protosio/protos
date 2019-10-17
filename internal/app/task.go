@@ -36,7 +36,7 @@ type CreateAppTask struct {
 
 // Run starts the async task
 func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
-	log.WithField("proc", tskID).Debugf("Running app creation task [%s] based on installer %s:%s", tskID, t.InstallerID, t.InstallerVersion)
+	log.WithField("proc", tskID).Debugf("Running app creation task '%s' based on installer '%s:%s'", tskID, t.InstallerID, t.InstallerVersion)
 
 	if t.InstallerID == "" || t.InstallerVersion == "" || t.AppName == "" || t.am == nil {
 		return errors.Errorf("Failed to run CreateAppTask '%s' because required task fields are missing: id(%s), version(%s), app name(%s), app manager(%v)", tskID, t.InstallerID, t.InstallerVersion, t.AppName, t.am)
