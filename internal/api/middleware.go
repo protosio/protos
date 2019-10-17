@@ -67,7 +67,7 @@ func HTTPLogger(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 }
 
 // InternalRequestValidator validates requests coming from the containers (correct IP and AppID)
-func InternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
+func InternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.HandlerFunc {
 	return negroni.HandlerFunc(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 
 		appID := r.Header.Get("Appid")
@@ -90,8 +90,9 @@ func InternalRequestValidator(ha handlerAccess) negroni.HandlerFunc {
 		}
 		log.Debugf("Validated %s request to %s as coming from app %s(%s)", r.Method, r.URL.Path, appID, appInstance.GetName())
 
-		routeName := mux.CurrentRoute(r).GetName()
-		err = checkCapability(ha.cm, appInstance, routeName)
+		rmatch := &mux.RouteMatch{}
+		router.Match(r, rmatch)
+		err = checkCapability(ha.cm, appInstance, rmatch.Route.GetName())
 		if err != nil {
 			log.Error(err.Error())
 			http.Error(rw, "Application not authorized to access that resource", http.StatusUnauthorized)

@@ -99,7 +99,7 @@ func createInternalAPIrouter(ha handlerAccess, r *mux.Router) *mux.Router {
 	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
 	// add the internal router to the main router
 	r.PathPrefix("/api/v1/i").Handler(negroni.New(
-		InternalRequestValidator(ha),
+		InternalRequestValidator(ha, internalRouter),
 		negroni.Wrap(internalRouter),
 	))
 	return internalRouter
