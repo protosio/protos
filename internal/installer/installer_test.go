@@ -351,6 +351,7 @@ func TestAppStore(t *testing.T) {
 	tm := mock.NewMockTaskManager(ctrl)
 	cm := mock.NewMockCapabilityManager(ctrl)
 	clientMock := NewMockhttpClient(ctrl)
+	capabilityMock := mock.NewMockCapability(ctrl)
 	getHTTPClient = func() httpClient {
 		return clientMock
 	}
@@ -409,6 +410,7 @@ func TestAppStore(t *testing.T) {
 		}
 		body = ioutil.NopCloser(bufio.NewReader(fd))
 		resp = &http.Response{Status: "200 OK", StatusCode: 200, Body: body}
+		cm.EXPECT().GetByName(gomock.Any()).Return(capabilityMock, nil).Times(13)
 		clientMock.EXPECT().Get(gconfig.AppStoreURL+"/api/v1/installers/all").Return(resp, nil)
 		installers, err := appStore.GetInstallers()
 		if err != nil {
@@ -456,16 +458,32 @@ func TestAppStore(t *testing.T) {
 		}
 
 		// happy case
-		body = ioutil.NopCloser(strings.NewReader("{\"name\": \"installer name\", \"ID\": \"id1\"}"))
+		fd, err := os.Open("../mock/app_store_one_installer_response.json")
+		if err != nil {
+			t.Fatal("Failed to open ../mock/app_store_one_installer_response.json file")
+		}
+		body = ioutil.NopCloser(bufio.NewReader(fd))
 		resp = &http.Response{Status: "200 OK", StatusCode: 200, Body: body}
-		clientMock.EXPECT().Get(gconfig.AppStoreURL+"/api/v1/installers/"+id).Return(resp, nil)
+		clientMock.EXPECT().Get(gconfig.AppStoreURL+"/api/v1/installers/"+id).Return(resp, nil).Times(1)
+		cm.EXPECT().GetByName(gomock.Any()).Return(capabilityMock, nil).Times(2)
 		installer, err := appStore.GetInstaller(id)
 		if err != nil {
 			t.Errorf("GetInstaller() should not return an error: %s", err.Error())
 		}
 		inst := installer.(Installer)
-		if inst.Name != "installer name" {
+		if inst.Name != "installer-name" {
 			t.Errorf("GetInstaller() returned the wrong installer: %v", inst)
+		}
+		// test metadata decoding
+		metadata, err := inst.GetMetadata("0.0.8")
+		if err != nil {
+			t.Errorf("installer.GetMetadata() should not return an error: %s", err.Error())
+		}
+		if len(metadata.Capabilities) != 2 {
+			t.Errorf("installer.GetMetadata() returned metadata with the wrong number of capabilities: %d instead of 2", len(metadata.Capabilities))
+		}
+		if found, _ := util.StringInSlice("ResourceProvider", metadata.Capabilities); found != true {
+			t.Error("installer.GetMetadata() should return metadata that contains capabilitity 'ResourceProvider'")
 		}
 
 	})
@@ -507,6 +525,7 @@ func TestAppStore(t *testing.T) {
 		}
 		body = ioutil.NopCloser(bufio.NewReader(fd))
 		resp = &http.Response{Status: "200 OK", StatusCode: 200, Body: body}
+		cm.EXPECT().GetByName(gomock.Any()).Return(capabilityMock, nil).Times(2)
 		clientMock.EXPECT().Get("https://apps.protos.io/api/v1/search?key=value").Return(resp, nil)
 		installers, err := appStore.Search("key", "value")
 		if err != nil {
@@ -546,7 +565,7 @@ func TestTask(t *testing.T) {
 	parent := NewMockinstallerParent(ctrl)
 	rpMock := mock.NewMockRuntimePlatform(ctrl)
 	taskMock := mock.NewMockTask(ctrl)
-	inst := Installer{ID: "installer1", parent: parent}
+	inst := Installer{ID: "installer1", Name: "installer-name", parent: parent}
 	task := DownloadTask{Inst: inst, AppID: "app1", Version: "0.1"}
 
 	//

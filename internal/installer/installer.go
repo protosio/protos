@@ -37,7 +37,7 @@ func (li localInstaller) convert(as *AppStore) core.Installer {
 	li.Installer.Versions = map[string]core.InstallerMetadata{}
 	for version, metadata := range li.Versions {
 		for _, cap := range metadata.Capabilities {
-			if capName, ok := cap["name"]; ok {
+			if capName, ok := cap["Name"]; ok {
 				if _, err := as.cm.GetByName(capName); err == nil {
 					metadata.InstallerMetadata.Capabilities = append(metadata.InstallerMetadata.Capabilities, capName)
 				}
