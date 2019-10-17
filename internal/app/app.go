@@ -225,7 +225,7 @@ func (app *App) enrichAppData() {
 	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
-			log.Warnf("Application %s(%s) has no container: %s", app.Name, app.ID, err.Error())
+			log.Warnf("Application '%s'(%s) has no container: %s", app.Name, app.ID, err.Error())
 			app.Status = statusStopped
 			return
 		}
@@ -243,18 +243,18 @@ func (app *App) StartAsync() core.Task {
 
 // Start starts an application
 func (app *App) Start() error {
-	log.Info("Starting application ", app.Name, "[", app.ID, "]")
+	log.Infof("Starting application '%s'[%s]", app.Name, app.ID)
 
 	cnt, err := app.getOrCreateContainer()
 	if err != nil {
 		app.SetStatus(statusFailed)
-		return errors.Wrap(err, "Failed to start application "+app.ID)
+		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
 	}
 
 	err = cnt.Start()
 	if err != nil {
 		app.SetStatus(statusFailed)
-		return errors.Wrap(err, "Failed to start application "+app.ID)
+		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
 	}
 	app.SetStatus(statusRunning)
 	return nil
@@ -267,7 +267,7 @@ func (app *App) StopAsync() core.Task {
 
 // Stop stops an application
 func (app *App) Stop() error {
-	log.Info("Stoping application ", app.Name, "[", app.ID, "]")
+	log.Infof("Stopping application '%s'[%s]", app.Name, app.ID)
 
 	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
@@ -275,7 +275,7 @@ func (app *App) Stop() error {
 			app.SetStatus(statusUnknown)
 			return err
 		}
-		log.Warnf("Application %s(%s) has no container to stop", app.Name, app.ID)
+		log.Warnf("Application '%s'(%s) has no container to stop", app.Name, app.ID)
 		app.SetStatus(statusStopped)
 		return nil
 	}
@@ -283,7 +283,7 @@ func (app *App) Stop() error {
 	err = cnt.Stop()
 	if err != nil {
 		app.SetStatus(statusUnknown)
-		return errors.Wrapf(err, "Can't stop application %s(%s)", app.Name, app.ID)
+		return errors.Wrapf(err, "Can't stop application '%s'(%s)", app.Name, app.ID)
 	}
 	app.SetStatus(statusStopped)
 	return nil
@@ -291,25 +291,25 @@ func (app *App) Stop() error {
 
 // remove App removes an application container
 func (app *App) remove() error {
-	log.Debug("Removing application ", app.Name, "[", app.ID, "]")
+	log.Debugf("Removing application '%s'[%s]", app.Name, app.ID)
 
 	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
-			return errors.Wrapf(err, "Failed to remove application %s(%s)", app.Name, app.ID)
+			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
 		log.Warnf("Application %s(%s) has no container to remove", app.Name, app.ID)
 	} else {
 		err := cnt.Remove()
 		if err != nil {
-			return errors.Wrapf(err, "Failed to remove application %s(%s)", app.Name, app.ID)
+			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
 	}
 
 	if app.VolumeID != "" {
 		err := app.parent.getPlatform().RemoveVolume(app.VolumeID)
 		if err != nil {
-			return errors.Wrapf(err, "Failed to remove application %s(%s)", app.Name, app.ID)
+			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
 	}
 
@@ -335,7 +335,7 @@ func (app *App) ReplaceContainer(id string) error {
 	log.Infof("Using container %s for app %s", id, app.Name)
 	cnt, err := app.parent.getPlatform().GetDockerContainer(id)
 	if err != nil {
-		return errors.Wrap(err, "Failed to replace container for app "+app.ID)
+		return errors.Wrapf(err, "Failed to replace container for app '%s'", app.ID)
 	}
 
 	app.access.Lock()
@@ -361,7 +361,7 @@ func (app *App) SetMsgQ(msgq *core.WSConnection) {
 	app.msgq = msgq
 	id := app.ID
 	app.access.Unlock()
-	log.Debug("New WS connection available for app ", id)
+	log.Debugf("New WS connection available for app '%s'", id)
 }
 
 // CloseMsgQ closes and removes the WS connection to the application
@@ -374,7 +374,7 @@ func (app *App) CloseMsgQ() {
 	if msgq == nil {
 		return
 	}
-	log.Debug("Closing WS connection for app ", id)
+	log.Debugf("Closing WS connection for app '%s'", id)
 	msgq.Close <- true
 }
 
@@ -385,7 +385,7 @@ func (app *App) SendMsg(msg interface{}) error {
 	id := app.ID
 	app.access.Unlock()
 	if msgq == nil {
-		return errors.Errorf("Application %s does not have a WS connection open", id)
+		return errors.Errorf("Application '%s' does not have a WS connection open", id)
 	}
 	msgq.Send <- msg
 	return nil
@@ -402,7 +402,7 @@ func (app *App) CreateResource(appJSON []byte) (core.Resource, error) {
 	rsc, err := app.parent.getResourceManager().CreateFromJSON(appJSON, app.ID)
 	if err != nil {
 		app.access.Unlock()
-		return nil, errors.Wrap(err, "Failed to create resource for app "+app.ID)
+		return nil, errors.Wrapf(err, "Failed to create resource for app '%s'", app.ID)
 	}
 	app.Resources = append(app.Resources, rsc.GetID())
 	app.access.Unlock()
@@ -426,7 +426,7 @@ func (app *App) DeleteResource(resourceID string) error {
 		return nil
 	}
 
-	return errors.New("Resource " + resourceID + " not owned by application " + app.ID)
+	return errors.Errorf("Resource '%s' not owned by application '%s'", resourceID, app.ID)
 }
 
 // GetResources retrieves all the resources that belong to an application
@@ -436,7 +436,7 @@ func (app *App) GetResources() map[string]core.Resource {
 	for _, rscid := range app.Resources {
 		rsc, err := rm.Get(rscid)
 		if err != nil {
-			log.Error(errors.Wrap(err, "Failed to get resource for app "+app.ID))
+			log.Error(errors.Wrapf(err, "Failed to get resource for app '%s'", app.ID))
 			continue
 		}
 		resources[rscid] = rsc
@@ -454,7 +454,7 @@ func (app *App) GetResource(resourceID string) (core.Resource, error) {
 		return rsc, nil
 
 	}
-	return nil, errors.New("Resource " + resourceID + " not owned by application " + app.ID)
+	return nil, errors.Errorf("Resource '%s' not owned by application '%s'", resourceID, app.ID)
 }
 
 // ValidateCapability implements the capability checker interface
@@ -464,7 +464,7 @@ func (app *App) ValidateCapability(cap core.Capability) error {
 			return nil
 		}
 	}
-	return errors.New("Method capability " + cap.GetName() + " not satisfied by application " + app.ID)
+	return errors.Errorf("Method capability '%s' not satisfied by application '%s'", cap.GetName(), app.ID)
 }
 
 // Provides returns true if the application is a provider for a specific type of resource

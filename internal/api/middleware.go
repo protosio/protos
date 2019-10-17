@@ -26,7 +26,7 @@ func checkCapability(cm core.CapabilityManager, capChecker core.CapabilityChecke
 		log.Warn(err.Error())
 		return nil
 	}
-	log.Debugf("Required capability for route %s is %s", routeName, methodcap.GetName())
+	log.Debugf("Required capability for route '%s' is '%s'", routeName, methodcap.GetName())
 	err = capChecker.ValidateCapability(methodcap)
 	if err != nil {
 		return err
@@ -72,30 +72,30 @@ func InternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.Hand
 
 		appID := r.Header.Get("Appid")
 		if appID == "" {
-			log.Debugf("Can't identify request to %s. App ID is missing.", r.URL)
+			log.Debugf("Can't identify request to '%s'. App ID is missing.", r.URL)
 			rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Can't identify request. App ID is missing."})
 			return
 		}
 		appInstance, err := ha.am.Read(appID)
 		if err != nil {
-			log.Errorf("Internal request to %s from non-existent app %s: %s", r.URL, appID, err.Error())
+			log.Errorf("Internal request to '%s' from non-existent app '%s': %s", r.URL, appID, err.Error())
 			rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Request for resource from non-existent app"})
 			return
 		}
 		ip := strings.Split(r.RemoteAddr, ":")[0]
 		if appInstance.GetIP() != ip {
-			log.Errorf("App IP mismatch for request to %s: ip %s incorrect for %s", r.URL, ip, appID)
+			log.Errorf("App IP mismatch for request to '%s': ip '%s' incorrect for app '%s'", r.URL, ip, appID)
 			rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "App IP mismatch"})
 			return
 		}
-		log.Debugf("Validated %s request to %s as coming from app %s(%s)", r.Method, r.URL.Path, appID, appInstance.GetName())
+		log.Debugf("Validated '%s' request to '%s' as coming from app '%s'(%s)", r.Method, r.URL.Path, appID, appInstance.GetName())
 
 		rmatch := &mux.RouteMatch{}
 		router.Match(r, rmatch)
 		err = checkCapability(ha.cm, appInstance, rmatch.Route.GetName())
 		if err != nil {
 			log.Error(err.Error())
-			http.Error(rw, "Application not authorized to access that resource", http.StatusUnauthorized)
+			rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Application not authorized to access that resource"})
 			return
 		}
 
