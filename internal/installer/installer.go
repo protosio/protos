@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
-	"protos/internal/config"
+	"github.com/protosio/protos/internal/config"
 
 	"github.com/pkg/errors"
 
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 )
 
 var gconfig = config.Get()

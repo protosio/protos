@@ -8,19 +8,19 @@ import (
 
 	"github.com/Masterminds/semver"
 
-	"protos/internal/api"
-	"protos/internal/app"
-	"protos/internal/auth"
-	"protos/internal/capability"
-	"protos/internal/config"
-	"protos/internal/database"
-	"protos/internal/installer"
-	"protos/internal/meta"
-	"protos/internal/platform"
-	"protos/internal/provider"
-	"protos/internal/resource"
-	"protos/internal/task"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/api"
+	"github.com/protosio/protos/internal/app"
+	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/config"
+	"github.com/protosio/protos/internal/database"
+	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/platform"
+	"github.com/protosio/protos/internal/provider"
+	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/task"
+	"github.com/protosio/protos/internal/util"
 )
 
 var gconfig = config.Get()

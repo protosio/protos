@@ -1,6 +1,6 @@
 package resource
 
-import "protos/internal/core"
+import "github.com/protosio/protos/internal/core"
 
 // DNSResource represents a DNS resource
 type DNSResource struct {

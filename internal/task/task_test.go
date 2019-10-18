@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"protos/internal/mock"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/mock"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/golang/mock/gomock"
 	"github.com/rs/xid"

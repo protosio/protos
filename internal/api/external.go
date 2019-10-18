@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"

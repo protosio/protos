@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
 	"github.com/gorilla/websocket"
 )

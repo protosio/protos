@@ -4,9 +4,9 @@ import (
 	"os"
 	"path"
 
-	"protos/internal/config"
-	"protos/internal/core"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/config"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/util"
 
 	gobEncoding "encoding/gob"
 

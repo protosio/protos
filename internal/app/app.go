@@ -6,10 +6,10 @@ import (
 
 	"github.com/pkg/errors"
 
-	"protos/internal/config"
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/config"
+	"github.com/protosio/protos/internal/core"
 
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 )
 
 var log = util.GetLogger("app")

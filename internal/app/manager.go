@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"protos/internal/core"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/pkg/errors"
 	"github.com/rs/xid"

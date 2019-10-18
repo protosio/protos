@@ -7,7 +7,7 @@ package mock
 import (
 	linkedhashmap "github.com/emirpasic/gods/maps/linkedhashmap"
 	gomock "github.com/golang/mock/gomock"
-	core "protos/internal/core"
+	core "github.com/protosio/protos/internal/core"
 	reflect "reflect"
 )
 

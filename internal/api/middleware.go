@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/dgrijalva/jwt-go/request"

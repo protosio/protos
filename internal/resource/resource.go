@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"sync"
 
-	"protos/internal/core"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/util"
 )
 
 var log = util.GetLogger("resource")

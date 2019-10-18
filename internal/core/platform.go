@@ -1,7 +1,7 @@
 package core
 
 import (
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/docker/docker/api/types"
 )

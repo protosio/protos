@@ -1,7 +1,7 @@
 package platform
 
 import (
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 	"time"
 
 	"github.com/shirou/gopsutil/cpu"

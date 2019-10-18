@@ -6,8 +6,8 @@ package mock
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	capability "protos/internal/capability"
-	core "protos/internal/core"
+	capability "github.com/protosio/protos/internal/capability"
+	core "github.com/protosio/protos/internal/core"
 	reflect "reflect"
 )
 

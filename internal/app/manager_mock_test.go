@@ -6,7 +6,7 @@ package app
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	core "protos/internal/core"
+	core "github.com/protosio/protos/internal/core"
 	reflect "reflect"
 )
 

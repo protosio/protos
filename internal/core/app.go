@@ -1,7 +1,7 @@
 package core
 
 import (
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 )
 
 // WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active

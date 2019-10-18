@@ -1,8 +1,8 @@
 package app
 
 import (
-	"protos/internal/core"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 )

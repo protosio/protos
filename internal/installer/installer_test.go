@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"protos/internal/core"
-	"protos/internal/mock"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/mock"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"protos/internal/core"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/util"
 )
 
 var log = util.GetLogger("provider")

@@ -3,8 +3,8 @@ package capability
 import (
 	"encoding/gob"
 
-	"protos/internal/core"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/pkg/errors"
 )

@@ -13,9 +13,9 @@ import (
 
 	"github.com/docker/distribution"
 
-	"protos/internal/core"
-	"protos/internal/task"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/task"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"

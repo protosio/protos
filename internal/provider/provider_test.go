@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"protos/internal/core"
-	"protos/internal/mock"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/mock"
 
 	"github.com/golang/mock/gomock"
 )

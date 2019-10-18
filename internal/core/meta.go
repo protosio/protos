@@ -1,6 +1,6 @@
 package core
 
-import "protos/internal/util"
+import "github.com/protosio/protos/internal/util"
 
 // Meta holds information about the protos instance
 type Meta interface {

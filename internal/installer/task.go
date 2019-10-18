@@ -1,7 +1,7 @@
 package installer
 
 import (
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
 	"github.com/pkg/errors"
 )

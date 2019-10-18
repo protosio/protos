@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
 	"github.com/pkg/errors"
 
 	// statik package is use to embed static web assets in the protos binary
-	_ "protos/internal/statik"
+	_ "github.com/protosio/protos/internal/statik"
 
-	"protos/internal/config"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/config"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/gorilla/mux"
 	"github.com/rakyll/statik/fs"

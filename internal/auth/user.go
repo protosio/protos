@@ -8,9 +8,9 @@ import (
 	"strings"
 	"syscall"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"

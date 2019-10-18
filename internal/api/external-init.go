@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
 	"github.com/pkg/errors"
 )

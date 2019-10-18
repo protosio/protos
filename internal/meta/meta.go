@@ -8,12 +8,12 @@ import (
 	"os"
 	"strings"
 
-	"protos/internal/config"
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/config"
+	"github.com/protosio/protos/internal/core"
 
 	"github.com/pkg/errors"
 
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/tidwall/gjson"
 )

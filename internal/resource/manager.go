@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"protos/internal/core"
+	"github.com/protosio/protos/internal/core"
 
 	"github.com/cnf/structhash"
 	"github.com/pkg/errors"

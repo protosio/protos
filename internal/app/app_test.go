@@ -5,9 +5,9 @@ import (
 	"sync"
 	"testing"
 
-	"protos/internal/core"
-	"protos/internal/mock"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/mock"
+	"github.com/protosio/protos/internal/util"
 
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/golang/mock/gomock"

@@ -1,7 +1,7 @@
 package core
 
 import (
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 )
 
 // InstallerMetadata holds metadata for the installer

@@ -8,7 +8,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
-	"protos/internal/util"
+	"github.com/protosio/protos/internal/util"
 
 	"gopkg.in/yaml.v2"
 )
