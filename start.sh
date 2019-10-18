@@ -13,10 +13,11 @@ docker run \
        -v "$PROTOS_FRONTEND_PATH":/protosfrontend \
        -v /var/run/docker.sock:/var/run/docker.sock \
        -w /go/src/github.com/protosio/protos \
+       -e GOFLAGS=-mod=vendor \
        -p 8080:8080 \
        -p 8443:8443 \
        --name protos \
        --hostname protos \
        --network protosnet \
-       golang:1.11.2 \
-       go run --race cmd/protos/protos.go --incontainer --loglevel debug --config protos.dev.yaml daemon
+       golang:1.13 \
+       go run --race cmd/protos/protos.go --incontainer --loglevel debug --config protos.dev.yaml --dev init

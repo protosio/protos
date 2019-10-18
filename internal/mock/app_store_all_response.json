@@ -1,0 +1,177 @@
+{
+    "09eda098ec82bcf862df67933ef6451cdbab3a4b": {
+        "id": "09eda098ec82bcf862df67933ef6451cdbab3a4b",
+        "name": "mailu",
+        "versions": {
+            "0.0.2": {
+                "params": null,
+                "provides": [
+                    "mail"
+                ],
+                "requires": [
+                    "dns"
+                ],
+                "publicports": [
+                    {
+                        "Nr": 80,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 443,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 110,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 143,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 993,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 995,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 25,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 465,
+                        "Type": "TCP"
+                    },
+                    {
+                        "Nr": 587,
+                        "Type": "TCP"
+                    }
+                ],
+                "description": "Mailu is a simple yet full-featured mail server",
+                "platformid": "mailu@sha256:9903d91402bdb921c55f6d10cb0d1eb3d7fc4951269cac058e941e619649b31c",
+                "persistancepath": "",
+                "capabilities": [
+                    {
+                        "Name": "ResourceProvider",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "ResourceConsumer",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "GetInformation",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "PublicDNS",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "AuthUser",
+                        "Parent": null
+                    }
+                ]
+            }
+        }
+    },
+    "2e44721514e07f6264a16a2d54be5c88b21ed269": {
+        "id": "2e44721514e07f6264a16a2d54be5c88b21ed269",
+        "name": "letsencrypt-certificate",
+        "versions": {
+            "0.0.7": {
+                "params": null,
+                "provides": [
+                    "certificate"
+                ],
+                "requires": [
+                    "dns"
+                ],
+                "publicports": null,
+                "description": "This applications provides SSL certificates using the letsencrypt.com service. ",
+                "platformid": "letsencrypt-certificate@sha256:6dcea19a8792e671a67642b38e29bb782d285f6fb53bc4941126ba0e1d6b80e6",
+                "persistancepath": "",
+                "capabilities": [
+                    {
+                        "Name": "ResourceProvider",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "ResourceConsumer",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "GetInformation",
+                        "Parent": null
+                    }
+                ]
+            }
+        }
+    },
+    "924bbbfeabb039828c0066ab90b2bfa8cde41024": {
+        "id": "924bbbfeabb039828c0066ab90b2bfa8cde41024",
+        "name": "namecheap-dns",
+        "versions": {
+            "0.0.8": {
+                "params": [
+                    "api_user",
+                    "api_token",
+                    "username"
+                ],
+                "provides": [
+                    "dns"
+                ],
+                "requires": null,
+                "publicports": null,
+                "description": "This applications provides the capability to interact with the Namecheap API",
+                "platformid": "namecheap-dns@sha256:52f9095ddd3d1adb85a4514d308c487d192f70a8605845e2cc2da2361b1e7cd4",
+                "persistancepath": "",
+                "capabilities": [
+                    {
+                        "Name": "ResourceProvider",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "GetInformation",
+                        "Parent": null
+                    }
+                ]
+            }
+        }
+    },
+    "a29e934dfeb9a957c39001574ddfc34b07f6a552": {
+        "id": "a29e934dfeb9a957c39001574ddfc34b07f6a552",
+        "name": "letsencrypt-certificate-test",
+        "versions": {
+            "0.0.7": {
+                "params": null,
+                "provides": [
+                    "certificate"
+                ],
+                "requires": [
+                    "dns"
+                ],
+                "publicports": null,
+                "description": "This applications provides SSL certificates using the letsencrypt.com service. ",
+                "platformid": "letsencrypt-certificate-test@sha256:f3bc58840e2b76e98a95632228722f436209489c3e2e5887a0686bc9334edfb5",
+                "persistancepath": "",
+                "capabilities": [
+                    {
+                        "Name": "ResourceProvider",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "ResourceConsumer",
+                        "Parent": null
+                    },
+                    {
+                        "Name": "GetInformation",
+                        "Parent": null
+                    }
+                ]
+            }
+        }
+    }
+}

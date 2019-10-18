@@ -9,5 +9,5 @@ docker run \
        -p 8080:8080 \
        --name protos \
        --hostname protos \
-       golang:1.9.4 \
-       /bin/bash -c "go get -u github.com/golang/dep/cmd/dep && dep ensure && go build -o bin/protos cmd/protos/protos.go"
+       golang:1.13 \
+       /bin/bash -c "go mod tidy && go build -o bin/protos cmd/protos/protos.go"
