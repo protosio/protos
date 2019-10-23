@@ -17,6 +17,7 @@ type DownloadTask struct {
 // Run starts the async task
 func (t *DownloadTask) Run(parent core.Task, tskID string, p core.Progress) error {
 	t.b = parent
+	t.b.SetKillable()
 
 	log.WithField("proc", tskID).Debugf("Running download installer task [%s] based on installer '%s' version '%s'", tskID, t.Inst.ID, t.Version)
 	t.b.AddApp(t.AppID)

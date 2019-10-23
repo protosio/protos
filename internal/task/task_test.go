@@ -200,7 +200,7 @@ func TestTask(t *testing.T) {
 	}
 
 	task.SetKillable()
-	if task.Killable != true || task.killable == nil {
+	if task.killable == nil {
 		t.Errorf("task.SetKillable() did not correctly set the killable fields")
 	}
 

@@ -50,7 +50,6 @@ type Base struct {
 	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
 	Children   []string         `json:"-"`
 	Apps       []string         `json:"apps"`
-	Killable   bool             `json:"killable"`
 	err        error
 
 	// Communication channels
@@ -103,7 +102,6 @@ func (b *Base) AddApp(id string) {
 // SetKillable makes a task killable
 func (b *Base) SetKillable() {
 	b.access.Lock()
-	b.Killable = true
 	b.killable = killable.New()
 	b.access.Unlock()
 }
@@ -112,7 +110,7 @@ func (b *Base) SetKillable() {
 func (b *Base) Kill() error {
 	b.access.Lock()
 	defer b.access.Unlock()
-	if b.Killable == false || b.Status == FINISHED || b.Status == FAILED {
+	if b.killable != nil || b.Status == FINISHED || b.Status == FAILED {
 		return fmt.Errorf("Task %s(%s) is not cancellable or is not running anymore", b.ID, b.Name)
 	}
 	b.killable.Kill(ErrKilledByUser)
@@ -133,7 +131,10 @@ func (b *Base) Copy() core.Task {
 
 // Dying returns a channel that can be used to listen for the kill command
 func (b *Base) Dying() <-chan struct{} {
-	return b.killable.Dying()
+	if b.killable != nil {
+		return b.killable.Dying()
+	}
+	return nil
 }
 
 // Save sends a copy of the running task to the task scheduler
