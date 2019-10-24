@@ -110,7 +110,7 @@ func (b *Base) SetKillable() {
 func (b *Base) Kill() error {
 	b.access.Lock()
 	defer b.access.Unlock()
-	if b.killable != nil || b.Status == FINISHED || b.Status == FAILED {
+	if b.killable == nil || b.Status == FINISHED || b.Status == FAILED {
 		return fmt.Errorf("Task %s(%s) is not cancellable or is not running anymore", b.ID, b.Name)
 	}
 	b.killable.Kill(ErrKilledByUser)

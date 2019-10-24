@@ -146,7 +146,8 @@ func (tm *Manager) New(name string, ct core.CustomTask) core.Task {
 		Progress:  Progress{Percentage: 0},
 		StartedAt: &ts,
 
-		finish: make(chan error, 1),
+		killable: nil,
+		finish:   make(chan error, 1),
 	}
 	tsk.Save()
 	// ct.SetBase(tsk)

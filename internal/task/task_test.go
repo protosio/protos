@@ -159,7 +159,8 @@ func TestTask(t *testing.T) {
 		Progress:  Progress{Percentage: 0},
 		StartedAt: &ts,
 
-		finish: make(chan error, 1),
+		killable: nil,
+		finish:   make(chan error, 1),
 	}
 
 	if task.GetID() != task.ID {
