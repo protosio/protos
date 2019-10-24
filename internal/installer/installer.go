@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/protosio/protos/internal/core"
 
 	"github.com/protosio/protos/internal/config"
@@ -221,6 +223,24 @@ func (inst *Installer) Remove() error {
 		}
 	}
 	return nil
+}
+
+// GetLastVersion returns the last version available for the installer
+func (inst Installer) GetLastVersion() string {
+	vs := []*semver.Version{}
+	for k := range inst.Versions {
+		v, err := semver.NewVersion(k)
+		if err != nil {
+			log.Errorf("Error parsing version '%s' for installer '%s' : %s", k, inst.ID, err)
+			continue
+		}
+		vs = append(vs, v)
+	}
+	sort.Sort(semver.Collection(vs))
+	if len(vs) == 0 {
+		log.Panicf("Installer '%s' should have at least 1 version. None found.", inst.ID)
+	}
+	return vs[len(vs)-1].String()
 }
 
 //

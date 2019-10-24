@@ -168,6 +168,20 @@ func (m *MockInstaller) EXPECT() *MockInstallerMockRecorder {
 	return m.recorder
 }
 
+// GetLastVersion mocks base method
+func (m *MockInstaller) GetLastVersion() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastVersion")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetLastVersion indicates an expected call of GetLastVersion
+func (mr *MockInstallerMockRecorder) GetLastVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastVersion", reflect.TypeOf((*MockInstaller)(nil).GetLastVersion))
+}
+
 // GetMetadata mocks base method
 func (m *MockInstaller) GetMetadata(version string) (core.InstallerMetadata, error) {
 	m.ctrl.T.Helper()

@@ -102,7 +102,12 @@ func TestInstaller(t *testing.T) {
 	rpMock := mock.NewMockRuntimePlatform(ctrl)
 	tmMock := mock.NewMockTaskManager(ctrl)
 
-	inst := Installer{Name: "TestInstaller", ID: "id1", Versions: map[string]core.InstallerMetadata{"1.0": core.InstallerMetadata{PlatformID: "id1"}}, parent: installerParent}
+	versions := map[string]core.InstallerMetadata{
+		"1.0":          core.InstallerMetadata{PlatformID: "id1"},
+		"2.0":          core.InstallerMetadata{PlatformID: "id2"},
+		"2.0.10":       core.InstallerMetadata{PlatformID: "id2"},
+		"bogusversion": core.InstallerMetadata{PlatformID: "id3"}}
+	inst := Installer{Name: "TestInstaller", ID: "id1", Versions: versions, parent: installerParent}
 
 	//
 	// GetMetadata
@@ -110,7 +115,7 @@ func TestInstaller(t *testing.T) {
 
 	t.Run("GetMetadata", func(t *testing.T) {
 		// metadata for the supplied version does not exist
-		_, err := inst.GetMetadata("2.0")
+		_, err := inst.GetMetadata("5.0")
 		if err == nil {
 			t.Error("GetMetadata() should return an error when metadata for the supplied version does not exist")
 		}
@@ -128,7 +133,7 @@ func TestInstaller(t *testing.T) {
 
 	t.Run("Download", func(t *testing.T) {
 		// metadata for the supplied version does not exist
-		dt := DownloadTask{Version: "2.0"}
+		dt := DownloadTask{Version: "5.0"}
 		err := inst.Download(dt)
 		if err == nil {
 			t.Error("Download() should return an error when metadata for the supplied version does not exist")
@@ -173,7 +178,7 @@ func TestInstaller(t *testing.T) {
 
 	t.Run("IsPlatformImageAvailable", func(t *testing.T) {
 		// metadata for the supplied version does not exist
-		_, err := inst.IsPlatformImageAvailable("2.0")
+		_, err := inst.IsPlatformImageAvailable("5.0")
 		if err == nil {
 			t.Error("IsPlatformImageAvailable() should return and error when the metadata is not available for an image version")
 		}
@@ -199,6 +204,30 @@ func TestInstaller(t *testing.T) {
 	})
 
 	//
+	// GetLastVersion
+	//
+
+	t.Run("GetLastVersion", func(t *testing.T) {
+		if inst.GetLastVersion() != "2.0.10" {
+			t.Errorf("GetLastVersion() should return version '2.0.10' but instead it returned '%s'", inst.GetLastVersion())
+		}
+
+		inst.Versions = map[string]core.InstallerMetadata{}
+
+		func() {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Errorf("If there are no versions available, GetLastVersion should panic")
+				}
+			}()
+			inst.GetLastVersion()
+		}()
+
+		inst.Versions = versions
+	})
+
+	//
 	// Remove
 	//
 
@@ -213,13 +242,14 @@ func TestInstaller(t *testing.T) {
 		}
 
 		// happy case
-		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
-		rpMock.EXPECT().RemoveDockerImage(inst.Versions["1.0"].PlatformID).Return(nil).Times(1)
+		installerParent.EXPECT().getPlatform().Return(rpMock).Times(4)
+		rpMock.EXPECT().RemoveDockerImage(gomock.Any()).Return(nil).Times(4)
 		err = inst.Remove()
 		if err != nil {
 			t.Errorf("Remove() should NOT return an error: %s", err.Error())
 		}
 	})
+
 }
 
 func TestInstallerCache(t *testing.T) {
@@ -575,6 +605,7 @@ func TestTask(t *testing.T) {
 	// installer fails to download
 	taskMock.EXPECT().AddApp("app1").Times(1)
 	taskMock.EXPECT().Save().Times(1)
+	taskMock.EXPECT().SetKillable().Times(1)
 	err := task.Run(taskMock, "id1", p)
 	if err == nil {
 		t.Error("Run() should return an error when the installer fails to download")
@@ -584,6 +615,7 @@ func TestTask(t *testing.T) {
 	task.Inst.Versions = map[string]core.InstallerMetadata{"0.1": core.InstallerMetadata{}}
 	taskMock.EXPECT().AddApp("app1").Times(1)
 	taskMock.EXPECT().Save().Times(1)
+	taskMock.EXPECT().SetKillable().Times(1)
 	parent.EXPECT().getPlatform().Return(rpMock).Times(1)
 	rpMock.EXPECT().PullDockerImage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	err = task.Run(taskMock, "id1", p)

@@ -6,8 +6,8 @@ package installer
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	http "net/http"
 	core "github.com/protosio/protos/internal/core"
+	http "net/http"
 	reflect "reflect"
 )
 

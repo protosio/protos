@@ -33,6 +33,7 @@ type InstallerCache interface {
 
 // Installer represents a Protos installed
 type Installer interface {
+	GetLastVersion() string
 	GetMetadata(version string) (InstallerMetadata, error)
 	IsPlatformImageAvailable(version string) (bool, error)
 	DownloadAsync(version string, appID string) Task
