@@ -196,7 +196,7 @@ func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
 func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
-	if installerID == "" || installerVersion == "" || appName == "" {
+	if installerID == "" || appName == "" {
 		log.Panic("CreateAsync doesn't have all the required parameters")
 	}
 	createApp := CreateAppTask{
@@ -215,8 +215,8 @@ func (am *Manager) CreateAsync(installerID string, installerVersion string, appN
 func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error) {
 
 	var app *App
-	if name == "" {
-		return app, fmt.Errorf("Application name cannot be empty")
+	if name == "" || installerID == "" || installerVersion == "" {
+		return app, fmt.Errorf("Application name, installer ID or installer version cannot be empty")
 	}
 
 	err := validateInstallerParams(installerParams, installerMetadata.Params)

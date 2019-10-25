@@ -173,8 +173,8 @@ func createApp(ha handlerAccess) http.Handler {
 			return
 		}
 
-		if appParams.InstallerID == "" || appParams.InstallerVersion == "" || appParams.Name == "" {
-			err = errors.Errorf("App creation failed because of missing required input: installer id(%s), installer version(%s), app name(%s)", appParams.InstallerID, appParams.InstallerVersion, appParams.Name)
+		if appParams.InstallerID == "" || appParams.Name == "" {
+			err = errors.Errorf("App creation failed because of missing required input: installer id(%s), app name(%s)", appParams.InstallerID, appParams.Name)
 			log.Error(err)
 			rend.JSON(w, http.StatusExpectationFailed, httperr{Error: err.Error()})
 			return

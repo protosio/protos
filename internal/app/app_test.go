@@ -141,7 +141,7 @@ func TestAppManager(t *testing.T) {
 					t.Errorf("An empty required input in the CreateAsync call should lead to a panic")
 				}
 			}()
-			am.CreateAsync("a", "", "c", &core.InstallerMetadata{}, map[string]string{}, false)
+			am.CreateAsync("", "0.0.1", "c", &core.InstallerMetadata{}, map[string]string{}, false)
 		}()
 		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 		_ = am.CreateAsync("a", "b", "c", &core.InstallerMetadata{}, map[string]string{}, false)
@@ -1111,7 +1111,7 @@ func TestTask(t *testing.T) {
 			t.Error("Run() should return an error when one of the required task fields is empty")
 		}
 		task.am = amMock
-		task.InstallerVersion = "1"
+		task.InstallerVersion = "0.0.0-dev"
 
 		// failed to get installer metadata from the store
 		amMock.EXPECT().getAppStore().Return(store).Times(1)

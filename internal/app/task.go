@@ -38,11 +38,12 @@ type CreateAppTask struct {
 func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task '%s' based on installer '%s:%s'", tskID, t.InstallerID, t.InstallerVersion)
 
-	if t.InstallerID == "" || t.InstallerVersion == "" || t.AppName == "" || t.am == nil {
-		return errors.Errorf("Failed to run CreateAppTask '%s' because required task fields are missing: id(%s), version(%s), app name(%s), app manager(%v)", tskID, t.InstallerID, t.InstallerVersion, t.AppName, t.am)
+	if t.InstallerID == "" || t.AppName == "" || t.am == nil {
+		return errors.New("Failed to run CreateAppTask '%s' because one of the required task fields are missing")
 	}
 
 	var inst core.Installer
+	var version string
 	var metadata core.InstallerMetadata
 	var err error
 
@@ -53,19 +54,27 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 
-		metadata, err = inst.GetMetadata(t.InstallerVersion)
+		if t.InstallerVersion == "" {
+			version = inst.GetLastVersion()
+			log.Infof("Creating application using latest version (%s) of installer '%s'", version, t.InstallerID)
+		} else {
+			version = t.InstallerVersion
+		}
+
+		metadata, err = inst.GetMetadata(version)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 	} else {
 		// app creation using local container (dev purposes)
-		log.Infof("Creating application using local installer (DEV) '%s' version '%s'", t.InstallerID, t.InstallerVersion)
+		version = "0.0.0-dev"
+		log.Infof("Creating application using local installer (DEV) '%s' version '%s'", t.InstallerID, version)
 		metadata = *t.InstallerMetadata
-		inst = t.am.getAppStore().CreateTemporaryInstaller(t.InstallerID, map[string]core.InstallerMetadata{t.InstallerVersion: *t.InstallerMetadata})
+		inst = t.am.getAppStore().CreateTemporaryInstaller(t.InstallerID, map[string]core.InstallerMetadata{version: *t.InstallerMetadata})
 	}
 
 	var app app
-	app, err = t.am.createAppForTask(t.InstallerID, t.InstallerVersion, t.AppName, t.InstallerParams, metadata, tskID)
+	app, err = t.am.createAppForTask(t.InstallerID, version, t.AppName, t.InstallerParams, metadata, tskID)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
@@ -73,13 +82,13 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 	p.SetPercentage(10)
 	p.SetState("Created application")
 
-	available, err := inst.IsPlatformImageAvailable(t.InstallerVersion)
+	available, err := inst.IsPlatformImageAvailable(version)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
 	if available != true {
-		log.WithField("proc", tskID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, t.InstallerVersion)
-		tsk := inst.DownloadAsync(t.InstallerVersion, app.GetID())
+		log.WithField("proc", tskID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, version)
+		tsk := inst.DownloadAsync(version, app.GetID())
 		app.AddTask(tsk.GetID())
 		err := tsk.Wait()
 		if err != nil {
@@ -87,7 +96,7 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 	} else {
-		log.WithField("proc", tskID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, t.InstallerVersion)
+		log.WithField("proc", tskID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, version)
 		p.SetPercentage(50)
 		p.SetState("Docker image found locally")
 	}
