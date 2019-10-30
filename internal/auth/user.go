@@ -146,7 +146,7 @@ type UserManager struct {
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
 func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
 	if db == nil || cm == nil {
-		log.Panic("Failed to create app manager: none of the inputs can be nil")
+		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 
 	return &UserManager{db: db, cm: cm}
