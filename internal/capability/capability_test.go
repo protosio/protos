@@ -14,7 +14,7 @@ func TestCapabilityManager(t *testing.T) {
 	testCap := cm.New("test")
 
 	t.Run("New", func(t *testing.T) {
-		if AllCapabilities[len(AllCapabilities)-1] != testCap {
+		if cm.allCapabilities[len(cm.allCapabilities)-1] != testCap {
 			t.Error("The newly created test capability should be in the AllCapabilities list")
 		}
 	})
@@ -91,6 +91,16 @@ func TestCapabilityManager(t *testing.T) {
 		cap := cm.GetOrPanic("test")
 		if cap != testCap {
 			t.Errorf("GetOrPanic returned an incorrect capability: %p vs %p", cap, testCap)
+		}
+	})
+
+	t.Run("ClearAll", func(t *testing.T) {
+		if len(cm.capMap) == 0 {
+			t.Error("ClearAll test should have a capMap with more than one capability when this test is run")
+		}
+		cm.ClearAll()
+		if len(cm.capMap) != 0 {
+			t.Errorf("ClearAll should lead to the capMap having 0 elements, but it has %d", len(cm.capMap))
 		}
 	})
 }

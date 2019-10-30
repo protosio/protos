@@ -7,6 +7,7 @@ type CapabilityManager interface {
 	GetMethodCap(method string) (Capability, error)
 	GetByName(name string) (Capability, error)
 	GetOrPanic(name string) Capability
+	ClearAll()
 }
 
 // Capability represents a capability, which is the main way access is granted in Protos

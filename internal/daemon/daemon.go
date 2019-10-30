@@ -92,6 +92,7 @@ func StartUp(configFile string, init bool, version *semver.Version, incontainer 
 		wg.Add(1)
 		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p, cm)
 		wg.Done()
+		cm.ClearAll()
 	}
 
 	if initInterrupted == false {

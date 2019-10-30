@@ -11,12 +11,6 @@ import (
 
 var log = util.GetLogger("capability")
 
-// AllCapabilities is a list of all the capabilities available in the system
-var AllCapabilities = []*Capability{}
-
-//CapMap holds a maping of methods to capabilities
-var CapMap = make(map[string]*Capability)
-
 // RC is the root capability
 var RC *Capability
 
@@ -33,7 +27,9 @@ type Capability struct {
 
 // Manager implements the core.CapabilityManager interface
 type Manager struct {
-	root *Capability
+	root            *Capability
+	capMap          map[string]*Capability
+	allCapabilities []*Capability
 }
 
 // CreateManager creates the root capability and returns a core.CapabilityManager
@@ -41,6 +37,7 @@ func CreateManager() *Manager {
 	log.Info("Initializing capabilities")
 	cm := &Manager{}
 	cm.root = cm.New("RootCapability")
+	cm.capMap = make(map[string]*Capability)
 	cm.createTree(cm.root)
 	gob.Register(&Capability{})
 
@@ -51,7 +48,7 @@ func CreateManager() *Manager {
 func (cm *Manager) New(name string) *Capability {
 	log.Debugf("Creating capability '%s'", name)
 	cap := &Capability{Name: name}
-	AllCapabilities = append(AllCapabilities, cap)
+	cm.allCapabilities = append(cm.allCapabilities, cap)
 	return cap
 }
 
@@ -73,12 +70,12 @@ func (cm *Manager) SetMethodCap(method string, cap core.Capability) {
 		log.Panicf("Method '%s' already has a capability set", method)
 	}
 	log.Debugf("Setting capability '%s' for method '%s'", lcap.Name, method)
-	CapMap[method] = lcap
+	cm.capMap[method] = lcap
 }
 
 // GetMethodCap returns a capability for a specific method
 func (cm *Manager) GetMethodCap(method string) (core.Capability, error) {
-	if cap, ok := CapMap[method]; ok {
+	if cap, ok := cm.capMap[method]; ok {
 		return cap, nil
 	}
 	return nil, errors.Errorf("Can't find capability for method '%s'", method)
@@ -86,7 +83,7 @@ func (cm *Manager) GetMethodCap(method string) (core.Capability, error) {
 
 // GetByName returns the capability based on the provided name, if one exists
 func (cm *Manager) GetByName(name string) (core.Capability, error) {
-	for _, cap := range AllCapabilities {
+	for _, cap := range cm.allCapabilities {
 		if cap.Name == name {
 			return cap, nil
 		}
@@ -96,13 +93,18 @@ func (cm *Manager) GetByName(name string) (core.Capability, error) {
 
 // GetOrPanic returns the capability based on the provided name. It panics if it's not found
 func (cm *Manager) GetOrPanic(name string) core.Capability {
-	for _, cap := range AllCapabilities {
+	for _, cap := range cm.allCapabilities {
 		if cap.Name == name {
 			return cap
 		}
 	}
 	log.Panicf("Could not find capability '%s'", name)
 	return nil
+}
+
+// ClearAll removes all the associateion between methods and capabilities
+func (cm *Manager) ClearAll() {
+	cm.capMap = make(map[string]*Capability)
 }
 
 //

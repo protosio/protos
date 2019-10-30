@@ -103,6 +103,18 @@ func (mr *MockCapabilityManagerMockRecorder) GetOrPanic(name interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrPanic", reflect.TypeOf((*MockCapabilityManager)(nil).GetOrPanic), name)
 }
 
+// ClearAll mocks base method
+func (m *MockCapabilityManager) ClearAll() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ClearAll")
+}
+
+// ClearAll indicates an expected call of ClearAll
+func (mr *MockCapabilityManagerMockRecorder) ClearAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearAll", reflect.TypeOf((*MockCapabilityManager)(nil).ClearAll))
+}
+
 // MockCapability is a mock of Capability interface
 type MockCapability struct {
 	ctrl     *gomock.Controller
