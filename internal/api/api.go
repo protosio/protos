@@ -345,6 +345,7 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 	// external routes
 	externalRouter := createExternalAPIrouter(ha, mainRtr)
 	externalRoutes := createExternalRoutes(ha.cm)
+	externalInitRoutes := createExternalInitRoutes(ha.cm)
 	applyAPIroutes(ha, externalRouter, externalRoutes)
 	applyAPIroutes(ha, externalRouter, externalInitRoutes)
 	applyAPIroutes(ha, externalRouter, externalWSRoutes)

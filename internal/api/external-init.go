@@ -8,35 +8,37 @@ import (
 	"github.com/pkg/errors"
 )
 
-var externalInitRoutes = routes{
-	route{
-		"createProtosResources",
-		"POST",
-		"/init/resources",
-		createProtosResources,
-		nil,
-	},
-	route{
-		"getProtosResources",
-		"GET",
-		"/init/resources",
-		getProtosResources,
-		nil,
-	},
-	route{
-		"removeInitProvider",
-		"DELETE",
-		"/init/provider",
-		removeInitProvider,
-		nil,
-	},
-	route{
-		"finishInit",
-		"GET",
-		"/init/finish",
-		finishInit,
-		nil,
-	},
+var createExternalInitRoutes = func(cm core.CapabilityManager) routes {
+	return routes{
+		route{
+			"createProtosResources",
+			"POST",
+			"/init/resources",
+			createProtosResources,
+			cm.GetOrPanic("UserAdmin"),
+		},
+		route{
+			"getProtosResources",
+			"GET",
+			"/init/resources",
+			getProtosResources,
+			cm.GetOrPanic("UserAdmin"),
+		},
+		route{
+			"removeInitProvider",
+			"DELETE",
+			"/init/provider",
+			removeInitProvider,
+			cm.GetOrPanic("UserAdmin"),
+		},
+		route{
+			"finishInit",
+			"GET",
+			"/init/finish",
+			finishInit,
+			cm.GetOrPanic("UserAdmin"),
+		},
+	}
 }
 
 //
