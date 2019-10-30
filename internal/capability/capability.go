@@ -69,6 +69,9 @@ func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
 // SetMethodCap adds a capability for a specific method
 func (cm *Manager) SetMethodCap(method string, cap core.Capability) {
 	lcap := cap.(*Capability)
+	if _, err := cm.GetMethodCap(method); err == nil {
+		log.Panicf("Method '%s' already has a capability set", method)
+	}
 	log.Debugf("Setting capability '%s' for method '%s'", lcap.Name, method)
 	CapMap[method] = lcap
 }

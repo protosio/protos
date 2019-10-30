@@ -37,6 +37,17 @@ func TestCapabilityManager(t *testing.T) {
 
 	t.Run("Set and GetMethodCap", func(t *testing.T) {
 		cm.SetMethodCap("testMethod", testCap)
+
+		func() {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Errorf("SetMethodCaps hould panic when a method already has a capability")
+				}
+			}()
+			cm.SetMethodCap("testMethod", testCap)
+		}()
+
 		cap, err := cm.GetMethodCap("testMethod")
 		if err != nil {
 			t.Errorf("GetMethodCap should not return an error: %s", err.Error())
