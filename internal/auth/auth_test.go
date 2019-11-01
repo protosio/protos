@@ -9,6 +9,49 @@ import (
 	"github.com/protosio/protos/internal/mock"
 )
 
+func TestUser(t *testing.T) {
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dbMock := mock.NewMockDB(ctrl)
+	cmMock := mock.NewMockCapabilityManager(ctrl)
+	um := CreateUserManager(dbMock, cmMock)
+
+	user := &User{
+		Username:     "testuser",
+		Password:     "passwordhash",
+		Name:         "First Last",
+		IsDisabled:   false,
+		Capabilities: []string{"UserAdmin"},
+		parent:       um,
+	}
+
+	// GetUsername
+	if user.GetUsername() != "testuser" {
+		t.Errorf("GetUsername() returned '%s' instead of '%s'", user.GetUsername(), "testuser")
+	}
+
+	//
+	// Save
+	//
+
+	// failed db save
+	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("failed to save user to db")).Times(1)
+	err := user.Save()
+	if err == nil {
+		t.Errorf("Save() should return an error")
+	}
+
+	// success
+	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	err = user.Save()
+	if err != nil {
+		t.Errorf("Save() should NOT return an error: %s", err.Error())
+	}
+
+}
+
 func TestUserManager(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
