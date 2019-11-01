@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -63,6 +64,51 @@ func TestUserManager(t *testing.T) {
 		if user.IsAdmin() == false {
 			t.Error("CreateUser() should return admin user")
 		}
+	})
+
+	//
+	// ValidateAndGetUser
+	//
+
+	t.Run("ValidateAndGetUser", func(t *testing.T) {
+		// failed to retrieve user from db
+		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(errors.New("User db error")).Times(1)
+		_, err := um.ValidateAndGetUser("user", "pass")
+		if err == nil {
+			t.Error("ValidateAndGetUser() should return an errror when the DB fails to retrieve the user")
+		}
+
+		// failed password comparison
+		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(nil).Times(1)
+		_, err = um.ValidateAndGetUser("user", "pass")
+		if err == nil {
+			t.Error("ValidateAndGetUser() should return an errror when the passwords are different")
+		}
+
+		// user is disabled
+		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
+			user := to.(*User)
+			user.Username = username
+			user.Password = "$2a$10$nV4sGvDTq0unZjTEjViGhO0/3wfl6FT32Nh1YLJbTtWQVxrnXF76i"
+			user.IsDisabled = true
+		})
+		_, err = um.ValidateAndGetUser("user", "longpassword")
+		if err == nil {
+			t.Error("ValidateAndGetUser() should return an errror when the user is disabled")
+		}
+
+		// succesful user validation
+		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
+			user := to.(*User)
+			user.Username = username
+			user.Password = "$2a$10$nV4sGvDTq0unZjTEjViGhO0/3wfl6FT32Nh1YLJbTtWQVxrnXF76i"
+			user.IsDisabled = false
+		})
+		_, err = um.ValidateAndGetUser("user", "longpassword")
+		if err != nil {
+			t.Errorf("ValidateAndGetUser() should NOT return an errror: %s", err.Error())
+		}
+
 	})
 
 }
