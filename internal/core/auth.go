@@ -12,13 +12,12 @@ type UserManager interface {
 	CreateUser(username string, password string, name string, isadmin bool) (User, error)
 	ValidateAndGetUser(username string, password string) (User, error)
 	GetUser(username string) (User, error)
-	GetUserForToken(token string) (User, error)
+	SetParent(user User) (User, error)
 }
 
 // User represents a Protos user
 type User interface {
 	Save() error
-	AddToken(token string)
 	ValidateCapability(cap Capability) error
 	IsAdmin() bool
 	GetInfo() UserInfo

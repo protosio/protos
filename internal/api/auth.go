@@ -2,8 +2,12 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
+	"strings"
+
+	"github.com/gorilla/sessions"
+	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/core"
 )
 
 // registerHandler is used in the initial user and domain registration. Should be disabled after the initial setup
@@ -48,40 +52,57 @@ func registerHandler(ha handlerAccess) http.Handler {
 		}
 		ha.m.SetAdminUser(user.GetUsername())
 
-		tokenString, sstring, err := createToken()
-		if err != nil {
-			log.Error(err)
+		// create session and add user to it
+
+		session, err := ha.cs.Get(r, "session-auth")
+		if err != nil && strings.Contains(err.Error(), "the value is not valid") != true {
+			err := errors.Wrap(err, "Failed to retrieve session")
+			log.Error(err.Error())
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
 
-		user.AddToken(sstring)
+		session.Values["user"] = user
 
-		tokenResponse := struct {
-			Token    string `json:"token"`
+		err = ha.cs.Save(r, w, session)
+		if err != nil {
+			erru := errors.Wrap(err, "Failed to save session")
+			log.Error(erru.Error())
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: erru.Error()})
+			return
+		}
+
+		registerResponse := struct {
 			Username string `json:"username"`
 		}{
-			Token:    tokenString,
 			Username: user.GetUsername(),
 		}
 
-		log.Debug("Sending response: ", tokenResponse)
-		w.Header().Add("Content-Type", "application/json")
-		rend.JSON(w, http.StatusOK, tokenResponse)
+		log.Debug("Sending response: ", registerResponse)
+		rend.JSON(w, http.StatusOK, registerResponse)
 	})
 }
 
-// loginHandler takes a JSON payload containing a username and password, and returns a JWT if they are valid
+// loginHandler takes a JSON payload containing a username and password, and creates a session if the user/pass combination is valid
 func loginHandler(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session, err := ha.cs.Get(r, "session-auth")
+		if err != nil && strings.Contains(err.Error(), "the value is not valid") != true {
+			err := errors.Wrap(err, "Failed to retrieve session")
+			log.Error(err.Error())
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+
 		var userform struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
 		}
 
-		err := json.NewDecoder(r.Body).Decode(&userform)
+		err = json.NewDecoder(r.Body).Decode(&userform)
 		if err != nil {
-			log.Error(err)
+			err := errors.Wrap(err, "Failed to decode login form")
+			log.Error(err.Error())
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
@@ -93,14 +114,15 @@ func loginHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		tokenString, sstring, err := createToken()
+		session.Values["user"] = user
+
+		err = ha.cs.Save(r, w, session)
 		if err != nil {
-			log.Error(err)
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			erru := errors.Wrap(err, "Failed to save session")
+			log.Error(erru.Error())
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: erru.Error()})
 			return
 		}
-
-		user.AddToken(sstring)
 
 		var role string
 		if user.IsAdmin() {
@@ -108,18 +130,55 @@ func loginHandler(ha handlerAccess) http.Handler {
 		} else {
 			role = "user"
 		}
-		tokenResponse := struct {
-			Token    string `json:"token"`
+		loginResponse := struct {
 			Username string `json:"username"`
 			Role     string `json:"role"`
 		}{
-			Token:    tokenString,
 			Username: user.GetUsername(),
 			Role:     role,
 		}
 
-		log.Debug("Sending response: ", tokenResponse)
-		rend.JSON(w, http.StatusOK, tokenResponse)
+		log.Debug("Sending response: ", loginResponse)
+		rend.JSON(w, http.StatusOK, loginResponse)
 
 	})
+}
+
+// logoutandler logs out a user from a session
+func logoutHandler(ha handlerAccess) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session, err := ha.cs.Get(r, "session-auth")
+		if err != nil && strings.Contains(err.Error(), "the value is not valid") != true {
+			err := errors.Wrap(err, "Failed to retrieve session")
+			log.Error(err.Error())
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+			return
+		}
+
+		session.Values["user"] = nil
+		session.Options.MaxAge = -1
+
+		err = ha.cs.Save(r, w, session)
+		if err != nil {
+			erru := errors.Wrap(err, "Failed to save session")
+			log.Error(erru.Error())
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: erru.Error()})
+			return
+		}
+
+		rend.JSON(w, http.StatusOK, struct{}{})
+	})
+}
+
+func getUser(s *sessions.Session, um core.UserManager) (core.User, error) {
+	val := s.Values["user"]
+	user, ok := val.(core.User)
+	if !ok {
+		return nil, errors.New("Failed to get user for session")
+	}
+	usr, err := um.SetParent(user)
+	if err != nil {
+		return nil, err
+	}
+	return usr, nil
 }

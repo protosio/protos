@@ -19,6 +19,8 @@ import (
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/securecookie"
+	"github.com/gorilla/sessions"
 	"github.com/rakyll/statik/fs"
 	"github.com/unrolled/render"
 	"github.com/urfave/negroni"
@@ -51,6 +53,7 @@ type handlerAccess struct {
 	um core.UserManager
 	rp core.RuntimePlatform
 	cm core.CapabilityManager
+	cs *sessions.CookieStore
 }
 
 type certificate interface {
@@ -91,6 +94,7 @@ func applyAuthRoutes(ha handlerAccess, r *mux.Router, enableRegister bool) {
 		authRouter.Methods("POST").Path("/register").Name("register").Handler(registerHandler(ha))
 	}
 	authRouter.Methods("POST").Path("/login").Name("login").Handler(loginHandler(ha))
+	authRouter.Methods("POST").Path("/logout").Name("logout").Handler(logoutHandler(ha))
 
 	r.PathPrefix("/api/v1/auth").Handler(authRouter)
 }
@@ -280,6 +284,27 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
+	//
+	// Setting up session cookies
+	//
+
+	authKeyOne := securecookie.GenerateRandomKey(64)
+	encryptionKeyOne := securecookie.GenerateRandomKey(32)
+
+	ha.cs = sessions.NewCookieStore(
+		authKeyOne,
+		encryptionKeyOne,
+	)
+
+	ha.cs.Options = &sessions.Options{
+		Path:   "/",
+		MaxAge: 60 * 15,
+	}
+
+	//
+	// Setting up routes
+	//
+
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(ha, mainRtr, false)
 
@@ -332,6 +357,27 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
+
+	//
+	// Setting up session cookies
+	//
+
+	authKeyOne := securecookie.GenerateRandomKey(64)
+	encryptionKeyOne := securecookie.GenerateRandomKey(32)
+
+	ha.cs = sessions.NewCookieStore(
+		authKeyOne,
+		encryptionKeyOne,
+	)
+
+	ha.cs.Options = &sessions.Options{
+		Path:   "/",
+		MaxAge: 60 * 15,
+	}
+
+	//
+	// Setting up routes
+	//
 
 	mainRtr := mux.NewRouter().StrictSlash(true)
 	applyAuthRoutes(ha, mainRtr, true)

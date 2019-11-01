@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bufio"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"os"
@@ -31,8 +32,6 @@ type User struct {
 	Capabilities []string `json:"capabilities"`
 	parent       *UserManager
 }
-
-var usersTokens = map[string]*User{}
 
 // readCredentials reads a username and password interactively
 func readCredentials() (string, string, string) {
@@ -90,18 +89,6 @@ func (user *User) Save() error {
 	return user.parent.db.Save(user)
 }
 
-// AddToken associates a JWT token with a username
-func (user *User) AddToken(token string) {
-	for tkn, usr := range usersTokens {
-		if usr.Username == user.Username {
-			log.Debugf("Removing old token %s for user %s", tkn, usr.Username)
-			delete(usersTokens, tkn)
-		}
-	}
-	log.Debugf("Adding token %s for username %s", token, user.Username)
-	usersTokens[token] = user
-}
-
 // ValidateCapability implements the capability checker interface
 func (user *User) ValidateCapability(cap core.Capability) error {
 	for _, usercap := range user.Capabilities {
@@ -148,6 +135,7 @@ func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
 	if db == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
+	gob.Register(&User{})
 
 	return &UserManager{db: db, cm: cm}
 }
@@ -216,12 +204,14 @@ func (um *UserManager) GetUser(username string) (core.User, error) {
 	return &user, nil
 }
 
-// GetUserForToken returns a user for a specific token
-func (um *UserManager) GetUserForToken(token string) (core.User, error) {
-	if usr, ok := usersTokens[token]; ok {
-		return usr, nil
+// SetParent returns sets the parent (user manager) for a given user
+func (um *UserManager) SetParent(usera core.User) (core.User, error) {
+	usr, ok := usera.(*User)
+	if !ok {
+		return nil, errors.New("Failed to cast user to local type")
 	}
-	return nil, errors.New("No user found for token " + token)
+	usr.parent = um
+	return usr, nil
 }
 
 // SetupAdmin creates and initial admin user

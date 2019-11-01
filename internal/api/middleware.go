@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 
-	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/dgrijalva/jwt-go/request"
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 )
@@ -32,24 +31,6 @@ func checkCapability(cm core.CapabilityManager, capChecker core.CapabilityChecke
 		return err
 	}
 	return nil
-}
-
-func createToken() (string, string, error) {
-	token := jwt.New(jwt.SigningMethodHS256)
-	claims := make(jwt.MapClaims)
-	claims["exp"] = time.Now().Add(time.Hour * time.Duration(3)).Unix()
-	claims["iat"] = time.Now().Unix()
-	token.Claims = claims
-
-	tokenString, err := token.SignedString(gconfig.Secret)
-	if err != nil {
-		return "", "", err
-	}
-	sstring, err := token.SigningString()
-	if err != nil {
-		return "", "", err
-	}
-	return tokenString, sstring, nil
 }
 
 // HTTPLogger is a http middleware that logs requests
@@ -104,7 +85,8 @@ func InternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.Hand
 	})
 }
 
-// ExternalRequestValidator validates client request contains a valid JWT token
+// ExternalRequestValidator validates client request. It checks if request contains a valid session and if the user is
+// authorized to access the resource
 func ExternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.HandlerFunc {
 	return negroni.HandlerFunc(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		var httpErrStatus int
@@ -114,43 +96,35 @@ func ExternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.Hand
 			httpErrStatus = http.StatusUnauthorized
 		}
 
-		queryParams := r.URL.Query()
-		tokenString := queryParams.Get("access_token")
-
-		var token *jwt.Token
-		var err error
-		var getSecret = func(token *jwt.Token) (interface{}, error) { return gconfig.Secret, nil }
-
-		if tokenString != "" {
-			token, err = jwt.Parse(tokenString, getSecret)
-		} else {
-			token, err = request.ParseFromRequest(r, request.AuthorizationHeaderExtractor, getSecret)
-		}
+		session, err := ha.cs.Get(r, "session-auth")
 		if err != nil {
-			log.Errorf("Unauthorized access to resource %s with Error: %s", r.URL, err.Error())
-			rend.JSON(rw, httpErrStatus, httperr{Error: "Unauthorized access to this resource"})
+			err := errors.Wrap(err, "Failed to validate session")
+			log.Error(err.Error())
+			if strings.Contains(err.Error(), "the value is not valid") {
+				rend.JSON(rw, httpErrStatus, httperr{Error: "User not authorized to access that resource"})
+				return
+			}
+			rend.JSON(rw, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
+
 		}
 
-		if token.Valid == false {
-			log.Error("Token is not valid")
-			rend.JSON(rw, httpErrStatus, httperr{Error: "Token is not valid"})
-			return
-		}
-
-		sstring, err := token.SigningString()
+		user, err := getUser(session, ha.um)
 		if err != nil {
-			log.Error(err)
-			rend.JSON(rw, httpErrStatus, httperr{Error: err.Error()})
+			log.Error(err.Error())
+			err = session.Save(r, rw)
+			if err != nil {
+				log.Error(err.Error())
+				rend.JSON(rw, http.StatusInternalServerError, httperr{Error: err.Error()})
+				return
+			}
+			rend.JSON(rw, httpErrStatus, httperr{Error: "User not authorized to access that resource"})
 			return
 		}
 
-		user, err := ha.um.GetUserForToken(sstring)
-		if err != nil {
-			log.Error(err)
-			rend.JSON(rw, httpErrStatus, httperr{Error: err.Error()})
-			return
-		}
+		//
+		// Checks if a user is authorized to access a specific route
+		//
 
 		rmatch := &mux.RouteMatch{}
 		router.Match(r, rmatch)

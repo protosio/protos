@@ -6,7 +6,6 @@ package mock
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	capability "github.com/protosio/protos/internal/capability"
 	core "github.com/protosio/protos/internal/core"
 	reflect "reflect"
 )
@@ -79,19 +78,19 @@ func (mr *MockUserManagerMockRecorder) GetUser(username interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockUserManager)(nil).GetUser), username)
 }
 
-// GetUserForToken mocks base method
-func (m *MockUserManager) GetUserForToken(token string) (core.User, error) {
+// SetParent mocks base method
+func (m *MockUserManager) SetParent(user core.User) (core.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserForToken", token)
+	ret := m.ctrl.Call(m, "SetParent", user)
 	ret0, _ := ret[0].(core.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetUserForToken indicates an expected call of GetUserForToken
-func (mr *MockUserManagerMockRecorder) GetUserForToken(token interface{}) *gomock.Call {
+// SetParent indicates an expected call of SetParent
+func (mr *MockUserManagerMockRecorder) SetParent(user interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserForToken", reflect.TypeOf((*MockUserManager)(nil).GetUserForToken), token)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetParent", reflect.TypeOf((*MockUserManager)(nil).SetParent), user)
 }
 
 // MockUser is a mock of User interface
@@ -131,20 +130,8 @@ func (mr *MockUserMockRecorder) Save() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockUser)(nil).Save))
 }
 
-// AddToken mocks base method
-func (m *MockUser) AddToken(token string) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddToken", token)
-}
-
-// AddToken indicates an expected call of AddToken
-func (mr *MockUserMockRecorder) AddToken(token interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToken", reflect.TypeOf((*MockUser)(nil).AddToken), token)
-}
-
 // ValidateCapability mocks base method
-func (m *MockUser) ValidateCapability(cap *capability.Capability) error {
+func (m *MockUser) ValidateCapability(cap core.Capability) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateCapability", cap)
 	ret0, _ := ret[0].(error)
