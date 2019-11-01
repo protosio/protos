@@ -1,20 +1,14 @@
 package auth
 
 import (
-	"bufio"
 	"encoding/gob"
 	"errors"
-	"fmt"
-	"os"
-	"strings"
-	"syscall"
 
 	"github.com/protosio/protos/internal/core"
 
 	"github.com/protosio/protos/internal/util"
 
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -31,32 +25,6 @@ type User struct {
 	IsDisabled   bool     `json:"isdisabled"`
 	Capabilities []string `json:"capabilities"`
 	parent       *UserManager
-}
-
-// readCredentials reads a username and password interactively
-func readCredentials() (string, string, string) {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("Enter Username: ")
-	username, err := reader.ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Print("Enter Password: ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		log.Fatal(err)
-	}
-	password := string(bytePassword)
-
-	fmt.Print("Enter Name: ")
-	name, err := reader.ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return strings.TrimSpace(username), strings.TrimSpace(password), strings.TrimSpace(name)
 }
 
 // generatePasswordHash takes a string representing the raw password, and generates a hash
