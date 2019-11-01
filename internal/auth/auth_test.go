@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/mock"
 )
 
@@ -132,6 +133,29 @@ func TestUserManager(t *testing.T) {
 		_, err = um.GetUser("user")
 		if err != nil {
 			t.Errorf("GetUser() should NOT return an errror: %s", err.Error())
+		}
+
+	})
+
+	//
+	// SetParent
+	//
+
+	t.Run("SetParent", func(t *testing.T) {
+		var userInterface core.User
+		_, err := um.SetParent(userInterface)
+		if err == nil {
+			t.Error("SetParent() should return an error when the provided interface does not assert to a User struct")
+		}
+
+		userStruct := &User{}
+		user, err := um.SetParent(userStruct)
+		if err != nil {
+			t.Errorf("SetParent() should NOT return an error: %s", err.Error())
+		}
+		usr, _ := user.(*User)
+		if usr.parent == nil {
+			t.Error("SetParent() should return an error with the parent variable set")
 		}
 
 	})
