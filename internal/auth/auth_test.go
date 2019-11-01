@@ -111,4 +111,19 @@ func TestUserManager(t *testing.T) {
 
 	})
 
+	//
+	// GetUser
+	//
+
+	t.Run("GetUser", func(t *testing.T) {
+		// failed to retrieve user from db
+		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(errors.New("User db error")).Times(1)
+		_, err := um.GetUser("user")
+		log.Info(err)
+		if err == nil {
+			t.Error("GetUser() should return an errror when the DB fails to retrieve the user")
+		}
+
+	})
+
 }
