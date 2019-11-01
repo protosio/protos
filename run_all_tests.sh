@@ -2,8 +2,9 @@
 
 go test -v \
 	./internal/task \
-    ./internal/resource \
+        ./internal/resource \
 	./internal/provider \
 	./internal/installer \
 	./internal/app \
-	./internal/capability
+	./internal/capability \
+	./internal/auth
