@@ -171,22 +171,22 @@ func (um *UserManager) ValidateAndGetUser(username string, password string) (cor
 	var user User
 	err := um.db.One("Username", username, &user)
 	if err != nil {
-		log.Debugf("Can't find user %s (%s)", username, err)
+		log.Debugf("Can't find user '%s' (%s)", username, err)
 		return nil, errInvalid
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
-		log.Debugf("Invalid password for user %s", username)
+		log.Debugf("Invalid password for user '%s'", username)
 		return nil, errInvalid
 	}
 
 	if user.IsDisabled {
-		log.Debugf("User %s is disabled", username)
+		log.Debugf("User '%s' is disabled", username)
 		return nil, errInvalid
 	}
 
-	log.Debugf("User %s logged in successfuly", username)
+	log.Debugf("User '%s' logged in successfuly", username)
 	user.parent = um
 	return &user, nil
 }
@@ -197,7 +197,7 @@ func (um *UserManager) GetUser(username string) (core.User, error) {
 	var user User
 	err := um.db.One("Username", username, &user)
 	if err != nil {
-		log.Debugf("Can't find user %s (%s)", username, err)
+		log.Debugf("Can't find user '%s' (%s)", username, err)
 		return nil, errInvalid
 	}
 	user.parent = um
@@ -205,21 +205,11 @@ func (um *UserManager) GetUser(username string) (core.User, error) {
 }
 
 // SetParent returns sets the parent (user manager) for a given user
-func (um *UserManager) SetParent(usera core.User) (core.User, error) {
-	usr, ok := usera.(*User)
+func (um *UserManager) SetParent(user core.User) (core.User, error) {
+	usr, ok := user.(*User)
 	if !ok {
-		return nil, errors.New("Failed to cast user to local type")
+		return nil, errors.New("Failed to cast core.User to local type")
 	}
 	usr.parent = um
 	return usr, nil
-}
-
-// SetupAdmin creates and initial admin user
-func (um *UserManager) SetupAdmin() {
-	username, clearpassword, name := readCredentials()
-	user, err := um.CreateUser(username, clearpassword, name, true)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Infof("User %s has been created.", user.GetUsername())
 }
