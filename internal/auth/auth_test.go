@@ -1,8 +1,9 @@
 package auth
 
 import (
-	"errors"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	"github.com/golang/mock/gomock"
 	"github.com/protosio/protos/internal/core"
@@ -16,6 +17,7 @@ func TestUser(t *testing.T) {
 
 	dbMock := mock.NewMockDB(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
+	adminCapMock := mock.NewMockCapability(ctrl)
 	um := CreateUserManager(dbMock, cmMock)
 
 	user := &User{
@@ -48,6 +50,54 @@ func TestUser(t *testing.T) {
 	err = user.Save()
 	if err != nil {
 		t.Errorf("Save() should NOT return an error: %s", err.Error())
+	}
+
+	//
+	// ValidateCapability
+	//
+
+	// fails to validate
+	cmMock.EXPECT().Validate(adminCapMock, "UserAdmin").Return(false).Times(1)
+	adminCapMock.EXPECT().GetName().Return("AdminCapMock").Times(1)
+	err = user.ValidateCapability(adminCapMock)
+	if err == nil {
+		t.Error("ValidateCapability should return an error when passed a capability does not validate")
+	}
+
+	// success
+	cmMock.EXPECT().Validate(adminCapMock, "UserAdmin").Return(true).Times(1)
+	err = user.ValidateCapability(adminCapMock)
+	if err != nil {
+		t.Errorf("ValidateCapability should NOT return an error: %s", err.Error())
+	}
+
+	//
+	// IsAdmin
+	//
+
+	// true
+	cmMock.EXPECT().GetByName("UserAdmin").Return(adminCapMock, nil).Times(1)
+	cmMock.EXPECT().Validate(adminCapMock, "UserAdmin").Return(true).Times(1)
+	if !user.IsAdmin() {
+		t.Error("IsAdmin() should return true because the user has the UserAdmin capability")
+	}
+
+	// false
+	user.Capabilities = []string{}
+	cmMock.EXPECT().GetByName("UserAdmin").Return(adminCapMock, nil).Times(1)
+	adminCapMock.EXPECT().GetName().Return("AdminCapMock").Times(1)
+	if user.IsAdmin() {
+		t.Error("IsAdmin() should return false because the user does not have the UserAdmin capability")
+	}
+
+	//
+	// GetInfo
+	//
+	cmMock.EXPECT().GetByName("UserAdmin").Return(adminCapMock, nil).Times(2)
+	adminCapMock.EXPECT().GetName().Return("AdminCapMock").Times(2)
+	userInfo := user.GetInfo()
+	if userInfo.Username != user.Username || userInfo.IsAdmin != user.IsAdmin() || userInfo.Name != user.Name {
+		t.Error("GetInfo return a struct with incorrect details")
 	}
 
 }

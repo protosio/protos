@@ -2,7 +2,8 @@ package auth
 
 import (
 	"encoding/gob"
-	"errors"
+
+	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/core"
 
@@ -64,7 +65,7 @@ func (user *User) ValidateCapability(cap core.Capability) error {
 			return nil
 		}
 	}
-	return errors.New("Method capability " + cap.GetName() + " not satisfied by user " + user.Username)
+	return errors.Errorf("Method capability '%s' not satisfied by user '%s'", cap.GetName(), user.Username)
 }
 
 // IsAdmin checks if a user is an admin or not
