@@ -5,12 +5,11 @@
 package mock
 
 import (
-	reflect "reflect"
-
 	types "github.com/docker/docker/api/types"
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
+	reflect "reflect"
 )
 
 // MockRuntimePlatform is a mock of RuntimePlatform interface
@@ -34,6 +33,21 @@ func NewMockRuntimePlatform(ctrl *gomock.Controller) *MockRuntimePlatform {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockRuntimePlatform) EXPECT() *MockRuntimePlatformMockRecorder {
 	return m.recorder
+}
+
+// Init mocks base method
+func (m *MockRuntimePlatform) Init(inContainer bool) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Init", inContainer)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Init indicates an expected call of Init
+func (mr *MockRuntimePlatformMockRecorder) Init(inContainer interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockRuntimePlatform)(nil).Init), inContainer)
 }
 
 // GetSandbox mocks base method

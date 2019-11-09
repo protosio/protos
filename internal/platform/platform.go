@@ -4,12 +4,15 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
-
-	"github.com/pkg/errors"
 )
 
 var gconfig = config.Get()
 var log = util.GetLogger("platform")
+
+const (
+	dockerRuntime     = "docker"
+	containerdRuntime = "containerd"
+)
 
 type platform struct {
 	ID          string
@@ -18,31 +21,19 @@ type platform struct {
 }
 
 // Initialize checks if the Protos network exists
-func Initialize(inContainer bool) core.RuntimePlatform {
-	dp := createDockerRuntimePlatform()
-	dp.Connect()
-	if inContainer {
-		// if running in container the user needs to take care that the correct protos network is created
-		return dp
+func Initialize(runtime string, inContainer bool) core.RuntimePlatform {
+	var dp core.RuntimePlatform
+	switch runtime {
+	case dockerRuntime:
+		dp = createDockerRuntimePlatform()
+	case containerdRuntime:
+		dp = createContainerdRuntimePlatform()
 	}
-	protosNet, err := dp.GetNetwork(protosNetwork)
+	ip, err := dp.Init(inContainer)
 	if err != nil {
-		if util.IsErrorType(err, core.ErrNetworkNotFound) {
-			// if network is not found it should be created
-			protosNet, err = dp.CreateNetwork(protosNetwork)
-			if err != nil {
-				log.Fatal(errors.Wrap(err, "Failed to initialize Docker platform"))
-			}
-		} else {
-			log.Fatal(errors.Wrap(err, "Failed to initialize Docker platform"))
-		}
+		log.Panic(err)
 	}
-	if len(protosNet.IPAM.Config) == 0 {
-		log.Fatalf("Failed to initialize Docker platform: no network config for network %s(%s)", protosNet.Name, protosNet.ID)
-	}
-	netConfig := protosNet.IPAM.Config[0]
-	log.Debugf("Running using internal Docker network %s(%s), gateway %s in subnet %s", protosNet.Name, protosNet.ID, netConfig.Gateway, netConfig.Subnet)
-	gconfig.InternalIP = netConfig.Gateway
+	gconfig.InternalIP = ip
 
 	return dp
 }
