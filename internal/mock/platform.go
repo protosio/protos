@@ -5,11 +5,12 @@
 package mock
 
 import (
+	reflect "reflect"
+
 	types "github.com/docker/docker/api/types"
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
-	reflect "reflect"
 )
 
 // MockRuntimePlatform is a mock of RuntimePlatform interface
@@ -35,107 +36,107 @@ func (m *MockRuntimePlatform) EXPECT() *MockRuntimePlatformMockRecorder {
 	return m.recorder
 }
 
-// GetDockerContainer mocks base method
-func (m *MockRuntimePlatform) GetDockerContainer(id string) (core.PlatformRuntimeUnit, error) {
+// GetSandbox mocks base method
+func (m *MockRuntimePlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDockerContainer", id)
+	ret := m.ctrl.Call(m, "GetSandbox", id)
 	ret0, _ := ret[0].(core.PlatformRuntimeUnit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetDockerContainer indicates an expected call of GetDockerContainer
-func (mr *MockRuntimePlatformMockRecorder) GetDockerContainer(id interface{}) *gomock.Call {
+// GetSandbox indicates an expected call of GetSandbox
+func (mr *MockRuntimePlatformMockRecorder) GetSandbox(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDockerContainer", reflect.TypeOf((*MockRuntimePlatform)(nil).GetDockerContainer), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSandbox", reflect.TypeOf((*MockRuntimePlatform)(nil).GetSandbox), id)
 }
 
-// GetAllDockerContainers mocks base method
-func (m *MockRuntimePlatform) GetAllDockerContainers() (map[string]core.PlatformRuntimeUnit, error) {
+// GetAllSandboxes mocks base method
+func (m *MockRuntimePlatform) GetAllSandboxes() (map[string]core.PlatformRuntimeUnit, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllDockerContainers")
+	ret := m.ctrl.Call(m, "GetAllSandboxes")
 	ret0, _ := ret[0].(map[string]core.PlatformRuntimeUnit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAllDockerContainers indicates an expected call of GetAllDockerContainers
-func (mr *MockRuntimePlatformMockRecorder) GetAllDockerContainers() *gomock.Call {
+// GetAllSandboxes indicates an expected call of GetAllSandboxes
+func (mr *MockRuntimePlatformMockRecorder) GetAllSandboxes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDockerContainers", reflect.TypeOf((*MockRuntimePlatform)(nil).GetAllDockerContainers))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllSandboxes", reflect.TypeOf((*MockRuntimePlatform)(nil).GetAllSandboxes))
 }
 
-// GetDockerImage mocks base method
-func (m *MockRuntimePlatform) GetDockerImage(id string) (types.ImageInspect, error) {
+// GetImage mocks base method
+func (m *MockRuntimePlatform) GetImage(id string) (types.ImageInspect, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDockerImage", id)
+	ret := m.ctrl.Call(m, "GetImage", id)
 	ret0, _ := ret[0].(types.ImageInspect)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetDockerImage indicates an expected call of GetDockerImage
-func (mr *MockRuntimePlatformMockRecorder) GetDockerImage(id interface{}) *gomock.Call {
+// GetImage indicates an expected call of GetImage
+func (mr *MockRuntimePlatformMockRecorder) GetImage(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDockerImage", reflect.TypeOf((*MockRuntimePlatform)(nil).GetDockerImage), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetImage", reflect.TypeOf((*MockRuntimePlatform)(nil).GetImage), id)
 }
 
-// GetAllDockerImages mocks base method
-func (m *MockRuntimePlatform) GetAllDockerImages() (map[string]types.ImageSummary, error) {
+// GetAllImages mocks base method
+func (m *MockRuntimePlatform) GetAllImages() (map[string]types.ImageSummary, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllDockerImages")
+	ret := m.ctrl.Call(m, "GetAllImages")
 	ret0, _ := ret[0].(map[string]types.ImageSummary)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAllDockerImages indicates an expected call of GetAllDockerImages
-func (mr *MockRuntimePlatformMockRecorder) GetAllDockerImages() *gomock.Call {
+// GetAllImages indicates an expected call of GetAllImages
+func (mr *MockRuntimePlatformMockRecorder) GetAllImages() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDockerImages", reflect.TypeOf((*MockRuntimePlatform)(nil).GetAllDockerImages))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllImages", reflect.TypeOf((*MockRuntimePlatform)(nil).GetAllImages))
 }
 
-// GetDockerImageDataPath mocks base method
-func (m *MockRuntimePlatform) GetDockerImageDataPath(image types.ImageInspect) (string, error) {
+// GetImageDataPath mocks base method
+func (m *MockRuntimePlatform) GetImageDataPath(image types.ImageInspect) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDockerImageDataPath", image)
+	ret := m.ctrl.Call(m, "GetImageDataPath", image)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetDockerImageDataPath indicates an expected call of GetDockerImageDataPath
-func (mr *MockRuntimePlatformMockRecorder) GetDockerImageDataPath(image interface{}) *gomock.Call {
+// GetImageDataPath indicates an expected call of GetImageDataPath
+func (mr *MockRuntimePlatformMockRecorder) GetImageDataPath(image interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDockerImageDataPath", reflect.TypeOf((*MockRuntimePlatform)(nil).GetDockerImageDataPath), image)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetImageDataPath", reflect.TypeOf((*MockRuntimePlatform)(nil).GetImageDataPath), image)
 }
 
-// PullDockerImage mocks base method
-func (m *MockRuntimePlatform) PullDockerImage(task core.Task, id, name, version string) error {
+// PullImage mocks base method
+func (m *MockRuntimePlatform) PullImage(task core.Task, id, name, version string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PullDockerImage", task, id, name, version)
+	ret := m.ctrl.Call(m, "PullImage", task, id, name, version)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// PullDockerImage indicates an expected call of PullDockerImage
-func (mr *MockRuntimePlatformMockRecorder) PullDockerImage(task, id, name, version interface{}) *gomock.Call {
+// PullImage indicates an expected call of PullImage
+func (mr *MockRuntimePlatformMockRecorder) PullImage(task, id, name, version interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullDockerImage", reflect.TypeOf((*MockRuntimePlatform)(nil).PullDockerImage), task, id, name, version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullImage", reflect.TypeOf((*MockRuntimePlatform)(nil).PullImage), task, id, name, version)
 }
 
-// RemoveDockerImage mocks base method
-func (m *MockRuntimePlatform) RemoveDockerImage(id string) error {
+// RemoveImage mocks base method
+func (m *MockRuntimePlatform) RemoveImage(id string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveDockerImage", id)
+	ret := m.ctrl.Call(m, "RemoveImage", id)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// RemoveDockerImage indicates an expected call of RemoveDockerImage
-func (mr *MockRuntimePlatformMockRecorder) RemoveDockerImage(id interface{}) *gomock.Call {
+// RemoveImage indicates an expected call of RemoveImage
+func (mr *MockRuntimePlatformMockRecorder) RemoveImage(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveDockerImage", reflect.TypeOf((*MockRuntimePlatform)(nil).RemoveDockerImage), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveImage", reflect.TypeOf((*MockRuntimePlatform)(nil).RemoveImage), id)
 }
 
 // GetOrCreateVolume mocks base method
@@ -167,19 +168,19 @@ func (mr *MockRuntimePlatformMockRecorder) RemoveVolume(id interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVolume", reflect.TypeOf((*MockRuntimePlatform)(nil).RemoveVolume), id)
 }
 
-// NewContainer mocks base method
-func (m *MockRuntimePlatform) NewContainer(name, appID, imageID, volumeID, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
+// NewSandbox mocks base method
+func (m *MockRuntimePlatform) NewSandbox(name, appID, imageID, volumeID, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewContainer", name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams)
+	ret := m.ctrl.Call(m, "NewSandbox", name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams)
 	ret0, _ := ret[0].(core.PlatformRuntimeUnit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// NewContainer indicates an expected call of NewContainer
-func (mr *MockRuntimePlatformMockRecorder) NewContainer(name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams interface{}) *gomock.Call {
+// NewSandbox indicates an expected call of NewSandbox
+func (mr *MockRuntimePlatformMockRecorder) NewSandbox(name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewContainer", reflect.TypeOf((*MockRuntimePlatform)(nil).NewContainer), name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSandbox", reflect.TypeOf((*MockRuntimePlatform)(nil).NewSandbox), name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams)
 }
 
 // GetHWStats mocks base method

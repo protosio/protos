@@ -183,7 +183,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 	}
 
 	log.Infof("Downloading platform image for installer '%s'(%s) version '%s'", inst.Name, inst.ID, dt.Version)
-	err = inst.parent.getPlatform().PullDockerImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
+	err = inst.parent.getPlatform().PullImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
 	}
@@ -202,7 +202,7 @@ func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
 		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
 	}
 
-	_, err = inst.parent.getPlatform().GetDockerImage(metadata.PlatformID)
+	_, err = inst.parent.getPlatform().GetImage(metadata.PlatformID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrImageNotFound) == false {
 			return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
@@ -217,7 +217,7 @@ func (inst *Installer) Remove() error {
 	log.Info("Removing installer ", inst.Name, "[", inst.ID, "]")
 
 	for _, metadata := range inst.Versions {
-		err := inst.parent.getPlatform().RemoveDockerImage(metadata.PlatformID)
+		err := inst.parent.getPlatform().RemoveImage(metadata.PlatformID)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to remove install %s(%s)", inst.Name, inst.ID)
 		}
@@ -252,7 +252,7 @@ func (as *AppStore) GetLocalInstallers() (map[string]core.Installer, error) {
 	installers := map[string]core.Installer{}
 	log.Info("Retrieving local installers")
 
-	imgs, err := as.rp.GetAllDockerImages()
+	imgs, err := as.rp.GetAllImages()
 	if err != nil {
 		return installers, errors.Wrap(err, "Error retrieving local installers")
 	}
@@ -275,7 +275,7 @@ func (as *AppStore) GetLocalInstallers() (map[string]core.Installer, error) {
 func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
 	log.Infof("Retrieving local installer with id '%s'", id)
 
-	imgs, err := as.rp.GetAllDockerImages()
+	imgs, err := as.rp.GetAllImages()
 	if err != nil {
 		return Installer{}, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
 	}
@@ -295,12 +295,12 @@ func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
 		}
 		installer.Name = installerName
 
-		imgDetailed, err := as.rp.GetDockerImage(img.ID)
+		imgDetailed, err := as.rp.GetImage(img.ID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
 		}
 
-		persistancePath, err := as.rp.GetDockerImageDataPath(imgDetailed)
+		persistancePath, err := as.rp.GetImageDataPath(imgDetailed)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
 		}
@@ -332,7 +332,7 @@ func (as *AppStore) RemoveLocalInstaller(id string) error {
 	log.Info("Removing installer ", inst.(Installer).Name, "[", inst.(Installer).ID, "]")
 
 	for _, metadata := range inst.(Installer).Versions {
-		err := as.rp.RemoveDockerImage(metadata.PlatformID)
+		err := as.rp.RemoveImage(metadata.PlatformID)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to remove local installer %s[%s]", inst.(Installer).Name, id)
 		}

@@ -143,7 +143,7 @@ func TestInstaller(t *testing.T) {
 
 		// docker image download fails
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
-		rpMock.EXPECT().PullDockerImage(dt.b, inst.Versions[dt.Version].PlatformID, inst.Name, dt.Version).Return(errors.New("error downloading docker image")).Times(1)
+		rpMock.EXPECT().PullImage(dt.b, inst.Versions[dt.Version].PlatformID, inst.Name, dt.Version).Return(errors.New("error downloading docker image")).Times(1)
 		err = inst.Download(dt)
 		if err == nil {
 			t.Error("Download() should return an error when the docker image download fails")
@@ -151,7 +151,7 @@ func TestInstaller(t *testing.T) {
 
 		// happy case
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
-		rpMock.EXPECT().PullDockerImage(dt.b, inst.Versions[dt.Version].PlatformID, inst.Name, dt.Version).Return(nil).Times(1)
+		rpMock.EXPECT().PullImage(dt.b, inst.Versions[dt.Version].PlatformID, inst.Name, dt.Version).Return(nil).Times(1)
 		err = inst.Download(dt)
 		if err != nil {
 			t.Errorf("Download() should NOT return an error: %s", err.Error())
@@ -185,7 +185,7 @@ func TestInstaller(t *testing.T) {
 
 		// error retrieving Docker image
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
-		rpMock.EXPECT().GetDockerImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, errors.New("failed to retrieve image")).Times(1)
+		rpMock.EXPECT().GetImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, errors.New("failed to retrieve image")).Times(1)
 		_, err = inst.IsPlatformImageAvailable("1.0")
 		if err == nil {
 			t.Error("IsPlatformImageAvailable() should return an error when retrieving the image fails ")
@@ -193,7 +193,7 @@ func TestInstaller(t *testing.T) {
 
 		// happy case
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
-		rpMock.EXPECT().GetDockerImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, nil).Times(1)
+		rpMock.EXPECT().GetImage(inst.Versions["1.0"].PlatformID).Return(types.ImageInspect{}, nil).Times(1)
 		found, err := inst.IsPlatformImageAvailable("1.0")
 		if err != nil {
 			t.Errorf("IsPlatformImageAvailable() should not return an error: %s", err.Error())
@@ -234,7 +234,7 @@ func TestInstaller(t *testing.T) {
 	t.Run("Remove", func(t *testing.T) {
 		// error removing Docker image
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(1)
-		rpMock.EXPECT().RemoveDockerImage(inst.Versions["1.0"].PlatformID).Return(errors.New("failed to remove image")).Times(1)
+		rpMock.EXPECT().RemoveImage(inst.Versions["1.0"].PlatformID).Return(errors.New("failed to remove image")).Times(1)
 		err := inst.Remove()
 		log.Info(err)
 		if err == nil {
@@ -243,7 +243,7 @@ func TestInstaller(t *testing.T) {
 
 		// happy case
 		installerParent.EXPECT().getPlatform().Return(rpMock).Times(4)
-		rpMock.EXPECT().RemoveDockerImage(gomock.Any()).Return(nil).Times(4)
+		rpMock.EXPECT().RemoveImage(gomock.Any()).Return(nil).Times(4)
 		err = inst.Remove()
 		if err != nil {
 			t.Errorf("Remove() should NOT return an error: %s", err.Error())
@@ -268,7 +268,7 @@ func TestInstallerCache(t *testing.T) {
 
 	t.Run("GetLocalInstallers", func(t *testing.T) {
 		// failed to retrieve Docker images
-		rpMock.EXPECT().GetAllDockerImages().Return(nil, errors.New("failed to retrieve images"))
+		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
 		_, err := appStore.GetLocalInstallers()
 		if err == nil {
 			t.Error("GetLocalInstallers() should return an error when retrieving all docker images fails")
@@ -276,7 +276,7 @@ func TestInstallerCache(t *testing.T) {
 
 		// happy case
 		images := map[string]types.ImageSummary{"id1": types.ImageSummary{RepoTags: []string{"imagename:v0.1"}}}
-		rpMock.EXPECT().GetAllDockerImages().Return(images, nil)
+		rpMock.EXPECT().GetAllImages().Return(images, nil)
 		installers, err := appStore.GetLocalInstallers()
 		if err != nil {
 			t.Errorf("GetLocalInstallers() should NOT return an error: %s", err.Error())
@@ -297,7 +297,7 @@ func TestInstallerCache(t *testing.T) {
 	t.Run("GetLocalInstaller", func(t *testing.T) {
 		installerID := util.String2SHA1("imagename")
 		// failed to retrieve Docker images
-		rpMock.EXPECT().GetAllDockerImages().Return(nil, errors.New("failed to retrieve images"))
+		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
 		_, err := appStore.GetLocalInstaller("id1")
 		if err == nil {
 			t.Error("GetLocalInstaller() should return an error when retrieving all docker images fails")
@@ -306,26 +306,26 @@ func TestInstallerCache(t *testing.T) {
 		images := map[string]types.ImageSummary{installerID: types.ImageSummary{ID: "imageID", RepoTags: []string{"imagename:v0.1"}}}
 
 		// failed to retrieve Docker image (persitence path)
-		rpMock.EXPECT().GetAllDockerImages().Return(images, nil)
-		rpMock.EXPECT().GetDockerImage("imageID").Return(types.ImageInspect{}, errors.New("failed to retrieve image"))
+		rpMock.EXPECT().GetAllImages().Return(images, nil)
+		rpMock.EXPECT().GetImage("imageID").Return(types.ImageInspect{}, errors.New("failed to retrieve image"))
 		_, err = appStore.GetLocalInstaller(installerID)
 		if err == nil {
 			t.Error("GetLocalInstaller() should return an error when retrieving a specific docker images fails")
 		}
 
 		// failed to retrieve Docker image volume path
-		rpMock.EXPECT().GetAllDockerImages().Return(images, nil)
-		rpMock.EXPECT().GetDockerImage("imageID").Return(types.ImageInspect{}, nil)
-		rpMock.EXPECT().GetDockerImageDataPath(gomock.Any()).Return("", errors.New("failed to retrieve image volume path"))
+		rpMock.EXPECT().GetAllImages().Return(images, nil)
+		rpMock.EXPECT().GetImage("imageID").Return(types.ImageInspect{}, nil)
+		rpMock.EXPECT().GetImageDataPath(gomock.Any()).Return("", errors.New("failed to retrieve image volume path"))
 		_, err = appStore.GetLocalInstaller(installerID)
 		if err == nil {
 			t.Error("GetLocalInstaller() should return an error when retrieving the image volume path fails")
 		}
 
 		// happy path
-		rpMock.EXPECT().GetAllDockerImages().Return(images, nil)
-		rpMock.EXPECT().GetDockerImage("imageID").Return(types.ImageInspect{Config: &container.Config{Labels: map[string]string{"foo": "bar"}}}, nil)
-		rpMock.EXPECT().GetDockerImageDataPath(gomock.Any()).Return("/data", nil)
+		rpMock.EXPECT().GetAllImages().Return(images, nil)
+		rpMock.EXPECT().GetImage("imageID").Return(types.ImageInspect{Config: &container.Config{Labels: map[string]string{"foo": "bar"}}}, nil)
+		rpMock.EXPECT().GetImageDataPath(gomock.Any()).Return("/data", nil)
 		_, err = appStore.GetLocalInstaller(installerID)
 		if err != nil {
 			t.Errorf("GetLocalInstaller() should NOT return an error: %s", err.Error())
@@ -339,7 +339,7 @@ func TestInstallerCache(t *testing.T) {
 
 	t.Run("RemoveLocalInstaller", func(t *testing.T) {
 		// failed to get images
-		rpMock.EXPECT().GetAllDockerImages().Return(nil, errors.New("failed to retrieve images"))
+		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
 		err := appStore.RemoveLocalInstaller("id1")
 		if err == nil {
 			t.Error("RemoveLocalInstaller() should return an error when it fails to retrieve the local installer")
@@ -349,20 +349,20 @@ func TestInstallerCache(t *testing.T) {
 		images := map[string]types.ImageSummary{installerID: types.ImageSummary{ID: "imageID", RepoTags: []string{"imagename:v0.1"}}}
 
 		// failed to remove installer images
-		rpMock.EXPECT().GetAllDockerImages().Return(images, nil)
-		rpMock.EXPECT().GetDockerImage("imageID").Return(types.ImageInspect{ID: "imageID", Config: &container.Config{Labels: map[string]string{"foo": "bar"}}}, nil)
-		rpMock.EXPECT().GetDockerImageDataPath(gomock.Any()).Return("/data", nil)
-		rpMock.EXPECT().RemoveDockerImage("imageID").Return(errors.New("failed to delete image"))
+		rpMock.EXPECT().GetAllImages().Return(images, nil)
+		rpMock.EXPECT().GetImage("imageID").Return(types.ImageInspect{ID: "imageID", Config: &container.Config{Labels: map[string]string{"foo": "bar"}}}, nil)
+		rpMock.EXPECT().GetImageDataPath(gomock.Any()).Return("/data", nil)
+		rpMock.EXPECT().RemoveImage("imageID").Return(errors.New("failed to delete image"))
 		err = appStore.RemoveLocalInstaller(installerID)
 		if err == nil {
 			t.Error("RemoveLocalInstaller() should return an error when it fails to remove the local image")
 		}
 
 		// happy case
-		rpMock.EXPECT().GetAllDockerImages().Return(images, nil)
-		rpMock.EXPECT().GetDockerImage("imageID").Return(types.ImageInspect{ID: "imageID", Config: &container.Config{Labels: map[string]string{"foo": "bar"}}}, nil)
-		rpMock.EXPECT().GetDockerImageDataPath(gomock.Any()).Return("/data", nil)
-		rpMock.EXPECT().RemoveDockerImage("imageID").Return(nil)
+		rpMock.EXPECT().GetAllImages().Return(images, nil)
+		rpMock.EXPECT().GetImage("imageID").Return(types.ImageInspect{ID: "imageID", Config: &container.Config{Labels: map[string]string{"foo": "bar"}}}, nil)
+		rpMock.EXPECT().GetImageDataPath(gomock.Any()).Return("/data", nil)
+		rpMock.EXPECT().RemoveImage("imageID").Return(nil)
 		err = appStore.RemoveLocalInstaller(installerID)
 		if err != nil {
 			t.Errorf("RemoveLocalInstaller() should NOT return an error: %s", err.Error())
@@ -617,7 +617,7 @@ func TestTask(t *testing.T) {
 	taskMock.EXPECT().Save().Times(1)
 	taskMock.EXPECT().SetKillable().Times(1)
 	parent.EXPECT().getPlatform().Return(rpMock).Times(1)
-	rpMock.EXPECT().PullDockerImage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	rpMock.EXPECT().PullImage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	err = task.Run(taskMock, "id1", p)
 	if err != nil {
 		t.Errorf("Run() should NOT return an error: %s", err.Error())

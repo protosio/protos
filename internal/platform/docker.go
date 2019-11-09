@@ -73,6 +73,10 @@ type dockerPlatform struct {
 	client *docker.Client
 }
 
+func createDockerRuntimePlatform() *dockerPlatform {
+	return &dockerPlatform{}
+}
+
 // ConnectDocker connects to the Docker daemon
 func (dp *dockerPlatform) Connect() {
 	log.Info("Connecting to the docker daemon")
@@ -207,8 +211,8 @@ func (dp *dockerPlatform) RemoveVolume(volumeID string) error {
 // Docker container operations
 //
 
-// NewContainer creates and returns a docker container reference
-func (dp *dockerPlatform) NewContainer(name string, appid string, imageid string, volumeid string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
+// NewSandbox creates and returns a docker container reference
+func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, volumeid string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
 	if imageid == "" {
 		return nil, errors.New("Docker imageid is empty")
 	}
@@ -281,8 +285,8 @@ func (dp *dockerPlatform) NewContainer(name string, appid string, imageid string
 
 }
 
-// GetDockerContainer retrieves and returns a docker container based on the id
-func (dp *dockerPlatform) GetDockerContainer(id string) (core.PlatformRuntimeUnit, error) {
+// GetSandbox retrieves and returns a docker container based on the id
+func (dp *dockerPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, error) {
 	cnt := DockerContainer{ID: id, p: dp}
 	err := cnt.Update()
 	if err != nil {
@@ -291,8 +295,8 @@ func (dp *dockerPlatform) GetDockerContainer(id string) (core.PlatformRuntimeUni
 	return &cnt, nil
 }
 
-// GetAllDockerContainers retrieves all docker containers
-func (dp *dockerPlatform) GetAllDockerContainers() (map[string]core.PlatformRuntimeUnit, error) {
+// GetAllSandboxes retrieves all docker containers
+func (dp *dockerPlatform) GetAllSandboxes() (map[string]core.PlatformRuntimeUnit, error) {
 
 	cnts := map[string]core.PlatformRuntimeUnit{}
 
@@ -456,7 +460,7 @@ func (dp *downloadProgress) addLayers(layers []distribution.Descriptor) {
 //
 
 // DataPath returns the path inside the container where data is persisted
-func (dp *dockerPlatform) GetDockerImageDataPath(image types.ImageInspect) (string, error) {
+func (dp *dockerPlatform) GetImageDataPath(image types.ImageInspect) (string, error) {
 	vlen := len(image.Config.Volumes)
 	if vlen == 0 {
 		return "", nil
@@ -471,8 +475,8 @@ func (dp *dockerPlatform) GetDockerImageDataPath(image types.ImageInspect) (stri
 	return persistentPath, nil
 }
 
-// GetDockerImage returns a docker image by id, if it is labeled for protos
-func (dp *dockerPlatform) GetDockerImage(id string) (types.ImageInspect, error) {
+// GetImage returns a docker image by id, if it is labeled for protos
+func (dp *dockerPlatform) GetImage(id string) (types.ImageInspect, error) {
 	log.Debugf("Retrieving Docker image '%s'", id)
 	repoImage := gconfig.AppStoreHost + "/" + id
 	image, _, err := dp.client.ImageInspectWithRaw(context.Background(), repoImage)
@@ -492,8 +496,8 @@ func (dp *dockerPlatform) GetDockerImage(id string) (types.ImageInspect, error) 
 
 }
 
-// GetAllDockerImages returns all docker images
-func (dp *dockerPlatform) GetAllDockerImages() (map[string]types.ImageSummary, error) {
+// GetAllImages returns all docker images
+func (dp *dockerPlatform) GetAllImages() (map[string]types.ImageSummary, error) {
 
 	imgs := map[string]types.ImageSummary{}
 	images, err := dp.client.ImageList(context.Background(), types.ImageListOptions{})
@@ -518,8 +522,8 @@ func (dp *dockerPlatform) GetAllDockerImages() (map[string]types.ImageSummary, e
 
 }
 
-// RemoveDockerImage removes a docker image
-func (dp *dockerPlatform) RemoveDockerImage(id string) error {
+// RemoveImage removes a docker image
+func (dp *dockerPlatform) RemoveImage(id string) error {
 	_, err := dp.client.ImageRemove(context.Background(), id, types.ImageRemoveOptions{PruneChildren: true})
 	if err != nil {
 		return err
@@ -527,8 +531,8 @@ func (dp *dockerPlatform) RemoveDockerImage(id string) error {
 	return nil
 }
 
-// PullDockerImage pulls a docker image from the Protos app store
-func (dp *dockerPlatform) PullDockerImage(t core.Task, id string, installerName string, installerVersion string) error {
+// PullImage pulls a docker image from the Protos app store
+func (dp *dockerPlatform) PullImage(t core.Task, id string, installerName string, installerVersion string) error {
 	repoImage := gconfig.AppStoreHost + "/" + id
 	progress := &downloadProgress{t: t, layers: make(map[string]imageLayer), weight: 85, initialPercentage: t.GetPercentage()}
 	regClient, err := registry.New(fmt.Sprintf("https://%s/", gconfig.AppStoreHost), "", "")

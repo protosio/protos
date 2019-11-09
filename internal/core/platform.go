@@ -17,16 +17,16 @@ const (
 
 // RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
 type RuntimePlatform interface {
-	GetDockerContainer(id string) (PlatformRuntimeUnit, error)
-	GetAllDockerContainers() (map[string]PlatformRuntimeUnit, error)
-	GetDockerImage(id string) (types.ImageInspect, error)
-	GetAllDockerImages() (map[string]types.ImageSummary, error)
-	GetDockerImageDataPath(image types.ImageInspect) (string, error)
-	PullDockerImage(task Task, id string, name string, version string) error
-	RemoveDockerImage(id string) error
+	GetSandbox(id string) (PlatformRuntimeUnit, error)
+	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
+	GetImage(id string) (types.ImageInspect, error)
+	GetAllImages() (map[string]types.ImageSummary, error)
+	GetImageDataPath(image types.ImageInspect) (string, error)
+	PullImage(task Task, id string, name string, version string) error
+	RemoveImage(id string) error
 	GetOrCreateVolume(id string, path string) (string, error)
 	RemoveVolume(id string) error
-	NewContainer(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
+	NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
 	GetHWStats() (HardwareStats, error)
 }
 

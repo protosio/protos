@@ -187,7 +187,7 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 		}
 	}
 
-	cnt, err := app.parent.getPlatform().NewContainer(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
+	cnt, err := app.parent.getPlatform().NewSandbox(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create container for app '%s'", app.ID)
 	}
@@ -201,7 +201,7 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 }
 
 func (app *App) getOrCreateContainer() (core.PlatformRuntimeUnit, error) {
-	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
 			cnt, err := app.createContainer()
@@ -222,7 +222,7 @@ func (app *App) enrichAppData() {
 		return
 	}
 
-	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
 			log.Warnf("Application '%s'(%s) has no container: %s", app.Name, app.ID, err.Error())
@@ -269,7 +269,7 @@ func (app *App) StopAsync() core.Task {
 func (app *App) Stop() error {
 	log.Infof("Stopping application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			app.SetStatus(statusUnknown)
@@ -293,7 +293,7 @@ func (app *App) Stop() error {
 func (app *App) remove() error {
 	log.Debugf("Removing application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.parent.getPlatform().GetDockerContainer(app.ContainerID)
+	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
@@ -333,7 +333,7 @@ func (app *App) remove() error {
 // ReplaceContainer replaces the container of the app with the one provided. Used during development
 func (app *App) ReplaceContainer(id string) error {
 	log.Infof("Using container %s for app %s", id, app.Name)
-	cnt, err := app.parent.getPlatform().GetDockerContainer(id)
+	cnt, err := app.parent.getPlatform().GetSandbox(id)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to replace container for app '%s'", app.ID)
 	}
