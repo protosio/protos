@@ -1,4 +1,7 @@
-port: 8080
+httpport: 8080
+httpsport: 8443
 workdir: /opt/protos/
-dockerendpoint: "unix:///var/run/docker.sock"
-staticassets: public
+runtime: containerd
+runtimeendpoint: "unix:///var/run/docker.sock"
+incontainer: true
+#staticassets: public

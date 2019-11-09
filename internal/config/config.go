@@ -15,34 +15,36 @@ import (
 
 // Config is the main configuration struct
 type Config struct {
-	WorkDir        string
-	AppsPath       string
-	HTTPport       int
-	HTTPSport      int
-	DockerEndpoint string
-	StaticAssets   string
-	Secret         []byte
-	InitMode       bool
-	DevMode        bool
-	AppStoreURL    string
-	AppStoreHost   string
-	ProcsQuit      sync.Map
-	InternalIP     string
-	Version        *semver.Version
-	WSPublish      chan interface{}
+	WorkDir         string
+	AppsPath        string
+	HTTPport        int
+	HTTPSport       int
+	Runtime         string
+	RuntimeEndpoint string
+	InContainer     bool
+	StaticAssets    string
+	Secret          []byte
+	InitMode        bool
+	DevMode         bool
+	AppStoreURL     string
+	AppStoreHost    string
+	ProcsQuit       sync.Map
+	InternalIP      string
+	Version         *semver.Version
+	WSPublish       chan interface{}
 }
 
 var config = Config{
-	WorkDir:        "/opt/protos/",
-	HTTPport:       8080,
-	HTTPSport:      8443,
-	DockerEndpoint: "unix:///var/run/docker.sock",
-	InitMode:       false,
-	DevMode:        false,
-	AppStoreURL:    "https://apps.protos.io",
-	AppStoreHost:   "apps.protos.io",
-	ProcsQuit:      sync.Map{},
-	WSPublish:      make(chan interface{}, 100),
+	WorkDir:         "/opt/protos/",
+	HTTPport:        8080,
+	HTTPSport:       8443,
+	RuntimeEndpoint: "unix:///var/run/docker.sock",
+	InitMode:        false,
+	DevMode:         false,
+	AppStoreURL:     "https://apps.protos.io",
+	AppStoreHost:    "apps.protos.io",
+	ProcsQuit:       sync.Map{},
+	WSPublish:       make(chan interface{}, 100),
 }
 
 // GetWSPublishChannel returns the channel that can be used to publish messages to the available websockets

@@ -25,7 +25,6 @@ func main() {
 
 	var configFile string
 	var loglevel string
-	var incontainer bool
 	var devmode bool
 
 	app.Flags = []cli.Flag{
@@ -40,11 +39,6 @@ func main() {
 			Value:       "info",
 			Usage:       "Specify log level: debug, info, warn, error",
 			Destination: &loglevel,
-		},
-		cli.BoolFlag{
-			Name:        "incontainer",
-			Usage:       "When running in a container, tells Protos to not do any network initialization",
-			Destination: &incontainer,
 		},
 		cli.BoolFlag{
 			Name:        "dev",
@@ -67,7 +61,7 @@ func main() {
 			Name:  "daemon",
 			Usage: "start the server",
 			Action: func(c *cli.Context) error {
-				daemon.StartUp(configFile, false, version, incontainer, devmode)
+				daemon.StartUp(configFile, false, version, devmode)
 				return nil
 			},
 		},
@@ -75,7 +69,7 @@ func main() {
 			Name:  "init",
 			Usage: "create initial configuration and user",
 			Action: func(c *cli.Context) error {
-				daemon.StartUp(configFile, true, version, incontainer, devmode)
+				daemon.StartUp(configFile, true, version, devmode)
 				return nil
 			},
 		},
