@@ -1,12 +1,10 @@
 package platform
 
 import (
-	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 )
 
-var gconfig = config.Get()
 var log = util.GetLogger("platform")
 
 const (
@@ -14,26 +12,24 @@ const (
 	containerdRuntime = "containerd"
 )
 
-type platform struct {
-	ID          string
-	NetworkID   string
-	NetworkName string
+type internalIPSetter interface {
+	SetInternalIP(ip string)
 }
 
 // Initialize checks if the Protos network exists
-func Initialize(runtime string, inContainer bool) core.RuntimePlatform {
+func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter) core.RuntimePlatform {
 	var dp core.RuntimePlatform
 	switch runtime {
 	case dockerRuntime:
-		dp = createDockerRuntimePlatform()
+		dp = createDockerRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
 	case containerdRuntime:
-		dp = createContainerdRuntimePlatform()
+		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
 	}
-	ip, err := dp.Init(inContainer)
+	internalIP, err := dp.Init()
 	if err != nil {
 		log.Panic(err)
 	}
-	gconfig.InternalIP = ip
+	ipSetter.SetInternalIP(internalIP)
 
 	return dp
 }

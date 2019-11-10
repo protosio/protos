@@ -82,3 +82,12 @@ func Load(configFile string, version *semver.Version) *Config {
 func Get() *Config {
 	return &config
 }
+
+//
+// Config methods
+//
+
+// SetInternalIP sets the internal ip that all apps use to talk to the internal API
+func (cfg *Config) SetInternalIP(ip string) {
+	cfg.InternalIP = ip
+}

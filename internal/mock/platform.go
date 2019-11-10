@@ -36,18 +36,18 @@ func (m *MockRuntimePlatform) EXPECT() *MockRuntimePlatformMockRecorder {
 }
 
 // Init mocks base method
-func (m *MockRuntimePlatform) Init(inContainer bool) (string, error) {
+func (m *MockRuntimePlatform) Init() (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Init", inContainer)
+	ret := m.ctrl.Call(m, "Init")
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Init indicates an expected call of Init
-func (mr *MockRuntimePlatformMockRecorder) Init(inContainer interface{}) *gomock.Call {
+func (mr *MockRuntimePlatformMockRecorder) Init() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockRuntimePlatform)(nil).Init), inContainer)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockRuntimePlatform)(nil).Init))
 }
 
 // GetSandbox mocks base method

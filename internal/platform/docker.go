@@ -70,15 +70,23 @@ type DockerContainer struct {
 }
 
 type dockerPlatform struct {
-	client *docker.Client
+	client         *docker.Client
+	dockerEndpoint string
+	appStoreHost   string
+	inContainer    bool
+	internalIP     string
 }
 
-func createDockerRuntimePlatform() *dockerPlatform {
-	return &dockerPlatform{}
+func createDockerRuntimePlatform(dockerEndpoint string, appStoreHost string, inContainer bool) *dockerPlatform {
+	return &dockerPlatform{
+		dockerEndpoint: dockerEndpoint,
+		appStoreHost:   appStoreHost,
+		inContainer:    inContainer,
+	}
 }
 
 // ConnectDocker connects to the Docker daemon
-func (dp *dockerPlatform) Init(inContainer bool) (string, error) {
+func (dp *dockerPlatform) Init() (string, error) {
 	log.Info("Connecting to the docker daemon")
 	var err error
 
@@ -87,7 +95,7 @@ func (dp *dockerPlatform) Init(inContainer bool) (string, error) {
 		return "", errors.Wrap(err, "Failed to connect to Docker daemon")
 	}
 
-	if inContainer {
+	if dp.inContainer {
 		// if running in container the user needs to take care that the correct protos network is created
 		return "", nil
 	}
@@ -109,8 +117,9 @@ func (dp *dockerPlatform) Init(inContainer bool) (string, error) {
 	}
 	netConfig := protosNet.IPAM.Config[0]
 	log.Debugf("Running using internal Docker network %s(%s), gateway %s in subnet %s", protosNet.Name, protosNet.ID, netConfig.Gateway, netConfig.Subnet)
+	dp.internalIP = netConfig.Gateway
 
-	return netConfig.Gateway, nil
+	return dp.internalIP, nil
 }
 
 // combineEnv takes a map of environment variables and transforms them into a list of environment variables
@@ -268,7 +277,7 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 	}
 
 	containerConfig := &container.Config{
-		Image:        gconfig.AppStoreHost + "/" + imageid,
+		Image:        dp.appStoreHost + "/" + imageid,
 		ExposedPorts: exposedPorts,
 		Env:          combineEnv(envvars),
 	}
@@ -276,8 +285,8 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 		PortBindings: portBindings,
 		Mounts:       mounts,
 	}
-	if gconfig.InternalIP != "" {
-		hostConfig.ExtraHosts = []string{"protos:" + gconfig.InternalIP}
+	if dp.internalIP != "" {
+		hostConfig.ExtraHosts = []string{"protos:" + dp.internalIP}
 	} else {
 		hostConfig.Links = []string{"protos"}
 	}
@@ -503,7 +512,7 @@ func (dp *dockerPlatform) GetImageDataPath(image types.ImageInspect) (string, er
 // GetImage returns a docker image by id, if it is labeled for protos
 func (dp *dockerPlatform) GetImage(id string) (types.ImageInspect, error) {
 	log.Debugf("Retrieving Docker image '%s'", id)
-	repoImage := gconfig.AppStoreHost + "/" + id
+	repoImage := dp.appStoreHost + "/" + id
 	image, _, err := dp.client.ImageInspectWithRaw(context.Background(), repoImage)
 	if err != nil {
 		return types.ImageInspect{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image '%s'", id), "No such image", core.ErrImageNotFound)
@@ -558,9 +567,9 @@ func (dp *dockerPlatform) RemoveImage(id string) error {
 
 // PullImage pulls a docker image from the Protos app store
 func (dp *dockerPlatform) PullImage(t core.Task, id string, installerName string, installerVersion string) error {
-	repoImage := gconfig.AppStoreHost + "/" + id
+	repoImage := dp.appStoreHost + "/" + id
 	progress := &downloadProgress{t: t, layers: make(map[string]imageLayer), weight: 85, initialPercentage: t.GetPercentage()}
-	regClient, err := registry.New(fmt.Sprintf("https://%s/", gconfig.AppStoreHost), "", "")
+	regClient, err := registry.New(fmt.Sprintf("https://%s/", dp.appStoreHost), "", "")
 	if err != nil {
 		return errors.Wrapf(err, "Failed to pull image '%s' from app store", id)
 	}

@@ -57,8 +57,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-
-	p := platform.Initialize(cfg.Runtime, cfg.InContainer) // required to connect to the Docker daemon
+	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg) // required to connect to the Docker daemon
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, cfg)

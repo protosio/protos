@@ -17,7 +17,7 @@ const (
 
 // RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
 type RuntimePlatform interface {
-	Init(inContainer bool) (string, error)
+	Init() (string, error)
 	GetSandbox(id string) (PlatformRuntimeUnit, error)
 	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
 	GetImage(id string) (types.ImageInspect, error)
