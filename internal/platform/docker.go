@@ -70,18 +70,18 @@ type DockerContainer struct {
 }
 
 type dockerPlatform struct {
-	client         *docker.Client
-	dockerEndpoint string
-	appStoreHost   string
-	inContainer    bool
-	internalIP     string
+	client       *docker.Client
+	endpoint     string
+	appStoreHost string
+	inContainer  bool
+	internalIP   string
 }
 
-func createDockerRuntimePlatform(dockerEndpoint string, appStoreHost string, inContainer bool) *dockerPlatform {
+func createDockerRuntimePlatform(endpoint string, appStoreHost string, inContainer bool) *dockerPlatform {
 	return &dockerPlatform{
-		dockerEndpoint: dockerEndpoint,
-		appStoreHost:   appStoreHost,
-		inContainer:    inContainer,
+		endpoint:     endpoint,
+		appStoreHost: appStoreHost,
+		inContainer:  inContainer,
 	}
 }
 
