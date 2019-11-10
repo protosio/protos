@@ -52,18 +52,11 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	defer db.Close()
 
 	log.Info("Starting up...")
-	var err error
 	var wg sync.WaitGroup
 	cfg.InitMode = (db.Exists() == false) || init
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	// Generate secret key used for JWT
-	log.Info("Generating secret for JWT")
-	cfg.Secret, err = util.GenerateRandomBytes(32)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	p := platform.Initialize(cfg.Runtime, cfg.InContainer) // required to connect to the Docker daemon
 	cm := capability.CreateManager()

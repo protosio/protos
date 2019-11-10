@@ -23,7 +23,6 @@ type Config struct {
 	RuntimeEndpoint string
 	InContainer     bool
 	StaticAssets    string
-	Secret          []byte
 	InitMode        bool
 	DevMode         bool
 	AppStoreURL     string
