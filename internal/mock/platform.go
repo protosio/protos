@@ -5,7 +5,6 @@
 package mock
 
 import (
-	types "github.com/docker/docker/api/types"
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
@@ -81,10 +80,10 @@ func (mr *MockRuntimePlatformMockRecorder) GetAllSandboxes() *gomock.Call {
 }
 
 // GetImage mocks base method
-func (m *MockRuntimePlatform) GetImage(id string) (types.ImageInspect, error) {
+func (m *MockRuntimePlatform) GetImage(id string) (core.PlatformImage, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetImage", id)
-	ret0, _ := ret[0].(types.ImageInspect)
+	ret0, _ := ret[0].(core.PlatformImage)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -96,10 +95,10 @@ func (mr *MockRuntimePlatformMockRecorder) GetImage(id interface{}) *gomock.Call
 }
 
 // GetAllImages mocks base method
-func (m *MockRuntimePlatform) GetAllImages() (map[string]types.ImageSummary, error) {
+func (m *MockRuntimePlatform) GetAllImages() (map[string]core.PlatformImage, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllImages")
-	ret0, _ := ret[0].(map[string]types.ImageSummary)
+	ret0, _ := ret[0].(map[string]core.PlatformImage)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -108,21 +107,6 @@ func (m *MockRuntimePlatform) GetAllImages() (map[string]types.ImageSummary, err
 func (mr *MockRuntimePlatformMockRecorder) GetAllImages() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllImages", reflect.TypeOf((*MockRuntimePlatform)(nil).GetAllImages))
-}
-
-// GetImageDataPath mocks base method
-func (m *MockRuntimePlatform) GetImageDataPath(image types.ImageInspect) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetImageDataPath", image)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetImageDataPath indicates an expected call of GetImageDataPath
-func (mr *MockRuntimePlatformMockRecorder) GetImageDataPath(image interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetImageDataPath", reflect.TypeOf((*MockRuntimePlatform)(nil).GetImageDataPath), image)
 }
 
 // PullImage mocks base method
@@ -345,6 +329,85 @@ func (m *MockPlatformRuntimeUnit) GetExitCode() int {
 func (mr *MockPlatformRuntimeUnitMockRecorder) GetExitCode() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExitCode", reflect.TypeOf((*MockPlatformRuntimeUnit)(nil).GetExitCode))
+}
+
+// MockPlatformImage is a mock of PlatformImage interface
+type MockPlatformImage struct {
+	ctrl     *gomock.Controller
+	recorder *MockPlatformImageMockRecorder
+}
+
+// MockPlatformImageMockRecorder is the mock recorder for MockPlatformImage
+type MockPlatformImageMockRecorder struct {
+	mock *MockPlatformImage
+}
+
+// NewMockPlatformImage creates a new mock instance
+func NewMockPlatformImage(ctrl *gomock.Controller) *MockPlatformImage {
+	mock := &MockPlatformImage{ctrl: ctrl}
+	mock.recorder = &MockPlatformImageMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockPlatformImage) EXPECT() *MockPlatformImageMockRecorder {
+	return m.recorder
+}
+
+// GetID mocks base method
+func (m *MockPlatformImage) GetID() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetID indicates an expected call of GetID
+func (mr *MockPlatformImageMockRecorder) GetID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetID", reflect.TypeOf((*MockPlatformImage)(nil).GetID))
+}
+
+// GetDataPath mocks base method
+func (m *MockPlatformImage) GetDataPath() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDataPath")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetDataPath indicates an expected call of GetDataPath
+func (mr *MockPlatformImageMockRecorder) GetDataPath() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDataPath", reflect.TypeOf((*MockPlatformImage)(nil).GetDataPath))
+}
+
+// GetRepoTags mocks base method
+func (m *MockPlatformImage) GetRepoTags() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRepoTags")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// GetRepoTags indicates an expected call of GetRepoTags
+func (mr *MockPlatformImageMockRecorder) GetRepoTags() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRepoTags", reflect.TypeOf((*MockPlatformImage)(nil).GetRepoTags))
+}
+
+// GetLabels mocks base method
+func (m *MockPlatformImage) GetLabels() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLabels")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// GetLabels indicates an expected call of GetLabels
+func (mr *MockPlatformImageMockRecorder) GetLabels() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLabels", reflect.TypeOf((*MockPlatformImage)(nil).GetLabels))
 }
 
 // MockHardwareStats is a mock of HardwareStats interface

@@ -258,10 +258,10 @@ func (as *AppStore) GetLocalInstallers() (map[string]core.Installer, error) {
 	}
 
 	for _, img := range imgs {
-		if img.RepoTags[0] == "n/a" {
+		if img.GetRepoTags()[0] == "n/a" {
 			continue
 		}
-		installerStr := strings.Split(img.RepoTags[0], ":")
+		installerStr := strings.Split(img.GetRepoTags()[0], ":")
 		installerName := installerStr[0]
 		installerID := util.String2SHA1(installerName)
 		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]core.InstallerMetadata{}, parent: as}
@@ -283,10 +283,10 @@ func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
 	installer := Installer{ID: id, Versions: map[string]core.InstallerMetadata{}, parent: as}
 
 	for _, img := range imgs {
-		if img.RepoTags[0] == "n/a" {
+		if img.GetRepoTags()[0] == "n/a" {
 			continue
 		}
-		installerStr := strings.Split(img.RepoTags[0], ":")
+		installerStr := strings.Split(img.GetRepoTags()[0], ":")
 		installerName := installerStr[0]
 		installerVersion := installerStr[1]
 		instID := util.String2SHA1(installerName)
@@ -295,22 +295,12 @@ func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
 		}
 		installer.Name = installerName
 
-		imgDetailed, err := as.rp.GetImage(img.ID)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
-		}
-
-		persistancePath, err := as.rp.GetImageDataPath(imgDetailed)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
-		}
-
-		metadata, err := parseMetadata(as.cm, imgDetailed.Config.Labels)
+		metadata, err := parseMetadata(as.cm, img.GetLabels())
 		if err != nil {
 			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", id, installerVersion, err)
 		}
-		metadata.PersistancePath = persistancePath
-		metadata.PlatformID = img.ID
+		metadata.PersistancePath = img.GetDataPath()
+		metadata.PlatformID = img.GetID()
 		installer.Versions[installerVersion] = metadata
 
 	}

@@ -2,8 +2,6 @@ package core
 
 import (
 	"github.com/protosio/protos/internal/util"
-
-	"github.com/docker/docker/api/types"
 )
 
 const (
@@ -20,9 +18,8 @@ type RuntimePlatform interface {
 	Init() (string, error)
 	GetSandbox(id string) (PlatformRuntimeUnit, error)
 	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
-	GetImage(id string) (types.ImageInspect, error)
-	GetAllImages() (map[string]types.ImageSummary, error)
-	GetImageDataPath(image types.ImageInspect) (string, error)
+	GetImage(id string) (PlatformImage, error)
+	GetAllImages() (map[string]PlatformImage, error)
 	PullImage(task Task, id string, name string, version string) error
 	RemoveImage(id string) error
 	GetOrCreateVolume(id string, path string) (string, error)
@@ -41,6 +38,13 @@ type PlatformRuntimeUnit interface {
 	GetIP() string
 	GetStatus() string
 	GetExitCode() int
+}
+
+type PlatformImage interface {
+	GetID() string
+	GetDataPath() string
+	GetRepoTags() []string
+	GetLabels() map[string]string
 }
 
 type HardwareStats interface {

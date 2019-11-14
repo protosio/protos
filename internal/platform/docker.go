@@ -494,7 +494,7 @@ func (dp *downloadProgress) addLayers(layers []distribution.Descriptor) {
 //
 
 // DataPath returns the path inside the container where data is persisted
-func (dp *dockerPlatform) GetImageDataPath(image types.ImageInspect) (string, error) {
+func (dp *dockerPlatform) getImageDataPath(image types.ImageInspect) (string, error) {
 	vlen := len(image.Config.Volumes)
 	if vlen == 0 {
 		return "", nil
@@ -510,46 +510,53 @@ func (dp *dockerPlatform) GetImageDataPath(image types.ImageInspect) (string, er
 }
 
 // GetImage returns a docker image by id, if it is labeled for protos
-func (dp *dockerPlatform) GetImage(id string) (types.ImageInspect, error) {
+func (dp *dockerPlatform) GetImage(id string) (core.PlatformImage, error) {
 	log.Debugf("Retrieving Docker image '%s'", id)
 	repoImage := dp.appStoreHost + "/" + id
 	image, _, err := dp.client.ImageInspectWithRaw(context.Background(), repoImage)
 	if err != nil {
-		return types.ImageInspect{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image '%s'", id), "No such image", core.ErrImageNotFound)
+		return &platformImage{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image '%s'", id), "No such image", core.ErrImageNotFound)
 	}
 
 	if _, valid := image.Config.Labels["protos"]; valid == false {
-		return types.ImageInspect{}, errors.Errorf("Image '%s' is missing the protos label", id)
+		return &platformImage{}, errors.Errorf("Image '%s' is missing the protos label", id)
+	}
+
+	persistencePath, err := dp.getImageDataPath(image)
+	if err != nil {
+		return &platformImage{}, errors.Errorf("Image '%s' is missing a persistance path", id)
+	}
+
+	pi := platformImage{
+		id:              image.ID,
+		repoTags:        image.RepoTags,
+		labels:          image.Config.Labels,
+		persistencePath: persistencePath,
 	}
 
 	if len(image.RepoTags) == 0 {
-		image.RepoTags = append(image.RepoTags, "n/a")
+		pi.repoTags = append(image.RepoTags, "n/a")
 	}
 
-	return image, nil
+	return &pi, nil
 
 }
 
 // GetAllImages returns all docker images
-func (dp *dockerPlatform) GetAllImages() (map[string]types.ImageSummary, error) {
+func (dp *dockerPlatform) GetAllImages() (map[string]core.PlatformImage, error) {
 
-	imgs := map[string]types.ImageSummary{}
+	imgs := map[string]core.PlatformImage{}
 	images, err := dp.client.ImageList(context.Background(), types.ImageListOptions{})
 	if err != nil {
-		return map[string]types.ImageSummary{}, err
+		return imgs, err
 	}
 
 	for _, image := range images {
-		if _, valid := image.Labels["protos"]; valid == false {
-			continue
+		platformImage, err := dp.GetImage(image.ID)
+		if err != nil {
+			log.Warnf("Failed to retrieve image '%s': %s", image.ID, err.Error())
 		}
-
-		if len(image.RepoTags) == 0 {
-			image.RepoTags = append(image.RepoTags, "n/a")
-		} else if image.RepoTags[0] == "<none>:<none>" {
-			image.RepoTags[0] = "n/a"
-		}
-		imgs[image.ID] = image
+		imgs[image.ID] = platformImage
 	}
 
 	return imgs, nil
