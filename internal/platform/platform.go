@@ -27,7 +27,7 @@ func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, i
 	}
 	internalIP, err := dp.Init()
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("Can't connect to runtime: %s", err)
 	}
 	ipSetter.SetInternalIP(internalIP)
 
