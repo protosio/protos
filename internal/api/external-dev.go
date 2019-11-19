@@ -2,8 +2,8 @@ package api
 
 import (
 	"encoding/json"
-	"net/http"
 	"github.com/protosio/protos/internal/core"
+	"net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -32,8 +32,6 @@ var externalDevRoutes = routes{
 func createDevApp(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var appParams struct {
-			InstallerID       string
-			InstallerVersion  string
 			Name              string
 			InstallerMetadata core.InstallerMetadata
 			InstallerParams   map[string]string
@@ -48,7 +46,7 @@ func createDevApp(ha handlerAccess) http.Handler {
 			return
 		}
 
-		app, err := ha.am.CreateDevApp(appParams.InstallerID, appParams.InstallerVersion, appParams.Name, appParams.InstallerMetadata, appParams.InstallerParams)
+		app, err := ha.am.CreateDevApp(appParams.Name, appParams.InstallerMetadata, appParams.InstallerParams)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

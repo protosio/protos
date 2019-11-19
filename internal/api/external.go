@@ -157,11 +157,10 @@ func getApps(ha handlerAccess) http.Handler {
 func createApp(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var appParams struct {
-			InstallerID       string                  `json:"installer-id"`
-			InstallerVersion  string                  `json:"installer-version"`
-			Name              string                  `json:"name"`
-			InstallerMetadata *core.InstallerMetadata `json:"installer-metadata"`
-			InstallerParams   map[string]string       `json:"installer-params"`
+			InstallerID      string            `json:"installer-id"`
+			InstallerVersion string            `json:"installer-version"`
+			Name             string            `json:"name"`
+			InstallerParams  map[string]string `json:"installer-params"`
 		}
 		defer r.Body.Close()
 
@@ -184,7 +183,6 @@ func createApp(ha handlerAccess) http.Handler {
 			appParams.InstallerID,
 			appParams.InstallerVersion,
 			appParams.Name,
-			appParams.InstallerMetadata,
 			appParams.InstallerParams,
 			true,
 		)

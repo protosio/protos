@@ -141,10 +141,10 @@ func TestAppManager(t *testing.T) {
 					t.Errorf("An empty required input in the CreateAsync call should lead to a panic")
 				}
 			}()
-			am.CreateAsync("", "0.0.1", "c", &core.InstallerMetadata{}, map[string]string{}, false)
+			am.CreateAsync("", "0.0.1", "c", map[string]string{}, false)
 		}()
 		tmMock.EXPECT().New(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-		_ = am.CreateAsync("a", "b", "c", &core.InstallerMetadata{}, map[string]string{}, false)
+		_ = am.CreateAsync("a", "b", "c", map[string]string{}, false)
 	})
 
 	//
@@ -300,7 +300,7 @@ func TestAppManager(t *testing.T) {
 	//
 	t.Run("CreateDevApp", func(t *testing.T) {
 		// app creation returns error
-		_, err := am.CreateDevApp("a", "b", "", core.InstallerMetadata{}, map[string]string{})
+		_, err := am.CreateDevApp("", core.InstallerMetadata{}, map[string]string{})
 		if err == nil {
 			t.Error("CreateDevApp should fail when the app creation step fails")
 		}
@@ -315,7 +315,7 @@ func TestAppManager(t *testing.T) {
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
 		pruMock.EXPECT().GetStatus().Return("exited").Times(1)
 		pruMock.EXPECT().GetExitCode().Return(0).Times(1)
-		app, err := am.CreateDevApp("a", "b", "c", core.InstallerMetadata{}, map[string]string{})
+		app, err := am.CreateDevApp("c", core.InstallerMetadata{}, map[string]string{})
 		if err != nil {
 			t.Errorf("CreateDevApp(...) should NOT return an error: %s", err.Error())
 		}
@@ -1082,13 +1082,12 @@ func TestTask(t *testing.T) {
 
 	t.Run("CreateAppTask", func(t *testing.T) {
 		task := CreateAppTask{
-			am:                nil,
-			InstallerID:       "1",
-			InstallerVersion:  "",
-			AppName:           "testapp",
-			InstallerMetadata: nil,
-			InstallerParams:   map[string]string{},
-			StartOnCreation:   false,
+			am:               nil,
+			InstallerID:      "1",
+			InstallerVersion: "",
+			AppName:          "testapp",
+			InstallerParams:  map[string]string{},
+			StartOnCreation:  false,
 		}
 		tskID := "1"
 		p := mock.NewMockProgress(ctrl)
@@ -1099,6 +1098,9 @@ func TestTask(t *testing.T) {
 		downloadTaskMock := mock.NewMockTask(ctrl)
 		startAsyncTaskMock := mock.NewMockTask(ctrl)
 		pruMock := mock.NewMockPlatformRuntimeUnit(ctrl)
+
+		msgImageFound := "Container image found locally"
+		msgCreated := "Created container"
 
 		//
 		// Run
@@ -1170,7 +1172,7 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetState("Created application").Times(1)
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true, nil).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
-		p.EXPECT().SetState("Docker image found locally").Times(1)
+		p.EXPECT().SetState(msgImageFound).Times(1)
 		app.EXPECT().createContainer().Return(nil, errors.New("failed to create container"))
 		app.EXPECT().SetStatus(statusFailed).Times(1)
 		err = task.Run(baseTaskMock, tskID, p)
@@ -1188,10 +1190,10 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetState("Created application").Times(1)
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true, nil).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
-		p.EXPECT().SetState("Docker image found locally").Times(1)
+		p.EXPECT().SetState(msgImageFound).Times(1)
 		app.EXPECT().createContainer().Return(pruMock, nil)
 		p.EXPECT().SetPercentage(70)
-		p.EXPECT().SetState("Created Docker container")
+		p.EXPECT().SetState(msgCreated)
 		task.StartOnCreation = true
 		app.EXPECT().StartAsync().Return(startAsyncTaskMock).Times(1)
 		startAsyncTaskMock.EXPECT().GetID().Return(tskID).Times(1)
@@ -1213,10 +1215,10 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetState("Created application").Times(1)
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true, nil).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
-		p.EXPECT().SetState("Docker image found locally").Times(1)
+		p.EXPECT().SetState(msgImageFound).Times(1)
 		app.EXPECT().createContainer().Return(pruMock, nil)
 		p.EXPECT().SetPercentage(70)
-		p.EXPECT().SetState("Created Docker container")
+		p.EXPECT().SetState(msgCreated)
 		task.StartOnCreation = false
 		app.EXPECT().SetStatus(statusRunning).Times(1)
 		err = task.Run(baseTaskMock, tskID, p)
@@ -1225,21 +1227,21 @@ func TestTask(t *testing.T) {
 		}
 
 		// happy case, installer metadata is available, start on creation is true, docker image is available locally
-		task.InstallerMetadata = &core.InstallerMetadata{}
 		amMock.EXPECT().getAppStore().Return(store).Times(1)
-		store.EXPECT().CreateTemporaryInstaller(task.InstallerID, map[string]core.InstallerMetadata{task.InstallerVersion: *task.InstallerMetadata}).Return(inst)
+		store.EXPECT().GetInstaller(task.InstallerID).Return(inst, nil).Times(1)
+		inst.EXPECT().GetMetadata(task.InstallerVersion).Return(core.InstallerMetadata{}, nil).Times(1)
 		amMock.EXPECT().createAppForTask(task.InstallerID, task.InstallerVersion, task.AppName, task.InstallerParams, core.InstallerMetadata{}, tskID).Return(app, nil).Times(1)
 		app.EXPECT().AddTask(tskID).Times(1)
 		p.EXPECT().SetPercentage(10).Times(1)
 		p.EXPECT().SetState("Created application").Times(1)
-		// docker image download
+		// container image download
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true, nil).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
-		p.EXPECT().SetState("Docker image found locally").Times(1)
+		p.EXPECT().SetState(msgImageFound).Times(1)
 		// create container
 		app.EXPECT().createContainer().Return(pruMock, nil)
 		p.EXPECT().SetPercentage(70)
-		p.EXPECT().SetState("Created Docker container")
+		p.EXPECT().SetState(msgCreated)
 		// start on boot
 		task.StartOnCreation = true
 		app.EXPECT().StartAsync().Return(startAsyncTaskMock).Times(1)

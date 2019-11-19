@@ -578,19 +578,6 @@ func TestAppStore(t *testing.T) {
 
 	})
 
-	//
-	// CreateTemporaryInstaller
-	//
-
-	t.Run("CreateTemporaryInstaller", func(t *testing.T) {
-		version := map[string]core.InstallerMetadata{}
-		instInterface := appStore.CreateTemporaryInstaller("testName", version)
-		inst := instInterface.(*Installer)
-		if inst.parent == nil || inst.ID == "" {
-			t.Errorf("CreateTemporaryInstaller() should return an Installer with all the required fields in place: '%v'", inst)
-		}
-	})
-
 }
 
 func TestTask(t *testing.T) {

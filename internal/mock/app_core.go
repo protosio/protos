@@ -78,32 +78,32 @@ func (mr *MockAppManagerMockRecorder) Select(arg0 interface{}) *gomock.Call {
 }
 
 // CreateDevApp mocks base method
-func (m *MockAppManager) CreateDevApp(installerID, installerVersion, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string) (core.App, error) {
+func (m *MockAppManager) CreateDevApp(appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string) (core.App, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateDevApp", installerID, installerVersion, appName, installerMetadata, installerParams)
+	ret := m.ctrl.Call(m, "CreateDevApp", appName, installerMetadata, installerParams)
 	ret0, _ := ret[0].(core.App)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateDevApp indicates an expected call of CreateDevApp
-func (mr *MockAppManagerMockRecorder) CreateDevApp(installerID, installerVersion, appName, installerMetadata, installerParams interface{}) *gomock.Call {
+func (mr *MockAppManagerMockRecorder) CreateDevApp(appName, installerMetadata, installerParams interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDevApp", reflect.TypeOf((*MockAppManager)(nil).CreateDevApp), installerID, installerVersion, appName, installerMetadata, installerParams)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDevApp", reflect.TypeOf((*MockAppManager)(nil).CreateDevApp), appName, installerMetadata, installerParams)
 }
 
 // CreateAsync mocks base method
-func (m *MockAppManager) CreateAsync(installerID, installerVersion, appName string, installerMetadata *core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
+func (m *MockAppManager) CreateAsync(installerID, installerVersion, appName string, installerParams map[string]string, startOnCreation bool) core.Task {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAsync", installerID, installerVersion, appName, installerMetadata, installerParams, startOnCreation)
+	ret := m.ctrl.Call(m, "CreateAsync", installerID, installerVersion, appName, installerParams, startOnCreation)
 	ret0, _ := ret[0].(core.Task)
 	return ret0
 }
 
 // CreateAsync indicates an expected call of CreateAsync
-func (mr *MockAppManagerMockRecorder) CreateAsync(installerID, installerVersion, appName, installerMetadata, installerParams, startOnCreation interface{}) *gomock.Call {
+func (mr *MockAppManagerMockRecorder) CreateAsync(installerID, installerVersion, appName, installerParams, startOnCreation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAsync", reflect.TypeOf((*MockAppManager)(nil).CreateAsync), installerID, installerVersion, appName, installerMetadata, installerParams, startOnCreation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAsync", reflect.TypeOf((*MockAppManager)(nil).CreateAsync), installerID, installerVersion, appName, installerParams, startOnCreation)
 }
 
 // GetCopy mocks base method
