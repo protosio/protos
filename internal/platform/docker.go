@@ -346,6 +346,15 @@ func (dp *dockerPlatform) GetAllSandboxes() (map[string]core.PlatformRuntimeUnit
 	return cnts, nil
 }
 
+// GetHWStats returns the current system stats
+func (dp *dockerPlatform) GetHWStats() (core.HardwareStats, error) {
+	return getHWStatus()
+}
+
+//
+// DockerContainer methods
+//
+
 // Update reads the container and updates the struct fields
 func (cnt *DockerContainer) Update() error {
 	container, err := cnt.p.client.ContainerInspect(context.Background(), cnt.ID)
