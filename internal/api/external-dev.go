@@ -32,9 +32,9 @@ var externalDevRoutes = routes{
 func createDevApp(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var appParams struct {
-			Name              string
-			InstallerMetadata core.InstallerMetadata
-			InstallerParams   map[string]string
+			Name              string                 `json:"name"`
+			InstallerMetadata core.InstallerMetadata `json:"installer-metadata"`
+			InstallerParams   map[string]string      `json:"installer-params"`
 		}
 		defer r.Body.Close()
 
