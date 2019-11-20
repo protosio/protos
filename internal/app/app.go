@@ -203,6 +203,7 @@ func (app *App) enrichAppData() {
 			app.Status = statusStopped
 			return
 		}
+		log.Errorf("Failed to enrich app data: %s", err.Error())
 		app.Status = statusUnknown
 		return
 	}
