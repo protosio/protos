@@ -91,12 +91,16 @@ func (cdp *containerdPlatform) Init() (string, error) {
 	return "", nil
 }
 func (cdp *containerdPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, error) {
+	if id == "" {
+		return nil, util.NewTypedError("containerd sandbox not found", core.ErrContainerNotFound)
+	}
 	pru := &containerdSandbox{p: cdp}
 	podStatus, err := cdp.runtimeClient.PodSandboxStatus(context.Background(), &pb.PodSandboxStatusRequest{PodSandboxId: id})
 	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to retrieve app sandbox (pod) '%s'", id)
+		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", core.ErrContainerNotFound)
 	}
 	pru.podID = podStatus.Status.Id
+	pru.podStatus = podStatus.Status.State.String()
 	pru.IP = podStatus.Status.Network.Ip
 	return pru, nil
 }
@@ -185,7 +189,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	if err != nil {
 		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
 	}
-	pru.Status = statusResponse.Status.State.String()
+	pru.podStatus = statusResponse.Status.State.String()
 
 	return pru, nil
 }
@@ -196,12 +200,14 @@ func (cdp *containerdPlatform) GetHWStats() (core.HardwareStats, error) {
 
 // containerdSandbox represents a container
 type containerdSandbox struct {
-	podID       string
-	containerID string
-	IP          string
-	Status      string
-	ExitCode    int
-	p           *containerdPlatform
+	p *containerdPlatform
+
+	podID           string
+	containerID     string
+	IP              string
+	podStatus       string
+	containerStatus string
+	exitCode        int
 }
 
 // Update reads the container and updates the struct fields
@@ -260,10 +266,46 @@ func (cnt *containerdSandbox) GetIP() string {
 
 // GetStatus returns the status of the container, as a string
 func (cnt *containerdSandbox) GetStatus() string {
-	return cnt.Status
+	statusResponse, err := cnt.p.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: cnt.containerID})
+	if err != nil {
+		log.Error(errors.Wrapf(err, "Failed to get status for container '%s'", cnt.containerID))
+		return statusUnknown
+	}
+	cnt.containerStatus = statusResponse.Status.State.String()
+	cnt.exitCode = int(statusResponse.Status.ExitCode)
+	return containerdToAppStatus(cnt.containerStatus, cnt.exitCode)
 }
 
 // GetExitCode returns the exit code of the container, as an int
 func (cnt *containerdSandbox) GetExitCode() int {
-	return cnt.ExitCode
+	statusResponse, err := cnt.p.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: cnt.containerID})
+	if err != nil {
+		log.Error(errors.Wrapf(err, "Failed to get status for container '%s'", cnt.containerID))
+		return 255
+	}
+	cnt.containerStatus = statusResponse.Status.State.String()
+	cnt.exitCode = int(statusResponse.Status.ExitCode)
+	return cnt.exitCode
+}
+
+//
+// helper methods
+//
+
+func containerdToAppStatus(status string, exitCode int) string {
+	switch status {
+	case "CONTAINER_CREATED":
+		return statusStopped
+	case "CONTAINER_EXITED":
+		if exitCode == 0 {
+			return statusStopped
+		}
+		return statusFailed
+	case "CONTAINER_RUNNING":
+		return statusRunning
+	case "CONTAINER_UNKNOWN":
+		return statusUnknown
+	default:
+		return statusUnknown
+	}
 }
