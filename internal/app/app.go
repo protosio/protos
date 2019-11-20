@@ -73,32 +73,6 @@ type App struct {
 // Utilities
 //
 
-func containerToAppStatus(status string, exitCode int) string {
-	switch status {
-	case "created":
-		return statusStopped
-	case "container missing":
-		return statusStopped
-	case "restarting":
-		return statusStopped
-	case "paused":
-		return statusStopped
-	case "exited":
-		if exitCode == 0 {
-			return statusStopped
-		}
-		return statusFailed
-	case "dead":
-		return statusFailed
-	case "removing":
-		return statusRunning
-	case "running":
-		return statusRunning
-	default:
-		return statusUnknown
-	}
-}
-
 // validateInstallerParams makes sure that the params passed at app creation match what is requested by the installer
 func validateInstallerParams(paramsProvided map[string]string, paramsExpected []string) error {
 	for _, param := range paramsExpected {
@@ -233,7 +207,7 @@ func (app *App) enrichAppData() {
 		return
 	}
 
-	app.Status = containerToAppStatus(cnt.GetStatus(), cnt.GetExitCode())
+	app.Status = cnt.GetStatus()
 }
 
 // StartAsync asynchronously starts an application and returns a task

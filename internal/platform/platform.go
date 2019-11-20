@@ -8,6 +8,13 @@ import (
 var log = util.GetLogger("platform")
 
 const (
+	// app states
+	statusRunning  = "running"
+	statusStopped  = "stopped"
+	statusCreating = "creating"
+	statusFailed   = "failed"
+	statusUnknown  = "unknown"
+
 	dockerRuntime     = "docker"
 	containerdRuntime = "containerd"
 )

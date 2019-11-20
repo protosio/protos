@@ -439,7 +439,7 @@ func (cnt *dockerSandbox) GetIP() string {
 
 // GetStatus returns the status of the container, as a string
 func (cnt *dockerSandbox) GetStatus() string {
-	return cnt.Status
+	return dockerToAppStatus(cnt.Status, cnt.ExitCode)
 }
 
 // GetExitCode returns the exit code of the container, as an int
@@ -634,4 +634,34 @@ func (dp *dockerPlatform) PullImage(t core.Task, id string, installerName string
 	}
 
 	return nil
+}
+
+//
+// helper methods
+//
+
+func dockerToAppStatus(status string, exitCode int) string {
+	switch status {
+	case "created":
+		return statusStopped
+	case "container missing":
+		return statusStopped
+	case "restarting":
+		return statusStopped
+	case "paused":
+		return statusStopped
+	case "exited":
+		if exitCode == 0 {
+			return statusStopped
+		}
+		return statusFailed
+	case "dead":
+		return statusFailed
+	case "removing":
+		return statusRunning
+	case "running":
+		return statusRunning
+	default:
+		return statusUnknown
+	}
 }
