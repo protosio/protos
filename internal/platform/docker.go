@@ -250,7 +250,7 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 	if imageid == "" {
 		return nil, errors.New("Docker imageid is empty")
 	}
-	log.Debugf("Creating container '%s' from image '%s'", name, imageid)
+	log.Debugf("Creating docker sandbox '%s' from image '%s'", name, imageid)
 	var ports []string
 	for _, port := range publicPorts {
 		ports = append(ports, "0.0.0.0:"+strconv.Itoa(port.Nr)+":"+strconv.Itoa(port.Nr)+"/"+string(port.Type))
