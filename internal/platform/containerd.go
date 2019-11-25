@@ -104,6 +104,14 @@ func (cdp *containerdPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, 
 	pru.podID = podStatus.Status.Id
 	pru.podStatus = podStatus.Status.State.String()
 	pru.IP = podStatus.Status.Network.Ip
+	cntListResponse, err := cdp.runtimeClient.ListContainers(context.Background(), &pb.ListContainersRequest{Filter: &pb.ContainerFilter{PodSandboxId: podStatus.Status.Id}})
+	if err != nil {
+		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", core.ErrContainerNotFound)
+	}
+	if len(cntListResponse.Containers) != 1 {
+		return pru, errors.Wrapf(err, "Containerd sandbox %s, has '%d' containers instead of 1", id, len(cntListResponse.Containers))
+	}
+	pru.containerID = cntListResponse.Containers[0].Id
 	return pru, nil
 }
 
