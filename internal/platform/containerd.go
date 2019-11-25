@@ -163,9 +163,18 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
 	pru := &containerdSandbox{p: cdp}
 
+	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageID)
+
 	// create pod
 	podConfig := &pb.PodSandboxConfig{
 		Hostname: name,
+		Metadata: &pb.PodSandboxMetadata{
+			Name:      name + "-sandbox",
+			Namespace: "default",
+			Uid:       guuid.New().String(),
+			Attempt:   1,
+		},
+		Linux: &pb.LinuxPodSandboxConfig{},
 	}
 	podResponse, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
 	if err != nil {
@@ -179,7 +188,13 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	pru.IP = podStatus.Status.Network.Ip
 
 	// create container in pod
-	containerRequest := &pb.CreateContainerRequest{PodSandboxId: pru.podID}
+	containerRequest := &pb.CreateContainerRequest{
+		PodSandboxId: pru.podID,
+		Config: &pb.ContainerConfig{
+			Image:    &pb.ImageSpec{Image: imageID},
+			Metadata: &pb.ContainerMetadata{Name: name, Attempt: 1}},
+		SandboxConfig: podConfig,
+	}
 	containerResponse, err := cdp.runtimeClient.CreateContainer(context.Background(), containerRequest)
 	if err != nil {
 		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
