@@ -83,7 +83,7 @@ func (cdp *containerdPlatform) Init() (string, error) {
 		return "", errors.New("unix socket is the only supported socket for the containerd endpoint")
 	}
 
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(defaultTimeout), grpc.WithDialer(dial))
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(defaultGRPCTimeout), grpc.WithDialer(dial))
 	if err != nil {
 		return "", errors.Wrap(err, "failed to connect, make sure you are running as root and the runtime has been started")
 	}
@@ -234,11 +234,19 @@ func (cnt *containerdSandbox) Update() error {
 
 // Start starts a containerd container
 func (cnt *containerdSandbox) Start() error {
+	_, err := cnt.p.runtimeClient.StartContainer(context.Background(), &pb.StartContainerRequest{ContainerId: cnt.containerID})
+	if err != nil {
+		errors.Wrapf(err, "Failed to start sandbox '%s'", cnt.podID)
+	}
 	return nil
 }
 
 // Stop stops a containerd container
 func (cnt *containerdSandbox) Stop() error {
+	_, err := cnt.p.runtimeClient.StopContainer(context.Background(), &pb.StopContainerRequest{ContainerId: cnt.containerID, Timeout: defaultSandboxTerminationTimeout})
+	if err != nil {
+		errors.Wrapf(err, "Failed to start sandbox '%s'", cnt.podID)
+	}
 	return nil
 }
 
