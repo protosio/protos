@@ -207,7 +207,11 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	}
 	containerResponse, err := cdp.runtimeClient.CreateContainer(context.Background(), containerRequest)
 	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+		err := pru.Remove()
+		if err != nil {
+			log.Warnf("Failed to clean up on containerd sandbox creation failure: %s", err.Error())
+		}
+		return &containerdSandbox{p: cdp}, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
 	}
 	pru.containerID = containerResponse.ContainerId
 	statusResponse, err := cdp.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: pru.containerID})
