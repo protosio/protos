@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	guuid "github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	unixProtocol   = "unix"
-	defaultTimeout = 5 * time.Second
+	unixProtocol                     = "unix"
+	defaultGRPCTimeout               = 5 * time.Second
+	defaultSandboxTerminationTimeout = 5
 )
 
 func dial(addr string, timeout time.Duration) (net.Conn, error) {
@@ -249,7 +251,7 @@ func (cnt *containerdSandbox) Remove() error {
 	}
 	// gracefully stop and remove containers for pod
 	for _, pcnt := range listResponse.Containers {
-		_, err := cnt.p.runtimeClient.StopContainer(context.Background(), &pb.StopContainerRequest{ContainerId: pcnt.Id, Timeout: 5})
+		_, err := cnt.p.runtimeClient.StopContainer(context.Background(), &pb.StopContainerRequest{ContainerId: pcnt.Id, Timeout: defaultSandboxTerminationTimeout})
 		if err != nil {
 			log.Warnf("Failed to stop container '%s' for pod '%s': %s", pcnt.Id, cnt.podID, err.Error())
 		}
