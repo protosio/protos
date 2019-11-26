@@ -193,17 +193,17 @@ func (mr *MockappMockRecorder) StartAsync() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartAsync", reflect.TypeOf((*Mockapp)(nil).StartAsync))
 }
 
-// createContainer mocks base method
+// createSandbox mocks base method
 func (m *Mockapp) createSandbox() (core.PlatformRuntimeUnit, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "createContainer")
+	ret := m.ctrl.Call(m, "createSandbox")
 	ret0, _ := ret[0].(core.PlatformRuntimeUnit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// createContainer indicates an expected call of createContainer
+// createSandbox indicates an expected call of createSandbox
 func (mr *MockappMockRecorder) createSandbox() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createContainer", reflect.TypeOf((*Mockapp)(nil).createContainer))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createSandbox", reflect.TypeOf((*Mockapp)(nil).createSandbox))
 }

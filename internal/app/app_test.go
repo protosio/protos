@@ -118,10 +118,10 @@ func TestApp(t *testing.T) {
 	})
 
 	//
-	// createContainer
+	// createSandbox
 	//
 
-	t.Run("createContainer", func(t *testing.T) {
+	t.Run("createSandbox", func(t *testing.T) {
 		app.InstallerMetadata.PersistancePath = ""
 		app.InstallerMetadata.PersistancePath = "/data"
 		// volume creation error
@@ -129,7 +129,7 @@ func TestApp(t *testing.T) {
 		platformMock.EXPECT().GetOrCreateVolume(gomock.Any(), gomock.Any()).Return("volumeid", errors.New("volume error")).Times(1)
 		_, err := app.createSandbox()
 		if err == nil {
-			t.Error("createContainer should return an error when the volume creation errors out")
+			t.Error("createSandbox should return an error when the volume creation errors out")
 		}
 
 		// new container error
@@ -138,7 +138,7 @@ func TestApp(t *testing.T) {
 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("container error")).Times(1)
 		_, err = app.createSandbox()
 		if err == nil {
-			t.Error("createContainer should return an error when the container creation errors out")
+			t.Error("createSandbox should return an error when the container creation errors out")
 		}
 
 		// happy case
@@ -150,15 +150,15 @@ func TestApp(t *testing.T) {
 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(pruMock, nil).Times(1)
 		_, err = app.createSandbox()
 		if err != nil {
-			t.Errorf("createContainer should NOT return an error: %s", err.Error())
+			t.Errorf("createSandbox should NOT return an error: %s", err.Error())
 		}
 	})
 
 	//
-	// getOrCreateContainer
+	// getOrcreateSandbox
 	//
 
-	t.Run("getOrCreateContainer", func(t *testing.T) {
+	t.Run("getOrcreateSandbox", func(t *testing.T) {
 		app.InstallerMetadata.PersistancePath = ""
 
 		// container retrieval error
