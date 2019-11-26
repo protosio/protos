@@ -150,7 +150,7 @@ func (app *App) Save() {
 }
 
 // reateContainer create the underlying Docker container
-func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
+func (app *App) createSandbox() (core.PlatformRuntimeUnit, error) {
 	// var volume *platform.DockerVolume
 	var err error
 	var volumeID string
@@ -174,11 +174,11 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-func (app *App) getOrCreateContainer() (core.PlatformRuntimeUnit, error) {
+func (app *App) getOrcreateSandbox() (core.PlatformRuntimeUnit, error) {
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
-			cnt, err := app.createContainer()
+			cnt, err := app.createSandbox()
 			if err != nil {
 				return nil, err
 			}
@@ -220,7 +220,7 @@ func (app *App) StartAsync() core.Task {
 func (app *App) Start() error {
 	log.Infof("Starting application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.getOrCreateContainer()
+	cnt, err := app.getOrcreateSandbox()
 	if err != nil {
 		app.SetStatus(statusFailed)
 		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)

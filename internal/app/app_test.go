@@ -127,7 +127,7 @@ func TestApp(t *testing.T) {
 		// volume creation error
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
 		platformMock.EXPECT().GetOrCreateVolume(gomock.Any(), gomock.Any()).Return("volumeid", errors.New("volume error")).Times(1)
-		_, err := app.createContainer()
+		_, err := app.createSandbox()
 		if err == nil {
 			t.Error("createContainer should return an error when the volume creation errors out")
 		}
@@ -136,7 +136,7 @@ func TestApp(t *testing.T) {
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
 		platformMock.EXPECT().GetOrCreateVolume(gomock.Any(), gomock.Any()).Return("volumeid", nil).Times(1)
 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("container error")).Times(1)
-		_, err = app.createContainer()
+		_, err = app.createSandbox()
 		if err == nil {
 			t.Error("createContainer should return an error when the container creation errors out")
 		}
@@ -148,7 +148,7 @@ func TestApp(t *testing.T) {
 		parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
 		platformMock.EXPECT().GetOrCreateVolume(gomock.Any(), gomock.Any()).Return("volumeid", nil).Times(1)
 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(pruMock, nil).Times(1)
-		_, err = app.createContainer()
+		_, err = app.createSandbox()
 		if err != nil {
 			t.Errorf("createContainer should NOT return an error: %s", err.Error())
 		}
@@ -164,18 +164,18 @@ func TestApp(t *testing.T) {
 		// container retrieval error
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, errors.New("container retrieval error"))
-		_, err := app.getOrCreateContainer()
+		_, err := app.getOrcreateSandbox()
 		if err == nil {
-			t.Error("getOrCreateContainer() should return an error when the container can't be retrieved")
+			t.Error("getOrcreateSandbox() should return an error when the container can't be retrieved")
 		}
 
 		// container retrieval returns err of type core.ErrContainerNotFound, and container creation fails
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound))
 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("container creation error")).Times(1)
-		_, err = app.getOrCreateContainer()
+		_, err = app.getOrcreateSandbox()
 		if err == nil {
-			t.Error("getOrCreateContainer() should return an error when no container exists and the creation of one fails")
+			t.Error("getOrcreateSandbox() should return an error when no container exists and the creation of one fails")
 		}
 
 		// container retrieval returns err and creation of a new container works
@@ -185,23 +185,23 @@ func TestApp(t *testing.T) {
 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(pruMock, nil).Times(1)
 		pruMock.EXPECT().GetID().Return("cntid").Times(1)
 		pruMock.EXPECT().GetIP().Return("cntip").Times(1)
-		cnt, err := app.getOrCreateContainer()
+		cnt, err := app.getOrcreateSandbox()
 		if err != nil {
-			t.Errorf("getOrCreateContainer() should not return an error: %s", err.Error())
+			t.Errorf("getOrcreateSandbox() should not return an error: %s", err.Error())
 		}
 		if cnt != pruMock {
-			t.Errorf("getOrCreateContainer() returned an incorrect container: %p vs %p", cnt, pruMock)
+			t.Errorf("getOrcreateSandbox() returned an incorrect container: %p vs %p", cnt, pruMock)
 		}
 
 		// container retrieval works
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
 		platformMock.EXPECT().GetSandbox("cntid").Return(pruMock, nil)
-		cnt, err = app.getOrCreateContainer()
+		cnt, err = app.getOrcreateSandbox()
 		if err != nil {
-			t.Errorf("getOrCreateContainer() should not return an error: %s", err.Error())
+			t.Errorf("getOrcreateSandbox() should not return an error: %s", err.Error())
 		}
 		if cnt != pruMock {
-			t.Errorf("getOrCreateContainer() returned an incorrect container: %p' vs %p", cnt, pruMock)
+			t.Errorf("getOrcreateSandbox() returned an incorrect container: %p' vs %p", cnt, pruMock)
 		}
 	})
 

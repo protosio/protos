@@ -194,7 +194,7 @@ func (mr *MockappMockRecorder) StartAsync() *gomock.Call {
 }
 
 // createContainer mocks base method
-func (m *Mockapp) createContainer() (core.PlatformRuntimeUnit, error) {
+func (m *Mockapp) createSandbox() (core.PlatformRuntimeUnit, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "createContainer")
 	ret0, _ := ret[0].(core.PlatformRuntimeUnit)
@@ -203,7 +203,7 @@ func (m *Mockapp) createContainer() (core.PlatformRuntimeUnit, error) {
 }
 
 // createContainer indicates an expected call of createContainer
-func (mr *MockappMockRecorder) createContainer() *gomock.Call {
+func (mr *MockappMockRecorder) createSandbox() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createContainer", reflect.TypeOf((*Mockapp)(nil).createContainer))
 }

@@ -110,7 +110,7 @@ func TestTask(t *testing.T) {
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true, nil).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
 		p.EXPECT().SetState(msgImageFound).Times(1)
-		app.EXPECT().createContainer().Return(nil, errors.New("failed to create container"))
+		app.EXPECT().createSandbox().Return(nil, errors.New("failed to create container"))
 		app.EXPECT().SetStatus(statusFailed).Times(1)
 		err = task.Run(baseTaskMock, tskID, p)
 		if err == nil {
@@ -128,7 +128,7 @@ func TestTask(t *testing.T) {
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true, nil).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
 		p.EXPECT().SetState(msgImageFound).Times(1)
-		app.EXPECT().createContainer().Return(pruMock, nil)
+		app.EXPECT().createSandbox().Return(pruMock, nil)
 		p.EXPECT().SetPercentage(70)
 		p.EXPECT().SetState(msgCreated)
 		task.StartOnCreation = true
@@ -153,7 +153,7 @@ func TestTask(t *testing.T) {
 		inst.EXPECT().IsPlatformImageAvailable(task.InstallerVersion).Return(true, nil).Times(1)
 		p.EXPECT().SetPercentage(50).Times(1)
 		p.EXPECT().SetState(msgImageFound).Times(1)
-		app.EXPECT().createContainer().Return(pruMock, nil)
+		app.EXPECT().createSandbox().Return(pruMock, nil)
 		p.EXPECT().SetPercentage(70)
 		p.EXPECT().SetState(msgCreated)
 		task.StartOnCreation = false
@@ -176,7 +176,7 @@ func TestTask(t *testing.T) {
 		p.EXPECT().SetPercentage(50).Times(1)
 		p.EXPECT().SetState(msgImageFound).Times(1)
 		// create container
-		app.EXPECT().createContainer().Return(pruMock, nil)
+		app.EXPECT().createSandbox().Return(pruMock, nil)
 		p.EXPECT().SetPercentage(70)
 		p.EXPECT().SetState(msgCreated)
 		// start on boot

@@ -20,7 +20,7 @@ type app interface {
 	GetID() string
 	SetStatus(status string)
 	StartAsync() core.Task
-	createContainer() (core.PlatformRuntimeUnit, error)
+	createSandbox() (core.PlatformRuntimeUnit, error)
 }
 
 // CreateAppTask creates an app and implements the task interface
@@ -92,7 +92,7 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 		p.SetState("Container image found locally")
 	}
 
-	_, err = app.createContainer()
+	_, err = app.createSandbox()
 	if err != nil {
 		app.SetStatus(statusFailed)
 		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
