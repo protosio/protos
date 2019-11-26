@@ -161,6 +161,7 @@ func (app *App) createSandbox() (core.PlatformRuntimeUnit, error) {
 		}
 	}
 
+	log.Infof("Creating sandbox for app '%s'[%s]", app.Name, app.ID)
 	cnt, err := app.parent.getPlatform().NewSandbox(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create container for app '%s'", app.ID)
