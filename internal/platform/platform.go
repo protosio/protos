@@ -1,6 +1,9 @@
 package platform
 
 import (
+	"strings"
+
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 )
@@ -23,6 +26,17 @@ type internalIPSetter interface {
 	SetInternalIP(ip string)
 }
 
+func normalizeRepoDigest(repoDigests []string) (string, string, error) {
+	if len(repoDigests) == 0 {
+		return "<none>", "<none>", errors.New("image has no repo digests")
+	}
+	repoDigestPair := strings.Split(repoDigests[0], "@")
+	if len(repoDigestPair) != 2 {
+		return "errorName", "errorRepoDigest", errors.New("image repo digest has an invalid format")
+	}
+	return repoDigestPair[0], repoDigestPair[1], nil
+}
+
 // Initialize checks if the Protos network exists
 func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter) core.RuntimePlatform {
 	var dp core.RuntimePlatform
@@ -43,6 +57,7 @@ func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, i
 
 type platformImage struct {
 	id              string
+	localID         string
 	persistencePath string
 	repoTags        []string
 	labels          map[string]string

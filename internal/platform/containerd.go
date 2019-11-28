@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -19,7 +20,16 @@ const (
 	unixProtocol                     = "unix"
 	defaultGRPCTimeout               = 5 * time.Second
 	defaultSandboxTerminationTimeout = 5
+	logDirectory                     = "/opt/containerd/applogs"
 )
+
+type imageInfo struct {
+	ImageSpec struct {
+		Config struct {
+			Labels map[string]string `json:"Labels"`
+		} `json:"config"`
+	} `json:"imageSpec"`
+}
 
 func dial(addr string, timeout time.Duration) (net.Conn, error) {
 	return net.DialTimeout(unixProtocol, addr, timeout)
@@ -120,11 +130,43 @@ func (cdp *containerdPlatform) GetAllSandboxes() (map[string]core.PlatformRuntim
 }
 
 func (cdp *containerdPlatform) GetImage(id string) (core.PlatformImage, error) {
-	imageResponse, err := cdp.imageClient.ImageStatus(context.Background(), &pb.ImageStatusRequest{Image: &pb.ImageSpec{Image: id}})
+
+	imagesResponse, err := cdp.imageClient.ListImages(context.Background(), &pb.ListImagesRequest{})
 	if err != nil {
 		return &platformImage{}, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
 	}
-	return &platformImage{id: imageResponse.Image.Id, repoTags: imageResponse.Image.RepoTags}, nil
+
+	for _, img := range imagesResponse.Images {
+		imgName, imgDigest, err := normalizeRepoDigest(img.RepoDigests)
+		if err != nil {
+			log.Warnf("Image '%s'[%s] has invalid repo digest: %s", img.Id, imgName, err.Error())
+			continue
+		}
+		if id == imgDigest {
+			// retrieve detailed info
+			imageResponse, err := cdp.imageClient.ImageStatus(context.Background(), &pb.ImageStatusRequest{Image: &pb.ImageSpec{Image: img.Id}, Verbose: true})
+			if err != nil || imageResponse.Image == nil {
+				if imageResponse.Image == nil {
+					err = errors.Errorf("Image '%s' not found", id)
+				}
+				return &platformImage{}, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+			}
+			var imageInfo imageInfo
+			err = json.Unmarshal([]byte(imageResponse.Info["info"]), &imageInfo)
+			if err != nil {
+				return &platformImage{}, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+			}
+			image := platformImage{
+				id:       id,
+				localID:  img.Id,
+				repoTags: img.RepoTags,
+				labels:   imageInfo.ImageSpec.Config.Labels,
+			}
+			return &image, nil
+		}
+	}
+
+	return &platformImage{}, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
 }
 
 func (cdp *containerdPlatform) GetAllImages() (map[string]core.PlatformImage, error) {
@@ -173,6 +215,13 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
 	pru := &containerdSandbox{p: cdp}
 
+	img, err := cdp.GetImage(imageID)
+	if err != nil {
+		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+	}
+
+	localImg := img.(*platformImage)
+
 	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageID)
 
 	// create pod
@@ -184,7 +233,8 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 			Uid:       guuid.New().String(),
 			Attempt:   1,
 		},
-		Linux: &pb.LinuxPodSandboxConfig{},
+		Linux:        &pb.LinuxPodSandboxConfig{},
+		LogDirectory: logDirectory,
 	}
 	podResponse, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
 	if err != nil {
@@ -201,8 +251,10 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	containerRequest := &pb.CreateContainerRequest{
 		PodSandboxId: pru.podID,
 		Config: &pb.ContainerConfig{
-			Image:    &pb.ImageSpec{Image: imageID},
-			Metadata: &pb.ContainerMetadata{Name: name, Attempt: 1}},
+			Image:    &pb.ImageSpec{Image: localImg.localID},
+			Metadata: &pb.ContainerMetadata{Name: name, Attempt: 1},
+			LogPath:  appID + ".log",
+		},
 		SandboxConfig: podConfig,
 	}
 	containerResponse, err := cdp.runtimeClient.CreateContainer(context.Background(), containerRequest)
