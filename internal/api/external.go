@@ -47,27 +47,27 @@ var createExternalRoutes = func(cm core.CapabilityManager) routes {
 			actionApp,
 			nil,
 		},
-		route{
-			"getInstallersExternal",
-			"GET",
-			"/installers",
-			getInstallers,
-			nil,
-		},
-		route{
-			"getInstallerExternal",
-			"GET",
-			"/installers/{installerID}",
-			getInstaller,
-			nil,
-		},
-		route{
-			"removeInstallerExternal",
-			"DELETE",
-			"/installers/{installerID}",
-			removeInstaller,
-			nil,
-		},
+		// route{
+		// 	"getInstallersExternal",
+		// 	"GET",
+		// 	"/installers",
+		// 	getInstallers,
+		// 	nil,
+		// },
+		// route{
+		// 	"getInstallerExternal",
+		// 	"GET",
+		// 	"/installers/{installerID}",
+		// 	getInstaller,
+		// 	nil,
+		// },
+		// route{
+		// 	"removeInstallerExternal",
+		// 	"DELETE",
+		// 	"/installers/{installerID}",
+		// 	removeInstaller,
+		// 	nil,
+		// },
 		route{
 			"getResourcesExternal",
 			"GET",
@@ -269,56 +269,56 @@ func removeApp(ha handlerAccess) http.Handler {
 // Installers
 //
 
-func getInstallers(ha handlerAccess) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// func getInstallers(ha handlerAccess) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		installers, err := ha.ic.GetLocalInstallers()
-		if err != nil {
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
+// 		installers, err := ha.ic.GetLocalInstallers()
+// 		if err != nil {
+// 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+// 			return
+// 		}
 
-		log.Debug("Sending response: ", installers)
-		json.NewEncoder(w).Encode(installers)
+// 		log.Debug("Sending response: ", installers)
+// 		json.NewEncoder(w).Encode(installers)
 
-	})
-}
+// 	})
+// }
 
-func getInstaller(ha handlerAccess) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// func getInstaller(ha handlerAccess) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		vars := mux.Vars(r)
-		installerID := vars["installerID"]
+// 		vars := mux.Vars(r)
+// 		installerID := vars["installerID"]
 
-		installer, err := ha.ic.GetLocalInstaller(installerID)
-		if err != nil {
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
+// 		installer, err := ha.ic.GetLocalInstaller(installerID)
+// 		if err != nil {
+// 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+// 			return
+// 		}
 
-		log.Debug("Sending response: ", installer)
-		json.NewEncoder(w).Encode(installer)
+// 		log.Debug("Sending response: ", installer)
+// 		json.NewEncoder(w).Encode(installer)
 
-	})
-}
+// 	})
+// }
 
-func removeInstaller(ha handlerAccess) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// func removeInstaller(ha handlerAccess) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		vars := mux.Vars(r)
-		installerID := vars["installerID"]
+// 		vars := mux.Vars(r)
+// 		installerID := vars["installerID"]
 
-		err := ha.ic.RemoveLocalInstaller(installerID)
-		if err != nil {
-			log.Error(err)
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
+// 		err := ha.ic.RemoveLocalInstaller(installerID)
+// 		if err != nil {
+// 			log.Error(err)
+// 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+// 			return
+// 		}
 
-		rend.JSON(w, http.StatusOK, nil)
+// 		rend.JSON(w, http.StatusOK, nil)
 
-	})
-}
+// 	})
+// }
 
 //
 // Resources

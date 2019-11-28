@@ -251,133 +251,133 @@ func TestInstaller(t *testing.T) {
 
 }
 
-func TestInstallerCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// func TestInstallerCache(t *testing.T) {
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
 
-	rpMock := mock.NewMockRuntimePlatform(ctrl)
-	platformImageMock := mock.NewMockPlatformImage(ctrl)
-	appStore := &AppStore{rp: rpMock}
+// 	rpMock := mock.NewMockRuntimePlatform(ctrl)
+// 	platformImageMock := mock.NewMockPlatformImage(ctrl)
+// 	appStore := &AppStore{rp: rpMock}
 
-	// this will not compile if AppStore does not implement core.InstallerCache interface
-	_ = core.InstallerCache(appStore)
+// 	// this will not compile if AppStore does not implement core.InstallerCache interface
+// 	_ = core.InstallerCache(appStore)
 
-	//
-	// GetLocalInstallers
-	//
+// 	//
+// 	// GetLocalInstallers
+// 	//
 
-	t.Run("GetLocalInstallers", func(t *testing.T) {
+// 	t.Run("GetLocalInstallers", func(t *testing.T) {
 
-		// failed to retrieve Docker images
-		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
-		_, err := appStore.GetLocalInstallers()
-		if err == nil {
-			t.Error("GetLocalInstallers() should return an error when retrieving all docker images fails")
-		}
+// 		// failed to retrieve Docker images
+// 		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
+// 		_, err := appStore.GetLocalInstallers()
+// 		if err == nil {
+// 			t.Error("GetLocalInstallers() should return an error when retrieving all docker images fails")
+// 		}
 
-		// happy case
-		images := map[string]core.PlatformImage{"id1": platformImageMock}
-		rpMock.EXPECT().GetAllImages().Return(images, nil)
-		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
-		installers, err := appStore.GetLocalInstallers()
-		if err != nil {
-			t.Errorf("GetLocalInstallers() should NOT return an error: %s", err.Error())
-		}
-		if len(installers) != 1 {
-			t.Errorf("GetLocalInstallers() returned an incorrect number of installers: %d instead of %d", len(installers), 1)
-		}
-		installerID := util.String2SHA1("imagename")
-		if installers[installerID].(Installer).ID != installerID {
-			t.Errorf("GetLocalInstallers() returned an installer with incorrect ID: %s instead of %s", installers["id1"].(Installer).ID, installerID)
-		}
-	})
+// 		// happy case
+// 		images := map[string]core.PlatformImage{"id1": platformImageMock}
+// 		rpMock.EXPECT().GetAllImages().Return(images, nil)
+// 		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
+// 		installers, err := appStore.GetLocalInstallers()
+// 		if err != nil {
+// 			t.Errorf("GetLocalInstallers() should NOT return an error: %s", err.Error())
+// 		}
+// 		if len(installers) != 1 {
+// 			t.Errorf("GetLocalInstallers() returned an incorrect number of installers: %d instead of %d", len(installers), 1)
+// 		}
+// 		installerID := util.String2SHA1("imagename")
+// 		if installers[installerID].(Installer).ID != installerID {
+// 			t.Errorf("GetLocalInstallers() returned an installer with incorrect ID: %s instead of %s", installers["id1"].(Installer).ID, installerID)
+// 		}
+// 	})
 
-	//
-	// GetLocalInstaller
-	//
+// 	//
+// 	// GetLocalInstaller
+// 	//
 
-	t.Run("GetLocalInstaller", func(t *testing.T) {
-		installerID := util.String2SHA1("imagename")
-		// failed to retrieve Docker images
-		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
-		_, err := appStore.GetLocalInstaller("id1")
-		if err == nil {
-			t.Error("GetLocalInstaller() should return an error when retrieving all docker images fails")
-		}
+// 	t.Run("GetLocalInstaller", func(t *testing.T) {
+// 		installerID := util.String2SHA1("imagename")
+// 		// failed to retrieve Docker images
+// 		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
+// 		_, err := appStore.GetLocalInstaller("id1")
+// 		if err == nil {
+// 			t.Error("GetLocalInstaller() should return an error when retrieving all docker images fails")
+// 		}
 
-		images := map[string]core.PlatformImage{"id1": platformImageMock}
+// 		images := map[string]core.PlatformImage{"id1": platformImageMock}
 
-		// incorrect repo tag
-		rpMock.EXPECT().GetAllImages().Return(images, nil)
-		platformImageMock.EXPECT().GetRepoTags().Return([]string{"n/a"}).Times(1)
-		_, err = appStore.GetLocalInstaller(installerID)
-		if err == nil {
-			t.Error("GetLocalInstaller() should return an error when retrieving a specific docker images fails")
-		}
+// 		// incorrect repo tag
+// 		rpMock.EXPECT().GetAllImages().Return(images, nil)
+// 		platformImageMock.EXPECT().GetRepoTags().Return([]string{"n/a"}).Times(1)
+// 		_, err = appStore.GetLocalInstaller(installerID)
+// 		if err == nil {
+// 			t.Error("GetLocalInstaller() should return an error when retrieving a specific docker images fails")
+// 		}
 
-		// failed to retrieve Docker image volume path
-		rpMock.EXPECT().GetAllImages().Return(images, nil)
-		platformImageMock.EXPECT().GetRepoTags().Return([]string{"differentname:v0.1"}).Times(2)
-		_, err = appStore.GetLocalInstaller(installerID)
-		if err == nil {
-			t.Error("GetLocalInstaller() should return an error when retrieving the image volume path fails")
-		}
+// 		// failed to retrieve Docker image volume path
+// 		rpMock.EXPECT().GetAllImages().Return(images, nil)
+// 		platformImageMock.EXPECT().GetRepoTags().Return([]string{"differentname:v0.1"}).Times(2)
+// 		_, err = appStore.GetLocalInstaller(installerID)
+// 		if err == nil {
+// 			t.Error("GetLocalInstaller() should return an error when retrieving the image volume path fails")
+// 		}
 
-		// happy path
-		rpMock.EXPECT().GetAllImages().Return(images, nil)
-		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
-		platformImageMock.EXPECT().GetDataPath().Return("datapath").Times(1)
-		platformImageMock.EXPECT().GetLabels().Return(map[string]string{"foo": "bar"}).Times(1)
-		platformImageMock.EXPECT().GetID().Return("id1").Times(1)
-		_, err = appStore.GetLocalInstaller(installerID)
-		if err != nil {
-			t.Errorf("GetLocalInstaller() should NOT return an error: %s", err.Error())
-		}
+// 		// happy path
+// 		rpMock.EXPECT().GetAllImages().Return(images, nil)
+// 		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
+// 		platformImageMock.EXPECT().GetDataPath().Return("datapath").Times(1)
+// 		platformImageMock.EXPECT().GetLabels().Return(map[string]string{"foo": "bar"}).Times(1)
+// 		platformImageMock.EXPECT().GetID().Return("id1").Times(1)
+// 		_, err = appStore.GetLocalInstaller(installerID)
+// 		if err != nil {
+// 			t.Errorf("GetLocalInstaller() should NOT return an error: %s", err.Error())
+// 		}
 
-	})
+// 	})
 
-	//
-	// RemoveLocalInstaller
-	//
+// 	//
+// 	// RemoveLocalInstaller
+// 	//
 
-	t.Run("RemoveLocalInstaller", func(t *testing.T) {
-		// failed to get images
-		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
-		err := appStore.RemoveLocalInstaller("id1")
-		if err == nil {
-			t.Error("RemoveLocalInstaller() should return an error when it fails to retrieve the local installer")
-		}
+// 	t.Run("RemoveLocalInstaller", func(t *testing.T) {
+// 		// failed to get images
+// 		rpMock.EXPECT().GetAllImages().Return(nil, errors.New("failed to retrieve images"))
+// 		err := appStore.RemoveLocalInstaller("id1")
+// 		if err == nil {
+// 			t.Error("RemoveLocalInstaller() should return an error when it fails to retrieve the local installer")
+// 		}
 
-		installerID := util.String2SHA1("imagename")
-		images := map[string]core.PlatformImage{"id1": platformImageMock}
+// 		installerID := util.String2SHA1("imagename")
+// 		images := map[string]core.PlatformImage{"id1": platformImageMock}
 
-		// failed to remove installer images
-		rpMock.EXPECT().GetAllImages().Return(images, nil)
-		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
-		platformImageMock.EXPECT().GetDataPath().Return("datapath").Times(1)
-		platformImageMock.EXPECT().GetLabels().Return(map[string]string{"foo": "bar"}).Times(1)
-		platformImageMock.EXPECT().GetID().Return("id1").Times(1)
-		rpMock.EXPECT().RemoveImage("id1").Return(errors.New("failed to delete image"))
-		err = appStore.RemoveLocalInstaller(installerID)
-		if err == nil {
-			t.Error("RemoveLocalInstaller() should return an error when it fails to remove the local image")
-		}
+// 		// failed to remove installer images
+// 		rpMock.EXPECT().GetAllImages().Return(images, nil)
+// 		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
+// 		platformImageMock.EXPECT().GetDataPath().Return("datapath").Times(1)
+// 		platformImageMock.EXPECT().GetLabels().Return(map[string]string{"foo": "bar"}).Times(1)
+// 		platformImageMock.EXPECT().GetID().Return("id1").Times(1)
+// 		rpMock.EXPECT().RemoveImage("id1").Return(errors.New("failed to delete image"))
+// 		err = appStore.RemoveLocalInstaller(installerID)
+// 		if err == nil {
+// 			t.Error("RemoveLocalInstaller() should return an error when it fails to remove the local image")
+// 		}
 
-		// happy case
-		rpMock.EXPECT().GetAllImages().Return(images, nil)
-		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
-		platformImageMock.EXPECT().GetDataPath().Return("datapath").Times(1)
-		platformImageMock.EXPECT().GetLabels().Return(map[string]string{"foo": "bar"}).Times(1)
-		platformImageMock.EXPECT().GetID().Return("id1").Times(1)
-		rpMock.EXPECT().RemoveImage("id1").Return(nil)
-		err = appStore.RemoveLocalInstaller(installerID)
-		if err != nil {
-			t.Errorf("RemoveLocalInstaller() should NOT return an error: %s", err.Error())
-		}
+// 		// happy case
+// 		rpMock.EXPECT().GetAllImages().Return(images, nil)
+// 		platformImageMock.EXPECT().GetRepoTags().Return([]string{"imagename:v0.1"}).Times(2)
+// 		platformImageMock.EXPECT().GetDataPath().Return("datapath").Times(1)
+// 		platformImageMock.EXPECT().GetLabels().Return(map[string]string{"foo": "bar"}).Times(1)
+// 		platformImageMock.EXPECT().GetID().Return("id1").Times(1)
+// 		rpMock.EXPECT().RemoveImage("id1").Return(nil)
+// 		err = appStore.RemoveLocalInstaller(installerID)
+// 		if err != nil {
+// 			t.Errorf("RemoveLocalInstaller() should NOT return an error: %s", err.Error())
+// 		}
 
-	})
+// 	})
 
-}
+// }
 
 func TestAppStore(t *testing.T) {
 

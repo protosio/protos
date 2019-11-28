@@ -82,7 +82,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		initwebserverQuit := make(chan bool, 1)
 		cfg.ProcsQuit.Store("initwebserver", initwebserverQuit)
 		wg.Add(1)
-		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p, cm)
+		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, um, p, cm)
 		wg.Done()
 		cm.ClearAll()
 	}
@@ -97,7 +97,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		webserverQuit := make(chan bool, 1)
 		cfg.ProcsQuit.Store("webserver", webserverQuit)
 		go func() {
-			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p, cm)
+			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, um, p, cm)
 			wg.Done()
 		}()
 	}
