@@ -260,7 +260,7 @@ func (app *App) Stop() error {
 	err = cnt.Stop()
 	if err != nil {
 		app.SetStatus(statusUnknown)
-		return errors.Wrapf(err, "Can't stop application '%s'(%s)", app.Name, app.ID)
+		return errors.Wrapf(err, "Failed to stop application '%s'(%s)", app.Name, app.ID)
 	}
 	app.SetStatus(statusStopped)
 	return nil

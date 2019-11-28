@@ -401,13 +401,16 @@ func (cnt *containerdSandbox) GetIP() string {
 
 // GetStatus returns the status of the container, as a string
 func (cnt *containerdSandbox) GetStatus() string {
-	statusResponse, err := cnt.p.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: cnt.containerID})
-	if err != nil {
-		log.Error(errors.Wrapf(err, "Failed to get status for container '%s'", cnt.containerID))
-		return statusUnknown
+	if cnt.containerID != "" {
+		statusResponse, err := cnt.p.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: cnt.containerID})
+		if err != nil {
+			log.Error(errors.Wrapf(err, "Failed to get status for container '%s'", cnt.containerID))
+			return statusUnknown
+		}
+		cnt.containerStatus = statusResponse.Status.State.String()
+		cnt.exitCode = int(statusResponse.Status.ExitCode)
+		return containerdToAppStatus(cnt.containerStatus, cnt.exitCode)
 	}
-	cnt.containerStatus = statusResponse.Status.State.String()
-	cnt.exitCode = int(statusResponse.Status.ExitCode)
 	return containerdToAppStatus(cnt.containerStatus, cnt.exitCode)
 }
 
