@@ -102,6 +102,78 @@ func (cdp *containerdPlatform) Init() (string, error) {
 
 	return "", nil
 }
+
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
+	pru := &containerdSandbox{p: cdp}
+
+	img, err := cdp.GetImage(imageID)
+	if err != nil {
+		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+	}
+
+	localImg := img.(*platformImage)
+
+	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageID)
+
+	// create pod
+	podConfig := &pb.PodSandboxConfig{
+		Hostname: name,
+		Metadata: &pb.PodSandboxMetadata{
+			Name:      name + "-sandbox",
+			Namespace: "default",
+			Uid:       guuid.New().String(),
+			Attempt:   1,
+		},
+		Linux:        &pb.LinuxPodSandboxConfig{},
+		LogDirectory: logDirectory,
+	}
+	podResponse, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
+	if err != nil {
+		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+	}
+	pru.podID = podResponse.PodSandboxId
+	podStatus, err := cdp.runtimeClient.PodSandboxStatus(context.Background(), &pb.PodSandboxStatusRequest{PodSandboxId: podResponse.PodSandboxId})
+	if err != nil {
+		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+	}
+	pru.IP = podStatus.Status.Network.Ip
+
+	// create app environment variables
+
+	envvars := []*pb.KeyValue{&pb.KeyValue{Key: "APPID", Value: appID}}
+	for k, v := range installerParams {
+		envvars = append(envvars, &pb.KeyValue{Key: k, Value: v})
+	}
+
+	// create container in pod
+	containerRequest := &pb.CreateContainerRequest{
+		PodSandboxId: pru.podID,
+		Config: &pb.ContainerConfig{
+			Image:    &pb.ImageSpec{Image: localImg.localID},
+			Metadata: &pb.ContainerMetadata{Name: name, Attempt: 1},
+			LogPath:  appID + ".log",
+			Envs:     envvars,
+		},
+		SandboxConfig: podConfig,
+	}
+	containerResponse, err := cdp.runtimeClient.CreateContainer(context.Background(), containerRequest)
+	if err != nil {
+		err2 := pru.Remove()
+		if err2 != nil {
+			log.Warnf("Failed to clean up on containerd sandbox creation failure: %s", err2.Error())
+		}
+		return &containerdSandbox{p: cdp}, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+	}
+	pru.containerID = containerResponse.ContainerId
+	statusResponse, err := cdp.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: pru.containerID})
+	if err != nil {
+		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+	}
+	pru.podStatus = statusResponse.Status.State.String()
+
+	return pru, nil
+}
+
 func (cdp *containerdPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, error) {
 	if id == "" {
 		return nil, util.NewTypedError("containerd sandbox not found", core.ErrContainerNotFound)
@@ -219,72 +291,13 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
-	pru := &containerdSandbox{p: cdp}
-
-	img, err := cdp.GetImage(imageID)
-	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
-	}
-
-	localImg := img.(*platformImage)
-
-	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageID)
-
-	// create pod
-	podConfig := &pb.PodSandboxConfig{
-		Hostname: name,
-		Metadata: &pb.PodSandboxMetadata{
-			Name:      name + "-sandbox",
-			Namespace: "default",
-			Uid:       guuid.New().String(),
-			Attempt:   1,
-		},
-		Linux:        &pb.LinuxPodSandboxConfig{},
-		LogDirectory: logDirectory,
-	}
-	podResponse, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
-	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
-	}
-	pru.podID = podResponse.PodSandboxId
-	podStatus, err := cdp.runtimeClient.PodSandboxStatus(context.Background(), &pb.PodSandboxStatusRequest{PodSandboxId: podResponse.PodSandboxId})
-	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
-	}
-	pru.IP = podStatus.Status.Network.Ip
-
-	// create container in pod
-	containerRequest := &pb.CreateContainerRequest{
-		PodSandboxId: pru.podID,
-		Config: &pb.ContainerConfig{
-			Image:    &pb.ImageSpec{Image: localImg.localID},
-			Metadata: &pb.ContainerMetadata{Name: name, Attempt: 1},
-			LogPath:  appID + ".log",
-		},
-		SandboxConfig: podConfig,
-	}
-	containerResponse, err := cdp.runtimeClient.CreateContainer(context.Background(), containerRequest)
-	if err != nil {
-		err2 := pru.Remove()
-		if err2 != nil {
-			log.Warnf("Failed to clean up on containerd sandbox creation failure: %s", err2.Error())
-		}
-		return &containerdSandbox{p: cdp}, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
-	}
-	pru.containerID = containerResponse.ContainerId
-	statusResponse, err := cdp.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: pru.containerID})
-	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
-	}
-	pru.podStatus = statusResponse.Status.State.String()
-
-	return pru, nil
-}
-
 func (cdp *containerdPlatform) GetHWStats() (core.HardwareStats, error) {
 	return getHWStatus()
 }
+
+//
+// struct and methods that satisfy core.PlatformRuntimeUnit
+//
 
 // containerdSandbox represents a container
 type containerdSandbox struct {
@@ -303,25 +316,51 @@ func (cnt *containerdSandbox) Update() error {
 	return nil
 }
 
-// Start starts a containerd container
+// Start starts a containerd sandbox
 func (cnt *containerdSandbox) Start() error {
 	_, err := cnt.p.runtimeClient.StartContainer(context.Background(), &pb.StartContainerRequest{ContainerId: cnt.containerID})
 	if err != nil {
-		errors.Wrapf(err, "Failed to start sandbox '%s'", cnt.podID)
+		return errors.Wrapf(err, "Failed to start sandbox '%s'", cnt.podID)
 	}
 	return nil
 }
 
-// Stop stops a containerd container
+// Stop stops a containerd sandbox
 func (cnt *containerdSandbox) Stop() error {
+	// stop container with default period
 	_, err := cnt.p.runtimeClient.StopContainer(context.Background(), &pb.StopContainerRequest{ContainerId: cnt.containerID, Timeout: defaultSandboxTerminationTimeout})
 	if err != nil {
-		errors.Wrapf(err, "Failed to start sandbox '%s'", cnt.podID)
+		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.podID)
 	}
+	// get status and save exit code
+	statusResponse, err := cnt.p.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: cnt.containerID})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.podID)
+	}
+	cnt.containerStatus = statusResponse.Status.State.String()
+	cnt.exitCode = int(statusResponse.Status.ExitCode)
+
+	// remove container
+	_, err = cnt.p.runtimeClient.RemoveContainer(context.Background(), &pb.RemoveContainerRequest{ContainerId: cnt.containerID})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.podID)
+	}
+	cnt.containerID = ""
+
+	// remove pod
+	_, err = cnt.p.runtimeClient.StopPodSandbox(context.Background(), &pb.StopPodSandboxRequest{PodSandboxId: cnt.podID})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.podID)
+	}
+	_, err = cnt.p.runtimeClient.RemovePodSandbox(context.Background(), &pb.RemovePodSandboxRequest{PodSandboxId: cnt.podID})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.podID)
+	}
+	cnt.podID = ""
 	return nil
 }
 
-// Remove removes a containerd container
+// Remove removes a containerd sandbox
 func (cnt *containerdSandbox) Remove() error {
 	// retrieve all containers for pod
 	listResponse, err := cnt.p.runtimeClient.ListContainers(context.Background(), &pb.ListContainersRequest{Filter: &pb.ContainerFilter{PodSandboxId: cnt.podID}})
