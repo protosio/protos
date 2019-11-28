@@ -178,8 +178,15 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]core.PlatformImage, er
 	}
 
 	for _, img := range imagesResponse.Images {
+		imgName, imgDigest, err := normalizeRepoDigest(img.RepoDigests)
+		if err != nil {
+			log.Warnf("Image '%s'[%s] has invalid repo digest: %s", img.Id, imgName, err.Error())
+			continue
+		}
+
 		image := platformImage{
-			id:       img.Id,
+			id:       imgDigest,
+			localID:  img.Id,
 			repoTags: img.RepoTags,
 		}
 		images[image.id] = &image
