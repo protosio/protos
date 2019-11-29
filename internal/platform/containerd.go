@@ -277,14 +277,15 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]core.PlatformImage, er
 }
 
 func (cdp *containerdPlatform) PullImage(task core.Task, id string, name string, version string) error {
+	repoImage := cdp.appStoreHost + "/" + id
 	piRequest := &pb.PullImageRequest{
-		Image: &pb.ImageSpec{Image: id},
+		Image: &pb.ImageSpec{Image: repoImage},
 	}
-	piResponse, err := cdp.imageClient.PullImage(context.Background(), piRequest)
+	_, err := cdp.imageClient.PullImage(context.Background(), piRequest)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "Failed to pull image '%s' from app store", id)
 	}
-	log.Infof("Downloaded image '%s'", piResponse.GetImageRef())
+	log.Infof("Downloaded image '%s'", id)
 	return nil
 }
 
