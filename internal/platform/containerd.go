@@ -20,7 +20,7 @@ const (
 	unixProtocol                     = "unix"
 	defaultGRPCTimeout               = 5 * time.Second
 	defaultSandboxTerminationTimeout = 5
-	logDirectory                     = "/opt/containerd/applogs"
+	logDirectory                     = "/var/protos-containerd/applogs"
 )
 
 type imageInfo struct {
@@ -73,13 +73,15 @@ type containerdPlatform struct {
 	inContainer   bool
 	runtimeClient pb.RuntimeServiceClient
 	imageClient   pb.ImageServiceClient
+	protosIP      string
 }
 
-func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool) *containerdPlatform {
+func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, protosIP string) *containerdPlatform {
 	return &containerdPlatform{
 		endpoint:     runtimeUnixSocket,
 		appStoreHost: appStoreHost,
 		inContainer:  inContainer,
+		protosIP:     protosIP,
 	}
 }
 
@@ -127,6 +129,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 			Uid:       guuid.New().String(),
 			Attempt:   1,
 		},
+		DnsConfig:    &pb.DNSConfig{Servers: []string{cdp.protosIP}},
 		Linux:        &pb.LinuxPodSandboxConfig{},
 		LogDirectory: logDirectory,
 	}

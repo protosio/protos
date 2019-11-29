@@ -14,6 +14,7 @@ import (
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/database"
+	"github.com/protosio/protos/internal/dns"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/platform"
@@ -73,6 +74,15 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.ProcsQuit.Store("wsmanager", wsmanagerQuit)
 	go func() {
 		api.WSManager(am, wsmanagerQuit)
+		wg.Done()
+	}()
+
+	// start DNS server
+	wg.Add(1)
+	dnsserverQuit := make(chan bool, 1)
+	cfg.ProcsQuit.Store("dnsserver", dnsserverQuit)
+	go func() {
+		dns.Server(dnsserverQuit)
 		wg.Done()
 	}()
 
