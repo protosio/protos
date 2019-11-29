@@ -32,7 +32,7 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 	}
 	repoDigestPair := strings.Split(repoDigests[0], "@")
 	if len(repoDigestPair) != 2 {
-		return "errorName", "errorRepoDigest", errors.New("image repo digest has an invalid format")
+		return "errorName", "errorRepoDigest", errors.Errorf("image repo digest has an invalid format: '%s'", repoDigests[0])
 	}
 	return repoDigestPair[0], repoDigestPair[1], nil
 }

@@ -182,7 +182,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
 	}
 
-	log.Infof("Downloading platform image for installer '%s'(%s) version '%s'", inst.Name, inst.ID, dt.Version)
+	log.Infof("Downloading image '%s' for installer '%s'(%s) version '%s'", metadata.PlatformID, inst.Name, inst.ID, dt.Version)
 	err = inst.parent.getPlatform().PullImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
