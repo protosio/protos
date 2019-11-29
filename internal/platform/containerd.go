@@ -110,6 +110,9 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	if err != nil {
 		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
 	}
+	if img == nil {
+		return pru, errors.Errorf("Failed to create sandbox for app '%s'(%s): image '%s' not found locally", name, appID, imageID)
+	}
 
 	localImg := img.(*platformImage)
 
@@ -203,9 +206,14 @@ func (cdp *containerdPlatform) GetAllSandboxes() (map[string]core.PlatformRuntim
 
 func (cdp *containerdPlatform) GetImage(id string) (core.PlatformImage, error) {
 
+	_, normalizedID, err := normalizeRepoDigest([]string{id})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+	}
+
 	imagesResponse, err := cdp.imageClient.ListImages(context.Background(), &pb.ListImagesRequest{})
 	if err != nil {
-		return &platformImage{}, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
 	}
 
 	for _, img := range imagesResponse.Images {
@@ -214,14 +222,15 @@ func (cdp *containerdPlatform) GetImage(id string) (core.PlatformImage, error) {
 			log.Warnf("Image '%s'[%s] has invalid repo digest: %s", img.Id, imgName, err.Error())
 			continue
 		}
-		if id == imgDigest {
+		if normalizedID == imgDigest {
 			// retrieve detailed info
 			imageResponse, err := cdp.imageClient.ImageStatus(context.Background(), &pb.ImageStatusRequest{Image: &pb.ImageSpec{Image: img.Id}, Verbose: true})
 			if err != nil || imageResponse.Image == nil {
-				if imageResponse.Image == nil {
-					err = errors.Errorf("Image '%s' not found", id)
-				}
-				return &platformImage{}, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+				return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+			}
+			// image not found
+			if imageResponse.Image == nil {
+				return nil, nil
 			}
 			var imageInfo imageInfo
 			err = json.Unmarshal([]byte(imageResponse.Info["info"]), &imageInfo)
@@ -238,7 +247,7 @@ func (cdp *containerdPlatform) GetImage(id string) (core.PlatformImage, error) {
 		}
 	}
 
-	return &platformImage{}, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+	return nil, nil
 }
 
 func (cdp *containerdPlatform) GetAllImages() (map[string]core.PlatformImage, error) {

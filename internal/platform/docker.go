@@ -524,16 +524,19 @@ func (dp *dockerPlatform) GetImage(id string) (core.PlatformImage, error) {
 	repoImage := dp.appStoreHost + "/" + id
 	image, _, err := dp.client.ImageInspectWithRaw(context.Background(), repoImage)
 	if err != nil {
-		return &platformImage{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image '%s'", id), "No such image", core.ErrImageNotFound)
+		if strings.Contains(err.Error(), "No such image") {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "Error retrieving Docker image '%s'", id)
 	}
 
 	if _, valid := image.Config.Labels["protos"]; valid == false {
-		return &platformImage{}, errors.Errorf("Image '%s' is missing the protos label", id)
+		return nil, errors.Errorf("Image '%s' is missing the protos label", id)
 	}
 
 	persistencePath, err := dp.getImageDataPath(image)
 	if err != nil {
-		return &platformImage{}, errors.Errorf("Image '%s' is missing a persistance path", id)
+		return nil, errors.Errorf("Image '%s' is missing a persistance path", id)
 	}
 
 	pi := platformImage{

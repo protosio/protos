@@ -202,11 +202,11 @@ func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
 		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
 	}
 
-	_, err = inst.parent.getPlatform().GetImage(metadata.PlatformID)
+	img, err := inst.parent.getPlatform().GetImage(metadata.PlatformID)
 	if err != nil {
-		if util.IsErrorType(err, core.ErrImageNotFound) == false {
-			return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
-		}
+		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
+	}
+	if img == nil {
 		return false, nil
 	}
 	return true, nil
