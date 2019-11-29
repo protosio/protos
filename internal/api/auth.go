@@ -78,7 +78,7 @@ func registerHandler(ha handlerAccess) http.Handler {
 			Username: user.GetUsername(),
 		}
 
-		log.Debug("Sending response: ", registerResponse)
+		log.Trace("Sending response: ", registerResponse)
 		rend.JSON(w, http.StatusOK, registerResponse)
 	})
 }
@@ -138,7 +138,7 @@ func loginHandler(ha handlerAccess) http.Handler {
 			Role:     role,
 		}
 
-		log.Debug("Sending response: ", loginResponse)
+		log.Trace("Sending response: ", loginResponse)
 		rend.JSON(w, http.StatusOK, loginResponse)
 
 	})

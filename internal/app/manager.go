@@ -152,7 +152,7 @@ func (am *Manager) createAppForTask(installerID string, installerVersion string,
 
 // GetCopy returns a copy of an application based on its id
 func (am *Manager) GetCopy(id string) (core.App, error) {
-	log.Debug("Copying application ", id)
+	log.Trace("Copying application ", id)
 	app, err := am.apps.get(id)
 	if err != nil {
 		return app, err

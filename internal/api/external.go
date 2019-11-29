@@ -149,7 +149,7 @@ func getApps(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		apps := ha.am.GetAllPublic()
-		log.Debug("Sending response: ", apps)
+		log.Trace("Sending response: ", apps)
 		json.NewEncoder(w).Encode(apps)
 	})
 }
@@ -204,7 +204,7 @@ func getApp(ha handlerAccess) http.Handler {
 			return
 		}
 
-		log.Debug("Sending response: ", app)
+		log.Trace("Sending response: ", app)
 		json.NewEncoder(w).Encode(app.Public())
 
 	})
@@ -278,7 +278,7 @@ func removeApp(ha handlerAccess) http.Handler {
 // 			return
 // 		}
 
-// 		log.Debug("Sending response: ", installers)
+// 		log.Trace("Sending response: ", installers)
 // 		json.NewEncoder(w).Encode(installers)
 
 // 	})
@@ -296,7 +296,7 @@ func removeApp(ha handlerAccess) http.Handler {
 // 			return
 // 		}
 
-// 		log.Debug("Sending response: ", installer)
+// 		log.Trace("Sending response: ", installer)
 // 		json.NewEncoder(w).Encode(installer)
 
 // 	})
@@ -329,7 +329,7 @@ func getResources(ha handlerAccess) http.Handler {
 
 		resources := ha.rm.GetAll(true)
 
-		log.Debug("Sending response: ", resources)
+		log.Trace("Sending response: ", resources)
 		json.NewEncoder(w).Encode(resources)
 
 	})

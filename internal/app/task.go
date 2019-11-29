@@ -124,6 +124,7 @@ type StartAppTask struct {
 
 // Run starts the async task
 func (t *StartAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+	log.WithField("proc", tskID).Infof("Running start app task '%s'", tskID)
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
 	return t.app.Start()
@@ -136,6 +137,7 @@ type StopAppTask struct {
 
 // Run starts the async task
 func (t *StopAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+	log.WithField("proc", tskID).Infof("Running stop app task '%s'", tskID)
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
 	return t.app.Stop()
