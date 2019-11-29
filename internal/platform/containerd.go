@@ -197,6 +197,13 @@ func (cdp *containerdPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, 
 		return pru, errors.Wrapf(err, "Containerd sandbox %s, has '%d' containers instead of 1", id, len(cntListResponse.Containers))
 	}
 	pru.containerID = cntListResponse.Containers[0].Id
+	// get status and save exit code
+	statusResponse, err := cdp.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: pru.containerID})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Error retrieving containerd sandbox %s", id)
+	}
+	pru.containerStatus = statusResponse.Status.State.String()
+	pru.exitCode = int(statusResponse.Status.ExitCode)
 	return pru, nil
 }
 
