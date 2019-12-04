@@ -157,7 +157,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		Config: &pb.ContainerConfig{
 			Image:    &pb.ImageSpec{Image: localImg.localID},
 			Metadata: &pb.ContainerMetadata{Name: name, Attempt: 1},
-			LogPath:  appID + ".log",
+			LogPath:  pru.podID + ".log",
 			Envs:     envvars,
 		},
 		SandboxConfig: podConfig,
