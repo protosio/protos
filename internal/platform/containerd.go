@@ -102,7 +102,7 @@ func (cdp *containerdPlatform) Init() (string, error) {
 	cdp.runtimeClient = pb.NewRuntimeServiceClient(conn)
 	cdp.imageClient = pb.NewImageServiceClient(conn)
 
-	return "", nil
+	return cdp.protosIP, nil
 }
 
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
