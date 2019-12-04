@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"time"
 
-	guuid "github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
@@ -126,10 +126,9 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		Metadata: &pb.PodSandboxMetadata{
 			Name:      name + "-sandbox",
 			Namespace: "default",
-			Uid:       guuid.New().String(),
 			Attempt:   1,
 		},
-		DnsConfig:    &pb.DNSConfig{Servers: []string{cdp.protosIP}},
+		DnsConfig:    &pb.DNSConfig{Servers: []string{cdp.protosIP}, Searches: []string{"protos.local"}},
 		Linux:        &pb.LinuxPodSandboxConfig{},
 		LogDirectory: logDirectory,
 	}
