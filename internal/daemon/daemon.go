@@ -82,7 +82,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	dnsserverQuit := make(chan bool, 1)
 	cfg.ProcsQuit.Store("dnsserver", dnsserverQuit)
 	go func() {
-		dns.Server(dnsserverQuit)
+		dns.Server(dnsserverQuit, cfg.InternalIP, cfg.ExternalDNS)
 		wg.Done()
 	}()
 

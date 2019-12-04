@@ -29,6 +29,7 @@ type Config struct {
 	AppStoreHost    string
 	ProcsQuit       sync.Map
 	InternalIP      string
+	ExternalDNS     string // format: <ip>:<port>
 	Version         *semver.Version
 	WSPublish       chan interface{}
 }
@@ -44,6 +45,7 @@ var config = Config{
 	DevMode:         false,
 	AppStoreURL:     "https://apps.protos.io",
 	AppStoreHost:    "apps.protos.io",
+	ExternalDNS:     "8.8.8.8:53",
 	ProcsQuit:       sync.Map{},
 	WSPublish:       make(chan interface{}, 100),
 }
