@@ -241,6 +241,11 @@ func (dp *dockerPlatform) RemoveVolume(volumeID string) error {
 	return dp.client.VolumeRemove(context.Background(), volumeID, false)
 }
 
+// CleanUp cleans up any remaining resources belonging to a sandbox
+func (dp *dockerPlatform) CleanUp(id string) error {
+	return nil
+}
+
 //
 // Docker container operations
 //

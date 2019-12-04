@@ -283,6 +283,12 @@ func (app *App) remove() error {
 		}
 	}
 
+	// perform cleanup for the sandbox
+	err = app.parent.getPlatform().CleanUp(app.ContainerID)
+	if err != nil {
+		log.Warnf("Failed to perform cleanup for sandbox '%s': %s", app.ContainerID, err.Error())
+	}
+
 	if app.VolumeID != "" {
 		err := app.parent.getPlatform().RemoveVolume(app.VolumeID)
 		if err != nil {

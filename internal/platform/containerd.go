@@ -196,7 +196,8 @@ func (cdp *containerdPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, 
 	if err != nil {
 		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", core.ErrContainerNotFound)
 	}
-	if len(cntListResponse.Containers) != 1 {
+	nrContainers := len(cntListResponse.Containers)
+	if nrContainers != 1 {
 		return pru, errors.Wrapf(err, "Containerd sandbox %s, has '%d' containers instead of 1", id, len(cntListResponse.Containers))
 	}
 	pru.containerID = cntListResponse.Containers[0].Id
@@ -311,6 +312,17 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 	return nil
 }
 
+func (cdp *containerdPlatform) CleanUp(id string) error {
+	// remove logs
+	logFile := logDirectory + "/" + id + ".log"
+	log.Info("Removing file ", logFile)
+	err := os.Remove(logFile)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to remove log file for sandbox '%s'", id)
+	}
+	return nil
+}
+
 func (cdp *containerdPlatform) GetHWStats() (core.HardwareStats, error) {
 	return getHWStatus()
 }
@@ -406,6 +418,7 @@ func (cnt *containerdSandbox) Remove() error {
 	if err != nil {
 		return errors.Wrapf(err, "Failed to remove sandbox '%s'", cnt.podID)
 	}
+
 	return nil
 }
 
