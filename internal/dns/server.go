@@ -48,9 +48,9 @@ func Server(quit chan bool) {
 		}
 	}()
 	<-quit
-	log.Info("Shutting down DNS webserver")
+	log.Info("Shutting down DNS server")
 	if err := srv.Shutdown(); err != nil {
-		log.Error(errors.Wrap(err, "Something went wrong while shutting down the DNS webserver"))
+		log.Error(errors.Wrap(err, "Something went wrong while shutting down the DNS server"))
 	}
 	srv.Shutdown()
 }

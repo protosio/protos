@@ -197,7 +197,7 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 	for _, nip := range ips {
 		ip := nip
-		log.Infof("Listening internally on %s:%s (HTTP)", ip, httpport)
+		log.Infof("Listening internally on '%s:%s' (HTTP)", ip, httpport)
 		isrv := &http.Server{Addr: ip + ":" + httpport, Handler: handler}
 		internalSrvs = append(internalSrvs, isrv)
 		go func() {
@@ -212,7 +212,7 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 
 	go func() {
-		log.Infof("Listening on %s (HTTPS)", srv.Addr)
+		log.Infof("Listening on '%s' (HTTPS)", srv.Addr)
 		if err := srv.ListenAndServeTLS("", ""); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
 				log.Info("HTTPS API webserver terminated successfully")
@@ -244,7 +244,7 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-	log.Info("Starting init webserver on " + srv.Addr)
+	log.Infof("Starting init webserver on '%s'", srv.Addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {

@@ -114,7 +114,7 @@ func (m *Meta) setPublicIP() {
 	if err != nil {
 		log.Fatalf("Could not find instance public ip: %s", err.Error())
 	}
-	log.Debugf("Setting instance IP address to '%s'", ip)
+	log.Debugf("Setting external instance IP address to '%s'", ip)
 	m.PublicIP = ip
 	m.save()
 
