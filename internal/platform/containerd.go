@@ -105,6 +105,22 @@ func (cdp *containerdPlatform) Init() (string, error) {
 	return cdp.protosIP, nil
 }
 
+func convertPort(port util.Port) *pb.PortMapping {
+	newPort := &pb.PortMapping{}
+	switch port.Type {
+	case util.TCP:
+		newPort.Protocol = 0
+	case util.UDP:
+		newPort.Protocol = 1
+	case util.SCTP:
+		newPort.Protocol = 2
+	}
+	newPort.ContainerPort = int32(port.Nr)
+	newPort.HostPort = int32(port.Nr)
+
+	return newPort
+}
+
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
 	pru := &containerdSandbox{p: cdp}
 
@@ -120,6 +136,11 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 
 	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageID)
 
+	podPorts := []*pb.PortMapping{}
+	for _, port := range publicPorts {
+		podPorts = append(podPorts, convertPort(port))
+	}
+
 	// create pod
 	podConfig := &pb.PodSandboxConfig{
 		Hostname: name,
@@ -128,6 +149,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 			Namespace: "default",
 			Attempt:   1,
 		},
+		PortMappings: podPorts,
 		DnsConfig:    &pb.DNSConfig{Servers: []string{cdp.protosIP}, Searches: []string{"protos.local"}},
 		Linux:        &pb.LinuxPodSandboxConfig{},
 		LogDirectory: logDirectory,

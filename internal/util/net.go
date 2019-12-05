@@ -15,6 +15,9 @@ var TCP = PortType("TCP")
 // UDP port type
 var UDP = PortType("UDP")
 
+// SCTP port type
+var SCTP = PortType("SCTP")
+
 //Port defines a struct that holds information about a port
 type Port struct {
 	Nr   int
