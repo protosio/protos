@@ -67,6 +67,22 @@ func parseEndpoint(endpoint string) (string, string, error) {
 	}
 }
 
+func convertPort(port util.Port) *pb.PortMapping {
+	newPort := &pb.PortMapping{}
+	switch port.Type {
+	case util.TCP:
+		newPort.Protocol = 0
+	case util.UDP:
+		newPort.Protocol = 1
+	case util.SCTP:
+		newPort.Protocol = 2
+	}
+	newPort.ContainerPort = int32(port.Nr)
+	newPort.HostPort = int32(port.Nr)
+
+	return newPort
+}
+
 type containerdPlatform struct {
 	endpoint      string
 	appStoreHost  string
@@ -74,6 +90,7 @@ type containerdPlatform struct {
 	runtimeClient pb.RuntimeServiceClient
 	imageClient   pb.ImageServiceClient
 	protosIP      string
+	conn          *grpc.ClientConn
 }
 
 func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, protosIP string) *containerdPlatform {
@@ -95,30 +112,14 @@ func (cdp *containerdPlatform) Init() (string, error) {
 		return "", errors.New("unix socket is the only supported socket for the containerd endpoint")
 	}
 
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(defaultGRPCTimeout), grpc.WithDialer(dial))
+	cdp.conn, err = grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(defaultGRPCTimeout), grpc.WithDialer(dial))
 	if err != nil {
 		return "", errors.Wrap(err, "failed to connect, make sure you are running as root and the runtime has been started")
 	}
-	cdp.runtimeClient = pb.NewRuntimeServiceClient(conn)
-	cdp.imageClient = pb.NewImageServiceClient(conn)
+	cdp.runtimeClient = pb.NewRuntimeServiceClient(cdp.conn)
+	cdp.imageClient = pb.NewImageServiceClient(cdp.conn)
 
 	return cdp.protosIP, nil
-}
-
-func convertPort(port util.Port) *pb.PortMapping {
-	newPort := &pb.PortMapping{}
-	switch port.Type {
-	case util.TCP:
-		newPort.Protocol = 0
-	case util.UDP:
-		newPort.Protocol = 1
-	case util.SCTP:
-		newPort.Protocol = 2
-	}
-	newPort.ContainerPort = int32(port.Nr)
-	newPort.HostPort = int32(port.Nr)
-
-	return newPort
 }
 
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
