@@ -241,8 +241,13 @@ func (dp *dockerPlatform) RemoveVolume(volumeID string) error {
 	return dp.client.VolumeRemove(context.Background(), volumeID, false)
 }
 
-// CleanUp cleans up any remaining resources belonging to a sandbox
-func (dp *dockerPlatform) CleanUp(id string) error {
+// CleanUpSandbox cleans up any remaining resources belonging to a sandbox
+func (dp *dockerPlatform) CleanUpSandbox(id string) error {
+	return nil
+}
+
+// Terminate cleans up any leftover resources in the runtime platform. Not used for Docker
+func (dp *dockerPlatform) Terminate() error {
 	return nil
 }
 

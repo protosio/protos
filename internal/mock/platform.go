@@ -166,18 +166,18 @@ func (mr *MockRuntimePlatformMockRecorder) RemoveVolume(id interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVolume", reflect.TypeOf((*MockRuntimePlatform)(nil).RemoveVolume), id)
 }
 
-// CleanUp mocks base method
-func (m *MockRuntimePlatform) CleanUp(id string) error {
+// CleanUpSandbox mocks base method
+func (m *MockRuntimePlatform) CleanUpSandbox(id string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CleanUp", id)
+	ret := m.ctrl.Call(m, "CleanUpSandbox", id)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CleanUp indicates an expected call of CleanUp
-func (mr *MockRuntimePlatformMockRecorder) CleanUp(id interface{}) *gomock.Call {
+// CleanUpSandbox indicates an expected call of CleanUpSandbox
+func (mr *MockRuntimePlatformMockRecorder) CleanUpSandbox(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanUp", reflect.TypeOf((*MockRuntimePlatform)(nil).CleanUp), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanUpSandbox", reflect.TypeOf((*MockRuntimePlatform)(nil).CleanUpSandbox), id)
 }
 
 // NewSandbox mocks base method
@@ -208,6 +208,20 @@ func (m *MockRuntimePlatform) GetHWStats() (core.HardwareStats, error) {
 func (mr *MockRuntimePlatformMockRecorder) GetHWStats() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHWStats", reflect.TypeOf((*MockRuntimePlatform)(nil).GetHWStats))
+}
+
+// Terminate mocks base method
+func (m *MockRuntimePlatform) Terminate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Terminate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Terminate indicates an expected call of Terminate
+func (mr *MockRuntimePlatformMockRecorder) Terminate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*MockRuntimePlatform)(nil).Terminate))
 }
 
 // MockPlatformRuntimeUnit is a mock of PlatformRuntimeUnit interface

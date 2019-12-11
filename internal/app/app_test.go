@@ -390,7 +390,7 @@ func TestApp(t *testing.T) {
 		// container not found
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound)).Times(1)
-		platformMock.EXPECT().CleanUp("cntid").Return(nil).Times(1)
+		platformMock.EXPECT().CleanUpSandbox("cntid").Return(nil).Times(1)
 		err = app.remove()
 		if err != nil {
 			t.Errorf("remove() should NOT return an error when the container is not found: %s", err.Error())
@@ -408,28 +408,28 @@ func TestApp(t *testing.T) {
 		// container retrieved and removed
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
 		platformMock.EXPECT().GetSandbox("cntid").Return(pruMock, nil).Times(1)
-		platformMock.EXPECT().CleanUp("cntid").Return(nil).Times(1)
+		platformMock.EXPECT().CleanUpSandbox("cntid").Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1).Times(1)
 		err = app.remove()
 		if err != nil {
 			t.Errorf("remove() should NOT return an error when the container is removed successfully: %s", err.Error())
 		}
 
-		// failed to perform cleanup
+		// failed to perform CleanUpSandbox
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
 		platformMock.EXPECT().GetSandbox("cntid").Return(pruMock, nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1).Times(1)
-		platformMock.EXPECT().CleanUp("cntid").Return(errors.New("failed to perform cleanup")).Times(1)
+		platformMock.EXPECT().CleanUpSandbox("cntid").Return(errors.New("failed to perform CleanUpSandbox")).Times(1)
 		err = app.remove()
 		if err != nil {
-			t.Error("remove() should NOT return an error when the container cleanup fails. It should print a warning")
+			t.Error("remove() should NOT return an error when the container CleanUpSandbox fails. It should print a warning")
 		}
 
 		// failed to remove volume
 		app.VolumeID = "testvol"
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(3)
 		platformMock.EXPECT().GetSandbox("cntid").Return(pruMock, nil).Times(1)
-		platformMock.EXPECT().CleanUp("cntid").Return(nil).Times(1)
+		platformMock.EXPECT().CleanUpSandbox("cntid").Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		platformMock.EXPECT().RemoveVolume(app.VolumeID).Return(errors.New("volume removal error"))
 		err = app.remove()
@@ -441,7 +441,7 @@ func TestApp(t *testing.T) {
 		app.VolumeID = "testvol"
 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(3)
 		platformMock.EXPECT().GetSandbox("cntid").Return(pruMock, nil).Times(1)
-		platformMock.EXPECT().CleanUp("cntid").Return(nil).Times(1)
+		platformMock.EXPECT().CleanUpSandbox("cntid").Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		platformMock.EXPECT().RemoveVolume(app.VolumeID).Return(nil)
 		err = app.remove()

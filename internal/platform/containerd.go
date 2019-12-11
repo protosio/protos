@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -84,22 +85,42 @@ func convertPort(port util.Port) *pb.PortMapping {
 }
 
 type containerdPlatform struct {
-	endpoint      string
-	appStoreHost  string
-	inContainer   bool
-	runtimeClient pb.RuntimeServiceClient
-	imageClient   pb.ImageServiceClient
-	protosIP      string
-	conn          *grpc.ClientConn
+	endpoint          string
+	appStoreHost      string
+	inContainer       bool
+	runtimeClient     pb.RuntimeServiceClient
+	imageClient       pb.ImageServiceClient
+	dnsServer         string
+	internalInterface string
+	conn              *grpc.ClientConn
+	initPodID         string
 }
 
-func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, protosIP string) *containerdPlatform {
+func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, internalInterface string) *containerdPlatform {
 	return &containerdPlatform{
-		endpoint:     runtimeUnixSocket,
-		appStoreHost: appStoreHost,
-		inContainer:  inContainer,
-		protosIP:     protosIP,
+		endpoint:          runtimeUnixSocket,
+		appStoreHost:      appStoreHost,
+		inContainer:       inContainer,
+		internalInterface: internalInterface,
 	}
+}
+
+func (cdp *containerdPlatform) createInitPod() (string, error) {
+	podConfig := &pb.PodSandboxConfig{
+		Hostname: "init",
+		Metadata: &pb.PodSandboxMetadata{
+			Name:      "init",
+			Namespace: "default",
+			Attempt:   1,
+		},
+		Linux:        &pb.LinuxPodSandboxConfig{},
+		LogDirectory: logDirectory,
+	}
+	pod, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
+	if err != nil {
+		return "", errors.Wrapf(err, "Failed to create init pod")
+	}
+	return pod.PodSandboxId, nil
 }
 
 func (cdp *containerdPlatform) Init() (string, error) {
@@ -109,17 +130,39 @@ func (cdp *containerdPlatform) Init() (string, error) {
 		return "", err
 	}
 	if protocol != unixProtocol {
-		return "", errors.New("unix socket is the only supported socket for the containerd endpoint")
+		return "", errors.New("Failed to initialize containerd runtime. Unix socket is the only supported socket for the containerd endpoint")
 	}
 
 	cdp.conn, err = grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(defaultGRPCTimeout), grpc.WithDialer(dial))
 	if err != nil {
-		return "", errors.Wrap(err, "failed to connect, make sure you are running as root and the runtime has been started")
+		return "", errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
 	}
 	cdp.runtimeClient = pb.NewRuntimeServiceClient(cdp.conn)
 	cdp.imageClient = pb.NewImageServiceClient(cdp.conn)
 
-	return cdp.protosIP, nil
+	cdp.initPodID, err = cdp.createInitPod()
+	if err != nil {
+		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
+	}
+
+	iface, err := net.InterfaceByName(cdp.internalInterface)
+	if err != nil {
+		cdp.Terminate()
+		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
+	}
+	ips, err := iface.Addrs()
+	if err != nil {
+		cdp.Terminate()
+		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
+	}
+	if len(ips) == 0 {
+		cdp.Terminate()
+		return "", errors.Wrapf(err, "Failed to initialize containerd runtime. Internal interface '%s' does not have an ip configured", cdp.internalInterface)
+	}
+	ifaceIP := strings.Split(ips[0].String(), "/")[0]
+	cdp.dnsServer = ifaceIP
+
+	return ifaceIP, nil
 }
 
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
@@ -151,7 +194,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 			Attempt:   1,
 		},
 		PortMappings: podPorts,
-		DnsConfig:    &pb.DNSConfig{Servers: []string{cdp.protosIP}, Searches: []string{"protos.local"}},
+		DnsConfig:    &pb.DNSConfig{Servers: []string{cdp.dnsServer}, Searches: []string{"protos.local"}},
 		Linux:        &pb.LinuxPodSandboxConfig{},
 		LogDirectory: logDirectory,
 	}
@@ -334,7 +377,7 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 	return nil
 }
 
-func (cdp *containerdPlatform) CleanUp(id string) error {
+func (cdp *containerdPlatform) CleanUpSandbox(id string) error {
 	// remove logs
 	logFile := logDirectory + "/" + id + ".log"
 	log.Info("Removing file ", logFile)
@@ -347,6 +390,18 @@ func (cdp *containerdPlatform) CleanUp(id string) error {
 
 func (cdp *containerdPlatform) GetHWStats() (core.HardwareStats, error) {
 	return getHWStatus()
+}
+
+func (cdp *containerdPlatform) Terminate() error {
+	_, err := cdp.runtimeClient.StopPodSandbox(context.Background(), &pb.StopPodSandboxRequest{PodSandboxId: cdp.initPodID})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
+	}
+	_, err = cdp.runtimeClient.RemovePodSandbox(context.Background(), &pb.RemovePodSandboxRequest{PodSandboxId: cdp.initPodID})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
+	}
+	return nil
 }
 
 //

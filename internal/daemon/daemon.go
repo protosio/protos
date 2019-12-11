@@ -58,7 +58,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg)
+	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg, cfg.InternalInterface)
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, cfg)
@@ -113,6 +113,10 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 
 	wg.Wait()
+	err := p.Terminate()
+	if err != nil {
+		log.Errorf("Failed to terminate runtime platform setup: %s", err.Error())
+	}
 	log.Info("Terminating...")
 
 }

@@ -15,23 +15,24 @@ import (
 
 // Config is the main configuration struct
 type Config struct {
-	WorkDir         string
-	AppsPath        string
-	HTTPport        int
-	HTTPSport       int
-	Runtime         string
-	RuntimeEndpoint string
-	InContainer     bool
-	StaticAssets    string
-	InitMode        bool
-	DevMode         bool
-	AppStoreURL     string
-	AppStoreHost    string
-	ProcsQuit       sync.Map
-	InternalIP      string
-	ExternalDNS     string // format: <ip>:<port>
-	Version         *semver.Version
-	WSPublish       chan interface{}
+	WorkDir           string
+	AppsPath          string
+	HTTPport          int
+	HTTPSport         int
+	Runtime           string
+	RuntimeEndpoint   string
+	InContainer       bool
+	StaticAssets      string
+	InitMode          bool
+	DevMode           bool
+	AppStoreURL       string
+	AppStoreHost      string
+	ProcsQuit         sync.Map
+	InternalIP        string
+	InternalInterface string
+	ExternalDNS       string // format: <ip>:<port>
+	Version           *semver.Version
+	WSPublish         chan interface{}
 }
 
 var config = Config{

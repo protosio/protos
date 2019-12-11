@@ -38,13 +38,13 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 }
 
 // Initialize checks if the Protos network exists
-func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter) core.RuntimePlatform {
+func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter, internalInterface string) core.RuntimePlatform {
 	var dp core.RuntimePlatform
 	switch runtime {
 	case dockerRuntime:
 		dp = createDockerRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
 	case containerdRuntime:
-		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, "192.168.40.29")
+		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, internalInterface)
 	}
 	internalIP, err := dp.Init()
 	if err != nil {

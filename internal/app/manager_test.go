@@ -185,7 +185,7 @@ func TestAppManager(t *testing.T) {
 
 		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
-		rpMock.EXPECT().CleanUp(gomock.Any()).Return(nil).Times(1)
+		rpMock.EXPECT().CleanUpSandbox(gomock.Any()).Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		am.Remove(app.ID)
 	})
@@ -244,7 +244,7 @@ func TestAppManager(t *testing.T) {
 		// existent app id - happy path
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
-		rpMock.EXPECT().CleanUp(gomock.Any()).Return(nil).Times(1)
+		rpMock.EXPECT().CleanUpSandbox(gomock.Any()).Return(nil).Times(1)
 		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 		err = am.Remove("id2")
 		if err != nil {
@@ -319,7 +319,7 @@ func TestAppManager(t *testing.T) {
 			t.Errorf("CreateDevApp(...) should NOT return an error: %s", err.Error())
 		}
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
-		rpMock.EXPECT().CleanUp(gomock.Any()).Return(nil).Times(1)
+		rpMock.EXPECT().CleanUpSandbox(gomock.Any()).Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 		am.Remove(app.GetID())
