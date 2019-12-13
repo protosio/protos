@@ -93,7 +93,6 @@ type containerdPlatform struct {
 	dnsServer         string
 	internalInterface string
 	conn              *grpc.ClientConn
-	initPodID         string
 }
 
 func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, internalInterface string) *containerdPlatform {
@@ -105,7 +104,7 @@ func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost stri
 	}
 }
 
-func (cdp *containerdPlatform) createInitPod() (string, error) {
+func (cdp *containerdPlatform) initCni() error {
 	podConfig := &pb.PodSandboxConfig{
 		Hostname: "init",
 		Metadata: &pb.PodSandboxMetadata{
@@ -118,9 +117,18 @@ func (cdp *containerdPlatform) createInitPod() (string, error) {
 	}
 	pod, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
 	if err != nil {
-		return "", errors.Wrapf(err, "Failed to create init pod")
+		return errors.Wrapf(err, "Failed to create init pod")
 	}
-	return pod.PodSandboxId, nil
+
+	_, err = cdp.runtimeClient.StopPodSandbox(context.Background(), &pb.StopPodSandboxRequest{PodSandboxId: pod.PodSandboxId})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
+	}
+	_, err = cdp.runtimeClient.RemovePodSandbox(context.Background(), &pb.RemovePodSandboxRequest{PodSandboxId: pod.PodSandboxId})
+	if err != nil {
+		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
+	}
+	return nil
 }
 
 func (cdp *containerdPlatform) Init() (string, error) {
@@ -140,7 +148,7 @@ func (cdp *containerdPlatform) Init() (string, error) {
 	cdp.runtimeClient = pb.NewRuntimeServiceClient(cdp.conn)
 	cdp.imageClient = pb.NewImageServiceClient(cdp.conn)
 
-	cdp.initPodID, err = cdp.createInitPod()
+	err = cdp.initCni()
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
 	}
