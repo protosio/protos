@@ -210,20 +210,6 @@ func (mr *MockRuntimePlatformMockRecorder) GetHWStats() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHWStats", reflect.TypeOf((*MockRuntimePlatform)(nil).GetHWStats))
 }
 
-// Terminate mocks base method
-func (m *MockRuntimePlatform) Terminate() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Terminate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Terminate indicates an expected call of Terminate
-func (mr *MockRuntimePlatformMockRecorder) Terminate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*MockRuntimePlatform)(nil).Terminate))
-}
-
 // MockPlatformRuntimeUnit is a mock of PlatformRuntimeUnit interface
 type MockPlatformRuntimeUnit struct {
 	ctrl     *gomock.Controller

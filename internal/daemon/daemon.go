@@ -113,10 +113,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 
 	wg.Wait()
-	err := p.Terminate()
-	if err != nil {
-		log.Errorf("Failed to terminate runtime platform setup: %s", err.Error())
-	}
 	log.Info("Terminating...")
 
 }

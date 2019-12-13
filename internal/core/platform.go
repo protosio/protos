@@ -27,7 +27,6 @@ type RuntimePlatform interface {
 	CleanUpSandbox(id string) error
 	NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
 	GetHWStats() (HardwareStats, error)
-	Terminate() error
 }
 
 // PlatformRuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.

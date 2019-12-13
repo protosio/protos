@@ -147,16 +147,13 @@ func (cdp *containerdPlatform) Init() (string, error) {
 
 	iface, err := net.InterfaceByName(cdp.internalInterface)
 	if err != nil {
-		cdp.Terminate()
 		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
 	}
 	ips, err := iface.Addrs()
 	if err != nil {
-		cdp.Terminate()
 		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
 	}
 	if len(ips) == 0 {
-		cdp.Terminate()
 		return "", errors.Wrapf(err, "Failed to initialize containerd runtime. Internal interface '%s' does not have an ip configured", cdp.internalInterface)
 	}
 	ifaceIP := strings.Split(ips[0].String(), "/")[0]
@@ -390,18 +387,6 @@ func (cdp *containerdPlatform) CleanUpSandbox(id string) error {
 
 func (cdp *containerdPlatform) GetHWStats() (core.HardwareStats, error) {
 	return getHWStatus()
-}
-
-func (cdp *containerdPlatform) Terminate() error {
-	_, err := cdp.runtimeClient.StopPodSandbox(context.Background(), &pb.StopPodSandboxRequest{PodSandboxId: cdp.initPodID})
-	if err != nil {
-		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
-	}
-	_, err = cdp.runtimeClient.RemovePodSandbox(context.Background(), &pb.RemovePodSandboxRequest{PodSandboxId: cdp.initPodID})
-	if err != nil {
-		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
-	}
-	return nil
 }
 
 //

@@ -246,11 +246,6 @@ func (dp *dockerPlatform) CleanUpSandbox(id string) error {
 	return nil
 }
 
-// Terminate cleans up any leftover resources in the runtime platform. Not used for Docker
-func (dp *dockerPlatform) Terminate() error {
-	return nil
-}
-
 //
 // Docker container operations
 //
