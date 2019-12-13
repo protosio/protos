@@ -5,6 +5,7 @@ ENV GOPATH=/go PATH=$PATH:/go/bin
 RUN git clone --single-branch --branch add_containerd_runtime https://github.com/protosio/protos.git
 WORKDIR /go/src/github.com/protos
 RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-w -extldflags "-static"' -o bin/protos cmd/protos/protos.go
+RUN mkdir /root/tmp
 
 
 FROM alpine:3.10.3
