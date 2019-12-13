@@ -201,7 +201,6 @@ func (app *App) enrichAppData() {
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
-			log.Warnf("Application '%s'(%s) has no container: %s", app.Name, app.ID, err.Error())
 			app.Status = statusStopped
 			return
 		}
@@ -252,7 +251,7 @@ func (app *App) Stop() error {
 			app.SetStatus(statusUnknown)
 			return err
 		}
-		log.Warnf("Application '%s'(%s) has no container to stop", app.Name, app.ID)
+		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)
 		app.SetStatus(statusStopped)
 		return nil
 	}
@@ -275,7 +274,7 @@ func (app *App) remove() error {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
-		log.Warnf("Application %s(%s) has no container to remove", app.Name, app.ID)
+		log.Warnf("Application %s(%s) has no sandbox to remove", app.Name, app.ID)
 	} else {
 		err := cnt.Remove()
 		if err != nil {
