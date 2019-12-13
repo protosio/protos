@@ -49,7 +49,6 @@ type handlerAccess struct {
 	tm core.TaskManager
 	m  core.Meta
 	as core.AppStore
-	ic core.InstallerCache
 	um core.UserManager
 	rp core.RuntimePlatform
 	cm core.CapabilityManager
@@ -198,7 +197,7 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 	for _, nip := range ips {
 		ip := nip
-		log.Infof("Listening internally on %s:%s (HTTP)", ip, httpport)
+		log.Infof("Listening internally on '%s:%s' (HTTP)", ip, httpport)
 		isrv := &http.Server{Addr: ip + ":" + httpport, Handler: handler}
 		internalSrvs = append(internalSrvs, isrv)
 		go func() {
@@ -213,7 +212,7 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 
 	go func() {
-		log.Infof("Listening on %s (HTTPS)", srv.Addr)
+		log.Infof("Listening on '%s' (HTTPS)", srv.Addr)
 		if err := srv.ListenAndServeTLS("", ""); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
 				log.Info("HTTPS API webserver terminated successfully")
@@ -245,7 +244,7 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-	log.Info("Starting init webserver on " + srv.Addr)
+	log.Infof("Starting init webserver on '%s'", srv.Addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
@@ -265,7 +264,7 @@ func insecureListen(handler http.Handler, quit chan bool) bool {
 }
 
 // Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) {
+func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) {
 
 	ha := handlerAccess{
 		pm: pm,
@@ -274,13 +273,12 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 		tm: tm,
 		m:  m,
 		as: as,
-		ic: ic,
 		um: um,
 		rp: rp,
 		cm: cm,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
@@ -339,7 +337,7 @@ func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm co
 }
 
 // WebsrvInit starts an HTTP server used only during the initialisation process
-func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, ic core.InstallerCache, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) bool {
+func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) bool {
 
 	ha := handlerAccess{
 		pm: pm,
@@ -348,13 +346,12 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 		tm: tm,
 		m:  m,
 		as: as,
-		ic: ic,
 		um: um,
 		rp: rp,
 		cm: cm,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.ic == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
+	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 

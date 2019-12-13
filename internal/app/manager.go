@@ -14,7 +14,6 @@ import (
 
 type appStore interface {
 	GetInstaller(id string) (core.Installer, error)
-	CreateTemporaryInstaller(id string, metadata map[string]core.InstallerMetadata) core.Installer
 }
 
 // dnsResource is only used locally to retrieve the Name of a DNS record
@@ -153,7 +152,7 @@ func (am *Manager) createAppForTask(installerID string, installerVersion string,
 
 // GetCopy returns a copy of an application based on its id
 func (am *Manager) GetCopy(id string) (core.App, error) {
-	log.Debug("Copying application ", id)
+	log.Trace("Copying application ", id)
 	app, err := am.apps.get(id)
 	if err != nil {
 		return app, err
@@ -195,18 +194,17 @@ func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
 }
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
-func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerMetadata *core.InstallerMetadata, installerParams map[string]string, startOnCreation bool) core.Task {
+func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) core.Task {
 	if installerID == "" || appName == "" {
 		log.Panic("CreateAsync doesn't have all the required parameters")
 	}
 	createApp := CreateAppTask{
-		am:                am,
-		InstallerID:       installerID,
-		InstallerVersion:  installerVersion,
-		AppName:           appName,
-		InstallerMetadata: installerMetadata,
-		InstallerParams:   installerParams,
-		StartOnCreation:   startOnCreation,
+		am:               am,
+		InstallerID:      installerID,
+		InstallerVersion: installerVersion,
+		AppName:          appName,
+		InstallerParams:  installerParams,
+		StartOnCreation:  startOnCreation,
 	}
 	return am.tm.New("Create application", &createApp)
 }
@@ -328,12 +326,12 @@ func (am *Manager) saveApp(app *App) {
 //
 
 // CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
-func (am *Manager) CreateDevApp(installerID string, installerVersion string, appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string) (core.App, error) {
+func (am *Manager) CreateDevApp(appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string) (core.App, error) {
 
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")
 
-	app, err := am.Create(installerID, installerVersion, appName, installerParams, installerMetadata, "sync")
+	app, err := am.Create("dev", "0.0.0-dev", appName, installerParams, installerMetadata, "sync")
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}

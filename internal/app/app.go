@@ -73,32 +73,6 @@ type App struct {
 // Utilities
 //
 
-func containerToAppStatus(status string, exitCode int) string {
-	switch status {
-	case "created":
-		return statusStopped
-	case "container missing":
-		return statusStopped
-	case "restarting":
-		return statusStopped
-	case "paused":
-		return statusStopped
-	case "exited":
-		if exitCode == 0 {
-			return statusStopped
-		}
-		return statusFailed
-	case "dead":
-		return statusFailed
-	case "removing":
-		return statusRunning
-	case "running":
-		return statusRunning
-	default:
-		return statusUnknown
-	}
-}
-
 // validateInstallerParams makes sure that the params passed at app creation match what is requested by the installer
 func validateInstallerParams(paramsProvided map[string]string, paramsExpected []string) error {
 	for _, param := range paramsExpected {
@@ -176,7 +150,7 @@ func (app *App) Save() {
 }
 
 // reateContainer create the underlying Docker container
-func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
+func (app *App) createSandbox() (core.PlatformRuntimeUnit, error) {
 	// var volume *platform.DockerVolume
 	var err error
 	var volumeID string
@@ -187,6 +161,7 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 		}
 	}
 
+	log.Infof("Creating sandbox for app '%s'[%s]", app.Name, app.ID)
 	cnt, err := app.parent.getPlatform().NewSandbox(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create container for app '%s'", app.ID)
@@ -200,11 +175,11 @@ func (app *App) createContainer() (core.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-func (app *App) getOrCreateContainer() (core.PlatformRuntimeUnit, error) {
+func (app *App) getOrcreateSandbox() (core.PlatformRuntimeUnit, error) {
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
-			cnt, err := app.createContainer()
+			cnt, err := app.createSandbox()
 			if err != nil {
 				return nil, err
 			}
@@ -217,6 +192,7 @@ func (app *App) getOrCreateContainer() (core.PlatformRuntimeUnit, error) {
 
 // enrichAppData updates the information about the underlying application
 func (app *App) enrichAppData() {
+
 	if app.Status == statusCreating || app.Status == statusFailed {
 		// not refreshing the platform until the app creation process is done
 		return
@@ -225,15 +201,15 @@ func (app *App) enrichAppData() {
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, core.ErrContainerNotFound) {
-			log.Warnf("Application '%s'(%s) has no container: %s", app.Name, app.ID, err.Error())
 			app.Status = statusStopped
 			return
 		}
+		log.Errorf("Failed to enrich app data: %s", err.Error())
 		app.Status = statusUnknown
 		return
 	}
 
-	app.Status = containerToAppStatus(cnt.GetStatus(), cnt.GetExitCode())
+	app.Status = cnt.GetStatus()
 }
 
 // StartAsync asynchronously starts an application and returns a task
@@ -245,7 +221,7 @@ func (app *App) StartAsync() core.Task {
 func (app *App) Start() error {
 	log.Infof("Starting application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.getOrCreateContainer()
+	cnt, err := app.getOrcreateSandbox()
 	if err != nil {
 		app.SetStatus(statusFailed)
 		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
@@ -275,7 +251,7 @@ func (app *App) Stop() error {
 			app.SetStatus(statusUnknown)
 			return err
 		}
-		log.Warnf("Application '%s'(%s) has no container to stop", app.Name, app.ID)
+		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)
 		app.SetStatus(statusStopped)
 		return nil
 	}
@@ -283,7 +259,7 @@ func (app *App) Stop() error {
 	err = cnt.Stop()
 	if err != nil {
 		app.SetStatus(statusUnknown)
-		return errors.Wrapf(err, "Can't stop application '%s'(%s)", app.Name, app.ID)
+		return errors.Wrapf(err, "Failed to stop application '%s'(%s)", app.Name, app.ID)
 	}
 	app.SetStatus(statusStopped)
 	return nil
@@ -298,12 +274,18 @@ func (app *App) remove() error {
 		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
 			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
-		log.Warnf("Application %s(%s) has no container to remove", app.Name, app.ID)
+		log.Warnf("Application %s(%s) has no sandbox to remove", app.Name, app.ID)
 	} else {
 		err := cnt.Remove()
 		if err != nil {
 			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
+	}
+
+	// perform CleanUpSandbox for the sandbox
+	err = app.parent.getPlatform().CleanUpSandbox(app.ContainerID)
+	if err != nil {
+		log.Warnf("Failed to perform CleanUpSandbox for sandbox '%s': %s", app.ContainerID, err.Error())
 	}
 
 	if app.VolumeID != "" {

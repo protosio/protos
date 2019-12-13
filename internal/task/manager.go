@@ -186,7 +186,7 @@ func (tm *Manager) GetIDs(ids []string) linkedhashmap.Map {
 }
 
 func (tm *Manager) saveTask(btsk *Base) {
-	log.WithField("proc", "taskManager").Debugf("Saving task %s to database", btsk.ID)
+	log.WithField("proc", "taskManager").Tracef("Saving task %s to database", btsk.ID)
 	btsk.access.Lock()
 	ltask := *btsk
 	btsk.access.Unlock()

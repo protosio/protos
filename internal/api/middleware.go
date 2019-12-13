@@ -39,7 +39,7 @@ func HTTPLogger(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 
 	next(w, r)
 
-	log.Debugf(
+	log.Tracef(
 		"HTTP|%s|%s -\t%s",
 		r.Method,
 		time.Since(start),

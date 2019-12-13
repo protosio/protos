@@ -48,20 +48,6 @@ func (mr *MockappStoreMockRecorder) GetInstaller(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstaller", reflect.TypeOf((*MockappStore)(nil).GetInstaller), id)
 }
 
-// CreateTemporaryInstaller mocks base method
-func (m *MockappStore) CreateTemporaryInstaller(id string, metadata map[string]core.InstallerMetadata) core.Installer {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateTemporaryInstaller", id, metadata)
-	ret0, _ := ret[0].(core.Installer)
-	return ret0
-}
-
-// CreateTemporaryInstaller indicates an expected call of CreateTemporaryInstaller
-func (mr *MockappStoreMockRecorder) CreateTemporaryInstaller(id, metadata interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTemporaryInstaller", reflect.TypeOf((*MockappStore)(nil).CreateTemporaryInstaller), id, metadata)
-}
-
 // MockdnsResource is a mock of dnsResource interface
 type MockdnsResource struct {
 	ctrl     *gomock.Controller

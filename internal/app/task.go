@@ -20,18 +20,17 @@ type app interface {
 	GetID() string
 	SetStatus(status string)
 	StartAsync() core.Task
-	createContainer() (core.PlatformRuntimeUnit, error)
+	createSandbox() (core.PlatformRuntimeUnit, error)
 }
 
 // CreateAppTask creates an app and implements the task interface
 type CreateAppTask struct {
-	am                taskParent
-	InstallerID       string
-	InstallerVersion  string
-	AppName           string
-	InstallerMetadata *core.InstallerMetadata
-	InstallerParams   map[string]string
-	StartOnCreation   bool
+	am               taskParent
+	InstallerID      string
+	InstallerVersion string
+	AppName          string
+	InstallerParams  map[string]string
+	StartOnCreation  bool
 }
 
 // Run starts the async task
@@ -39,7 +38,7 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 	log.WithField("proc", tskID).Debugf("Running app creation task '%s' based on installer '%s:%s'", tskID, t.InstallerID, t.InstallerVersion)
 
 	if t.InstallerID == "" || t.AppName == "" || t.am == nil {
-		return errors.New("Failed to run CreateAppTask '%s' because one of the required task fields are missing")
+		return errors.Errorf("Failed to run CreateAppTask for app '%s' because one of the required task fields are missing", t.AppName)
 	}
 
 	var inst core.Installer
@@ -47,30 +46,22 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 	var metadata core.InstallerMetadata
 	var err error
 
-	if t.InstallerMetadata == nil {
-		// normal app creation, using the app store
-		inst, err = t.am.getAppStore().GetInstaller(t.InstallerID)
-		if err != nil {
-			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
-		}
+	// normal app creation, using the app store
+	inst, err = t.am.getAppStore().GetInstaller(t.InstallerID)
+	if err != nil {
+		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
+	}
 
-		if t.InstallerVersion == "" {
-			version = inst.GetLastVersion()
-			log.Infof("Creating application using latest version (%s) of installer '%s'", version, t.InstallerID)
-		} else {
-			version = t.InstallerVersion
-		}
-
-		metadata, err = inst.GetMetadata(version)
-		if err != nil {
-			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
-		}
+	if t.InstallerVersion == "" {
+		version = inst.GetLastVersion()
+		log.Infof("Creating application using latest version (%s) of installer '%s'", version, t.InstallerID)
 	} else {
-		// app creation using local container (dev purposes)
-		version = "0.0.0-dev"
-		log.Infof("Creating application using local installer (DEV) '%s' version '%s'", t.InstallerID, version)
-		metadata = *t.InstallerMetadata
-		inst = t.am.getAppStore().CreateTemporaryInstaller(t.InstallerID, map[string]core.InstallerMetadata{version: *t.InstallerMetadata})
+		version = t.InstallerVersion
+	}
+
+	metadata, err = inst.GetMetadata(version)
+	if err != nil {
+		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
 
 	var app app
@@ -87,7 +78,7 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
 	if available != true {
-		log.WithField("proc", tskID).Debugf("Docker image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, version)
+		log.WithField("proc", tskID).Debugf("Container image %s for installer %s(%s) is not available locally. Downloading...", metadata.PlatformID, t.InstallerID, version)
 		tsk := inst.DownloadAsync(version, app.GetID())
 		app.AddTask(tsk.GetID())
 		err := tsk.Wait()
@@ -96,18 +87,18 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 			return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 		}
 	} else {
-		log.WithField("proc", tskID).Debugf("Docker image for installer %s(%s) found locally", t.InstallerID, version)
+		log.WithField("proc", tskID).Debugf("Container image for installer %s(%s) found locally", t.InstallerID, version)
 		p.SetPercentage(50)
-		p.SetState("Docker image found locally")
+		p.SetState("Container image found locally")
 	}
 
-	_, err = app.createContainer()
+	_, err = app.createSandbox()
 	if err != nil {
 		app.SetStatus(statusFailed)
 		return errors.Wrapf(err, "Could not create application '%s'", t.AppName)
 	}
 	p.SetPercentage(70)
-	p.SetState("Created Docker container")
+	p.SetState("Created container")
 
 	if t.StartOnCreation {
 		tsk := app.StartAsync()
@@ -133,6 +124,7 @@ type StartAppTask struct {
 
 // Run starts the async task
 func (t *StartAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+	log.WithField("proc", tskID).Infof("Running start app task '%s'", tskID)
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
 	return t.app.Start()
@@ -145,6 +137,7 @@ type StopAppTask struct {
 
 // Run starts the async task
 func (t *StopAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+	log.WithField("proc", tskID).Infof("Running stop app task '%s'", tskID)
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
 	return t.app.Stop()

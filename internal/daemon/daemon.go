@@ -14,6 +14,7 @@ import (
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/database"
+	"github.com/protosio/protos/internal/dns"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/platform"
@@ -57,7 +58,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg)
+	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg, cfg.InternalInterface)
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, cfg)
@@ -76,13 +77,22 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		wg.Done()
 	}()
 
+	// start DNS server
+	wg.Add(1)
+	dnsserverQuit := make(chan bool, 1)
+	cfg.ProcsQuit.Store("dnsserver", dnsserverQuit)
+	go func() {
+		dns.Server(dnsserverQuit, cfg.InternalIP, cfg.ExternalDNS)
+		wg.Done()
+	}()
+
 	var initInterrupted bool
 	if cfg.InitMode {
 		// run the init webserver in blocking mode
 		initwebserverQuit := make(chan bool, 1)
 		cfg.ProcsQuit.Store("initwebserver", initwebserverQuit)
 		wg.Add(1)
-		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p, cm)
+		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, um, p, cm)
 		wg.Done()
 		cm.ClearAll()
 	}
@@ -97,7 +107,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		webserverQuit := make(chan bool, 1)
 		cfg.ProcsQuit.Store("webserver", webserverQuit)
 		go func() {
-			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, as, um, p, cm)
+			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, um, p, cm)
 			wg.Done()
 		}()
 	}

@@ -60,8 +60,8 @@ type downloadProgress struct {
 	initialPercentage int
 }
 
-// DockerContainer represents a container
-type DockerContainer struct {
+// dockerSandbox represents a container
+type dockerSandbox struct {
 	ID       string
 	IP       string
 	Status   string
@@ -241,6 +241,11 @@ func (dp *dockerPlatform) RemoveVolume(volumeID string) error {
 	return dp.client.VolumeRemove(context.Background(), volumeID, false)
 }
 
+// CleanUpSandbox cleans up any remaining resources belonging to a sandbox
+func (dp *dockerPlatform) CleanUpSandbox(id string) error {
+	return nil
+}
+
 //
 // Docker container operations
 //
@@ -250,14 +255,14 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 	if imageid == "" {
 		return nil, errors.New("Docker imageid is empty")
 	}
-	log.Debugf("Creating container '%s' from image '%s'", name, imageid)
+	log.Debugf("Creating docker sandbox '%s' from image '%s'", name, imageid)
 	var ports []string
 	for _, port := range publicPorts {
 		ports = append(ports, "0.0.0.0:"+strconv.Itoa(port.Nr)+":"+strconv.Itoa(port.Nr)+"/"+string(port.Type))
 	}
 	exposedPorts, portBindings, err := nat.ParsePortSpecs(ports)
 	if err != nil {
-		return &DockerContainer{}, err
+		return &dockerSandbox{}, err
 	}
 
 	envvars := map[string]string{}
@@ -293,7 +298,7 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 
 	containerIP, err := dp.allocateContainerIP()
 	if err != nil {
-		return &DockerContainer{}, errors.Wrap(err, "Failed to create container")
+		return &dockerSandbox{}, errors.Wrap(err, "Failed to create container")
 	}
 
 	networkConfig := &network.NetworkingConfig{
@@ -307,12 +312,12 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 
 	dcnt, err := dp.client.ContainerCreate(context.Background(), containerConfig, hostConfig, networkConfig, name)
 	if err != nil {
-		return &DockerContainer{}, err
+		return &dockerSandbox{}, err
 	}
-	cnt := DockerContainer{ID: dcnt.ID, p: dp}
+	cnt := dockerSandbox{ID: dcnt.ID, p: dp}
 	err = cnt.Update()
 	if err != nil {
-		return &DockerContainer{}, err
+		return &dockerSandbox{}, err
 	}
 
 	return &cnt, nil
@@ -321,10 +326,10 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 
 // GetSandbox retrieves and returns a docker container based on the id
 func (dp *dockerPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, error) {
-	cnt := DockerContainer{ID: id, p: dp}
+	cnt := dockerSandbox{ID: id, p: dp}
 	err := cnt.Update()
 	if err != nil {
-		return &DockerContainer{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker container %s", id), "No such container", core.ErrContainerNotFound)
+		return &dockerSandbox{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker container %s", id), "No such container", core.ErrContainerNotFound)
 	}
 	return &cnt, nil
 }
@@ -340,14 +345,23 @@ func (dp *dockerPlatform) GetAllSandboxes() (map[string]core.PlatformRuntimeUnit
 	}
 
 	for _, container := range containers {
-		cnts[container.ID] = &DockerContainer{ID: container.ID, p: dp, Status: container.Status, IP: container.NetworkSettings.Networks[protosNetwork].IPAddress}
+		cnts[container.ID] = &dockerSandbox{ID: container.ID, p: dp, Status: container.Status, IP: container.NetworkSettings.Networks[protosNetwork].IPAddress}
 	}
 
 	return cnts, nil
 }
 
+// GetHWStats returns the current system stats
+func (dp *dockerPlatform) GetHWStats() (core.HardwareStats, error) {
+	return getHWStatus()
+}
+
+//
+// dockerSandbox methods
+//
+
 // Update reads the container and updates the struct fields
-func (cnt *DockerContainer) Update() error {
+func (cnt *dockerSandbox) Update() error {
 	container, err := cnt.p.client.ContainerInspect(context.Background(), cnt.ID)
 	if err != nil {
 		return errors.Wrapf(err, "Error retrieving container '%s'", cnt.ID)
@@ -361,7 +375,7 @@ func (cnt *DockerContainer) Update() error {
 }
 
 // Start starts a Docker container
-func (cnt *DockerContainer) Start() error {
+func (cnt *dockerSandbox) Start() error {
 	log.Debugf("Starting container '%s'", cnt.ID)
 	err := cnt.p.client.ContainerStart(context.Background(), cnt.ID, types.ContainerStartOptions{})
 	if err != nil {
@@ -400,7 +414,7 @@ func (cnt *DockerContainer) Start() error {
 }
 
 // Stop stops a Docker container
-func (cnt *DockerContainer) Stop() error {
+func (cnt *dockerSandbox) Stop() error {
 	stopTimeout := time.Duration(10) * time.Second
 	err := cnt.p.client.ContainerStop(context.Background(), cnt.ID, &stopTimeout)
 	if err != nil {
@@ -410,7 +424,7 @@ func (cnt *DockerContainer) Stop() error {
 }
 
 // Remove removes a Docker container
-func (cnt *DockerContainer) Remove() error {
+func (cnt *dockerSandbox) Remove() error {
 	err := cnt.p.client.ContainerRemove(context.Background(), cnt.ID, types.ContainerRemoveOptions{})
 	if err != nil {
 		return err
@@ -419,22 +433,22 @@ func (cnt *DockerContainer) Remove() error {
 }
 
 // GetID returns the ID of the container, as a string
-func (cnt *DockerContainer) GetID() string {
+func (cnt *dockerSandbox) GetID() string {
 	return cnt.ID
 }
 
 // GetIP returns the IP of the container, as a string
-func (cnt *DockerContainer) GetIP() string {
+func (cnt *dockerSandbox) GetIP() string {
 	return cnt.IP
 }
 
 // GetStatus returns the status of the container, as a string
-func (cnt *DockerContainer) GetStatus() string {
-	return cnt.Status
+func (cnt *dockerSandbox) GetStatus() string {
+	return dockerToAppStatus(cnt.Status, cnt.ExitCode)
 }
 
 // GetExitCode returns the exit code of the container, as an int
-func (cnt *DockerContainer) GetExitCode() int {
+func (cnt *dockerSandbox) GetExitCode() int {
 	return cnt.ExitCode
 }
 
@@ -515,16 +529,19 @@ func (dp *dockerPlatform) GetImage(id string) (core.PlatformImage, error) {
 	repoImage := dp.appStoreHost + "/" + id
 	image, _, err := dp.client.ImageInspectWithRaw(context.Background(), repoImage)
 	if err != nil {
-		return &platformImage{}, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving Docker image '%s'", id), "No such image", core.ErrImageNotFound)
+		if strings.Contains(err.Error(), "No such image") {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "Error retrieving Docker image '%s'", id)
 	}
 
 	if _, valid := image.Config.Labels["protos"]; valid == false {
-		return &platformImage{}, errors.Errorf("Image '%s' is missing the protos label", id)
+		return nil, errors.Errorf("Image '%s' is missing the protos label", id)
 	}
 
 	persistencePath, err := dp.getImageDataPath(image)
 	if err != nil {
-		return &platformImage{}, errors.Errorf("Image '%s' is missing a persistance path", id)
+		return nil, errors.Errorf("Image '%s' is missing a persistance path", id)
 	}
 
 	pi := platformImage{
@@ -625,4 +642,34 @@ func (dp *dockerPlatform) PullImage(t core.Task, id string, installerName string
 	}
 
 	return nil
+}
+
+//
+// helper methods
+//
+
+func dockerToAppStatus(status string, exitCode int) string {
+	switch status {
+	case "created":
+		return statusStopped
+	case "container missing":
+		return statusStopped
+	case "restarting":
+		return statusStopped
+	case "paused":
+		return statusStopped
+	case "exited":
+		if exitCode == 0 {
+			return statusStopped
+		}
+		return statusFailed
+	case "dead":
+		return statusFailed
+	case "removing":
+		return statusRunning
+	case "running":
+		return statusRunning
+	default:
+		return statusUnknown
+	}
 }

@@ -46,8 +46,7 @@ type HardwareStats struct {
 	Storage StorageStats `json:"storage"`
 }
 
-// GetHWStats returns the current system stats
-func (dp *dockerPlatform) GetHWStats() (core.HardwareStats, error) {
+func getHWStatus() (core.HardwareStats, error) {
 	hw := HardwareStats{}
 
 	memDetailedStat, err := mem.VirtualMemory()

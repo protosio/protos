@@ -166,6 +166,20 @@ func (mr *MockRuntimePlatformMockRecorder) RemoveVolume(id interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVolume", reflect.TypeOf((*MockRuntimePlatform)(nil).RemoveVolume), id)
 }
 
+// CleanUpSandbox mocks base method
+func (m *MockRuntimePlatform) CleanUpSandbox(id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanUpSandbox", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanUpSandbox indicates an expected call of CleanUpSandbox
+func (mr *MockRuntimePlatformMockRecorder) CleanUpSandbox(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanUpSandbox", reflect.TypeOf((*MockRuntimePlatform)(nil).CleanUpSandbox), id)
+}
+
 // NewSandbox mocks base method
 func (m *MockRuntimePlatform) NewSandbox(name, appID, imageID, volumeID, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
 	m.ctrl.T.Helper()

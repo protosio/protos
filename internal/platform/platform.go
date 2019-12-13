@@ -1,6 +1,9 @@
 package platform
 
 import (
+	"strings"
+
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 )
@@ -8,6 +11,13 @@ import (
 var log = util.GetLogger("platform")
 
 const (
+	// app states
+	statusRunning  = "running"
+	statusStopped  = "stopped"
+	statusCreating = "creating"
+	statusFailed   = "failed"
+	statusUnknown  = "unknown"
+
 	dockerRuntime     = "docker"
 	containerdRuntime = "containerd"
 )
@@ -16,14 +26,25 @@ type internalIPSetter interface {
 	SetInternalIP(ip string)
 }
 
+func normalizeRepoDigest(repoDigests []string) (string, string, error) {
+	if len(repoDigests) == 0 {
+		return "<none>", "<none>", errors.New("image has no repo digests")
+	}
+	repoDigestPair := strings.Split(repoDigests[0], "@")
+	if len(repoDigestPair) != 2 {
+		return "errorName", "errorRepoDigest", errors.Errorf("image repo digest has an invalid format: '%s'", repoDigests[0])
+	}
+	return repoDigestPair[0], repoDigestPair[1], nil
+}
+
 // Initialize checks if the Protos network exists
-func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter) core.RuntimePlatform {
+func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter, internalInterface string) core.RuntimePlatform {
 	var dp core.RuntimePlatform
 	switch runtime {
 	case dockerRuntime:
 		dp = createDockerRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
 	case containerdRuntime:
-		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
+		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, internalInterface)
 	}
 	internalIP, err := dp.Init()
 	if err != nil {
@@ -36,6 +57,7 @@ func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, i
 
 type platformImage struct {
 	id              string
+	localID         string
 	persistencePath string
 	repoTags        []string
 	labels          map[string]string

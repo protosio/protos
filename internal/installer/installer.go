@@ -182,7 +182,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
 	}
 
-	log.Infof("Downloading platform image for installer '%s'(%s) version '%s'", inst.Name, inst.ID, dt.Version)
+	log.Infof("Downloading image '%s' for installer '%s'(%s) version '%s'", metadata.PlatformID, inst.Name, inst.ID, dt.Version)
 	err = inst.parent.getPlatform().PullImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
@@ -202,11 +202,11 @@ func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
 		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
 	}
 
-	_, err = inst.parent.getPlatform().GetImage(metadata.PlatformID)
+	img, err := inst.parent.getPlatform().GetImage(metadata.PlatformID)
 	if err != nil {
-		if util.IsErrorType(err, core.ErrImageNotFound) == false {
-			return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
-		}
+		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
+	}
+	if img == nil {
 		return false, nil
 	}
 	return true, nil
@@ -247,88 +247,88 @@ func (inst Installer) GetLastVersion() string {
 // InstallerCache operations (AppStore implements the core.InstallerCache interface for now)
 //
 
-// GetLocalInstallers retrieves all locally available installers
-func (as *AppStore) GetLocalInstallers() (map[string]core.Installer, error) {
-	installers := map[string]core.Installer{}
-	log.Info("Retrieving local installers")
+// // GetLocalInstallers retrieves all locally available installers
+// func (as *AppStore) GetLocalInstallers() (map[string]core.Installer, error) {
+// 	installers := map[string]core.Installer{}
+// 	log.Info("Retrieving local installers")
 
-	imgs, err := as.rp.GetAllImages()
-	if err != nil {
-		return installers, errors.Wrap(err, "Error retrieving local installers")
-	}
+// 	imgs, err := as.rp.GetAllImages()
+// 	if err != nil {
+// 		return installers, errors.Wrap(err, "Error retrieving local installers")
+// 	}
 
-	for _, img := range imgs {
-		if img.GetRepoTags()[0] == "n/a" {
-			continue
-		}
-		installerStr := strings.Split(img.GetRepoTags()[0], ":")
-		installerName := installerStr[0]
-		installerID := util.String2SHA1(installerName)
-		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]core.InstallerMetadata{}, parent: as}
-	}
+// 	for _, img := range imgs {
+// 		if img.GetRepoTags()[0] == "n/a" {
+// 			continue
+// 		}
+// 		installerStr := strings.Split(img.GetRepoTags()[0], ":")
+// 		installerName := installerStr[0]
+// 		installerID := util.String2SHA1(installerName)
+// 		installers[installerID] = Installer{ID: installerID, Name: installerName, Versions: map[string]core.InstallerMetadata{}, parent: as}
+// 	}
 
-	return installers, err
+// 	return installers, nil
 
-}
+// }
 
-// GetLocalInstaller retrieves an installer if its available locally
-func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
-	log.Infof("Retrieving local installer with id '%s'", id)
+// // GetLocalInstaller retrieves an installer if its available locally
+// func (as *AppStore) GetLocalInstaller(id string) (core.Installer, error) {
+// 	log.Infof("Retrieving local installer with id '%s'", id)
 
-	imgs, err := as.rp.GetAllImages()
-	if err != nil {
-		return Installer{}, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
-	}
+// 	imgs, err := as.rp.GetAllImages()
+// 	if err != nil {
+// 		return Installer{}, errors.Wrapf(err, "Error retrieving local installer with id '%s'", id)
+// 	}
 
-	installer := Installer{ID: id, Versions: map[string]core.InstallerMetadata{}, parent: as}
+// 	installer := Installer{ID: id, Versions: map[string]core.InstallerMetadata{}, parent: as}
 
-	for _, img := range imgs {
-		if img.GetRepoTags()[0] == "n/a" {
-			continue
-		}
-		installerStr := strings.Split(img.GetRepoTags()[0], ":")
-		installerName := installerStr[0]
-		installerVersion := installerStr[1]
-		instID := util.String2SHA1(installerName)
-		if id != instID {
-			continue
-		}
-		installer.Name = installerName
+// 	for _, img := range imgs {
+// 		if img.GetRepoTags()[0] == "n/a" {
+// 			continue
+// 		}
+// 		installerStr := strings.Split(img.GetRepoTags()[0], ":")
+// 		installerName := installerStr[0]
+// 		installerVersion := installerStr[1]
+// 		instID := util.String2SHA1(installerName)
+// 		if id != instID {
+// 			continue
+// 		}
+// 		installer.Name = installerName
 
-		metadata, err := parseMetadata(as.cm, img.GetLabels())
-		if err != nil {
-			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", id, installerVersion, err)
-		}
-		metadata.PersistancePath = img.GetDataPath()
-		metadata.PlatformID = img.GetID()
-		installer.Versions[installerVersion] = metadata
+// 		metadata, err := parseMetadata(as.cm, img.GetLabels())
+// 		if err != nil {
+// 			log.Warnf("Error while parsing metadata for installer %s, version %s: %v", id, installerVersion, err)
+// 		}
+// 		metadata.PersistancePath = img.GetDataPath()
+// 		metadata.PlatformID = img.GetID()
+// 		installer.Versions[installerVersion] = metadata
 
-	}
+// 	}
 
-	if len(installer.Versions) == 0 {
-		return nil, errors.New("Could not find installer '" + id + "'")
-	}
+// 	if len(installer.Versions) == 0 {
+// 		return nil, errors.New("Could not find installer '" + id + "'")
+// 	}
 
-	return installer, nil
-}
+// 	return installer, nil
+// }
 
-// RemoveLocalInstaller removes an installer image that has been downloaded locally
-func (as *AppStore) RemoveLocalInstaller(id string) error {
-	inst, err := as.GetLocalInstaller(id)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to remove local installer with id '%s'", id)
-	}
+// // RemoveLocalInstaller removes an installer image that has been downloaded locally
+// func (as *AppStore) RemoveLocalInstaller(id string) error {
+// 	inst, err := as.GetLocalInstaller(id)
+// 	if err != nil {
+// 		return errors.Wrapf(err, "Failed to remove local installer with id '%s'", id)
+// 	}
 
-	log.Info("Removing installer ", inst.(Installer).Name, "[", inst.(Installer).ID, "]")
+// 	log.Info("Removing installer ", inst.(Installer).Name, "[", inst.(Installer).ID, "]")
 
-	for _, metadata := range inst.(Installer).Versions {
-		err := as.rp.RemoveImage(metadata.PlatformID)
-		if err != nil {
-			return errors.Wrapf(err, "Failed to remove local installer %s[%s]", inst.(Installer).Name, id)
-		}
-	}
-	return nil
-}
+// 	for _, metadata := range inst.(Installer).Versions {
+// 		err := as.rp.RemoveImage(metadata.PlatformID)
+// 		if err != nil {
+// 			return errors.Wrapf(err, "Failed to remove local installer %s[%s]", inst.(Installer).Name, id)
+// 		}
+// 	}
+// 	return nil
+// }
 
 //
 // AppStore operations
@@ -417,15 +417,6 @@ func (as *AppStore) Search(key string, value string) (map[string]core.Installer,
 	}
 
 	return localInstallers.convert(as), nil
-}
-
-// CreateTemporaryInstaller returns a core.Installer interface. Satisfies the appStore interface from the app package
-func (as *AppStore) CreateTemporaryInstaller(id string, metadata map[string]core.InstallerMetadata) core.Installer {
-	return &Installer{
-		parent:   as,
-		ID:       id,
-		Versions: metadata,
-	}
 }
 
 //

@@ -1,0 +1,25 @@
+org: protosio
+image: protos
+network: true
+arches:
+  - amd64
+config:
+  binds:
+  - /etc/resolv.conf:/etc/resolv.conf
+  - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
+  - /dev:/dev
+  - /tmp:/tmp
+  mounts:
+  - type: bind
+    source: /var/protos-containerd
+    destination: /var/protos-containerd
+    options: ["rw","rbind","rshared","nosuid","noexec","nodev","relatime"]
+  - type: bind
+    source: /var/protos
+    destination: /var/protos
+    options: ["rw","rbind","rshared","nosuid","noexec","nodev","relatime"]
+
+  capabilities:
+  - all
+  rootfsPropagation: shared
+  pid: host

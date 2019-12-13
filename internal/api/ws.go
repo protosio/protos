@@ -49,11 +49,11 @@ func WSManager(am core.AppManager, quit chan bool) {
 		select {
 		case wsCon := <-addWSQueue:
 			conID := fmt.Sprintf("%p", wsCon)
-			log.WithField("proc", "wsmanager").Debug("Registering WS connection ", conID)
+			log.WithField("proc", "wsmanager").Debugf("Registering WS connection '%s'", conID)
 			wsConnections[conID] = wsCon
 		case wsCon := <-removeWSQueue:
 			conID := fmt.Sprintf("%p", wsCon)
-			log.WithField("proc", "wsmanager").Debug("Deregistering WS connection ", conID)
+			log.WithField("proc", "wsmanager").Debugf("Deregistering WS connection '%s'", conID)
 			delete(wsConnections, conID)
 		case publishMsg := <-gconfig.WSPublish:
 			for _, wsCon := range wsConnections {
@@ -113,11 +113,11 @@ func wsExternal(ha handlerAccess) http.Handler {
 		remoteQuit := make(chan bool, 1)
 		go wsMessageReader(c, conID, remoteQuit)
 		addWSQueue <- wsCon
-		log.Debugf("Upgraded external websocket connection %s", conID)
+		log.Debugf("Upgraded external websocket connection '%s'", conID)
 		for {
 			select {
 			case msg := <-wsCon.Send:
-				log.Debugf("Writing to external websocket connection %s: %v", conID, msg)
+				log.Tracef("Writing to external websocket connection %s: %v", conID, msg)
 				jsonMsg, err := json.Marshal(msg)
 				if err != nil {
 					log.Errorf("Failed to marshall ws message struct %v: %s", msg, err)

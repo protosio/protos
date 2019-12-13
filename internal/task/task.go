@@ -150,7 +150,7 @@ func (b *Base) Wait() error {
 
 // Run starts the task
 func (b *Base) Run() {
-	log.Info("Running base task ", b.ID)
+	log.Debugf("Starting async task '%s'", b.ID)
 	b.SetStatus(INPROGRESS)
 	b.Save()
 
@@ -167,7 +167,7 @@ func (b *Base) Run() {
 		b.Status = FAILED
 		b.err = err
 	} else {
-		log.WithField("proc", b.ID).Infof("Task %s finished successfully", b.ID)
+		log.WithField("proc", b.ID).Debugf("Task '%s' finished successfully", b.ID)
 		b.Status = FINISHED
 	}
 	b.access.Unlock()
