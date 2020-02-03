@@ -238,7 +238,7 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 func insecureListen(handler http.Handler, quit chan bool) bool {
 	httpport := strconv.Itoa(gconfig.HTTPport)
 	srv := &http.Server{
-		Addr:           "0.0.0.0:" + httpport,
+		Addr:           "127.0.0.1:" + httpport,
 		Handler:        handler,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
