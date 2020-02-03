@@ -235,10 +235,16 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 }
 
-func insecureListen(handler http.Handler, quit chan bool) bool {
+func insecureListen(handler http.Handler, quit chan bool, devmode bool) bool {
+	var listenAddress string
+	if devmode {
+		listenAddress = "0.0.0.0"
+	} else {
+		listenAddress = "127.0.0.1"
+	}
 	httpport := strconv.Itoa(gconfig.HTTPport)
 	srv := &http.Server{
-		Addr:           "127.0.0.1:" + httpport,
+		Addr:           listenAddress + ":" + httpport,
 		Handler:        handler,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
@@ -407,5 +413,5 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 	n.Use(negroni.HandlerFunc(HTTPLogger))
 	n.UseHandler(mainRtr)
 
-	return insecureListen(n, quit)
+	return insecureListen(n, quit, devmode)
 }
