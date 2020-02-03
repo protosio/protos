@@ -52,9 +52,11 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	db.Open()
 	defer db.Close()
 
-	log.Info("Starting up...")
 	var wg sync.WaitGroup
 	cfg.InitMode = (db.Exists() == false) || init
+	if cfg.InitMode {
+		log.Info("Starting up in init mode")
+	}
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
