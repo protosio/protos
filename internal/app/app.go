@@ -66,7 +66,7 @@ type App struct {
 	InstallerParams   map[string]string      `json:"installer-params"`
 	Capabilities      []string               `json:"capabilities"`
 	Resources         []string               `json:"resources"`
-	Tasks             []string               `json:"-"`
+	Tasks             []string               `json:"tasks"`
 	msgq              *core.WSConnection
 }
 
