@@ -10,12 +10,11 @@ import (
 
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
+	"github.com/tidwall/gjson"
 
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/util"
-
-	"github.com/tidwall/gjson"
 )
 
 var log = util.GetLogger("meta")
