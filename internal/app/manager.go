@@ -147,7 +147,7 @@ func (am *Manager) getCapabilityManager() core.CapabilityManager {
 }
 
 func (am *Manager) createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error) {
-	return am.Create(installerID, installerVersion, name, installerParams, installerMetadata, taskID)
+	return am.Create(installerID, installerVersion, name, installerParams, installerMetadata)
 }
 
 // GetCopy returns a copy of an application based on its id
@@ -210,7 +210,7 @@ func (am *Manager) CreateAsync(installerID string, installerVersion string, appN
 }
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (*App, error) {
+func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata) (*App, error) {
 
 	var app *App
 	if name == "" || installerID == "" || installerVersion == "" {
@@ -226,7 +226,7 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
 	app = &App{access: &sync.Mutex{}, Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
 		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
-		InstallerMetadata: installerMetadata, Tasks: []string{taskID}, Status: statusCreating, parent: am}
+		InstallerMetadata: installerMetadata, Tasks: []string{}, Status: statusCreating, parent: am}
 
 	app.Capabilities = createCapabilities(am.cm, installerMetadata.Capabilities)
 	publicDNSCapability, err := am.cm.GetByName("PublicDNS")
@@ -335,7 +335,7 @@ func (am *Manager) CreateDevApp(appName string, installerMetadata core.Installer
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")
 
-	app, err := am.Create("dev", "0.0.0-dev", appName, installerParams, installerMetadata, "sync")
+	app, err := am.Create("dev", "0.0.0-dev", appName, installerParams, installerMetadata)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}

@@ -152,13 +152,13 @@ func TestAppManager(t *testing.T) {
 	//
 
 	t.Run("Create", func(t *testing.T) {
-		_, err := am.Create("a", "b", "", map[string]string{}, core.InstallerMetadata{}, "taskid")
+		_, err := am.Create("a", "b", "", map[string]string{}, core.InstallerMetadata{})
 		if err == nil {
 			t.Errorf("Creating an app using a blank name should result in an error")
 		}
 
 		// installer params test
-		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Params: []string{"test"}}, "taskid")
+		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Params: []string{"test"}})
 		if err == nil {
 			t.Errorf("Creating an app and not providing the mandatory params should result in an error")
 		}
@@ -169,7 +169,7 @@ func TestAppManager(t *testing.T) {
 		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(2)
 		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
 		cmMock.EXPECT().Validate(capMock, gomock.Any()).Return(true).Times(1)
-		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []string{"PublicDNS"}}, "taskid")
+		_, err = am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{Capabilities: []string{"PublicDNS"}})
 		if err == nil {
 			t.Error("Creating an app and having a DNS creation error should result in an error")
 		}
@@ -181,7 +181,7 @@ func TestAppManager(t *testing.T) {
 		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(1)
 		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
 		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
-		app, err := am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{}, "taskid")
+		app, err := am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{})
 
 		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
@@ -329,27 +329,27 @@ func TestAppManager(t *testing.T) {
 	// GetAllPublic
 	//
 
-	t.Run("GetAllPublic", func(t *testing.T) {
-		nrOfApps := len(am.apps.apps)
-		tasks := linkedhashmap.New()
-		tasks.Put("1", gomock.Any())
-		tasks.Put("2", gomock.Any())
-		tmMock.EXPECT().GetAll().Return(tasks).Times(1)
-		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(nrOfApps)
-		pruMock.EXPECT().GetStatus().Return("exited").Times(nrOfApps)
-		papps := am.GetAllPublic()
-		if len(papps) != nrOfApps {
-			t.Errorf("GetAllPublic() should return %d apps, but it returned %d", nrOfApps, len(papps))
-		}
-		tsks1 := linkedhashmap.Map(papps["id1"].(*PublicApp).Tasks)
-		if len(tsks1.Keys()) != 2 {
-			t.Errorf("There should be 2 tasks in the public app with id1, but there are %d", len(tsks1.Keys()))
-		}
-		tsks2 := linkedhashmap.Map(papps["id3"].(*PublicApp).Tasks)
-		if len(tsks2.Keys()) != 1 {
-			t.Errorf("There should be 1 tasks in the public app with id2, but there are %d", len(tsks2.Keys()))
-		}
+	// t.Run("GetAllPublic", func(t *testing.T) {
+	// 	nrOfApps := len(am.apps.apps)
+	// 	tasks := linkedhashmap.New()
+	// 	tasks.Put("1", gomock.Any())
+	// 	tasks.Put("2", gomock.Any())
+	// 	tmMock.EXPECT().GetAll().Return(tasks).Times(1)
+	// 	rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(nrOfApps)
+	// 	pruMock.EXPECT().GetStatus().Return("exited").Times(nrOfApps)
+	// 	papps := am.GetAllPublic()
+	// 	if len(papps) != nrOfApps {
+	// 		t.Errorf("GetAllPublic() should return %d apps, but it returned %d", nrOfApps, len(papps))
+	// 	}
+	// 	tsks1 := linkedhashmap.Map(papps["id1"].(*PublicApp).Tasks)
+	// 	if len(tsks1.Keys()) != 2 {
+	// 		t.Errorf("There should be 2 tasks in the public app with id1, but there are %d", len(tsks1.Keys()))
+	// 	}
+	// 	tsks2 := linkedhashmap.Map(papps["id3"].(*PublicApp).Tasks)
+	// 	if len(tsks2.Keys()) != 1 {
+	// 		t.Errorf("There should be 1 tasks in the public app with id2, but there are %d", len(tsks2.Keys()))
+	// 	}
 
-	})
+	// })
 
 }
