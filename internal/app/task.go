@@ -102,7 +102,6 @@ func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) erro
 
 	if t.StartOnCreation {
 		tsk := app.StartAsync()
-		app.AddTask(tsk.GetID())
 		err := tsk.Wait()
 		if err != nil {
 			app.SetStatus(statusFailed)
