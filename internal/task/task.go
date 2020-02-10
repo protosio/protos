@@ -69,6 +69,7 @@ func (b *Base) SetPercentage(percent int) {
 	b.access.Lock()
 	b.Progress.Percentage = percent
 	b.access.Unlock()
+	b.Save()
 }
 
 // GetPercentage gets the progress percentage of the task base
@@ -83,6 +84,7 @@ func (b *Base) SetState(msg string) {
 	b.access.Lock()
 	b.Progress.State = msg
 	b.access.Unlock()
+	b.Save()
 }
 
 // SetStatus sets the progress state of the task base
@@ -90,6 +92,7 @@ func (b *Base) SetStatus(msg string) {
 	b.access.Lock()
 	b.Status = msg
 	b.access.Unlock()
+	b.Save()
 }
 
 // AddApp adds an app id to the task
@@ -97,6 +100,7 @@ func (b *Base) AddApp(id string) {
 	b.access.Lock()
 	b.Apps = append(b.Apps, id)
 	b.access.Unlock()
+	b.Save()
 }
 
 // SetKillable makes a task killable
@@ -152,7 +156,6 @@ func (b *Base) Wait() error {
 func (b *Base) Run() {
 	log.Debugf("Starting async task '%s'", b.ID)
 	b.SetStatus(INPROGRESS)
-	b.Save()
 
 	// run custom task
 	err := b.custom.Run(b, b.ID, b)
