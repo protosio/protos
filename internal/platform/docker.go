@@ -298,7 +298,7 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 
 	containerIP, err := dp.allocateContainerIP()
 	if err != nil {
-		return &dockerSandbox{}, errors.Wrap(err, "Failed to create container")
+		return &dockerSandbox{}, errors.Wrap(err, "Failed to create Docker sandbox")
 	}
 
 	networkConfig := &network.NetworkingConfig{
@@ -312,12 +312,12 @@ func (dp *dockerPlatform) NewSandbox(name string, appid string, imageid string, 
 
 	dcnt, err := dp.client.ContainerCreate(context.Background(), containerConfig, hostConfig, networkConfig, name)
 	if err != nil {
-		return &dockerSandbox{}, err
+		return &dockerSandbox{}, errors.Wrap(err, "Failed to create Docker sandbox")
 	}
 	cnt := dockerSandbox{ID: dcnt.ID, p: dp}
 	err = cnt.Update()
 	if err != nil {
-		return &dockerSandbox{}, err
+		return &dockerSandbox{}, errors.Wrap(err, "Failed to create Docker sandbox")
 	}
 
 	return &cnt, nil

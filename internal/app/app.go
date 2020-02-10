@@ -142,6 +142,7 @@ func (app *App) AddTask(id string) {
 	app.access.Lock()
 	app.Tasks = append(app.Tasks, id)
 	app.access.Unlock()
+	log.Debugf("Added task '%s' to app '%s'", id, app.ID)
 	app.Save()
 }
 
