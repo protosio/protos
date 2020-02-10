@@ -300,7 +300,11 @@ func (am *Manager) Remove(appID string) error {
 	if err != nil {
 		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
 	}
-	am.apps.remove(app.ID)
+	app.SetStatus(statusDeleted)
+	err = am.apps.remove(app.ID)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to remove application %s(%s) from database", app.Name, app.ID)
+	}
 	return nil
 }
 

@@ -24,6 +24,7 @@ const (
 	statusCreating = "creating"
 	statusFailed   = "failed"
 	statusUnknown  = "unknown"
+	statusDeleted  = "deleted"
 
 	appBucket = "app"
 )
@@ -193,7 +194,7 @@ func (app *App) getOrcreateSandbox() (core.PlatformRuntimeUnit, error) {
 // enrichAppData updates the information about the underlying application
 func (app *App) enrichAppData() {
 
-	if app.Status == statusCreating || app.Status == statusFailed {
+	if app.Status == statusCreating || app.Status == statusFailed || app.Status == statusDeleted {
 		// not refreshing the platform until the app creation process is done
 		return
 	}
