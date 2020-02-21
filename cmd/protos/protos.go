@@ -14,7 +14,7 @@ import (
 func main() {
 
 	app := cli.NewApp()
-	app.Name = "protos"
+	app.Name = "protosd"
 	app.Author = "Alex Giurgiu"
 	app.Email = "alex@giurgiu.io"
 	version, err := semver.NewVersion("0.0.0-dev.1")

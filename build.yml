@@ -1,5 +1,5 @@
 org: protosio
-image: protos
+image: protosd
 network: true
 arches:
   - amd64

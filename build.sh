@@ -10,4 +10,4 @@ docker run \
        --name protos \
        --hostname protos \
        golang:1.13 \
-       /bin/bash -c "go mod tidy && go build -o bin/protos cmd/protos/protos.go"
+       /bin/bash -c "go mod tidy && go build -o bin/protosd cmd/protos/protos.go"
