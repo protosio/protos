@@ -17,7 +17,7 @@ func main() {
 	app.Name = "protos"
 	app.Author = "Alex Giurgiu"
 	app.Email = "alex@giurgiu.io"
-	version, err := semver.NewVersion("0.0.1-alpha.1")
+	version, err := semver.NewVersion("0.0.0-dev.1")
 	if err != nil {
 		panic(err)
 	}
