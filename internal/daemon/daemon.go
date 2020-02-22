@@ -43,7 +43,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 
 	// Handle OS signals
 	sigs := make(chan os.Signal, 1)
-
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go catchSignals(sigs, cfg)
 

@@ -14,6 +14,10 @@ import (
 	"github.com/asdine/storm/codec/gob"
 )
 
+const (
+	dbFile = "protos.db"
+)
+
 var gconfig = config.Get()
 var log = util.GetLogger("db")
 
@@ -32,7 +36,7 @@ type database struct {
 
 // Exists checks if the database file exists on disk
 func (db *database) Exists() bool {
-	dbpath := path.Join(gconfig.WorkDir, "protos.db")
+	dbpath := path.Join(gconfig.WorkDir, dbFile)
 	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
 		return false
 	}
@@ -43,7 +47,7 @@ func (db *database) Exists() bool {
 func (db *database) Open() {
 
 	var err error
-	dbpath := path.Join(gconfig.WorkDir, "protos.db")
+	dbpath := path.Join(gconfig.WorkDir, dbFile)
 	log.Info("Opening database [", dbpath, "]")
 	db.s, err = storm.Open(dbpath, storm.Codec(gob.Codec))
 	if err != nil {
