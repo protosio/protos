@@ -60,8 +60,8 @@ func removeInitProvider(ha handlerAccess) http.Handler {
 		}
 
 		providerApps := ha.am.Select(providerFilter)
-		for id, a := range providerApps {
-			err := a.Stop()
+		for id, app := range providerApps {
+			err := app.Stop()
 			if err != nil {
 				err = errors.Wrapf(err, "Could not remove init provider for %s", provides)
 				log.Error(err.Error())
