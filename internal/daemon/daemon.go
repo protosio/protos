@@ -48,7 +48,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	go catchSignals(sigs, cfg)
 
 	// open databse
-	db := database.CreateDatabase()
+	db := database.GetDatabase()
 	db.Open()
 	defer db.Close()
 

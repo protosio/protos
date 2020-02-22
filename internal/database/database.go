@@ -21,8 +21,8 @@ var log = util.GetLogger("db")
 // DB implementation the implements the core DB interface
 //
 
-// CreateDatabase returns a database instance that implements the core DB interface
-func CreateDatabase() core.DB {
+// GetDatabase returns a database instance that implements the core DB interface
+func GetDatabase() core.DB {
 	return &database{}
 }
 
