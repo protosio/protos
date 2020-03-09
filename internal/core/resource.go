@@ -26,13 +26,14 @@ const (
 
 // ResourceManager manages the list of resources
 type ResourceManager interface {
-	// Create(rtype ResourceType, value Type, appID string) (Resource, error)
 	Get(id string) (Resource, error)
 	Delete(id string) error
 	GetType(name string) (ResourceType, ResourceValue, error)
 	GetAll(sanitize bool) map[string]Resource
 	Select(func(Resource) bool) map[string]Resource
-	GetStatus(string) (ResourceStatus, error)
+	StringToStatus(string) (ResourceStatus, error)
+
+	// Create resources
 	CreateDNS(appID string, name string, rtype string, value string, ttl int) (Resource, error)
 	CreateCert(appID string, domains []string) (Resource, error)
 	CreateFromJSON(rscJSON []byte, appID string) (Resource, error)

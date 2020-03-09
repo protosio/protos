@@ -247,7 +247,7 @@ func setResourceStatus(ha handlerAccess) http.Handler {
 		}
 
 		statusName := gjson.GetBytes(bodyJSON, "status").Str
-		status, err := ha.rm.GetStatus(statusName)
+		status, err := ha.rm.StringToStatus(statusName)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

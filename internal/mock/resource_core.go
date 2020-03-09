@@ -5,10 +5,9 @@
 package mock
 
 import (
+	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	reflect "reflect"
-
-	gomock "github.com/golang/mock/gomock"
 )
 
 // MockResourceManager is a mock of ResourceManager interface
@@ -107,19 +106,19 @@ func (mr *MockResourceManagerMockRecorder) Select(arg0 interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Select", reflect.TypeOf((*MockResourceManager)(nil).Select), arg0)
 }
 
-// GetStatus mocks base method
-func (m *MockResourceManager) GetStatus(arg0 string) (core.ResourceStatus, error) {
+// StringToStatus mocks base method
+func (m *MockResourceManager) StringToStatus(arg0 string) (core.ResourceStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStatus", arg0)
+	ret := m.ctrl.Call(m, "StringToStatus", arg0)
 	ret0, _ := ret[0].(core.ResourceStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetStatus indicates an expected call of GetStatus
-func (mr *MockResourceManagerMockRecorder) GetStatus(arg0 interface{}) *gomock.Call {
+// StringToStatus indicates an expected call of StringToStatus
+func (mr *MockResourceManagerMockRecorder) StringToStatus(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatus", reflect.TypeOf((*MockResourceManager)(nil).GetStatus), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StringToStatus", reflect.TypeOf((*MockResourceManager)(nil).StringToStatus), arg0)
 }
 
 // CreateDNS mocks base method
@@ -296,43 +295,43 @@ func (mr *MockResourceMockRecorder) Sanitize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sanitize", reflect.TypeOf((*MockResource)(nil).Sanitize))
 }
 
-// MockType is a mock of Type interface
-type MockType struct {
+// MockResourceValue is a mock of ResourceValue interface
+type MockResourceValue struct {
 	ctrl     *gomock.Controller
-	recorder *MockTypeMockRecorder
+	recorder *MockResourceValueMockRecorder
 }
 
-// MockTypeMockRecorder is the mock recorder for MockType
-type MockTypeMockRecorder struct {
-	mock *MockType
+// MockResourceValueMockRecorder is the mock recorder for MockResourceValue
+type MockResourceValueMockRecorder struct {
+	mock *MockResourceValue
 }
 
-// NewMockType creates a new mock instance
-func NewMockType(ctrl *gomock.Controller) *MockType {
-	mock := &MockType{ctrl: ctrl}
-	mock.recorder = &MockTypeMockRecorder{mock}
+// NewMockResourceValue creates a new mock instance
+func NewMockResourceValue(ctrl *gomock.Controller) *MockResourceValue {
+	mock := &MockResourceValue{ctrl: ctrl}
+	mock.recorder = &MockResourceValueMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockType) EXPECT() *MockTypeMockRecorder {
+func (m *MockResourceValue) EXPECT() *MockResourceValueMockRecorder {
 	return m.recorder
 }
 
 // Update mocks base method
-func (m *MockType) Update(arg0 core.ResourceValue) {
+func (m *MockResourceValue) Update(arg0 core.ResourceValue) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Update", arg0)
 }
 
 // Update indicates an expected call of Update
-func (mr *MockTypeMockRecorder) Update(arg0 interface{}) *gomock.Call {
+func (mr *MockResourceValueMockRecorder) Update(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockType)(nil).Update), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockResourceValue)(nil).Update), arg0)
 }
 
 // Sanitize mocks base method
-func (m *MockType) Sanitize() core.ResourceValue {
+func (m *MockResourceValue) Sanitize() core.ResourceValue {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Sanitize")
 	ret0, _ := ret[0].(core.ResourceValue)
@@ -340,7 +339,7 @@ func (m *MockType) Sanitize() core.ResourceValue {
 }
 
 // Sanitize indicates an expected call of Sanitize
-func (mr *MockTypeMockRecorder) Sanitize() *gomock.Call {
+func (mr *MockResourceValueMockRecorder) Sanitize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sanitize", reflect.TypeOf((*MockType)(nil).Sanitize))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sanitize", reflect.TypeOf((*MockResourceValue)(nil).Sanitize))
 }

@@ -206,8 +206,8 @@ func (rm *Manager) GetType(typename string) (core.ResourceType, core.ResourceVal
 	}
 }
 
-//GetStatus retrieves a resource status based on the provided string
-func (rm *Manager) GetStatus(statusname string) (core.ResourceStatus, error) {
+//StringToStatus retrieves a resource status based on the provided string
+func (rm *Manager) StringToStatus(statusname string) (core.ResourceStatus, error) {
 	switch statusname {
 	case "requested":
 		return core.Requested, nil
