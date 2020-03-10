@@ -15,4 +15,4 @@ RUN chmod +x /usr/local/bin/protosd
 RUN mkdir /var/protos && mkdir /var/protos-containerd
 COPY protos.yaml /etc/protos.yaml
 
-ENTRYPOINT ["/usr/local/bin/protosd", "--loglevel", "debug", "--config", "/etc/protos.yaml", "init"]
+ENTRYPOINT ["/usr/local/bin/protosd", "--loglevel", "debug", "--config", "/etc/protos.yaml", "daemon"]
