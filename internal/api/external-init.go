@@ -11,13 +11,6 @@ import (
 var createExternalInitRoutes = func(cm core.CapabilityManager) routes {
 	return routes{
 		route{
-			"createProtosResources",
-			"POST",
-			"/init/resources",
-			createProtosResources,
-			cm.GetOrPanic("UserAdmin"),
-		},
-		route{
 			"getProtosResources",
 			"GET",
 			"/init/resources",
@@ -75,19 +68,6 @@ func removeInitProvider(ha handlerAccess) http.Handler {
 			}
 		}
 		rend.JSON(w, http.StatusOK, nil)
-	})
-}
-
-func createProtosResources(ha handlerAccess) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resources, err := ha.m.CreateProtosResources()
-		if err != nil {
-			log.Error(err)
-			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
-			return
-		}
-
-		rend.JSON(w, http.StatusOK, resources)
 	})
 }
 
