@@ -111,7 +111,7 @@ func (rm *Manager) Create(rtype core.ResourceType, value core.ResourceValue, app
 	rsc, err := rm.resources.get(rhash)
 
 	if err == nil {
-		return rsc, errors.New("Could not create resource with hash '" + rhash + "' because it already exists")
+		return rsc, errors.Wrapf(core.ErrResourceExists{}, "Could not create resource with hash '%s'", rhash)
 	}
 
 	resource.App = appID

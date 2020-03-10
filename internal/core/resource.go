@@ -24,6 +24,13 @@ const (
 	Unknown = ResourceStatus("unknown")
 )
 
+// ErrResourceExists is returned when trying to create a resource that already exists
+type ErrResourceExists struct{}
+
+func (e ErrResourceExists) Error() string {
+	return "Resource exists"
+}
+
 // ResourceManager manages the list of resources
 type ResourceManager interface {
 	Get(id string) (Resource, error)
