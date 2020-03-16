@@ -73,19 +73,6 @@ func (m *Meta) save() {
 	}
 }
 
-// readDomain reads the Protos instance domain interactively
-func readDomain() string {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("Enter domain: ")
-	domain, err := reader.ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return strings.TrimSpace(domain)
-}
-
 func findPublicIP() (string, error) {
 	log.Info("Finding the public IP of this Protos instance")
 	resp, err := http.Get("https://api.ipify.org?format=json")
