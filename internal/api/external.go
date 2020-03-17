@@ -463,7 +463,7 @@ func getInfo(ha handlerAccess) http.Handler {
 		info := struct {
 			Version string `json:"version"`
 		}{
-			Version: gconfig.Version.String(),
+			Version: ha.m.GetVersion(),
 		}
 		rend.JSON(w, http.StatusOK, info)
 	})

@@ -16,4 +16,5 @@ type Meta interface {
 	GetDashboardDomain() string
 	GetService() util.Service
 	GetAdminUser() string
+	GetVersion() string
 }

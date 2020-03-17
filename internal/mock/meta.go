@@ -196,3 +196,17 @@ func (mr *MockMetaMockRecorder) GetAdminUser() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAdminUser", reflect.TypeOf((*MockMeta)(nil).GetAdminUser))
 }
+
+// GetVersion mocks base method
+func (m *MockMeta) GetVersion() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVersion")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetVersion indicates an expected call of GetVersion
+func (mr *MockMetaMockRecorder) GetVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockMeta)(nil).GetVersion))
+}

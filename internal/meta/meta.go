@@ -28,6 +28,7 @@ type Meta struct {
 	PublicIP           string
 	AdminUser          string
 	Resources          []string
+	version            string
 	rm                 core.ResourceManager
 	db                 core.DB
 }
@@ -37,7 +38,7 @@ type dnsResource interface {
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup(rm core.ResourceManager, db core.DB) *Meta {
+func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 	if rm == nil || db == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
@@ -58,6 +59,7 @@ func Setup(rm core.ResourceManager, db core.DB) *Meta {
 
 	metaRoot.db = db
 	metaRoot.rm = rm
+	metaRoot.version = version
 	err = db.Save(&metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
@@ -198,6 +200,10 @@ func (m *Meta) GetDashboardDomain() string {
 	return dashboardDomain
 }
 
+// GetVersion returns current version
+func (m *Meta) GetVersion() string {
+	return m.version
+}
 // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
 func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 	resources := map[string]core.Resource{}
