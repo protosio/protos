@@ -102,7 +102,7 @@ func (cm *Manager) GetOrPanic(name string) core.Capability {
 	return nil
 }
 
-// ClearAll removes all the associateion between methods and capabilities
+// ClearAll removes all the association between methods and capabilities
 func (cm *Manager) ClearAll() {
 	cm.capMap = make(map[string]*Capability)
 }
