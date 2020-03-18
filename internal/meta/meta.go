@@ -146,6 +146,7 @@ func (m *Meta) GetTLSCertificate() core.Resource {
 
 // CleanProtosResources removes the MX record resource owned by the instance, created during the init process
 func (m *Meta) CleanProtosResources() error {
+	log.Info("Cleaning fake DNS (MX) Protos resource")
 	for i, rscid := range m.Resources {
 		rsc, err := m.rm.Get(rscid)
 		if err != nil {
@@ -206,12 +207,6 @@ func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 	if err != nil {
 		switch err := errors.Cause(err).(type) {
 		case core.ErrResourceExists:
-			mxrscValue, ok := mxrsc.GetValue().(dnsResource)
-			if ok == false {
-				log.Fatal("mxrscValue does not implement interface dnsResource")
-			}
-			mxrscValue.UpdateValueAndTTL("protos."+m.Domain, 300)
-			dnsrsc.UpdateValue(mxrscValue.(core.ResourceValue))
 		default:
 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
 		}
