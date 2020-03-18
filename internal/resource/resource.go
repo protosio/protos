@@ -57,6 +57,7 @@ func (rsc *Resource) SetStatus(status core.ResourceStatus) {
 
 // UpdateValue updates the value of a resource
 func (rsc *Resource) UpdateValue(value core.ResourceValue) {
+	log.Debugf("Updating resource '%s' of type '%s': %v+", rsc.ID, rsc.Type, value)
 	rsc.access.Lock()
 	rsc.Value.Update(value)
 	rsc.access.Unlock()

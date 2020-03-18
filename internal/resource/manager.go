@@ -111,7 +111,7 @@ func (rm *Manager) Create(rtype core.ResourceType, value core.ResourceValue, app
 	rsc, err := rm.resources.get(rhash)
 
 	if err == nil {
-		return rsc, errors.Wrapf(core.ErrResourceExists{}, "Could not create resource with hash '%s'", rhash)
+		return rsc, errors.Wrapf(core.ErrResourceExists{}, "Could not create resource with hash '%s'(%s)", rhash, rtype)
 	}
 
 	resource.App = appID
@@ -122,7 +122,7 @@ func (rm *Manager) Create(rtype core.ResourceType, value core.ResourceValue, app
 	resource.parent = rm
 	resource.Save()
 
-	log.Debugf("Adding resource '%s:%p'", rhash, resource)
+	log.Debugf("Adding resource '%s:%+v'", rhash, resource)
 	rm.resources.put(rhash, resource)
 	return resource, nil
 

@@ -12,6 +12,15 @@ type DNSResource struct {
 
 // Update method is not used for the DNS resource type
 func (rsc *DNSResource) Update(newValue core.ResourceValue) {
+	newDNS := newValue.(*DNSResource)
+	rsc.Value = newDNS.Value
+	rsc.TTL = newDNS.TTL
+}
+
+// UpdateValueAndTTL updates the value and TTL of the dns record
+func (rsc *DNSResource) UpdateValueAndTTL(value string, ttl int) {
+	rsc.Value = value
+	rsc.TTL = ttl
 }
 
 // Sanitize removes any sensitive information from the resource
