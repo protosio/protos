@@ -34,18 +34,6 @@ func (m *MockMeta) EXPECT() *MockMetaMockRecorder {
 	return m.recorder
 }
 
-// InitCheck mocks base method
-func (m *MockMeta) InitCheck() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "InitCheck")
-}
-
-// InitCheck indicates an expected call of InitCheck
-func (mr *MockMetaMockRecorder) InitCheck() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitCheck", reflect.TypeOf((*MockMeta)(nil).InitCheck))
-}
-
 // GetPublicIP mocks base method
 func (m *MockMeta) GetPublicIP() string {
 	m.ctrl.T.Helper()
@@ -209,4 +197,18 @@ func (m *MockMeta) GetVersion() string {
 func (mr *MockMetaMockRecorder) GetVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockMeta)(nil).GetVersion))
+}
+
+// InitMode mocks base method
+func (m *MockMeta) InitMode() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InitMode")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// InitMode indicates an expected call of InitMode
+func (mr *MockMetaMockRecorder) InitMode() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitMode", reflect.TypeOf((*MockMeta)(nil).InitMode))
 }

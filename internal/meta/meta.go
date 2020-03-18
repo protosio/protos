@@ -1,12 +1,9 @@
 package meta
 
 import (
-	"bufio"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
@@ -35,6 +32,7 @@ type Meta struct {
 
 type dnsResource interface {
 	IsType(string) bool
+	UpdateValueAndTTL(value string, ttl int)
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
@@ -183,6 +181,7 @@ func (m *Meta) GetDashboardDomain() string {
 func (m *Meta) GetVersion() string {
 	return m.version
 }
+
 // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
 func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 	resources := map[string]core.Resource{}
@@ -190,22 +189,40 @@ func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 	// creating the protos subdomain for the dashboard
 	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP, 300)
 	if err != nil {
-		if strings.Contains(err.Error(), "already registered") == false {
-			return resources, errors.Wrap(err, "Failed to create Protos resources")
+		switch err := errors.Cause(err).(type) {
+		case core.ErrResourceExists:
+			dnsrscValue, ok := dnsrsc.GetValue().(dnsResource)
+			if ok == false {
+				log.Fatal("dnsrscValue does not implement interface dnsResource")
+			}
+			dnsrscValue.UpdateValueAndTTL(m.PublicIP, 300)
+			dnsrsc.UpdateValue(dnsrscValue.(core.ResourceValue))
+		default:
+			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
 		}
 	}
 	// creating the bogus MX record, which is checked by LetsEncrypt before creating a certificate
 	mxrsc, err := m.rm.CreateDNS("protos", "@", "MX", "protos."+m.Domain, 300)
 	if err != nil {
-		if strings.Contains(err.Error(), "already registered") == false {
-			return resources, errors.Wrap(err, "Failed to create Protos resources")
+		switch err := errors.Cause(err).(type) {
+		case core.ErrResourceExists:
+			mxrscValue, ok := mxrsc.GetValue().(dnsResource)
+			if ok == false {
+				log.Fatal("mxrscValue does not implement interface dnsResource")
+			}
+			mxrscValue.UpdateValueAndTTL("protos."+m.Domain, 300)
+			dnsrsc.UpdateValue(mxrscValue.(core.ResourceValue))
+		default:
+			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
 		}
 	}
 	// creating a TLS certificate for the protos subdomain
 	certrsc, err := m.rm.CreateCert("protos", []string{"protos"})
 	if err != nil {
-		if strings.Contains(err.Error(), "already registered") == false {
-			return resources, errors.Wrap(err, "Failed to create Protos resources")
+		switch err := errors.Cause(err).(type) {
+		case core.ErrResourceExists:
+		default:
+			return resources, errors.Wrap(err, "Could not create Protos certificate resource")
 		}
 	}
 	m.Resources = append(m.Resources, dnsrsc.GetID(), mxrsc.GetID(), certrsc.GetID())
