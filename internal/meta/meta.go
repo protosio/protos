@@ -120,27 +120,6 @@ func (m *Meta) GetAdminUser() string {
 	return m.AdminUser
 }
 
-// InitCheck checks the instance information at program startup
-func (m *Meta) InitCheck() {
-
-	if m.PublicIP == "" {
-		log.Fatalf("Instance public ip is empty. Please run init")
-	}
-
-	if m.Domain == "" {
-		log.Fatal("Instance domain is empty. Please run init")
-	}
-
-	if m.AdminUser == "" {
-		log.Fatal("Instance admin user is empty. Please run init")
-	}
-
-	log.Infof("Running under domain '%s' using public IP '%s'", m.Domain, m.PublicIP)
-	if len(m.Resources) < 2 {
-		log.Fatal("DNS and TLS certificate resources have not been created. Please run init")
-	}
-}
-
 // GetDomain returns the domain name used in this Protos instance
 func (m *Meta) GetDomain() string {
 	return m.Domain
@@ -267,4 +246,38 @@ func (m *Meta) GetService() util.Service {
 		Status: util.StatusActive,
 	}
 	return protosService
+}
+
+// InitMode returns the status of the init process
+func (m *Meta) InitMode() bool {
+	type certificate interface {
+		GetCertificate() []byte
+		GetPrivateKey() []byte
+	}
+
+	if m.PublicIP == "" || m.Domain == "" || m.AdminUser == "" {
+		log.Warnf("Instance info (public IP: '%s', domain: '%s', admin user: '%s') is not set. Running in init mode", m.PublicIP, m.Domain, m.AdminUser)
+		return true
+	}
+
+	resources := m.GetProtosResources()
+	if len(resources) == 0 {
+		log.Warn("Protos resources not found. Running in init mode")
+		return true
+	}
+
+	tlsResource := m.GetTLSCertificate()
+	if tlsResource == nil {
+		log.Warn("Protos TLS certificate resource not found. Running in init mode")
+		return true
+	}
+
+	tlsCertRsc := tlsResource.GetValue()
+	cert, ok := tlsCertRsc.(certificate)
+	if ok == false || len(cert.GetCertificate()) == 0 {
+		log.Warn("Protos TLS certificate resource not found. Running in init mode")
+		return true
+	}
+
+	return false
 }

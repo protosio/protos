@@ -52,10 +52,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	defer db.Close()
 
 	var wg sync.WaitGroup
-	cfg.InitMode = (db.Exists() == false) || init
-	if cfg.InitMode {
-		log.Info("Starting up in init mode")
-	}
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
@@ -88,6 +84,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}()
 
 	var initInterrupted bool
+	cfg.InitMode = m.InitMode() || init
 	if cfg.InitMode {
 		// run the init webserver in blocking mode
 		initwebserverQuit := make(chan bool, 1)

@@ -4,7 +4,6 @@ import "github.com/protosio/protos/internal/util"
 
 // Meta holds information about the protos instance
 type Meta interface {
-	InitCheck()
 	GetPublicIP() string
 	GetDomain() string
 	GetTLSCertificate() Resource
@@ -17,4 +16,5 @@ type Meta interface {
 	GetService() util.Service
 	GetAdminUser() string
 	GetVersion() string
+	InitMode() bool
 }
