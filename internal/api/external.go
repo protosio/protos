@@ -461,9 +461,13 @@ func searchAppStore(ha handlerAccess) http.Handler {
 func getInfo(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		info := struct {
-			Version string `json:"version"`
+			Version         string `json:"version"`
+			Domain          string `json:"domain"`
+			DashboardDomain string `json:"dashboard-domain"`
 		}{
-			Version: ha.m.GetVersion(),
+			Version:         ha.m.GetVersion(),
+			Domain:          ha.m.GetDomain(),
+			DashboardDomain: ha.m.GetDashboardDomain(),
 		}
 		rend.JSON(w, http.StatusOK, info)
 	})
