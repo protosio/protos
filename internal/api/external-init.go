@@ -83,21 +83,23 @@ func finishInit(ha handlerAccess) http.Handler {
 		err := ha.m.CleanProtosResources()
 		if err != nil {
 			log.Error(err)
-			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
-		dashboard := struct {
-			Domain string `json:"domain"`
-		}{
-			Domain: ha.m.GetDashboardDomain(),
-		}
-		quitChan, ok := gconfig.ProcsQuit.Load("initwebserver")
-		if ok == false {
-			log.Error("Failed to find quit channel for initwebserver")
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Failed to stop init web server"})
+
+		err = ha.api.StartSecureWebServer()
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
-		quitChan.(chan bool) <- false
-		rend.JSON(w, http.StatusOK, dashboard)
+
+		http.Redirect(w, r, "https://"+ha.m.GetDashboardDomain(), http.StatusTemporaryRedirect)
+
+		err = ha.api.StopInsecureWebServer()
+		if err != nil {
+			log.Error(err)
+			return
+		}
 	})
 }

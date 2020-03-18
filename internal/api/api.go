@@ -40,17 +40,23 @@ type route struct {
 	Capability  core.Capability
 }
 
+type apiController interface {
+	StartSecureWebServer() error
+	StopInsecureWebServer() error
+}
+
 type handlerAccess struct {
-	pm core.ProviderManager
-	rm core.ResourceManager
-	am core.AppManager
-	tm core.TaskManager
-	m  core.Meta
-	as core.AppStore
-	um core.UserManager
-	rp core.RuntimePlatform
-	cm core.CapabilityManager
-	cs *sessions.CookieStore
+	pm  core.ProviderManager
+	rm  core.ResourceManager
+	am  core.AppManager
+	tm  core.TaskManager
+	m   core.Meta
+	as  core.AppStore
+	um  core.UserManager
+	rp  core.RuntimePlatform
+	cm  core.CapabilityManager
+	cs  *sessions.CookieStore
+	api apiController
 }
 
 type certificate interface {
@@ -135,7 +141,7 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 
 	httpsport := strconv.Itoa(httpsPort)
-	httpport := strconv.Itoa(httpsPort)
+	httpport := strconv.Itoa(httpPort)
 	srv := &http.Server{
 		Addr:         ":" + httpsport,
 		Handler:      handler,
@@ -299,15 +305,16 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend chan interface{}, httpPort int, httpsPort int, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) *HTTP {
 	httpAPI := &HTTP{devmode: devmode, staticAssetsPath: staticAssetsPath, internalIP: internalIP, wsfrontend: wsfrontend, httpPort: httpPort, httpsPort: httpsPort, webServerQuit: make(chan bool, 1), wsManagerQuit: make(chan bool, 1)}
 	httpAPI.ha = handlerAccess{
-		pm: pm,
-		rm: rm,
-		am: am,
-		tm: tm,
-		m:  m,
-		as: as,
-		um: um,
-		rp: rp,
-		cm: cm,
+		pm:  pm,
+		rm:  rm,
+		am:  am,
+		tm:  tm,
+		m:   m,
+		as:  as,
+		um:  um,
+		rp:  rp,
+		cm:  cm,
+		api: httpAPI,
 	}
 
 	if httpAPI.ha.pm == nil || httpAPI.ha.rm == nil || httpAPI.ha.am == nil || httpAPI.ha.tm == nil || httpAPI.ha.m == nil || httpAPI.ha.as == nil || httpAPI.ha.um == nil || httpAPI.ha.rp == nil || httpAPI.ha.cm == nil {
