@@ -10,6 +10,33 @@ import (
 	"github.com/protosio/protos/internal/core"
 )
 
+var registerRoute = route{
+	"register",
+	"POST",
+	"/register",
+	registerHandler,
+	nil,
+}
+
+var createAuthRoutes = func(cm core.CapabilityManager) routes {
+	return routes{
+		route{
+			"login",
+			"POST",
+			"/login",
+			loginHandler,
+			nil,
+		},
+		route{
+			"logout",
+			"POST",
+			"/logout",
+			logoutHandler,
+			nil,
+		},
+	}
+}
+
 // registerHandler is used in the initial user and domain registration. Should be disabled after the initial setup
 func registerHandler(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

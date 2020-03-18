@@ -88,3 +88,32 @@ func Server(quit chan bool, protosIP string, dnsServer string) {
 	}
 	srv.Shutdown()
 }
+
+var srv *dns.Server
+
+// StartServer starts a DNS server used for resolving internal Protos addresses
+func StartServer(protosIP string, dnsServer string) {
+	log.Infof("Starting DNS server. Listening internally on '%s:%s' (DNS)", protosIP, "53")
+	log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
+
+	// adding the IP address used for the internal protos domain
+	// ToDo: improve this
+	domainsMap["protos.protos.local."] = protosIP
+
+	srv = &dns.Server{Addr: ":" + strconv.Itoa(53), Net: "udp"}
+	srv.Handler = &handler{protosIP: protosIP, dnsServer: dnsServer}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			log.Fatalf("Failed to set udp listener %s\n", err.Error())
+		}
+	}()
+}
+
+// StopServer starts a DNS server used for resolving internal Protos addresses
+func StopServer() error {
+	log.Info("Shutting down DNS server")
+	if err := srv.Shutdown(); err != nil {
+		return errors.Wrap(err, "Something went wrong while shutting down the DNS server")
+	}
+	return nil
+}

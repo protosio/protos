@@ -26,14 +26,10 @@ import (
 
 var log = util.GetLogger("daemon")
 
-func catchSignals(sigs chan os.Signal, cfg *config.Config) {
+func catchSignals(sigs chan os.Signal, wg *sync.WaitGroup) {
 	sig := <-sigs
 	log.Infof("Received OS signal %s. Terminating", sig.String())
-	cfg.ProcsQuit.Range(func(k, v interface{}) bool {
-		quitChan := v.(chan bool)
-		quitChan <- true
-		return true
-	})
+	wg.Done()
 }
 
 // StartUp triggers a sequence of steps required to start the application
@@ -42,75 +38,77 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg := config.Load(configFile, version)
 
 	// Handle OS signals
+	var wg sync.WaitGroup
+	wg.Add(1)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go catchSignals(sigs, cfg)
+	go catchSignals(sigs, &wg)
 
 	// open databse
 	db := database.GetDatabase()
 	db.Open()
 	defer db.Close()
 
-	var wg sync.WaitGroup
-	cfg.DevMode = devmode
-	meta.PrintBanner()
-
+	// create all the managers
 	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg, cfg.InternalInterface)
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, cfg)
 	as := installer.CreateAppStore(p, tm, cm)
 	rm := resource.CreateManager(db)
-	m := meta.Setup(rm, db)
+	m := meta.Setup(rm, db, version.String())
 	am := app.CreateManager(rm, tm, p, db, m, cfg, as, cm)
 	pm := provider.CreateManager(rm, am, db)
 
-	// start ws connection manager
-	wg.Add(1)
-	wsmanagerQuit := make(chan bool, 1)
-	cfg.ProcsQuit.Store("wsmanager", wsmanagerQuit)
-	go func() {
-		api.WSManager(am, wsmanagerQuit)
-		wg.Done()
-	}()
+	// check init and dev mode
 
-	// start DNS server
-	wg.Add(1)
-	dnsserverQuit := make(chan bool, 1)
-	cfg.ProcsQuit.Store("dnsserver", dnsserverQuit)
-	go func() {
-		dns.Server(dnsserverQuit, cfg.InternalIP, cfg.ExternalDNS)
-		wg.Done()
-	}()
-
-	var initInterrupted bool
 	cfg.InitMode = m.InitMode() || init
 	if cfg.InitMode {
-		// run the init webserver in blocking mode
-		initwebserverQuit := make(chan bool, 1)
-		cfg.ProcsQuit.Store("initwebserver", initwebserverQuit)
-		wg.Add(1)
-		initInterrupted = api.WebsrvInit(initwebserverQuit, devmode, m, am, rm, tm, pm, as, um, p, cm)
-		wg.Done()
-		cm.ClearAll()
+		log.Info("Starting up in init mode")
+	}
+	cfg.DevMode = devmode
+	meta.PrintBanner()
+
+	httpAPI := api.New(devmode, cfg.StaticAssets, cfg.InternalIP, cfg.WSPublish, cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
+
+	// start ws connection manager
+	err := httpAPI.StartWSManager()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	if initInterrupted == false {
-		log.Info("Finished initialisation. Resuming normal operations")
-		cfg.InitMode = false
+	// start DNS server
+	dns.StartServer(cfg.InternalIP, cfg.ExternalDNS)
 
-		m.InitCheck()
-		// start tls web server
-		wg.Add(1)
-		webserverQuit := make(chan bool, 1)
-		cfg.ProcsQuit.Store("webserver", webserverQuit)
-		go func() {
-			api.Websrv(webserverQuit, devmode, m, am, rm, tm, pm, as, um, p, cm)
-			wg.Done()
-		}()
+	// start insecure webserver if in init mode
+	if cfg.InitMode {
+		err := httpAPI.StartInsecureWebServer()
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		err := httpAPI.StartSecureWebServer()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
+	log.Info("Started all servers successfully")
 	wg.Wait()
-	log.Info("Terminating...")
+	log.Info("Terminating all servers...")
 
+	// stop all servers
+	err = httpAPI.StopWSManager()
+	if err != nil {
+		log.Error(err)
+	}
+	err = httpAPI.StopInsecureWebServer()
+	if err != nil {
+		log.Error(err)
+	}
+	err = httpAPI.StopSecureWebServer()
+	if err != nil {
+		log.Error(err)
+	}
+	dns.StopServer()
 }

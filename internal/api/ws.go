@@ -42,7 +42,7 @@ var removeWSQueue = make(chan *wsConnection, 100)
 //
 
 // WSManager is the WS connection manager that owns the WS connection data
-func WSManager(am core.AppManager, quit chan bool) {
+func WSManager(am core.AppManager, quit chan bool, wsfrontend chan interface{}) {
 	log.WithField("proc", "wsmanager").Info("Starting the WS connection manager")
 
 	for {
@@ -55,7 +55,7 @@ func WSManager(am core.AppManager, quit chan bool) {
 			conID := fmt.Sprintf("%p", wsCon)
 			log.WithField("proc", "wsmanager").Debugf("Deregistering WS connection '%s'", conID)
 			delete(wsConnections, conID)
-		case publishMsg := <-gconfig.WSPublish:
+		case publishMsg := <-wsfrontend:
 			for _, wsCon := range wsConnections {
 				wsCon.Send <- publishMsg
 			}

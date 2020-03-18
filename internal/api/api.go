@@ -15,7 +15,6 @@ import (
 	// statik package is use to embed static web assets in the protos binary
 	_ "github.com/protosio/protos/internal/statik"
 
-	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/gorilla/mux"
@@ -27,7 +26,6 @@ import (
 )
 
 var log = util.GetLogger("api")
-var gconfig = config.Get()
 var rend = render.New(render.Options{IndentJSON: true})
 
 type httperr struct {
@@ -62,15 +60,17 @@ type certificate interface {
 
 type routes []route
 
-func uiHandler(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, string(http.Dir(gconfig.StaticAssets))+"/index.html")
+func uiHandler(staticAssetsPath string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, string(http.Dir(staticAssetsPath))+"/index.html")
+	})
 }
 
 func uiRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ui/", 303)
 }
 
-func applyAPIroutes(ha handlerAccess, r *mux.Router, routes []route) *mux.Router {
+func addRoutesToRouter(ha handlerAccess, r *mux.Router, routes []route) *mux.Router {
 	for _, route := range routes {
 		if route.Method != "" {
 			// if route method is set (GET, POST etc), the route is only valid for that method
@@ -86,52 +86,13 @@ func applyAPIroutes(ha handlerAccess, r *mux.Router, routes []route) *mux.Router
 	return r
 }
 
-func applyAuthRoutes(ha handlerAccess, r *mux.Router, enableRegister bool) {
-	// Authentication routes
-	authRouter := mux.NewRouter().PathPrefix("/api/v1/auth").Subrouter().StrictSlash(true)
-	if enableRegister == true {
-		authRouter.Methods("POST").Path("/register").Name("register").Handler(registerHandler(ha))
-	}
-	authRouter.Methods("POST").Path("/login").Name("login").Handler(loginHandler(ha))
-	authRouter.Methods("POST").Path("/logout").Name("logout").Handler(logoutHandler(ha))
-
-	r.PathPrefix("/api/v1/auth").Handler(authRouter)
-}
-
-func createInternalAPIrouter(ha handlerAccess, r *mux.Router) *mux.Router {
-	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
-	// add the internal router to the main router
-	r.PathPrefix("/api/v1/i").Handler(negroni.New(
-		InternalRequestValidator(ha, internalRouter),
-		negroni.Wrap(internalRouter),
-	))
-	return internalRouter
-}
-
-func createExternalAPIrouter(ha handlerAccess, r *mux.Router) *mux.Router {
-	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
-	// add the external router to the main router
-	r.PathPrefix("/api/v1/e").Handler(negroni.New(
-		ExternalRequestValidator(ha, externalRouter),
-		negroni.Wrap(externalRouter),
-	))
-	return externalRouter
-}
-
-func createDevAPIrouter(r *mux.Router) *mux.Router {
-	devRouter := mux.NewRouter().PathPrefix("/api/v1/dev").Subrouter().StrictSlash(true)
-	// add the dev router to the main router
-	r.PathPrefix("/api/v1/dev").Handler(devRouter)
-	return devRouter
-}
-
-func applyStaticRoutes(r *mux.Router) {
+func applyStaticRoutes(r *mux.Router, staticAssetsPath string) {
 	// UI routes
 	var fileHandler http.Handler
-	if gconfig.StaticAssets != "" {
-		log.Debugf("Running webserver with static assets from %s", gconfig.StaticAssets)
-		fileHandler = http.FileServer(http.Dir(gconfig.StaticAssets))
-		r.PathPrefix("/ui/").Name("ui").Handler(http.HandlerFunc(uiHandler))
+	if staticAssetsPath != "" {
+		log.Debugf("Running webserver with static assets from %s", staticAssetsPath)
+		fileHandler = http.FileServer(http.Dir(staticAssetsPath))
+		r.PathPrefix("/ui/").Name("ui").Handler(uiHandler(staticAssetsPath))
 	} else {
 		statikFS, err := fs.New()
 		if err != nil {
@@ -149,10 +110,9 @@ func applyStaticRoutes(r *mux.Router) {
 	}
 	r.PathPrefix("/static/").Name("static").Handler(http.StripPrefix("/static/", fileHandler))
 	r.PathPrefix("/").Name("root").Handler(http.HandlerFunc(uiRedirect))
-
 }
 
-func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bool) {
+func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bool, httpPort int, httpsPort int, internalIP string) {
 	cert, ok := certrsc.(certificate)
 	if ok == false {
 		log.Fatal("Failed to read TLS certificate")
@@ -174,8 +134,8 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 		Certificates: []tls.Certificate{tlscert},
 	}
 
-	httpsport := strconv.Itoa(gconfig.HTTPSport)
-	httpport := strconv.Itoa(gconfig.HTTPport)
+	httpsport := strconv.Itoa(httpsPort)
+	httpport := strconv.Itoa(httpsPort)
 	srv := &http.Server{
 		Addr:         ":" + httpsport,
 		Handler:      handler,
@@ -187,8 +147,8 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	internalSrvs := []*http.Server{}
 
 	var ips []string
-	if gconfig.InternalIP != "" {
-		ips = []string{gconfig.InternalIP}
+	if internalIP != "" {
+		ips = []string{internalIP}
 	} else {
 		ips, err = util.GetLocalIPs()
 		if err != nil {
@@ -235,14 +195,14 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 }
 
-func insecureListen(handler http.Handler, quit chan bool, devmode bool) bool {
+func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort int) bool {
 	var listenAddress string
 	if devmode {
 		listenAddress = "0.0.0.0"
 	} else {
 		listenAddress = "127.0.0.1"
 	}
-	httpport := strconv.Itoa(gconfig.HTTPport)
+	httpport := strconv.Itoa(httpPort)
 	srv := &http.Server{
 		Addr:           listenAddress + ":" + httpport,
 		Handler:        handler,
@@ -260,6 +220,7 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool) bool {
 			}
 		}
 	}()
+	log.Infof("Init webserver started")
 
 	interrupted := <-quit
 	log.Info("Shutting down init webserver")
@@ -269,83 +230,75 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool) bool {
 	return interrupted
 }
 
-// Websrv starts an HTTP(S) server that exposes all the application functionality
-func Websrv(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) {
-
-	ha := handlerAccess{
-		pm: pm,
-		rm: rm,
-		am: am,
-		tm: tm,
-		m:  m,
-		as: as,
-		um: um,
-		rp: rp,
-		cm: cm,
-	}
-
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
-		log.Panic("Failed to create web server: none of the inputs can be nil")
-	}
-
-	//
-	// Setting up session cookies
-	//
-
-	authKeyOne := securecookie.GenerateRandomKey(64)
-	encryptionKeyOne := securecookie.GenerateRandomKey(32)
-
-	ha.cs = sessions.NewCookieStore(
-		authKeyOne,
-		encryptionKeyOne,
-	)
-
-	ha.cs.Options = &sessions.Options{
-		Path:   "/",
-		MaxAge: 60 * 15,
-	}
-
-	//
-	// Setting up routes
-	//
-
-	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAuthRoutes(ha, mainRtr, false)
-
-	// internal routes
-	internalRouter := createInternalAPIrouter(ha, mainRtr)
-	internalRoutes := createInternalRoutes(ha.cm)
-	applyAPIroutes(ha, internalRouter, internalRoutes)
-	applyAPIroutes(ha, internalRouter, internalWSRoutes)
-
-	// external routes
-	externalRouter := createExternalAPIrouter(ha, mainRtr)
-	externalRoutes := createExternalRoutes(ha.cm)
-	applyAPIroutes(ha, externalRouter, externalRoutes)
-	applyAPIroutes(ha, externalRouter, externalWSRoutes)
-
-	// if dev mode is enabled we add the dev routes
-	if devmode {
-		devRouter := createDevAPIrouter(mainRtr)
-		applyAPIroutes(ha, devRouter, externalDevRoutes)
-	}
-
-	// static file routes
-	applyStaticRoutes(mainRtr)
-
-	// Negroni middleware
-	n := negroni.New()
-	n.Use(negroni.HandlerFunc(HTTPLogger))
-	n.UseHandler(mainRtr)
-
-	cert := m.GetTLSCertificate()
-	secureListen(n, cert.GetValue(), quit)
+// HTTP is the http API
+type HTTP struct {
+	staticAssetsPath string
+	webServerQuit    chan bool
+	wsManagerQuit    chan bool
+	router           *mux.Router
+	root             *negroni.Negroni
+	ha               handlerAccess
+	devmode          bool
+	httpPort         int
+	httpsPort        int
+	internalIP       string
+	wsfrontend       chan interface{}
 }
 
-// WebsrvInit starts an HTTP server used only during the initialisation process
-func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) bool {
+func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath string) *mux.Router {
+	//
+	// Setting up routes
+	//
 
-	ha := handlerAccess{
+	rtr := mux.NewRouter().StrictSlash(true)
+
+	// auth routes
+	authRouter := rtr.PathPrefix("/api/v1/auth").Subrouter().StrictSlash(true)
+	addRoutesToRouter(httpAPI.ha, authRouter, createAuthRoutes(httpAPI.ha.cm))
+	// init routes
+	if initmode {
+		addRoutesToRouter(httpAPI.ha, authRouter, routes{registerRoute})
+	}
+
+	// internal routes
+	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
+	addRoutesToRouter(httpAPI.ha, internalRouter, createInternalRoutes(httpAPI.ha.cm))
+	addRoutesToRouter(httpAPI.ha, internalRouter, internalWSRoutes)
+	rtr.PathPrefix("/api/v1/i").Handler(negroni.New(
+		InternalRequestValidator(httpAPI.ha, internalRouter),
+		negroni.Wrap(internalRouter),
+	))
+
+	// external routes
+	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
+	addRoutesToRouter(httpAPI.ha, externalRouter, createExternalRoutes(httpAPI.ha.cm))
+	addRoutesToRouter(httpAPI.ha, externalRouter, externalWSRoutes)
+	rtr.PathPrefix("/api/v1/e").Handler(negroni.New(
+		ExternalRequestValidator(httpAPI.ha, externalRouter, initmode),
+		negroni.Wrap(externalRouter),
+	))
+
+	// init routes
+	if initmode {
+		addRoutesToRouter(httpAPI.ha, externalRouter, createExternalInitRoutes(httpAPI.ha.cm))
+	}
+
+	// if dev mode is enabled we add the dev routes
+	if devmode {
+		devRouter := rtr.PathPrefix("/api/v1/dev").Subrouter().StrictSlash(true)
+		addRoutesToRouter(httpAPI.ha, devRouter, externalDevRoutes)
+	}
+
+	// static file routes
+	applyStaticRoutes(rtr, staticAssetsPath)
+
+	return rtr
+}
+
+// New returns a new http API
+func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend chan interface{}, httpPort int, httpsPort int, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) *HTTP {
+	httpAPI := &HTTP{devmode: devmode, staticAssetsPath: staticAssetsPath, internalIP: internalIP, wsfrontend: wsfrontend, httpPort: httpPort, httpsPort: httpsPort, webServerQuit: make(chan bool, 1), wsManagerQuit: make(chan bool, 1)}
+	httpAPI.ha = handlerAccess{
 		pm: pm,
 		rm: rm,
 		am: am,
@@ -357,7 +310,7 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 		cm: cm,
 	}
 
-	if ha.pm == nil || ha.rm == nil || ha.am == nil || ha.tm == nil || ha.m == nil || ha.as == nil || ha.um == nil || ha.rp == nil || ha.cm == nil {
+	if httpAPI.ha.pm == nil || httpAPI.ha.rm == nil || httpAPI.ha.am == nil || httpAPI.ha.tm == nil || httpAPI.ha.m == nil || httpAPI.ha.as == nil || httpAPI.ha.um == nil || httpAPI.ha.rp == nil || httpAPI.ha.cm == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
@@ -368,50 +321,64 @@ func WebsrvInit(quit chan bool, devmode bool, m core.Meta, am core.AppManager, r
 	authKeyOne := securecookie.GenerateRandomKey(64)
 	encryptionKeyOne := securecookie.GenerateRandomKey(32)
 
-	ha.cs = sessions.NewCookieStore(
+	httpAPI.ha.cs = sessions.NewCookieStore(
 		authKeyOne,
 		encryptionKeyOne,
 	)
 
-	ha.cs.Options = &sessions.Options{
+	httpAPI.ha.cs.Options = &sessions.Options{
 		Path:   "/",
 		MaxAge: 60 * 15,
 	}
 
-	//
-	// Setting up routes
-	//
-
-	mainRtr := mux.NewRouter().StrictSlash(true)
-	applyAuthRoutes(ha, mainRtr, true)
-
-	// internal routes
-	internalRouter := createInternalAPIrouter(ha, mainRtr)
-	internalRoutes := createInternalRoutes(ha.cm)
-	applyAPIroutes(ha, internalRouter, internalRoutes)
-	applyAPIroutes(ha, internalRouter, internalWSRoutes)
-
-	// external routes
-	externalRouter := createExternalAPIrouter(ha, mainRtr)
-	externalRoutes := createExternalRoutes(ha.cm)
-	externalInitRoutes := createExternalInitRoutes(ha.cm)
-	applyAPIroutes(ha, externalRouter, externalRoutes)
-	applyAPIroutes(ha, externalRouter, externalInitRoutes)
-	applyAPIroutes(ha, externalRouter, externalWSRoutes)
-
-	// if dev mode is enabled we add the dev routes
-	if devmode {
-		devRouter := createDevAPIrouter(mainRtr)
-		applyAPIroutes(ha, devRouter, externalDevRoutes)
-	}
-
-	// static file routes
-	applyStaticRoutes(mainRtr)
-
 	// Negroni middleware
-	n := negroni.New()
-	n.Use(negroni.HandlerFunc(HTTPLogger))
-	n.UseHandler(mainRtr)
+	httpAPI.root = negroni.New()
+	httpAPI.root.Use(negroni.HandlerFunc(HTTPLogger))
 
-	return insecureListen(n, quit, devmode)
+	return httpAPI
+}
+
+// StartSecureWebServer starts the HTTPS API using the provided certificate
+func (api *HTTP) StartSecureWebServer() error {
+	rtr := createRouter(api, api.devmode, true, api.staticAssetsPath)
+
+	api.root.UseHandler(rtr)
+	cert := api.ha.m.GetTLSCertificate()
+
+	go secureListen(api.root, cert.GetValue(), api.webServerQuit, api.httpPort, api.httpsPort, api.internalIP)
+	return nil
+}
+
+// StopSecureWebServer stops the HTTPS API
+func (api *HTTP) StopSecureWebServer() error {
+	api.webServerQuit <- true
+	return nil
+}
+
+// StartInsecureWebServer starts the HTTP API, used for initilisation
+func (api *HTTP) StartInsecureWebServer() error {
+	rtr := createRouter(api, api.devmode, true, api.staticAssetsPath)
+
+	api.root.UseHandler(rtr)
+
+	go insecureListen(api.root, api.webServerQuit, api.devmode, api.httpPort)
+	return nil
+}
+
+// StopInsecureWebServer stops the HTTP API
+func (api *HTTP) StopInsecureWebServer() error {
+	api.webServerQuit <- true
+	return nil
+}
+
+// StartWSManager starts the websocket server
+func (api *HTTP) StartWSManager() error {
+	go WSManager(api.ha.am, api.wsManagerQuit, api.wsfrontend)
+	return nil
+}
+
+// StopWSManager stops the websocket server
+func (api *HTTP) StopWSManager() error {
+	api.wsManagerQuit <- true
+	return nil
 }

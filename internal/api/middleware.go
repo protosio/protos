@@ -87,10 +87,10 @@ func InternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.Hand
 
 // ExternalRequestValidator validates client request. It checks if request contains a valid session and if the user is
 // authorized to access the resource
-func ExternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.HandlerFunc {
+func ExternalRequestValidator(ha handlerAccess, router *mux.Router, initMode bool) negroni.HandlerFunc {
 	return negroni.HandlerFunc(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		var httpErrStatus int
-		if gconfig.InitMode {
+		if initMode {
 			httpErrStatus = http.StatusFailedDependency
 		} else {
 			httpErrStatus = http.StatusUnauthorized
