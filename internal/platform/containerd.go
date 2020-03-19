@@ -221,13 +221,26 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		envvars = append(envvars, &pb.KeyValue{Key: k, Value: v})
 	}
 
+	logFile := pru.podID + ".log"
+	logFilePath := logDirectory + "/" + logFile
+
+	_, err = os.Stat(logFilePath)
+	if os.IsNotExist(err) {
+		file, err := os.Create(logFilePath)
+		if err != nil {
+			log.Fatal(err)
+			return pru, errors.Wrapf(err, "Failed to create log file for sandbox '%s' for app '%s'", name, appID)
+		}
+		defer file.Close()
+	}
+
 	// create container in pod
 	containerRequest := &pb.CreateContainerRequest{
 		PodSandboxId: pru.podID,
 		Config: &pb.ContainerConfig{
 			Image:    &pb.ImageSpec{Image: localImg.localID},
 			Metadata: &pb.ContainerMetadata{Name: name, Attempt: 1},
-			LogPath:  pru.podID + ".log",
+			LogPath:  logFile,
 			Envs:     envvars,
 		},
 		SandboxConfig: podConfig,
@@ -385,7 +398,7 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 func (cdp *containerdPlatform) CleanUpSandbox(id string) error {
 	// remove logs
 	logFile := logDirectory + "/" + id + ".log"
-	log.Info("Removing file ", logFile)
+	log.Info("Removing log file ", logFile)
 	err := os.Remove(logFile)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to remove log file for sandbox '%s'", id)
