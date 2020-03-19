@@ -55,7 +55,7 @@ func (cm *Manager) New(name string) *Capability {
 // Validate validates a capability
 func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
 	if methodcap.GetName() == appcap {
-		log.Debugf("Matched capability at '%s'", methodcap.GetName())
+		log.Tracef("Matched capability at '%s'", methodcap.GetName())
 		return true
 	} else if methodcap.GetParent() != nil {
 		return cm.Validate(methodcap.GetParent(), appcap)

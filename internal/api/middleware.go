@@ -25,7 +25,7 @@ func checkCapability(cm core.CapabilityManager, capChecker core.CapabilityChecke
 		log.Warn(err.Error())
 		return nil
 	}
-	log.Debugf("Required capability for route '%s' is '%s'", routeName, methodcap.GetName())
+	log.Tracef("Required capability for route '%s' is '%s'", routeName, methodcap.GetName())
 	err = capChecker.ValidateCapability(methodcap)
 	if err != nil {
 		return err
