@@ -94,7 +94,7 @@ func finishInit(ha handlerAccess) http.Handler {
 			return
 		}
 
-		http.Redirect(w, r, "https://"+ha.m.GetDashboardDomain(), http.StatusTemporaryRedirect)
+		rend.JSON(w, http.StatusOK, nil)
 
 		err = ha.api.StopInsecureWebServer()
 		if err != nil {
