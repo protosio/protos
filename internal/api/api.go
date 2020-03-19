@@ -137,7 +137,7 @@ func applyStaticRoutes(r *mux.Router, staticAssetsPath string) {
 	r.PathPrefix("/").Name("root").Handler(http.HandlerFunc(uiRedirect))
 }
 
-func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bool, httpPort int, httpsPort int, internalIP string) {
+func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bool, httpPort int, httpsPort int) {
 	cert, ok := certrsc.(certificate)
 	if ok == false {
 		log.Fatal("Failed to read TLS certificate")
@@ -194,7 +194,7 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 }
 
-func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort int) bool {
+func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort int, internalIP string) bool {
 	var listenAddress string
 	if devmode {
 		listenAddress = "0.0.0.0"
@@ -202,6 +202,7 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort
 		listenAddress = "127.0.0.1"
 	}
 	httpport := strconv.Itoa(httpPort)
+
 	srv := &http.Server{
 		Addr:           listenAddress + ":" + httpport,
 		Handler:        handler,
@@ -209,7 +210,7 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-	log.Infof("Starting HTTP webserver on '%s'", srv.Addr)
+	log.Infof("Starting HTTP webserver 1 on '%s'", srv.Addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
@@ -219,13 +220,42 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort
 			}
 		}
 	}()
+
+	srvInternal := &http.Server{
+		Addr:           internalIP + ":" + httpport,
+		Handler:        handler,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
+
+	if !devmode {
+		log.Infof("Starting HTTP webserver 2 on '%s'", srv.Addr)
+		go func() {
+			if err := srvInternal.ListenAndServe(); err != nil {
+				if strings.Contains(err.Error(), "Server closed") {
+					log.Info("HTTP webserver terminated successfully")
+				} else {
+					log.Errorf("HTTP webserver died with error: %s", err.Error())
+				}
+			}
+		}()
+	}
+
 	log.Infof("HTTP webserver started")
 
 	interrupted := <-quit
-	log.Info("Shutting down HTTP webserver")
+	log.Info("Shutting down HTTP webserver 1")
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Error(errors.Wrap(err, "Something went wrong while shutting down the HTTP webserver"))
 	}
+	if !devmode {
+		log.Info("Shutting down HTTP webserver 2")
+		if err := srvInternal.Shutdown(context.Background()); err != nil {
+			log.Error(errors.Wrap(err, "Something went wrong while shutting down the HTTP webserver"))
+		}
+	}
+
 	return interrupted
 }
 
@@ -345,7 +375,7 @@ func (api *HTTP) StartInsecureWebServer(initMode bool) error {
 	api.root.Use(negroni.HandlerFunc(HTTPLogger))
 	api.root.UseHandler(rtrSwapper)
 
-	go insecureListen(api.root, api.webServerQuit, api.devmode, api.httpPort)
+	go insecureListen(api.root, api.webServerQuit, api.devmode, api.httpPort, api.internalIP)
 	return nil
 }
 
@@ -373,7 +403,7 @@ func (api *HTTP) StartSecureWebServer() error {
 	api.root.UseHandler(rtr)
 	cert := api.ha.m.GetTLSCertificate()
 
-	go secureListen(api.root, cert.GetValue(), api.webServerQuit, api.httpPort, api.httpsPort, api.internalIP)
+	go secureListen(api.root, cert.GetValue(), api.webServerQuit, api.httpPort, api.httpsPort)
 	return nil
 }
 
