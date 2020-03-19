@@ -96,7 +96,7 @@ func finishInit(ha handlerAccess) http.Handler {
 
 		rend.JSON(w, http.StatusOK, nil)
 
-		err = ha.api.StopInsecureWebServer()
+		err = ha.api.DisableInitRoutes()
 		if err != nil {
 			log.Error(err)
 			return

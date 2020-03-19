@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/protosio/protos/internal/core"
@@ -42,7 +43,7 @@ type route struct {
 
 type apiController interface {
 	StartSecureWebServer() error
-	StopInsecureWebServer() error
+	DisableInitRoutes() error
 }
 
 type handlerAccess struct {
@@ -62,6 +63,24 @@ type handlerAccess struct {
 type certificate interface {
 	GetCertificate() []byte
 	GetPrivateKey() []byte
+}
+
+type routerSwapper struct {
+	mu   sync.Mutex
+	root *mux.Router
+}
+
+func (rs *routerSwapper) Swap(newRouter *mux.Router) {
+	rs.mu.Lock()
+	rs.root = newRouter
+	rs.mu.Unlock()
+}
+
+func (rs *routerSwapper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	rs.mu.Lock()
+	root := rs.root
+	rs.mu.Unlock()
+	root.ServeHTTP(w, r)
 }
 
 type routes []route
@@ -141,7 +160,6 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 
 	httpsport := strconv.Itoa(httpsPort)
-	httpport := strconv.Itoa(httpPort)
 	srv := &http.Server{
 		Addr:         ":" + httpsport,
 		Handler:      handler,
@@ -152,33 +170,8 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	// holds all the internal web servers
 	internalSrvs := []*http.Server{}
 
-	var ips []string
-	if internalIP != "" {
-		ips = []string{internalIP}
-	} else {
-		ips, err = util.GetLocalIPs()
-		if err != nil {
-			log.Fatal(errors.Wrap(err, "Failed to start HTTPS server"))
-		}
-	}
-	for _, nip := range ips {
-		ip := nip
-		log.Infof("Listening internally on '%s:%s' (HTTP)", ip, httpport)
-		isrv := &http.Server{Addr: ip + ":" + httpport, Handler: handler}
-		internalSrvs = append(internalSrvs, isrv)
-		go func() {
-			if err := isrv.ListenAndServe(); err != nil {
-				if strings.Contains(err.Error(), "Server closed") {
-					log.Infof("Internal (%s) API webserver terminated successfully", ip)
-				} else {
-					log.Errorf("Internal (%s) API webserver died with error: %s", ip, err.Error())
-				}
-			}
-		}()
-	}
-
+	log.Infof("Starting HTTPS webserver on '%s'", srv.Addr)
 	go func() {
-		log.Infof("Listening on '%s' (HTTPS)", srv.Addr)
 		if err := srv.ListenAndServeTLS("", ""); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
 				log.Info("HTTPS API webserver terminated successfully")
@@ -216,22 +209,22 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-	log.Infof("Starting init webserver on '%s'", srv.Addr)
+	log.Infof("Starting HTTP webserver on '%s'", srv.Addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
-				log.Info("Init webserver terminated successfully")
+				log.Info("HTTP webserver terminated successfully")
 			} else {
-				log.Errorf("Init webserver died with error: %s", err.Error())
+				log.Errorf("HTTP webserver died with error: %s", err.Error())
 			}
 		}
 	}()
-	log.Infof("Init webserver started")
+	log.Infof("HTTP webserver started")
 
 	interrupted := <-quit
-	log.Info("Shutting down init webserver")
+	log.Info("Shutting down HTTP webserver")
 	if err := srv.Shutdown(context.Background()); err != nil {
-		log.Error(errors.Wrap(err, "Something went wrong while shutting down the init webserver"))
+		log.Error(errors.Wrap(err, "Something went wrong while shutting down the HTTP webserver"))
 	}
 	return interrupted
 }
@@ -241,7 +234,7 @@ type HTTP struct {
 	staticAssetsPath string
 	webServerQuit    chan bool
 	wsManagerQuit    chan bool
-	router           *mux.Router
+	router           *routerSwapper
 	root             *negroni.Negroni
 	ha               handlerAccess
 	devmode          bool
@@ -341,6 +334,35 @@ func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend ch
 	return httpAPI
 }
 
+// StartInsecureWebServer starts the HTTP API, used for initilisation
+func (api *HTTP) StartInsecureWebServer(initMode bool) error {
+	rtr := createRouter(api, api.devmode, initMode, api.staticAssetsPath)
+
+	// Negroni middleware
+	api.root = negroni.New()
+	rtrSwapper := &routerSwapper{root: rtr}
+	api.router = rtrSwapper
+	api.root.Use(negroni.HandlerFunc(HTTPLogger))
+	api.root.UseHandler(rtrSwapper)
+
+	go insecureListen(api.root, api.webServerQuit, api.devmode, api.httpPort)
+	return nil
+}
+
+// StopInsecureWebServer stops the HTTP API
+func (api *HTTP) StopInsecureWebServer() error {
+	api.webServerQuit <- true
+	return nil
+}
+
+// DisableInitRoutes disables the routes used during the init process
+func (api *HTTP) DisableInitRoutes() error {
+	log.Info("Disabling the init routes")
+	newRtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
+	api.router.Swap(newRtr)
+	return nil
+}
+
 // StartSecureWebServer starts the HTTPS API using the provided certificate
 func (api *HTTP) StartSecureWebServer() error {
 	rtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
@@ -357,25 +379,6 @@ func (api *HTTP) StartSecureWebServer() error {
 
 // StopSecureWebServer stops the HTTPS API
 func (api *HTTP) StopSecureWebServer() error {
-	api.webServerQuit <- true
-	return nil
-}
-
-// StartInsecureWebServer starts the HTTP API, used for initilisation
-func (api *HTTP) StartInsecureWebServer() error {
-	rtr := createRouter(api, api.devmode, true, api.staticAssetsPath)
-
-	// Negroni middleware
-	api.root = negroni.New()
-	api.root.Use(negroni.HandlerFunc(HTTPLogger))
-	api.root.UseHandler(rtr)
-
-	go insecureListen(api.root, api.webServerQuit, api.devmode, api.httpPort)
-	return nil
-}
-
-// StopInsecureWebServer stops the HTTP API
-func (api *HTTP) StopInsecureWebServer() error {
 	api.webServerQuit <- true
 	return nil
 }

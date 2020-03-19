@@ -80,14 +80,15 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	// start DNS server
 	dns.StartServer(cfg.InternalIP, cfg.ExternalDNS)
 
-	// start insecure webserver if in init mode
-	if cfg.InitMode {
-		err := httpAPI.StartInsecureWebServer()
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		err := httpAPI.StartSecureWebServer()
+	// start insecure webserver
+	err = httpAPI.StartInsecureWebServer(cfg.InitMode)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// start secure webserver only if not in init mode
+	if !cfg.InitMode {
+		err = httpAPI.StartSecureWebServer()
 		if err != nil {
 			log.Fatal(err)
 		}
