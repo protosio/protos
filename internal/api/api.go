@@ -347,7 +347,7 @@ func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend ch
 
 // StartSecureWebServer starts the HTTPS API using the provided certificate
 func (api *HTTP) StartSecureWebServer() error {
-	rtr := createRouter(api, api.devmode, true, api.staticAssetsPath)
+	rtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
 
 	api.root.UseHandler(rtr)
 	cert := api.ha.m.GetTLSCertificate()
