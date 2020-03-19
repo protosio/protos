@@ -338,10 +338,6 @@ func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend ch
 		MaxAge: 60 * 15,
 	}
 
-	// Negroni middleware
-	httpAPI.root = negroni.New()
-	httpAPI.root.Use(negroni.HandlerFunc(HTTPLogger))
-
 	return httpAPI
 }
 
@@ -349,6 +345,9 @@ func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend ch
 func (api *HTTP) StartSecureWebServer() error {
 	rtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
 
+	// Negroni middleware
+	api.root = negroni.New()
+	api.root.Use(negroni.HandlerFunc(HTTPLogger))
 	api.root.UseHandler(rtr)
 	cert := api.ha.m.GetTLSCertificate()
 
@@ -366,6 +365,9 @@ func (api *HTTP) StopSecureWebServer() error {
 func (api *HTTP) StartInsecureWebServer() error {
 	rtr := createRouter(api, api.devmode, true, api.staticAssetsPath)
 
+	// Negroni middleware
+	api.root = negroni.New()
+	api.root.Use(negroni.HandlerFunc(HTTPLogger))
 	api.root.UseHandler(rtr)
 
 	go insecureListen(api.root, api.webServerQuit, api.devmode, api.httpPort)
