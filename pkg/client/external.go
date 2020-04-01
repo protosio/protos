@@ -88,8 +88,8 @@ func (ec *externalClient) InitInstance() error {
 	return err
 }
 
-// NewExternalClient creates and returns a client for the external Protos API
-func NewExternalClient(host string, username string, password string, domain string) ExternalClient {
+// NewInitClient creates and returns a client that's used to initialize an instance
+func NewInitClient(host string, username string, password string, domain string) ExternalClient {
 	ec := &externalClient{
 		host:       host,
 		username:   username,
@@ -98,6 +98,18 @@ func NewExternalClient(host string, username string, password string, domain str
 		HTTPclient: &http.Client{},
 		apiPath:    "api/v1/e",
 	}
-
 	return ec
+}
+
+// NewExternalClient creates and returns a client for the external Protos API
+func NewExternalClient(host string, username string, password string) (ExternalClient, error) {
+	ec := &externalClient{
+		host:       host,
+		username:   username,
+		password:   password,
+		HTTPclient: &http.Client{},
+		apiPath:    "api/v1/e",
+	}
+
+	return ec, nil
 }
