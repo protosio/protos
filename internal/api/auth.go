@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/pkg/types"
 )
 
 var registerRoute = route{
@@ -40,14 +41,7 @@ var createAuthRoutes = func(cm core.CapabilityManager) routes {
 // registerHandler is used in the initial user and domain registration. Should be disabled after the initial setup
 func registerHandler(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var registerform struct {
-			Username        string `json:"username"`
-			Name            string `json:"name"`
-			Password        string `json:"password"`
-			ConfirmPassword string `json:"confirmpassword"`
-			Domain          string `json:"domain"`
-		}
-
+		var registerform types.ReqRegister
 		err := json.NewDecoder(r.Body).Decode(&registerform)
 		if err != nil {
 			log.Error(err)
@@ -107,9 +101,7 @@ func registerHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		registerResponse := struct {
-			Username string `json:"username"`
-		}{
+		registerResponse := types.RespRegister{
 			Username: user.GetUsername(),
 		}
 
