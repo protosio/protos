@@ -29,31 +29,33 @@ type externalClient struct {
 // makeRequest prepares and sends a request to the protos backend
 func (ec externalClient) makeRequest(method string, path string, body io.Reader) ([]byte, error) {
 
+	errMsg := fmt.Sprintf("'%s' request '%s'", method, path)
+
 	url := "http://" + ec.host + "/" + ec.apiPath + "/" + path
 	req, err := http.NewRequest("GET", url, body)
 	if err != nil {
-		return []byte{}, err
+		return []byte{}, fmt.Errorf("%v: %v", errMsg, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := ec.HTTPclient.Do(req)
 	if err != nil {
-		return []byte{}, err
+		return []byte{}, fmt.Errorf("%v: %v", errMsg, err)
 	}
 	defer resp.Body.Close()
 
 	payload, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return []byte{}, err
+		return []byte{}, fmt.Errorf("%v: %v", errMsg, err)
 	}
 
 	if resp.StatusCode != 200 {
 		httperr := httpErr{}
 		err := json.Unmarshal(payload, &httperr)
 		if err != nil {
-			return []byte{}, fmt.Errorf("Failed to decode error message from Protos: %s", err.Error())
+			return []byte{}, fmt.Errorf("Failed to decode error message from Protos: %v", err)
 		}
-		return []byte{}, errors.New(httperr.Error)
+		return []byte{}, fmt.Errorf("%v: %v", errMsg, errors.New(httperr.Error))
 	}
 
 	return payload, nil
