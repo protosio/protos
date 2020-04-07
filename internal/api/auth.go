@@ -93,14 +93,6 @@ func registerHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		// the earliest time we have all the info required to create the protos resources
-		_, err = ha.m.CreateProtosResources()
-		if err != nil {
-			log.Error(err.Error())
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
-
 		registerResponse := types.RespRegister{
 			Username: user.GetUsername(),
 		}
