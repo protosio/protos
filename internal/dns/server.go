@@ -74,7 +74,7 @@ func Server(quit chan bool, protosIP string, dnsServer string) {
 	// ToDo: improve this
 	domainsMap["protos.protos.local."] = protosIP
 
-	srv := &dns.Server{Addr: ":" + strconv.Itoa(53), Net: "udp"}
+	srv := &dns.Server{Addr: protosIP + ":" + strconv.Itoa(53), Net: "udp"}
 	srv.Handler = &handler{protosIP: protosIP, dnsServer: dnsServer}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {

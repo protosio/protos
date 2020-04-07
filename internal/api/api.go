@@ -231,7 +231,7 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort
 	}
 
 	if !devmode {
-		log.Infof("Starting HTTP webserver 2 on '%s'", srv.Addr)
+		log.Infof("Starting HTTP webserver 2 on '%s'", srvInternal.Addr)
 		go func() {
 			if err := srvInternal.ListenAndServe(); err != nil {
 				if strings.Contains(err.Error(), "Server closed") {
