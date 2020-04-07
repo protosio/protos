@@ -255,6 +255,20 @@ func (mr *MockResourceMockRecorder) UpdateValue(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateValue", reflect.TypeOf((*MockResource)(nil).UpdateValue), arg0)
 }
 
+// GetStatus mocks base method
+func (m *MockResource) GetStatus() core.ResourceStatus {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStatus")
+	ret0, _ := ret[0].(core.ResourceStatus)
+	return ret0
+}
+
+// GetStatus indicates an expected call of GetStatus
+func (mr *MockResourceMockRecorder) GetStatus() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatus", reflect.TypeOf((*MockResource)(nil).GetStatus))
+}
+
 // SetStatus mocks base method
 func (m *MockResource) SetStatus(arg0 core.ResourceStatus) {
 	m.ctrl.T.Helper()

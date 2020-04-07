@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -402,6 +403,9 @@ func (api *HTTP) StartSecureWebServer() error {
 	api.root.Use(negroni.HandlerFunc(HTTPLogger))
 	api.root.UseHandler(rtr)
 	cert := api.ha.m.GetTLSCertificate()
+	if cert == nil || cert.GetStatus() != core.Created {
+		return fmt.Errorf("Failed to start secure web server. TLS certificate not available")
+	}
 
 	go secureListen(api.root, cert.GetValue(), api.webServerQuit, api.httpPort, api.httpsPort)
 	return nil
