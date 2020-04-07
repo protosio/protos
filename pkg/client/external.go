@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"net/http/cookiejar"
 
 	"github.com/protosio/protos/pkg/types"
+	"golang.org/x/net/publicsuffix"
 )
 
 // ExternalClient talks to the external Protos API
@@ -31,8 +34,8 @@ func (ec externalClient) makeRequest(method string, path string, body io.Reader)
 
 	errMsg := fmt.Sprintf("'%s' request '%s'", method, path)
 
-	url := "http://" + ec.host + "/" + ec.apiPath + "/" + path
-	req, err := http.NewRequest("GET", url, body)
+	urlStr := "http://" + ec.host + "/" + ec.apiPath + "/" + path
+	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		return []byte{}, fmt.Errorf("%v: %v", errMsg, err)
 	}
@@ -74,15 +77,15 @@ func (ec *externalClient) InitInstance() error {
 	}
 
 	// register the user
-	ec.apiPath = "/api/v1/auth"
-	_, err = ec.makeRequest(http.MethodGet, "/register", bytes.NewBuffer(reqJSON))
+	ec.apiPath = "api/v1/auth"
+	_, err = ec.makeRequest(http.MethodPost, "register", bytes.NewBuffer(reqJSON))
 	ec.apiPath = "api/v1/e"
 	if err != nil {
 		return fmt.Errorf("Failed to init instance: %v", err)
 	}
 
 	// stop the init endpoint
-	_, err = ec.makeRequest(http.MethodGet, "/init/finish", bytes.NewBuffer(reqJSON))
+	_, err = ec.makeRequest(http.MethodGet, "init/finish", bytes.NewBuffer(reqJSON))
 	if err != nil {
 		return fmt.Errorf("Failed to init instance: %v", err)
 	}
@@ -92,12 +95,16 @@ func (ec *externalClient) InitInstance() error {
 
 // NewInitClient creates and returns a client that's used to initialize an instance
 func NewInitClient(host string, username string, password string, domain string) ExternalClient {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		log.Fatal(err)
+	}
 	ec := &externalClient{
 		host:       host,
 		username:   username,
 		password:   password,
 		domain:     domain,
-		HTTPclient: &http.Client{},
+		HTTPclient: &http.Client{Jar: jar},
 		apiPath:    "api/v1/e",
 	}
 	return ec
