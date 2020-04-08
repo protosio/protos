@@ -47,6 +47,11 @@ func (rsc *Resource) Save() {
 	}
 }
 
+// GetStatus sets the status on a resource instance
+func (rsc *Resource) GetStatus() core.ResourceStatus {
+	return rsc.Status
+}
+
 // SetStatus sets the status on a resource instance
 func (rsc *Resource) SetStatus(status core.ResourceStatus) {
 	rsc.access.Lock()

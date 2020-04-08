@@ -53,6 +53,7 @@ type Resource interface {
 	GetType() ResourceType
 	GetValue() ResourceValue
 	UpdateValue(ResourceValue)
+	GetStatus() ResourceStatus
 	SetStatus(ResourceStatus)
 	GetAppID() string
 	Sanitize() Resource
