@@ -1,13 +1,13 @@
 module github.com/protosio/protos
 
-go 1.13
+go 1.14
 
 replace github.com/docker/docker => github.com/docker/engine v1.4.2-0.20180816081446-320063a2ad06
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
-	github.com/DataDog/zstd v1.4.1 // indirect
-	github.com/Masterminds/semver v1.4.2
+	github.com/DataDog/zstd v1.4.5 // indirect
+	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/Sereal/Sereal v0.0.0-20190618215532-0b8ac451a863 // indirect
@@ -22,11 +22,10 @@ require (
 	github.com/emirpasic/gods v1.12.0
 	github.com/getlantern/deepcopy v0.0.0-20160317154340-7f45deb8130a
 	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/gogo/protobuf v1.3.0 // indirect
-	github.com/golang/mock v1.3.1
+	github.com/golang/mock v1.4.3
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/go-cmp v0.3.1 // indirect
-	github.com/gorilla/mux v1.7.3
+	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.0
 	github.com/gorilla/websocket v1.4.1
@@ -55,11 +54,10 @@ require (
 	golang.org/x/crypto v0.0.0-20190923035154-9ee001bba392
 	golang.org/x/net v0.0.0-20191004110552-13f9640d40b9
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
-	google.golang.org/genproto v0.0.0-20190522204451-c2c4e71fbf69 // indirect
-	google.golang.org/grpc v1.23.1
+	google.golang.org/grpc v1.26.0
 	gopkg.in/h2non/baloo.v3 v3.0.2
-	gopkg.in/h2non/gentleman.v2 v2.0.3 // indirect
-	gopkg.in/yaml.v2 v2.2.2
+	gopkg.in/h2non/gentleman.v2 v2.0.4 // indirect
+	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible // indirect
-	k8s.io/cri-api v0.0.0-20191107035106-03d130a7dc28
+	k8s.io/cri-api v0.18.0
 )
