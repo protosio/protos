@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/pkg/types"
 
 	"github.com/pkg/errors"
 
@@ -283,27 +284,27 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 	rtr := mux.NewRouter().StrictSlash(true)
 
 	// auth routes
-	authRouter := rtr.PathPrefix("/api/v1/auth").Subrouter().StrictSlash(true)
+	authRouter := rtr.PathPrefix(types.APIAuthPath).Subrouter().StrictSlash(true)
 	addRoutesToRouter(httpAPI.ha, authRouter, createAuthRoutes(httpAPI.ha.cm))
 	// init routes
 	if initmode {
-		addRoutesToRouter(httpAPI.ha, authRouter, routes{registerRoute})
+		addRoutesToRouter(httpAPI.ha, authRouter, routes{initRoute})
 	}
 
 	// internal routes
-	internalRouter := mux.NewRouter().PathPrefix("/api/v1/i").Subrouter().StrictSlash(true)
+	internalRouter := mux.NewRouter().PathPrefix(types.APIInternalPath).Subrouter().StrictSlash(true)
 	addRoutesToRouter(httpAPI.ha, internalRouter, createInternalRoutes(httpAPI.ha.cm))
 	addRoutesToRouter(httpAPI.ha, internalRouter, internalWSRoutes)
-	rtr.PathPrefix("/api/v1/i").Handler(negroni.New(
+	rtr.PathPrefix(types.APIInternalPath).Handler(negroni.New(
 		InternalRequestValidator(httpAPI.ha, internalRouter),
 		negroni.Wrap(internalRouter),
 	))
 
 	// external routes
-	externalRouter := mux.NewRouter().PathPrefix("/api/v1/e").Subrouter().StrictSlash(true)
+	externalRouter := mux.NewRouter().PathPrefix(types.APIExternalPath).Subrouter().StrictSlash(true)
 	addRoutesToRouter(httpAPI.ha, externalRouter, createExternalRoutes(httpAPI.ha.cm))
 	addRoutesToRouter(httpAPI.ha, externalRouter, externalWSRoutes)
-	rtr.PathPrefix("/api/v1/e").Handler(negroni.New(
+	rtr.PathPrefix(types.APIExternalPath).Handler(negroni.New(
 		ExternalRequestValidator(httpAPI.ha, externalRouter, initmode),
 		negroni.Wrap(externalRouter),
 	))

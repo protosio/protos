@@ -11,11 +11,11 @@ import (
 	"github.com/protosio/protos/pkg/types"
 )
 
-var registerRoute = route{
-	"register",
+var initRoute = route{
+	"init",
 	"POST",
-	"/register",
-	registerHandler,
+	"/init",
+	initHandler,
 	nil,
 }
 
@@ -38,34 +38,34 @@ var createAuthRoutes = func(cm core.CapabilityManager) routes {
 	}
 }
 
-// registerHandler is used in the initial user and domain registration. Should be disabled after the initial setup
-func registerHandler(ha handlerAccess) http.Handler {
+// initHandler is used in the initial user and domain registration. Should be disabled after the initial setup
+func initHandler(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var registerform types.ReqRegister
-		err := json.NewDecoder(r.Body).Decode(&registerform)
+		var initform types.ReqInit
+		err := json.NewDecoder(r.Body).Decode(&initform)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
 			return
 		}
 
-		if registerform.Password != registerform.ConfirmPassword {
-			err = errors.New("Cannot perform registration: passwords don't match")
+		if initform.Password != initform.ConfirmPassword {
+			err = errors.New("Cannot perform initialization: passwords don't match")
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 			return
 		}
 
-		if registerform.Domain == "" {
-			err = errors.New("Cannot perform registration: domain cannot be empty")
+		if initform.Domain == "" {
+			err = errors.New("Cannot perform initialization: domain cannot be empty")
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 			return
 		}
 
-		ha.m.SetDomain(registerform.Domain)
+		ha.m.SetDomain(initform.Domain)
 
-		user, err := ha.um.CreateUser(registerform.Username, registerform.Password, registerform.Name, true)
+		user, err := ha.um.CreateUser(initform.Username, initform.Password, initform.Name, true)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
@@ -93,12 +93,12 @@ func registerHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		registerResponse := types.RespRegister{
+		initResponse := types.RespInit{
 			Username: user.GetUsername(),
 		}
 
-		log.Trace("Sending response: ", registerResponse)
-		rend.JSON(w, http.StatusOK, registerResponse)
+		log.Trace("Sending response: ", initResponse)
+		rend.JSON(w, http.StatusOK, initResponse)
 	})
 }
 

@@ -66,7 +66,7 @@ func (ec externalClient) makeRequest(method string, path string, body io.Reader)
 
 // InitInstance initializes a newly deployed Protos instance
 func (ec *externalClient) InitInstance() error {
-	reqJSON, err := json.Marshal(types.ReqRegister{
+	reqJSON, err := json.Marshal(types.ReqInit{
 		Username:        ec.username,
 		Password:        ec.password,
 		ConfirmPassword: ec.password,
@@ -77,9 +77,9 @@ func (ec *externalClient) InitInstance() error {
 	}
 
 	// register the user
-	ec.apiPath = "api/v1/auth"
-	_, err = ec.makeRequest(http.MethodPost, "register", bytes.NewBuffer(reqJSON))
-	ec.apiPath = "api/v1/e"
+	ec.apiPath = types.APIAuthPath
+	_, err = ec.makeRequest(http.MethodPost, "init", bytes.NewBuffer(reqJSON))
+	ec.apiPath = types.APIExternalPath
 	if err != nil {
 		return fmt.Errorf("Failed to init instance: %v", err)
 	}
@@ -105,7 +105,7 @@ func NewInitClient(host string, username string, password string, domain string)
 		password:   password,
 		domain:     domain,
 		HTTPclient: &http.Client{Jar: jar},
-		apiPath:    "api/v1/e",
+		apiPath:    types.APIExternalPath,
 	}
 	return ec
 }
@@ -117,7 +117,7 @@ func NewExternalClient(host string, username string, password string) (ExternalC
 		username:   username,
 		password:   password,
 		HTTPclient: &http.Client{},
-		apiPath:    "api/v1/e",
+		apiPath:    types.APIExternalPath,
 	}
 
 	return ec, nil
