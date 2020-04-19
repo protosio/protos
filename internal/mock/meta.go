@@ -8,6 +8,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
+	net "net"
 	reflect "reflect"
 )
 
@@ -98,6 +99,32 @@ func (m *MockMeta) SetAdminUser(arg0 string) {
 func (mr *MockMetaMockRecorder) SetAdminUser(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminUser", reflect.TypeOf((*MockMeta)(nil).SetAdminUser), arg0)
+}
+
+// SetNetwork mocks base method
+func (m *MockMeta) SetNetwork(arg0 net.IPNet) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetNetwork", arg0)
+}
+
+// SetNetwork indicates an expected call of SetNetwork
+func (mr *MockMetaMockRecorder) SetNetwork(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNetwork", reflect.TypeOf((*MockMeta)(nil).SetNetwork), arg0)
+}
+
+// GetNetwork mocks base method
+func (m *MockMeta) GetNetwork() net.IPNet {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetwork")
+	ret0, _ := ret[0].(net.IPNet)
+	return ret0
+}
+
+// GetNetwork indicates an expected call of GetNetwork
+func (mr *MockMetaMockRecorder) GetNetwork() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetwork", reflect.TypeOf((*MockMeta)(nil).GetNetwork))
 }
 
 // CreateProtosResources mocks base method

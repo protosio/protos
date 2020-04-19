@@ -45,10 +45,18 @@ func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, i
 		dp = createDockerRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
 	case containerdRuntime:
 		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, internalInterface)
+	default:
+		log.Fatalf("Runtime '%s' is not supported", runtime)
 	}
+
+	err := initNetwork(internalInterface)
+	if err != nil {
+		log.Fatalf("Can't initialize network: %s", err.Error())
+	}
+
 	internalIP, err := dp.Init()
 	if err != nil {
-		log.Fatalf("Can't connect to runtime: %s", err)
+		log.Fatalf("Can't initialize platform: %s", err.Error())
 	}
 	ipSetter.SetInternalIP(internalIP)
 

@@ -3,6 +3,7 @@ package meta
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 
 	"github.com/protosio/protos/internal/config"
@@ -26,6 +27,7 @@ type Meta struct {
 	AdminUser          string
 	Resources          []string
 	version            string
+	network            string
 	rm                 core.ResourceManager
 	db                 core.DB
 }
@@ -94,6 +96,27 @@ func (m *Meta) SetDomain(domainName string) {
 	m.save()
 }
 
+// GetDomain returns the domain name used in this Protos instance
+func (m *Meta) GetDomain() string {
+	return m.Domain
+}
+
+// SetNetwork sets the instance network
+func (m *Meta) SetNetwork(network net.IPNet) {
+	log.Debugf("Setting instance network to '%s'", network.String())
+	m.network = network.String()
+	m.save()
+}
+
+// GetNetwork gets the instance network name
+func (m *Meta) GetNetwork() net.IPNet {
+	_, network, err := net.ParseCIDR(m.network)
+	if err != nil {
+		log.Fatalf("Meta network ('%s') is invalid: %s", m.network, err.Error())
+	}
+	return *network
+}
+
 // setPublicIP sets the public ip of the instance
 func (m *Meta) setPublicIP() {
 	ip, err := findPublicIP()
@@ -116,11 +139,6 @@ func (m *Meta) SetAdminUser(username string) {
 // GetAdminUser returns the username of the admin user
 func (m *Meta) GetAdminUser() string {
 	return m.AdminUser
-}
-
-// GetDomain returns the domain name used in this Protos instance
-func (m *Meta) GetDomain() string {
-	return m.Domain
 }
 
 // GetPublicIP returns the public IP of the Protos instance

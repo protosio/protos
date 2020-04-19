@@ -7,6 +7,7 @@ package mock
 import (
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
+	types "github.com/protosio/protos/pkg/types"
 	reflect "reflect"
 )
 
@@ -34,18 +35,18 @@ func (m *MockUserManager) EXPECT() *MockUserManagerMockRecorder {
 }
 
 // CreateUser mocks base method
-func (m *MockUserManager) CreateUser(username, password, name string, isadmin bool) (core.User, error) {
+func (m *MockUserManager) CreateUser(username, password, name string, isadmin bool, devices []types.UserDevice) (core.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateUser", username, password, name, isadmin)
+	ret := m.ctrl.Call(m, "CreateUser", username, password, name, isadmin, devices)
 	ret0, _ := ret[0].(core.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateUser indicates an expected call of CreateUser
-func (mr *MockUserManagerMockRecorder) CreateUser(username, password, name, isadmin interface{}) *gomock.Call {
+func (mr *MockUserManagerMockRecorder) CreateUser(username, password, name, isadmin, devices interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUserManager)(nil).CreateUser), username, password, name, isadmin)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUserManager)(nil).CreateUser), username, password, name, isadmin, devices)
 }
 
 // ValidateAndGetUser mocks base method

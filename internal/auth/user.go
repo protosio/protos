@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/pkg/types"
 
 	"github.com/protosio/protos/internal/util"
 
@@ -110,7 +111,7 @@ func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool) (core.User, error) {
+func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool, devices []types.UserDevice) (core.User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {

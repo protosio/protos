@@ -8,6 +8,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/mock"
+	"github.com/protosio/protos/pkg/types"
 )
 
 func TestUser(t *testing.T) {
@@ -129,15 +130,16 @@ func TestUserManager(t *testing.T) {
 
 	t.Run("CreateUser", func(t *testing.T) {
 		adminCapMock := mock.NewMockCapability(ctrl)
+		devices := []types.UserDevice{}
 		// short password
-		_, err := um.CreateUser("username", "pass", "first last", false)
+		_, err := um.CreateUser("username", "pass", "first last", false, devices)
 		if err == nil {
 			t.Error("CreateUser() should return an error when the password is shorter than 10 characters")
 		}
 
 		// successful non-admin
 		dbMock.EXPECT().Save(gomock.Any()).Times(1)
-		user, err := um.CreateUser("username", "longpassword", "first last", false)
+		user, err := um.CreateUser("username", "longpassword", "first last", false, devices)
 		if err != nil {
 			t.Errorf("CreateUser() should NOT return an error: %s", err.Error())
 		}
@@ -149,7 +151,7 @@ func TestUserManager(t *testing.T) {
 
 		// successful admin
 		dbMock.EXPECT().Save(gomock.Any()).Times(1)
-		user, err = um.CreateUser("username", "longpassword", "first last", true)
+		user, err = um.CreateUser("username", "longpassword", "first last", true, devices)
 		if err != nil {
 			t.Errorf("CreateUser() should NOT return an error: %s", err.Error())
 		}

@@ -1,5 +1,7 @@
 package core
 
+import "github.com/protosio/protos/pkg/types"
+
 // UserInfo holds information about a user that is meant to be returned to external applications or the web interface
 type UserInfo struct {
 	Username string `json:"username"`
@@ -9,7 +11,7 @@ type UserInfo struct {
 
 // UserManager manages users
 type UserManager interface {
-	CreateUser(username string, password string, name string, isadmin bool) (User, error)
+	CreateUser(username string, password string, name string, isadmin bool, devices []types.UserDevice) (User, error)
 	ValidateAndGetUser(username string, password string) (User, error)
 	GetUser(username string) (User, error)
 	SetParent(user User) (User, error)

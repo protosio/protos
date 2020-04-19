@@ -13,7 +13,7 @@ const APIInternalPath string = "/api/v1/i"
 type UserDevice struct {
 	Name      string `json:"name"`
 	PublicKey string `json:"publickey"`
-	IP        string `json:"ip"`
+	Network   string `json:"network"` // Network should be specified in CIDR notation
 }
 
 // ReqInit - request payload for the registration endpoint
@@ -23,6 +23,7 @@ type ReqInit struct {
 	Password        string       `json:"password"`
 	ConfirmPassword string       `json:"confirmpassword"`
 	Domain          string       `json:"domain"`
+	Network         string       `json:"network"` // Network should be specified in CIDR notation
 	Devices         []UserDevice `json:"devices"`
 }
 

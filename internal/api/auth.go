@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
@@ -63,9 +65,18 @@ func initHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		ha.m.SetDomain(initform.Domain)
+		_, network, err := net.ParseCIDR(initform.Network)
+		if err != nil {
+			err = fmt.Errorf("Cannot perform initialization, network '%s' is invalid: %w", initform.Network, err)
+			log.Error(err)
+			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+			return
+		}
 
-		user, err := ha.um.CreateUser(initform.Username, initform.Password, initform.Name, true)
+		ha.m.SetDomain(initform.Domain)
+		ha.m.SetNetwork(*network)
+
+		user, err := ha.um.CreateUser(initform.Username, initform.Password, initform.Name, true, initform.Devices)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
