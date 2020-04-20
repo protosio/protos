@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"

@@ -15,24 +15,22 @@ import (
 
 // Config is the main configuration struct
 type Config struct {
-	WorkDir           string
-	AppsPath          string
-	HTTPport          int
-	HTTPSport         int
-	Runtime           string
-	RuntimeEndpoint   string
-	InContainer       bool
-	StaticAssets      string
-	InitMode          bool
-	DevMode           bool
-	AppStoreURL       string
-	AppStoreHost      string
-	ProcsQuit         sync.Map
-	InternalIP        string
-	InternalInterface string
-	ExternalDNS       string // format: <ip>:<port>
-	Version           *semver.Version
-	WSPublish         chan interface{}
+	WorkDir         string
+	AppsPath        string
+	HTTPport        int
+	HTTPSport       int
+	Runtime         string
+	RuntimeEndpoint string
+	InContainer     bool
+	StaticAssets    string
+	InitMode        bool
+	DevMode         bool
+	AppStoreURL     string
+	AppStoreHost    string
+	ProcsQuit       sync.Map
+	ExternalDNS     string // format: <ip>:<port>
+	Version         *semver.Version
+	WSPublish       chan interface{}
 }
 
 var config = Config{
@@ -84,13 +82,4 @@ func Load(configFile string, version *semver.Version) *Config {
 // Get returns a pointer to the global config structure
 func Get() *Config {
 	return &config
-}
-
-//
-// Config methods
-//
-
-// SetInternalIP sets the internal ip that all apps use to talk to the internal API
-func (cfg *Config) SetInternalIP(ip string) {
-	cfg.InternalIP = ip
 }

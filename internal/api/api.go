@@ -44,7 +44,7 @@ type route struct {
 }
 
 type apiController interface {
-	StartSecureWebServer() error
+	StartExternalWebServer() error
 	DisableInitRoutes() error
 }
 
@@ -196,15 +196,8 @@ func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bo
 	}
 }
 
-func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort int, internalIP string) bool {
-	var listenAddress string
-	if devmode {
-		listenAddress = "0.0.0.0"
-	} else {
-		listenAddress = "127.0.0.1"
-	}
+func insecureListen(handler http.Handler, quit chan bool, httpPort int, listenAddress string) {
 	httpport := strconv.Itoa(httpPort)
-
 	srv := &http.Server{
 		Addr:           listenAddress + ":" + httpport,
 		Handler:        handler,
@@ -212,7 +205,7 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-	log.Infof("Starting HTTP webserver 1 on '%s'", srv.Addr)
+	log.Infof("Starting HTTP webserver on '%s'", srv.Addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if strings.Contains(err.Error(), "Server closed") {
@@ -222,58 +215,29 @@ func insecureListen(handler http.Handler, quit chan bool, devmode bool, httpPort
 			}
 		}
 	}()
-
-	srvInternal := &http.Server{
-		Addr:           internalIP + ":" + httpport,
-		Handler:        handler,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
-	}
-
-	if !devmode {
-		log.Infof("Starting HTTP webserver 2 on '%s'", srvInternal.Addr)
-		go func() {
-			if err := srvInternal.ListenAndServe(); err != nil {
-				if strings.Contains(err.Error(), "Server closed") {
-					log.Info("HTTP webserver terminated successfully")
-				} else {
-					log.Errorf("HTTP webserver died with error: %s", err.Error())
-				}
-			}
-		}()
-	}
-
 	log.Infof("HTTP webserver started")
 
-	interrupted := <-quit
-	log.Info("Shutting down HTTP webserver 1")
+	<-quit
+	log.Infof("Shutting down HTTP '%s' webserver", srv.Addr)
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Error(errors.Wrap(err, "Something went wrong while shutting down the HTTP webserver"))
 	}
-	if !devmode {
-		log.Info("Shutting down HTTP webserver 2")
-		if err := srvInternal.Shutdown(context.Background()); err != nil {
-			log.Error(errors.Wrap(err, "Something went wrong while shutting down the HTTP webserver"))
-		}
-	}
-
-	return interrupted
 }
 
 // HTTP is the http API
 type HTTP struct {
-	staticAssetsPath string
-	webServerQuit    chan bool
-	wsManagerQuit    chan bool
-	router           *routerSwapper
-	root             *negroni.Negroni
-	ha               handlerAccess
-	devmode          bool
-	httpPort         int
-	httpsPort        int
-	internalIP       string
-	wsfrontend       chan interface{}
+	staticAssetsPath      string
+	localWebServerQuit    chan bool
+	internalWebServerQuit chan bool
+	externalWebServerQuit chan bool
+	wsManagerQuit         chan bool
+	router                *routerSwapper
+	root                  *negroni.Negroni
+	ha                    handlerAccess
+	devmode               bool
+	httpPort              int
+	httpsPort             int
+	wsfrontend            chan interface{}
 }
 
 func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath string) *mux.Router {
@@ -327,8 +291,15 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 }
 
 // New returns a new http API
-func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend chan interface{}, httpPort int, httpsPort int, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) *HTTP {
-	httpAPI := &HTTP{devmode: devmode, staticAssetsPath: staticAssetsPath, internalIP: internalIP, wsfrontend: wsfrontend, httpPort: httpPort, httpsPort: httpsPort, webServerQuit: make(chan bool, 1), wsManagerQuit: make(chan bool, 1)}
+func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) *HTTP {
+	httpAPI := &HTTP{
+		devmode:          devmode,
+		staticAssetsPath: staticAssetsPath,
+		wsfrontend:       wsfrontend,
+		httpPort:         httpPort,
+		httpsPort:        httpsPort,
+		wsManagerQuit:    make(chan bool, 1),
+	}
 	httpAPI.ha = handlerAccess{
 		pm:  pm,
 		rm:  rm,
@@ -342,7 +313,15 @@ func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend ch
 		api: httpAPI,
 	}
 
-	if httpAPI.ha.pm == nil || httpAPI.ha.rm == nil || httpAPI.ha.am == nil || httpAPI.ha.tm == nil || httpAPI.ha.m == nil || httpAPI.ha.as == nil || httpAPI.ha.um == nil || httpAPI.ha.rp == nil || httpAPI.ha.cm == nil {
+	if httpAPI.ha.pm == nil ||
+		httpAPI.ha.rm == nil ||
+		httpAPI.ha.am == nil ||
+		httpAPI.ha.tm == nil ||
+		httpAPI.ha.m == nil ||
+		httpAPI.ha.as == nil ||
+		httpAPI.ha.um == nil ||
+		httpAPI.ha.rp == nil ||
+		httpAPI.ha.cm == nil {
 		log.Panic("Failed to create web server: none of the inputs can be nil")
 	}
 
@@ -366,10 +345,11 @@ func New(devmode bool, staticAssetsPath string, internalIP string, wsfrontend ch
 	return httpAPI
 }
 
-// StartInsecureWebServer starts the HTTP API, used for initilisation
-func (api *HTTP) StartInsecureWebServer(initMode bool) error {
+// StartLoopbackWebServer starts the HTTP API, used via a SSH connection to the loopback interface
+func (api *HTTP) StartLoopbackWebServer(initMode bool) error {
 	rtr := createRouter(api, api.devmode, initMode, api.staticAssetsPath)
 
+	api.localWebServerQuit = make(chan bool, 1)
 	// Negroni middleware
 	api.root = negroni.New()
 	rtrSwapper := &routerSwapper{root: rtr}
@@ -377,13 +357,35 @@ func (api *HTTP) StartInsecureWebServer(initMode bool) error {
 	api.root.Use(negroni.HandlerFunc(HTTPLogger))
 	api.root.UseHandler(rtrSwapper)
 
-	go insecureListen(api.root, api.webServerQuit, api.devmode, api.httpPort, api.internalIP)
+	go insecureListen(api.root, api.localWebServerQuit, api.httpPort, "127.0.0.1")
 	return nil
 }
 
-// StopInsecureWebServer stops the HTTP API
-func (api *HTTP) StopInsecureWebServer() error {
-	api.webServerQuit <- true
+// StopLoopbackWebServer stops the HTTP API
+func (api *HTTP) StopLoopbackWebServer() error {
+	api.localWebServerQuit <- true
+	return nil
+}
+
+// StartInternalWebServer starts the HTTP API, used for initilisation
+func (api *HTTP) StartInternalWebServer(initMode bool, internalIP string) error {
+	rtr := createRouter(api, api.devmode, initMode, api.staticAssetsPath)
+
+	api.internalWebServerQuit = make(chan bool, 1)
+	// Negroni middleware
+	api.root = negroni.New()
+	rtrSwapper := &routerSwapper{root: rtr}
+	api.router = rtrSwapper
+	api.root.Use(negroni.HandlerFunc(HTTPLogger))
+	api.root.UseHandler(rtrSwapper)
+
+	go insecureListen(api.root, api.internalWebServerQuit, api.httpPort, internalIP)
+	return nil
+}
+
+// StopInternalWebServer stops the HTTP API
+func (api *HTTP) StopInternalWebServer() error {
+	api.internalWebServerQuit <- true
 	return nil
 }
 
@@ -395,10 +397,11 @@ func (api *HTTP) DisableInitRoutes() error {
 	return nil
 }
 
-// StartSecureWebServer starts the HTTPS API using the provided certificate
-func (api *HTTP) StartSecureWebServer() error {
+// StartExternalWebServer starts the HTTPS API using the provided certificate
+func (api *HTTP) StartExternalWebServer() error {
 	rtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
 
+	api.externalWebServerQuit = make(chan bool, 1)
 	// Negroni middleware
 	api.root = negroni.New()
 	api.root.Use(negroni.HandlerFunc(HTTPLogger))
@@ -408,13 +411,13 @@ func (api *HTTP) StartSecureWebServer() error {
 		return fmt.Errorf("Failed to start secure web server. TLS certificate not available")
 	}
 
-	go secureListen(api.root, cert.GetValue(), api.webServerQuit, api.httpPort, api.httpsPort)
+	go secureListen(api.root, cert.GetValue(), api.externalWebServerQuit, api.httpPort, api.httpsPort)
 	return nil
 }
 
-// StopSecureWebServer stops the HTTPS API
-func (api *HTTP) StopSecureWebServer() error {
-	api.webServerQuit <- true
+// StopExternalWebServer stops the HTTPS API
+func (api *HTTP) StopExternalWebServer() error {
+	api.externalWebServerQuit <- true
 	return nil
 }
 

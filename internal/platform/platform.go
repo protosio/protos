@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"net"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -23,7 +24,8 @@ const (
 )
 
 type internalIPSetter interface {
-	SetInternalIP(ip string)
+	SetInternalIP(net.IP)
+	GetNetwork() net.IPNet
 }
 
 func normalizeRepoDigest(repoDigests []string) (string, string, error) {
@@ -38,23 +40,22 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 }
 
 // Initialize checks if the Protos network exists
-func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter, internalInterface string) core.RuntimePlatform {
+func Initialize(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, ipSetter internalIPSetter) core.RuntimePlatform {
+
+	internalInterface, internalIP, err := initNetwork(ipSetter.GetNetwork())
+	if err != nil {
+		log.Fatalf("Can't initialize network: %s", err.Error())
+	}
+
 	var dp core.RuntimePlatform
 	switch runtime {
-	case dockerRuntime:
-		dp = createDockerRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
 	case containerdRuntime:
 		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, internalInterface)
 	default:
 		log.Fatalf("Runtime '%s' is not supported", runtime)
 	}
 
-	err := initNetwork(internalInterface)
-	if err != nil {
-		log.Fatalf("Can't initialize network: %s", err.Error())
-	}
-
-	internalIP, err := dp.Init()
+	err = dp.Init()
 	if err != nil {
 		log.Fatalf("Can't initialize platform: %s", err.Error())
 	}

@@ -50,13 +50,13 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	defer db.Close()
 
 	// create all the managers
-	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg, cfg.InternalInterface)
+	rm := resource.CreateManager(db)
+	m := meta.Setup(rm, db, version.String())
+	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, m)
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, cfg)
 	as := installer.CreateAppStore(p, tm, cm)
-	rm := resource.CreateManager(db)
-	m := meta.Setup(rm, db, version.String())
 	am := app.CreateManager(rm, tm, p, db, m, cfg, as, cm)
 	pm := provider.CreateManager(rm, am, db)
 
@@ -69,7 +69,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	httpAPI := api.New(devmode, cfg.StaticAssets, cfg.InternalIP, cfg.WSPublish, cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
+	httpAPI := api.New(devmode, cfg.StaticAssets, cfg.WSPublish, cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
 
 	// start ws connection manager
 	err := httpAPI.StartWSManager()
@@ -77,18 +77,22 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	// start DNS server
-	dns.StartServer(cfg.InternalIP, cfg.ExternalDNS)
-
-	// start insecure webserver
-	err = httpAPI.StartInsecureWebServer(cfg.InitMode)
+	// start loopback webserver
+	err = httpAPI.StartLoopbackWebServer(cfg.InitMode)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// start secure webserver only if not in init mode
+	// start internal and external webservers only if not in init mode
 	if !cfg.InitMode {
-		err = httpAPI.StartSecureWebServer()
+		dns.StartServer(m.GetInternalIP().String(), cfg.ExternalDNS)
+
+		err = httpAPI.StartInternalWebServer(cfg.InitMode, m.GetInternalIP().String())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = httpAPI.StartExternalWebServer()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -103,11 +107,15 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	if err != nil {
 		log.Error(err)
 	}
-	err = httpAPI.StopInsecureWebServer()
+	err = httpAPI.StopLoopbackWebServer()
 	if err != nil {
 		log.Error(err)
 	}
-	err = httpAPI.StopSecureWebServer()
+	err = httpAPI.StopInternalWebServer()
+	if err != nil {
+		log.Error(err)
+	}
+	err = httpAPI.StopExternalWebServer()
 	if err != nil {
 		log.Error(err)
 	}

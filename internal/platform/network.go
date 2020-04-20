@@ -9,20 +9,24 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
+const interfacePrefix = "protos"
+
 var wgPort int = 10999
 
 // initNetwork initializes the local network
-func initNetwork(interfaceName string) error {
+func initNetwork(network net.IPNet) (string, net.IP, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
-		return fmt.Errorf("Failed to initialize network: %w", err)
+		return "", net.IP{}, fmt.Errorf("Failed to initialize network: %w", err)
 	}
 
+	ip := network.IP.Mask(network.Mask)
+	ip[3]++
 	linkAddrs := []linkmgr.Address{
 		{
 			IPNet: net.IPNet{
-				IP:   net.ParseIP("10.100.100.1"),
-				Mask: net.CIDRMask(24, 32),
+				IP:   ip,
+				Mask: network.Mask,
 			},
 			Scope: linkmgr.ScopeLink,
 		},
@@ -33,9 +37,10 @@ func initNetwork(interfaceName string) error {
 		ListenPort:   &wgPort,
 		Peers:        []wgtypes.PeerConfig{},
 	}
+	interfaceName := interfacePrefix + "0"
 	_, _, err = wirebox.CreateWG(manager, interfaceName, cfg, linkAddrs)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize network: %w", err)
+		return "", net.IP{}, fmt.Errorf("Failed to initialize network: %w", err)
 	}
-	return nil
+	return interfaceName, ip, nil
 }

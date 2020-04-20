@@ -98,7 +98,7 @@ func finishInit(ha handlerAccess) http.Handler {
 				return
 			}
 
-			err = ha.api.StartSecureWebServer()
+			err = ha.api.StartExternalWebServer()
 			if err != nil {
 				log.Error(err)
 				rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})

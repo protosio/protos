@@ -28,6 +28,7 @@ type Meta struct {
 	Resources          []string
 	version            string
 	network            string
+	internalIP         string
 	rm                 core.ResourceManager
 	db                 core.DB
 }
@@ -108,13 +109,25 @@ func (m *Meta) SetNetwork(network net.IPNet) {
 	m.save()
 }
 
-// GetNetwork gets the instance network name
+// GetNetwork gets the instance network
 func (m *Meta) GetNetwork() net.IPNet {
 	_, network, err := net.ParseCIDR(m.network)
 	if err != nil {
 		log.Fatalf("Meta network ('%s') is invalid: %s", m.network, err.Error())
 	}
 	return *network
+}
+
+// SetInternalIP sets the instance IP
+func (m *Meta) SetInternalIP(ip net.IP) {
+	log.Debugf("Setting instance IP to '%s'", ip.String())
+	m.network = ip.String()
+	m.save()
+}
+
+// GetInternalIP gets the instance IP
+func (m *Meta) GetInternalIP() net.IP {
+	return net.ParseIP(m.internalIP)
 }
 
 // setPublicIP sets the public ip of the instance

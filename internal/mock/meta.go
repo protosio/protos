@@ -49,34 +49,6 @@ func (mr *MockMetaMockRecorder) GetPublicIP() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublicIP", reflect.TypeOf((*MockMeta)(nil).GetPublicIP))
 }
 
-// GetDomain mocks base method
-func (m *MockMeta) GetDomain() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDomain")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetDomain indicates an expected call of GetDomain
-func (mr *MockMetaMockRecorder) GetDomain() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomain", reflect.TypeOf((*MockMeta)(nil).GetDomain))
-}
-
-// GetTLSCertificate mocks base method
-func (m *MockMeta) GetTLSCertificate() core.Resource {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTLSCertificate")
-	ret0, _ := ret[0].(core.Resource)
-	return ret0
-}
-
-// GetTLSCertificate indicates an expected call of GetTLSCertificate
-func (mr *MockMetaMockRecorder) GetTLSCertificate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTLSCertificate", reflect.TypeOf((*MockMeta)(nil).GetTLSCertificate))
-}
-
 // SetDomain mocks base method
 func (m *MockMeta) SetDomain(arg0 string) {
 	m.ctrl.T.Helper()
@@ -89,16 +61,18 @@ func (mr *MockMetaMockRecorder) SetDomain(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDomain", reflect.TypeOf((*MockMeta)(nil).SetDomain), arg0)
 }
 
-// SetAdminUser mocks base method
-func (m *MockMeta) SetAdminUser(arg0 string) {
+// GetDomain mocks base method
+func (m *MockMeta) GetDomain() string {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetAdminUser", arg0)
+	ret := m.ctrl.Call(m, "GetDomain")
+	ret0, _ := ret[0].(string)
+	return ret0
 }
 
-// SetAdminUser indicates an expected call of SetAdminUser
-func (mr *MockMetaMockRecorder) SetAdminUser(arg0 interface{}) *gomock.Call {
+// GetDomain indicates an expected call of GetDomain
+func (mr *MockMetaMockRecorder) GetDomain() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminUser", reflect.TypeOf((*MockMeta)(nil).SetAdminUser), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomain", reflect.TypeOf((*MockMeta)(nil).GetDomain))
 }
 
 // SetNetwork mocks base method
@@ -125,6 +99,58 @@ func (m *MockMeta) GetNetwork() net.IPNet {
 func (mr *MockMetaMockRecorder) GetNetwork() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetwork", reflect.TypeOf((*MockMeta)(nil).GetNetwork))
+}
+
+// SetInternalIP mocks base method
+func (m *MockMeta) SetInternalIP(arg0 net.IP) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetInternalIP", arg0)
+}
+
+// SetInternalIP indicates an expected call of SetInternalIP
+func (mr *MockMetaMockRecorder) SetInternalIP(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInternalIP", reflect.TypeOf((*MockMeta)(nil).SetInternalIP), arg0)
+}
+
+// GetInternalIP mocks base method
+func (m *MockMeta) GetInternalIP() net.IP {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInternalIP")
+	ret0, _ := ret[0].(net.IP)
+	return ret0
+}
+
+// GetInternalIP indicates an expected call of GetInternalIP
+func (mr *MockMetaMockRecorder) GetInternalIP() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInternalIP", reflect.TypeOf((*MockMeta)(nil).GetInternalIP))
+}
+
+// GetTLSCertificate mocks base method
+func (m *MockMeta) GetTLSCertificate() core.Resource {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTLSCertificate")
+	ret0, _ := ret[0].(core.Resource)
+	return ret0
+}
+
+// GetTLSCertificate indicates an expected call of GetTLSCertificate
+func (mr *MockMetaMockRecorder) GetTLSCertificate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTLSCertificate", reflect.TypeOf((*MockMeta)(nil).GetTLSCertificate))
+}
+
+// SetAdminUser mocks base method
+func (m *MockMeta) SetAdminUser(arg0 string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetAdminUser", arg0)
+}
+
+// SetAdminUser indicates an expected call of SetAdminUser
+func (mr *MockMetaMockRecorder) SetAdminUser(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminUser", reflect.TypeOf((*MockMeta)(nil).SetAdminUser), arg0)
 }
 
 // CreateProtosResources mocks base method
