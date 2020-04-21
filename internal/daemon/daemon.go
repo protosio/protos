@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -52,7 +53,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	// create all the managers
 	rm := resource.CreateManager(db)
 	m := meta.Setup(rm, db, version.String())
-	p := platform.Initialize(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, m)
+	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer)
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, cfg)
@@ -84,18 +85,22 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 
 	// start internal and external webservers only if not in init mode
-	if !cfg.InitMode {
-		dns.StartServer(m.GetInternalIP().String(), cfg.ExternalDNS)
-
-		err = httpAPI.StartInternalWebServer(cfg.InitMode, m.GetInternalIP().String())
+	var ip net.IP
+	if cfg.InitMode {
+		ip = p.WaitForInit()
+	} else {
+		ip, err = p.Init(m.GetNetwork())
 		if err != nil {
 			log.Fatal(err)
 		}
+		m.SetInternalIP(ip)
+	}
 
-		err = httpAPI.StartExternalWebServer()
-		if err != nil {
-			log.Fatal(err)
-		}
+	dns.StartServer(ip.String(), cfg.ExternalDNS)
+
+	err = httpAPI.StartInternalWebServer(cfg.InitMode, ip.String())
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	log.Info("Started all servers successfully")
@@ -112,10 +117,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Error(err)
 	}
 	err = httpAPI.StopInternalWebServer()
-	if err != nil {
-		log.Error(err)
-	}
-	err = httpAPI.StopExternalWebServer()
 	if err != nil {
 		log.Error(err)
 	}

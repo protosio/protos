@@ -130,43 +130,35 @@ func (cdp *containerdPlatform) initCni() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) Init() (string, error) {
+func (cdp *containerdPlatform) Init(network net.IPNet) (net.IP, error) {
+	internalInterface, internalIP, err := initNetwork(network)
+	if err != nil {
+		return internalIP, fmt.Errorf("Can't initialize network: %s", err.Error())
+	}
+	cdp.internalInterface = internalInterface
+
 	log.Infof("Connecting to the containerd daemon using endpoint '%s'", cdp.endpoint)
 	protocol, addr, err := parseEndpointWithFallbackProtocol(cdp.endpoint, unixProtocol)
 	if err != nil {
-		return "", err
+		return internalIP, err
 	}
 	if protocol != unixProtocol {
-		return "", errors.New("Failed to initialize containerd runtime. Unix socket is the only supported socket for the containerd endpoint")
+		return internalIP, errors.New("Failed to initialize containerd runtime. Unix socket is the only supported socket for the containerd endpoint")
 	}
 
 	cdp.conn, err = grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(defaultGRPCTimeout), grpc.WithDialer(dial))
 	if err != nil {
-		return "", errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
+		return internalIP, errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
 	}
 	cdp.runtimeClient = pb.NewRuntimeServiceClient(cdp.conn)
 	cdp.imageClient = pb.NewImageServiceClient(cdp.conn)
 
-	err = cdp.initCni()
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
-	}
+	cdp.initSignal <- internalIP
+	return internalIP, nil
+}
 
-	iface, err := net.InterfaceByName(cdp.internalInterface)
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
-	}
-	ips, err := iface.Addrs()
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to initialize containerd runtime")
-	}
-	if len(ips) == 0 {
-		return "", errors.Wrapf(err, "Failed to initialize containerd runtime. Internal interface '%s' does not have an ip configured", cdp.internalInterface)
-	}
-	ifaceIP := strings.Split(ips[0].String(), "/")[0]
-	cdp.dnsServer = ifaceIP
-
-	return ifaceIP, nil
+func (cdp *containerdPlatform) WaitForInit() net.IP {
+	return <-cdp.initSignal
 }
 
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {

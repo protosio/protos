@@ -86,18 +86,18 @@ func createDockerRuntimePlatform(endpoint string, appStoreHost string, inContain
 }
 
 // ConnectDocker connects to the Docker daemon
-func (dp *dockerPlatform) Init() (string, error) {
+func (dp *dockerPlatform) Init() error {
 	log.Info("Connecting to the docker daemon")
 	var err error
 
 	dp.client, err = docker.NewEnvClient()
 	if err != nil {
-		return "", errors.Wrap(err, "Failed to connect to Docker daemon")
+		return errors.Wrap(err, "Failed to connect to Docker daemon")
 	}
 
 	if dp.inContainer {
 		// if running in container the user needs to take care that the correct protos network is created
-		return "", nil
+		return nil
 	}
 
 	protosNet, err := dp.GetNetwork(protosNetwork)
@@ -106,20 +106,20 @@ func (dp *dockerPlatform) Init() (string, error) {
 			// if network is not found it should be created
 			protosNet, err = dp.CreateNetwork(protosNetwork)
 			if err != nil {
-				return "", errors.Wrap(err, "Failed to initialize Docker platform")
+				return errors.Wrap(err, "Failed to initialize Docker platform")
 			}
 		} else {
-			return "", errors.Wrap(err, "Failed to initialize Docker platform")
+			return errors.Wrap(err, "Failed to initialize Docker platform")
 		}
 	}
 	if len(protosNet.IPAM.Config) == 0 {
-		return "", errors.Errorf("Failed to initialize Docker platform: no network config for network %s(%s)", protosNet.Name, protosNet.ID)
+		return errors.Errorf("Failed to initialize Docker platform: no network config for network %s(%s)", protosNet.Name, protosNet.ID)
 	}
 	netConfig := protosNet.IPAM.Config[0]
 	log.Debugf("Running using internal Docker network %s(%s), gateway %s in subnet %s", protosNet.Name, protosNet.ID, netConfig.Gateway, netConfig.Subnet)
 	dp.internalIP = netConfig.Gateway
 
-	return dp.internalIP, nil
+	return nil
 }
 
 // combineEnv takes a map of environment variables and transforms them into a list of environment variables

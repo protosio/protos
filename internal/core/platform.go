@@ -1,6 +1,8 @@
 package core
 
 import (
+	"net"
+
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -15,7 +17,8 @@ const (
 
 // RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
 type RuntimePlatform interface {
-	Init() error
+	Init(network net.IPNet) (net.IP, error)
+	WaitForInit() net.IP
 	GetSandbox(id string) (PlatformRuntimeUnit, error)
 	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
 	GetImage(id string) (PlatformImage, error)

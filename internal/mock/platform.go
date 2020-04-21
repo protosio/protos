@@ -8,6 +8,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
+	net "net"
 	reflect "reflect"
 )
 
@@ -35,17 +36,32 @@ func (m *MockRuntimePlatform) EXPECT() *MockRuntimePlatformMockRecorder {
 }
 
 // Init mocks base method
-func (m *MockRuntimePlatform) Init() error {
+func (m *MockRuntimePlatform) Init(network net.IPNet) (net.IP, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Init")
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "Init", network)
+	ret0, _ := ret[0].(net.IP)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Init indicates an expected call of Init
-func (mr *MockRuntimePlatformMockRecorder) Init() *gomock.Call {
+func (mr *MockRuntimePlatformMockRecorder) Init(network interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockRuntimePlatform)(nil).Init))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockRuntimePlatform)(nil).Init), network)
+}
+
+// WaitForInit mocks base method
+func (m *MockRuntimePlatform) WaitForInit() net.IP {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WaitForInit")
+	ret0, _ := ret[0].(net.IP)
+	return ret0
+}
+
+// WaitForInit indicates an expected call of WaitForInit
+func (mr *MockRuntimePlatformMockRecorder) WaitForInit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForInit", reflect.TypeOf((*MockRuntimePlatform)(nil).WaitForInit))
 }
 
 // GetSandbox mocks base method
