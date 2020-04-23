@@ -25,6 +25,7 @@ require (
 	github.com/foxcpp/wirebox v0.0.0-20200320222236-39d2b1f42e46
 	github.com/getlantern/deepcopy v0.0.0-20160317154340-7f45deb8130a
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/go-playground/validator/v10 v10.2.0
 	github.com/golang/mock v1.4.3
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/gorilla/mux v1.7.4

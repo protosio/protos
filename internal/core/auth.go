@@ -24,4 +24,5 @@ type User interface {
 	IsAdmin() bool
 	GetInfo() UserInfo
 	GetUsername() string
+	GetDevices() []types.UserDevice
 }

@@ -8,6 +8,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
+	types "github.com/protosio/protos/pkg/types"
 	net "net"
 	reflect "reflect"
 )
@@ -36,18 +37,18 @@ func (m *MockRuntimePlatform) EXPECT() *MockRuntimePlatformMockRecorder {
 }
 
 // Init mocks base method
-func (m *MockRuntimePlatform) Init(network net.IPNet) (net.IP, error) {
+func (m *MockRuntimePlatform) Init(network net.IPNet, devices []types.UserDevice) (net.IP, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Init", network)
+	ret := m.ctrl.Call(m, "Init", network, devices)
 	ret0, _ := ret[0].(net.IP)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Init indicates an expected call of Init
-func (mr *MockRuntimePlatformMockRecorder) Init(network interface{}) *gomock.Call {
+func (mr *MockRuntimePlatformMockRecorder) Init(network, devices interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockRuntimePlatform)(nil).Init), network)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockRuntimePlatform)(nil).Init), network, devices)
 }
 
 // WaitForInit mocks base method

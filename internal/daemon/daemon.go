@@ -89,7 +89,11 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	if cfg.InitMode {
 		ip = p.WaitForInit()
 	} else {
-		ip, err = p.Init(m.GetNetwork())
+		usr, err := um.GetUser(m.GetAdminUser())
+		if err != nil {
+			log.Fatal(err)
+		}
+		ip, err = p.Init(m.GetNetwork(), usr.GetDevices())
 		if err != nil {
 			log.Fatal(err)
 		}

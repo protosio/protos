@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
+	"github.com/protosio/protos/pkg/types"
 	"google.golang.org/grpc"
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )

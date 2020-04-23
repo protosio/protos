@@ -21,11 +21,12 @@ var log = util.GetLogger("auth")
 
 // User represents a Protos user
 type User struct {
-	Username     string   `json:"username" storm:"id"`
-	Password     string   `json:"password"`
-	Name         string   `json:"name"`
-	IsDisabled   bool     `json:"isdisabled"`
-	Capabilities []string `json:"capabilities"`
+	Username     string             `json:"username" storm:"id"`
+	Password     string             `json:"password"`
+	Name         string             `json:"name"`
+	IsDisabled   bool               `json:"isdisabled"`
+	Capabilities []string           `json:"capabilities"`
+	Devices      []types.UserDevice `json:"devices"`
 	parent       *UserManager
 }
 
@@ -88,6 +89,11 @@ func (user *User) GetInfo() core.UserInfo {
 		Name:     user.Name,
 		IsAdmin:  user.IsAdmin(),
 	}
+}
+
+// GetDevices returns the devices that belong to a user
+func (user *User) GetDevices() []types.UserDevice {
+	return user.Devices
 }
 
 //

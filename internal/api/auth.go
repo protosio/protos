@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	validator "github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
@@ -52,15 +53,10 @@ func initHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		if initform.Password != initform.ConfirmPassword {
-			err = errors.New("Cannot perform initialization: passwords don't match")
-			log.Error(err)
-			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
-			return
-		}
-
-		if initform.Domain == "" {
-			err = errors.New("Cannot perform initialization: domain cannot be empty")
+		validate := validator.New()
+		err = validate.Struct(initform)
+		if err != nil {
+			err = fmt.Errorf("Failed to validate init request: %w", err)
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 			return
@@ -86,7 +82,7 @@ func initHandler(ha handlerAccess) http.Handler {
 		ha.m.SetAdminUser(user.GetUsername())
 
 		// perform init
-		ip, err := ha.rp.Init(*network)
+		ip, err := ha.rp.Init(*network, initform.Devices)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})

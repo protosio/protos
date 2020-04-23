@@ -46,7 +46,7 @@ func CreateManager() *Manager {
 
 // New returns a new capability
 func (cm *Manager) New(name string) *Capability {
-	log.Debugf("Creating capability '%s'", name)
+	log.Tracef("Creating capability '%s'", name)
 	cap := &Capability{Name: name}
 	cm.allCapabilities = append(cm.allCapabilities, cap)
 	return cap
@@ -66,7 +66,7 @@ func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
 // SetMethodCap adds a capability for a specific method
 func (cm *Manager) SetMethodCap(method string, cap core.Capability) {
 	lcap := cap.(*Capability)
-	log.Debugf("Setting capability '%s' for method '%s'", lcap.Name, method)
+	log.Tracef("Setting capability '%s' for method '%s'", lcap.Name, method)
 	cm.capMap[method] = lcap
 }
 
