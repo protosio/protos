@@ -91,15 +91,16 @@ type containerdPlatform struct {
 	imageClient       pb.ImageServiceClient
 	dnsServer         string
 	internalInterface string
+	initSignal        chan net.IP
 	conn              *grpc.ClientConn
 }
 
-func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, internalInterface string) *containerdPlatform {
+func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool) *containerdPlatform {
 	return &containerdPlatform{
-		endpoint:          runtimeUnixSocket,
-		appStoreHost:      appStoreHost,
-		inContainer:       inContainer,
-		internalInterface: internalInterface,
+		endpoint:     runtimeUnixSocket,
+		appStoreHost: appStoreHost,
+		inContainer:  inContainer,
+		initSignal:   make(chan net.IP, 1),
 	}
 }
 

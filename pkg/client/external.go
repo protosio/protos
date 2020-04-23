@@ -2,12 +2,15 @@ package client
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 
@@ -17,7 +20,7 @@ import (
 
 // ExternalClient talks to the external Protos API
 type ExternalClient interface {
-	InitInstance() error
+	InitInstance(name string, network string, domain string) (net.IP, ed25519.PublicKey, error)
 }
 
 type externalClient struct {
@@ -26,15 +29,13 @@ type externalClient struct {
 	host       string
 	username   string
 	password   string
-	domain     string
 }
 
 // makeRequest prepares and sends a request to the protos backend
 func (ec externalClient) makeRequest(method string, path string, body io.Reader) ([]byte, error) {
+	urlStr := "http://" + ec.host + ec.apiPath + "/" + path
+	errMsg := fmt.Sprintf("'%s' request '%s'", method, urlStr)
 
-	errMsg := fmt.Sprintf("'%s' request '%s'", method, path)
-
-	urlStr := "http://" + ec.host + "/" + ec.apiPath + "/" + path
 	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		return []byte{}, fmt.Errorf("%v: %v", errMsg, err)
@@ -65,45 +66,63 @@ func (ec externalClient) makeRequest(method string, path string, body io.Reader)
 }
 
 // InitInstance initializes a newly deployed Protos instance
-func (ec *externalClient) InitInstance() error {
+func (ec *externalClient) InitInstance(name string, network string, domain string) (net.IP, ed25519.PublicKey, error) {
 	reqJSON, err := json.Marshal(types.ReqInit{
 		Username:        ec.username,
 		Password:        ec.password,
 		ConfirmPassword: ec.password,
-		Domain:          ec.domain,
+		Name:            name,
+		Domain:          domain,
+		Network:         network,
 	})
 	if err != nil {
-		return fmt.Errorf("Failed to init instance: %v", err)
+		return nil, nil, fmt.Errorf("Failed to init instance: %w", err)
 	}
 
 	// register the user
 	ec.apiPath = types.APIAuthPath
-	_, err = ec.makeRequest(http.MethodPost, "init", bytes.NewBuffer(reqJSON))
+	httpResp, err := ec.makeRequest(http.MethodPost, "init", bytes.NewBuffer(reqJSON))
 	ec.apiPath = types.APIExternalPath
 	if err != nil {
-		return fmt.Errorf("Failed to init instance: %v", err)
+		return nil, nil, fmt.Errorf("Failed to init instance: %w", err)
+	}
+
+	initResp := types.RespInit{}
+	err = json.Unmarshal(httpResp, &initResp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to decode http message from Protos: %w", err)
+	}
+	ip := net.ParseIP(initResp.InstanceIP)
+	if ip == nil {
+		return nil, nil, fmt.Errorf("Failed to parse IP: %w", err)
+	}
+
+	var pubKey ed25519.PublicKey
+	pubKey, err = base64.StdEncoding.DecodeString(initResp.InstacePubKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to decode public key: %w", err)
 	}
 
 	// stop the init endpoint
 	_, err = ec.makeRequest(http.MethodGet, "init/finish", bytes.NewBuffer(reqJSON))
 	if err != nil {
-		return fmt.Errorf("Failed to init instance: %v", err)
+		return nil, nil, fmt.Errorf("Failed to init instance: %w", err)
 	}
 
-	return err
+	return ip, pubKey, err
 }
 
 // NewInitClient creates and returns a client that's used to initialize an instance
-func NewInitClient(host string, username string, password string, domain string) ExternalClient {
+func NewInitClient(host string, username string, password string) ExternalClient {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	ec := &externalClient{
 		host:       host,
 		username:   username,
 		password:   password,
-		domain:     domain,
 		HTTPclient: &http.Client{Jar: jar},
 		apiPath:    types.APIExternalPath,
 	}

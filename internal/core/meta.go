@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/ed25519"
 	"net"
 
 	"github.com/protosio/protos/internal/util"
@@ -17,6 +18,7 @@ type Meta interface {
 	SetInternalIP(net.IP)
 	GetInternalIP() net.IP
 
+	GetPublicKey() ed25519.PublicKey
 	GetTLSCertificate() Resource
 	SetAdminUser(string)
 	CreateProtosResources() (map[string]Resource, error)

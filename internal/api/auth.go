@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -84,6 +85,15 @@ func initHandler(ha handlerAccess) http.Handler {
 		}
 		ha.m.SetAdminUser(user.GetUsername())
 
+		// perform init
+		ip, err := ha.rp.Init(*network)
+		if err != nil {
+			log.Error(err)
+			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
+			return
+		}
+		ha.m.SetInternalIP(ip)
+
 		// create session and add user to it
 
 		session, err := ha.cs.Get(r, "session-auth")
@@ -105,7 +115,8 @@ func initHandler(ha handlerAccess) http.Handler {
 		}
 
 		initResponse := types.RespInit{
-			Username: user.GetUsername(),
+			InstanceIP:    ip.String(),
+			InstacePubKey: base64.StdEncoding.EncodeToString(ha.m.GetPublicKey()),
 		}
 
 		log.Trace("Sending response: ", initResponse)

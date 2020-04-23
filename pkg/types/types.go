@@ -29,6 +29,6 @@ type ReqInit struct {
 
 // RespInit - response payload for the registration endpoint
 type RespInit struct {
-	Username      string `json:"username"`
 	InstacePubKey string `json:"instancepubkey"`
+	InstanceIP    string `json:"instanceip"`
 }

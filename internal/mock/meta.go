@@ -5,6 +5,7 @@
 package mock
 
 import (
+	ed25519 "crypto/ed25519"
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
@@ -125,6 +126,20 @@ func (m *MockMeta) GetInternalIP() net.IP {
 func (mr *MockMetaMockRecorder) GetInternalIP() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInternalIP", reflect.TypeOf((*MockMeta)(nil).GetInternalIP))
+}
+
+// GetPublicKey mocks base method
+func (m *MockMeta) GetPublicKey() ed25519.PublicKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPublicKey")
+	ret0, _ := ret[0].(ed25519.PublicKey)
+	return ret0
+}
+
+// GetPublicKey indicates an expected call of GetPublicKey
+func (mr *MockMetaMockRecorder) GetPublicKey() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublicKey", reflect.TypeOf((*MockMeta)(nil).GetPublicKey))
 }
 
 // GetTLSCertificate mocks base method
