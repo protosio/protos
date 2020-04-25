@@ -35,14 +35,14 @@ func initNetwork(network net.IPNet, devices []types.UserDevice) (string, net.IP,
 	}
 
 	peers := []wgtypes.PeerConfig{}
-	for _, dev := range devices {
-		publicKey, err := base64.StdEncoding.DecodeString(dev.PublicKey)
+	for _, userDevice := range devices {
+		publicKey, err := base64.StdEncoding.DecodeString(userDevice.PublicKey)
 		if err != nil {
-			return "", nil, fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", dev.Name, err)
+			return "", nil, fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
 		}
-		_, devNetwork, err := net.ParseCIDR(dev.Network)
+		_, devNetwork, err := net.ParseCIDR(userDevice.Network)
 		if err != nil {
-			return "", nil, fmt.Errorf("Failed to parse network for device '%s': %w", dev.Name, err)
+			return "", nil, fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
 		}
 		var pkey wgtypes.Key
 		copy(pkey[:], publicKey)
@@ -53,7 +53,7 @@ func initNetwork(network net.IPNet, devices []types.UserDevice) (string, net.IP,
 	cfg := wgtypes.Config{
 		ReplacePeers: true,
 		ListenPort:   &wgPort,
-		Peers:        []wgtypes.PeerConfig{},
+		Peers:        peers,
 	}
 	interfaceName := interfacePrefix + "0"
 	_, _, err = wirebox.CreateWG(manager, interfaceName, cfg, linkAddrs)
