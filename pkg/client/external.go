@@ -20,7 +20,7 @@ import (
 
 // ExternalClient talks to the external Protos API
 type ExternalClient interface {
-	InitInstance(name string, network string, domain string) (net.IP, ed25519.PublicKey, error)
+	InitInstance(name string, network string, domain string, devices []types.UserDevice) (net.IP, ed25519.PublicKey, error)
 }
 
 type externalClient struct {
@@ -66,7 +66,7 @@ func (ec externalClient) makeRequest(method string, path string, body io.Reader)
 }
 
 // InitInstance initializes a newly deployed Protos instance
-func (ec *externalClient) InitInstance(name string, network string, domain string) (net.IP, ed25519.PublicKey, error) {
+func (ec *externalClient) InitInstance(name string, network string, domain string, devices []types.UserDevice) (net.IP, ed25519.PublicKey, error) {
 	reqJSON, err := json.Marshal(types.ReqInit{
 		Username:        ec.username,
 		Password:        ec.password,
@@ -74,6 +74,7 @@ func (ec *externalClient) InitInstance(name string, network string, domain strin
 		Name:            name,
 		Domain:          domain,
 		Network:         network,
+		Devices:         devices,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to init instance: %w", err)
@@ -87,16 +88,18 @@ func (ec *externalClient) InitInstance(name string, network string, domain strin
 		return nil, nil, fmt.Errorf("Failed to init instance: %w", err)
 	}
 
+	// decode response
 	initResp := types.RespInit{}
 	err = json.Unmarshal(httpResp, &initResp)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to decode http message from Protos: %w", err)
 	}
+
+	// prepare IP and public key of instance
 	ip := net.ParseIP(initResp.InstanceIP)
 	if ip == nil {
 		return nil, nil, fmt.Errorf("Failed to parse IP: %w", err)
 	}
-
 	var pubKey ed25519.PublicKey
 	pubKey, err = base64.StdEncoding.DecodeString(initResp.InstacePubKey)
 	if err != nil {

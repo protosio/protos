@@ -30,5 +30,5 @@ type ReqInit struct {
 // RespInit - response payload for the registration endpoint
 type RespInit struct {
 	InstacePubKey string `json:"instancepubkey" validate:"base64"` // ed25519 base64 encoded public key
-	InstanceIP    string `json:"instanceip" validate:"ipv4"`
+	InstanceIP    string `json:"instanceip" validate:"ipv4"`       // internal IP of the instance
 }
