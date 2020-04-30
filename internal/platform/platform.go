@@ -34,7 +34,7 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 	return repoDigestPair[0], repoDigestPair[1], nil
 }
 
-// Initialize checks if the Protos network exists
+// Create initializes the run time platform
 func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) core.RuntimePlatform {
 
 	var dp core.RuntimePlatform
