@@ -13,6 +13,7 @@ import (
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 	"github.com/protosio/protos/pkg/types"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"google.golang.org/grpc"
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
@@ -93,19 +94,21 @@ type containerdPlatform struct {
 	dnsServer         string
 	internalInterface string
 	initSignal        chan net.IP
+	key               wgtypes.Key
 	conn              *grpc.ClientConn
 }
 
-func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool) *containerdPlatform {
+func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) *containerdPlatform {
 	return &containerdPlatform{
 		endpoint:     runtimeUnixSocket,
 		appStoreHost: appStoreHost,
 		inContainer:  inContainer,
 		initSignal:   make(chan net.IP, 1),
+		key:          key,
 	}
 }
 
-func (cdp *containerdPlatform) initCni() error {
+// func (cdp *containerdPlatform) initCni() error {
 	podConfig := &pb.PodSandboxConfig{
 		Hostname: "init",
 		Metadata: &pb.PodSandboxMetadata{

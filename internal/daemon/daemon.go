@@ -53,7 +53,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	// create all the managers
 	rm := resource.CreateManager(db)
 	m := meta.Setup(rm, db, version.String())
-	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer)
+	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, m.GetKey())
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(db, cm)
 	tm := task.CreateManager(db, cfg)

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -112,7 +111,7 @@ func initHandler(ha handlerAccess) http.Handler {
 
 		initResponse := types.RespInit{
 			InstanceIP:    ip.String(),
-			InstacePubKey: base64.StdEncoding.EncodeToString(ha.m.GetPublicKey()),
+			InstacePubKey: ha.m.GetKey().PublicKey().String(),
 		}
 
 		log.Trace("Sending response: ", initResponse)

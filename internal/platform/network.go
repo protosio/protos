@@ -16,7 +16,7 @@ const interfacePrefix = "protos"
 var wgPort int = 10999
 
 // initNetwork initializes the local network
-func initNetwork(network net.IPNet, devices []types.UserDevice) (string, net.IP, error) {
+func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key) (string, net.IP, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
 		return "", net.IP{}, fmt.Errorf("Failed to initialize network: %w", err)
@@ -40,20 +40,21 @@ func initNetwork(network net.IPNet, devices []types.UserDevice) (string, net.IP,
 		if err != nil {
 			return "", nil, fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
 		}
-		_, devNetwork, err := net.ParseCIDR(userDevice.Network)
+		_, deviceNetwork, err := net.ParseCIDR(userDevice.Network)
 		if err != nil {
 			return "", nil, fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
 		}
 		var pkey wgtypes.Key
 		copy(pkey[:], publicKey)
 
-		peers = append(peers, wgtypes.PeerConfig{PublicKey: pkey, ReplaceAllowedIPs: true, AllowedIPs: []net.IPNet{*devNetwork}})
+		peers = append(peers, wgtypes.PeerConfig{PublicKey: pkey, ReplaceAllowedIPs: true, AllowedIPs: []net.IPNet{*deviceNetwork}})
 	}
 
 	cfg := wgtypes.Config{
 		ReplacePeers: true,
 		ListenPort:   &wgPort,
 		Peers:        peers,
+		PrivateKey:   &key,
 	}
 	interfaceName := interfacePrefix + "0"
 	_, _, err = wirebox.CreateWG(manager, interfaceName, cfg, linkAddrs)

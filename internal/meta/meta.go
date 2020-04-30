@@ -1,8 +1,6 @@
 package meta
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -11,6 +9,7 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
 	"github.com/tidwall/gjson"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	"github.com/pkg/errors"
 
@@ -31,7 +30,7 @@ type Meta struct {
 	version            string
 	network            string
 	internalIP         string
-	privateKey         ed25519.PrivateKey
+	privateKey         wgtypes.Key
 	rm                 core.ResourceManager
 	db                 core.DB
 }
@@ -61,13 +60,13 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 		metaRoot.DashboardSubdomain = "protos"
 	}
 
-	if metaRoot.privateKey == nil {
-		log.Info("Generating instance private key")
-		key, err := generatePrivateKey()
+	if metaRoot.privateKey == [wgtypes.KeyLen]byte{} {
+		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {
-			log.Fatalf("Failed to generate key: %s", err.Error())
+			log.Fatalf("Failed to generate instance key: ", err.Error())
 		}
 		metaRoot.privateKey = key
+		log.Infof("Generated instance key. Wireguard public key: '%s'", key.PublicKey().String())
 	}
 
 	metaRoot.db = db
@@ -187,11 +186,9 @@ func (m *Meta) GetTLSCertificate() core.Resource {
 	return nil
 }
 
-// GetPublicKey returns the public key of the instance
-func (m *Meta) GetPublicKey() ed25519.PublicKey {
-	publicKey := make([]byte, ed25519.PublicKeySize)
-	copy(publicKey, m.privateKey[32:])
-	return publicKey
+// GetKey returns the private key of the instance, in wireguard format
+func (m *Meta) GetKey() wgtypes.Key {
+	return m.privateKey
 }
 
 // CleanProtosResources removes the MX record resource owned by the instance, created during the init process
@@ -342,12 +339,4 @@ func (m *Meta) InitMode() bool {
 	}
 
 	return false
-}
-
-func generatePrivateKey() (ed25519.PrivateKey, error) {
-	_, private, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to generate SSH key")
-	}
-	return private, nil
 }

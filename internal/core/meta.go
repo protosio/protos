@@ -1,10 +1,10 @@
 package core
 
 import (
-	"crypto/ed25519"
 	"net"
 
 	"github.com/protosio/protos/internal/util"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 // Meta holds information about the protos instance
@@ -17,9 +17,10 @@ type Meta interface {
 	GetNetwork() net.IPNet
 	SetInternalIP(net.IP)
 	GetInternalIP() net.IP
-
-	GetPublicKey() ed25519.PublicKey
+	// crypto related methods
+	GetKey() wgtypes.Key
 	GetTLSCertificate() Resource
+
 	SetAdminUser(string)
 	CreateProtosResources() (map[string]Resource, error)
 	GetProtosResources() map[string]Resource

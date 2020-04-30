@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var log = util.GetLogger("platform")
@@ -34,12 +35,12 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 }
 
 // Initialize checks if the Protos network exists
-func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool) core.RuntimePlatform {
+func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) core.RuntimePlatform {
 
 	var dp core.RuntimePlatform
 	switch runtime {
 	case containerdRuntime:
-		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer)
+		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, key)
 	default:
 		log.Fatalf("Runtime '%s' is not supported", runtime)
 	}
