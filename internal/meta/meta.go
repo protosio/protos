@@ -24,15 +24,19 @@ type Meta struct {
 	ID                 string
 	Domain             string
 	DashboardSubdomain string
-	PublicIP           string
+	PublicIP           net.IP
 	AdminUser          string
 	Resources          []string
-	version            string
-	network            string
-	internalIP         string
-	privateKey         wgtypes.Key
-	rm                 core.ResourceManager
-	db                 core.DB
+	Network            net.IPNet
+	InternalIP         net.IP
+	PrivateKey         wgtypes.Key
+
+	// elements that are not persisted in the DB
+	rm               core.ResourceManager
+	db               core.DB
+	version          string
+	networkSetSignal chan net.IP
+	domainSetSignal  chan string
 }
 
 type dnsResource interface {
@@ -60,18 +64,20 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 		metaRoot.DashboardSubdomain = "protos"
 	}
 
-	if metaRoot.privateKey == [wgtypes.KeyLen]byte{} {
+	if metaRoot.PrivateKey == [wgtypes.KeyLen]byte{} {
 		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {
 			log.Fatalf("Failed to generate instance key: ", err.Error())
 		}
-		metaRoot.privateKey = key
+		metaRoot.PrivateKey = key
 		log.Infof("Generated instance key. Wireguard public key: '%s'", key.PublicKey().String())
 	}
 
 	metaRoot.db = db
 	metaRoot.rm = rm
 	metaRoot.version = version
+	metaRoot.networkSetSignal = make(chan net.IP, 1)
+	metaRoot.domainSetSignal = make(chan string, 1)
 	err = db.Save(&metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
@@ -106,6 +112,7 @@ func (m *Meta) SetDomain(domainName string) {
 	log.Debugf("Setting instance domain name to '%s'", domainName)
 	m.Domain = domainName
 	m.save()
+	m.domainSetSignal <- m.Domain
 }
 
 // GetDomain returns the domain name used in this Protos instance
@@ -114,40 +121,38 @@ func (m *Meta) GetDomain() string {
 }
 
 // SetNetwork sets the instance network
-func (m *Meta) SetNetwork(network net.IPNet) {
+func (m *Meta) SetNetwork(network net.IPNet) net.IP {
 	log.Debugf("Setting instance network to '%s'", network.String())
-	m.network = network.String()
+	ip := network.IP.Mask(network.Mask)
+	ip[3]++
+	m.InternalIP = ip
+	m.Network = network
 	m.save()
+	m.networkSetSignal <- ip
+	return ip
 }
 
 // GetNetwork gets the instance network
 func (m *Meta) GetNetwork() net.IPNet {
-	_, network, err := net.ParseCIDR(m.network)
-	if err != nil {
-		log.Fatalf("Meta network ('%s') is invalid: %s", m.network, err.Error())
-	}
-	return *network
-}
-
-// SetInternalIP sets the instance IP
-func (m *Meta) SetInternalIP(ip net.IP) {
-	log.Debugf("Setting instance IP to '%s'", ip.String())
-	m.network = ip.String()
-	m.save()
+	return m.Network
 }
 
 // GetInternalIP gets the instance IP
 func (m *Meta) GetInternalIP() net.IP {
-	return net.ParseIP(m.internalIP)
+	return m.InternalIP
 }
 
 // setPublicIP sets the public ip of the instance
 func (m *Meta) setPublicIP() {
-	ip, err := findPublicIP()
+	ipstr, err := findPublicIP()
 	if err != nil {
 		log.Fatalf("Could not find instance public ip: %s", err.Error())
 	}
-	log.Debugf("Setting external instance IP address to '%s'", ip)
+	log.Debugf("Setting external instance IP address to '%s'", ipstr)
+	ip := net.ParseIP(ipstr)
+	if ip == nil {
+		log.Fatalf("Could not parse instance public ip: %s", err.Error())
+	}
 	m.PublicIP = ip
 	m.save()
 
@@ -167,7 +172,7 @@ func (m *Meta) GetAdminUser() string {
 
 // GetPublicIP returns the public IP of the Protos instance
 func (m *Meta) GetPublicIP() string {
-	return m.PublicIP
+	return m.PublicIP.String()
 }
 
 // GetTLSCertificate returns the TLS certificate resource owned by the instance
@@ -188,7 +193,7 @@ func (m *Meta) GetTLSCertificate() core.Resource {
 
 // GetKey returns the private key of the instance, in wireguard format
 func (m *Meta) GetKey() wgtypes.Key {
-	return m.privateKey
+	return m.PrivateKey
 }
 
 // CleanProtosResources removes the MX record resource owned by the instance, created during the init process
@@ -235,7 +240,7 @@ func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 	resources := map[string]core.Resource{}
 
 	// creating the protos subdomain for the dashboard
-	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP, 300)
+	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP.String(), 300)
 	if err != nil {
 		switch err := errors.Cause(err).(type) {
 		case core.ErrResourceExists:
@@ -243,7 +248,7 @@ func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 			if ok == false {
 				log.Fatal("dnsrscValue does not implement interface dnsResource")
 			}
-			dnsrscValue.UpdateValueAndTTL(m.PublicIP, 300)
+			dnsrscValue.UpdateValueAndTTL(m.PublicIP.String(), 300)
 			dnsrsc.UpdateValue(dnsrscValue.(core.ResourceValue))
 		default:
 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
@@ -314,29 +319,22 @@ func (m *Meta) InitMode() bool {
 		GetPrivateKey() []byte
 	}
 
-	if m.PublicIP == "" || m.Domain == "" || m.AdminUser == "" {
+	if m.PublicIP == nil || m.Domain == "" || m.AdminUser == "" {
 		log.Warnf("Instance info (public IP: '%s', domain: '%s', admin user: '%s') is not set. Running in init mode", m.PublicIP, m.Domain, m.AdminUser)
 		return true
 	}
 
-	resources := m.GetProtosResources()
-	if len(resources) == 0 {
-		log.Warn("Protos resources not found. Running in init mode")
-		return true
-	}
-
-	tlsResource := m.GetTLSCertificate()
-	if tlsResource == nil {
-		log.Warn("Protos TLS certificate resource not found. Running in init mode")
-		return true
-	}
-
-	tlsCertRsc := tlsResource.GetValue()
-	cert, ok := tlsCertRsc.(certificate)
-	if ok == false || len(cert.GetCertificate()) == 0 {
-		log.Warn("Protos TLS certificate resource not found. Running in init mode")
-		return true
-	}
-
 	return false
+}
+
+// WaitForInit returns when both the domain and network has been set
+func (m *Meta) WaitForInit() (net.IP, string) {
+	if m.InternalIP != nil && m.Domain != "" {
+		return m.InternalIP, m.Domain
+	}
+
+	log.Debug("Waiting for initialisation to complete")
+	domain := <-m.domainSetSignal
+	internalIP := <-m.networkSetSignal
+	return internalIP, domain
 }

@@ -109,61 +109,56 @@ func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost stri
 }
 
 // func (cdp *containerdPlatform) initCni() error {
-	podConfig := &pb.PodSandboxConfig{
-		Hostname: "init",
-		Metadata: &pb.PodSandboxMetadata{
-			Name:      "init",
-			Namespace: "default",
-			Attempt:   1,
-		},
-		Linux:        &pb.LinuxPodSandboxConfig{},
-		LogDirectory: logDirectory,
-	}
-	pod, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
-	if err != nil {
-		return errors.Wrapf(err, "Failed to create init pod")
-	}
+// 	podConfig := &pb.PodSandboxConfig{
+// 		Hostname: "init",
+// 		Metadata: &pb.PodSandboxMetadata{
+// 			Name:      "init",
+// 			Namespace: "default",
+// 			Attempt:   1,
+// 		},
+// 		Linux:        &pb.LinuxPodSandboxConfig{},
+// 		LogDirectory: logDirectory,
+// 	}
+// 	pod, err := cdp.runtimeClient.RunPodSandbox(context.Background(), &pb.RunPodSandboxRequest{Config: podConfig})
+// 	if err != nil {
+// 		return errors.Wrapf(err, "Failed to create init pod")
+// 	}
 
-	_, err = cdp.runtimeClient.StopPodSandbox(context.Background(), &pb.StopPodSandboxRequest{PodSandboxId: pod.PodSandboxId})
-	if err != nil {
-		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
-	}
-	_, err = cdp.runtimeClient.RemovePodSandbox(context.Background(), &pb.RemovePodSandboxRequest{PodSandboxId: pod.PodSandboxId})
-	if err != nil {
-		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
-	}
-	return nil
-}
+// 	_, err = cdp.runtimeClient.StopPodSandbox(context.Background(), &pb.StopPodSandboxRequest{PodSandboxId: pod.PodSandboxId})
+// 	if err != nil {
+// 		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
+// 	}
+// 	_, err = cdp.runtimeClient.RemovePodSandbox(context.Background(), &pb.RemovePodSandboxRequest{PodSandboxId: pod.PodSandboxId})
+// 	if err != nil {
+// 		return errors.Wrapf(err, "Failed to stop and remove init sandbox")
+// 	}
+// 	return nil
+// }
 
-func (cdp *containerdPlatform) Init(network net.IPNet) (net.IP, error) {
-	internalInterface, internalIP, err := initNetwork(network)
+func (cdp *containerdPlatform) Init(network net.IPNet, devices []types.UserDevice) error {
+	internalInterface, err := initNetwork(network, devices, cdp.key)
 	if err != nil {
-		return internalIP, fmt.Errorf("Can't initialize network: %s", err.Error())
+		return fmt.Errorf("Can't initialize network: %s", err.Error())
 	}
 	cdp.internalInterface = internalInterface
 
 	log.Infof("Connecting to the containerd daemon using endpoint '%s'", cdp.endpoint)
 	protocol, addr, err := parseEndpointWithFallbackProtocol(cdp.endpoint, unixProtocol)
 	if err != nil {
-		return internalIP, err
+		return err
 	}
 	if protocol != unixProtocol {
-		return internalIP, errors.New("Failed to initialize containerd runtime. Unix socket is the only supported socket for the containerd endpoint")
+		return errors.New("Failed to initialize containerd runtime. Unix socket is the only supported socket for the containerd endpoint")
 	}
 
 	cdp.conn, err = grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(defaultGRPCTimeout), grpc.WithDialer(dial))
 	if err != nil {
-		return internalIP, errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
+		return errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
 	}
 	cdp.runtimeClient = pb.NewRuntimeServiceClient(cdp.conn)
 	cdp.imageClient = pb.NewImageServiceClient(cdp.conn)
 
-	cdp.initSignal <- internalIP
-	return internalIP, nil
-}
-
-func (cdp *containerdPlatform) WaitForInit() net.IP {
-	return <-cdp.initSignal
+	return nil
 }
 
 func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {

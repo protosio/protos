@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -84,23 +83,9 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	// start internal and external webservers only if not in init mode
-	var ip net.IP
-	if cfg.InitMode {
-		ip = p.WaitForInit()
-	} else {
-		usr, err := um.GetUser(m.GetAdminUser())
-		if err != nil {
-			log.Fatal(err)
-		}
-		ip, err = p.Init(m.GetNetwork(), usr.GetDevices())
-		if err != nil {
-			log.Fatal(err)
-		}
-		m.SetInternalIP(ip)
-	}
+	ip, domain := m.WaitForInit()
 
-	dns.StartServer(ip.String(), cfg.ExternalDNS)
+	dns.StartServer(ip.String(), cfg.ExternalDNS, domain)
 
 	err = httpAPI.StartInternalWebServer(cfg.InitMode, ip.String())
 	if err != nil {

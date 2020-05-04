@@ -53,52 +53,32 @@ func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
 type handler struct {
 	protosIP  string
 	dnsServer string
+	domain    string
 }
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	domain := strings.TrimSuffix(r.Question[0].Name, ".")
-	domainParts := strings.Split(domain, ".")
-	if len(domainParts) == 3 && domainParts[2] == "local" && domainParts[1] == "protos" {
+	domainl := strings.TrimSuffix(r.Question[0].Name, ".")
+	domainlParts := strings.Split(domainl, ".")
+
+	domainq := strings.TrimSuffix(r.Question[0].Name, ".")
+	domainqParts := strings.Split(domainq, ".")
+	if len(domainqParts) == 3 && domainqParts[2] == domainlParts[2] && domainqParts[1] == domainlParts[1] {
 		h.localResolve(w, r)
 	} else {
 		h.remoteResolve(w, r)
 	}
 }
 
-// Server starts a DNS server used for resolving internal Protos addresses
-func Server(quit chan bool, protosIP string, dnsServer string) {
-	log.Infof("Starting DNS server. Listening internally on '%s:%s' (DNS)", protosIP, "53")
-	log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
-
-	// adding the IP address used for the internal protos domain
-	// ToDo: improve this
-	domainsMap["protos.protos.local."] = protosIP
-
-	srv := &dns.Server{Addr: protosIP + ":" + strconv.Itoa(53), Net: "udp"}
-	srv.Handler = &handler{protosIP: protosIP, dnsServer: dnsServer}
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			log.Fatalf("Failed to set udp listener %s\n", err.Error())
-		}
-	}()
-	<-quit
-	log.Info("Shutting down DNS server")
-	if err := srv.Shutdown(); err != nil {
-		log.Error(errors.Wrap(err, "Something went wrong while shutting down the DNS server"))
-	}
-	srv.Shutdown()
-}
-
 var srv *dns.Server
 
 // StartServer starts a DNS server used for resolving internal Protos addresses
-func StartServer(protosIP string, dnsServer string) {
-	log.Infof("Starting DNS server. Listening internally on '%s:%s' (DNS)", protosIP, "53")
+func StartServer(protosIP string, dnsServer string, domain string) {
+	log.Infof("Starting DNS server. Listening internally on '%s:%s' for domain '%s'", protosIP, "53", domain)
 	log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
 
 	// adding the IP address used for the internal protos domain
 	// ToDo: improve this
-	domainsMap["protos.protos.local."] = protosIP
+	domainsMap["protos."+domain+"."] = protosIP
 
 	srv = &dns.Server{Addr: ":" + strconv.Itoa(53), Net: "udp"}
 	srv.Handler = &handler{protosIP: protosIP, dnsServer: dnsServer}

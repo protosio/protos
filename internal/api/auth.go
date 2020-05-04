@@ -70,7 +70,7 @@ func initHandler(ha handlerAccess) http.Handler {
 		}
 
 		ha.m.SetDomain(initform.Domain)
-		ha.m.SetNetwork(*network)
+		ip := ha.m.SetNetwork(*network)
 
 		user, err := ha.um.CreateUser(initform.Username, initform.Password, initform.Name, true, initform.Devices)
 		if err != nil {
@@ -81,13 +81,12 @@ func initHandler(ha handlerAccess) http.Handler {
 		ha.m.SetAdminUser(user.GetUsername())
 
 		// perform init
-		ip, err := ha.rp.Init(*network, initform.Devices)
+		err = ha.rp.Init(*network, initform.Devices)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
 			return
 		}
-		ha.m.SetInternalIP(ip)
 
 		// create session and add user to it
 

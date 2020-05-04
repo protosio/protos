@@ -77,9 +77,11 @@ func (mr *MockMetaMockRecorder) GetDomain() *gomock.Call {
 }
 
 // SetNetwork mocks base method
-func (m *MockMeta) SetNetwork(arg0 net.IPNet) {
+func (m *MockMeta) SetNetwork(arg0 net.IPNet) net.IP {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetNetwork", arg0)
+	ret := m.ctrl.Call(m, "SetNetwork", arg0)
+	ret0, _ := ret[0].(net.IP)
+	return ret0
 }
 
 // SetNetwork indicates an expected call of SetNetwork
@@ -100,18 +102,6 @@ func (m *MockMeta) GetNetwork() net.IPNet {
 func (mr *MockMetaMockRecorder) GetNetwork() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetwork", reflect.TypeOf((*MockMeta)(nil).GetNetwork))
-}
-
-// SetInternalIP mocks base method
-func (m *MockMeta) SetInternalIP(arg0 net.IP) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetInternalIP", arg0)
-}
-
-// SetInternalIP indicates an expected call of SetInternalIP
-func (mr *MockMetaMockRecorder) SetInternalIP(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInternalIP", reflect.TypeOf((*MockMeta)(nil).SetInternalIP), arg0)
 }
 
 // GetInternalIP mocks base method
@@ -279,4 +269,19 @@ func (m *MockMeta) InitMode() bool {
 func (mr *MockMetaMockRecorder) InitMode() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitMode", reflect.TypeOf((*MockMeta)(nil).InitMode))
+}
+
+// WaitForInit mocks base method
+func (m *MockMeta) WaitForInit() (net.IP, string) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WaitForInit")
+	ret0, _ := ret[0].(net.IP)
+	ret1, _ := ret[1].(string)
+	return ret0, ret1
+}
+
+// WaitForInit indicates an expected call of WaitForInit
+func (mr *MockMetaMockRecorder) WaitForInit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForInit", reflect.TypeOf((*MockMeta)(nil).WaitForInit))
 }

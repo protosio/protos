@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/foxcpp/wirebox"
 	"github.com/foxcpp/wirebox/linkmgr"
@@ -16,10 +17,10 @@ const interfacePrefix = "protos"
 var wgPort int = 10999
 
 // initNetwork initializes the local network
-func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key) (string, net.IP, error) {
+func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key) (string, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
-		return "", net.IP{}, fmt.Errorf("Failed to initialize network: %w", err)
+		return "", fmt.Errorf("Failed to initialize network: %w", err)
 	}
 
 	// allocate the first IP in the network for Wireguard
@@ -41,11 +42,11 @@ func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key)
 	for _, userDevice := range devices {
 		publicKey, err := base64.StdEncoding.DecodeString(userDevice.PublicKey)
 		if err != nil {
-			return "", nil, fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
+			return "", fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
 		}
 		_, deviceNetwork, err := net.ParseCIDR(userDevice.Network)
 		if err != nil {
-			return "", nil, fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
+			return "", fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
 		}
 		routes = append(routes, linkmgr.Route{Dest: *deviceNetwork, Src: ip})
 		var pkey wgtypes.Key
@@ -64,15 +65,20 @@ func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key)
 	interfaceName := interfacePrefix + "0"
 	link, _, err := wirebox.CreateWG(manager, interfaceName, cfg, linkAddrs)
 	if err != nil {
-		return "", net.IP{}, fmt.Errorf("Failed to initialize network: %w", err)
+		return "", fmt.Errorf("Failed to initialize network: %w", err)
 	}
 
 	// add the routes to the wireguard interface
 	for _, route := range routes {
 		err = link.AddRoute(route)
 		if err != nil {
-			return "", net.IP{}, fmt.Errorf("Failed to initialize network: %w", err)
+			return "", fmt.Errorf("Failed to initialize network: %w", err)
 		}
 	}
-	return interfaceName, ip, nil
+
+	// cheating by sleeping 2 seconds
+	log.Debugf("Waiting for link '%s' to come up", interfaceName)
+	time.Sleep(2 * time.Second)
+
+	return interfaceName, nil
 }

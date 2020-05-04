@@ -13,9 +13,8 @@ type Meta interface {
 	GetPublicIP() string
 	SetDomain(string)
 	GetDomain() string
-	SetNetwork(net.IPNet)
+	SetNetwork(net.IPNet) net.IP
 	GetNetwork() net.IPNet
-	SetInternalIP(net.IP)
 	GetInternalIP() net.IP
 	// crypto related methods
 	GetKey() wgtypes.Key
@@ -30,4 +29,5 @@ type Meta interface {
 	GetAdminUser() string
 	GetVersion() string
 	InitMode() bool
+	WaitForInit() (net.IP, string)
 }
