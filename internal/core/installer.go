@@ -24,13 +24,6 @@ type AppStore interface {
 	Search(key string, value string) (map[string]Installer, error)
 }
 
-// // InstallerCache manages downloaded (local) application installers
-// type InstallerCache interface {
-// 	GetLocalInstallers() (map[string]Installer, error)
-// 	GetLocalInstaller(id string) (Installer, error)
-// 	RemoveLocalInstaller(id string) error
-// }
-
 // Installer represents a Protos installed
 type Installer interface {
 	GetLastVersion() string
