@@ -8,7 +8,7 @@ docker run \
        --rm \
        -ti \
        --privileged \
-       -v "$PWD":/go/src/github.com/protosio/protos \
+       -v "$PWD/../":/go/src/github.com/protosio/protos \
        -v /opt/protos:/opt/protos \
        -v "$PROTOS_FRONTEND_PATH":/protosfrontend \
        -v /var/run/docker.sock:/var/run/docker.sock \
@@ -20,4 +20,4 @@ docker run \
        --hostname protos \
        --network protosnet \
        golang:1.14 \
-       go run --race cmd/protosd/protos.go --loglevel debug --config protos.dev.yaml --dev daemon
+       go run --race cmd/protosd/protos.go --loglevel debug --config configs/protos.dev.yaml --dev daemon

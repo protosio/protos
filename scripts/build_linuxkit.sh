@@ -1,3 +1,3 @@
 #!/bin/sh
 
-linuxkit pkg build -disable-cache ./
+linuxkit pkg build -disable-cache ./build/
