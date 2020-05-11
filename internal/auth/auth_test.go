@@ -16,7 +16,7 @@ func TestUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbMock := mock.NewMockDB(ctrl)
+	dbMock := mock.NewMockDBCLI(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
 	adminCapMock := mock.NewMockCapability(ctrl)
 	um := CreateUserManager(dbMock, cmMock)
@@ -40,14 +40,14 @@ func TestUser(t *testing.T) {
 	//
 
 	// failed db save
-	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("failed to save user to db")).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(errors.New("failed to save user to db")).Times(1)
 	err := user.Save()
 	if err == nil {
 		t.Errorf("Save() should return an error")
 	}
 
 	// success
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	err = user.Save()
 	if err != nil {
 		t.Errorf("Save() should NOT return an error: %s", err.Error())
@@ -108,7 +108,7 @@ func TestUserManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbMock := mock.NewMockDB(ctrl)
+	dbMock := mock.NewMockDBCLI(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
 
 	// one of the inputs is nil
@@ -138,7 +138,7 @@ func TestUserManager(t *testing.T) {
 		}
 
 		// successful non-admin
-		dbMock.EXPECT().Save(gomock.Any()).Times(1)
+		dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Times(1)
 		user, err := um.CreateUser("username", "longpassword", "first last", false, devices)
 		if err != nil {
 			t.Errorf("CreateUser() should NOT return an error: %s", err.Error())
@@ -150,7 +150,7 @@ func TestUserManager(t *testing.T) {
 		}
 
 		// successful admin
-		dbMock.EXPECT().Save(gomock.Any()).Times(1)
+		dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Times(1)
 		user, err = um.CreateUser("username", "longpassword", "first last", true, devices)
 		if err != nil {
 			t.Errorf("CreateUser() should NOT return an error: %s", err.Error())
@@ -168,21 +168,21 @@ func TestUserManager(t *testing.T) {
 
 	t.Run("ValidateAndGetUser", func(t *testing.T) {
 		// failed to retrieve user from db
-		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(errors.New("User db error")).Times(1)
+		dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(errors.New("User db error")).Times(1)
 		_, err := um.ValidateAndGetUser("user", "pass")
 		if err == nil {
 			t.Error("ValidateAndGetUser() should return an errror when the DB fails to retrieve the user")
 		}
 
 		// failed password comparison
-		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(nil).Times(1)
+		dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 		_, err = um.ValidateAndGetUser("user", "pass")
 		if err == nil {
 			t.Error("ValidateAndGetUser() should return an errror when the passwords are different")
 		}
 
 		// user is disabled
-		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
+		dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
 			user := to.(*User)
 			user.Username = username
 			user.Password = "$2a$10$nV4sGvDTq0unZjTEjViGhO0/3wfl6FT32Nh1YLJbTtWQVxrnXF76i"
@@ -194,7 +194,7 @@ func TestUserManager(t *testing.T) {
 		}
 
 		// succesful user validation
-		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
+		dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
 			user := to.(*User)
 			user.Username = username
 			user.Password = "$2a$10$nV4sGvDTq0unZjTEjViGhO0/3wfl6FT32Nh1YLJbTtWQVxrnXF76i"
@@ -213,14 +213,14 @@ func TestUserManager(t *testing.T) {
 
 	t.Run("GetUser", func(t *testing.T) {
 		// failed to retrieve user from db
-		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(errors.New("User db error")).Times(1)
+		dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(errors.New("User db error")).Times(1)
 		_, err := um.GetUser("user")
 		if err == nil {
 			t.Error("GetUser() should return an errror when the DB fails to retrieve the user")
 		}
 
 		// success
-		dbMock.EXPECT().One(gomock.Any(), "user", gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
+		dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1).Do(func(table string, username string, to interface{}) {
 			user := to.(*User)
 			user.Username = username
 			user.IsDisabled = false

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/gob"
+	"fmt"
 
 	"github.com/pkg/errors"
 
@@ -15,6 +16,7 @@ import (
 
 const (
 	userBucket = "user"
+	authDS     = "auth"
 )
 
 var log = util.GetLogger("auth")
@@ -45,6 +47,20 @@ func generatePasswordHash(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 
+func getUser(username string, db core.DBCLI) (User, error) {
+	var users []User
+	err := db.GetSet(authDS, &users)
+	if err != nil {
+		return User{}, err
+	}
+	for _, user := range users {
+		if user.Username == username {
+			return user, nil
+		}
+	}
+	return User{}, fmt.Errorf("Could not find user '%s'", username)
+}
+
 //
 // User instance methods
 //
@@ -57,7 +73,7 @@ func (user *User) GetUsername() string {
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
 	log.Debugf("Writing username %s to database", user.Username)
-	return user.parent.db.Save(user)
+	return user.parent.db.InsertInSet(authDS, user)
 }
 
 // ValidateCapability implements the capability checker interface
@@ -102,12 +118,12 @@ func (user *User) GetDevices() []types.UserDevice {
 
 // UserManager implements the core.UserManager interface, which manages users
 type UserManager struct {
-	db core.DB
+	db core.DBCLI
 	cm core.CapabilityManager
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
+func CreateUserManager(db core.DBCLI, cm core.CapabilityManager) *UserManager {
 	if db == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
@@ -144,12 +160,18 @@ func (um *UserManager) ValidateAndGetUser(username string, password string) (cor
 	log.Debugf("Searching for username %s", username)
 
 	errInvalid := errors.New("Invalid credentials")
-	var user User
-	err := um.db.One("Username", username, &user)
+
+	user, err := getUser(username, um.db)
 	if err != nil {
 		log.Debugf("Can't find user '%s' (%s)", username, err)
 		return nil, errInvalid
 	}
+
+	// err := um.db.One("Username", username, &user)
+	// if err != nil {
+	// 	log.Debugf("Can't find user '%s' (%s)", username, err)
+	// 	return nil, errInvalid
+	// }
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
@@ -170,8 +192,7 @@ func (um *UserManager) ValidateAndGetUser(username string, password string) (cor
 // GetUser returns a user based on the username
 func (um *UserManager) GetUser(username string) (core.User, error) {
 	errInvalid := errors.New("Invalid username")
-	var user User
-	err := um.db.One("Username", username, &user)
+	user, err := getUser(username, um.db)
 	if err != nil {
 		log.Debugf("Can't find user '%s' (%s)", username, err)
 		return nil, errInvalid

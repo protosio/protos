@@ -48,8 +48,9 @@ type Config struct {
 
 // App represents the application state
 type App struct {
-	access *sync.Mutex
-	parent appParent
+	access *sync.Mutex        `noms:"-"`
+	parent appParent          `noms:"-"`
+	msgq   *core.WSConnection `noms:"-"`
 
 	// Public members
 	Name              string                 `json:"name"`
@@ -67,7 +68,6 @@ type App struct {
 	Capabilities      []string               `json:"capabilities"`
 	Resources         []string               `json:"resources"`
 	Tasks             []string               `json:"tasks"`
-	msgq              *core.WSConnection
 }
 
 //

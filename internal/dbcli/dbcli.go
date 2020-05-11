@@ -8,20 +8,11 @@ import (
 	"github.com/attic-labs/noms/go/nbs"
 	"github.com/attic-labs/noms/go/types"
 	"github.com/attic-labs/noms/go/util/clienttest"
+	"github.com/protosio/protos/internal/core"
 )
 
-// DB represents a DB client instance, used to interract with the database
-type DB interface {
-	SaveStruct(dataset string, data interface{}) error
-	GetStruct(dataset string, to interface{}) error
-	GetSet(dataset string, to interface{}) error
-	InsertInSet(dataset string, data interface{}) error
-	RemoveFromSet(dataset string, data interface{}) error
-	Close() error
-}
-
 // Open opens a noms database on the provided path
-func Open(protosDir string, protosDB string) (DB, error) {
+func Open(protosDir string, protosDB string) (core.DBCLI, error) {
 	dir := fmt.Sprintf("%s/%s", protosDir, protosDB)
 	db := datas.NewDatabase(nbs.NewLocalStore(dir, clienttest.DefaultMemTableSize))
 	return &dbNoms{dbn: db}, nil

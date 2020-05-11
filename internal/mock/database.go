@@ -137,3 +137,110 @@ func (mr *MockDBMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDB)(nil).Close))
 }
+
+// MockDBCLI is a mock of DBCLI interface
+type MockDBCLI struct {
+	ctrl     *gomock.Controller
+	recorder *MockDBCLIMockRecorder
+}
+
+// MockDBCLIMockRecorder is the mock recorder for MockDBCLI
+type MockDBCLIMockRecorder struct {
+	mock *MockDBCLI
+}
+
+// NewMockDBCLI creates a new mock instance
+func NewMockDBCLI(ctrl *gomock.Controller) *MockDBCLI {
+	mock := &MockDBCLI{ctrl: ctrl}
+	mock.recorder = &MockDBCLIMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockDBCLI) EXPECT() *MockDBCLIMockRecorder {
+	return m.recorder
+}
+
+// SaveStruct mocks base method
+func (m *MockDBCLI) SaveStruct(dataset string, data interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveStruct", dataset, data)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveStruct indicates an expected call of SaveStruct
+func (mr *MockDBCLIMockRecorder) SaveStruct(dataset, data interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveStruct", reflect.TypeOf((*MockDBCLI)(nil).SaveStruct), dataset, data)
+}
+
+// GetStruct mocks base method
+func (m *MockDBCLI) GetStruct(dataset string, to interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStruct", dataset, to)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GetStruct indicates an expected call of GetStruct
+func (mr *MockDBCLIMockRecorder) GetStruct(dataset, to interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStruct", reflect.TypeOf((*MockDBCLI)(nil).GetStruct), dataset, to)
+}
+
+// GetSet mocks base method
+func (m *MockDBCLI) GetSet(dataset string, to interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSet", dataset, to)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GetSet indicates an expected call of GetSet
+func (mr *MockDBCLIMockRecorder) GetSet(dataset, to interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSet", reflect.TypeOf((*MockDBCLI)(nil).GetSet), dataset, to)
+}
+
+// InsertInSet mocks base method
+func (m *MockDBCLI) InsertInSet(dataset string, data interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertInSet", dataset, data)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertInSet indicates an expected call of InsertInSet
+func (mr *MockDBCLIMockRecorder) InsertInSet(dataset, data interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertInSet", reflect.TypeOf((*MockDBCLI)(nil).InsertInSet), dataset, data)
+}
+
+// RemoveFromSet mocks base method
+func (m *MockDBCLI) RemoveFromSet(dataset string, data interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveFromSet", dataset, data)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveFromSet indicates an expected call of RemoveFromSet
+func (mr *MockDBCLIMockRecorder) RemoveFromSet(dataset, data interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSet", reflect.TypeOf((*MockDBCLI)(nil).RemoveFromSet), dataset, data)
+}
+
+// Close mocks base method
+func (m *MockDBCLI) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockDBCLIMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDBCLI)(nil).Close))
+}

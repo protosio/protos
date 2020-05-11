@@ -12,6 +12,10 @@ import (
 	"github.com/rs/xid"
 )
 
+const (
+	appDS = "app"
+)
+
 type appStore interface {
 	GetInstaller(id string) (core.Installer, error)
 }
@@ -28,7 +32,7 @@ type dnsResource interface {
 type Map struct {
 	access *sync.Mutex
 	apps   map[string]*App
-	db     core.DB
+	db     core.DBCLI
 }
 
 // put saves an application into the application map
@@ -56,7 +60,7 @@ func (am Map) remove(id string) error {
 	if found == false {
 		return fmt.Errorf("Could not find app %s", id)
 	}
-	err := am.db.Remove(app)
+	err := am.db.RemoveFromSet(appDS, app)
 	if err != nil {
 		log.Panicf("Failed to remove app from db: %s", err.Error())
 	}
@@ -85,7 +89,7 @@ type Manager struct {
 	rm          core.ResourceManager
 	tm          core.TaskManager
 	m           core.Meta
-	db          core.DB
+	db          core.DBCLI
 	cm          core.CapabilityManager
 	platform    core.RuntimePlatform
 	wspublisher core.WSPublisher
@@ -96,7 +100,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher, appStore appStore, cm core.CapabilityManager) *Manager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DBCLI, meta core.Meta, wspublisher core.WSPublisher, appStore appStore, cm core.CapabilityManager) *Manager {
 
 	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
@@ -107,7 +111,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 	gob.Register(&core.InstallerMetadata{})
 
 	dbapps := []*App{}
-	err := db.All(&dbapps)
+	err := db.GetSet(appDS, &dbapps)
 	if err != nil {
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
@@ -319,7 +323,7 @@ func (am *Manager) saveApp(app *App) {
 	app.access.Unlock()
 	papp.access = nil
 	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
-	err := am.db.Save(&papp)
+	err := am.db.InsertInSet(appDS, papp)
 	if err != nil {
 		log.Panic(errors.Wrap(err, "Could not save app to database"))
 	}
