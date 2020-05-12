@@ -8,6 +8,10 @@ import (
 	"github.com/protosio/protos/internal/util"
 )
 
+const (
+	providerDS = "provider"
+)
+
 var log = util.GetLogger("provider")
 
 //
@@ -16,9 +20,11 @@ var log = util.GetLogger("provider")
 
 // Provider defines a Protos resource provider
 type Provider struct {
+	rm core.ResourceManager `noms:"-"`
+
+	// Public members
 	Type  core.ResourceType `storm:"id"`
 	AppID string
-	rm    core.ResourceManager
 }
 
 // Manager keeps track of all the providers
@@ -35,10 +41,8 @@ func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Man
 	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
 	providers[core.Mail] = &Provider{Type: core.Mail, rm: rm}
 
-	db.Register(&Provider{})
-
 	prvs := []Provider{}
-	err := db.All(&prvs)
+	err := db.GetSet(providerDS, &prvs)
 	if err != nil {
 		log.Fatalf("Could not retrieve providers from the database: %s", err.Error())
 	}
@@ -66,7 +70,7 @@ func (pm *Manager) Register(app core.App, rtype core.ResourceType) error {
 
 	log.Info("Registering provider for resource " + string(rtype))
 	pm.providers[rtype].AppID = app.GetID()
-	err := pm.db.Save(pm.providers[rtype])
+	err := pm.db.InsertInSet(providerDS, pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}
@@ -83,7 +87,7 @@ func (pm *Manager) Deregister(app core.App, rtype core.ResourceType) error {
 
 	log.Infof("Deregistering application %s(%s) as a provider for %s", app.GetName(), app.GetID(), string(rtype))
 	pm.providers[rtype].AppID = ""
-	err := pm.db.Save(pm.providers[rtype])
+	err := pm.db.InsertInSet(providerDS, pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}

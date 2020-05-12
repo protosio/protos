@@ -16,11 +16,22 @@ import (
 	"github.com/protosio/protos/internal/util"
 )
 
+const (
+	metaDS = "meta"
+)
+
 var log = util.GetLogger("meta")
 var gconfig = config.Get()
 
 // Meta contains information about the Protos instance
 type Meta struct {
+	rm               core.ResourceManager `noms:"-"`
+	db               core.DB              `noms:"-"`
+	version          string               `noms:"-"`
+	networkSetSignal chan net.IP          `noms:"-"`
+	domainSetSignal  chan string          `noms:"-"`
+
+	// Public members
 	ID                 string
 	Domain             string
 	DashboardSubdomain string
@@ -30,13 +41,6 @@ type Meta struct {
 	Network            net.IPNet
 	InternalIP         net.IP
 	PrivateKey         wgtypes.Key
-
-	// elements that are not persisted in the DB
-	rm               core.ResourceManager
-	db               core.DB
-	version          string
-	networkSetSignal chan net.IP
-	domainSetSignal  chan string
 }
 
 type dnsResource interface {
@@ -52,7 +56,7 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 
 	metaRoot := Meta{}
 	log.Debug("Reading instance information from database")
-	err := db.One("ID", "metaroot", &metaRoot)
+	err := db.GetStruct(metaDS, &metaRoot)
 	if err != nil {
 		log.Debug("Creating metaroot database entry")
 		metaRoot = Meta{
@@ -78,7 +82,7 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 	metaRoot.version = version
 	metaRoot.networkSetSignal = make(chan net.IP, 1)
 	metaRoot.domainSetSignal = make(chan string, 1)
-	err = db.Save(&metaRoot)
+	err = db.SaveStruct(metaDS, metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
 	}
@@ -87,7 +91,7 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 }
 
 func (m *Meta) save() {
-	err := m.db.Save(m)
+	err := m.db.SaveStruct(metaDS, *m)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot domain to database: %s", err.Error())
 	}

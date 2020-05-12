@@ -23,7 +23,6 @@ func TestAppManager(t *testing.T) {
 	tmMock := mock.NewMockTaskManager(ctrl)
 	rpMock := mock.NewMockRuntimePlatform(ctrl)
 	dbMock := mock.NewMockDB(ctrl)
-	dbcliMock := mock.NewMockDBCLI(ctrl)
 	wspMock := mock.NewMockWSPublisher(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
 	metaMock := mock.NewMockMeta(ctrl)
@@ -34,7 +33,7 @@ func TestAppManager(t *testing.T) {
 	c := make(chan interface{}, 10)
 
 	// test app manager creation and initial app loading from db
-	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
+	dbMock.EXPECT().GetSet(appDS, gomock.Any()).Return(nil).Times(1).
 		Do(func(to interface{}) {
 			apps := to.(*[]*App)
 			*apps = append(*apps,
@@ -51,11 +50,11 @@ func TestAppManager(t *testing.T) {
 				t.Errorf("A nil input in the CreateManager call should lead to a panic")
 			}
 		}()
-		CreateManager(rmMock, nil, rpMock, dbcliMock, metaMock, wspMock, nil, cmMock)
+		CreateManager(rmMock, nil, rpMock, dbMock, metaMock, wspMock, nil, cmMock)
 	}()
 
 	// happy case
-	am := CreateManager(rmMock, tmMock, rpMock, dbcliMock, metaMock, wspMock, appStoreMock, cmMock)
+	am := CreateManager(rmMock, tmMock, rpMock, dbMock, metaMock, wspMock, appStoreMock, cmMock)
 
 	//
 	// GetCopy
@@ -181,10 +180,10 @@ func TestAppManager(t *testing.T) {
 		rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(1)
 		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(1)
 		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
-		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+		dbMock.EXPECT().InsertInSet(appDS, gomock.Any()).Return(nil).Times(1)
 		app, err := am.Create("a", "b", "c", map[string]string{}, core.InstallerMetadata{})
 
-		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
+		dbMock.EXPECT().RemoveFromSet(appDS, gomock.Any()).Return(nil).Times(1)
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
 		rpMock.EXPECT().CleanUpSandbox(gomock.Any()).Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
@@ -246,7 +245,7 @@ func TestAppManager(t *testing.T) {
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
 		rpMock.EXPECT().CleanUpSandbox(gomock.Any()).Return(nil).Times(1)
-		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
+		dbMock.EXPECT().RemoveFromSet(appDS, gomock.Any()).Return(nil).Times(1)
 		err = am.Remove("id2")
 		if err != nil {
 			t.Errorf("Remove(id2) should NOT return an error: %s", err.Error())
@@ -280,11 +279,11 @@ func TestAppManager(t *testing.T) {
 		rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
 
 		// happy path
-		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+		dbMock.EXPECT().InsertInSet(appDS, gomock.Any()).Return(nil).Times(1)
 		am.saveApp(app2)
 
 		// db error should lead to panic
-		dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("test db error")).Times(1)
+		dbMock.EXPECT().InsertInSet(appDS, gomock.Any()).Return(errors.New("test db error")).Times(1)
 		func() {
 			defer func() {
 				r := recover()
@@ -312,7 +311,7 @@ func TestAppManager(t *testing.T) {
 		rmMock.EXPECT().Select(gomock.Any()).Return(map[string]core.Resource{}).Times(2)
 		cmMock.EXPECT().GetByName("PublicDNS").Return(capMock, nil).Times(1)
 		capMock.EXPECT().GetName().Return("PublicDNS").Times(1)
-		dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(2)
+		dbMock.EXPECT().InsertInSet(appDS, gomock.Any()).Return(nil).Times(2)
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
 		pruMock.EXPECT().GetStatus().Return("exited").Times(1)
 		app, err := am.CreateDevApp("c", core.InstallerMetadata{}, map[string]string{})
@@ -322,7 +321,7 @@ func TestAppManager(t *testing.T) {
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
 		rpMock.EXPECT().CleanUpSandbox(gomock.Any()).Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
-		dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
+		dbMock.EXPECT().RemoveFromSet(appDS, gomock.Any()).Return(nil).Times(1)
 		am.Remove(app.GetID())
 	})
 

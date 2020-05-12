@@ -6,7 +6,7 @@ import (
 	osuser "os/user"
 
 	"github.com/pkg/errors"
-	dbcli "github.com/protosio/protos/internal/dbcli"
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/env"
 	"github.com/protosio/protos/internal/user"
 	"github.com/sirupsen/logrus"
@@ -101,7 +101,7 @@ func config(currentCmd string, logLevel string) {
 	protosDir := homedir + "/.protos"
 	protosDB := "protos.db"
 
-	dbi, err := dbcli.Open(protosDir, protosDB)
+	dbi, err := db.Open(protosDir, protosDB)
 	if err != nil {
 		log.Fatal(err)
 	}

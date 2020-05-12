@@ -13,8 +13,7 @@ import (
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/config"
-	"github.com/protosio/protos/internal/database"
-	"github.com/protosio/protos/internal/dbcli"
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
@@ -46,25 +45,22 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	go catchSignals(sigs, &wg)
 
 	// open databse
-	db := database.GetDatabase()
-	db.Open()
-	defer db.Close()
-	dbcli, err := dbcli.Open(cfg.WorkDir, "db")
+	dbcli, err := db.Open(cfg.WorkDir, "db")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer dbcli.Close()
 
 	// create all the managers
-	rm := resource.CreateManager(db)
-	m := meta.Setup(rm, db, version.String())
+	rm := resource.CreateManager(dbcli)
+	m := meta.Setup(rm, dbcli, version.String())
 	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, m.GetKey())
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, cm)
-	tm := task.CreateManager(db, cfg)
+	tm := task.CreateManager(dbcli, cfg)
 	as := installer.CreateAppStore(p, tm, cm)
 	am := app.CreateManager(rm, tm, p, dbcli, m, cfg, as, cm)
-	pm := provider.CreateManager(rm, am, db)
+	pm := provider.CreateManager(rm, am, dbcli)
 
 	// check init and dev mode
 

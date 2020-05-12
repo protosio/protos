@@ -22,14 +22,13 @@ func TestTaskManager(t *testing.T) {
 	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(1)
 
 	dbMock := mock.NewMockDB(ctrl)
-	dbMock.EXPECT().Register(gomock.Any()).Return().Times(2)
-	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
+	dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1).
 		Do(func(to interface{}) {
 			tasks := to.(*[]Base)
 			*tasks = append(*tasks, Base{ID: "0001", Status: INPROGRESS}, Base{ID: "0002", Status: FINISHED}, Base{ID: "0003", Status: REQUESTED})
 		})
 	// Save() gets called only once because only the tasks with INPROGRESS status get changed and saved
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	tm := CreateManager(dbMock, wsPublisherMock)
 
@@ -77,7 +76,7 @@ func TestTaskManager(t *testing.T) {
 
 	// test if saveTask makes all the right calls
 	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(1)
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	tm.saveTask(&Base{ID: "0004", Status: INPROGRESS, access: &sync.Mutex{}})
 
 	msg2 := (<-wschan).(util.WSMessage)
@@ -92,7 +91,7 @@ func TestTaskManager(t *testing.T) {
 	// testing the creation of a new task
 	// Note: the wait() needs to be called on the newly created task or else the test fails because
 	// it continues to run while the task runs in a separate routine
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(3)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(3)
 	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(3)
 	customTask := mock.NewMockCustomTask(ctrl)
 	customTask.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
@@ -113,7 +112,7 @@ func TestTaskManager(t *testing.T) {
 	}
 
 	// test db failure during saveTask
-	dbMock.EXPECT().Save(gomock.Any()).Return(errors.New("test db error")).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(errors.New("test db error")).Times(1)
 	func() {
 		defer func() {
 			r := recover()
@@ -131,14 +130,13 @@ func TestTask(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbMock := mock.NewMockDB(ctrl)
-	dbMock.EXPECT().Register(gomock.Any()).Return().Times(2)
-	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
+	dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1).
 		Do(func(to interface{}) {
 			tasks := to.(*[]Base)
 			*tasks = append(*tasks, Base{ID: "0001", Status: INPROGRESS}, Base{ID: "0002", Status: FINISHED}, Base{ID: "0003", Status: REQUESTED})
 		})
 	// Save() gets called only once because only the tasks with INPROGRESS status get changed and saved
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	wsPublisherMock := mock.NewMockwsPublisher(ctrl)
 	wschan := make(chan interface{}, 100)
@@ -157,7 +155,7 @@ func TestTask(t *testing.T) {
 		Name:      "taskName",
 		Status:    REQUESTED,
 		Progress:  Progress{Percentage: 0},
-		StartedAt: &ts,
+		StartedAt: ts,
 
 		killable: nil,
 		finish:   make(chan error, 1),
@@ -233,7 +231,7 @@ func TestTask(t *testing.T) {
 
 	// tests for Save() behaviour
 	wsPublisherMock.EXPECT().GetWSPublishChannel().Return(wschan).Times(1)
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	task.Save()
 
 	// tests for Run() behaviour are implemented in the previous method because a task is

@@ -11,6 +11,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	resourceDS = "resource"
+)
+
 // resourceContainer is a thread safe application map
 type resourceContainer struct {
 	access *sync.Mutex
@@ -43,7 +47,7 @@ func (rc resourceContainer) remove(id string) error {
 	if found == false {
 		return fmt.Errorf("Could not find resource '%s'", id)
 	}
-	err := rc.db.Remove(rsc)
+	err := rc.db.RemoveFromSet(resourceDS, *rsc)
 	if err != nil {
 		log.Panicf("Failed to remove resource from db: %s", err.Error())
 	}
@@ -82,13 +86,10 @@ func CreateManager(db core.DB) *Manager {
 	}
 
 	log.Debug("Retrieving resources from DB")
-	db.Register(&Resource{})
-	db.Register(&DNSResource{})
-	db.Register(&CertificateResource{})
 	manager := &Manager{db: db}
 
 	rscs := []Resource{}
-	err := db.All(&rscs)
+	err := db.GetSet(resourceDS, &rscs)
 	if err != nil {
 		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
 	}

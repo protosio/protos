@@ -7,12 +7,12 @@ import (
 
 // Env is a struct that containts program dependencies that get injected in other modules
 type Env struct {
-	DB  core.DBCLI
+	DB  core.DB
 	Log *logrus.Logger
 }
 
 // New creates and returns an instance of Env
-func New(db core.DBCLI, log *logrus.Logger) *Env {
+func New(db core.DB, log *logrus.Logger) *Env {
 
 	if db == nil || log == nil {
 		panic("env: db || log should not be nil")

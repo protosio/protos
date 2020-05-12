@@ -1,4 +1,4 @@
-package dbcli
+package db
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 )
 
 // Open opens a noms database on the provided path
-func Open(protosDir string, protosDB string) (core.DBCLI, error) {
+func Open(protosDir string, protosDB string) (core.DB, error) {
 	dbpath := path.Join(protosDir, protosDB)
 	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
 		err := os.Mkdir(dbpath, os.ModeDir)

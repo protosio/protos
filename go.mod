@@ -9,11 +9,11 @@ replace github.com/docker/docker => github.com/docker/engine v1.4.2-0.2018081608
 require (
 	cuelang.org/go v0.1.2
 	github.com/AlecAivazis/survey/v2 v2.0.7
-	github.com/DataDog/zstd v1.4.5 // indirect
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/go-winio v0.4.14 // indirect
+	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
-	github.com/asdine/storm v2.1.2+incompatible
 	github.com/attic-labs/noms v0.0.0-20200410174738-39057233bfdd
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200119201711-987556b8bdd7
 	github.com/cnf/structhash v0.0.0-20180104161610-62a607eb0224
@@ -37,6 +37,7 @@ require (
 	github.com/jinzhu/copier v0.0.0-20190625015134-976e0346caa8
 	github.com/miekg/dns v1.1.22
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
+	github.com/nbio/st v0.0.0-20140626010706-e9e8d9816f32 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/pkg/errors v0.9.1
@@ -59,5 +60,6 @@ require (
 	gopkg.in/h2non/baloo.v3 v3.0.2
 	gopkg.in/h2non/gentleman.v2 v2.0.4 // indirect
 	gopkg.in/yaml.v2 v2.2.8
+	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/cri-api v0.18.0
 )

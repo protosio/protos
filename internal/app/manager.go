@@ -32,7 +32,7 @@ type dnsResource interface {
 type Map struct {
 	access *sync.Mutex
 	apps   map[string]*App
-	db     core.DBCLI
+	db     core.DB
 }
 
 // put saves an application into the application map
@@ -89,7 +89,7 @@ type Manager struct {
 	rm          core.ResourceManager
 	tm          core.TaskManager
 	m           core.Meta
-	db          core.DBCLI
+	db          core.DB
 	cm          core.CapabilityManager
 	platform    core.RuntimePlatform
 	wspublisher core.WSPublisher
@@ -100,7 +100,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DBCLI, meta core.Meta, wspublisher core.WSPublisher, appStore appStore, cm core.CapabilityManager) *Manager {
+func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher, appStore appStore, cm core.CapabilityManager) *Manager {
 
 	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")

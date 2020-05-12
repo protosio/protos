@@ -15,13 +15,12 @@ func TestResourceManager(t *testing.T) {
 
 	rscVal := &DNSResource{Host: "protos.io"}
 	dbMock := mock.NewMockDB(ctrl)
-	dbMock.EXPECT().Register(gomock.Any()).Return().Times(3)
-	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
+	dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1).
 		Do(func(to interface{}) {
 			rs := to.(*[]Resource)
 			*rs = append(*rs, Resource{ID: "0001"}, Resource{ID: "0002"}, Resource{ID: "0003"})
 		})
-	dbMock.EXPECT().Remove(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().RemoveFromSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	// one of the inputs is nil
 	func() {
@@ -41,7 +40,7 @@ func TestResourceManager(t *testing.T) {
 	//
 
 	t.Run("Create", func(t *testing.T) {
-		dbMock.EXPECT().Save(gomock.Any()).Times(1)
+		dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Times(1)
 		_, err := rm.Create(core.DNS, rscVal, "testApp")
 		if err != nil {
 			t.Errorf("Create should NOT return an error: %s", err.Error())
@@ -71,7 +70,7 @@ func TestResourceManager(t *testing.T) {
 			t.Error("CreateFromJSON should return an error when a resource with the same hash already exists")
 		}
 
-		dbMock.EXPECT().Save(gomock.Any()).Times(1)
+		dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Times(1)
 		jsonResource3 := []byte("{\"type\": \"dns\", \"value\": {\"host\": \"protos.com\"}}")
 		_, err = rm.CreateFromJSON(jsonResource3, "testApp")
 		if err != nil {
@@ -137,9 +136,8 @@ func TestResoureCreatorAndResource(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbMock := mock.NewMockDB(ctrl)
-	dbMock.EXPECT().Register(gomock.Any()).Return().Times(3)
-	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1)
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(5)
+	dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(5)
 
 	rm := CreateManager(dbMock)
 

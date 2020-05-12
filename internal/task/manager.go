@@ -13,6 +13,10 @@ import (
 	"github.com/rs/xid"
 )
 
+const (
+	taskDS = "task"
+)
+
 // taskContainer is a thread safe tasks map
 type taskContainer struct {
 	access *sync.Mutex
@@ -100,11 +104,9 @@ func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
 	}
 
 	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
-	db.Register(&Base{})
-	db.Register(&util.ProtosTime{})
 
 	dbtasks := []Base{}
-	err := db.All(&dbtasks)
+	err := db.GetSet(taskDS, &dbtasks)
 	if err != nil {
 		log.Fatal("Could not retrieve tasks from database: ", err)
 	}
@@ -144,7 +146,7 @@ func (tm *Manager) New(name string, ct core.CustomTask) core.Task {
 		Name:      name,
 		Status:    REQUESTED,
 		Progress:  Progress{Percentage: 0},
-		StartedAt: &ts,
+		StartedAt: ts,
 
 		killable: nil,
 		finish:   make(chan error, 1),
@@ -190,7 +192,7 @@ func (tm *Manager) saveTask(btsk *Base) {
 	btsk.access.Lock()
 	ltask := *btsk
 	btsk.access.Unlock()
-	err := tm.db.Save(&ltask)
+	err := tm.db.InsertInSet(taskDS, ltask)
 	if err != nil {
 		log.Panic(errors.Wrapf(err, "Could not save task %s to database", ltask.ID))
 	}

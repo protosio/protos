@@ -49,7 +49,7 @@ func generatePasswordHash(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 
-func getUser(username string, db core.DBCLI) (User, error) {
+func getUser(username string, db core.DB) (User, error) {
 	var users []User
 	err := db.GetSet(authDS, &users)
 	if err != nil {
@@ -120,12 +120,12 @@ func (user *User) GetDevices() []types.UserDevice {
 
 // UserManager implements the core.UserManager interface, which manages users
 type UserManager struct {
-	db core.DBCLI
+	db core.DB
 	cm core.CapabilityManager
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db core.DBCLI, cm core.CapabilityManager) *UserManager {
+func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
 	if db == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}

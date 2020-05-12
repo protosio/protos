@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/attic-labs/noms/go/marshal"
+	"github.com/attic-labs/noms/go/types"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 )
@@ -13,12 +15,13 @@ var log = util.GetLogger("resource")
 // Resource is the internal abstract representation of things like DNS or TLS certificates.
 // Anything that is required for an application to run correctly could and should be modeled as a resource. Think DNS, TLS, IPs, PORTs etc.
 type Resource struct {
-	access *sync.Mutex
-	parent *Manager
+	access *sync.Mutex `noms:"-"`
+	parent *Manager    `noms:"-"`
 
+	// Public members
 	ID     string              `json:"id" hash:"-"`
 	Type   core.ResourceType   `json:"type"`
-	Value  core.ResourceValue  `json:"value"`
+	Value  core.ResourceValue  `json:"value" noms:"omitempty"`
 	Status core.ResourceStatus `json:"status"`
 	App    string              `json:"app"`
 }
@@ -40,7 +43,7 @@ func (rsc *Resource) GetAppID() string {
 // Save persists application data to database
 func (rsc *Resource) Save() {
 	rsc.access.Lock()
-	err := rsc.parent.db.Save(rsc)
+	err := rsc.parent.db.InsertInSet(resourceDS, *rsc)
 	rsc.access.Unlock()
 	if err != nil {
 		log.Panicf("Failed to save resource to db: %s", err.Error())
@@ -114,5 +117,15 @@ func (rsc *Resource) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	rsc.Value = resourceStruct
+	return nil
+}
+
+// MarshalNoms encodes the resource into a noms value type
+func (rsc *Resource) MarshalNoms(vrw types.ValueReadWriter) (val types.Value, err error) {
+	return marshal.Marshal(vrw, *rsc)
+}
+
+// UnmarshalNoms decodes the resource value from a noms value type
+func (rsc *Resource) UnmarshalNoms(v types.Value) error {
 	return nil
 }

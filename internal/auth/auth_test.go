@@ -16,7 +16,7 @@ func TestUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbMock := mock.NewMockDBCLI(ctrl)
+	dbMock := mock.NewMockDB(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
 	adminCapMock := mock.NewMockCapability(ctrl)
 	um := CreateUserManager(dbMock, cmMock)
@@ -108,7 +108,7 @@ func TestUserManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbMock := mock.NewMockDBCLI(ctrl)
+	dbMock := mock.NewMockDB(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
 
 	// one of the inputs is nil

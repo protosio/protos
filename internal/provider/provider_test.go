@@ -24,8 +24,7 @@ func TestProviderManager(t *testing.T) {
 	//
 
 	// Testing provider manager creation
-	dbMock.EXPECT().Register(gomock.Any()).Return().Times(1)
-	dbMock.EXPECT().All(gomock.Any()).Return(nil).Times(1).
+	dbMock.EXPECT().GetSet(gomock.Any(), gomock.Any()).Return(nil).Times(1).
 		Do(func(to interface{}) {
 			providers := to.(*[]Provider)
 			*providers = append(*providers, Provider{Type: core.DNS})
@@ -34,7 +33,7 @@ func TestProviderManager(t *testing.T) {
 
 	// If no app is registered as a provider for DNS, registration should be successful
 	appMock.EXPECT().GetID().Return("appid01").Times(1)
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	err := pm.Register(appMock, core.DNS)
 	if err != nil {
 		t.Error("pm.Register should not fail: ", err.Error())
@@ -56,7 +55,7 @@ func TestProviderManager(t *testing.T) {
 	appMock.EXPECT().GetID().Return("appid02").Times(1)
 	amMock.EXPECT().Read(gomock.Any()).Return(nil, errors.New("")).Times(1)
 	appMock.EXPECT().GetID().Return("appid01").Times(1)
-	dbMock.EXPECT().Save(gomock.Any()).Return(nil).Times(1)
+	dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	err = pm.Register(appMock, core.DNS)
 	if err != nil {
 		t.Error("pm.Register should not fail when non-existent app is registered as a provider ")

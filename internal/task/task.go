@@ -37,24 +37,22 @@ type Progress struct {
 
 // Base represents an (a)synchronous piece of work that Protos acts upon
 type Base struct {
-	access *sync.Mutex
-	custom core.CustomTask
-	parent *Manager
+	access   *sync.Mutex       `noms:"-"`
+	custom   core.CustomTask   `noms:"-"`
+	parent   *Manager          `noms:"-"`
+	killable killable.Killable `noms:"-"`
+	finish   chan error        `noms:"-"`
+	err      error             `noms:"-"`
 
 	// public members
-	ID         string           `json:"id"`
-	Name       string           `json:"name"`
-	Status     string           `json:"status"`
-	Progress   Progress         `json:"progress"`
-	StartedAt  *util.ProtosTime `json:"started-at,omitempty"`
-	FinishedAt *util.ProtosTime `json:"finished-at,omitempty"`
-	Children   []string         `json:"-"`
-	Apps       []string         `json:"apps"`
-	err        error
-
-	// Communication channels
-	killable killable.Killable
-	finish   chan error
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	Status     string          `json:"status"`
+	Progress   Progress        `json:"progress"`
+	StartedAt  util.ProtosTime `json:"started-at,omitempty"`
+	FinishedAt util.ProtosTime `json:"finished-at,omitempty"`
+	Children   []string        `json:"-"`
+	Apps       []string        `json:"apps"`
 }
 
 // GetID returns the id of the task
@@ -163,7 +161,7 @@ func (b *Base) Run() {
 	b.access.Lock()
 	b.Progress.Percentage = 100
 	ts := util.ProtosTime(time.Now())
-	b.FinishedAt = &ts
+	b.FinishedAt = ts
 	if err != nil {
 		log.WithField("proc", b.ID).Errorf("Failed to finish task '%s': %s", b.ID, err.Error())
 		b.Progress.State = err.Error()

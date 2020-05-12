@@ -5,8 +5,9 @@
 package mock
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockDB is a mock of DB interface
@@ -32,137 +33,8 @@ func (m *MockDB) EXPECT() *MockDBMockRecorder {
 	return m.recorder
 }
 
-// Exists mocks base method
-func (m *MockDB) Exists() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Exists")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Exists indicates an expected call of Exists
-func (mr *MockDBMockRecorder) Exists() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exists", reflect.TypeOf((*MockDB)(nil).Exists))
-}
-
-// Save mocks base method
-func (m *MockDB) Save(arg0 interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Save", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Save indicates an expected call of Save
-func (mr *MockDBMockRecorder) Save(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockDB)(nil).Save), arg0)
-}
-
-// One mocks base method
-func (m *MockDB) One(fieldName string, value, to interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "One", fieldName, value, to)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// One indicates an expected call of One
-func (mr *MockDBMockRecorder) One(fieldName, value, to interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "One", reflect.TypeOf((*MockDB)(nil).One), fieldName, value, to)
-}
-
-// All mocks base method
-func (m *MockDB) All(to interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "All", to)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// All indicates an expected call of All
-func (mr *MockDBMockRecorder) All(to interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "All", reflect.TypeOf((*MockDB)(nil).All), to)
-}
-
-// Remove mocks base method
-func (m *MockDB) Remove(data interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Remove", data)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Remove indicates an expected call of Remove
-func (mr *MockDBMockRecorder) Remove(data interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockDB)(nil).Remove), data)
-}
-
-// Register mocks base method
-func (m *MockDB) Register(arg0 interface{}) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Register", arg0)
-}
-
-// Register indicates an expected call of Register
-func (mr *MockDBMockRecorder) Register(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockDB)(nil).Register), arg0)
-}
-
-// Open mocks base method
-func (m *MockDB) Open() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Open")
-}
-
-// Open indicates an expected call of Open
-func (mr *MockDBMockRecorder) Open() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDB)(nil).Open))
-}
-
-// Close mocks base method
-func (m *MockDB) Close() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Close")
-}
-
-// Close indicates an expected call of Close
-func (mr *MockDBMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDB)(nil).Close))
-}
-
-// MockDBCLI is a mock of DBCLI interface
-type MockDBCLI struct {
-	ctrl     *gomock.Controller
-	recorder *MockDBCLIMockRecorder
-}
-
-// MockDBCLIMockRecorder is the mock recorder for MockDBCLI
-type MockDBCLIMockRecorder struct {
-	mock *MockDBCLI
-}
-
-// NewMockDBCLI creates a new mock instance
-func NewMockDBCLI(ctrl *gomock.Controller) *MockDBCLI {
-	mock := &MockDBCLI{ctrl: ctrl}
-	mock.recorder = &MockDBCLIMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockDBCLI) EXPECT() *MockDBCLIMockRecorder {
-	return m.recorder
-}
-
 // SaveStruct mocks base method
-func (m *MockDBCLI) SaveStruct(dataset string, data interface{}) error {
+func (m *MockDB) SaveStruct(dataset string, data interface{}) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SaveStruct", dataset, data)
 	ret0, _ := ret[0].(error)
@@ -170,13 +42,13 @@ func (m *MockDBCLI) SaveStruct(dataset string, data interface{}) error {
 }
 
 // SaveStruct indicates an expected call of SaveStruct
-func (mr *MockDBCLIMockRecorder) SaveStruct(dataset, data interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) SaveStruct(dataset, data interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveStruct", reflect.TypeOf((*MockDBCLI)(nil).SaveStruct), dataset, data)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveStruct", reflect.TypeOf((*MockDB)(nil).SaveStruct), dataset, data)
 }
 
 // GetStruct mocks base method
-func (m *MockDBCLI) GetStruct(dataset string, to interface{}) error {
+func (m *MockDB) GetStruct(dataset string, to interface{}) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStruct", dataset, to)
 	ret0, _ := ret[0].(error)
@@ -184,13 +56,13 @@ func (m *MockDBCLI) GetStruct(dataset string, to interface{}) error {
 }
 
 // GetStruct indicates an expected call of GetStruct
-func (mr *MockDBCLIMockRecorder) GetStruct(dataset, to interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) GetStruct(dataset, to interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStruct", reflect.TypeOf((*MockDBCLI)(nil).GetStruct), dataset, to)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStruct", reflect.TypeOf((*MockDB)(nil).GetStruct), dataset, to)
 }
 
 // GetSet mocks base method
-func (m *MockDBCLI) GetSet(dataset string, to interface{}) error {
+func (m *MockDB) GetSet(dataset string, to interface{}) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSet", dataset, to)
 	ret0, _ := ret[0].(error)
@@ -198,13 +70,13 @@ func (m *MockDBCLI) GetSet(dataset string, to interface{}) error {
 }
 
 // GetSet indicates an expected call of GetSet
-func (mr *MockDBCLIMockRecorder) GetSet(dataset, to interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) GetSet(dataset, to interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSet", reflect.TypeOf((*MockDBCLI)(nil).GetSet), dataset, to)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSet", reflect.TypeOf((*MockDB)(nil).GetSet), dataset, to)
 }
 
 // InsertInSet mocks base method
-func (m *MockDBCLI) InsertInSet(dataset string, data interface{}) error {
+func (m *MockDB) InsertInSet(dataset string, data interface{}) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertInSet", dataset, data)
 	ret0, _ := ret[0].(error)
@@ -212,13 +84,13 @@ func (m *MockDBCLI) InsertInSet(dataset string, data interface{}) error {
 }
 
 // InsertInSet indicates an expected call of InsertInSet
-func (mr *MockDBCLIMockRecorder) InsertInSet(dataset, data interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) InsertInSet(dataset, data interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertInSet", reflect.TypeOf((*MockDBCLI)(nil).InsertInSet), dataset, data)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertInSet", reflect.TypeOf((*MockDB)(nil).InsertInSet), dataset, data)
 }
 
 // RemoveFromSet mocks base method
-func (m *MockDBCLI) RemoveFromSet(dataset string, data interface{}) error {
+func (m *MockDB) RemoveFromSet(dataset string, data interface{}) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveFromSet", dataset, data)
 	ret0, _ := ret[0].(error)
@@ -226,13 +98,13 @@ func (m *MockDBCLI) RemoveFromSet(dataset string, data interface{}) error {
 }
 
 // RemoveFromSet indicates an expected call of RemoveFromSet
-func (mr *MockDBCLIMockRecorder) RemoveFromSet(dataset, data interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) RemoveFromSet(dataset, data interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSet", reflect.TypeOf((*MockDBCLI)(nil).RemoveFromSet), dataset, data)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSet", reflect.TypeOf((*MockDB)(nil).RemoveFromSet), dataset, data)
 }
 
 // Close mocks base method
-func (m *MockDBCLI) Close() error {
+func (m *MockDB) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
@@ -240,7 +112,7 @@ func (m *MockDBCLI) Close() error {
 }
 
 // Close indicates an expected call of Close
-func (mr *MockDBCLIMockRecorder) Close() *gomock.Call {
+func (mr *MockDBMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDBCLI)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDB)(nil).Close))
 }
