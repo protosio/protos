@@ -23,13 +23,15 @@ var log = util.GetLogger("auth")
 
 // User represents a Protos user
 type User struct {
+	parent *UserManager `noms:"-"`
+
+	// Public members
 	Username     string             `json:"username" storm:"id"`
 	Password     string             `json:"password"`
 	Name         string             `json:"name"`
 	IsDisabled   bool               `json:"isdisabled"`
 	Capabilities []string           `json:"capabilities"`
 	Devices      []types.UserDevice `json:"devices"`
-	parent       *UserManager
 }
 
 // generatePasswordHash takes a string representing the raw password, and generates a hash
@@ -73,7 +75,7 @@ func (user *User) GetUsername() string {
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
 	log.Debugf("Writing username %s to database", user.Username)
-	return user.parent.db.InsertInSet(authDS, user)
+	return user.parent.db.InsertInSet(authDS, *user)
 }
 
 // ValidateCapability implements the capability checker interface
@@ -166,12 +168,6 @@ func (um *UserManager) ValidateAndGetUser(username string, password string) (cor
 		log.Debugf("Can't find user '%s' (%s)", username, err)
 		return nil, errInvalid
 	}
-
-	// err := um.db.One("Username", username, &user)
-	// if err != nil {
-	// 	log.Debugf("Can't find user '%s' (%s)", username, err)
-	// 	return nil, errInvalid
-	// }
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {

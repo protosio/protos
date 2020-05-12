@@ -110,7 +110,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 	gob.Register(&App{})
 	gob.Register(&core.InstallerMetadata{})
 
-	dbapps := []*App{}
+	dbapps := []App{}
 	err := db.GetSet(appDS, &dbapps)
 	if err != nil {
 		log.Fatal("Could not retrieve applications from database: ", err)
@@ -122,7 +122,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 		tmp := app
 		tmp.access = &sync.Mutex{}
 		tmp.parent = manager
-		apps.put(tmp.ID, tmp)
+		apps.put(tmp.ID, &tmp)
 	}
 	manager.apps = apps
 	return manager

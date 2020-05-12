@@ -2,6 +2,8 @@ package dbcli
 
 import (
 	"fmt"
+	"os"
+	"path"
 
 	"github.com/attic-labs/noms/go/datas"
 	"github.com/attic-labs/noms/go/marshal"
@@ -13,8 +15,14 @@ import (
 
 // Open opens a noms database on the provided path
 func Open(protosDir string, protosDB string) (core.DBCLI, error) {
-	dir := fmt.Sprintf("%s/%s", protosDir, protosDB)
-	db := datas.NewDatabase(nbs.NewLocalStore(dir, clienttest.DefaultMemTableSize))
+	dbpath := path.Join(protosDir, protosDB)
+	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
+		err := os.Mkdir(dbpath, os.ModeDir)
+		if err != nil {
+			return &dbNoms{}, fmt.Errorf("Failed to open database: %w", err)
+		}
+	}
+	db := datas.NewDatabase(nbs.NewLocalStore(dbpath, clienttest.DefaultMemTableSize))
 	return &dbNoms{dbn: db}, nil
 }
 
