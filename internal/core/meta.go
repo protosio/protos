@@ -29,5 +29,5 @@ type Meta interface {
 	GetAdminUser() string
 	GetVersion() string
 	InitMode() bool
-	WaitForInit() (net.IP, string)
+	WaitForInit() (net.IP, net.IPNet, string, string)
 }

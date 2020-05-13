@@ -272,12 +272,14 @@ func (mr *MockMetaMockRecorder) InitMode() *gomock.Call {
 }
 
 // WaitForInit mocks base method
-func (m *MockMeta) WaitForInit() (net.IP, string) {
+func (m *MockMeta) WaitForInit() (net.IP, net.IPNet, string, string) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WaitForInit")
 	ret0, _ := ret[0].(net.IP)
-	ret1, _ := ret[1].(string)
-	return ret0, ret1
+	ret1, _ := ret[1].(net.IPNet)
+	ret2, _ := ret[2].(string)
+	ret3, _ := ret[3].(string)
+	return ret0, ret1, ret2, ret3
 }
 
 // WaitForInit indicates an expected call of WaitForInit

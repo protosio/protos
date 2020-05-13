@@ -25,11 +25,12 @@ var gconfig = config.Get()
 
 // Meta contains information about the Protos instance
 type Meta struct {
-	rm               core.ResourceManager `noms:"-"`
-	db               core.DB              `noms:"-"`
-	version          string               `noms:"-"`
-	networkSetSignal chan net.IP          `noms:"-"`
-	domainSetSignal  chan string          `noms:"-"`
+	rm                 core.ResourceManager `noms:"-"`
+	db                 core.DB              `noms:"-"`
+	version            string               `noms:"-"`
+	networkSetSignal   chan net.IP          `noms:"-"`
+	domainSetSignal    chan string          `noms:"-"`
+	adminUserSetSignal chan string          `noms:"-"`
 
 	// Public members
 	ID                 string
@@ -82,6 +83,7 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 	metaRoot.version = version
 	metaRoot.networkSetSignal = make(chan net.IP, 1)
 	metaRoot.domainSetSignal = make(chan string, 1)
+	metaRoot.adminUserSetSignal = make(chan string, 1)
 	err = db.SaveStruct(metaDS, metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
@@ -167,6 +169,7 @@ func (m *Meta) SetAdminUser(username string) {
 	log.Debugf("Setting admin user to '%s'", username)
 	m.AdminUser = username
 	m.save()
+	m.adminUserSetSignal <- username
 }
 
 // GetAdminUser returns the username of the admin user
@@ -332,13 +335,14 @@ func (m *Meta) InitMode() bool {
 }
 
 // WaitForInit returns when both the domain and network has been set
-func (m *Meta) WaitForInit() (net.IP, string) {
-	if m.InternalIP != nil && m.Domain != "" {
-		return m.InternalIP, m.Domain
+func (m *Meta) WaitForInit() (net.IP, net.IPNet, string, string) {
+	if m.InternalIP != nil && m.Domain != "" && m.AdminUser != "" {
+		return m.InternalIP, m.Network, m.Domain, m.AdminUser
 	}
 
 	log.Debug("Waiting for initialisation to complete")
 	domain := <-m.domainSetSignal
 	internalIP := <-m.networkSetSignal
-	return internalIP, domain
+	adminUser := <-m.adminUserSetSignal
+	return internalIP, m.Network, domain, adminUser
 }

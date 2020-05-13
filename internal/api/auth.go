@@ -80,13 +80,6 @@ func initHandler(ha handlerAccess) http.Handler {
 		}
 		ha.m.SetAdminUser(user.GetUsername())
 
-		// perform init
-		err = ha.rp.Init(*network, initform.Devices)
-		if err != nil {
-			log.Error(err)
-			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})
-			return
-		}
 
 		// create session and add user to it
 

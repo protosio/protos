@@ -85,7 +85,18 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	ip, domain := m.WaitForInit()
+	// if starting for the first time, this will block until remote init is done
+	ip, network, domain, adminUser := m.WaitForInit()
+	usr, err := um.GetUser(adminUser)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// perform the runtime initialization (network + container runtime)
+	err = p.Init(network, usr.GetDevices())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	dns.StartServer(ip.String(), cfg.ExternalDNS, domain)
 
