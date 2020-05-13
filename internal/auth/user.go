@@ -142,13 +142,18 @@ func (um *UserManager) CreateUser(username string, password string, name string,
 		return nil, err
 	}
 
+	if len(devices) == 0 {
+		return nil, fmt.Errorf("Failed to create user '%s': 0 user devices provided", username)
+	}
+
 	user := User{
+		parent:       um,
 		Username:     username,
 		Password:     passwordHash,
 		Name:         name,
 		IsDisabled:   false,
 		Capabilities: []string{},
-		parent:       um,
+		Devices:      devices,
 	}
 	if isadmin {
 		user.Capabilities = append(user.Capabilities, "UserAdmin")

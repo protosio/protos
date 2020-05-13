@@ -39,6 +39,9 @@ func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key)
 	// create the peer and routes lists. At the moment these are all the devices that a user has
 	routes := []linkmgr.Route{}
 	peers := []wgtypes.PeerConfig{}
+	if len(devices) == 0 {
+		return "", fmt.Errorf("Network initialization failed because 0 user devices were provided")
+	}
 	for _, userDevice := range devices {
 		publicKey, err := base64.StdEncoding.DecodeString(userDevice.PublicKey)
 		if err != nil {
