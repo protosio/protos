@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/foxcpp/wirebox"
@@ -15,6 +16,43 @@ import (
 const interfacePrefix = "protos"
 
 var wgPort int = 10999
+
+func compareRoutes(a linkmgr.Route, b linkmgr.Route) bool {
+	if a.Dest.String() == b.Dest.String() && a.Src.Equal(b.Src) {
+		return true
+	}
+	return false
+}
+
+// diffRoutes ignores IPv6 addresses at the moment
+func diffRoutes(a []linkmgr.Route, b []linkmgr.Route) ([]linkmgr.Route, []linkmgr.Route) {
+	extraA := []linkmgr.Route{}
+	for _, ar := range a {
+		matched := false
+		for _, br := range b {
+			if compareRoutes(ar, br) {
+				matched = true
+			}
+		}
+		if !matched && !strings.Contains(ar.Dest.IP.String(), ":") {
+			extraA = append(extraA, ar)
+		}
+	}
+
+	extraB := []linkmgr.Route{}
+	for _, br := range b {
+		matched := false
+		for _, ar := range a {
+			if compareRoutes(br, ar) {
+				matched = true
+			}
+		}
+		if !matched {
+			extraB = append(extraB, br)
+		}
+	}
+	return extraA, extraB
+}
 
 // initNetwork initializes the local network
 func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key) (string, error) {
@@ -37,7 +75,7 @@ func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key)
 	}
 
 	// create the peer and routes lists. At the moment these are all the devices that a user has
-	routes := []linkmgr.Route{}
+	newRoutes := []linkmgr.Route{{Dest: network, Src: ip}}
 	peers := []wgtypes.PeerConfig{}
 	if len(devices) == 0 {
 		return "", fmt.Errorf("Network initialization failed because 0 user devices were provided")
@@ -51,7 +89,7 @@ func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key)
 		if err != nil {
 			return "", fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
 		}
-		routes = append(routes, linkmgr.Route{Dest: *deviceNetwork, Src: ip})
+		newRoutes = append(newRoutes, linkmgr.Route{Dest: *deviceNetwork})
 		var pkey wgtypes.Key
 		copy(pkey[:], publicKey)
 
@@ -68,14 +106,29 @@ func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key)
 	interfaceName := interfacePrefix + "0"
 	link, _, err := wirebox.CreateWG(manager, interfaceName, cfg, linkAddrs)
 	if err != nil {
-		return "", fmt.Errorf("Failed to initialize network: %w", err)
+		return "", fmt.Errorf("Failed to create interface during network initialization: %w", err)
 	}
 
-	// add the routes to the wireguard interface
-	for _, route := range routes {
+	existingRoutes, err := link.GetRoutes()
+	if err != nil {
+		return "", fmt.Errorf("Failed to get routes during network initialization: %w", err)
+	}
+
+	delRoutes, addRoutes := diffRoutes(existingRoutes, newRoutes)
+
+	// add the new routes to the wireguard interface
+	for _, route := range addRoutes {
 		err = link.AddRoute(route)
 		if err != nil {
-			return "", fmt.Errorf("Failed to initialize network: %w", err)
+			return "", fmt.Errorf("Failed to add route during network initialization: %w", err)
+		}
+	}
+
+	// delete old routes from the wireguard interface
+	for _, route := range delRoutes {
+		err = link.DelRoute(route)
+		if err != nil {
+			return "", fmt.Errorf("Failed to delete route during network initialization: %w", err)
 		}
 	}
 
