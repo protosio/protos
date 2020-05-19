@@ -74,7 +74,8 @@ func AllocateNetwork(instances []InstanceInfo) (net.IPNet, error) {
 	return net.IPNet{}, fmt.Errorf("Failed to allocate network")
 }
 
-type CloudManager struct {
+// Manager manages cloud providers and instances
+type Manager struct {
 	db core.DB
 }
 
@@ -83,11 +84,12 @@ type CloudManager struct {
 //
 
 // SupportedProviders returns a list of supported cloud providers
-func (cm *CloudManager) SupportedProviders() []string {
+func (cm *Manager) SupportedProviders() []string {
 	return []string{Scaleway.String()}
 }
 
-func (cm *CloudManager) GetCloudProvider(name string) (Provider, error) {
+// GetProvider returns a cloud provider instance from the db
+func (cm *Manager) GetProvider(name string) (Provider, error) {
 	clouds := []ProviderInfo{}
 	err := cm.db.GetSet(cloudDS, &clouds)
 	if err != nil {
@@ -102,8 +104,9 @@ func (cm *CloudManager) GetCloudProvider(name string) (Provider, error) {
 	return nil, fmt.Errorf("Could not find cloud provider '%s'", name)
 }
 
-func (cm *CloudManager) DeleteCloudProvider(name string) error {
-	cld, err := cm.GetCloudProvider(name)
+// DeleteProvider deletes a cloud provider from the db
+func (cm *Manager) DeleteProvider(name string) error {
+	cld, err := cm.GetProvider(name)
 	if err != nil {
 		return err
 	}
@@ -114,7 +117,8 @@ func (cm *CloudManager) DeleteCloudProvider(name string) error {
 	return nil
 }
 
-func (cm *CloudManager) GetCloudProviders() ([]ProviderInfo, error) {
+// GetProviders returns all the cloud providers from the db
+func (cm *Manager) GetProviders() ([]ProviderInfo, error) {
 	clouds := []ProviderInfo{}
 	err := cm.db.GetSet(cloudDS, &clouds)
 	if err != nil {
@@ -124,7 +128,8 @@ func (cm *CloudManager) GetCloudProviders() ([]ProviderInfo, error) {
 	return clouds, nil
 }
 
-func (cm *CloudManager) NewProvider(cloudName string, cloud string) (Provider, error) {
+// NewProvider creates and returns a cloud provider. At this point it is not saved in the db
+func (cm *Manager) NewProvider(cloudName string, cloud string) (Provider, error) {
 	cloudType := Type(cloud)
 	cld := ProviderInfo{Name: cloudName, Type: cloudType, cm: cm}
 	return cld.getClient()
@@ -134,14 +139,15 @@ func (cm *CloudManager) NewProvider(cloudName string, cloud string) (Provider, e
 // Instance related methods
 //
 
-func (cm *CloudManager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error) {
+// DeployInstance deploys an instance on the provided cloud
+func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error) {
 	usr, err := user.Get(cm.db)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
 
 	// init cloud
-	provider, err := cm.GetCloudProvider(cloudName)
+	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
 		return InstanceInfo{}, errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
 	}
@@ -316,7 +322,8 @@ func (cm *CloudManager) DeployInstance(instanceName string, cloudName string, cl
 	return instanceInfo, nil
 }
 
-func (cm *CloudManager) DeleteInstance(name string, localOnly bool) error {
+// DeleteInstance deletes an instance
+func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
@@ -324,7 +331,7 @@ func (cm *CloudManager) DeleteInstance(name string, localOnly bool) error {
 
 	// if local only, ignore any cloud resources
 	if !localOnly {
-		provider, err := cm.GetCloudProvider(instance.CloudName)
+		provider, err := cm.GetProvider(instance.CloudName)
 		if err != nil {
 			return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
 		}
@@ -359,12 +366,13 @@ func (cm *CloudManager) DeleteInstance(name string, localOnly bool) error {
 	return cm.db.RemoveFromSet(instanceDS, instance)
 }
 
-func (cm *CloudManager) StartInstance(name string) error {
+// StartInstance starts an instance
+func (cm *Manager) StartInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
 	}
-	provider, err := cm.GetCloudProvider(instance.CloudName)
+	provider, err := cm.GetProvider(instance.CloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
 	}
@@ -382,12 +390,13 @@ func (cm *CloudManager) StartInstance(name string) error {
 	return nil
 }
 
-func (cm *CloudManager) StopInstance(name string) error {
+// StopInstance stops an instance
+func (cm *Manager) StopInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
 	}
-	provider, err := cm.GetCloudProvider(instance.CloudName)
+	provider, err := cm.GetProvider(instance.CloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
 	}
@@ -405,7 +414,8 @@ func (cm *CloudManager) StopInstance(name string) error {
 	return nil
 }
 
-func (cm *CloudManager) TunnelInstance(name string) error {
+// TunnelInstance creates and SSH tunnel to the instance
+func (cm *Manager) TunnelInstance(name string) error {
 	instanceInfo, err := cm.GetInstance(name)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
@@ -444,9 +454,10 @@ func (cm *CloudManager) TunnelInstance(name string) error {
 	return nil
 }
 
-func (im *CloudManager) GetInstance(name string) (InstanceInfo, error) {
+// GetInstance retrieves an instance from the db and returns it
+func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 	instances := []InstanceInfo{}
-	err := im.db.GetSet(instanceDS, &instances)
+	err := cm.db.GetSet(instanceDS, &instances)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
@@ -458,15 +469,17 @@ func (im *CloudManager) GetInstance(name string) (InstanceInfo, error) {
 	return InstanceInfo{}, fmt.Errorf("Could not find instance '%s'", name)
 }
 
-func (im *CloudManager) GetInstances() ([]InstanceInfo, error) {
+// GetInstances returns all the instances from the db
+func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
 	var instances []InstanceInfo
-	err := im.db.GetSet(instanceDS, &instances)
+	err := cm.db.GetSet(instanceDS, &instances)
 	if err != nil {
 		return instances, err
 	}
 	return instances, nil
 }
 
-func NewCloudManager(db core.DB) (CloudManager, error) {
-	return CloudManager{db: db}, nil
+// NewManager creates and returns a cloud manager
+func NewManager(db core.DB) (Manager, error) {
+	return Manager{db: db}, nil
 }

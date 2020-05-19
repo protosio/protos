@@ -74,12 +74,12 @@ var cmdCloud *cli.Command = &cli.Command{
 
 func listCloudProviders() error {
 
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
 
-	clouds, err := cm.GetCloudProviders()
+	clouds, err := cm.GetProviders()
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func listCloudProviders() error {
 }
 
 func addCloudProvider(cloudName string) (cloud.Provider, error) {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return nil, err
 	}
@@ -150,21 +150,21 @@ func addCloudProvider(cloudName string) (cloud.Provider, error) {
 }
 
 func deleteCloudProvider(name string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
 
-	return cm.DeleteCloudProvider(name)
+	return cm.DeleteProvider(name)
 }
 
 func infoCloudProvider(name string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
 
-	provider, err := cm.GetCloudProvider(name)
+	provider, err := cm.GetProvider(name)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
 	}

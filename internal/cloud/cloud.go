@@ -30,7 +30,7 @@ const (
 
 // ProviderInfo stores information about a cloud provider
 type ProviderInfo struct {
-	cm   *CloudManager
+	cm   *Manager
 	Name string `storm:"id"`
 	Type Type
 	Auth map[string]string

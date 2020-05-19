@@ -155,13 +155,13 @@ func getProtosAvailableReleases() (release.Releases, error) {
 }
 
 func printProtosCloudImages(cloudName string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
 
 	// init cloud
-	provider, err := cm.GetCloudProvider(cloudName)
+	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
 	}
@@ -208,13 +208,13 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 		return fmt.Errorf("Image '%s' has 0 bytes", imagePath)
 	}
 
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
 
 	// init cloud
-	provider, err := cm.GetCloudProvider(cloudName)
+	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
 	}
@@ -247,11 +247,11 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 func deleteImageFromCloud(imageName string, cloudName string, cloudLocation string) error {
 	errMsg := fmt.Sprintf("Failed to delete image '%s' from cloud '%s'", imageName, cloudName)
 	// init cloud
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
-	provider, err := cm.GetCloudProvider(cloudName)
+	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
 	}

@@ -188,7 +188,7 @@ var cmdInstance *cli.Command = &cli.Command{
 //
 
 func listInstances() error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func listInstances() error {
 }
 
 func infoInstance(instanceName string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return fmt.Errorf("Could not retrieve instance '%s': %w", instanceName, err)
 	}
@@ -236,7 +236,7 @@ func infoInstance(instanceName string) error {
 }
 
 func deployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (cloud.InstanceInfo, error) {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return cloud.InstanceInfo{}, err
 	}
@@ -244,7 +244,7 @@ func deployInstance(instanceName string, cloudName string, cloudLocation string,
 }
 
 func deleteInstance(name string, localOnly bool) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func deleteInstance(name string, localOnly bool) error {
 }
 
 func startInstance(name string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return err
 	}
@@ -260,7 +260,7 @@ func startInstance(name string) error {
 }
 
 func stopInstance(name string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return fmt.Errorf("Could not retrieve instance '%s': %w", name, err)
 	}
@@ -268,7 +268,7 @@ func stopInstance(name string) error {
 }
 
 func tunnelInstance(name string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return fmt.Errorf("Could not retrieve instance '%s': %w", name, err)
 	}
@@ -276,7 +276,7 @@ func tunnelInstance(name string) error {
 }
 
 func keyInstance(name string) error {
-	cm, err := cloud.NewCloudManager(envi.DB)
+	cm, err := cloud.NewManager(envi.DB)
 	if err != nil {
 		return fmt.Errorf("Could not retrieve instance '%s': %w", name, err)
 	}
