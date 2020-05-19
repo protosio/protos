@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/protosio/protos/internal/core"
@@ -81,30 +80,30 @@ func getProtosResources(ha handlerAccess) http.Handler {
 
 func finishInit(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rscs := ha.m.GetProtosResources()
-		if len(rscs) > 0 {
-			for id, rsc := range rscs {
-				if rsc.GetStatus() != core.Created {
-					err := fmt.Errorf("Can't finish init process because resource '%s'(%s) is not ready", id, string(rsc.GetType()))
-					log.Error(err)
-					rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-					return
-				}
-			}
-			err := ha.m.CleanProtosResources()
-			if err != nil {
-				log.Error(err)
-				rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-				return
-			}
+		_ = ha.m.GetProtosResources()
+		// if len(rscs) > 0 {
+		// 	for id, rsc := range rscs {
+		// 		if rsc.GetStatus() != core.Created {
+		// 			err := fmt.Errorf("Can't finish init process because resource '%s'(%s) is not ready", id, string(rsc.GetType()))
+		// 			log.Error(err)
+		// 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		// 			return
+		// 		}
+		// 	}
+		// 	err := ha.m.CleanProtosResources()
+		// 	if err != nil {
+		// 		log.Error(err)
+		// 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		// 		return
+		// 	}
 
-			err = ha.api.StartExternalWebServer()
-			if err != nil {
-				log.Error(err)
-				rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-				return
-			}
-		}
+		// 	err = ha.api.StartExternalWebServer()
+		// 	if err != nil {
+		// 		log.Error(err)
+		// 		rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+		// 		return
+		// 	}
+		// }
 
 		rend.JSON(w, http.StatusOK, nil)
 

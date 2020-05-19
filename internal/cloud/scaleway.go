@@ -15,7 +15,6 @@ import (
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	"github.com/scaleway/scaleway-sdk-go/api/marketplace/v1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
-	log "github.com/sirupsen/logrus"
 	gssh "golang.org/x/crypto/ssh"
 )
 
@@ -31,6 +30,7 @@ type scalewayCredentials struct {
 }
 
 type scaleway struct {
+	ProviderInfo
 	name           string
 	credentials    *scalewayCredentials
 	client         *scw.Client
@@ -41,8 +41,8 @@ type scaleway struct {
 	location       scw.Zone
 }
 
-func newScalewayClient(name string) *scaleway {
-	return &scaleway{name: name}
+func newScalewayClient(pi ProviderInfo) *scaleway {
+	return &scaleway{name: pi.Name, ProviderInfo: pi}
 }
 
 //
@@ -57,9 +57,7 @@ func (sw *scaleway) AuthFields() []string {
 	return []string{"ORGANISATION_ID", "ACCESS_KEY", "SECRET_KEY"}
 }
 
-func (sw *scaleway) Init(auth map[string]string) error {
-	var err error
-
+func (sw *scaleway) SetAuth(auth map[string]string) error {
 	scwCredentials := &scalewayCredentials{}
 	for k, v := range auth {
 		switch k {
@@ -77,12 +75,17 @@ func (sw *scaleway) Init(auth map[string]string) error {
 		}
 	}
 
+	sw.ProviderInfo.Auth = auth
 	sw.auth = auth
-
 	sw.credentials = scwCredentials
+	return nil
+}
+
+func (sw *scaleway) Init() error {
+	var err error
 	sw.client, err = scw.NewClient(
-		scw.WithDefaultOrganizationID(scwCredentials.organisationID),
-		scw.WithAuth(scwCredentials.accessKey, scwCredentials.secretKey),
+		scw.WithDefaultOrganizationID(sw.credentials.organisationID),
+		scw.WithAuth(sw.credentials.accessKey, sw.credentials.secretKey),
 	)
 	if err != nil {
 		return errors.Wrap(err, "Failed to init Scaleway client")
@@ -96,10 +99,6 @@ func (sw *scaleway) Init(auth map[string]string) error {
 		return errors.Wrap(err, "Failed to init Scaleway client")
 	}
 	return nil
-}
-
-func (sw *scaleway) GetInfo() ProviderInfo {
-	return ProviderInfo{Name: sw.name, Type: Scaleway, Auth: sw.auth}
 }
 
 func (sw *scaleway) SupportedMachines(location string) (map[string]MachineSpec, error) {

@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/release"
 	"github.com/urfave/cli/v2"
 )
@@ -154,19 +155,23 @@ func getProtosAvailableReleases() (release.Releases, error) {
 }
 
 func printProtosCloudImages(cloudName string) error {
+	cm, err := cloud.NewCloudManager(envi.DB)
+	if err != nil {
+		return err
+	}
 
 	// init cloud
-	provider, err := getCloudProvider(cloudName)
+	provider, err := cm.GetCloudProvider(cloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
 	}
-	client := provider.Client()
-	err = client.Init(provider.Auth)
+
+	err = provider.Init()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to connect to cloud provider '%s'(%s) API", cloudName, provider.Type.String())
+		return errors.Wrapf(err, "Failed to connect to cloud provider '%s'(%s) API", cloudName, provider.TypeStr())
 	}
 
-	images, err := client.GetProtosImages()
+	images, err := provider.GetProtosImages()
 	if err != nil {
 		return errors.Wrapf(err, "Failed to retrieve cloud images")
 	}
@@ -203,19 +208,24 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 		return fmt.Errorf("Image '%s' has 0 bytes", imagePath)
 	}
 
+	cm, err := cloud.NewCloudManager(envi.DB)
+	if err != nil {
+		return err
+	}
+
 	// init cloud
-	provider, err := getCloudProvider(cloudName)
+	provider, err := cm.GetCloudProvider(cloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
 	}
-	client := provider.Client()
-	err = client.Init(provider.Auth)
+
+	err = provider.Init()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to connect to cloud provider '%s'(%s) API", cloudName, provider.Type.String())
+		return errors.Wrapf(err, "Failed to connect to cloud provider '%s'(%s) API", cloudName, provider.TypeStr())
 	}
 
 	// find image
-	images, err := client.GetImages()
+	images, err := provider.GetImages()
 	if err != nil {
 		return errors.Wrap(err, errMsg)
 	}
@@ -226,7 +236,7 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 	}
 
 	// upload image
-	_, err = client.UploadLocalImage(imagePath, imageName, cloudLocation)
+	_, err = provider.UploadLocalImage(imagePath, imageName, cloudLocation)
 	if err != nil {
 		return errors.Wrap(err, errMsg)
 	}
@@ -237,18 +247,22 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 func deleteImageFromCloud(imageName string, cloudName string, cloudLocation string) error {
 	errMsg := fmt.Sprintf("Failed to delete image '%s' from cloud '%s'", imageName, cloudName)
 	// init cloud
-	provider, err := getCloudProvider(cloudName)
+	cm, err := cloud.NewCloudManager(envi.DB)
+	if err != nil {
+		return err
+	}
+	provider, err := cm.GetCloudProvider(cloudName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
 	}
-	client := provider.Client()
-	err = client.Init(provider.Auth)
+
+	err = provider.Init()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to connect to cloud provider '%s'(%s) API", cloudName, provider.Type.String())
+		return errors.Wrapf(err, "Failed to connect to cloud provider '%s'(%s) API", cloudName, provider.TypeStr())
 	}
 
 	// delete image
-	err = client.RemoveImage(imageName, cloudLocation)
+	err = provider.RemoveImage(imageName, cloudLocation)
 	if err != nil {
 		return errors.Wrap(err, errMsg)
 	}

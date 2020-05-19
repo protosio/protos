@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/protosio/protos/internal/util"
 	"golang.org/x/crypto/ssh"
 )
+
+var log = util.GetLogger("ssh")
 
 // Tunnel represents and SSH tunnel to a remote host
 type Tunnel struct {
@@ -20,12 +22,10 @@ type Tunnel struct {
 	listener  net.Listener
 	localPort int
 	target    string
-	log       *logrus.Logger
 	connMap   []chan bool
 }
 
 type forwarder struct {
-	log    *logrus.Logger
 	closed bool
 	errsig chan bool
 	close  chan bool
@@ -60,36 +60,35 @@ func (t *forwarder) errSig(s string, err error) {
 		return
 	}
 	if err != io.EOF {
-		t.log.Error(s, err)
+		log.Error(s, err)
 	}
 	t.errsig <- true
 	t.closed = true
 }
 
 func (t *forwarder) proxy() {
-	t.log.Debugf("Started forwarder for %p", t.lconn)
+	log.Debugf("Started forwarder for %p", t.lconn)
 	go t.pipe(t.lconn, t.rconn, "outgoing")
 	go t.pipe(t.rconn, t.lconn, "incoming")
 
 	select {
 	case <-t.errsig:
-		t.log.Debugf("Forwarder %p closed because of underlying connections", t.lconn)
+		log.Debugf("Forwarder %p closed because of underlying connections", t.lconn)
 	case <-t.close:
 		t.closed = true
 		t.lconn.Close()
 		t.rconn.Close()
-		t.log.Debugf("Forwarder %p closed by user", t.lconn)
+		log.Debugf("Forwarder %p closed by user", t.lconn)
 	}
 }
 
-func newForwarder(lconn, rconn net.Conn, close chan bool, log *logrus.Logger) *forwarder {
+func newForwarder(lconn, rconn net.Conn, close chan bool) *forwarder {
 	return &forwarder{
 		lconn:  lconn,
 		rconn:  rconn,
 		closed: false,
 		errsig: make(chan bool),
 		close:  close,
-		log:    log,
 	}
 }
 
@@ -123,22 +122,22 @@ func (t *Tunnel) Start() (int, error) {
 			localConn, err := t.listener.Accept()
 			if err != nil {
 				if strings.Contains(err.Error(), "use of closed network connection") {
-					t.log.Debug("Local SSH tunnel listener closed. Not accepting any new connections.")
+					log.Debug("Local SSH tunnel listener closed. Not accepting any new connections.")
 					return
 				}
-				t.log.Errorf("Failed to accept connection via the SSH tunnel: %s", err)
+				log.Errorf("Failed to accept connection via the SSH tunnel: %s", err)
 				continue
 			}
 
 			// open a connection via the SSH connection, to the Protos backend
 			remoteConn, err := t.sshConn.Dial("tcp", t.target)
 			if err != nil {
-				t.log.Errorf("Failed to establish remote connection (%s) over SSH tunnel (%s): %s", t.target, t.sshHost, err)
+				log.Errorf("Failed to establish remote connection (%s) over SSH tunnel (%s): %s", t.target, t.sshHost, err)
 				return
 			}
 
 			close := make(chan bool, 1)
-			forwarder := newForwarder(localConn, remoteConn, close, t.log)
+			forwarder := newForwarder(localConn, remoteConn, close)
 			go forwarder.proxy()
 			t.connMap = append(t.connMap, close)
 		}
@@ -166,6 +165,6 @@ func (t *Tunnel) Close() error {
 }
 
 // NewTunnel creates and returns an SSHTunnel
-func NewTunnel(sshHost string, sshUser string, sshAuth ssh.AuthMethod, tunnelTarget string, logger *logrus.Logger) *Tunnel {
-	return &Tunnel{sshHost: sshHost, sshUser: sshUser, sshAuth: sshAuth, target: tunnelTarget, log: logger}
+func NewTunnel(sshHost string, sshUser string, sshAuth ssh.AuthMethod, tunnelTarget string) *Tunnel {
+	return &Tunnel{sshHost: sshHost, sshUser: sshUser, sshAuth: sshAuth, target: tunnelTarget}
 }

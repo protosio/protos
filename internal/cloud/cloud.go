@@ -2,13 +2,15 @@ package cloud
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/util"
 )
+
+var log = util.GetLogger("cloud")
 
 // Type represents a specific cloud (AWS, GCP, DigitalOcean etc.)
 type Type string
@@ -26,25 +28,49 @@ const (
 	Hyperkit = Type("hyperkit")
 )
 
-// SupportedProviders returns a list of supported cloud providers
-func SupportedProviders() []string {
-	return []string{Scaleway.String()}
-}
-
 // ProviderInfo stores information about a cloud provider
 type ProviderInfo struct {
+	cm   *CloudManager
 	Name string `storm:"id"`
 	Type Type
 	Auth map[string]string
 }
 
-// Client returns a cloud provider client that can be used to run all the operations exposed by the Provider interface
-func (pi ProviderInfo) Client() Provider {
-	client, err := NewProvider(pi.Name, pi.Type.String())
+// Save saves the provider information to disk
+func (pi ProviderInfo) Save() error {
+	err := pi.cm.db.InsertInSet(cloudDS, pi)
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrap(err, "Failed to save cloud provider info")
 	}
-	return client
+	return nil
+}
+
+// TypeStr returns the cloud type formatted as string
+func (pi ProviderInfo) TypeStr() string {
+	return pi.Type.String()
+}
+
+// GetInfo returns the ProviderInfo struct. Seems redundant but it's used via the Provider interface
+func (pi ProviderInfo) GetInfo() ProviderInfo {
+	return pi
+}
+
+// getClient creates a new cloud provider client based on the info in ProviderInfo
+func (pi ProviderInfo) getClient() (Provider, error) {
+	var client Provider
+	var err error
+	switch pi.Type {
+	// case DigitalOcean:
+	// 	client, err = newDigitalOceanClient()
+	case Scaleway:
+		client = newScalewayClient(pi)
+	default:
+		err = errors.Errorf("Cloud '%s' not supported", pi.Type.String())
+	}
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 // InstanceInfo holds information about a cloud instance
@@ -91,11 +117,14 @@ type ImageInfo struct {
 // Provider allows interactions with cloud instances and images
 type Provider interface {
 	// Config methods
-	AuthFields() (fields []string)                                     // returns the fields that are required to authenticate for a specific cloud provider
 	SupportedLocations() (locations []string)                          // returns the supported locations for a specific cloud provider
-	Init(auth map[string]string) error                                 // a cloud provider always needs to have Init called to configure it and test the credentials. If auth fails, Init should return an error
+	AuthFields() (fields []string)                                     // returns the fields that are required to authenticate for a specific cloud provider
+	SetAuth(auth map[string]string) error                              // sets the credentials for a cloud provider
+	Init() error                                                       // a cloud provider always needs to have Init called to configure it and test the credentials. If auth fails, Init should return an error
 	GetInfo() ProviderInfo                                             // returns information that can be stored in the database and allows for re-creation of the provider
 	SupportedMachines(location string) (map[string]MachineSpec, error) // returns a map of machine ids and their hardware specifications. A user will choose the machines for their instance
+	Save() error                                                       // saves the instance of the cloud provider (name and credentials) in the db
+	TypeStr() string                                                   // returns the string formatted cloud type
 
 	// Instance methods
 	NewInstance(name string, image string, pubKey string, machineType string, location string) (id string, err error)
@@ -115,25 +144,6 @@ type Provider interface {
 	DeleteVolume(id string, location string) error
 	AttachVolume(volumeID string, instanceID string, location string) error
 	DettachVolume(volumeID string, instanceID string, location string) error
-}
-
-// NewProvider creates a new cloud provider client
-func NewProvider(cloudName string, cloud string) (Provider, error) {
-	var client Provider
-	var err error
-	cloudType := Type(cloud)
-	switch cloudType {
-	// case DigitalOcean:
-	// 	client, err = newDigitalOceanClient()
-	case Scaleway:
-		client = newScalewayClient(cloudName)
-	default:
-		err = errors.Errorf("Cloud '%s' not supported", cloud)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
 }
 
 func findInSlice(slice []string, value string) (int, bool) {

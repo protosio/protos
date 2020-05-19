@@ -36,7 +36,7 @@ var cmdInit *cli.Command = &cli.Command{
 
 func protosUserinit() error {
 
-	usrInfo, err := user.Get(envi)
+	usrInfo, err := user.Get(envi.DB)
 	if err == nil {
 		return fmt.Errorf("User '%s' already initialized", usrInfo.Username)
 	}
@@ -101,7 +101,7 @@ func protosUserinit() error {
 		return err
 	}
 
-	_, err = user.New(envi, username, name, domain, password)
+	_, err = user.New(envi.DB, username, name, domain, password)
 	if err != nil {
 		return err
 	}

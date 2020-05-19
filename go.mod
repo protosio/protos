@@ -2,7 +2,7 @@ module github.com/protosio/protos
 
 go 1.14
 
-replace github.com/foxcpp/wirebox => ../wirebox
+replace github.com/foxcpp/wirebox => github.com/nustiueudinastea/wirebox v0.0.0-20200518144349-899c2e6e9a7a
 
 replace github.com/docker/docker => github.com/docker/engine v1.4.2-0.20180816081446-320063a2ad06
 
@@ -53,9 +53,9 @@ require (
 	github.com/urfave/negroni v1.0.0
 	github.com/vjeantet/jodaTime v0.0.0-20170816150230-be924ce213fb
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
-	golang.org/x/crypto v0.0.0-20200406173513-056763e48d71
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
-	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20200205215550-e35592f146e4
+	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
+	golang.org/x/net v0.0.0-20200513185701-a91f0712d120
+	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20200514021741-d71503c3ca55
 	google.golang.org/grpc v1.26.0
 	gopkg.in/h2non/baloo.v3 v3.0.2
 	gopkg.in/h2non/gentleman.v2 v2.0.4 // indirect

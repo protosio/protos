@@ -2,6 +2,7 @@ package resource
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/attic-labs/noms/go/marshal"
@@ -122,10 +123,16 @@ func (rsc *Resource) UnmarshalJSON(b []byte) error {
 
 // MarshalNoms encodes the resource into a noms value type
 func (rsc *Resource) MarshalNoms(vrw types.ValueReadWriter) (val types.Value, err error) {
+	fmt.Println("Marshalling rsc")
 	return marshal.Marshal(vrw, *rsc)
 }
 
 // UnmarshalNoms decodes the resource value from a noms value type
 func (rsc *Resource) UnmarshalNoms(v types.Value) error {
+	fmt.Println("Unmarshalling rsc")
+	fmt.Println(v.Kind())
+	v.WalkValues(func(v types.Value) {
+		fmt.Println(v.Kind())
+	})
 	return nil
 }

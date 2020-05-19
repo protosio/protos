@@ -47,7 +47,7 @@ var cmdDev *cli.Command = &cli.Command{
 }
 
 func devInit(instanceName string, keyFile string, ipString string) error {
-	usr, err := user.Get(envi)
+	usr, err := user.Get(envi.DB)
 	if err != nil {
 		return err
 	}
@@ -83,13 +83,13 @@ func devInit(instanceName string, keyFile string, ipString string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to allocate network for instance '%s': %w", "dev", err)
 	}
-	developmentNetwork, err := user.AllocateNetwork(instances)
+	developmentNetwork, err := cloud.AllocateNetwork(instances)
 	if err != nil {
 		return fmt.Errorf("Failed to allocate network for instance '%s': %w", "dev", err)
 	}
 
 	log.Infof("Creating SSH tunnel to dev instance IP '%s'", ipString)
-	tunnel := ssh.NewTunnel(ip.String()+":22", "root", auth, "localhost:8080", log)
+	tunnel := ssh.NewTunnel(ip.String()+":22", "root", auth, "localhost:8080")
 	localPort, err := tunnel.Start()
 	if err != nil {
 		return errors.Wrap(err, "Error while creating the SSH tunnel")
@@ -102,7 +102,7 @@ func devInit(instanceName string, keyFile string, ipString string) error {
 	}
 	log.Infof("Tunnel to '%s' ready", ipString)
 
-	user, err := user.Get(envi)
+	user, err := user.Get(envi.DB)
 	if err != nil {
 		return err
 	}

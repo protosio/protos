@@ -79,11 +79,6 @@ func transformCredentials(creds map[string]interface{}) map[string]string {
 	return transformed
 }
 
-func catchSignals(sigs chan os.Signal, quit chan interface{}) {
-	<-sigs
-	quit <- true
-}
-
 func config(currentCmd string, logLevel string) {
 	log = logrus.New()
 	level, err := logrus.ParseLevel(logLevel)
@@ -109,7 +104,7 @@ func config(currentCmd string, logLevel string) {
 	envi = env.New(dbi, log)
 
 	if currentCmd != "init" {
-		_, err = user.Get(envi)
+		_, err = user.Get(envi.DB)
 		if err != nil {
 			log.Fatal(errors.Wrap(err, "Please run init command to setup Protos"))
 		}

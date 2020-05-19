@@ -2,13 +2,11 @@ package user
 
 import (
 	"fmt"
-	"net"
 	"os"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/gocode/gocodec"
-	"github.com/protosio/protos/internal/cloud"
-	"github.com/protosio/protos/internal/env"
+	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/ssh"
 )
 
@@ -33,15 +31,11 @@ UserInfo
 `
 
 const (
-	// Address space for allocating networks
-	netSpace    = "10.100.0.0/16"
-	userNetwork = "10.100.0.1/24"
+	UserNetwork = "10.100.0.1/24"
 )
 
 var r cue.Runtime
 var codec = gocodec.New(&r, nil)
-
-// var envi *env.Env
 
 // Device represents a user device (laptop, phone, etc)
 type Device struct {
@@ -52,7 +46,7 @@ type Device struct {
 
 // Info represents the local Protos user
 type Info struct {
-	env      *env.Env `noms:"-"`
+	db       core.DB `noms:"-"`
 	Username string
 	Name     string
 	Domain   string
@@ -62,7 +56,7 @@ type Info struct {
 
 // Save saves the user to db
 func (ui Info) save() {
-	err := ui.env.DB.SaveStruct(adminDS, ui)
+	err := ui.db.SaveStruct(adminDS, ui)
 	if err != nil {
 		panic(err)
 	}
@@ -93,8 +87,8 @@ func (ui Info) Validate() error {
 //
 
 // New creates and returns a new user. Also validates the data
-func New(envp *env.Env, username string, name string, domain string, password string) (Info, error) {
-	usrInfo, err := Get(envp)
+func New(db core.DB, username string, name string, domain string, password string) (Info, error) {
+	usrInfo, err := Get(db)
 	if err == nil {
 		return usrInfo, fmt.Errorf("User '%s' already initialized. Modify it using the 'user set' command", usrInfo.Username)
 	}
@@ -106,9 +100,9 @@ func New(envp *env.Env, username string, name string, domain string, password st
 	if err != nil {
 		return usrInfo, fmt.Errorf("Failed to add user. Could not generate key: %w", err)
 	}
-	userDevice := Device{Name: host, KeySeed: key.Seed(), Network: userNetwork}
+	userDevice := Device{Name: host, KeySeed: key.Seed(), Network: UserNetwork}
 
-	user := Info{env: envp, Username: username, Name: name, Domain: domain, Password: password, Device: userDevice}
+	user := Info{db: db, Username: username, Name: name, Domain: domain, Password: password, Device: userDevice}
 	err = user.Validate()
 	if err != nil {
 		return user, fmt.Errorf("Failed to add user. Validation error: %v", err)
@@ -119,45 +113,13 @@ func New(envp *env.Env, username string, name string, domain string, password st
 }
 
 // Get returns information about the local user
-func Get(env *env.Env) (Info, error) {
+func Get(db core.DB) (Info, error) {
 	usr := Info{}
-	err := env.DB.GetStruct(adminDS, &usr)
+	err := db.GetStruct(adminDS, &usr)
 	if err != nil {
 		return usr, err
 	}
 
-	usr.env = env
+	usr.db = db
 	return usr, nil
-}
-
-// AllocateNetwork allocates an unused network for an instance
-func AllocateNetwork(instances []cloud.InstanceInfo) (net.IPNet, error) {
-	_, userNet, err := net.ParseCIDR(userNetwork)
-	if err != nil {
-		panic(err)
-	}
-	// create list of existing networks
-	usedNetworks := []net.IPNet{*userNet}
-	for _, inst := range instances {
-		_, inet, err := net.ParseCIDR(inst.Network)
-		if err != nil {
-			panic(err)
-		}
-		usedNetworks = append(usedNetworks, *inet)
-	}
-
-	// figure out which is the first network that is not currently used
-	_, netspace, _ := net.ParseCIDR(netSpace)
-	for i := 0; i <= 255; i++ {
-		newNet := *netspace
-		newNet.IP[2] = byte(i)
-		newNet.Mask[2] = byte(255)
-		for _, usedNet := range usedNetworks {
-			if !newNet.Contains(usedNet.IP) {
-				return newNet, nil
-			}
-		}
-	}
-
-	return net.IPNet{}, fmt.Errorf("Failed to allocate network")
 }

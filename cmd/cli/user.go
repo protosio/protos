@@ -34,7 +34,7 @@ var cmdUser *cli.Command = &cli.Command{
 							cli.ShowSubcommandHelp(c)
 							os.Exit(1)
 						}
-						usr, err := user.Get(envi)
+						usr, err := user.Get(envi.DB)
 						if err != nil {
 							return err
 						}
@@ -50,7 +50,7 @@ var cmdUser *cli.Command = &cli.Command{
 							cli.ShowSubcommandHelp(c)
 							os.Exit(1)
 						}
-						usr, err := user.Get(envi)
+						usr, err := user.Get(envi.DB)
 						if err != nil {
 							return err
 						}
@@ -63,7 +63,7 @@ var cmdUser *cli.Command = &cli.Command{
 }
 
 func infoUser() error {
-	user, err := user.Get(envi)
+	user, err := user.Get(envi.DB)
 	if err != nil {
 		return err
 	}
