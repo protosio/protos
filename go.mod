@@ -2,7 +2,7 @@ module github.com/protosio/protos
 
 go 1.14
 
-replace github.com/foxcpp/wirebox => github.com/nustiueudinastea/wirebox v0.0.0-20200518144349-899c2e6e9a7a
+replace github.com/foxcpp/wirebox => github.com/nustiueudinastea/wirebox v0.0.0-20200520144359-4a964b076117
 
 require (
 	cuelang.org/go v0.1.2

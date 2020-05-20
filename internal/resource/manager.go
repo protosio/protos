@@ -93,6 +93,7 @@ func CreateManager(db core.DB) *Manager {
 	if err != nil {
 		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
 	}
+
 	resources := resourceContainer{access: &sync.Mutex{}, all: map[string]*Resource{}, db: db}
 	for _, rsc := range rscs {
 		rscCopy := rsc

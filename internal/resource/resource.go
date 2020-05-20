@@ -121,18 +121,41 @@ func (rsc *Resource) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// MarshalNoms encodes the resource into a noms value type
-func (rsc *Resource) MarshalNoms(vrw types.ValueReadWriter) (val types.Value, err error) {
-	fmt.Println("Marshalling rsc")
-	return marshal.Marshal(vrw, *rsc)
-}
-
 // UnmarshalNoms decodes the resource value from a noms value type
 func (rsc *Resource) UnmarshalNoms(v types.Value) error {
-	fmt.Println("Unmarshalling rsc")
-	fmt.Println(v.Kind())
+	values := []types.Value{}
 	v.WalkValues(func(v types.Value) {
-		fmt.Println(v.Kind())
+		values = append(values, v)
 	})
+
+	if len(values) == 5 && values[4].Kind() == types.StringKind {
+		var rscv core.ResourceValue
+		var err error
+
+		switch string(values[4].(types.String)) {
+		case "certificate":
+			rscs := CertificateResource{}
+			err = marshal.Unmarshal(values[2], &rscs)
+			rscv = &rscs
+		case "dns":
+			rscs := DNSResource{}
+			err = marshal.Unmarshal(values[2], &rscs)
+			rscv = &rscs
+		default:
+			return fmt.Errorf("Resource type '%s' does not exist", string(values[4].(types.String)))
+		}
+		if err != nil {
+			return fmt.Errorf("Failed tu unmarshall Resource from Noms: %w", err)
+		}
+		rsc.Value = rscv
+	} else {
+		return fmt.Errorf("Failed tu unmarshall Resource from Noms: wrong number of elements in struct or wrong type")
+	}
+
+	rsc.App = string(values[0].(types.String))
+	rsc.ID = string(values[1].(types.String))
+	rsc.Status = core.ResourceStatus(values[3].(types.String))
+	rsc.Type = core.ResourceType(values[4].(types.String))
+
 	return nil
 }

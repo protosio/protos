@@ -32,19 +32,9 @@ func (rsc *DNSResource) Sanitize() core.ResourceValue {
 	return rsc
 }
 
-// MarshalNoms encodes the resource into a noms value type
+// MarshalNoms encodes the resource into a noms value type.
 func (rsc *DNSResource) MarshalNoms(vrw types.ValueReadWriter) (val types.Value, err error) {
-	return types.NewStruct("DNSResource", types.StructData{
-		"Host":  types.String(rsc.Host),
-		"Value": types.String(rsc.Value),
-		"Type":  types.String(rsc.Type),
-		"TTL":   types.Number(rsc.TTL),
-	}).Value(), nil
-}
-
-// UnmarshalNoms decodes the resource value from a noms value type
-func (rsc *DNSResource) UnmarshalNoms(v types.Value) error {
-	return nil
+	return marshal.Marshal(vrw, *rsc)
 }
 
 // IsType is used to check if the DNS resource is of a specific type
@@ -91,11 +81,6 @@ func (rsc *CertificateResource) Sanitize() core.ResourceValue {
 // MarshalNoms encodes the resource into a noms value type
 func (rsc *CertificateResource) MarshalNoms(vrw types.ValueReadWriter) (val types.Value, err error) {
 	return marshal.Marshal(vrw, *rsc)
-}
-
-// UnmarshalNoms decodes the resource value from a noms value type
-func (rsc *CertificateResource) UnmarshalNoms(v types.Value) error {
-	return nil
 }
 
 // GetCertificate returns the resource certificate
