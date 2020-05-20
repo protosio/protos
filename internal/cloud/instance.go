@@ -322,6 +322,94 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	return instanceInfo, nil
 }
 
+func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locationName string, keyFile string, ipString string) error {
+	instanceInfo := InstanceInfo{
+		VMID:          instanceName,
+		PublicIP:      ipString,
+		Name:          instanceName,
+		CloudType:     Hyperkit,
+		CloudName:     cloudName,
+		Location:      locationName,
+		ProtosVersion: "dev",
+	}
+
+	ip := net.ParseIP(ipString)
+	if ip == nil {
+		return fmt.Errorf("String '%s' is not a valid IP address", ipString)
+	}
+
+	auth, err := ssh.NewAuthFromKeyFile(keyFile)
+	if err != nil {
+		return err
+	}
+
+	// allocate network for dev instance
+	instances, err := cm.GetInstances()
+	if err != nil {
+		return err
+	}
+	developmentNetwork, err := AllocateNetwork(instances)
+	if err != nil {
+		return fmt.Errorf("Failed to allocate network for instance '%s': %w", "dev", err)
+	}
+
+	log.Infof("Creating SSH tunnel to dev instance IP '%s'", ipString)
+	tunnel := ssh.NewTunnel(ip.String()+":22", "root", auth, "localhost:8080")
+	localPort, err := tunnel.Start()
+	if err != nil {
+		return errors.Wrap(err, "Error while creating the SSH tunnel")
+	}
+
+	// wait for the API to be up
+	err = WaitForHTTP(fmt.Sprintf("http://127.0.0.1:%d/ui/", localPort), 20)
+	if err != nil {
+		return errors.Wrap(err, "Failed to deploy instance")
+	}
+	log.Infof("Tunnel to '%s' ready", ipString)
+
+	usr, err := user.Get(cm.db)
+	if err != nil {
+		return err
+	}
+
+	// do the initialization
+	log.Infof("Initializing instance at '%s'", ipString)
+	protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.Username, usr.Password)
+	key, err := ssh.NewKeyFromSeed(usr.Device.KeySeed)
+	if err != nil {
+		panic(err)
+	}
+
+	usrDev := types.UserDevice{
+		Name:      usr.Device.Name,
+		PublicKey: key.PublicWG().String(),
+		Network:   usr.Device.Network,
+	}
+
+	// Doing the instance initialization which returns the internal wireguard IP and the public key created using the wireguard library.
+	instanceIP, instancePublicKey, err := protos.InitInstance(usr.Name, developmentNetwork.String(), usr.Domain, []types.UserDevice{usrDev})
+	if err != nil {
+		return errors.Wrap(err, "Error while doing the instance initialization")
+	}
+	instanceInfo.InternalIP = instanceIP.String()
+	instanceInfo.PublicKey = instancePublicKey
+	instanceInfo.Network = developmentNetwork.String()
+
+	err = cm.db.InsertInSet(instanceDS, instanceInfo)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
+	}
+
+	// close the SSH tunnel
+	err = tunnel.Close()
+	if err != nil {
+		return errors.Wrap(err, "Error while terminating the SSH tunnel")
+	}
+	log.Infof("Instance at '%s' is ready", ipString)
+
+	return nil
+}
+
 // DeleteInstance deletes an instance
 func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 	instance, err := cm.GetInstance(name)

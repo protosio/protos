@@ -39,7 +39,6 @@ func main() {
 			cmdCloud,
 			cmdInstance,
 			cmdUser,
-			cmdDev,
 			cmdVPN,
 		},
 	}

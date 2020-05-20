@@ -180,6 +180,31 @@ var cmdInstance *cli.Command = &cli.Command{
 				return keyInstance(name)
 			},
 		},
+		{
+			Name:      "devinit",
+			ArgsUsage: "<instance name> <key> <ip>",
+			Usage:     "Initiate a development instance",
+			Action: func(c *cli.Context) error {
+				name := c.Args().Get(0)
+				if name == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				key := c.Args().Get(1)
+				if key == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				ip := c.Args().Get(2)
+				if ip == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+				return devInit(name, key, ip)
+			},
+		},
 	},
 }
 
@@ -292,5 +317,25 @@ func keyInstance(name string) error {
 		return errors.Wrapf(err, "Instance '%s' has an invalid SSH key", name)
 	}
 	fmt.Print(key.EncodePrivateKeytoPEM())
+	return nil
+}
+
+func devInit(instanceName string, keyFile string, ipString string) error {
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
+	cm, err := cloud.NewManager(envi.DB)
+	if err != nil {
+		return fmt.Errorf("Could not retrieve instance '%s': %w", instanceName, err)
+	}
+
+	err = cm.InitDevInstance(instanceName, hostname, hostname, keyFile, ipString)
+	if err != nil {
+		return fmt.Errorf("Could not init dev instance '%s': %w", instanceName, err)
+	}
+
 	return nil
 }
