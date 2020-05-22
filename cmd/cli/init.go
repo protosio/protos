@@ -111,8 +111,7 @@ func protosUserinit() error {
 		return fmt.Errorf("Failed to add user. Could not generate key: %w", err)
 	}
 
-	//// save key here
-	///
+	// FIXME: save key here
 
 	devices := []types.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), Network: "10.100.0.1/24"}}
 

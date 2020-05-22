@@ -14,7 +14,6 @@ import (
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/ssh"
-	"github.com/protosio/protos/internal/user"
 	pclient "github.com/protosio/protos/pkg/client"
 	"github.com/protosio/protos/pkg/types"
 )
@@ -42,15 +41,18 @@ func createMachineTypesString(machineTypes map[string]MachineSpec) string {
 }
 
 // AllocateNetwork allocates an unused network for an instance
-func AllocateNetwork(instances []InstanceInfo) (net.IPNet, error) {
-	_, userNet, err := net.ParseCIDR(user.UserNetwork)
-	if err != nil {
-		panic(err)
-	}
+func AllocateNetwork(instances []InstanceInfo, devices []types.UserDevice) (net.IPNet, error) {
 	// create list of existing networks
-	usedNetworks := []net.IPNet{*userNet}
+	usedNetworks := []net.IPNet{}
 	for _, inst := range instances {
 		_, inet, err := net.ParseCIDR(inst.Network)
+		if err != nil {
+			panic(err)
+		}
+		usedNetworks = append(usedNetworks, *inet)
+	}
+	for _, dev := range devices {
+		_, inet, err := net.ParseCIDR(dev.Network)
 		if err != nil {
 			panic(err)
 		}
@@ -218,7 +220,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("Failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
 	}
-	network, err := AllocateNetwork(instances)
+	network, err := AllocateNetwork(instances, usr.GetDevices())
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("Failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
 	}
@@ -341,7 +343,11 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	if err != nil {
 		return err
 	}
-	developmentNetwork, err := AllocateNetwork(instances)
+	usr, err := cm.um.GetAdmin()
+	if err != nil {
+		return err
+	}
+	developmentNetwork, err := AllocateNetwork(instances, usr.GetDevices())
 	if err != nil {
 		return fmt.Errorf("Failed to allocate network for instance '%s': %w", "dev", err)
 	}
@@ -359,11 +365,6 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return errors.Wrap(err, "Failed to deploy instance")
 	}
 	log.Infof("Tunnel to '%s' ready", ipString)
-
-	usr, err := cm.um.GetAdmin()
-	if err != nil {
-		return err
-	}
 
 	// do the initialization
 	log.Infof("Initializing instance at '%s'", ipString)
