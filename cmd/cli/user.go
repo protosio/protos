@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/protosio/protos/internal/ssh"
-	"github.com/protosio/protos/internal/user"
+	ssh "github.com/protosio/protos/internal/ssh"
 	"github.com/urfave/cli/v2"
 )
 
@@ -34,7 +33,7 @@ var cmdUser *cli.Command = &cli.Command{
 							cli.ShowSubcommandHelp(c)
 							os.Exit(1)
 						}
-						usr, err := user.Get(envi.DB)
+						usr, err := envi.UM.GetAdmin()
 						if err != nil {
 							return err
 						}
@@ -50,7 +49,7 @@ var cmdUser *cli.Command = &cli.Command{
 							cli.ShowSubcommandHelp(c)
 							os.Exit(1)
 						}
-						usr, err := user.Get(envi.DB)
+						usr, err := envi.UM.GetAdmin()
 						if err != nil {
 							return err
 						}
@@ -63,23 +62,32 @@ var cmdUser *cli.Command = &cli.Command{
 }
 
 func infoUser() error {
-	user, err := user.Get(envi.DB)
+	user, err := envi.UM.GetAdmin()
 	if err != nil {
 		return err
 	}
 
-	key, err := ssh.NewKeyFromSeed(user.Device.KeySeed)
+	userInfo := user.GetInfo()
+
+	// FIXME: current device and current key should be togheter
+	dev := user.GetCurrentDevice()
+	keySeed, err := user.GetKeyCurrentDevice()
+	if err != nil {
+		return err
+	}
+
+	key, err := ssh.NewKeyFromSeed(keySeed)
 	if err != nil {
 		return err
 	}
 
 	encodedPrivateKey := base64.StdEncoding.EncodeToString(key.Seed())
-	fmt.Printf("Username: %s\n", user.Username)
-	fmt.Printf("Name: %s\n", user.Name)
-	fmt.Printf("Domain: %s\n", user.Domain)
-	fmt.Printf("Device name: %s\n", user.Device.Name)
+	fmt.Printf("Username: %s\n", userInfo.Username)
+	fmt.Printf("Name: %s\n", userInfo.Name)
+	fmt.Printf("Domain: %s\n", userInfo.Domain)
+	fmt.Printf("Device name: %s\n", dev.Name)
 	fmt.Printf("Device private key: %s\n", encodedPrivateKey)
 	fmt.Printf("Device public key (wireguard): %s\n", key.PublicWG().String())
-	fmt.Printf("Device network: %s\n", user.Device.Network)
+	fmt.Printf("Device network: %s\n", dev.Network)
 	return nil
 }

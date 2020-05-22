@@ -35,18 +35,18 @@ func (m *MockUserManager) EXPECT() *MockUserManagerMockRecorder {
 }
 
 // CreateUser mocks base method
-func (m *MockUserManager) CreateUser(username, password, name string, isadmin bool, devices []types.UserDevice) (core.User, error) {
+func (m *MockUserManager) CreateUser(username, password, name, domain string, isadmin bool, devices []types.UserDevice) (core.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateUser", username, password, name, isadmin, devices)
+	ret := m.ctrl.Call(m, "CreateUser", username, password, name, domain, isadmin, devices)
 	ret0, _ := ret[0].(core.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateUser indicates an expected call of CreateUser
-func (mr *MockUserManagerMockRecorder) CreateUser(username, password, name, isadmin, devices interface{}) *gomock.Call {
+func (mr *MockUserManagerMockRecorder) CreateUser(username, password, name, domain, isadmin, devices interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUserManager)(nil).CreateUser), username, password, name, isadmin, devices)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUserManager)(nil).CreateUser), username, password, name, domain, isadmin, devices)
 }
 
 // ValidateAndGetUser mocks base method
@@ -185,4 +185,18 @@ func (m *MockUser) GetUsername() string {
 func (mr *MockUserMockRecorder) GetUsername() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsername", reflect.TypeOf((*MockUser)(nil).GetUsername))
+}
+
+// GetDevices mocks base method
+func (m *MockUser) GetDevices() []types.UserDevice {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDevices")
+	ret0, _ := ret[0].([]types.UserDevice)
+	return ret0
+}
+
+// GetDevices indicates an expected call of GetDevices
+func (mr *MockUserMockRecorder) GetDevices() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevices", reflect.TypeOf((*MockUser)(nil).GetDevices))
 }

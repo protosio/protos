@@ -132,14 +132,14 @@ func TestUserManager(t *testing.T) {
 		adminCapMock := mock.NewMockCapability(ctrl)
 		devices := []types.UserDevice{}
 		// short password
-		_, err := um.CreateUser("username", "pass", "first last", false, devices)
+		_, err := um.CreateUser("username", "pass", "first last", "domain", false, devices)
 		if err == nil {
 			t.Error("CreateUser() should return an error when the password is shorter than 10 characters")
 		}
 
 		// successful non-admin
 		dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Times(1)
-		user, err := um.CreateUser("username", "longpassword", "first last", false, devices)
+		user, err := um.CreateUser("username", "longpassword", "first last", "domain", false, devices)
 		if err != nil {
 			t.Errorf("CreateUser() should NOT return an error: %s", err.Error())
 		}
@@ -151,7 +151,7 @@ func TestUserManager(t *testing.T) {
 
 		// successful admin
 		dbMock.EXPECT().InsertInSet(gomock.Any(), gomock.Any()).Times(1)
-		user, err = um.CreateUser("username", "longpassword", "first last", true, devices)
+		user, err = um.CreateUser("username", "longpassword", "first last", "domain", true, devices)
 		if err != nil {
 			t.Errorf("CreateUser() should NOT return an error: %s", err.Error())
 		}

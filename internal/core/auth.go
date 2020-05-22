@@ -7,14 +7,16 @@ type UserInfo struct {
 	Username string `json:"username"`
 	Name     string `json:"name"`
 	IsAdmin  bool   `json:"isadmin"`
+	Domain   string `json:"domain"`
 }
 
 // UserManager manages users
 type UserManager interface {
-	CreateUser(username string, password string, name string, isadmin bool, devices []types.UserDevice) (User, error)
+	CreateUser(username string, password string, name string, domain string, isadmin bool, devices []types.UserDevice) (User, error)
 	ValidateAndGetUser(username string, password string) (User, error)
 	GetUser(username string) (User, error)
 	SetParent(user User) (User, error)
+	GetAdmin() (User, error)
 }
 
 // User represents a Protos user
@@ -24,5 +26,10 @@ type User interface {
 	IsAdmin() bool
 	GetInfo() UserInfo
 	GetUsername() string
+	GetPassword() string
 	GetDevices() []types.UserDevice
+	GetCurrentDevice() types.UserDevice
+	GetKeyCurrentDevice() ([]byte, error)
+	SetName(name string) error
+	SetDomain(domain string) error
 }

@@ -6,18 +6,38 @@ import (
 	osuser "os/user"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
-	"github.com/protosio/protos/internal/env"
-	"github.com/protosio/protos/internal/user"
+	"github.com/protosio/protos/internal/vpn"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
 var log *logrus.Logger
-var envi *env.Env
+var envi *Env
 var cloudName string
 var cloudLocation string
 var protosVersion string
+
+// Env is a struct that containts program dependencies that get injected in other modules
+type Env struct {
+	DB  core.DB
+	CM  core.CapabilityManager
+	UM  core.UserManager
+	VPN core.VPN
+	Log *logrus.Logger
+}
+
+// NewEnv creates and returns an instance of Env
+func NewEnv(db core.DB, cm core.CapabilityManager, um core.UserManager, vpn core.VPN, log *logrus.Logger) *Env {
+
+	if db == nil || cm == nil || um == nil || log == nil {
+		panic("env: non of the env inputs should be nil")
+	}
+	return &Env{DB: db, CM: cm, UM: um, VPN: vpn, Log: log}
+}
 
 func main() {
 	var loglevel string
@@ -100,10 +120,17 @@ func config(currentCmd string, logLevel string) {
 		log.Fatal(err)
 	}
 
-	envi = env.New(dbi, log)
+	cm := capability.CreateManager()
+	um := auth.CreateUserManager(dbi, cm)
+	vpn, err := vpn.New(dbi, um)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	envi = NewEnv(dbi, cm, um, vpn, log)
 
 	if currentCmd != "init" {
-		_, err = user.Get(envi.DB)
+		_, err = envi.UM.GetAdmin()
 		if err != nil {
 			log.Fatal(errors.Wrap(err, "Please run init command to setup Protos"))
 		}

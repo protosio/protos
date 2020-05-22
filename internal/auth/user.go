@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/gob"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -26,11 +25,13 @@ type User struct {
 	parent *UserManager `noms:"-"`
 
 	// Public members
-	Username     string             `json:"username" storm:"id"`
-	Password     string             `json:"password"`
+	Username     string             `json:"username"`
+	Password     string             `json:"-"`
+	PasswordHash string             `json:"-"`
 	Name         string             `json:"name"`
 	IsDisabled   bool               `json:"isdisabled"`
 	Capabilities []string           `json:"capabilities"`
+	Domain       string             `json:"domain"`
 	Devices      []types.UserDevice `json:"devices"`
 }
 
@@ -72,6 +73,11 @@ func (user *User) GetUsername() string {
 	return user.Username
 }
 
+// GetPassword returns the password of the user in string format
+func (user *User) GetPassword() string {
+	return user.Password
+}
+
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
 	log.Debugf("Writing username %s to database", user.Username)
@@ -106,12 +112,37 @@ func (user *User) GetInfo() core.UserInfo {
 		Username: user.Username,
 		Name:     user.Name,
 		IsAdmin:  user.IsAdmin(),
+		Domain:   user.Domain,
 	}
 }
 
 // GetDevices returns the devices that belong to a user
 func (user *User) GetDevices() []types.UserDevice {
 	return user.Devices
+}
+
+// GetCurrentDevice returns the device that Protos is running on currently
+// FIXME: implement
+func (user *User) GetCurrentDevice() types.UserDevice {
+	return user.Devices[0]
+}
+
+// GetKeyCurrentDevice returns the private key for the current device
+// FIXME: implement
+func (user *User) GetKeyCurrentDevice() ([]byte, error) {
+	return []byte{}, nil
+}
+
+// SetName enables the changing of the name of the user
+func (user *User) SetName(name string) error {
+	user.Name = name
+	return user.Save()
+}
+
+// SetDomain enables the changing of the domain of the user
+func (user *User) SetDomain(domain string) error {
+	user.Domain = domain
+	return user.Save()
 }
 
 //
@@ -129,13 +160,12 @@ func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
 	if db == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
-	gob.Register(&User{})
 
 	return &UserManager{db: db, cm: cm}
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool, devices []types.UserDevice) (core.User, error) {
+func (um *UserManager) CreateUser(username string, password string, name string, domain string, isadmin bool, devices []types.UserDevice) (core.User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {
@@ -146,10 +176,13 @@ func (um *UserManager) CreateUser(username string, password string, name string,
 		return nil, fmt.Errorf("Failed to create user '%s': 0 user devices provided", username)
 	}
 
+	// FIXME: get rid of the password somehow. Need to authenticate based on priv/pub key
+	// the current setup is dangerous because the password will be synced to instances
 	user := User{
 		parent:       um,
 		Username:     username,
-		Password:     passwordHash,
+		Password:     password,
+		PasswordHash: passwordHash,
 		Name:         name,
 		IsDisabled:   false,
 		Capabilities: []string{},
@@ -200,6 +233,22 @@ func (um *UserManager) GetUser(username string) (core.User, error) {
 	}
 	user.parent = um
 	return &user, nil
+}
+
+// GetAdmin returns the admin username. Only one admin is allowed at the moment
+func (um *UserManager) GetAdmin() (core.User, error) {
+	var users []User
+	err := um.db.GetSet(authDS, &users)
+	if err != nil {
+		return &User{}, err
+	}
+	for _, usr := range users {
+		if usr.IsAdmin() == true {
+			usr.parent = um
+			return &usr, nil
+		}
+	}
+	return &User{}, fmt.Errorf("Could not find admin user")
 }
 
 // SetParent returns sets the parent (user manager) for a given user

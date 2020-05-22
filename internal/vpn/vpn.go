@@ -8,7 +8,6 @@ import (
 	"github.com/foxcpp/wirebox/linkmgr"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/core"
-	"github.com/protosio/protos/internal/user"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -19,21 +18,24 @@ const (
 
 type VPN struct {
 	nm linkmgr.Manager
+	um core.UserManager
 	db core.DB
 }
 
 func (vpn *VPN) Start() error {
-	usr, err := user.Get(vpn.db)
+	usr, err := vpn.um.GetAdmin()
 	if err != nil {
 		return err
 	}
+
+	dev := usr.GetCurrentDevice()
 
 	// create protos vpn interface and configure the address
 	lnk, err := vpn.nm.CreateLink(protosNetworkInterface)
 	if err != nil {
 		return err
 	}
-	ip, netp, err := net.ParseCIDR(usr.Device.Network)
+	ip, netp, err := net.ParseCIDR(dev.Network)
 	if err != nil {
 		return err
 	}
@@ -83,8 +85,13 @@ func (vpn *VPN) Start() error {
 	}
 
 	// configure wireguard
+	keyseed, err := usr.GetKeyCurrentDevice()
+	if err != nil {
+		return err
+	}
+
 	var pkey wgtypes.Key
-	copy(pkey[:], usr.Device.KeySeed)
+	copy(pkey[:], keyseed)
 	wgcfg := wgtypes.Config{
 		PrivateKey: &pkey,
 		Peers:      peers,
@@ -108,7 +115,7 @@ func (vpn *VPN) Start() error {
 		return err
 	}
 
-	err = dns.AddDomainServer(usr.Domain, masterInstaceIP)
+	err = dns.AddDomainServer(usr.GetInfo().Domain, masterInstaceIP)
 	if err != nil {
 		return err
 	}
@@ -117,7 +124,7 @@ func (vpn *VPN) Start() error {
 }
 
 func (vpn *VPN) Stop() error {
-	usr, err := user.Get(vpn.db)
+	usr, err := vpn.um.GetAdmin()
 	if err != nil {
 		return err
 	}
@@ -139,7 +146,7 @@ func (vpn *VPN) Stop() error {
 		return err
 	}
 
-	err = dns.DelDomainServer(usr.Domain)
+	err = dns.DelDomainServer(usr.GetInfo().Domain)
 	if err != nil {
 		return err
 	}
@@ -147,10 +154,10 @@ func (vpn *VPN) Stop() error {
 	return nil
 }
 
-func New(db core.DB) (VPN, error) {
+func New(db core.DB, um core.UserManager) (*VPN, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
-		return VPN{}, err
+		return nil, err
 	}
-	return VPN{db: db, nm: manager}, nil
+	return &VPN{db: db, um: um, nm: manager}, nil
 }

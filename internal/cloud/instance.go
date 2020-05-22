@@ -2,7 +2,6 @@ package cloud
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
@@ -77,6 +76,7 @@ func AllocateNetwork(instances []InstanceInfo) (net.IPNet, error) {
 // Manager manages cloud providers and instances
 type Manager struct {
 	db core.DB
+	um core.UserManager
 }
 
 //
@@ -141,7 +141,7 @@ func (cm *Manager) NewProvider(cloudName string, cloud string) (Provider, error)
 
 // DeployInstance deploys an instance on the provided cloud
 func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error) {
-	usr, err := user.Get(cm.db)
+	usr, err := cm.um.GetAdmin()
 	if err != nil {
 		return InstanceInfo{}, err
 	}
@@ -288,18 +288,10 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.Username, usr.Password)
-	userDeviceKey, err := ssh.NewKeyFromSeed(usr.Device.KeySeed)
-	if err != nil {
-		panic(err)
-	}
-	keyEncoded := base64.StdEncoding.EncodeToString(userDeviceKey.Public())
-	usrDev := types.UserDevice{
-		Name:      usr.Device.Name,
-		PublicKey: keyEncoded,
-		Network:   usr.Device.Network,
-	}
-	ip, pubKey, err := protos.InitInstance(usr.Name, instanceInfo.Network, usr.Domain, []types.UserDevice{usrDev})
+	protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.GetUsername(), usr.GetPassword())
+	dev := usr.GetCurrentDevice()
+
+	ip, pubKey, err := protos.InitInstance(usr.GetInfo().Name, instanceInfo.Network, usr.GetInfo().Domain, []types.UserDevice{dev})
 	if err != nil {
 		return InstanceInfo{}, errors.Wrap(err, "Error while doing the instance initialization")
 	}
@@ -322,6 +314,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	return instanceInfo, nil
 }
 
+// InitDevInstance initializes an existing instance, without deploying one. Used for development purposes
 func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locationName string, keyFile string, ipString string) error {
 	instanceInfo := InstanceInfo{
 		VMID:          instanceName,
@@ -367,27 +360,18 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 	log.Infof("Tunnel to '%s' ready", ipString)
 
-	usr, err := user.Get(cm.db)
+	usr, err := cm.um.GetAdmin()
 	if err != nil {
 		return err
 	}
 
 	// do the initialization
 	log.Infof("Initializing instance at '%s'", ipString)
-	protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.Username, usr.Password)
-	key, err := ssh.NewKeyFromSeed(usr.Device.KeySeed)
-	if err != nil {
-		panic(err)
-	}
-
-	usrDev := types.UserDevice{
-		Name:      usr.Device.Name,
-		PublicKey: key.PublicWG().String(),
-		Network:   usr.Device.Network,
-	}
+	protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.GetUsername(), usr.GetPassword())
+	dev := usr.GetCurrentDevice()
 
 	// Doing the instance initialization which returns the internal wireguard IP and the public key created using the wireguard library.
-	instanceIP, instancePublicKey, err := protos.InitInstance(usr.Name, developmentNetwork.String(), usr.Domain, []types.UserDevice{usrDev})
+	instanceIP, instancePublicKey, err := protos.InitInstance(usr.GetInfo().Name, developmentNetwork.String(), usr.GetInfo().Domain, []types.UserDevice{dev})
 	if err != nil {
 		return errors.Wrap(err, "Error while doing the instance initialization")
 	}
@@ -567,7 +551,7 @@ func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
 	return instances, nil
 }
 
-// NewManager creates and returns a cloud manager
-func NewManager(db core.DB) (Manager, error) {
-	return Manager{db: db}, nil
+// CreateManager creates and returns a cloud manager
+func CreateManager(db core.DB, um core.UserManager) (Manager, error) {
+	return Manager{db: db, um: um}, nil
 }

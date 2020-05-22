@@ -3,13 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"text/tabwriter"
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/cloud"
 	ssh "github.com/protosio/protos/internal/ssh"
-	"github.com/protosio/protos/internal/user"
+	"github.com/protosio/protos/pkg/types"
 	"github.com/urfave/cli/v2"
 )
 
@@ -36,9 +37,9 @@ var cmdInit *cli.Command = &cli.Command{
 
 func protosUserinit() error {
 
-	usrInfo, err := user.Get(envi.DB)
+	usrInfo, err := envi.UM.GetAdmin()
 	if err == nil {
-		return fmt.Errorf("User '%s' already initialized", usrInfo.Username)
+		return fmt.Errorf("User '%s' already initialized", usrInfo.GetUsername())
 	}
 
 	userNameQuestion := []*survey.Question{{
@@ -101,7 +102,21 @@ func protosUserinit() error {
 		return err
 	}
 
-	_, err = user.New(envi.DB, username, name, domain, password)
+	host, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("Failed to add user. Could not retrieve hostname: %w", err)
+	}
+	key, err := ssh.GenerateKey()
+	if err != nil {
+		return fmt.Errorf("Failed to add user. Could not generate key: %w", err)
+	}
+
+	//// save key here
+	///
+
+	devices := []types.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), Network: "10.100.0.1/24"}}
+
+	_, err = envi.UM.CreateUser(username, password, name, domain, true, devices)
 	if err != nil {
 		return err
 	}

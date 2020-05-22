@@ -155,7 +155,7 @@ func getProtosAvailableReleases() (release.Releases, error) {
 }
 
 func printProtosCloudImages(cloudName string) error {
-	cm, err := cloud.NewManager(envi.DB)
+	cm, err := cloud.CreateManager(envi.DB, envi.UM)
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 		return fmt.Errorf("Image '%s' has 0 bytes", imagePath)
 	}
 
-	cm, err := cloud.NewManager(envi.DB)
+	cm, err := cloud.CreateManager(envi.DB, envi.UM)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 func deleteImageFromCloud(imageName string, cloudName string, cloudLocation string) error {
 	errMsg := fmt.Sprintf("Failed to delete image '%s' from cloud '%s'", imageName, cloudName)
 	// init cloud
-	cm, err := cloud.NewManager(envi.DB)
+	cm, err := cloud.CreateManager(envi.DB, envi.UM)
 	if err != nil {
 		return err
 	}

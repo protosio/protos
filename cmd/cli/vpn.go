@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/protosio/protos/internal/vpn"
 	"github.com/urfave/cli/v2"
 )
 
@@ -13,33 +12,15 @@ var cmdVPN *cli.Command = &cli.Command{
 			Name:  "start",
 			Usage: "Start the VPN",
 			Action: func(c *cli.Context) error {
-				return startVPN()
+				return envi.VPN.Start()
 			},
 		},
 		{
 			Name:  "stop",
 			Usage: "Stop the VPN",
 			Action: func(c *cli.Context) error {
-				return stopVPN()
+				return envi.VPN.Stop()
 			},
 		},
 	},
-}
-
-func startVPN() error {
-	v, err := vpn.New(envi.DB)
-	if err != nil {
-		return err
-	}
-
-	return v.Start()
-}
-
-func stopVPN() error {
-	v, err := vpn.New(envi.DB)
-	if err != nil {
-		return err
-	}
-
-	return v.Stop()
 }
