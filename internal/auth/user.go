@@ -136,7 +136,6 @@ func (user *User) GetCurrentDevice() (types.UserDevice, error) {
 }
 
 // GetKeyCurrentDevice returns the private key for the current device
-// FIXME: implement machine id
 func (user *User) GetKeyCurrentDevice() (core.Key, error) {
 	dev, err := user.GetCurrentDevice()
 	if err != nil {
@@ -260,8 +259,8 @@ func (um *UserManager) GetAdmin() (core.User, error) {
 		return &User{}, err
 	}
 	for _, usr := range users {
+		usr.parent = um
 		if usr.IsAdmin() == true {
-			usr.parent = um
 			return &usr, nil
 		}
 	}

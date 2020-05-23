@@ -230,7 +230,7 @@ func protosFullInit() error {
 	// Perform setup via SSH tunnel
 	//
 
-	key, err := ssh.NewKeyFromSeed(instanceInfo.KeySeed)
+	key, err := envi.SM.NewKeyFromSeed(instanceInfo.KeySeed)
 	if err != nil {
 		return errors.Wrap(err, "Failed to initialize Protos")
 	}

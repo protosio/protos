@@ -13,12 +13,12 @@ import (
 type Key struct {
 	parent *Manager `noms:"-"`
 
-	private ed25519.PrivateKey
-	public  ed25519.PublicKey
+	Priv ed25519.PrivateKey
+	Pub  ed25519.PublicKey
 }
 
 func (k Key) Public() []byte {
-	return k.public
+	return k.Pub
 }
 
 func (k Key) PublicWG() wgtypes.Key {
@@ -28,12 +28,12 @@ func (k Key) PublicWG() wgtypes.Key {
 }
 
 func (k Key) Seed() []byte {
-	return k.private[:32]
+	return k.Priv[:32]
 }
 
 func (k Key) EncodePrivateKeytoPEM() string {
 	// Get ASN.1 DER format
-	privDER := edkey.MarshalED25519PrivateKey(k.private)
+	privDER := edkey.MarshalED25519PrivateKey(k.Priv)
 
 	// pem.Block
 	privBlock := pem.Block{
@@ -50,13 +50,13 @@ func (k Key) EncodePrivateKeytoPEM() string {
 
 // SSHAuth returns an ssh.AuthMethod that can be used to configure an ssh client
 func (k Key) SSHAuth() ssh.AuthMethod {
-	signer, _ := ssh.NewSignerFromKey(k.private)
+	signer, _ := ssh.NewSignerFromKey(k.Priv)
 	return ssh.PublicKeys(signer)
 }
 
 // AuthorizedKey return the public key in a format that can be written directly to the ~/.ssh/authorized_keys file
 func (k Key) AuthorizedKey() string {
-	publicKey, _ := ssh.NewPublicKey(k.public)
+	publicKey, _ := ssh.NewPublicKey(k.Pub)
 	return string(ssh.MarshalAuthorizedKey(publicKey))
 }
 

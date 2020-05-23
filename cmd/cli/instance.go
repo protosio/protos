@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/release"
-	ssh "github.com/protosio/protos/internal/ssh"
 	"github.com/urfave/cli/v2"
 )
 
@@ -280,7 +279,7 @@ func keyInstance(name string) error {
 	if len(instanceInfo.KeySeed) == 0 {
 		return errors.Errorf("Instance '%s' is missing its SSH key", name)
 	}
-	key, err := ssh.NewKeyFromSeed(instanceInfo.KeySeed)
+	key, err := envi.SM.NewKeyFromSeed(instanceInfo.KeySeed)
 	if err != nil {
 		return errors.Wrapf(err, "Instance '%s' has an invalid SSH key", name)
 	}

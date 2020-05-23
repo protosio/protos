@@ -352,7 +352,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("String '%s' is not a valid IP address", ipString)
 	}
 
-	auth, err := ssh.NewAuthFromKeyFile(keyFile)
+	auth, err := cm.sm.NewAuthFromKeyFile(keyFile)
 	if err != nil {
 		return err
 	}
@@ -518,7 +518,7 @@ func (cm *Manager) TunnelInstance(name string) error {
 	if len(instanceInfo.KeySeed) == 0 {
 		return errors.Errorf("Instance '%s' is missing its SSH key", name)
 	}
-	key, err := ssh.NewKeyFromSeed(instanceInfo.KeySeed)
+	key, err := cm.sm.NewKeyFromSeed(instanceInfo.KeySeed)
 	if err != nil {
 		return errors.Wrapf(err, "Instance '%s' has an invalid SSH key", name)
 	}

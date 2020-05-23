@@ -65,6 +65,36 @@ func (mr *MockSSHManagerMockRecorder) GetKeyByPub(pubKey interface{}) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeyByPub", reflect.TypeOf((*MockSSHManager)(nil).GetKeyByPub), pubKey)
 }
 
+// NewKeyFromSeed mocks base method
+func (m *MockSSHManager) NewKeyFromSeed(seed []byte) (core.Key, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewKeyFromSeed", seed)
+	ret0, _ := ret[0].(core.Key)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewKeyFromSeed indicates an expected call of NewKeyFromSeed
+func (mr *MockSSHManagerMockRecorder) NewKeyFromSeed(seed interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewKeyFromSeed", reflect.TypeOf((*MockSSHManager)(nil).NewKeyFromSeed), seed)
+}
+
+// NewAuthFromKeyFile mocks base method
+func (m *MockSSHManager) NewAuthFromKeyFile(keyPath string) (ssh.AuthMethod, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAuthFromKeyFile", keyPath)
+	ret0, _ := ret[0].(ssh.AuthMethod)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAuthFromKeyFile indicates an expected call of NewAuthFromKeyFile
+func (mr *MockSSHManagerMockRecorder) NewAuthFromKeyFile(keyPath interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAuthFromKeyFile", reflect.TypeOf((*MockSSHManager)(nil).NewAuthFromKeyFile), keyPath)
+}
+
 // MockKey is a mock of Key interface
 type MockKey struct {
 	ctrl     *gomock.Controller
