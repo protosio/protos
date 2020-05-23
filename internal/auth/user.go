@@ -203,6 +203,7 @@ func (um *UserManager) CreateUser(username string, password string, name string,
 		IsDisabled:   false,
 		Capabilities: []string{},
 		Devices:      devices,
+		Domain:       domain,
 	}
 	if isadmin {
 		user.Capabilities = append(user.Capabilities, "UserAdmin")
