@@ -18,8 +18,9 @@ func TestUser(t *testing.T) {
 
 	dbMock := mock.NewMockDB(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
+	smMock := mock.NewMockSSHManager(ctrl)
 	adminCapMock := mock.NewMockCapability(ctrl)
-	um := CreateUserManager(dbMock, cmMock)
+	um := CreateUserManager(dbMock, smMock, cmMock)
 
 	user := &User{
 		Username:     "testuser",
@@ -109,6 +110,7 @@ func TestUserManager(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbMock := mock.NewMockDB(ctrl)
+	smMock := mock.NewMockSSHManager(ctrl)
 	cmMock := mock.NewMockCapabilityManager(ctrl)
 
 	// one of the inputs is nil
@@ -119,10 +121,10 @@ func TestUserManager(t *testing.T) {
 				t.Errorf("A nil input in the CreateUserManager call should lead to a panic")
 			}
 		}()
-		CreateUserManager(dbMock, nil)
+		CreateUserManager(dbMock, nil, nil)
 	}()
 
-	um := CreateUserManager(dbMock, cmMock)
+	um := CreateUserManager(dbMock, smMock, cmMock)
 
 	//
 	// CreateUser

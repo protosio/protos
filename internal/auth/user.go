@@ -6,10 +6,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/util"
 	"github.com/protosio/protos/pkg/types"
 
-	"github.com/protosio/protos/internal/util"
-
+	"github.com/denisbrodbeck/machineid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -122,15 +122,31 @@ func (user *User) GetDevices() []types.UserDevice {
 }
 
 // GetCurrentDevice returns the device that Protos is running on currently
-// FIXME: implement
-func (user *User) GetCurrentDevice() types.UserDevice {
-	return user.Devices[0]
+func (user *User) GetCurrentDevice() (types.UserDevice, error) {
+	id, err := machineid.ProtectedID("protos")
+	if err != nil {
+		return types.UserDevice{}, fmt.Errorf("Failed to generate machine id: %w", err)
+	}
+	for _, dev := range user.Devices {
+		if dev.MachineID == id {
+			return dev, nil
+		}
+	}
+	return types.UserDevice{}, fmt.Errorf("Failed to find machine with id '%s'", id)
 }
 
 // GetKeyCurrentDevice returns the private key for the current device
-// FIXME: implement
-func (user *User) GetKeyCurrentDevice() ([]byte, error) {
-	return []byte{}, nil
+// FIXME: implement machine id
+func (user *User) GetKeyCurrentDevice() (core.Key, error) {
+	dev, err := user.GetCurrentDevice()
+	if err != nil {
+		return nil, err
+	}
+	key, err := user.parent.sm.GetKeyByPub(dev.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 // SetName enables the changing of the name of the user
@@ -153,15 +169,16 @@ func (user *User) SetDomain(domain string) error {
 type UserManager struct {
 	db core.DB
 	cm core.CapabilityManager
+	sm core.SSHManager
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db core.DB, cm core.CapabilityManager) *UserManager {
-	if db == nil || cm == nil {
+func CreateUserManager(db core.DB, sm core.SSHManager, cm core.CapabilityManager) *UserManager {
+	if db == nil || sm == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 
-	return &UserManager{db: db, cm: cm}
+	return &UserManager{db: db, sm: sm, cm: cm}
 }
 
 // CreateUser creates and returns a user

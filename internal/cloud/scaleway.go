@@ -10,6 +10,7 @@ import (
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/ssh"
 	account "github.com/scaleway/scaleway-sdk-go/api/account/v2alpha1"
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
@@ -30,7 +31,8 @@ type scalewayCredentials struct {
 }
 
 type scaleway struct {
-	ProviderInfo
+	cm *Manager
+	// ProviderInfo
 	name           string
 	credentials    *scalewayCredentials
 	client         *scw.Client
@@ -41,8 +43,8 @@ type scaleway struct {
 	location       scw.Zone
 }
 
-func newScalewayClient(pi ProviderInfo) *scaleway {
-	return &scaleway{name: pi.Name, ProviderInfo: pi}
+func newScalewayClient(name string, cm *Manager) *scaleway {
+	return &scaleway{name: name, cm: cm}
 }
 
 //
@@ -75,7 +77,6 @@ func (sw *scaleway) SetAuth(auth map[string]string) error {
 		}
 	}
 
-	sw.ProviderInfo.Auth = auth
 	sw.auth = auth
 	sw.credentials = scwCredentials
 	return nil
@@ -101,15 +102,15 @@ func (sw *scaleway) Init() error {
 	return nil
 }
 
-func (sw *scaleway) SupportedMachines(location string) (map[string]MachineSpec, error) {
-	vms := map[string]MachineSpec{}
+func (sw *scaleway) SupportedMachines(location string) (map[string]core.MachineSpec, error) {
+	vms := map[string]core.MachineSpec{}
 	inst, err := sw.instanceAPI.ListServersTypes(&instance.ListServersTypesRequest{Zone: scw.Zone(location)})
 	if err != nil {
 		return vms, errors.Wrap(err, "Failed to retrieve Scaleway instance types")
 	}
 	for id, instance := range inst.Servers {
 		if instance.Arch == "x86_64" && strings.Contains(id, "DEV") {
-			vms[id] = MachineSpec{
+			vms[id] = core.MachineSpec{
 				Cores:                instance.Ncpus,
 				Memory:               uint32(instance.RAM / 1048576),
 				DefaultStorage:       uint32(instance.VolumesConstraint.MinSize / 1000000000),
@@ -250,17 +251,17 @@ func (sw *scaleway) StopInstance(id string, location string) error {
 	return nil
 }
 
-func (sw *scaleway) GetInstanceInfo(id string, location string) (InstanceInfo, error) {
+func (sw *scaleway) GetInstanceInfo(id string, location string) (core.InstanceInfo, error) {
 	resp, err := sw.instanceAPI.GetServer(&instance.GetServerRequest{ServerID: id, Zone: scw.Zone(location)})
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Failed to retrieve Scaleway instance (%s) information", id)
+		return core.InstanceInfo{}, errors.Wrapf(err, "Failed to retrieve Scaleway instance (%s) information", id)
 	}
-	info := InstanceInfo{VMID: id, Name: resp.Server.Name, CloudName: sw.name, CloudType: Scaleway, Location: string(scw.Zone(location))}
+	info := core.InstanceInfo{VMID: id, Name: resp.Server.Name, CloudName: sw.name, CloudType: Scaleway.String(), Location: string(scw.Zone(location))}
 	if resp.Server.PublicIP != nil {
 		info.PublicIP = resp.Server.PublicIP.Address.String()
 	}
 	for _, svol := range resp.Server.Volumes {
-		info.Volumes = append(info.Volumes, VolumeInfo{VolumeID: svol.ID, Name: svol.Name, Size: uint64(svol.Size)})
+		info.Volumes = append(info.Volumes, core.VolumeInfo{VolumeID: svol.ID, Name: svol.Name, Size: uint64(svol.Size)})
 	}
 	return info, nil
 }
@@ -269,8 +270,8 @@ func (sw *scaleway) GetInstanceInfo(id string, location string) (InstanceInfo, e
 // Images methods
 //
 
-func (sw *scaleway) GetImages() (map[string]ImageInfo, error) {
-	images := map[string]ImageInfo{}
+func (sw *scaleway) GetImages() (map[string]core.ImageInfo, error) {
+	images := map[string]core.ImageInfo{}
 	locations := sw.SupportedLocations()
 	for _, location := range locations {
 		resp, err := sw.instanceAPI.ListImages(&instance.ListImagesRequest{Zone: scw.Zone(location)})
@@ -280,17 +281,17 @@ func (sw *scaleway) GetImages() (map[string]ImageInfo, error) {
 		for _, img := range resp.Images {
 			if strings.Contains(img.Name, "protos-") {
 				imgName := strings.TrimPrefix(img.Name, "protos-")
-				images[img.ID] = ImageInfo{Name: imgName, ID: img.ID, Location: location}
+				images[img.ID] = core.ImageInfo{Name: imgName, ID: img.ID, Location: location}
 			} else {
-				images[img.ID] = ImageInfo{Name: img.Name, ID: img.ID, Location: location}
+				images[img.ID] = core.ImageInfo{Name: img.Name, ID: img.ID, Location: location}
 			}
 		}
 	}
 	return images, nil
 }
 
-func (sw *scaleway) GetProtosImages() (map[string]ImageInfo, error) {
-	images := map[string]ImageInfo{}
+func (sw *scaleway) GetProtosImages() (map[string]core.ImageInfo, error) {
+	images := map[string]core.ImageInfo{}
 	locations := sw.SupportedLocations()
 	for _, location := range locations {
 		resp, err := sw.instanceAPI.ListImages(&instance.ListImagesRequest{Zone: scw.Zone(location)})
@@ -300,7 +301,7 @@ func (sw *scaleway) GetProtosImages() (map[string]ImageInfo, error) {
 		for _, img := range resp.Images {
 			if strings.Contains(img.Name, "protos-") {
 				imgName := strings.TrimPrefix(img.Name, "protos-")
-				images[img.ID] = ImageInfo{Name: imgName, ID: img.ID, Location: location}
+				images[img.ID] = core.ImageInfo{Name: imgName, ID: img.ID, Location: location}
 			}
 		}
 	}
@@ -314,7 +315,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	// create and add ssh key to account
 	//
 
-	key, err := ssh.GenerateKey()
+	key, err := sw.cm.sm.GenerateKey()
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway")
 	}
@@ -476,7 +477,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	// Create and add a temporary ssh key to account
 	//
 
-	key, err := ssh.GenerateKey()
+	key, err := sw.cm.sm.GenerateKey()
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}

@@ -28,8 +28,8 @@ type User interface {
 	GetUsername() string
 	GetPassword() string
 	GetDevices() []types.UserDevice
-	GetCurrentDevice() types.UserDevice
-	GetKeyCurrentDevice() ([]byte, error)
+	GetCurrentDevice() (types.UserDevice, error)
+	GetKeyCurrentDevice() (Key, error)
 	SetName(name string) error
 	SetDomain(domain string) error
 }

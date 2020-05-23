@@ -5,13 +5,14 @@ go 1.14
 replace github.com/foxcpp/wirebox => github.com/nustiueudinastea/wirebox v0.0.0-20200520144359-4a964b076117
 
 require (
-	cuelang.org/go v0.1.2
 	github.com/AlecAivazis/survey/v2 v2.0.7
 	github.com/Masterminds/semver v1.5.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/attic-labs/noms v0.0.0-20200410174738-39057233bfdd
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200119201711-987556b8bdd7
 	github.com/cnf/structhash v0.0.0-20180104161610-62a607eb0224
+	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/emirpasic/gods v1.12.0
 	github.com/foxcpp/wirebox v0.0.0-20200514221413-742e75ef2d54
 	github.com/getlantern/deepcopy v0.0.0-20160317154340-7f45deb8130a

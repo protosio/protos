@@ -7,8 +7,9 @@ import (
 	"text/tabwriter"
 
 	survey "github.com/AlecAivazis/survey/v2"
+	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/cloud"
+	"github.com/protosio/protos/internal/core"
 	ssh "github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/pkg/types"
 	"github.com/urfave/cli/v2"
@@ -106,19 +107,25 @@ func protosUserinit() error {
 	if err != nil {
 		return fmt.Errorf("Failed to add user. Could not retrieve hostname: %w", err)
 	}
-	key, err := ssh.GenerateKey()
+	key, err := envi.SM.GenerateKey()
 	if err != nil {
 		return fmt.Errorf("Failed to add user. Could not generate key: %w", err)
 	}
 
-	// FIXME: save key here
+	machineID, err := machineid.ProtectedID("protos")
+	if err != nil {
+		return fmt.Errorf("Failed to add user. Error while generating machine id: %w", err)
+	}
 
-	devices := []types.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), Network: "10.100.0.1/24"}}
+	devices := []types.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), MachineID: machineID, Network: "10.100.0.1/24"}}
 
 	_, err = envi.UM.CreateUser(username, password, name, domain, true, devices)
 	if err != nil {
 		return err
 	}
+
+	// saving the key to disk
+	key.Save()
 
 	return nil
 }
@@ -171,7 +178,7 @@ func protosFullInit() error {
 	// select one of the supported locations by this particular cloud
 	var cloudLocation string
 	supportedLocations := cloudProvider.SupportedLocations()
-	cloudLocationQuestions := surveySelect(supportedLocations, fmt.Sprintf("Choose one of the following supported locations for '%s':", cloudProvider.GetInfo().Type))
+	cloudLocationQuestions := surveySelect(supportedLocations, fmt.Sprintf("Choose one of the following supported locations for '%s':", cloudProvider.TypeStr()))
 	err = survey.AskOne(cloudLocationQuestions, &cloudLocation)
 	if err != nil {
 		return errors.Wrap(err, "Failed to initialize Protos")
@@ -207,7 +214,7 @@ func protosFullInit() error {
 		supportedMachineTypeIDs = append(supportedMachineTypeIDs, id)
 	}
 	machineTypesStr := createMachineTypesString(supportedMachineTypes)
-	machineTypeQuestion := surveySelect(supportedMachineTypeIDs, fmt.Sprintf("Choose one of the following supported machine types for '%s'.\n%s", cloudProvider.GetInfo().Type, machineTypesStr))
+	machineTypeQuestion := surveySelect(supportedMachineTypeIDs, fmt.Sprintf("Choose one of the following supported machine types for '%s'.\n%s", cloudProvider.TypeStr(), machineTypesStr))
 	err = survey.AskOne(machineTypeQuestion, &machineType)
 	if err != nil {
 		return errors.Wrap(err, "Failed to initialize Protos")
@@ -298,7 +305,7 @@ func getCloudCredentialsQuestions(providerName string, fields []string) []*surve
 	return qs
 }
 
-func createMachineTypesString(machineTypes map[string]cloud.MachineSpec) string {
+func createMachineTypesString(machineTypes map[string]core.MachineSpec) string {
 	var machineTypesStr bytes.Buffer
 	w := new(tabwriter.Writer)
 	w.Init(&machineTypesStr, 8, 8, 0, ' ', 0)

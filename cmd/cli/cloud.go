@@ -8,7 +8,7 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/cloud"
+	"github.com/protosio/protos/internal/core"
 	"github.com/urfave/cli/v2"
 )
 
@@ -74,12 +74,7 @@ var cmdCloud *cli.Command = &cli.Command{
 
 func listCloudProviders() error {
 
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return err
-	}
-
-	clouds, err := cm.GetProviders()
+	clouds, err := envi.CLM.GetProviders()
 	if err != nil {
 		return err
 	}
@@ -92,28 +87,24 @@ func listCloudProviders() error {
 	fmt.Fprintf(w, " %s\t%s\t", "Name", "Type")
 	fmt.Fprintf(w, "\n %s\t%s\t", "----", "----")
 	for _, cl := range clouds {
-		fmt.Fprintf(w, "\n %s\t%s\t", cl.Name, cl.Type)
+		fmt.Fprintf(w, "\n %s\t%s\t", cl.NameStr(), cl.TypeStr())
 	}
 	fmt.Fprint(w, "\n")
 	return nil
 }
 
-func addCloudProvider(cloudName string) (cloud.Provider, error) {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return nil, err
-	}
+func addCloudProvider(cloudName string) (core.CloudProvider, error) {
 
 	// select cloud provider
 	var cloudType string
-	cloudProviderSelect := surveySelect(cm.SupportedProviders(), "Choose one of the following supported cloud providers:")
-	err = survey.AskOne(cloudProviderSelect, &cloudType)
+	cloudProviderSelect := surveySelect(envi.CLM.SupportedProviders(), "Choose one of the following supported cloud providers:")
+	err := survey.AskOne(cloudProviderSelect, &cloudType)
 	if err != nil {
 		return nil, err
 	}
 
 	// create new cloud provider
-	provider, err := cm.NewProvider(cloudName, cloudType)
+	provider, err := envi.CLM.NewProvider(cloudName, cloudType)
 	if err != nil {
 		return nil, err
 	}
@@ -150,21 +141,11 @@ func addCloudProvider(cloudName string) (cloud.Provider, error) {
 }
 
 func deleteCloudProvider(name string) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return err
-	}
-
-	return cm.DeleteProvider(name)
+	return envi.CLM.DeleteProvider(name)
 }
 
 func infoCloudProvider(name string) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return err
-	}
-
-	provider, err := cm.GetProvider(name)
+	provider, err := envi.CLM.GetProvider(name)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
 	}

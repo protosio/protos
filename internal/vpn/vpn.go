@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/foxcpp/wirebox/linkmgr"
-	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/core"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -28,7 +27,10 @@ func (vpn *VPN) Start() error {
 		return err
 	}
 
-	dev := usr.GetCurrentDevice()
+	dev, err := usr.GetCurrentDevice()
+	if err != nil {
+		return err
+	}
 
 	// create protos vpn interface and configure the address
 	lnk, err := vpn.nm.CreateLink(protosNetworkInterface)
@@ -46,7 +48,7 @@ func (vpn *VPN) Start() error {
 	}
 
 	// create wireguard peer configurations and route list
-	var instances []cloud.InstanceInfo
+	var instances []core.InstanceInfo
 	err = vpn.db.GetSet(instanceDS, &instances)
 	if err != nil {
 		return err
@@ -85,13 +87,13 @@ func (vpn *VPN) Start() error {
 	}
 
 	// configure wireguard
-	keyseed, err := usr.GetKeyCurrentDevice()
+	key, err := usr.GetKeyCurrentDevice()
 	if err != nil {
 		return err
 	}
 
 	var pkey wgtypes.Key
-	copy(pkey[:], keyseed)
+	copy(pkey[:], key.Seed())
 	wgcfg := wgtypes.Config{
 		PrivateKey: &pkey,
 		Peers:      peers,

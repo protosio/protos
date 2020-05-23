@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -30,8 +31,10 @@ const (
 
 // ProviderInfo stores information about a cloud provider
 type ProviderInfo struct {
-	cm   *Manager
-	Name string `storm:"id"`
+	core.CloudProviderImplementation `noms:"-"`
+	cm                               *Manager `noms:"-"`
+
+	Name string
 	Type Type
 	Auth map[string]string
 }
@@ -45,6 +48,11 @@ func (pi ProviderInfo) Save() error {
 	return nil
 }
 
+// NameStr returns the name of the cloud provider instance
+func (pi ProviderInfo) NameStr() string {
+	return pi.Name
+}
+
 // TypeStr returns the cloud type formatted as string
 func (pi ProviderInfo) TypeStr() string {
 	return pi.Type.String()
@@ -56,94 +64,29 @@ func (pi ProviderInfo) GetInfo() ProviderInfo {
 }
 
 // getClient creates a new cloud provider client based on the info in ProviderInfo
-func (pi ProviderInfo) getClient() (Provider, error) {
-	var client Provider
+func (pi ProviderInfo) getCloudProvider() (core.CloudProvider, error) {
+	var client core.CloudProviderImplementation
 	var err error
 	switch pi.Type {
 	// case DigitalOcean:
 	// 	client, err = newDigitalOceanClient()
 	case Scaleway:
-		client = newScalewayClient(pi)
+		client = newScalewayClient(pi.Name, pi.cm)
 	default:
 		err = errors.Errorf("Cloud '%s' not supported", pi.Type.String())
 	}
 	if err != nil {
 		return nil, err
 	}
-	return client, nil
-}
-
-// InstanceInfo holds information about a cloud instance
-type InstanceInfo struct {
-	VMID          string
-	Name          string `storm:"id"`
-	KeySeed       []byte // private SSH key stored only on the client
-	PublicKey     []byte // public key used for wireguard connection
-	PublicIP      string
-	InternalIP    string
-	CloudType     Type
-	CloudName     string
-	Location      string
-	Network       string
-	ProtosVersion string
-	Volumes       []VolumeInfo
-}
-
-// VolumeInfo holds information about a data volume
-type VolumeInfo struct {
-	VolumeID string
-	Name     string
-	Size     uint64
-}
-
-// MachineSpec holds information about the hardware characteristics of vm or baremetal instance
-type MachineSpec struct {
-	Cores                uint32  // Nr of cores
-	Memory               uint32  // MiB
-	DefaultStorage       uint32  // GB
-	Bandwidth            uint32  // Mbit
-	IncludedDataTransfer uint32  // GB. 0 for unlimited
-	Baremetal            bool    // true if machine is bare metal
-	PriceMonthly         float32 // no currency conversion at the moment. Each cloud reports this differently
-}
-
-// ImageInfo holds information about a cloud image used for deploying an instance
-type ImageInfo struct {
-	ID       string
-	Name     string
-	Location string
-}
-
-// Provider allows interactions with cloud instances and images
-type Provider interface {
-	// Config methods
-	SupportedLocations() (locations []string)                          // returns the supported locations for a specific cloud provider
-	AuthFields() (fields []string)                                     // returns the fields that are required to authenticate for a specific cloud provider
-	SetAuth(auth map[string]string) error                              // sets the credentials for a cloud provider
-	Init() error                                                       // a cloud provider always needs to have Init called to configure it and test the credentials. If auth fails, Init should return an error
-	GetInfo() ProviderInfo                                             // returns information that can be stored in the database and allows for re-creation of the provider
-	SupportedMachines(location string) (map[string]MachineSpec, error) // returns a map of machine ids and their hardware specifications. A user will choose the machines for their instance
-	Save() error                                                       // saves the instance of the cloud provider (name and credentials) in the db
-	TypeStr() string                                                   // returns the string formatted cloud type
-
-	// Instance methods
-	NewInstance(name string, image string, pubKey string, machineType string, location string) (id string, err error)
-	DeleteInstance(id string, location string) error
-	StartInstance(id string, location string) error
-	StopInstance(id string, location string) error
-	GetInstanceInfo(id string, location string) (InstanceInfo, error)
-	// Image methods
-	GetImages() (images map[string]ImageInfo, err error)
-	GetProtosImages() (images map[string]ImageInfo, err error)
-	AddImage(url string, hash string, version string, location string) (id string, err error)
-	UploadLocalImage(imagePath string, imageName string, location string) (id string, err error)
-	RemoveImage(name string, location string) error
-	// Volume methods
-	// - size should by provided in megabytes
-	NewVolume(name string, size int, location string) (id string, err error)
-	DeleteVolume(id string, location string) error
-	AttachVolume(volumeID string, instanceID string, location string) error
-	DettachVolume(volumeID string, instanceID string, location string) error
+	// if we have auth data, add it to the client
+	if len(pi.Auth) > 0 {
+		err := client.SetAuth(pi.Auth)
+		if err != nil {
+			return nil, err
+		}
+	}
+	pi.CloudProviderImplementation = client
+	return &pi, nil
 }
 
 func findInSlice(slice []string, value string) (int, bool) {

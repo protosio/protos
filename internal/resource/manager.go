@@ -79,7 +79,7 @@ type Manager struct {
 // Public methods that satisfy core.ResourceManager
 //
 
-// CreateManager returns a Manager, which implements the core.ProviderManager interfaces
+// CreateManager returns a Manager, which implements the core.ProviderManager interface
 func CreateManager(db core.DB) *Manager {
 	if db == nil {
 		log.Panic("Failed to create  resource manager: none of the inputs can be nil")

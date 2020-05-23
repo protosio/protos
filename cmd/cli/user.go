@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	ssh "github.com/protosio/protos/internal/ssh"
 	"github.com/urfave/cli/v2"
 )
 
@@ -70,13 +69,11 @@ func infoUser() error {
 	userInfo := user.GetInfo()
 
 	// FIXME: current device and current key should be togheter
-	dev := user.GetCurrentDevice()
-	keySeed, err := user.GetKeyCurrentDevice()
+	dev, err := user.GetCurrentDevice()
 	if err != nil {
 		return err
 	}
-
-	key, err := ssh.NewKeyFromSeed(keySeed)
+	key, err := user.GetKeyCurrentDevice()
 	if err != nil {
 		return err
 	}

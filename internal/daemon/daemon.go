@@ -20,6 +20,7 @@ import (
 	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/provider"
 	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 )
@@ -56,7 +57,8 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	m := meta.Setup(rm, dbcli, version.String())
 	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, m.GetKey())
 	cm := capability.CreateManager()
-	um := auth.CreateUserManager(dbcli, cm)
+	sm := ssh.CreateManager(dbcli)
+	um := auth.CreateUserManager(dbcli, sm, cm)
 	tm := task.CreateManager(dbcli, cfg)
 	as := installer.CreateAppStore(p, tm, cm)
 	am := app.CreateManager(rm, tm, p, dbcli, m, cfg, as, cm)

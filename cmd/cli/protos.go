@@ -8,8 +8,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/vpn"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -25,18 +27,27 @@ var protosVersion string
 type Env struct {
 	DB  core.DB
 	CM  core.CapabilityManager
+	CLM core.CloudManager
 	UM  core.UserManager
+	SM  core.SSHManager
 	VPN core.VPN
 	Log *logrus.Logger
 }
 
 // NewEnv creates and returns an instance of Env
-func NewEnv(db core.DB, cm core.CapabilityManager, um core.UserManager, vpn core.VPN, log *logrus.Logger) *Env {
+func NewEnv(
+	db core.DB,
+	capm core.CapabilityManager,
+	clm core.CloudManager,
+	um core.UserManager,
+	sm core.SSHManager,
+	vpn core.VPN,
+	log *logrus.Logger) *Env {
 
-	if db == nil || cm == nil || um == nil || log == nil {
+	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || log == nil {
 		panic("env: non of the env inputs should be nil")
 	}
-	return &Env{DB: db, CM: cm, UM: um, VPN: vpn, Log: log}
+	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, Log: log}
 }
 
 func main() {
@@ -120,14 +131,16 @@ func config(currentCmd string, logLevel string) {
 		log.Fatal(err)
 	}
 
-	cm := capability.CreateManager()
-	um := auth.CreateUserManager(dbi, cm)
+	sm := ssh.CreateManager(dbi)
+	capm := capability.CreateManager()
+	um := auth.CreateUserManager(dbi, sm, capm)
+	clm := cloud.CreateManager(dbi, um, sm)
 	vpn, err := vpn.New(dbi, um)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	envi = NewEnv(dbi, cm, um, vpn, log)
+	envi = NewEnv(dbi, capm, clm, um, sm, vpn, log)
 
 	if currentCmd != "init" {
 		_, err = envi.UM.GetAdmin()

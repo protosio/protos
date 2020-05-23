@@ -1,7 +1,6 @@
 package ssh
 
 import (
-	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"time"
@@ -11,16 +10,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// GenerateKey generates a SSH key pair
-func GenerateKey() (Key, error) {
-	key := Key{}
-	var err error
-	key.public, key.private, err = ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return key, errors.Wrap(err, "Failed to generate SSH key")
-	}
-	return key, nil
-}
+// // GenerateKey generates a SSH key pair
+// func GenerateKey() (Key, error) {
+// 	key := Key{}
+// 	var err error
+// 	key.public, key.private, err = ed25519.GenerateKey(rand.Reader)
+// 	if err != nil {
+// 		return key, errors.Wrap(err, "Failed to generate SSH key")
+// 	}
+// 	return key, nil
+// }
 
 // NewAuthFromKeyFile takes a file path and returns an ssh authentication
 func NewAuthFromKeyFile(keyPath string) (ssh.AuthMethod, error) {

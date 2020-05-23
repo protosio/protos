@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/cloud"
+	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/release"
 	ssh "github.com/protosio/protos/internal/ssh"
 	"github.com/urfave/cli/v2"
@@ -213,11 +213,7 @@ var cmdInstance *cli.Command = &cli.Command{
 //
 
 func listInstances() error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return err
-	}
-	instances, err := cm.GetInstances()
+	instances, err := envi.CLM.GetInstances()
 	if err != nil {
 		return err
 	}
@@ -237,11 +233,7 @@ func listInstances() error {
 }
 
 func infoInstance(instanceName string) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return fmt.Errorf("Could not retrieve instance '%s': %w", instanceName, err)
-	}
-	instance, err := cm.GetInstance(instanceName)
+	instance, err := envi.CLM.GetInstance(instanceName)
 	if err != nil {
 		return fmt.Errorf("Could not retrieve instance '%s': %w", instanceName, err)
 	}
@@ -260,52 +252,28 @@ func infoInstance(instanceName string) error {
 	return nil
 }
 
-func deployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (cloud.InstanceInfo, error) {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return cloud.InstanceInfo{}, err
-	}
-	return cm.DeployInstance(instanceName, cloudName, cloudLocation, release, machineType)
+func deployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (core.InstanceInfo, error) {
+	return envi.CLM.DeployInstance(instanceName, cloudName, cloudLocation, release, machineType)
 }
 
 func deleteInstance(name string, localOnly bool) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return err
-	}
-	return cm.DeleteInstance(name, localOnly)
+	return envi.CLM.DeleteInstance(name, localOnly)
 }
 
 func startInstance(name string) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return err
-	}
-	return cm.StartInstance(name)
+	return envi.CLM.StartInstance(name)
 }
 
 func stopInstance(name string) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return fmt.Errorf("Could not retrieve instance '%s': %w", name, err)
-	}
-	return cm.StopInstance(name)
+	return envi.CLM.StopInstance(name)
 }
 
 func tunnelInstance(name string) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return fmt.Errorf("Could not retrieve instance '%s': %w", name, err)
-	}
-	return cm.TunnelInstance(name)
+	return envi.CLM.TunnelInstance(name)
 }
 
 func keyInstance(name string) error {
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return fmt.Errorf("Could not retrieve instance '%s': %w", name, err)
-	}
-	instanceInfo, err := cm.GetInstance(name)
+	instanceInfo, err := envi.CLM.GetInstance(name)
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
 	}
@@ -327,12 +295,7 @@ func devInit(instanceName string, keyFile string, ipString string) error {
 		return err
 	}
 
-	cm, err := cloud.CreateManager(envi.DB, envi.UM)
-	if err != nil {
-		return fmt.Errorf("Could not retrieve instance '%s': %w", instanceName, err)
-	}
-
-	err = cm.InitDevInstance(instanceName, hostname, hostname, keyFile, ipString)
+	err = envi.CLM.InitDevInstance(instanceName, hostname, hostname, keyFile, ipString)
 	if err != nil {
 		return fmt.Errorf("Could not init dev instance '%s': %w", instanceName, err)
 	}

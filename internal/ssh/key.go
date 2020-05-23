@@ -11,6 +11,8 @@ import (
 
 // Key is an SSH key
 type Key struct {
+	parent *Manager `noms:"-"`
+
 	private ed25519.PrivateKey
 	public  ed25519.PublicKey
 }
@@ -56,4 +58,12 @@ func (k Key) SSHAuth() ssh.AuthMethod {
 func (k Key) AuthorizedKey() string {
 	publicKey, _ := ssh.NewPublicKey(k.public)
 	return string(ssh.MarshalAuthorizedKey(publicKey))
+}
+
+// Save persists key to database
+func (k Key) Save() {
+	err := k.parent.db.InsertInSet(sshDS, k)
+	if err != nil {
+		log.Panicf("Failed to save resource to db: %s", err.Error())
+	}
 }

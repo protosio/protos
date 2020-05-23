@@ -12,8 +12,9 @@ const APIInternalPath string = "/api/v1/i"
 // UserDevice - represents a device that a user uses to connect to the instances. A user can have multiple devices (laptop, mobile phone etc)
 type UserDevice struct {
 	Name      string `json:"name" validate:"required"`
-	PublicKey string `json:"publickey" validate:"base64"` // ed25519 base64 encoded public key
-	Network   string `json:"network" validate:"cidrv4"`   // CIDR notation
+	PublicKey string `json:"publickey" validate:"base64"`   // ed25519 base64 encoded public key
+	Network   string `json:"network" validate:"cidrv4"`     // CIDR notation
+	MachineID string `json:"machineid" validate:"required"` // ID that uniquely identifies a machine
 }
 
 // ReqInit - request payload for the registration endpoint
