@@ -71,7 +71,7 @@ func (pi ProviderInfo) getCloudProvider() (core.CloudProvider, error) {
 	// case DigitalOcean:
 	// 	client, err = newDigitalOceanClient()
 	case Scaleway:
-		client = newScalewayClient(pi.Name, pi.cm)
+		client = newScalewayClient(&pi, pi.cm)
 	default:
 		err = errors.Errorf("Cloud '%s' not supported", pi.Type.String())
 	}

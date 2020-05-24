@@ -114,12 +114,12 @@ func (cm *Manager) DeleteProvider(name string) error {
 		return err
 	}
 
-	providerInfo, ok := cld.(ProviderInfo)
+	providerInfo, ok := cld.(*ProviderInfo)
 	if !ok {
 		panic("Failed type assertion in delete provider")
 	}
 
-	err = cm.db.RemoveFromSet(cloudDS, providerInfo)
+	err = cm.db.RemoveFromSet(cloudDS, *providerInfo)
 	if err != nil {
 		return err
 	}

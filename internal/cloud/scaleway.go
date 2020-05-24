@@ -32,6 +32,8 @@ type scalewayCredentials struct {
 
 type scaleway struct {
 	cm *Manager
+	pi *ProviderInfo
+
 	// ProviderInfo
 	name           string
 	credentials    *scalewayCredentials
@@ -43,8 +45,8 @@ type scaleway struct {
 	location       scw.Zone
 }
 
-func newScalewayClient(name string, cm *Manager) *scaleway {
-	return &scaleway{name: name, cm: cm}
+func newScalewayClient(pi *ProviderInfo, cm *Manager) *scaleway {
+	return &scaleway{name: pi.Name, pi: pi, cm: cm}
 }
 
 //
@@ -77,7 +79,7 @@ func (sw *scaleway) SetAuth(auth map[string]string) error {
 		}
 	}
 
-	sw.auth = auth
+	sw.pi.Auth = auth
 	sw.credentials = scwCredentials
 	return nil
 }
