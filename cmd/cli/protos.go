@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	osuser "os/user"
+	"path"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
@@ -118,19 +118,28 @@ func config(currentCmd string, logLevel string) {
 	}
 	log.SetLevel(level)
 
-	homedir := os.Getenv("HOME")
-	if homedir == "" {
-		usr, _ := osuser.Current()
-		homedir = usr.HomeDir
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
 	}
-	protosDir := homedir + "/.protos"
-	protosDB := "protos.db"
 
+	// create protos dir
+	protosDir := path.Join(homedir, "/.protos")
+	if _, err := os.Stat(protosDir); os.IsNotExist(err) {
+		err := os.Mkdir(protosDir, 0755)
+		if err != nil {
+			log.Fatalf("Failed to create protos dir '%s': %w", protosDir, err)
+		}
+	}
+
+	// open db
+	protosDB := "protos.db"
 	dbi, err := db.Open(protosDir, protosDB)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// create various managers
 	sm := ssh.CreateManager(dbi)
 	capm := capability.CreateManager()
 	um := auth.CreateUserManager(dbi, sm, capm)

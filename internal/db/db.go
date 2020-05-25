@@ -17,7 +17,7 @@ import (
 func Open(protosDir string, protosDB string) (core.DB, error) {
 	dbpath := path.Join(protosDir, protosDB)
 	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
-		err := os.Mkdir(dbpath, os.ModeDir)
+		err := os.Mkdir(dbpath, 0755)
 		if err != nil {
 			return &dbNoms{}, fmt.Errorf("Failed to open database: %w", err)
 		}
