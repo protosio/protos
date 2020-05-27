@@ -551,12 +551,11 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	remoteImage := "/tmp/" + protosImage
 
 	bar := pb.Full.Start(0)
-	defer bar.Finish()
-
 	err = client.CopyPassThru(fdUpload, remoteImage, "0655", fInfo.Size(), func(r io.Reader, total int64) io.Reader {
 		bar.SetTotal(total)
 		return bar.NewProxyReader(r)
 	})
+	bar.Finish()
 
 	//
 	// connect via SSH and check the integrity of the image
