@@ -1,6 +1,10 @@
 package core
 
-import "github.com/protosio/protos/internal/release"
+import (
+	"time"
+
+	"github.com/protosio/protos/internal/release"
+)
 
 // import "github.com/protosio/protos/internal/cloud"
 
@@ -89,7 +93,7 @@ type CloudProviderImplementation interface {
 	GetImages() (images map[string]ImageInfo, err error)
 	GetProtosImages() (images map[string]ImageInfo, err error)
 	AddImage(url string, hash string, version string, location string) (id string, err error)
-	UploadLocalImage(imagePath string, imageName string, location string) (id string, err error)
+	UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (id string, err error)
 	RemoveImage(name string, location string) error
 	// Volume methods
 	// - size should by provided in megabytes

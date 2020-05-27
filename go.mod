@@ -9,7 +9,8 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/attic-labs/noms v0.0.0-20200410174738-39057233bfdd
-	github.com/bramvdbogaerde/go-scp v0.0.0-20200119201711-987556b8bdd7
+	github.com/bramvdbogaerde/go-scp v0.0.0-20200518191442-5c8efdd1d925
+	github.com/cheggaaa/pb/v3 v3.0.4
 	github.com/cnf/structhash v0.0.0-20180104161610-62a607eb0224
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1

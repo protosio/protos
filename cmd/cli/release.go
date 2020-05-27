@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/release"
@@ -67,6 +68,12 @@ var cmdRelease *cli.Command = &cli.Command{
 					Required:    false,
 					Destination: &cloudLocation,
 				},
+				&cli.DurationFlag{
+					Name:     "timeout",
+					Usage:    "Upload timeout in minutes",
+					Required: false,
+					Value:    time.Minute * 25,
+				},
 			},
 			Action: func(c *cli.Context) error {
 				imagePath := c.Args().Get(0)
@@ -81,7 +88,9 @@ var cmdRelease *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				return uploadLocalImageToCloud(imagePath, imageName, cloudName, cloudLocation)
+				timeout := c.Duration("timeout")
+
+				return uploadLocalImageToCloud(imagePath, imageName, cloudName, cloudLocation, timeout)
 			},
 		},
 		{
@@ -188,7 +197,7 @@ func printProtosCloudImages(cloudName string) error {
 	return nil
 }
 
-func uploadLocalImageToCloud(imagePath string, imageName string, cloudName string, cloudLocation string) error {
+func uploadLocalImageToCloud(imagePath string, imageName string, cloudName string, cloudLocation string, timeout time.Duration) error {
 	errMsg := fmt.Sprintf("Failed to upload local image '%s' to cloud '%s'", imagePath, cloudName)
 	// check local image file
 	finfo, err := os.Stat(imagePath)
@@ -225,7 +234,7 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 	}
 
 	// upload image
-	_, err = provider.UploadLocalImage(imagePath, imageName, cloudLocation)
+	_, err = provider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
 	if err != nil {
 		return errors.Wrap(err, errMsg)
 	}
