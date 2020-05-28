@@ -271,10 +271,12 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// get instance info again
-	instanceInfo, err = provider.GetInstanceInfo(vmID, cloudLocation)
+	instanceUpdate, err := provider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
 		return core.InstanceInfo{}, errors.Wrap(err, "Failed to get Protos instance info")
 	}
+	instanceInfo.PublicIP = instanceUpdate.PublicIP
+	instanceInfo.Volumes = instanceUpdate.Volumes
 	// second save of the instance information
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
