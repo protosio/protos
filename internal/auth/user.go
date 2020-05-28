@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/gob"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -176,6 +177,7 @@ func CreateUserManager(db core.DB, sm core.SSHManager, cm core.CapabilityManager
 	if db == nil || sm == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
+	gob.Register(&User{})
 
 	return &UserManager{db: db, sm: sm, cm: cm}
 }
