@@ -144,7 +144,7 @@ func config(currentCmd string, logLevel string) {
 	capm := capability.CreateManager()
 	um := auth.CreateUserManager(dbi, sm, capm)
 	clm := cloud.CreateManager(dbi, um, sm)
-	vpn, err := vpn.New(dbi, um)
+	vpn, err := vpn.New(dbi, um, clm)
 	if err != nil {
 		log.Fatal(err)
 	}

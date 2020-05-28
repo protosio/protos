@@ -18,7 +18,7 @@ const (
 type VPN struct {
 	nm linkmgr.Manager
 	um core.UserManager
-	db core.DB
+	cm core.CloudManager
 }
 
 func (vpn *VPN) Start() error {
@@ -48,8 +48,7 @@ func (vpn *VPN) Start() error {
 	}
 
 	// create wireguard peer configurations and route list
-	var instances []core.InstanceInfo
-	err = vpn.db.GetSet(instanceDS, &instances)
+	instances, err := vpn.cm.GetInstances()
 	if err != nil {
 		return err
 	}
@@ -156,10 +155,10 @@ func (vpn *VPN) Stop() error {
 	return nil
 }
 
-func New(db core.DB, um core.UserManager) (*VPN, error) {
+func New(db core.DB, um core.UserManager, cm core.CloudManager) (*VPN, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
 		return nil, err
 	}
-	return &VPN{db: db, um: um, nm: manager}, nil
+	return &VPN{um: um, cm: cm, nm: manager}, nil
 }
