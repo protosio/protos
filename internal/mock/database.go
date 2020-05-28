@@ -5,9 +5,8 @@
 package mock
 
 import (
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
+	reflect "reflect"
 )
 
 // MockDB is a mock of DB interface
@@ -101,6 +100,48 @@ func (m *MockDB) RemoveFromSet(dataset string, data interface{}) error {
 func (mr *MockDBMockRecorder) RemoveFromSet(dataset, data interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSet", reflect.TypeOf((*MockDB)(nil).RemoveFromSet), dataset, data)
+}
+
+// GetMap mocks base method
+func (m *MockDB) GetMap(dataset string, to interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMap", dataset, to)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GetMap indicates an expected call of GetMap
+func (mr *MockDBMockRecorder) GetMap(dataset, to interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMap", reflect.TypeOf((*MockDB)(nil).GetMap), dataset, to)
+}
+
+// InsertInMap mocks base method
+func (m *MockDB) InsertInMap(dataset, id string, data interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertInMap", dataset, id, data)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertInMap indicates an expected call of InsertInMap
+func (mr *MockDBMockRecorder) InsertInMap(dataset, id, data interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertInMap", reflect.TypeOf((*MockDB)(nil).InsertInMap), dataset, id, data)
+}
+
+// RemoveFromMap mocks base method
+func (m *MockDB) RemoveFromMap(dataset, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveFromMap", dataset, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveFromMap indicates an expected call of RemoveFromMap
+func (mr *MockDBMockRecorder) RemoveFromMap(dataset, id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromMap", reflect.TypeOf((*MockDB)(nil).RemoveFromMap), dataset, id)
 }
 
 // Close mocks base method

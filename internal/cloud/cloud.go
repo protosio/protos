@@ -41,7 +41,7 @@ type ProviderInfo struct {
 
 // Save saves the provider information to disk
 func (pi ProviderInfo) Save() error {
-	err := pi.cm.db.InsertInSet(cloudDS, pi)
+	err := pi.cm.db.InsertInMap(cloudDS, pi.Name, pi)
 	if err != nil {
 		return errors.Wrap(err, "Failed to save cloud provider info")
 	}

@@ -91,7 +91,7 @@ func (db *dbNoms) GetSet(dataset string, to interface{}) error {
 	return nil
 }
 
-// InsertInSet inserts an element in a set, or updates an existing one
+// InsertInSet inserts an element in a set
 func (db *dbNoms) InsertInSet(dataset string, data interface{}) error {
 	ds := db.dbn.GetDataset(dataset)
 
@@ -133,6 +133,69 @@ func (db *dbNoms) RemoveFromSet(dataset string, data interface{}) error {
 	}
 
 	_, err = db.dbn.CommitValue(ds, set.Edit().Remove(marshaled).Set())
+	if err != nil {
+		return fmt.Errorf("Error committing: %w", err)
+	}
+	return nil
+}
+
+// GetMap retrieves all records in a map
+func (db *dbNoms) GetMap(dataset string, to interface{}) error {
+	ds := db.dbn.GetDataset(dataset)
+
+	var mapi types.Map
+	hv, ok := ds.MaybeHeadValue()
+	if ok {
+		mapi = hv.(types.Map)
+	} else {
+		mapi = types.NewMap(ds.Database())
+	}
+
+	err := marshal.Unmarshal(mapi.Value(), to)
+	if err != nil {
+		return fmt.Errorf("Failed to unmarshall: %w", err)
+	}
+
+	return nil
+}
+
+// InsertInMap inserts an element in a map, or updates an existing one
+func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error {
+	ds := db.dbn.GetDataset(dataset)
+
+	var mapi types.Map
+	hv, ok := ds.MaybeHeadValue()
+	if ok {
+		mapi = hv.(types.Map)
+	} else {
+		mapi = types.NewMap(ds.Database())
+	}
+
+	marshaled, err := marshal.Marshal(db.dbn, data)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal db data: %w", err)
+	}
+
+	_, err = db.dbn.CommitValue(ds, mapi.Edit().Set(types.String(id), marshaled).Map())
+	if err != nil {
+		return fmt.Errorf("Error committing: %w", err)
+	}
+	return nil
+}
+
+// RemoveFromMap removes an element from a map
+func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
+	ds := db.dbn.GetDataset(dataset)
+
+	var mapi types.Map
+	hv, ok := ds.MaybeHeadValue()
+	if ok {
+		mapi = hv.(types.Map)
+	} else {
+		mapi = types.NewMap(ds.Database())
+	}
+
+	_, err := db.dbn.CommitValue(ds, mapi.Edit().Remove(types.String(id)).Map())
 	if err != nil {
 		return fmt.Errorf("Error committing: %w", err)
 	}

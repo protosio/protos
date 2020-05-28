@@ -93,8 +93,8 @@ func (cm *Manager) SupportedProviders() []string {
 
 // GetProvider returns a cloud provider instance from the db
 func (cm *Manager) GetProvider(name string) (core.CloudProvider, error) {
-	clouds := []ProviderInfo{}
-	err := cm.db.GetSet(cloudDS, &clouds)
+	clouds := map[string]ProviderInfo{}
+	err := cm.db.GetMap(cloudDS, &clouds)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (cm *Manager) DeleteProvider(name string) error {
 		panic("Failed type assertion in delete provider")
 	}
 
-	err = cm.db.RemoveFromSet(cloudDS, *providerInfo)
+	err = cm.db.RemoveFromMap(cloudDS, providerInfo.Name)
 	if err != nil {
 		return err
 	}
@@ -129,8 +129,8 @@ func (cm *Manager) DeleteProvider(name string) error {
 // GetProviders returns all the cloud providers from the db
 func (cm *Manager) GetProviders() ([]core.CloudProvider, error) {
 	cloudProviders := []core.CloudProvider{}
-	clouds := []ProviderInfo{}
-	err := cm.db.GetSet(cloudDS, &clouds)
+	clouds := map[string]ProviderInfo{}
+	err := cm.db.GetMap(cloudDS, &clouds)
 	if err != nil {
 		return cloudProviders, fmt.Errorf("Failed to retrieve cloud provides")
 	}
@@ -245,7 +245,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.KeySeed = instanceSSHKey.Seed()
 	instanceInfo.ProtosVersion = release.Version
 	instanceInfo.Network = network.String()
-	err = cm.db.InsertInSet(instanceDS, instanceInfo)
+	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
 		return core.InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
 	}
@@ -276,7 +276,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return core.InstanceInfo{}, errors.Wrap(err, "Failed to get Protos instance info")
 	}
 	// second save of the instance information
-	err = cm.db.InsertInSet(instanceDS, instanceInfo)
+	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
 		return core.InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
 	}
@@ -320,7 +320,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
-	err = cm.db.InsertInSet(instanceDS, instanceInfo)
+	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
 		return core.InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
 	}
@@ -402,7 +402,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	instanceInfo.PublicKey = instancePublicKey
 	instanceInfo.Network = developmentNetwork.String()
 
-	err = cm.db.InsertInSet(instanceDS, instanceInfo)
+	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
 	}
@@ -458,7 +458,7 @@ func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 			}
 		}
 	}
-	return cm.db.RemoveFromSet(instanceDS, instance)
+	return cm.db.RemoveFromMap(instanceDS, instance.Name)
 }
 
 // StartInstance starts an instance
@@ -551,8 +551,8 @@ func (cm *Manager) TunnelInstance(name string) error {
 
 // GetInstance retrieves an instance from the db and returns it
 func (cm *Manager) GetInstance(name string) (core.InstanceInfo, error) {
-	instances := []core.InstanceInfo{}
-	err := cm.db.GetSet(instanceDS, &instances)
+	instances := map[string]core.InstanceInfo{}
+	err := cm.db.GetMap(instanceDS, &instances)
 	if err != nil {
 		return core.InstanceInfo{}, err
 	}
@@ -566,10 +566,14 @@ func (cm *Manager) GetInstance(name string) (core.InstanceInfo, error) {
 
 // GetInstances returns all the instances from the db
 func (cm *Manager) GetInstances() ([]core.InstanceInfo, error) {
+	instanceMap := map[string]core.InstanceInfo{}
 	var instances []core.InstanceInfo
-	err := cm.db.GetSet(instanceDS, &instances)
+	err := cm.db.GetMap(instanceDS, &instanceMap)
 	if err != nil {
 		return instances, err
+	}
+	for _, instance := range instanceMap {
+		instances = append(instances, instance)
 	}
 	return instances, nil
 }

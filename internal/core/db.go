@@ -7,5 +7,8 @@ type DB interface {
 	GetSet(dataset string, to interface{}) error
 	InsertInSet(dataset string, data interface{}) error
 	RemoveFromSet(dataset string, data interface{}) error
+	GetMap(dataset string, to interface{}) error
+	InsertInMap(dataset string, id string, data interface{}) error
+	RemoveFromMap(dataset string, id string) error
 	Close() error
 }
