@@ -10,9 +10,9 @@ RUN mkdir /root/tmp
 
 FROM alpine:3.10.5
 WORKDIR /
-COPY --from=build /go/src/github.com/protos/bin/protosd /usr/local/bin/protosd
-COPY --from=build /go/src/github.com/protos/configs/protosd.yaml /etc/protosd.yaml
-RUN chmod +x /usr/local/bin/protosd
-RUN mkdir /var/protos && mkdir /var/protos-containerd
+RUN mkdir /opt/protos /var/protos /var/protos-containerd
+COPY --from=build /go/src/github.com/protos/bin/protosd /opt/protos/protosd
+COPY --from=build /go/src/github.com/protos/configs/protosd.yaml /opt/protos/protosd.yaml
+RUN chmod +x /opt/protos/protosd
 
-ENTRYPOINT ["/usr/local/bin/protosd", "--loglevel", "debug", "--config", "/etc/protos.yaml", "daemon"]
+ENTRYPOINT ["/opt/protos/protosd", "--loglevel", "debug", "--config", "/opt/protos/protosd.yaml", "daemon"]
