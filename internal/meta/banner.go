@@ -35,7 +35,7 @@ const banner = `                 ###########
 // PrintBanner prints the Protos ascii banner
 func PrintBanner() {
 	pid := os.Getpid()
-	fmt.Println(fmt.Sprintf(
+	fmt.Fprintln(os.Stderr, fmt.Sprintf(
 		banner,
 		gconfig.Version.String(),
 		pid,
