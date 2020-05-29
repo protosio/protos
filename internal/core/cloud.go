@@ -65,10 +65,11 @@ type CloudManager interface {
 	StartInstance(name string) error
 	StopInstance(name string) error
 	TunnelInstance(name string) error
+	LogsInstance(name string) (string, error)
 	InitDevInstance(instanceName string, cloudName string, locationName string, keyFile string, ipString string) error
 }
 
-type CloudProviderInstance interface {
+type CloudProviderBase interface {
 	Save() error     // saves the instance of the cloud provider (name and credentials) in the db
 	NameStr() string // returns the name of the cloud provider
 	TypeStr() string // returns the string formatted cloud type
@@ -104,6 +105,6 @@ type CloudProviderImplementation interface {
 }
 
 type CloudProvider interface {
-	CloudProviderInstance
+	CloudProviderBase
 	CloudProviderImplementation
 }

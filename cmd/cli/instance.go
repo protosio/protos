@@ -204,6 +204,30 @@ var cmdInstance *cli.Command = &cli.Command{
 				return devInit(name, key, ip)
 			},
 		},
+		{
+			Name:      "logs",
+			ArgsUsage: "<instance name>",
+			Usage:     "Pulls and displays Protos logs for instance",
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:     "f",
+					Usage:    "Follow logs",
+					Required: false,
+					Value:    false,
+				},
+			},
+			Action: func(c *cli.Context) error {
+				name := c.Args().Get(0)
+				if name == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				follow := c.Bool("f")
+
+				return getLogs(name, follow)
+			},
+		},
 	},
 }
 
@@ -299,5 +323,14 @@ func devInit(instanceName string, keyFile string, ipString string) error {
 		return fmt.Errorf("Could not init dev instance '%s': %w", instanceName, err)
 	}
 
+	return nil
+}
+
+func getLogs(instanceName string, follow bool) error {
+	logs, err := envi.CLM.LogsInstance(instanceName)
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve logs for instance '%s': %w", instanceName, err)
+	}
+	fmt.Println(logs)
 	return nil
 }

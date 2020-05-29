@@ -551,6 +551,31 @@ func (cm *Manager) TunnelInstance(name string) error {
 	return nil
 }
 
+// LogsInstance retrieves the Protos logs from an instance
+func (cm *Manager) LogsInstance(name string) (string, error) {
+	instanceInfo, err := cm.GetInstance(name)
+	if err != nil {
+		return "", err
+	}
+	if len(instanceInfo.KeySeed) == 0 {
+		return "", err
+	}
+	key, err := cm.sm.NewKeyFromSeed(instanceInfo.KeySeed)
+	if err != nil {
+		return "", err
+	}
+
+	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", key.SSHAuth(), 10)
+	if err != nil {
+		return "", err
+	}
+	output, err := ssh.ExecuteCommand("cat /var/log/protos.log", sshCon)
+	if err != nil {
+		return "", err
+	}
+	return output, nil
+}
+
 // GetInstance retrieves an instance from the db and returns it
 func (cm *Manager) GetInstance(name string) (core.InstanceInfo, error) {
 	instances := map[string]core.InstanceInfo{}
