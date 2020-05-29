@@ -51,6 +51,4 @@ vendor/**
 !vendor/vendor.json
 
 # Protos
-protos.dev.yaml
-glide.lock
-.glide/
+bin/
