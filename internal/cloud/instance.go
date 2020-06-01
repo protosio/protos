@@ -484,6 +484,21 @@ func (cm *Manager) StartInstance(name string) error {
 	if err != nil {
 		return errors.Wrapf(err, "Could not start instance '%s'", name)
 	}
+
+	// IP can change if an instance is stopped and started so a refresh is required
+	info, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
+	if err != nil {
+		return errors.Wrapf(err, "Could not retrieve instance info for '%s'", name)
+	}
+
+	instance.PublicIP = info.PublicIP
+	instance.Volumes = info.Volumes
+
+	err = cm.db.InsertInMap(instanceDS, instance.Name, instance)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to save instance '%s'", name)
+	}
+
 	return nil
 }
 
