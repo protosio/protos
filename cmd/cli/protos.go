@@ -9,12 +9,17 @@ import (
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
+	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/vpn"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var log *logrus.Logger
@@ -31,6 +36,7 @@ type Env struct {
 	UM  core.UserManager
 	SM  core.SSHManager
 	VPN core.VPN
+	AS  core.AppStore
 	Log *logrus.Logger
 }
 
@@ -42,12 +48,13 @@ func NewEnv(
 	um core.UserManager,
 	sm core.SSHManager,
 	vpn core.VPN,
+	as core.AppStore,
 	log *logrus.Logger) *Env {
 
-	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || log == nil {
+	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || log == nil {
 		panic("env: non of the env inputs should be nil")
 	}
-	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, Log: log}
+	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, Log: log}
 }
 
 func main() {
@@ -69,13 +76,14 @@ func main() {
 			cmdRelease,
 			cmdCloud,
 			cmdInstance,
+			cmdApp,
 			cmdUser,
 			cmdVPN,
 		},
 	}
 
 	app.Before = func(c *cli.Context) error {
-		config(c.Args().First(), loglevel)
+		configure(c.Args().First(), loglevel)
 		return nil
 	}
 
@@ -101,6 +109,15 @@ type userDetails struct {
 	Domain          string
 }
 
+type publisher struct {
+	pubchan chan interface{}
+}
+
+// GetWSPublishChannel returns the channel that can be used to publish messages to the available websockets
+func (pub *publisher) GetWSPublishChannel() chan interface{} {
+	return pub.pubchan
+}
+
 func transformCredentials(creds map[string]interface{}) map[string]string {
 	transformed := map[string]string{}
 	for name, val := range creds {
@@ -109,7 +126,7 @@ func transformCredentials(creds map[string]interface{}) map[string]string {
 	return transformed
 }
 
-func config(currentCmd string, logLevel string) {
+func configure(currentCmd string, logLevel string) {
 	log = logrus.New()
 	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
@@ -139,9 +156,19 @@ func config(currentCmd string, logLevel string) {
 		log.Fatal(err)
 	}
 
+	// get default cfg
+	cfg := config.Get()
+
+	// create publisher
+	pub := &publisher{pubchan: make(chan interface{}, 100)}
+
 	// create various managers
+
 	sm := ssh.CreateManager(dbi)
 	capm := capability.CreateManager()
+	rp := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, wgtypes.Key{})
+	tm := task.CreateManager(dbi, pub)
+	as := installer.CreateAppStore(rp, tm, capm)
 	um := auth.CreateUserManager(dbi, sm, capm)
 	clm := cloud.CreateManager(dbi, um, sm)
 	vpn, err := vpn.New(dbi, um, clm)
@@ -149,7 +176,7 @@ func config(currentCmd string, logLevel string) {
 		log.Fatal(err)
 	}
 
-	envi = NewEnv(dbi, capm, clm, um, sm, vpn, log)
+	envi = NewEnv(dbi, capm, clm, um, sm, vpn, as, log)
 
 	if currentCmd != "init" {
 		_, err = envi.UM.GetAdmin()
