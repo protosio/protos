@@ -60,7 +60,7 @@ func (am Map) remove(id string) error {
 	if found == false {
 		return fmt.Errorf("Could not find app %s", id)
 	}
-	err := am.db.RemoveFromSet(appDS, app)
+	err := am.db.RemoveFromMap(appDS, app.ID)
 	if err != nil {
 		log.Panicf("Failed to remove app from db: %s", err.Error())
 	}
@@ -110,8 +110,8 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 	gob.Register(&App{})
 	gob.Register(&core.InstallerMetadata{})
 
-	dbapps := []App{}
-	err := db.GetSet(appDS, &dbapps)
+	dbapps := map[string]App{}
+	err := db.GetMap(appDS, &dbapps)
 	if err != nil {
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
@@ -151,7 +151,12 @@ func (am *Manager) getCapabilityManager() core.CapabilityManager {
 }
 
 func (am *Manager) createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error) {
-	return am.Create(installerID, installerVersion, name, installerParams, installerMetadata)
+	newApp, err := am.Create(installerID, installerVersion, name, installerParams, installerMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	return newApp.(app), nil
 }
 
 // GetCopy returns a copy of an application based on its id
@@ -214,7 +219,7 @@ func (am *Manager) CreateAsync(installerID string, installerVersion string, appN
 }
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata) (*App, error) {
+func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata) (core.App, error) {
 
 	var app *App
 	if name == "" || installerID == "" || installerVersion == "" {
@@ -323,7 +328,7 @@ func (am *Manager) saveApp(app *App) {
 	app.access.Unlock()
 	papp.access = nil
 	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
-	err := am.db.InsertInSet(appDS, papp)
+	err := am.db.InsertInMap(appDS, papp.ID, papp)
 	if err != nil {
 		log.Panic(errors.Wrap(err, "Could not save app to database"))
 	}
@@ -339,11 +344,11 @@ func (am *Manager) CreateDevApp(appName string, installerMetadata core.Installer
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")
 
-	app, err := am.Create("dev", "0.0.0-dev", appName, installerParams, installerMetadata)
+	newApp, err := am.Create("dev", "0.0.0-dev", appName, installerParams, installerMetadata)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}
 
-	app.SetStatus(statusUnknown)
-	return app, nil
+	newApp.SetStatus(statusUnknown)
+	return newApp, nil
 }

@@ -77,6 +77,21 @@ func (mr *MockAppManagerMockRecorder) Select(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Select", reflect.TypeOf((*MockAppManager)(nil).Select), arg0)
 }
 
+// Create mocks base method
+func (m *MockAppManager) Create(installerID, installerVersion, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata) (core.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", installerID, installerVersion, name, installerParams, installerMetadata)
+	ret0, _ := ret[0].(core.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create
+func (mr *MockAppManagerMockRecorder) Create(installerID, installerVersion, name, installerParams, installerMetadata interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAppManager)(nil).Create), installerID, installerVersion, name, installerParams, installerMetadata)
+}
+
 // CreateDevApp mocks base method
 func (m *MockAppManager) CreateDevApp(appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string) (core.App, error) {
 	m.ctrl.T.Helper()
@@ -395,6 +410,18 @@ func (m *MockApp) DeleteResource(id string) error {
 func (mr *MockAppMockRecorder) DeleteResource(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteResource", reflect.TypeOf((*MockApp)(nil).DeleteResource), id)
+}
+
+// SetStatus mocks base method
+func (m *MockApp) SetStatus(status string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetStatus", status)
+}
+
+// SetStatus indicates an expected call of SetStatus
+func (mr *MockAppMockRecorder) SetStatus(status interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStatus", reflect.TypeOf((*MockApp)(nil).SetStatus), status)
 }
 
 // SetMsgQ mocks base method

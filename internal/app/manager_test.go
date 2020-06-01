@@ -187,7 +187,7 @@ func TestAppManager(t *testing.T) {
 		rpMock.EXPECT().GetSandbox(gomock.Any()).Return(pruMock, nil).Times(1)
 		rpMock.EXPECT().CleanUpSandbox(gomock.Any()).Return(nil).Times(1)
 		pruMock.EXPECT().Remove().Return(nil).Times(1)
-		am.Remove(app.ID)
+		am.Remove(app.GetID())
 	})
 
 	//

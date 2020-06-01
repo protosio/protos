@@ -15,6 +15,7 @@ type AppManager interface {
 	Read(id string) (App, error)
 	GetAllPublic() map[string]App
 	Select(func(App) bool) map[string]App
+	Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata InstallerMetadata) (App, error)
 	CreateDevApp(appName string, installerMetadata InstallerMetadata, installerParams map[string]string) (App, error)
 	CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) Task
 	GetCopy(id string) (App, error)
@@ -40,6 +41,7 @@ type App interface {
 	GetResource(id string) (Resource, error)
 	CreateResource(jsonPayload []byte) (Resource, error)
 	DeleteResource(id string) error
+	SetStatus(status string)
 	SetMsgQ(msgq *WSConnection)
 	CloseMsgQ()
 	Public() App

@@ -6,14 +6,12 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
 
 	"github.com/protosio/protos/internal/util"
 )
 
 var log = util.GetLogger("app")
-var gconfig = config.Get()
 
 // Defines structure for config parameters
 // specific to each application
@@ -151,9 +149,8 @@ func (app *App) Save() {
 	app.parent.saveApp(app)
 }
 
-// reateContainer create the underlying Docker container
+// createSandbox create the underlying container
 func (app *App) createSandbox() (core.PlatformRuntimeUnit, error) {
-	// var volume *platform.DockerVolume
 	var err error
 	var volumeID string
 	if app.InstallerMetadata.PersistancePath != "" {
