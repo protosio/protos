@@ -5,7 +5,9 @@ import (
 	"os"
 	"path"
 
+	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
@@ -13,7 +15,9 @@ import (
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/platform"
+	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/vpn"
@@ -27,6 +31,7 @@ var envi *Env
 var cloudName string
 var cloudLocation string
 var protosVersion string
+var version *semver.Version
 
 // Env is a struct that containts program dependencies that get injected in other modules
 type Env struct {
@@ -37,6 +42,7 @@ type Env struct {
 	SM  core.SSHManager
 	VPN core.VPN
 	AS  core.AppStore
+	AM  core.AppManager
 	Log *logrus.Logger
 }
 
@@ -49,20 +55,29 @@ func NewEnv(
 	sm core.SSHManager,
 	vpn core.VPN,
 	as core.AppStore,
+	am core.AppManager,
 	log *logrus.Logger) *Env {
 
-	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || log == nil {
+	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || log == nil {
 		panic("env: non of the env inputs should be nil")
 	}
-	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, Log: log}
+	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, AM: am, Log: log}
 }
 
 func main() {
 	var loglevel string
+	var err error
+
+	version, err = semver.NewVersion("0.0.0-dev.4")
+	if err != nil {
+		panic(err)
+	}
+
 	app := &cli.App{
-		Name:    "protos-cli",
+		Name:    "protos",
 		Usage:   "Command-line client for Protos",
-		Version: "0.0.0-dev.2",
+		Authors: []*cli.Author{{Name: "Alex Giurgiu", Email: "alex@giurgiu.io"}},
+		Version: version.String(),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "log, l",
@@ -94,7 +109,7 @@ func main() {
 		return nil
 	}
 
-	err := app.Run(os.Args)
+	err = app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -171,12 +186,15 @@ func configure(currentCmd string, logLevel string) {
 	as := installer.CreateAppStore(rp, tm, capm)
 	um := auth.CreateUserManager(dbi, sm, capm)
 	clm := cloud.CreateManager(dbi, um, sm)
+	rm := resource.CreateManager(dbi)
+	m := meta.Setup(rm, dbi, version.String())
+	am := app.CreateManager(rm, tm, rp, dbi, m, pub, as, capm)
 	vpn, err := vpn.New(dbi, um, clm)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	envi = NewEnv(dbi, capm, clm, um, sm, vpn, as, log)
+	envi = NewEnv(dbi, capm, clm, um, sm, vpn, as, am, log)
 
 	if currentCmd != "init" {
 		_, err = envi.UM.GetAdmin()
