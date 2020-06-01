@@ -26,6 +26,7 @@ type AppStore interface {
 
 // Installer represents a Protos installed
 type Installer interface {
+	GetName() string
 	GetLastVersion() string
 	GetMetadata(version string) (InstallerMetadata, error)
 	IsPlatformImageAvailable(version string) (bool, error)

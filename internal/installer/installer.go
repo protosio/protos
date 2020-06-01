@@ -164,6 +164,11 @@ func parseMetadata(cm core.CapabilityManager, labels map[string]string) (core.In
 // Installer methods
 //
 
+// GetName returns the name of the installer
+func (inst Installer) GetName() string {
+	return inst.Name
+}
+
 // GetMetadata returns the metadata for a specific installer version
 func (inst Installer) GetMetadata(version string) (core.InstallerMetadata, error) {
 	var metadata core.InstallerMetadata
