@@ -33,6 +33,15 @@ func catchSignals(sigs chan os.Signal, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
+type publisher struct {
+	pubchan chan interface{}
+}
+
+// GetWSPublishChannel returns the channel that can be used to publish messages to the available websockets
+func (pub *publisher) GetWSPublishChannel() chan interface{} {
+	return pub.pubchan
+}
+
 // StartUp triggers a sequence of steps required to start the application
 func StartUp(configFile string, init bool, version *semver.Version, devmode bool) {
 	// Load config and print banner
@@ -44,6 +53,9 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go catchSignals(sigs, &wg)
+
+	// create publisher
+	pub := &publisher{pubchan: make(chan interface{}, 100)}
 
 	// open databse
 	dbcli, err := db.Open(cfg.WorkDir, "db")
@@ -59,9 +71,9 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cm := capability.CreateManager()
 	sm := ssh.CreateManager(dbcli)
 	um := auth.CreateUserManager(dbcli, sm, cm)
-	tm := task.CreateManager(dbcli, cfg)
+	tm := task.CreateManager(dbcli, pub)
 	as := installer.CreateAppStore(p, tm, cm)
-	am := app.CreateManager(rm, tm, p, dbcli, m, cfg, as, cm)
+	am := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, am, dbcli)
 
 	// check init and dev mode
@@ -73,7 +85,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	httpAPI := api.New(devmode, cfg.StaticAssets, cfg.WSPublish, cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
+	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
 
 	// start ws connection manager
 	err = httpAPI.StartWSManager()

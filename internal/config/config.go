@@ -30,7 +30,6 @@ type Config struct {
 	ProcsQuit       sync.Map
 	ExternalDNS     string // format: <ip>:<port>
 	Version         *semver.Version
-	WSPublish       chan interface{}
 }
 
 var config = Config{
@@ -46,12 +45,6 @@ var config = Config{
 	AppStoreHost:    "apps.protos.io",
 	ExternalDNS:     "8.8.8.8:53",
 	ProcsQuit:       sync.Map{},
-	WSPublish:       make(chan interface{}, 100),
-}
-
-// GetWSPublishChannel returns the channel that can be used to publish messages to the available websockets
-func (cfg *Config) GetWSPublishChannel() chan interface{} {
-	return cfg.WSPublish
 }
 
 // Gconfig maintains a global view of the application configuration parameters.
