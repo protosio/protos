@@ -92,6 +92,39 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 	return &metaRoot
 }
 
+// SetupForClient reads the domain and other information on first run and save this information to the database
+func SetupForClient(rm core.ResourceManager, db core.DB, version string) *Meta {
+	if rm == nil || db == nil {
+		log.Panic("Failed to setup meta package: none of the inputs can be nil")
+	}
+
+	metaRoot := Meta{}
+	log.Debug("Reading instance information from database")
+	err := db.GetStruct(metaDS, &metaRoot)
+	if err != nil {
+		log.Debug("Creating metaroot database entry")
+		metaRoot = Meta{
+			ID:                 "metaroot",
+			DashboardSubdomain: "protos",
+		}
+	} else {
+		metaRoot.ID = "metaroot"
+		metaRoot.DashboardSubdomain = "protos"
+	}
+
+	metaRoot.db = db
+	metaRoot.rm = rm
+	metaRoot.version = version
+	metaRoot.networkSetSignal = make(chan net.IP, 1)
+	metaRoot.domainSetSignal = make(chan string, 1)
+	metaRoot.adminUserSetSignal = make(chan string, 1)
+	err = db.SaveStruct(metaDS, metaRoot)
+	if err != nil {
+		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
+	}
+	return &metaRoot
+}
+
 func (m *Meta) save() {
 	err := m.db.SaveStruct(metaDS, *m)
 	if err != nil {

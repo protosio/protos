@@ -187,7 +187,7 @@ func configure(currentCmd string, logLevel string) {
 	um := auth.CreateUserManager(dbi, sm, capm)
 	clm := cloud.CreateManager(dbi, um, sm)
 	rm := resource.CreateManager(dbi)
-	m := meta.Setup(rm, dbi, version.String())
+	m := meta.SetupForClient(rm, dbi, version.String())
 	am := app.CreateManager(rm, tm, rp, dbi, m, pub, as, capm)
 	vpn, err := vpn.New(dbi, um, clm)
 	if err != nil {
