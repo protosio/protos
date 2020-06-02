@@ -12,13 +12,18 @@ type WSConnection struct {
 
 // AppManager manages applications and their lifecycle
 type AppManager interface {
+	// methods used by the client
+	Get(name string) (App, error)
+	Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata InstallerMetadata) (App, error)
+	Delete(name string) error
+
+	// methods used by protosd
 	Read(id string) (App, error)
 	GetAllPublic() map[string]App
+	GetCopy(id string) (App, error)
 	Select(func(App) bool) map[string]App
-	Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata InstallerMetadata) (App, error)
 	CreateDevApp(appName string, installerMetadata InstallerMetadata, installerParams map[string]string) (App, error)
 	CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) Task
-	GetCopy(id string) (App, error)
 	Remove(id string) error
 	RemoveAsync(string) Task
 	GetServices() []util.Service
@@ -42,6 +47,7 @@ type App interface {
 	CreateResource(jsonPayload []byte) (Resource, error)
 	DeleteResource(id string) error
 	SetStatus(status string)
+	GetStatus() string
 	SetMsgQ(msgq *WSConnection)
 	CloseMsgQ()
 	Public() App

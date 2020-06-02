@@ -22,10 +22,36 @@ var cmdApp *cli.Command = &cli.Command{
 			},
 		},
 		{
-			Name:  "run",
-			Usage: "Run a new application",
+			Name:      "create",
+			ArgsUsage: "<name> <installer-id>",
+			Usage:     "Create a new application",
 			Action: func(c *cli.Context) error {
-				return listApps()
+				name := c.Args().Get(0)
+				if name == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				installerID := c.Args().Get(1)
+				if installerID == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+				return createApp(name, installerID)
+			},
+		},
+		{
+			Name:      "delete",
+			ArgsUsage: "<name>",
+			Usage:     "Delete an existing application",
+			Action: func(c *cli.Context) error {
+				name := c.Args().Get(0)
+				if name == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				return deleteApp(name)
 			},
 		},
 		{
@@ -58,9 +84,50 @@ var cmdApp *cli.Command = &cli.Command{
 }
 
 func listApps() error {
-	// prv := app.NewProvider()
-	// apps := prv.GetApps()
-	// fmt.Println(apps)
+	apps := envi.AM.GetAllPublic()
+
+	w := new(tabwriter.Writer)
+	w.Init(os.Stdout, 0, 0, 2, ' ', 0)
+
+	defer w.Flush()
+
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Name", "ID", "Version", "Description")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "----", "--", "-------", "-----------")
+	for id, appi := range apps {
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", appi.GetName(), id, appi.GetIP(), appi.GetIP())
+	}
+	fmt.Fprint(w, "\n")
+
+	return nil
+}
+
+func createApp(name string, installerID string) error {
+	installer, err := envi.AS.GetInstaller(installerID)
+	if err != nil {
+		return err
+	}
+
+	instMetadata, err := installer.GetMetadata(installer.GetLastVersion())
+	if err != nil {
+		return err
+	}
+
+	newApp, err := envi.AM.Create(installerID, installer.GetLastVersion(), name, map[string]string{}, instMetadata)
+	if err != nil {
+		return err
+	}
+	fmt.Println(newApp)
+
+	return nil
+}
+
+func deleteApp(name string) error {
+
+	err := envi.AM.Delete(name)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

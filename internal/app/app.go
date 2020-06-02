@@ -17,12 +17,13 @@ var log = util.GetLogger("app")
 // specific to each application
 const (
 	// app states
-	statusRunning  = "running"
-	statusStopped  = "stopped"
-	statusCreating = "creating"
-	statusFailed   = "failed"
-	statusUnknown  = "unknown"
-	statusDeleted  = "deleted"
+	statusRunning    = "running"
+	statusStopped    = "stopped"
+	statusCreating   = "creating"
+	statusFailed     = "failed"
+	statusUnknown    = "unknown"
+	statusDeleted    = "deleted"
+	statusWillDelete = "willdelete"
 
 	appBucket = "app"
 )
@@ -111,12 +112,17 @@ func (app *App) GetName() string {
 	return app.Name
 }
 
-// SetStatus is used to set the status of an application
+// SetStatus sets the status of an application
 func (app *App) SetStatus(status string) {
 	app.access.Lock()
 	app.Status = status
 	app.access.Unlock()
 	app.Save()
+}
+
+// GetStatus the status of an application
+func (app *App) GetStatus() string {
+	return app.Status
 }
 
 // AddAction performs an action on an application

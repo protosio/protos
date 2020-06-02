@@ -164,12 +164,22 @@ func (am *Manager) GetCopy(id string) (core.App, error) {
 	log.Trace("Copying application ", id)
 	app, err := am.apps.get(id)
 	if err != nil {
-		return app, err
+		return nil, err
 	}
 	app.access.Lock()
 	capp := *app
 	app.access.Unlock()
 	return &capp, err
+}
+
+// Get returns a copy of an application based on its name
+func (am *Manager) Get(name string) (core.App, error) {
+	for _, app := range am.apps.copy() {
+		if app.Name == name {
+			return &app, nil
+		}
+	}
+	return nil, fmt.Errorf("Could not find application '%s'", name)
 }
 
 // CopyAll returns a copy of all the applications
@@ -231,6 +241,12 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		return app, err
 	}
 
+	for _, app := range am.apps.copy() {
+		if app.Name == name {
+			return nil, fmt.Errorf("Could not create application '%s': another application exists with the same name", name)
+		}
+	}
+
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
 	app = &App{access: &sync.Mutex{}, Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
@@ -255,6 +271,17 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
+}
+
+// Delete sets the status of the app to WillDelete, which triggers the deletion of the app
+func (am *Manager) Delete(name string) error {
+	app, err := am.Get(name)
+	if err != nil {
+		return err
+	}
+
+	app.SetStatus(statusWillDelete)
+	return nil
 }
 
 // GetServices returns a list of services performed by apps

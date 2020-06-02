@@ -34,6 +34,50 @@ func (m *MockAppManager) EXPECT() *MockAppManagerMockRecorder {
 	return m.recorder
 }
 
+// Get mocks base method
+func (m *MockAppManager) Get(name string) (core.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", name)
+	ret0, _ := ret[0].(core.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get
+func (mr *MockAppManagerMockRecorder) Get(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockAppManager)(nil).Get), name)
+}
+
+// Create mocks base method
+func (m *MockAppManager) Create(installerID, installerVersion, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata) (core.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", installerID, installerVersion, name, installerParams, installerMetadata)
+	ret0, _ := ret[0].(core.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create
+func (mr *MockAppManagerMockRecorder) Create(installerID, installerVersion, name, installerParams, installerMetadata interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAppManager)(nil).Create), installerID, installerVersion, name, installerParams, installerMetadata)
+}
+
+// Delete mocks base method
+func (m *MockAppManager) Delete(name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete
+func (mr *MockAppManagerMockRecorder) Delete(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockAppManager)(nil).Delete), name)
+}
+
 // Read mocks base method
 func (m *MockAppManager) Read(id string) (core.App, error) {
 	m.ctrl.T.Helper()
@@ -63,6 +107,21 @@ func (mr *MockAppManagerMockRecorder) GetAllPublic() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllPublic", reflect.TypeOf((*MockAppManager)(nil).GetAllPublic))
 }
 
+// GetCopy mocks base method
+func (m *MockAppManager) GetCopy(id string) (core.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCopy", id)
+	ret0, _ := ret[0].(core.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCopy indicates an expected call of GetCopy
+func (mr *MockAppManagerMockRecorder) GetCopy(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCopy", reflect.TypeOf((*MockAppManager)(nil).GetCopy), id)
+}
+
 // Select mocks base method
 func (m *MockAppManager) Select(arg0 func(core.App) bool) map[string]core.App {
 	m.ctrl.T.Helper()
@@ -75,21 +134,6 @@ func (m *MockAppManager) Select(arg0 func(core.App) bool) map[string]core.App {
 func (mr *MockAppManagerMockRecorder) Select(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Select", reflect.TypeOf((*MockAppManager)(nil).Select), arg0)
-}
-
-// Create mocks base method
-func (m *MockAppManager) Create(installerID, installerVersion, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata) (core.App, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", installerID, installerVersion, name, installerParams, installerMetadata)
-	ret0, _ := ret[0].(core.App)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Create indicates an expected call of Create
-func (mr *MockAppManagerMockRecorder) Create(installerID, installerVersion, name, installerParams, installerMetadata interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAppManager)(nil).Create), installerID, installerVersion, name, installerParams, installerMetadata)
 }
 
 // CreateDevApp mocks base method
@@ -119,21 +163,6 @@ func (m *MockAppManager) CreateAsync(installerID, installerVersion, appName stri
 func (mr *MockAppManagerMockRecorder) CreateAsync(installerID, installerVersion, appName, installerParams, startOnCreation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAsync", reflect.TypeOf((*MockAppManager)(nil).CreateAsync), installerID, installerVersion, appName, installerParams, startOnCreation)
-}
-
-// GetCopy mocks base method
-func (m *MockAppManager) GetCopy(id string) (core.App, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCopy", id)
-	ret0, _ := ret[0].(core.App)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetCopy indicates an expected call of GetCopy
-func (mr *MockAppManagerMockRecorder) GetCopy(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCopy", reflect.TypeOf((*MockAppManager)(nil).GetCopy), id)
 }
 
 // Remove mocks base method
@@ -422,6 +451,20 @@ func (m *MockApp) SetStatus(status string) {
 func (mr *MockAppMockRecorder) SetStatus(status interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStatus", reflect.TypeOf((*MockApp)(nil).SetStatus), status)
+}
+
+// GetStatus mocks base method
+func (m *MockApp) GetStatus() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStatus")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetStatus indicates an expected call of GetStatus
+func (mr *MockAppMockRecorder) GetStatus() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatus", reflect.TypeOf((*MockApp)(nil).GetStatus))
 }
 
 // SetMsgQ mocks base method
