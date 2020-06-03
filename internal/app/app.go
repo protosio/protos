@@ -120,9 +120,14 @@ func (app *App) SetStatus(status string) {
 	app.Save()
 }
 
-// GetStatus the status of an application
+// GetStatus returns the status of an application
 func (app *App) GetStatus() string {
 	return app.Status
+}
+
+// GetVersion returns the version of an application
+func (app *App) GetVersion() string {
+	return app.InstallerVersion
 }
 
 // AddAction performs an action on an application

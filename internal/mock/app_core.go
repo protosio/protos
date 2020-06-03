@@ -467,6 +467,20 @@ func (mr *MockAppMockRecorder) GetStatus() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatus", reflect.TypeOf((*MockApp)(nil).GetStatus))
 }
 
+// GetVersion mocks base method
+func (m *MockApp) GetVersion() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVersion")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetVersion indicates an expected call of GetVersion
+func (mr *MockAppMockRecorder) GetVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockApp)(nil).GetVersion))
+}
+
 // SetMsgQ mocks base method
 func (m *MockApp) SetMsgQ(msgq *core.WSConnection) {
 	m.ctrl.T.Helper()

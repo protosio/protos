@@ -48,6 +48,7 @@ type App interface {
 	DeleteResource(id string) error
 	SetStatus(status string)
 	GetStatus() string
+	GetVersion() string
 	SetMsgQ(msgq *WSConnection)
 	CloseMsgQ()
 	Public() App

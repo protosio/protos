@@ -91,10 +91,10 @@ func listApps() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Name", "ID", "Version", "Description")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "----", "--", "-------", "-----------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Name", "ID", "Version", "Status")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "----", "--", "-------", "------")
 	for id, appi := range apps {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", appi.GetName(), id, appi.GetIP(), appi.GetIP())
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", appi.GetName(), id, appi.GetVersion(), appi.GetStatus())
 	}
 	fmt.Fprint(w, "\n")
 
