@@ -203,7 +203,7 @@ func (app *App) getOrcreateSandbox() (core.PlatformRuntimeUnit, error) {
 // enrichAppData updates the information about the underlying application
 func (app *App) enrichAppData() {
 
-	if app.Status == statusCreating || app.Status == statusFailed || app.Status == statusDeleted {
+	if app.Status == statusCreating || app.Status == statusFailed || app.Status == statusDeleted || app.Status == statusWillDelete {
 		// not refreshing the platform until the app creation process is done
 		return
 	}
