@@ -41,8 +41,13 @@ func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Man
 	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
 	providers[core.Mail] = &Provider{Type: core.Mail, rm: rm}
 
+	err := db.InitSet(providerDS)
+	if err != nil {
+		log.Fatal("Failed to initialize provider dataset: ", err)
+	}
+
 	prvs := []Provider{}
-	err := db.GetSet(providerDS, &prvs)
+	err = db.GetSet(providerDS, &prvs)
 	if err != nil {
 		log.Fatalf("Could not retrieve providers from the database: %s", err.Error())
 	}

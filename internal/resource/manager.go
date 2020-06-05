@@ -85,11 +85,16 @@ func CreateManager(db core.DB) *Manager {
 		log.Panic("Failed to create  resource manager: none of the inputs can be nil")
 	}
 
+	err := db.InitSet(resourceDS)
+	if err != nil {
+		log.Fatal("Failed to initialize resource dataset: ", err)
+	}
+
 	log.Debug("Retrieving resources from DB")
 	manager := &Manager{db: db}
 
 	rscs := []Resource{}
-	err := db.GetSet(resourceDS, &rscs)
+	err = db.GetSet(resourceDS, &rscs)
 	if err != nil {
 		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
 	}
