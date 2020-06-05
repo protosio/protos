@@ -625,5 +625,16 @@ func CreateManager(db core.DB, um core.UserManager, sm core.SSHManager) *Manager
 	if db == nil || um == nil || sm == nil {
 		log.Panic("Failed to create cloud manager: none of the inputs can be nil")
 	}
+
+	err := db.InitMap(instanceDS)
+	if err != nil {
+		log.Fatal("Failed to initialize instance dataset: ", err)
+	}
+
+	err = db.InitMap(cloudDS)
+	if err != nil {
+		log.Fatal("Failed to initialize cloud dataset: ", err)
+	}
+
 	return &Manager{db: db, um: um, sm: sm}
 }

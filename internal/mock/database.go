@@ -60,6 +60,20 @@ func (mr *MockDBMockRecorder) GetStruct(dataset, to interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStruct", reflect.TypeOf((*MockDB)(nil).GetStruct), dataset, to)
 }
 
+// InitSet mocks base method
+func (m *MockDB) InitSet(dataset string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InitSet", dataset)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InitSet indicates an expected call of InitSet
+func (mr *MockDBMockRecorder) InitSet(dataset interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitSet", reflect.TypeOf((*MockDB)(nil).InitSet), dataset)
+}
+
 // GetSet mocks base method
 func (m *MockDB) GetSet(dataset string, to interface{}) error {
 	m.ctrl.T.Helper()
@@ -102,6 +116,20 @@ func (mr *MockDBMockRecorder) RemoveFromSet(dataset, data interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSet", reflect.TypeOf((*MockDB)(nil).RemoveFromSet), dataset, data)
 }
 
+// InitMap mocks base method
+func (m *MockDB) InitMap(dataset string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InitMap", dataset)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InitMap indicates an expected call of InitMap
+func (mr *MockDBMockRecorder) InitMap(dataset interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitMap", reflect.TypeOf((*MockDB)(nil).InitMap), dataset)
+}
+
 // GetMap mocks base method
 func (m *MockDB) GetMap(dataset string, to interface{}) error {
 	m.ctrl.T.Helper()
@@ -142,6 +170,34 @@ func (m *MockDB) RemoveFromMap(dataset, id string) error {
 func (mr *MockDBMockRecorder) RemoveFromMap(dataset, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromMap", reflect.TypeOf((*MockDB)(nil).RemoveFromMap), dataset, id)
+}
+
+// SyncTo mocks base method
+func (m *MockDB) SyncTo(dataset, ip string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SyncTo", dataset, ip)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SyncTo indicates an expected call of SyncTo
+func (mr *MockDBMockRecorder) SyncTo(dataset, ip interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncTo", reflect.TypeOf((*MockDB)(nil).SyncTo), dataset, ip)
+}
+
+// SyncServer mocks base method
+func (m *MockDB) SyncServer() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SyncServer")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SyncServer indicates an expected call of SyncServer
+func (mr *MockDBMockRecorder) SyncServer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncServer", reflect.TypeOf((*MockDB)(nil).SyncServer))
 }
 
 // Close mocks base method

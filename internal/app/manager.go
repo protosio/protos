@@ -109,9 +109,13 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 	gob.Register(&core.InstallerMetadata{})
+	err := db.InitMap(appDS)
+	if err != nil {
+		log.Fatal("Failed to initialize app dataset: ", err)
+	}
 
 	dbapps := map[string]App{}
-	err := db.GetMap(appDS, &dbapps)
+	err = db.GetMap(appDS, &dbapps)
 	if err != nil {
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}

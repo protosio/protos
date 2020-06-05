@@ -75,13 +75,12 @@ func (db *dbNoms) GetStruct(dataset string, to interface{}) error {
 func (db *dbNoms) GetSet(dataset string, to interface{}) error {
 	ds := db.dbn.GetDataset(dataset)
 
-	var set types.Set
 	hv, ok := ds.MaybeHeadValue()
-	if ok {
-		set = hv.(types.Set)
-	} else {
-		set = types.NewSet(ds.Database())
+	if !ok {
+		return fmt.Errorf("Dataset '%s' not found", dataset)
 	}
+
+	set := hv.(types.Set)
 
 	err := marshal.Unmarshal(set.Value(), to)
 	if err != nil {
@@ -95,13 +94,12 @@ func (db *dbNoms) GetSet(dataset string, to interface{}) error {
 func (db *dbNoms) InsertInSet(dataset string, data interface{}) error {
 	ds := db.dbn.GetDataset(dataset)
 
-	var set types.Set
 	hv, ok := ds.MaybeHeadValue()
-	if ok {
-		set = hv.(types.Set)
-	} else {
-		set = types.NewSet(ds.Database())
+	if !ok {
+		return fmt.Errorf("Dataset '%s' not found", dataset)
 	}
+
+	set := hv.(types.Set)
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
@@ -119,13 +117,12 @@ func (db *dbNoms) InsertInSet(dataset string, data interface{}) error {
 func (db *dbNoms) RemoveFromSet(dataset string, data interface{}) error {
 	ds := db.dbn.GetDataset(dataset)
 
-	var set types.Set
 	hv, ok := ds.MaybeHeadValue()
-	if ok {
-		set = hv.(types.Set)
-	} else {
-		set = types.NewSet(ds.Database())
+	if !ok {
+		return fmt.Errorf("Dataset '%s' not found", dataset)
 	}
+
+	set := hv.(types.Set)
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
@@ -139,17 +136,34 @@ func (db *dbNoms) RemoveFromSet(dataset string, data interface{}) error {
 	return nil
 }
 
+// InitSet initializes a set dataset in the db
+func (db *dbNoms) InitSet(dataset string) error {
+	ds := db.dbn.GetDataset(dataset)
+
+	_, ok := ds.MaybeHeadValue()
+	if ok {
+		return nil
+	}
+
+	set := types.NewSet(ds.Database())
+
+	_, err := db.dbn.CommitValue(ds, set)
+	if err != nil {
+		return fmt.Errorf("Error committing: %w", err)
+	}
+	return nil
+}
+
 // GetMap retrieves all records in a map
 func (db *dbNoms) GetMap(dataset string, to interface{}) error {
 	ds := db.dbn.GetDataset(dataset)
 
-	var mapi types.Map
 	hv, ok := ds.MaybeHeadValue()
-	if ok {
-		mapi = hv.(types.Map)
-	} else {
-		mapi = types.NewMap(ds.Database())
+	if !ok {
+		return fmt.Errorf("Dataset '%s' not found", dataset)
 	}
+
+	mapi := hv.(types.Map)
 
 	err := marshal.Unmarshal(mapi.Value(), to)
 	if err != nil {
@@ -163,13 +177,12 @@ func (db *dbNoms) GetMap(dataset string, to interface{}) error {
 func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error {
 	ds := db.dbn.GetDataset(dataset)
 
-	var mapi types.Map
 	hv, ok := ds.MaybeHeadValue()
-	if ok {
-		mapi = hv.(types.Map)
-	} else {
-		mapi = types.NewMap(ds.Database())
+	if !ok {
+		return fmt.Errorf("Dataset '%s' not found", dataset)
 	}
+
+	mapi := hv.(types.Map)
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
@@ -187,15 +200,32 @@ func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error
 func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 	ds := db.dbn.GetDataset(dataset)
 
-	var mapi types.Map
 	hv, ok := ds.MaybeHeadValue()
-	if ok {
-		mapi = hv.(types.Map)
-	} else {
-		mapi = types.NewMap(ds.Database())
+	if !ok {
+		return fmt.Errorf("Dataset '%s' not found", dataset)
 	}
 
+	mapi := hv.(types.Map)
+
 	_, err := db.dbn.CommitValue(ds, mapi.Edit().Remove(types.String(id)).Map())
+	if err != nil {
+		return fmt.Errorf("Error committing: %w", err)
+	}
+	return nil
+}
+
+// InitMap initializes a map dataset in the db
+func (db *dbNoms) InitMap(dataset string) error {
+	ds := db.dbn.GetDataset(dataset)
+
+	_, ok := ds.MaybeHeadValue()
+	if ok {
+		return nil
+	}
+
+	mapi := types.NewMap(ds.Database())
+
+	_, err := db.dbn.CommitValue(ds, mapi)
 	if err != nil {
 		return fmt.Errorf("Error committing: %w", err)
 	}
