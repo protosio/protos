@@ -104,6 +104,18 @@ func main() {
 
 	app.After = func(c *cli.Context) error {
 		if envi != nil && envi.DB != nil {
+			ips := []string{}
+			instances, err := envi.CLM.GetInstances()
+			if err != nil {
+				return err
+			}
+			for _, instance := range instances {
+				ips = append(ips, instance.PublicIP)
+			}
+			err = envi.DB.SyncAll(ips)
+			if err != nil {
+				return err
+			}
 			return envi.DB.Close()
 		}
 		return nil

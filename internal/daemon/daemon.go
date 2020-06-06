@@ -12,6 +12,7 @@ import (
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
@@ -75,6 +76,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	as := installer.CreateAppStore(p, tm, cm)
 	am := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, am, dbcli)
+	_ = cloud.CreateManager(dbcli, um, sm)
 
 	// check init and dev mode
 
@@ -115,6 +117,12 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	dns.StartServer(ip.String(), cfg.ExternalDNS, domain)
 
 	err = httpAPI.StartInternalWebServer(cfg.InitMode, ip.String())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// start the db sync server
+	err = dbcli.SyncServer()
 	if err != nil {
 		log.Fatal(err)
 	}

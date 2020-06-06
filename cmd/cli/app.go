@@ -112,11 +112,10 @@ func createApp(name string, installerID string) error {
 		return err
 	}
 
-	newApp, err := envi.AM.Create(installerID, installer.GetLastVersion(), name, map[string]string{}, instMetadata)
+	_, err = envi.AM.Create(installerID, installer.GetLastVersion(), name, map[string]string{}, instMetadata)
 	if err != nil {
 		return err
 	}
-	fmt.Println(newApp)
 
 	return nil
 }

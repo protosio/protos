@@ -103,7 +103,7 @@ func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
 		log.Panic("Failed to create task manager: none of the inputs can be nil")
 	}
 
-	err := db.InitSet(taskDS)
+	err := db.InitSet(taskDS, false)
 	if err != nil {
 		log.Fatal("Failed to initialize task dataset: ", err)
 	}

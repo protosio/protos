@@ -14,6 +14,7 @@ require (
 	github.com/cnf/structhash v0.0.0-20180104161610-62a607eb0224
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1
+	github.com/dustin/go-humanize v1.0.0
 	github.com/emirpasic/gods v1.12.0
 	github.com/foxcpp/wirebox v0.0.0-20200514221413-742e75ef2d54
 	github.com/getlantern/deepcopy v0.0.0-20160317154340-7f45deb8130a

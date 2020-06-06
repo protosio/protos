@@ -61,17 +61,17 @@ func (mr *MockDBMockRecorder) GetStruct(dataset, to interface{}) *gomock.Call {
 }
 
 // InitSet mocks base method
-func (m *MockDB) InitSet(dataset string) error {
+func (m *MockDB) InitSet(dataset string, sync bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InitSet", dataset)
+	ret := m.ctrl.Call(m, "InitSet", dataset, sync)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InitSet indicates an expected call of InitSet
-func (mr *MockDBMockRecorder) InitSet(dataset interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) InitSet(dataset, sync interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitSet", reflect.TypeOf((*MockDB)(nil).InitSet), dataset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitSet", reflect.TypeOf((*MockDB)(nil).InitSet), dataset, sync)
 }
 
 // GetSet mocks base method
@@ -117,17 +117,17 @@ func (mr *MockDBMockRecorder) RemoveFromSet(dataset, data interface{}) *gomock.C
 }
 
 // InitMap mocks base method
-func (m *MockDB) InitMap(dataset string) error {
+func (m *MockDB) InitMap(dataset string, sync bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InitMap", dataset)
+	ret := m.ctrl.Call(m, "InitMap", dataset, sync)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InitMap indicates an expected call of InitMap
-func (mr *MockDBMockRecorder) InitMap(dataset interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) InitMap(dataset, sync interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitMap", reflect.TypeOf((*MockDB)(nil).InitMap), dataset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitMap", reflect.TypeOf((*MockDB)(nil).InitMap), dataset, sync)
 }
 
 // GetMap mocks base method
@@ -170,6 +170,20 @@ func (m *MockDB) RemoveFromMap(dataset, id string) error {
 func (mr *MockDBMockRecorder) RemoveFromMap(dataset, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromMap", reflect.TypeOf((*MockDB)(nil).RemoveFromMap), dataset, id)
+}
+
+// SyncAll mocks base method
+func (m *MockDB) SyncAll(ips []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SyncAll", ips)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SyncAll indicates an expected call of SyncAll
+func (mr *MockDBMockRecorder) SyncAll(ips interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAll", reflect.TypeOf((*MockDB)(nil).SyncAll), ips)
 }
 
 // SyncTo mocks base method
