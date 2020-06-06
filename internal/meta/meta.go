@@ -185,7 +185,12 @@ func (m *Meta) GetInternalIP() net.IP {
 func (m *Meta) setPublicIP() {
 	ipstr, err := findPublicIP()
 	if err != nil {
-		log.Fatalf("Could not find instance public ip: %s", err.Error())
+		log.Errorf("Could not find instance public IP: %s", err.Error())
+		if m.PublicIP != nil {
+			log.Warnf("Using stale public IP '%s'", m.PublicIP.String())
+			return
+		}
+		log.Fatal("No IP found in the database")
 	}
 	log.Debugf("Setting external instance IP address to '%s'", ipstr)
 	ip := net.ParseIP(ipstr)
