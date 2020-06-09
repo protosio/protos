@@ -201,11 +201,12 @@ func (mr *MockDBMockRecorder) SyncTo(dataset, ip interface{}) *gomock.Call {
 }
 
 // SyncServer mocks base method
-func (m *MockDB) SyncServer() error {
+func (m *MockDB) SyncServer() (func() error, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SyncServer")
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(func() error)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // SyncServer indicates an expected call of SyncServer

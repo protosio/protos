@@ -14,6 +14,6 @@ type DB interface {
 	RemoveFromMap(dataset string, id string) error
 	SyncAll(ips []string) error
 	SyncTo(dataset string, ip string) error
-	SyncServer() error
+	SyncServer() (func() error, error)
 	Close() error
 }

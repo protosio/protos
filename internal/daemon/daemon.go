@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"sync"
@@ -28,9 +29,17 @@ import (
 
 var log = util.GetLogger("daemon")
 
+var stoppers = map[string]func() error{}
+
 func catchSignals(sigs chan os.Signal, wg *sync.WaitGroup) {
 	sig := <-sigs
 	log.Infof("Received OS signal %s. Terminating", sig.String())
+	for _, stopper := range stoppers {
+		err := stopper()
+		if err != nil {
+			log.Error(err)
+		}
+	}
 	wg.Done()
 }
 
@@ -90,19 +99,38 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
 
 	// start ws connection manager
-	err = httpAPI.StartWSManager()
+	wsmStopper, err := httpAPI.StartWSManager()
 	if err != nil {
 		log.Fatal(err)
 	}
+	stoppers["wsm"] = wsmStopper
 
 	// start loopback webserver
-	err = httpAPI.StartLoopbackWebServer(cfg.InitMode)
+	lpsStopper, err := httpAPI.StartLoopbackWebServer(cfg.InitMode)
 	if err != nil {
 		log.Fatal(err)
 	}
+	stoppers["lps"] = lpsStopper
 
 	// if starting for the first time, this will block until remote init is done
-	ip, network, domain, adminUser := m.WaitForInit()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	canceled := false
+	ctxStopper := func() error {
+		cancel()
+		canceled = true
+		return nil
+	}
+	stoppers["wfi"] = ctxStopper
+
+	ip, network, domain, adminUser := m.WaitForInit(ctx)
+
+	if canceled {
+		wg.Wait()
+		log.Info("Shutdown completed")
+		return
+	}
+
 	usr, err := um.GetUser(adminUser)
 	if err != nil {
 		log.Fatal(err)
@@ -114,35 +142,24 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	dns.StartServer(ip.String(), cfg.ExternalDNS, domain)
+	dnsStopper := dns.StartServer(ip.String(), cfg.ExternalDNS, domain)
+	stoppers["dns"] = dnsStopper
 
-	err = httpAPI.StartInternalWebServer(cfg.InitMode, ip.String())
+	iwsStopper, err := httpAPI.StartInternalWebServer(cfg.InitMode, ip.String())
 	if err != nil {
 		log.Fatal(err)
 	}
+	stoppers["iws"] = iwsStopper
 
 	// start the db sync server
-	err = dbcli.SyncServer()
+	dbStopper, err := dbcli.SyncServer()
 	if err != nil {
 		log.Fatal(err)
 	}
+	stoppers["db"] = dbStopper
 
 	log.Info("Started all servers successfully")
 	wg.Wait()
-	log.Info("Terminating all servers...")
+	log.Info("Shutdown completed")
 
-	// stop all servers
-	err = httpAPI.StopWSManager()
-	if err != nil {
-		log.Error(err)
-	}
-	err = httpAPI.StopLoopbackWebServer()
-	if err != nil {
-		log.Error(err)
-	}
-	err = httpAPI.StopInternalWebServer()
-	if err != nil {
-		log.Error(err)
-	}
-	dns.StopServer()
 }

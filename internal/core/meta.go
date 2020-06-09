@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"net"
 
 	"github.com/protosio/protos/internal/util"
@@ -29,5 +30,5 @@ type Meta interface {
 	GetAdminUser() string
 	GetVersion() string
 	InitMode() bool
-	WaitForInit() (net.IP, net.IPNet, string, string)
+	WaitForInit(ctx context.Context) (net.IP, net.IPNet, string, string)
 }

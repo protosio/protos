@@ -72,7 +72,7 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 var srv *dns.Server
 
 // StartServer starts a DNS server used for resolving internal Protos addresses
-func StartServer(protosIP string, dnsServer string, domain string) {
+func StartServer(protosIP string, dnsServer string, domain string) func() error {
 	log.Infof("Starting DNS server. Listening internally on '%s:%s' for domain '%s'", protosIP, "53", domain)
 	log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
 
@@ -87,11 +87,16 @@ func StartServer(protosIP string, dnsServer string, domain string) {
 			log.Fatalf("Failed to set udp listener %s\n", err.Error())
 		}
 	}()
+
+	stopper := func() error {
+		return StopServer()
+	}
+	return stopper
 }
 
 // StopServer starts a DNS server used for resolving internal Protos addresses
 func StopServer() error {
-	log.Info("Shutting down DNS server")
+	log.Debug("Shutting down DNS server")
 	if err := srv.Shutdown(); err != nil {
 		return errors.Wrap(err, "Something went wrong while shutting down the DNS server")
 	}

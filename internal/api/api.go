@@ -44,7 +44,7 @@ type route struct {
 }
 
 type apiController interface {
-	StartExternalWebServer() error
+	StartExternalWebServer() (func() error, error)
 	DisableInitRoutes() error
 }
 
@@ -346,7 +346,7 @@ func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, htt
 }
 
 // StartLoopbackWebServer starts the HTTP API, used via a SSH connection to the loopback interface
-func (api *HTTP) StartLoopbackWebServer(initMode bool) error {
+func (api *HTTP) StartLoopbackWebServer(initMode bool) (func() error, error) {
 	rtr := createRouter(api, api.devmode, initMode, api.staticAssetsPath)
 
 	api.localWebServerQuit = make(chan bool, 1)
@@ -358,7 +358,13 @@ func (api *HTTP) StartLoopbackWebServer(initMode bool) error {
 	api.root.UseHandler(rtrSwapper)
 
 	go insecureListen(api.root, api.localWebServerQuit, api.httpPort, "127.0.0.1")
-	return nil
+
+	stopper := func() error {
+		api.localWebServerQuit <- true
+		return nil
+	}
+
+	return stopper, nil
 }
 
 // StopLoopbackWebServer stops the HTTP API
@@ -368,7 +374,7 @@ func (api *HTTP) StopLoopbackWebServer() error {
 }
 
 // StartInternalWebServer starts the HTTP API, used for initilisation
-func (api *HTTP) StartInternalWebServer(initMode bool, internalIP string) error {
+func (api *HTTP) StartInternalWebServer(initMode bool, internalIP string) (func() error, error) {
 	rtr := createRouter(api, api.devmode, initMode, api.staticAssetsPath)
 
 	api.internalWebServerQuit = make(chan bool, 1)
@@ -380,11 +386,17 @@ func (api *HTTP) StartInternalWebServer(initMode bool, internalIP string) error 
 	api.root.UseHandler(rtrSwapper)
 
 	go insecureListen(api.root, api.internalWebServerQuit, api.httpPort, internalIP)
-	return nil
+
+	stopper := func() error {
+		return api.StopInternalWebServer()
+	}
+
+	return stopper, nil
 }
 
 // StopInternalWebServer stops the HTTP API
 func (api *HTTP) StopInternalWebServer() error {
+	log.Debug("Shutting down internal web server")
 	api.internalWebServerQuit <- true
 	return nil
 }
@@ -398,7 +410,7 @@ func (api *HTTP) DisableInitRoutes() error {
 }
 
 // StartExternalWebServer starts the HTTPS API using the provided certificate
-func (api *HTTP) StartExternalWebServer() error {
+func (api *HTTP) StartExternalWebServer() (func() error, error) {
 	rtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
 
 	api.externalWebServerQuit = make(chan bool, 1)
@@ -408,23 +420,33 @@ func (api *HTTP) StartExternalWebServer() error {
 	api.root.UseHandler(rtr)
 	cert := api.ha.m.GetTLSCertificate()
 	if cert == nil || cert.GetStatus() != core.Created {
-		return fmt.Errorf("Failed to start secure web server. TLS certificate not available")
+		return nil, fmt.Errorf("Failed to start secure web server. TLS certificate not available")
 	}
 
 	go secureListen(api.root, cert.GetValue(), api.externalWebServerQuit, api.httpPort, api.httpsPort)
-	return nil
+
+	stopper := func() error {
+		return api.StopExternalWebServer()
+	}
+
+	return stopper, nil
 }
 
 // StopExternalWebServer stops the HTTPS API
 func (api *HTTP) StopExternalWebServer() error {
+	log.Debug("Shutting down external web server")
 	api.externalWebServerQuit <- true
 	return nil
 }
 
 // StartWSManager starts the websocket server
-func (api *HTTP) StartWSManager() error {
+func (api *HTTP) StartWSManager() (func() error, error) {
 	go WSManager(api.ha.am, api.wsManagerQuit, api.wsfrontend)
-	return nil
+
+	stopper := func() error {
+		return api.StopWSManager()
+	}
+	return stopper, nil
 }
 
 // StopWSManager stops the websocket server

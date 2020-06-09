@@ -3,9 +3,7 @@ package db
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"path"
-	"syscall"
 	"time"
 
 	"github.com/attic-labs/noms/go/chunks"
@@ -155,19 +153,18 @@ func (db *dbNoms) SyncTo(dataset string, ip string) error {
 	return nil
 }
 
-func (db *dbNoms) SyncServer() error {
+func (db *dbNoms) SyncServer() (func() error, error) {
 	server := datas.NewRemoteDatabaseServer(db.cs, dbPort)
 
-	// Shutdown server gracefully so that profile may be written
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, syscall.SIGTERM)
-	go func() {
-		<-c
-		server.Stop()
-	}()
 	go server.Run()
-	return nil
+
+	stopper := func() error {
+		log.Debug("Shutting down DB sync server")
+		server.Stop()
+		return nil
+	}
+
+	return stopper, nil
 }
 
 func (db *dbNoms) Close() error {

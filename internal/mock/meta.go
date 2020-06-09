@@ -5,6 +5,7 @@
 package mock
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	core "github.com/protosio/protos/internal/core"
 	util "github.com/protosio/protos/internal/util"
@@ -272,9 +273,9 @@ func (mr *MockMetaMockRecorder) InitMode() *gomock.Call {
 }
 
 // WaitForInit mocks base method
-func (m *MockMeta) WaitForInit() (net.IP, net.IPNet, string, string) {
+func (m *MockMeta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string, string) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WaitForInit")
+	ret := m.ctrl.Call(m, "WaitForInit", ctx)
 	ret0, _ := ret[0].(net.IP)
 	ret1, _ := ret[1].(net.IPNet)
 	ret2, _ := ret[2].(string)
@@ -283,7 +284,7 @@ func (m *MockMeta) WaitForInit() (net.IP, net.IPNet, string, string) {
 }
 
 // WaitForInit indicates an expected call of WaitForInit
-func (mr *MockMetaMockRecorder) WaitForInit() *gomock.Call {
+func (mr *MockMetaMockRecorder) WaitForInit(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForInit", reflect.TypeOf((*MockMeta)(nil).WaitForInit))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForInit", reflect.TypeOf((*MockMeta)(nil).WaitForInit), ctx)
 }

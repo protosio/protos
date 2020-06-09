@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -88,7 +89,7 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
 	}
-	metaRoot.setPublicIP()
+	// metaRoot.setPublicIP()
 	return &metaRoot
 }
 
@@ -373,14 +374,32 @@ func (m *Meta) InitMode() bool {
 }
 
 // WaitForInit returns when both the domain and network has been set
-func (m *Meta) WaitForInit() (net.IP, net.IPNet, string, string) {
+func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string, string) {
 	if m.InternalIP != nil && m.Domain != "" && m.AdminUser != "" {
 		return m.InternalIP, m.Network, m.Domain, m.AdminUser
 	}
 
-	log.Debug("Waiting for initialisation to complete")
-	domain := <-m.domainSetSignal
-	internalIP := <-m.networkSetSignal
-	adminUser := <-m.adminUserSetSignal
-	return internalIP, m.Network, domain, adminUser
+	var domain string
+	var internalIP net.IP
+	var adminUser string
+
+	initialized := make(chan bool)
+
+	go func() {
+		log.Debug("Waiting for initialisation to complete")
+		domain = <-m.domainSetSignal
+		internalIP = <-m.networkSetSignal
+		adminUser = <-m.adminUserSetSignal
+		initialized <- true
+	}()
+
+	select {
+	case <-ctx.Done():
+		log.Debug("Init did not finish. Canceled by user")
+		return internalIP, m.Network, domain, adminUser
+	case <-initialized:
+		log.Debug("Init finished")
+		return internalIP, m.Network, domain, adminUser
+	}
+
 }
