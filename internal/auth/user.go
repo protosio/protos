@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	userBucket = "user"
-	authDS     = "auth"
+	authDS = "auth"
 )
 
 var log = util.GetLogger("auth")
@@ -178,6 +177,11 @@ func CreateUserManager(db core.DB, sm core.SSHManager, cm core.CapabilityManager
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 	gob.Register(&User{})
+
+	err := db.InitSet(authDS, false)
+	if err != nil {
+		log.Fatal("Failed to initialize auth dataset: ", err)
+	}
 
 	return &UserManager{db: db, sm: sm, cm: cm}
 }
