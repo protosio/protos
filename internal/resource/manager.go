@@ -47,7 +47,7 @@ func (rc resourceContainer) remove(id string) error {
 	if found == false {
 		return fmt.Errorf("Could not find resource '%s'", id)
 	}
-	err := rc.db.RemoveFromSet(resourceDS, *rsc)
+	err := rc.db.RemoveFromMap(resourceDS, string(rsc.Type))
 	if err != nil {
 		log.Panicf("Failed to remove resource from db: %s", err.Error())
 	}
@@ -85,7 +85,7 @@ func CreateManager(db core.DB) *Manager {
 		log.Panic("Failed to create  resource manager: none of the inputs can be nil")
 	}
 
-	err := db.InitSet(resourceDS, true)
+	err := db.InitMap(resourceDS, true)
 	if err != nil {
 		log.Fatal("Failed to initialize resource dataset: ", err)
 	}
@@ -93,8 +93,8 @@ func CreateManager(db core.DB) *Manager {
 	log.Debug("Retrieving resources from DB")
 	manager := &Manager{db: db}
 
-	rscs := []Resource{}
-	err = db.GetSet(resourceDS, &rscs)
+	rscs := map[string]Resource{}
+	err = db.GetMap(resourceDS, &rscs)
 	if err != nil {
 		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
 	}

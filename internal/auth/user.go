@@ -51,8 +51,8 @@ func generatePasswordHash(password string) (string, error) {
 }
 
 func getUser(username string, db core.DB) (User, error) {
-	var users []User
-	err := db.GetSet(authDS, &users)
+	var users map[string]User
+	err := db.GetMap(authDS, &users)
 	if err != nil {
 		return User{}, err
 	}
@@ -81,7 +81,7 @@ func (user *User) GetPassword() string {
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
 	log.Debugf("Writing username %s to database", user.Username)
-	return user.parent.db.InsertInSet(authDS, *user)
+	return user.parent.db.InsertInMap(authDS, user.Username, *user)
 }
 
 // ValidateCapability implements the capability checker interface
@@ -178,7 +178,7 @@ func CreateUserManager(db core.DB, sm core.SSHManager, cm core.CapabilityManager
 	}
 	gob.Register(&User{})
 
-	err := db.InitSet(authDS, false)
+	err := db.InitMap(authDS, false)
 	if err != nil {
 		log.Fatal("Failed to initialize auth dataset: ", err)
 	}
@@ -260,8 +260,8 @@ func (um *UserManager) GetUser(username string) (core.User, error) {
 
 // GetAdmin returns the admin username. Only one admin is allowed at the moment
 func (um *UserManager) GetAdmin() (core.User, error) {
-	var users []User
-	err := um.db.GetSet(authDS, &users)
+	var users map[string]User
+	err := um.db.GetMap(authDS, &users)
 	if err != nil {
 		return &User{}, err
 	}

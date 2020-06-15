@@ -62,7 +62,7 @@ func (k Key) AuthorizedKey() string {
 
 // Save persists key to database
 func (k Key) Save() {
-	err := k.parent.db.InsertInSet(sshDS, k)
+	err := k.parent.db.InsertInMap(sshDS, k.PublicWG().String(), k)
 	if err != nil {
 		log.Panicf("Failed to save resource to db: %s", err.Error())
 	}

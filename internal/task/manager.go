@@ -103,15 +103,15 @@ func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
 		log.Panic("Failed to create task manager: none of the inputs can be nil")
 	}
 
-	err := db.InitSet(taskDS, false)
+	err := db.InitMap(taskDS, false)
 	if err != nil {
 		log.Fatal("Failed to initialize task dataset: ", err)
 	}
 
 	log.WithField("proc", "taskManager").Debug("Retrieving tasks from DB")
 
-	dbtasks := []Base{}
-	err = db.GetSet(taskDS, &dbtasks)
+	dbtasks := map[string]Base{}
+	err = db.GetMap(taskDS, &dbtasks)
 	if err != nil {
 		log.Fatal("Could not retrieve tasks from database: ", err)
 	}
@@ -197,7 +197,7 @@ func (tm *Manager) saveTask(btsk *Base) {
 	btsk.access.Lock()
 	ltask := *btsk
 	btsk.access.Unlock()
-	err := tm.db.InsertInSet(taskDS, ltask)
+	err := tm.db.InsertInMap(taskDS, ltask.ID, ltask)
 	if err != nil {
 		log.Panic(errors.Wrapf(err, "Could not save task %s to database", ltask.ID))
 	}

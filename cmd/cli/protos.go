@@ -20,6 +20,7 @@ import (
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
+	"github.com/protosio/protos/internal/util"
 	"github.com/protosio/protos/internal/vpn"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -43,7 +44,7 @@ type Env struct {
 	VPN core.VPN
 	AS  core.AppStore
 	AM  core.AppManager
-	Log *logrus.Logger
+	Log *logrus.Entry
 }
 
 // NewEnv creates and returns an instance of Env
@@ -56,7 +57,7 @@ func NewEnv(
 	vpn core.VPN,
 	as core.AppStore,
 	am core.AppManager,
-	log *logrus.Logger) *Env {
+	log *logrus.Entry) *Env {
 
 	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || log == nil {
 		panic("env: non of the env inputs should be nil")
@@ -154,13 +155,13 @@ func transformCredentials(creds map[string]interface{}) map[string]string {
 }
 
 func configure(currentCmd string, logLevel string) {
-	log = logrus.New()
 	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		fmt.Println(fmt.Errorf("Log level '%s' is invalid", logLevel))
 		os.Exit(1)
 	}
-	log.SetLevel(level)
+	util.SetLogLevel(level)
+	log := util.GetLogger("cli")
 
 	homedir, err := os.UserHomeDir()
 	if err != nil {

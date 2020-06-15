@@ -41,19 +41,19 @@ func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Man
 	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
 	providers[core.Mail] = &Provider{Type: core.Mail, rm: rm}
 
-	err := db.InitSet(providerDS, true)
+	err := db.InitMap(providerDS, true)
 	if err != nil {
 		log.Fatal("Failed to initialize provider dataset: ", err)
 	}
 
-	prvs := []Provider{}
-	err = db.GetSet(providerDS, &prvs)
+	prvs := map[string]Provider{}
+	err = db.GetMap(providerDS, &prvs)
 	if err != nil {
 		log.Fatalf("Could not retrieve providers from the database: %s", err.Error())
 	}
-	for idx, provider := range prvs {
-		prvs[idx].rm = rm
-		providers[provider.Type] = &prvs[idx]
+	for _, provider := range prvs {
+		provider.rm = rm
+		providers[provider.Type] = &provider
 	}
 
 	manager := Manager{providers: providers, am: am, db: db}
@@ -75,7 +75,7 @@ func (pm *Manager) Register(app core.App, rtype core.ResourceType) error {
 
 	log.Info("Registering provider for resource " + string(rtype))
 	pm.providers[rtype].AppID = app.GetID()
-	err := pm.db.InsertInSet(providerDS, pm.providers[rtype])
+	err := pm.db.InsertInMap(providerDS, string(rtype), pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}
@@ -92,7 +92,7 @@ func (pm *Manager) Deregister(app core.App, rtype core.ResourceType) error {
 
 	log.Infof("Deregistering application %s(%s) as a provider for %s", app.GetName(), app.GetID(), string(rtype))
 	pm.providers[rtype].AppID = ""
-	err := pm.db.InsertInSet(providerDS, pm.providers[rtype])
+	err := pm.db.InsertInMap(providerDS, string(rtype), pm.providers[rtype])
 	if err != nil {
 		log.Panicf("Failed to save provider to db: %s", err.Error())
 	}

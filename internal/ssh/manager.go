@@ -33,8 +33,8 @@ func (sm *Manager) GenerateKey() (core.Key, error) {
 
 // GetKeyByPub returns a key that has the provided pubkey (base64 encoded)
 func (sm *Manager) GetKeyByPub(pubKey string) (core.Key, error) {
-	var keys []Key
-	err := sm.db.GetSet(sshDS, &keys)
+	var keys map[string]Key
+	err := sm.db.GetMap(sshDS, &keys)
 	if err != nil {
 		return Key{}, err
 	}
@@ -84,7 +84,7 @@ func CreateManager(db core.DB) *Manager {
 		log.Panic("Failed to create resource manager: none of the inputs can be nil")
 	}
 
-	err := db.InitSet(sshDS, false)
+	err := db.InitMap(sshDS, false)
 	if err != nil {
 		log.Fatal("Failed to initialize ssh dataset: ", err)
 	}
