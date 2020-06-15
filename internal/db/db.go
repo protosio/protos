@@ -229,15 +229,15 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 
 	close(progressCh)
 	if last := <-lastProgressCh; last.DoneCount > 0 {
-		status.Printf("Done - Synced %s in %s (%s/s)",
+		log.Tracef("Done - Synced %s in %s (%s/s)",
 			humanize.Bytes(last.ApproxWrittenBytes), since(start), bytesPerSec(last.ApproxWrittenBytes, start))
 		status.Done()
 	} else if !dstExists {
-		fmt.Printf("All chunks already exist at destination! Created new dataset %s.\n", sharedDS)
+		log.Tracef("All chunks already exist at destination! Created new dataset %s.\n", sharedDS)
 	} else if nonFF && !srcRef.Equals(dstRef) {
-		fmt.Printf("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
+		log.Tracef("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
 	} else {
-		fmt.Printf("Dataset '%s' is already up to date.\n", sharedDS)
+		log.Tracef("Dataset '%s' is already up to date.\n", sharedDS)
 	}
 
 	return nil
