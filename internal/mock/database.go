@@ -5,6 +5,7 @@
 package mock
 
 import (
+	datas "github.com/attic-labs/noms/go/datas"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 )
@@ -58,62 +59,6 @@ func (m *MockDB) GetStruct(dataset string, to interface{}) error {
 func (mr *MockDBMockRecorder) GetStruct(dataset, to interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStruct", reflect.TypeOf((*MockDB)(nil).GetStruct), dataset, to)
-}
-
-// InitSet mocks base method
-func (m *MockDB) InitSet(dataset string, sync bool) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InitSet", dataset, sync)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InitSet indicates an expected call of InitSet
-func (mr *MockDBMockRecorder) InitSet(dataset, sync interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitSet", reflect.TypeOf((*MockDB)(nil).InitSet), dataset, sync)
-}
-
-// GetSet mocks base method
-func (m *MockDB) GetSet(dataset string, to interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSet", dataset, to)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// GetSet indicates an expected call of GetSet
-func (mr *MockDBMockRecorder) GetSet(dataset, to interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSet", reflect.TypeOf((*MockDB)(nil).GetSet), dataset, to)
-}
-
-// InsertInSet mocks base method
-func (m *MockDB) InsertInSet(dataset string, data interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertInSet", dataset, data)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InsertInSet indicates an expected call of InsertInSet
-func (mr *MockDBMockRecorder) InsertInSet(dataset, data interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertInSet", reflect.TypeOf((*MockDB)(nil).InsertInSet), dataset, data)
-}
-
-// RemoveFromSet mocks base method
-func (m *MockDB) RemoveFromSet(dataset string, data interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveFromSet", dataset, data)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RemoveFromSet indicates an expected call of RemoveFromSet
-func (mr *MockDBMockRecorder) RemoveFromSet(dataset, data interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSet", reflect.TypeOf((*MockDB)(nil).RemoveFromSet), dataset, data)
 }
 
 // InitMap mocks base method
@@ -187,17 +132,17 @@ func (mr *MockDBMockRecorder) SyncAll(ips interface{}) *gomock.Call {
 }
 
 // SyncTo mocks base method
-func (m *MockDB) SyncTo(dataset, ip string) error {
+func (m *MockDB) SyncTo(srcStore, dstStore datas.Database) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncTo", dataset, ip)
+	ret := m.ctrl.Call(m, "SyncTo", srcStore, dstStore)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SyncTo indicates an expected call of SyncTo
-func (mr *MockDBMockRecorder) SyncTo(dataset, ip interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) SyncTo(srcStore, dstStore interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncTo", reflect.TypeOf((*MockDB)(nil).SyncTo), dataset, ip)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncTo", reflect.TypeOf((*MockDB)(nil).SyncTo), srcStore, dstStore)
 }
 
 // SyncServer mocks base method
