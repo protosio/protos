@@ -1,5 +1,7 @@
 package core
 
+import "github.com/attic-labs/noms/go/datas"
+
 // DB represents a DB client instance, used to interract with the database
 type DB interface {
 	SaveStruct(dataset string, data interface{}) error
@@ -9,7 +11,7 @@ type DB interface {
 	InsertInMap(dataset string, id string, data interface{}) error
 	RemoveFromMap(dataset string, id string) error
 	SyncAll(ips []string) error
-	SyncTo(dataset string, ip string) error
+	SyncTo(srcStore, dstStore datas.Database) error
 	SyncServer() (func() error, error)
 	Close() error
 }

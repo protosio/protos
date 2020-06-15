@@ -75,7 +75,7 @@ func Open(protosDir string, protosDB string) (core.DB, error) {
 		}
 	}
 
-	return &dbNoms{dbn: db, cs: cs, datasetsSync: map[string]bool{}, sharedDatasets: map[string]bool{}}, nil
+	return &dbNoms{dbn: db, cs: cs, sharedDatasets: map[string]bool{}}, nil
 }
 
 //
@@ -87,7 +87,6 @@ type dbNoms struct {
 	cs             chunks.ChunkStore
 	dbn            datas.Database
 	sharedDatasets map[string]bool
-	datasetsSync   map[string]bool
 }
 
 //
@@ -145,37 +144,47 @@ func (db *dbNoms) Close() error {
 }
 
 func (db *dbNoms) SyncAll(ips []string) error {
-	for ds, syncable := range db.datasetsSync {
-		if syncable {
-			for _, ip := range ips {
-				log.Tracef("Syncing dataset '%s' to '%s'", ds, ip)
-				err := db.SyncTo(ds, ip)
-				if err != nil {
-					return err
-				}
-			}
+
+	for _, ip := range ips {
+		log.Tracef("Syncing dataset '%s' to '%s'", sharedDS, ip)
+
+		dst := fmt.Sprintf("http://%s:%d::%s", ip, dbPort, sharedDS)
+		cfg := config.NewResolver()
+		remoteStore, remoteObj, err := cfg.GetPath(dst)
+		if err != nil {
+			return err
 		}
+
+		if remoteObj == nil {
+			return fmt.Errorf("Object for dataset '%s' not found on '%s'", sharedDS, "destination")
+		}
+
+		// sync local -> remote
+		err = db.SyncTo(db.dbn, remoteStore)
+		if err != nil {
+			return err
+		}
+
+		// sync remote -> local
+		err = db.SyncTo(remoteStore, db.dbn)
+		if err != nil {
+			return err
+		}
+
+		err = remoteStore.Close()
+		if err != nil {
+			return err
+		}
+
 	}
+
 	return nil
 }
 
-func (db *dbNoms) SyncTo(dataset string, ip string) error {
+func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 
 	// prepare destination db
-	dst := fmt.Sprintf("http://%s:%d::%s", ip, dbPort, dataset)
-	cfg := config.NewResolver()
-	dstStore, dstObj, err := cfg.GetPath(dst)
-	if err != nil {
-		return err
-	}
-
-	dstDataset := dstStore.GetDataset(dataset)
-
-	defer dstStore.Close()
-
-	if dstObj == nil {
-		return fmt.Errorf("Object for dataset '%s' not found on '%s'", dataset, ip)
-	}
+	dstDataset := dstStore.GetDataset(sharedDS)
 
 	// sync
 	start := time.Now()
@@ -201,8 +210,7 @@ func (db *dbNoms) SyncTo(dataset string, ip string) error {
 	}()
 
 	// prepare local db
-	srcStore := db.dbn
-	srcObj, found := srcStore.GetDataset(dataset).MaybeHead()
+	srcObj, found := srcStore.GetDataset(sharedDS).MaybeHead()
 	if !found {
 		return fmt.Errorf("Object not found for local db")
 	}
@@ -213,7 +221,7 @@ func (db *dbNoms) SyncTo(dataset string, ip string) error {
 
 	datas.Pull(srcStore, dstStore, srcRef, progressCh)
 
-	dstDataset, err = dstStore.FastForward(dstDataset, srcRef)
+	dstDataset, err := dstStore.FastForward(dstDataset, srcRef)
 	if err == datas.ErrMergeNeeded {
 		dstDataset, err = dstStore.SetHead(dstDataset, srcRef)
 		nonFF = true
@@ -225,11 +233,11 @@ func (db *dbNoms) SyncTo(dataset string, ip string) error {
 			humanize.Bytes(last.ApproxWrittenBytes), since(start), bytesPerSec(last.ApproxWrittenBytes, start))
 		status.Done()
 	} else if !dstExists {
-		fmt.Printf("All chunks already exist at destination! Created new dataset %s.\n", dst)
+		fmt.Printf("All chunks already exist at destination! Created new dataset %s.\n", sharedDS)
 	} else if nonFF && !srcRef.Equals(dstRef) {
 		fmt.Printf("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
 	} else {
-		fmt.Printf("Dataset %s is already up to date.\n", dst)
+		fmt.Printf("Dataset '%s' is already up to date.\n", sharedDS)
 	}
 
 	return nil
