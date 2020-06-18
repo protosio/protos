@@ -7,6 +7,7 @@ package mock
 import (
 	datas "github.com/attic-labs/noms/go/datas"
 	gomock "github.com/golang/mock/gomock"
+	net "net"
 	reflect "reflect"
 )
 
@@ -146,18 +147,18 @@ func (mr *MockDBMockRecorder) SyncTo(srcStore, dstStore interface{}) *gomock.Cal
 }
 
 // SyncServer mocks base method
-func (m *MockDB) SyncServer() (func() error, error) {
+func (m *MockDB) SyncServer(address net.IP) (func() error, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncServer")
+	ret := m.ctrl.Call(m, "SyncServer", address)
 	ret0, _ := ret[0].(func() error)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SyncServer indicates an expected call of SyncServer
-func (mr *MockDBMockRecorder) SyncServer() *gomock.Call {
+func (mr *MockDBMockRecorder) SyncServer(address interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncServer", reflect.TypeOf((*MockDB)(nil).SyncServer))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncServer", reflect.TypeOf((*MockDB)(nil).SyncServer), address)
 }
 
 // Close mocks base method

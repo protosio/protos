@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path"
 	"time"
@@ -243,8 +244,8 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 	return nil
 }
 
-func (db *dbNoms) SyncServer() (func() error, error) {
-	server := datas.NewRemoteDatabaseServer(db.cs, dbPort)
+func (db *dbNoms) SyncServer(address net.IP) (func() error, error) {
+	server := datas.NewRemoteDatabaseServer(db.cs, address.String(), dbPort)
 
 	go server.Run()
 
