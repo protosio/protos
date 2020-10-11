@@ -8,15 +8,14 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/sirupsen/logrus"
-	cli "github.com/urfave/cli"
+	cli "github.com/urfave/cli/v2"
 )
 
 func main() {
 
 	app := cli.NewApp()
 	app.Name = "protosd"
-	app.Author = "Alex Giurgiu"
-	app.Email = "alex@giurgiu.io"
+	app.Authors = []*cli.Author{{Name: "Alex Giurgiu", Email: "alex@giurgiu.io"}}
 	version, err := semver.NewVersion("0.0.0-dev.4")
 	if err != nil {
 		panic(err)
@@ -28,19 +27,19 @@ func main() {
 	var devmode bool
 
 	app.Flags = []cli.Flag{
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:        "config",
 			Value:       "protos.yaml",
 			Usage:       "Specify a config file",
 			Destination: &configFile,
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:        "loglevel",
 			Value:       "info",
 			Usage:       "Specify log level: debug, info, warn, error",
 			Destination: &loglevel,
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:        "dev",
 			Usage:       "Allows unauthenticated dev operations via the API",
 			Destination: &devmode,
@@ -56,7 +55,7 @@ func main() {
 		return nil
 	}
 
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:  "daemon",
 			Usage: "start the server",
