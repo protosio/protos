@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
@@ -60,13 +61,14 @@ func NewEnv(
 	log *logrus.Entry) *Env {
 
 	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || log == nil {
-		panic("env: non of the env inputs should be nil")
+		panic("env: none of the env inputs should be nil")
 	}
 	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, AM: am, Log: log}
 }
 
 func main() {
 	var loglevel string
+	var dataPath string
 	var err error
 
 	version, err = semver.NewVersion("0.0.0-dev.4")
@@ -86,6 +88,12 @@ func main() {
 				Usage:       "Log level: warn, info, debug",
 				Destination: &loglevel,
 			},
+			&cli.StringFlag{
+				Name:        "path, p",
+				Value:       "~/.protos",
+				Usage:       "Path where protos data is stored",
+				Destination: &dataPath,
+			},
 		},
 		Commands: []*cli.Command{
 			cmdInit,
@@ -95,36 +103,41 @@ func main() {
 			cmdApp,
 			cmdUser,
 			cmdVPN,
+			cmdTest,
 		},
 	}
 
 	app.Before = func(c *cli.Context) error {
-		configure(c.Args().First(), loglevel)
+		configure(c.Args().First(), loglevel, dataPath)
 		return nil
 	}
 
-	app.After = func(c *cli.Context) error {
-		if envi != nil && envi.DB != nil {
-			ips := []string{}
-			instances, err := envi.CLM.GetInstances()
-			if err != nil {
-				return err
-			}
-			for _, instance := range instances {
-				ips = append(ips, instance.PublicIP)
-			}
-			err = envi.DB.SyncAll(ips)
-			if err != nil {
-				return err
-			}
-			return envi.DB.Close()
-		}
-		return nil
-	}
+	// app.After = func(c *cli.Context) error {
+	// 	fmt.Println("1 -----")
+	// 	if envi != nil && envi.DB != nil {
+	// 		ips := []string{}
+	// 		instances, err := envi.CLM.GetInstances()
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		for _, instance := range instances {
+	// 			ips = append(ips, instance.PublicIP)
+	// 		}
+	// 		fmt.Println("2 -----")
+	// 		err = envi.DB.SyncAll(ips)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		return envi.DB.Close()
+	// 	}
+	// 	fmt.Println("3 -----")
+	// 	return nil
+	// }
 
 	err = app.Run(os.Args)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 }
@@ -154,7 +167,7 @@ func transformCredentials(creds map[string]interface{}) map[string]string {
 	return transformed
 }
 
-func configure(currentCmd string, logLevel string) {
+func configure(currentCmd string, logLevel string, dataPath string) {
 	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		fmt.Println(fmt.Errorf("Log level '%s' is invalid", logLevel))
@@ -168,18 +181,24 @@ func configure(currentCmd string, logLevel string) {
 		log.Fatal(err)
 	}
 
+	if dataPath == "~" {
+		dataPath = homedir
+	} else if strings.HasPrefix(dataPath, "~/") {
+		dataPath = filepath.Join(homedir, dataPath[2:])
+	}
+
 	// create protos dir
-	protosDir := path.Join(homedir, "/.protos")
-	if _, err := os.Stat(protosDir); os.IsNotExist(err) {
-		err := os.Mkdir(protosDir, 0755)
+	// protosDir := path.Join(homedir, "/.protos")
+	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
+		err := os.Mkdir(dataPath, 0755)
 		if err != nil {
-			log.Fatalf("Failed to create protos dir '%s': %w", protosDir, err)
+			log.Fatalf("Failed to create protos dir '%s': %s", dataPath, err.Error())
 		}
 	}
 
 	// open db
 	protosDB := "protos.db"
-	dbi, err := db.Open(protosDir, protosDB)
+	dbi, err := db.Open(dataPath, protosDB)
 	if err != nil {
 		log.Fatal(err)
 	}
