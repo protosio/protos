@@ -13,6 +13,7 @@ type SSHManager interface {
 }
 
 type Key interface {
+	Private() []byte
 	Public() []byte
 	PublicWG() wgtypes.Key
 	Seed() []byte
