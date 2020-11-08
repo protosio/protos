@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/release"
 	"github.com/urfave/cli/v2"
 )
@@ -275,7 +275,7 @@ func infoInstance(instanceName string) error {
 	return nil
 }
 
-func deployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (core.InstanceInfo, error) {
+func deployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (cloud.InstanceInfo, error) {
 	return envi.CLM.DeployInstance(instanceName, cloudName, cloudLocation, release, machineType)
 }
 
@@ -300,10 +300,10 @@ func keyInstance(name string) error {
 	if err != nil {
 		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
 	}
-	if len(instanceInfo.KeySeed) == 0 {
+	if len(instanceInfo.SSHKeySeed) == 0 {
 		return errors.Errorf("Instance '%s' is missing its SSH key", name)
 	}
-	key, err := envi.SM.NewKeyFromSeed(instanceInfo.KeySeed)
+	key, err := envi.SM.NewKeyFromSeed(instanceInfo.SSHKeySeed)
 	if err != nil {
 		return errors.Wrapf(err, "Instance '%s' has an invalid SSH key", name)
 	}

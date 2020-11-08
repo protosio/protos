@@ -12,7 +12,6 @@ import (
 	scp "github.com/bramvdbogaerde/go-scp"
 	pb "github.com/cheggaaa/pb/v3"
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/ssh"
 	account "github.com/scaleway/scaleway-sdk-go/api/account/v2alpha1"
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
@@ -106,15 +105,15 @@ func (sw *scaleway) Init() error {
 	return nil
 }
 
-func (sw *scaleway) SupportedMachines(location string) (map[string]core.MachineSpec, error) {
-	vms := map[string]core.MachineSpec{}
+func (sw *scaleway) SupportedMachines(location string) (map[string]MachineSpec, error) {
+	vms := map[string]MachineSpec{}
 	inst, err := sw.instanceAPI.ListServersTypes(&instance.ListServersTypesRequest{Zone: scw.Zone(location)})
 	if err != nil {
 		return vms, errors.Wrap(err, "Failed to retrieve Scaleway instance types")
 	}
 	for id, instance := range inst.Servers {
 		if instance.Arch == "x86_64" && strings.Contains(id, "DEV") {
-			vms[id] = core.MachineSpec{
+			vms[id] = MachineSpec{
 				Cores:                instance.Ncpus,
 				Memory:               uint32(instance.RAM / 1048576),
 				DefaultStorage:       uint32(instance.VolumesConstraint.MinSize / 1000000000),
@@ -169,7 +168,7 @@ func (sw *scaleway) NewInstance(name string, imageID string, pubKey string, mach
 	}
 
 	pubKey = strings.TrimSuffix(pubKey, "\n") + " root@protos.io"
-	_, err = sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: name, OrganizationID: sw.credentials.organisationID, PublicKey: pubKey})
+	_, err = sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: name, OrganizationID: &sw.credentials.organisationID, PublicKey: pubKey})
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add SSH key for instance")
 	}
@@ -255,17 +254,17 @@ func (sw *scaleway) StopInstance(id string, location string) error {
 	return nil
 }
 
-func (sw *scaleway) GetInstanceInfo(id string, location string) (core.InstanceInfo, error) {
+func (sw *scaleway) GetInstanceInfo(id string, location string) (InstanceInfo, error) {
 	resp, err := sw.instanceAPI.GetServer(&instance.GetServerRequest{ServerID: id, Zone: scw.Zone(location)})
 	if err != nil {
-		return core.InstanceInfo{}, errors.Wrapf(err, "Failed to retrieve Scaleway instance (%s) information", id)
+		return InstanceInfo{}, errors.Wrapf(err, "Failed to retrieve Scaleway instance (%s) information", id)
 	}
-	info := core.InstanceInfo{VMID: id, Name: resp.Server.Name, CloudName: sw.name, CloudType: Scaleway.String(), Location: string(scw.Zone(location))}
+	info := InstanceInfo{VMID: id, Name: resp.Server.Name, CloudName: sw.name, CloudType: Scaleway.String(), Location: string(scw.Zone(location))}
 	if resp.Server.PublicIP != nil {
 		info.PublicIP = resp.Server.PublicIP.Address.String()
 	}
 	for _, svol := range resp.Server.Volumes {
-		info.Volumes = append(info.Volumes, core.VolumeInfo{VolumeID: svol.ID, Name: svol.Name, Size: uint64(svol.Size)})
+		info.Volumes = append(info.Volumes, VolumeInfo{VolumeID: svol.ID, Name: svol.Name, Size: uint64(svol.Size)})
 	}
 	return info, nil
 }
@@ -274,8 +273,8 @@ func (sw *scaleway) GetInstanceInfo(id string, location string) (core.InstanceIn
 // Images methods
 //
 
-func (sw *scaleway) GetImages() (map[string]core.ImageInfo, error) {
-	images := map[string]core.ImageInfo{}
+func (sw *scaleway) GetImages() (map[string]ImageInfo, error) {
+	images := map[string]ImageInfo{}
 	locations := sw.SupportedLocations()
 	for _, location := range locations {
 		resp, err := sw.instanceAPI.ListImages(&instance.ListImagesRequest{Zone: scw.Zone(location)})
@@ -285,17 +284,17 @@ func (sw *scaleway) GetImages() (map[string]core.ImageInfo, error) {
 		for _, img := range resp.Images {
 			if strings.Contains(img.Name, "protos-") {
 				imgName := strings.TrimPrefix(img.Name, "protos-")
-				images[img.ID] = core.ImageInfo{Name: imgName, ID: img.ID, Location: location}
+				images[img.ID] = ImageInfo{Name: imgName, ID: img.ID, Location: location}
 			} else {
-				images[img.ID] = core.ImageInfo{Name: img.Name, ID: img.ID, Location: location}
+				images[img.ID] = ImageInfo{Name: img.Name, ID: img.ID, Location: location}
 			}
 		}
 	}
 	return images, nil
 }
 
-func (sw *scaleway) GetProtosImages() (map[string]core.ImageInfo, error) {
-	images := map[string]core.ImageInfo{}
+func (sw *scaleway) GetProtosImages() (map[string]ImageInfo, error) {
+	images := map[string]ImageInfo{}
 	locations := sw.SupportedLocations()
 	for _, location := range locations {
 		resp, err := sw.instanceAPI.ListImages(&instance.ListImagesRequest{Zone: scw.Zone(location)})
@@ -305,7 +304,7 @@ func (sw *scaleway) GetProtosImages() (map[string]core.ImageInfo, error) {
 		for _, img := range resp.Images {
 			if strings.Contains(img.Name, "protos-") {
 				imgName := strings.TrimPrefix(img.Name, "protos-")
-				images[img.ID] = core.ImageInfo{Name: imgName, ID: img.ID, Location: location}
+				images[img.ID] = ImageInfo{Name: imgName, ID: img.ID, Location: location}
 			}
 		}
 	}
@@ -325,7 +324,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	}
 	pubKey := strings.TrimSuffix(key.AuthorizedKey(), "\n") + " root@protos.io"
 
-	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: uploadSSHkey, OrganizationID: sw.credentials.organisationID, PublicKey: pubKey})
+	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: uploadSSHkey, OrganizationID: &sw.credentials.organisationID, PublicKey: pubKey})
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway: Failed to add temporary SSH key")
 	}
@@ -487,7 +486,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	}
 	pubKey := strings.TrimSuffix(key.AuthorizedKey(), "\n") + " root@protos.io"
 
-	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: uploadSSHkey, OrganizationID: sw.credentials.organisationID, PublicKey: pubKey})
+	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: uploadSSHkey, OrganizationID: &sw.credentials.organisationID, PublicKey: pubKey})
 	if err != nil {
 		return "", errors.Wrap(err, errMsg+". Failed to add temporary SSH key")
 	}

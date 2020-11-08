@@ -9,7 +9,7 @@ import (
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/cloud"
 	ssh "github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/pkg/types"
 	"github.com/urfave/cli/v2"
@@ -230,7 +230,7 @@ func protosFullInit() error {
 	// Perform setup via SSH tunnel
 	//
 
-	key, err := envi.SM.NewKeyFromSeed(instanceInfo.KeySeed)
+	key, err := envi.SM.NewKeyFromSeed(instanceInfo.SSHKeySeed)
 	if err != nil {
 		return errors.Wrap(err, "Failed to initialize Protos")
 	}
@@ -305,7 +305,7 @@ func getCloudCredentialsQuestions(providerName string, fields []string) []*surve
 	return qs
 }
 
-func createMachineTypesString(machineTypes map[string]core.MachineSpec) string {
+func createMachineTypesString(machineTypes map[string]cloud.MachineSpec) string {
 	var machineTypesStr bytes.Buffer
 	w := new(tabwriter.Writer)
 	w.Init(&machineTypesStr, 8, 8, 0, ' ', 0)

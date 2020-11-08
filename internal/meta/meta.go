@@ -77,6 +77,10 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 		}
 		metaRoot.PrivateKey = key
 		log.Infof("Generated instance key. Wireguard public key: '%s'", key.PublicKey().String())
+		err = ioutil.WriteFile("/tmp/protos_key.txt", []byte(key.PublicKey().String()), 0644)
+		if err != nil {
+			log.Fatalf("Failed to write public key to disk: ", err.Error())
+		}
 	}
 
 	metaRoot.db = db

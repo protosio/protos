@@ -8,7 +8,7 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/urfave/cli/v2"
 )
 
@@ -93,7 +93,7 @@ func listCloudProviders() error {
 	return nil
 }
 
-func addCloudProvider(cloudName string) (core.CloudProvider, error) {
+func addCloudProvider(cloudName string) (cloud.CloudProvider, error) {
 
 	// select cloud provider
 	var cloudType string

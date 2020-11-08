@@ -39,7 +39,7 @@ var version *semver.Version
 type Env struct {
 	DB  core.DB
 	CM  core.CapabilityManager
-	CLM core.CloudManager
+	CLM cloud.CloudManager
 	UM  core.UserManager
 	SM  core.SSHManager
 	VPN core.VPN
@@ -52,7 +52,7 @@ type Env struct {
 func NewEnv(
 	db core.DB,
 	capm core.CapabilityManager,
-	clm core.CloudManager,
+	clm cloud.CloudManager,
 	um core.UserManager,
 	sm core.SSHManager,
 	vpn core.VPN,

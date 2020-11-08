@@ -15,7 +15,6 @@ require (
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
 	github.com/cheggaaa/pb/v3 v3.0.5
 	github.com/cnf/structhash v0.0.0-20201013183111-a92e111048cd
-	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emirpasic/gods v1.12.0
@@ -30,8 +29,11 @@ require (
 	github.com/icholy/killable v0.0.0-20170925194751-168925335d1e
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
 	github.com/libp2p/go-libp2p v0.11.0
+	github.com/libp2p/go-libp2p-connmgr v0.2.4
 	github.com/libp2p/go-libp2p-core v0.6.1
-	github.com/libp2p/go-libp2p-gorpc v0.1.0
+	github.com/libp2p/go-libp2p-noise v0.1.1
+	github.com/libp2p/go-libp2p-peerstore v0.2.6
+	github.com/libp2p/go-libp2p-quic-transport v0.8.2
 	github.com/miekg/dns v1.1.33
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 	github.com/multiformats/go-multiaddr v0.3.1

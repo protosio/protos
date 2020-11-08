@@ -1,11 +1,11 @@
 package platform
 
 import (
-	"github.com/protosio/protos/internal/core"
 	"time"
 
+	"github.com/protosio/protos/internal/core"
+
 	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
 )
 
@@ -76,15 +76,15 @@ func getHWStatus() (core.HardwareStats, error) {
 	}
 	cpuStat := CPUStats{Info: cpuInfo, Usage: int(cpuUsage[0])}
 
-	diskStat, err := disk.Usage("/")
-	if err != nil {
-		return hw, err
-	}
+	// diskStat, err := disk.Usage("/")
+	// if err != nil {
+	// 	return hw, err
+	// }
 	storageStat := StorageStats{
-		Total:     int(diskStat.Total / 1000000),
-		Path:      "/",
-		Usage:     int(diskStat.UsedPercent),
-		Available: int(diskStat.Free / 1000000),
+		// Total:     int(diskStat.Total / 1000000),
+		// Path:      "/",
+		// Usage:     int(diskStat.UsedPercent),
+		// Available: int(diskStat.Free / 1000000),
 	}
 
 	hw.CPU = cpuStat
