@@ -14,6 +14,7 @@ import (
 	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/util"
 	pclient "github.com/protosio/protos/pkg/client"
 	"github.com/protosio/protos/pkg/types"
 )
@@ -325,7 +326,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// wait for port 22 to be open
-	err = WaitForPort(instanceInfo.PublicIP, "22", 20)
+	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
 	if err != nil {
 		return InstanceInfo{}, errors.Wrap(err, "Failed to deploy instance")
 	}

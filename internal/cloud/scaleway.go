@@ -13,6 +13,7 @@ import (
 	pb "github.com/cheggaaa/pb/v3"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/util"
 	account "github.com/scaleway/scaleway-sdk-go/api/account/v2alpha1"
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	"github.com/scaleway/scaleway-sdk-go/api/marketplace/v1"
@@ -356,7 +357,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	//
 
 	log.Infof("Waiting for SSH service to be reachable at '%s'", srv.PublicIP.Address.String()+":22")
-	err = WaitForPort(srv.PublicIP.Address.String(), "22", 25)
+	err = util.WaitForPort(srv.PublicIP.Address.String(), "22", 25)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway")
 	}
@@ -513,7 +514,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	//
 
 	log.Infof("Waiting for SSH service to be reachable at '%s'", srv.PublicIP.Address.String()+":22")
-	err = WaitForPort(srv.PublicIP.Address.String(), "22", 25)
+	err = util.WaitForPort(srv.PublicIP.Address.String(), "22", 25)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}

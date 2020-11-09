@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -87,4 +89,41 @@ func HTTPBadResponse(resp *http.Response) error {
 		return fmt.Errorf("Error (HTTP %d) while performing HTTP request: \"%s\"", resp.StatusCode, string(bodyBytes))
 	}
 	return nil
+}
+
+// WaitForPort is a utility method that waits until a specific port is open on a specific host
+func WaitForPort(host string, port string, maxTries int) error {
+	tries := 0
+	for {
+		timeout := time.Second
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), timeout)
+		if err == nil && conn != nil {
+			conn.Close()
+			return nil
+		}
+		time.Sleep(3 * time.Second)
+		tries++
+		if tries == maxTries {
+			return fmt.Errorf("Failed to connect to '%s:%s' after %d tries", host, port, maxTries)
+		}
+	}
+}
+
+// WaitForHTTP is a utility method that waits until a specific URL returns a succesful response
+func WaitForHTTP(url string, maxTries int) error {
+	client := http.Client{
+		Timeout: 3 * time.Second,
+	}
+	tries := 0
+	for {
+		resp, err := client.Get(url)
+		if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
+			return nil
+		}
+		time.Sleep(3 * time.Second)
+		tries++
+		if tries == maxTries {
+			return fmt.Errorf("Failed to do HTTP req to '%s' after %d tries", url, maxTries)
+		}
+	}
 }
