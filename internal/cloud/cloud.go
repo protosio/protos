@@ -145,12 +145,3 @@ func (pi ProviderInfo) getCloudProvider() (CloudProvider, error) {
 	pi.CloudProviderImplementation = client
 	return &pi, nil
 }
-
-func findInSlice(slice []string, value string) (int, bool) {
-	for i, item := range slice {
-		if item == value {
-			return i, true
-		}
-	}
-	return -1, false
-}

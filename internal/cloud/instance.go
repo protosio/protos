@@ -421,7 +421,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 
 	// wait for the API to be up
-	err = WaitForHTTP(fmt.Sprintf("http://127.0.0.1:%d/ui/", localPort), 20)
+	err = util.WaitForHTTP(fmt.Sprintf("http://127.0.0.1:%d/ui/", localPort), 20)
 	if err != nil {
 		return errors.Wrap(err, "Failed to deploy instance")
 	}
