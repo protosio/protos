@@ -13,15 +13,14 @@ import (
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/tidwall/gjson"
 
-	// "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/util"
 )
 
 const (
-	metaDS = "meta"
+	metaDS      = "meta"
+	metaKeyPath = "/tmp/protos_key.txt"
 )
 
 var log = util.GetLogger("meta")
@@ -81,7 +80,7 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string)
 		}
 		metaRoot.PrivateKeySeed = key.Seed()
 		log.Infof("Generated instance key. Wireguard public key: '%s'", key.PublicWG().String())
-		err = ioutil.WriteFile("/tmp/protos_key.txt", []byte(key.PublicWG().String()), 0644)
+		err = ioutil.WriteFile(metaKeyPath, []byte(key.PublicWG().String()), 0644)
 		if err != nil {
 			log.Fatalf("Failed to write public key to disk: ", err.Error())
 		}
