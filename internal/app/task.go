@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/task"
 
 	"github.com/pkg/errors"
@@ -22,7 +22,7 @@ type app interface {
 	GetID() string
 	SetStatus(status string)
 	StartAsync() *task.Base
-	createSandbox() (core.PlatformRuntimeUnit, error)
+	createSandbox() (platform.PlatformRuntimeUnit, error)
 }
 
 // CreateAppTask creates an app and implements the task interface

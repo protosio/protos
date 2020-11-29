@@ -3,7 +3,6 @@ package resource
 import (
 	"testing"
 
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/mock"
 
 	"github.com/golang/mock/gomock"
@@ -41,12 +40,12 @@ func TestResourceManager(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		dbMock.EXPECT().InsertInMap(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
-		_, err := rm.Create(core.DNS, rscVal, "testApp")
+		_, err := rm.Create(DNS, rscVal, "testApp")
 		if err != nil {
 			t.Errorf("Create should NOT return an error: %s", err.Error())
 		}
 
-		_, err = rm.Create(core.DNS, rscVal, "secondApp")
+		_, err = rm.Create(DNS, rscVal, "secondApp")
 		if err == nil {
 			t.Error("Create should return an error when a resource with the same hash already exists")
 		}
@@ -84,7 +83,7 @@ func TestResourceManager(t *testing.T) {
 	//
 
 	t.Run("Select", func(t *testing.T) {
-		selector := func(rsc core.Resource) bool {
+		selector := func(rsc *Resource) bool {
 			if rsc.GetID() == "0001" {
 				return true
 			}
@@ -161,21 +160,21 @@ func TestResoureCreatorAndResource(t *testing.T) {
 	// Resource related tests
 	//
 
-	rscstruct := rsc.(*Resource)
+	rscstruct := rsc
 	// AppID should be equal to what was provided when the rsc was created
 	if rsc.GetAppID() != "appid1" {
 		t.Error("AppID should be appid1 but is", rsc.GetAppID())
 	}
 	// Resource type should be equal to what was provided when the rsc was created
-	if rsc.GetType() != core.DNS {
+	if rsc.GetType() != DNS {
 		t.Error("Resource type should be dns but is", rsc.GetType())
 	}
 	// Resource should have status created
-	if rscstruct.Status != core.Requested {
+	if rscstruct.Status != Requested {
 		t.Error("Resource status should be requested, but is", rscstruct.Status)
 	}
-	rsc.SetStatus(core.Created)
-	if rscstruct.Status != core.Created {
+	rsc.SetStatus(Created)
+	if rscstruct.Status != Created {
 		t.Error("Resource status should be created, but is", rscstruct.Status)
 	}
 

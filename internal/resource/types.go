@@ -3,7 +3,18 @@ package resource
 import (
 	"github.com/attic-labs/noms/go/marshal"
 	"github.com/attic-labs/noms/go/types"
-	"github.com/protosio/protos/internal/core"
+)
+
+// ResourceType is a string wrapper used for typechecking the resource types
+type ResourceType string
+
+const (
+	// Certificate represents a TLS/SSL certificate
+	Certificate = ResourceType("certificate")
+	// DNS represents a DNS record
+	DNS = ResourceType("dns")
+	// Mail is not used yet
+	Mail = ResourceType("mail")
 )
 
 // DNSResource represents a DNS resource
@@ -15,7 +26,7 @@ type DNSResource struct {
 }
 
 // Update method is not used for the DNS resource type
-func (rsc *DNSResource) Update(newValue core.ResourceValue) {
+func (rsc *DNSResource) Update(newValue ResourceValue) {
 	newDNS := newValue.(*DNSResource)
 	rsc.Value = newDNS.Value
 	rsc.TTL = newDNS.TTL
@@ -28,7 +39,7 @@ func (rsc *DNSResource) UpdateValueAndTTL(value string, ttl int) {
 }
 
 // Sanitize removes any sensitive information from the resource
-func (rsc *DNSResource) Sanitize() core.ResourceValue {
+func (rsc *DNSResource) Sanitize() ResourceValue {
 	return rsc
 }
 
@@ -62,7 +73,7 @@ type CertificateResource struct {
 }
 
 // Update takes a new resource type value and updates the relevant fields
-func (rsc *CertificateResource) Update(newValue core.ResourceValue) {
+func (rsc *CertificateResource) Update(newValue ResourceValue) {
 	newCert := newValue.(*CertificateResource)
 	rsc.PrivateKey = newCert.PrivateKey
 	rsc.Certificate = newCert.Certificate
@@ -71,7 +82,7 @@ func (rsc *CertificateResource) Update(newValue core.ResourceValue) {
 }
 
 // Sanitize removes any sensitive information from the resource
-func (rsc *CertificateResource) Sanitize() core.ResourceValue {
+func (rsc *CertificateResource) Sanitize() ResourceValue {
 	output := *rsc
 	output.PrivateKey = []byte{}
 	output.CSR = []byte{}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/resource"
 
 	"github.com/pkg/errors"
 )
@@ -44,7 +44,7 @@ func removeInitProvider(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		provides := queryParams.Get("provides")
-		if (provides != string(core.DNS)) && (provides != string(core.Certificate)) {
+		if (provides != string(resource.DNS)) && (provides != string(resource.Certificate)) {
 			log.Errorf("removeInitProvider called with invalid resource type: '%s'", provides)
 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Invalid resource provider type. The only allowed values are 'dns' and  'certificate'"})
 			return

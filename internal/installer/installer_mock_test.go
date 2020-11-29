@@ -35,10 +35,10 @@ package installer
 // }
 
 // // getPlatform mocks base method
-// func (m *MockinstallerParent) getPlatform() core.RuntimePlatform {
+// func (m *MockinstallerParent) getPlatform() platform.RuntimePlatform {
 // 	m.ctrl.T.Helper()
 // 	ret := m.ctrl.Call(m, "getPlatform")
-// 	ret0, _ := ret[0].(core.RuntimePlatform)
+// 	ret0, _ := ret[0].(platform.RuntimePlatform)
 // 	return ret0
 // }
 

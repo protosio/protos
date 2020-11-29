@@ -13,10 +13,11 @@ import (
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/provider"
+	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/pkg/types"
 
@@ -57,13 +58,13 @@ type apiController interface {
 
 type handlerAccess struct {
 	pm  *provider.Manager
-	rm  core.ResourceManager
+	rm  *resource.Manager
 	am  *app.Manager
 	tm  *task.Manager
 	m   *meta.Meta
 	as  *installer.AppStore
 	um  *auth.UserManager
-	rp  core.RuntimePlatform
+	rp  platform.RuntimePlatform
 	cm  *capability.Manager
 	cs  *sessions.CookieStore
 	api apiController
@@ -146,7 +147,7 @@ func applyStaticRoutes(r *mux.Router, staticAssetsPath string) {
 	r.PathPrefix("/").Name("root").Handler(http.HandlerFunc(uiRedirect))
 }
 
-func secureListen(handler http.Handler, certrsc core.ResourceValue, quit chan bool, httpPort int, httpsPort int) {
+func secureListen(handler http.Handler, certrsc resource.ResourceValue, quit chan bool, httpPort int, httpsPort int) {
 	cert, ok := certrsc.(certificate)
 	if ok == false {
 		log.Fatal("Failed to read TLS certificate")
@@ -298,7 +299,7 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 }
 
 // New returns a new http API
-func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m *meta.Meta, am *app.Manager, rm core.ResourceManager, tm *task.Manager, pm *provider.Manager, as *installer.AppStore, um *auth.UserManager, rp core.RuntimePlatform, cm *capability.Manager) *HTTP {
+func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m *meta.Meta, am *app.Manager, rm *resource.Manager, tm *task.Manager, pm *provider.Manager, as *installer.AppStore, um *auth.UserManager, rp platform.RuntimePlatform, cm *capability.Manager) *HTTP {
 	httpAPI := &HTTP{
 		devmode:          devmode,
 		staticAssetsPath: staticAssetsPath,
@@ -426,7 +427,7 @@ func (api *HTTP) StartExternalWebServer() (func() error, error) {
 	api.root.Use(negroni.HandlerFunc(HTTPLogger))
 	api.root.UseHandler(rtr)
 	cert := api.ha.m.GetTLSCertificate()
-	if cert == nil || cert.GetStatus() != core.Created {
+	if cert == nil || cert.GetStatus() != resource.Created {
 		return nil, fmt.Errorf("Failed to start secure web server. TLS certificate not available")
 	}
 

@@ -1,55 +1,48 @@
 package core
 
-import (
-	"net"
+// const (
+// 	// ErrImageNotFound means the requested docker image is not found locally
+// 	ErrImageNotFound = 101
+// 	// ErrNetworkNotFound means the requested docker network is not found locally
+// 	ErrNetworkNotFound = 102
+// 	// ErrContainerNotFound means the requested docker container is not found locally
+// 	ErrContainerNotFound = 103
+// )
 
-	"github.com/protosio/protos/internal/util"
-	"github.com/protosio/protos/pkg/types"
-)
+// // RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
+// type RuntimePlatform interface {
+// 	Init(network net.IPNet, devices []types.UserDevice) error
+// 	GetSandbox(id string) (PlatformRuntimeUnit, error)
+// 	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
+// 	GetImage(id string) (PlatformImage, error)
+// 	GetAllImages() (map[string]PlatformImage, error)
+// 	PullImage(id string, name string, version string) error
+// 	RemoveImage(id string) error
+// 	GetOrCreateVolume(id string, path string) (string, error)
+// 	RemoveVolume(id string) error
+// 	CleanUpSandbox(id string) error
+// 	NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
+// 	GetHWStats() (HardwareStats, error)
+// }
 
-const (
-	// ErrImageNotFound means the requested docker image is not found locally
-	ErrImageNotFound = 101
-	// ErrNetworkNotFound means the requested docker network is not found locally
-	ErrNetworkNotFound = 102
-	// ErrContainerNotFound means the requested docker container is not found locally
-	ErrContainerNotFound = 103
-)
+// // PlatformRuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.
+// type PlatformRuntimeUnit interface {
+// 	Start() error
+// 	Stop() error
+// 	Update() error
+// 	Remove() error
+// 	GetID() string
+// 	GetIP() string
+// 	GetStatus() string
+// 	GetExitCode() int
+// }
 
-// RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
-type RuntimePlatform interface {
-	Init(network net.IPNet, devices []types.UserDevice) error
-	GetSandbox(id string) (PlatformRuntimeUnit, error)
-	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
-	GetImage(id string) (PlatformImage, error)
-	GetAllImages() (map[string]PlatformImage, error)
-	PullImage(id string, name string, version string) error
-	RemoveImage(id string) error
-	GetOrCreateVolume(id string, path string) (string, error)
-	RemoveVolume(id string) error
-	CleanUpSandbox(id string) error
-	NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
-	GetHWStats() (HardwareStats, error)
-}
+// type PlatformImage interface {
+// 	GetID() string
+// 	GetDataPath() string
+// 	GetRepoTags() []string
+// 	GetLabels() map[string]string
+// }
 
-// PlatformRuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.
-type PlatformRuntimeUnit interface {
-	Start() error
-	Stop() error
-	Update() error
-	Remove() error
-	GetID() string
-	GetIP() string
-	GetStatus() string
-	GetExitCode() int
-}
-
-type PlatformImage interface {
-	GetID() string
-	GetDataPath() string
-	GetRepoTags() []string
-	GetLabels() map[string]string
-}
-
-type HardwareStats interface {
-}
+// type HardwareStats interface {
+// }

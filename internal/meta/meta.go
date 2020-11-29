@@ -8,8 +8,8 @@ import (
 	"net/http"
 
 	"github.com/protosio/protos/internal/config"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/tidwall/gjson"
 
@@ -29,13 +29,13 @@ var gconfig = config.Get()
 
 // Meta contains information about the Protos instance
 type Meta struct {
-	rm                 core.ResourceManager `noms:"-"`
-	db                 db.DB                `noms:"-"`
-	keymngr            *ssh.Manager         `noms:"-"`
-	version            string               `noms:"-"`
-	networkSetSignal   chan net.IP          `noms:"-"`
-	domainSetSignal    chan string          `noms:"-"`
-	adminUserSetSignal chan string          `noms:"-"`
+	rm                 *resource.Manager `noms:"-"`
+	db                 db.DB             `noms:"-"`
+	keymngr            *ssh.Manager      `noms:"-"`
+	version            string            `noms:"-"`
+	networkSetSignal   chan net.IP       `noms:"-"`
+	domainSetSignal    chan string       `noms:"-"`
+	adminUserSetSignal chan string       `noms:"-"`
 
 	// Public members
 	ID                 string
@@ -55,7 +55,7 @@ type dnsResource interface {
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup(rm core.ResourceManager, db db.DB, keymngr *ssh.Manager, version string) *Meta {
+func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string) *Meta {
 	if rm == nil || db == nil || keymngr == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
@@ -103,7 +103,7 @@ func Setup(rm core.ResourceManager, db db.DB, keymngr *ssh.Manager, version stri
 }
 
 // SetupForClient reads the domain and other information on first run and save this information to the database
-func SetupForClient(rm core.ResourceManager, db db.DB, version string) *Meta {
+func SetupForClient(rm *resource.Manager, db db.DB, version string) *Meta {
 	if rm == nil || db == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
@@ -231,7 +231,7 @@ func (m *Meta) GetPublicIP() string {
 }
 
 // GetTLSCertificate returns the TLS certificate resource owned by the instance
-func (m *Meta) GetTLSCertificate() core.Resource {
+func (m *Meta) GetTLSCertificate() *resource.Resource {
 
 	for _, rscid := range m.Resources {
 		rsc, err := m.rm.Get(rscid)
@@ -239,7 +239,7 @@ func (m *Meta) GetTLSCertificate() core.Resource {
 			log.Errorf("Could not find protos resource: %s", err.Error())
 			continue
 		}
-		if rsc.GetType() == core.ResourceType("certificate") {
+		if rsc.GetType() == resource.ResourceType("certificate") {
 			return rsc
 		}
 	}
@@ -264,7 +264,7 @@ func (m *Meta) CleanProtosResources() error {
 			log.Errorf("Could not find protos resource: %s", err.Error())
 			continue
 		}
-		if rsc.GetType() == core.DNS {
+		if rsc.GetType() == resource.DNS {
 			val := rsc.GetValue().(dnsResource)
 			if val.IsType("MX") {
 				err = m.rm.Delete(rscid)
@@ -295,20 +295,20 @@ func (m *Meta) GetVersion() string {
 }
 
 // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
-func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
-	resources := map[string]core.Resource{}
+func (m *Meta) CreateProtosResources() (map[string]*resource.Resource, error) {
+	resources := map[string]*resource.Resource{}
 
 	// creating the protos subdomain for the dashboard
 	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP.String(), 300)
 	if err != nil {
 		switch err := errors.Cause(err).(type) {
-		case core.ErrResourceExists:
+		case resource.ErrResourceExists:
 			dnsrscValue, ok := dnsrsc.GetValue().(dnsResource)
 			if ok == false {
 				log.Fatal("dnsrscValue does not implement interface dnsResource")
 			}
 			dnsrscValue.UpdateValueAndTTL(m.PublicIP.String(), 300)
-			dnsrsc.UpdateValue(dnsrscValue.(core.ResourceValue))
+			dnsrsc.UpdateValue(dnsrscValue.(resource.ResourceValue))
 		default:
 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
 		}
@@ -317,7 +317,7 @@ func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 	mxrsc, err := m.rm.CreateDNS("protos", "@", "MX", "protos."+m.Domain, 300)
 	if err != nil {
 		switch err := errors.Cause(err).(type) {
-		case core.ErrResourceExists:
+		case resource.ErrResourceExists:
 		default:
 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
 		}
@@ -326,7 +326,7 @@ func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 	certrsc, err := m.rm.CreateCert("protos", []string{"protos"})
 	if err != nil {
 		switch err := errors.Cause(err).(type) {
-		case core.ErrResourceExists:
+		case resource.ErrResourceExists:
 		default:
 			return resources, errors.Wrap(err, "Could not create Protos certificate resource")
 		}
@@ -342,8 +342,8 @@ func (m *Meta) CreateProtosResources() (map[string]core.Resource, error) {
 }
 
 // GetProtosResources returns the resources owned by Protos
-func (m *Meta) GetProtosResources() map[string]core.Resource {
-	resources := map[string]core.Resource{}
+func (m *Meta) GetProtosResources() map[string]*resource.Resource {
+	resources := map[string]*resource.Resource{}
 	for _, rscid := range m.Resources {
 		rsc, err := m.rm.Get(rscid)
 		if err != nil {

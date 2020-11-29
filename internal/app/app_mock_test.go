@@ -61,10 +61,10 @@ package app
 // }
 
 // // getPlatform mocks base method
-// func (m *MockappParent) getPlatform() core.RuntimePlatform {
+// func (m *MockappParent) getPlatform() platform.RuntimePlatform {
 // 	m.ctrl.T.Helper()
 // 	ret := m.ctrl.Call(m, "getPlatform")
-// 	ret0, _ := ret[0].(core.RuntimePlatform)
+// 	ret0, _ := ret[0].(platform.RuntimePlatform)
 // 	return ret0
 // }
 

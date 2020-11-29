@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
 
 	"github.com/cnf/structhash"
@@ -77,7 +76,7 @@ type Manager struct {
 }
 
 //
-// Public methods that satisfy core.ResourceManager
+// Public methods that satisfy *ResourceManager
 //
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interface
@@ -113,18 +112,18 @@ func CreateManager(db db.DB) *Manager {
 }
 
 //Create creates a resource and adds it to the internal resources map.
-func (rm *Manager) Create(rtype core.ResourceType, value core.ResourceValue, appID string) (*Resource, error) {
+func (rm *Manager) Create(rtype ResourceType, value ResourceValue, appID string) (*Resource, error) {
 	resource := &Resource{Type: rtype, Value: value}
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
 	rsc, err := rm.resources.get(rhash)
 
 	if err == nil {
-		return rsc, errors.Wrapf(core.ErrResourceExists{}, "Could not create resource with hash '%s'(%s)", rhash, rtype)
+		return rsc, errors.Wrapf(ErrResourceExists{}, "Could not create resource with hash '%s'(%s)", rhash, rtype)
 	}
 
 	resource.App = appID
 	resource.access = &sync.Mutex{}
-	resource.Status = core.Requested
+	resource.Status = Requested
 	resource.ID = rhash
 	resource.App = appID
 	resource.parent = rm
@@ -142,7 +141,7 @@ func (rm *Manager) Delete(appID string) error {
 }
 
 //CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
-func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (core.Resource, error) {
+func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (*Resource, error) {
 	rscInitial := &Resource{}
 	err := json.Unmarshal(appJSON, rscInitial)
 	if err != nil {
@@ -157,7 +156,7 @@ func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (core.Resource, 
 	}
 	resource.parent = rm
 	resource.access = &sync.Mutex{}
-	resource.Status = core.Requested
+	resource.Status = Requested
 	resource.ID = rhash
 	resource.App = appID
 	resource.Save()
@@ -168,8 +167,8 @@ func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (core.Resource, 
 }
 
 // Select takes a function and applies it to all the resources in the map. The ones that return true are returned
-func (rm *Manager) Select(filter func(core.Resource) bool) map[string]core.Resource {
-	selectedResources := map[string]core.Resource{}
+func (rm *Manager) Select(filter func(*Resource) bool) map[string]*Resource {
+	selectedResources := map[string]*Resource{}
 	rm.resources.access.Lock()
 	for k, v := range rm.resources.all {
 		rsc := v
@@ -184,9 +183,9 @@ func (rm *Manager) Select(filter func(core.Resource) bool) map[string]core.Resou
 }
 
 //GetAll retrieves all the saved resources
-func (rm *Manager) GetAll(sanitize bool) map[string]core.Resource {
+func (rm *Manager) GetAll(sanitize bool) map[string]*Resource {
 	rscs := rm.resources.copy()
-	var sanitizedResources = make(map[string]core.Resource, len(rscs))
+	var sanitizedResources = make(map[string]*Resource, len(rscs))
 	for _, rsc := range rscs {
 		if sanitize == false {
 			sanitizedResources[rsc.ID] = &rsc
@@ -198,42 +197,42 @@ func (rm *Manager) GetAll(sanitize bool) map[string]core.Resource {
 }
 
 //Get retrieves a resources based on the provided id
-func (rm *Manager) Get(resourceID string) (core.Resource, error) {
+func (rm *Manager) Get(resourceID string) (*Resource, error) {
 	return rm.resources.get(resourceID)
 }
 
 //GetType retrieves a resource type based on the provided string
-func (rm *Manager) GetType(typename string) (core.ResourceType, core.ResourceValue, error) {
+func (rm *Manager) GetType(typename string) (ResourceType, ResourceValue, error) {
 	switch typename {
 	case "certificate":
-		return core.Certificate, &CertificateResource{}, nil
+		return Certificate, &CertificateResource{}, nil
 	case "dns":
-		return core.DNS, &DNSResource{}, nil
+		return DNS, &DNSResource{}, nil
 	default:
-		return core.ResourceType(""), nil, errors.New("Resource type " + typename + " does not exist")
+		return ResourceType(""), nil, errors.New("Resource type " + typename + " does not exist")
 	}
 }
 
 //StringToStatus retrieves a resource status based on the provided string
-func (rm *Manager) StringToStatus(statusname string) (core.ResourceStatus, error) {
+func (rm *Manager) StringToStatus(statusname string) (ResourceStatus, error) {
 	switch statusname {
 	case "requested":
-		return core.Requested, nil
+		return Requested, nil
 	case "created":
-		return core.Created, nil
+		return Created, nil
 	case "unknown":
-		return core.Unknown, nil
+		return Unknown, nil
 	default:
-		return core.ResourceStatus(""), errors.New("Resource status " + statusname + " does not exist")
+		return ResourceStatus(""), errors.New("Resource status " + statusname + " does not exist")
 	}
 }
 
 //
-// Public methods that satisfy core.ResourceCreator
+// Public methods that satisfy *ResourceCreator
 //
 
 // CreateDNS creates a Resource of type DNS with the proivded values
-func (rm *Manager) CreateDNS(appID string, name string, rtype string, value string, ttl int) (core.Resource, error) {
+func (rm *Manager) CreateDNS(appID string, name string, rtype string, value string, ttl int) (*Resource, error) {
 	val := &DNSResource{
 		Host:  name,
 		Type:  rtype,
@@ -241,12 +240,12 @@ func (rm *Manager) CreateDNS(appID string, name string, rtype string, value stri
 		TTL:   ttl,
 	}
 
-	return rm.Create(core.DNS, val, appID)
+	return rm.Create(DNS, val, appID)
 }
 
 // CreateCert creates a Resource of type Certificate with the proivded values
-func (rm *Manager) CreateCert(appID string, domains []string) (core.Resource, error) {
+func (rm *Manager) CreateCert(appID string, domains []string) (*Resource, error) {
 	val := &CertificateResource{Domains: domains}
 
-	return rm.Create(core.Certificate, val, appID)
+	return rm.Create(Certificate, val, appID)
 }

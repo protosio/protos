@@ -11,7 +11,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/task"
 
 	"github.com/protosio/protos/internal/config"
@@ -25,7 +25,7 @@ var gconfig = config.Get()
 var log = util.GetLogger("installer")
 
 type installerParent interface {
-	getPlatform() core.RuntimePlatform
+	getPlatform() platform.RuntimePlatform
 	getTaskManager() *task.Manager
 }
 
@@ -87,13 +87,13 @@ type Installer struct {
 
 // AppStore manages and downloads application installers
 type AppStore struct {
-	rp core.RuntimePlatform
+	rp platform.RuntimePlatform
 	tm *task.Manager
 	cm *capability.Manager
 }
 
 // CreateAppStore creates and returns an app store instance
-func CreateAppStore(rp core.RuntimePlatform, tm *task.Manager, cm *capability.Manager) *AppStore {
+func CreateAppStore(rp platform.RuntimePlatform, tm *task.Manager, cm *capability.Manager) *AppStore {
 	if rp == nil || tm == nil || cm == nil {
 		log.Panic("Failed to create AppStore: none of the inputs can be nil")
 	}
@@ -356,7 +356,7 @@ func (as *AppStore) Search(key string, value string) (map[string]*Installer, err
 // AppStore methods that satisfy the installerParent interface
 //
 
-func (as *AppStore) getPlatform() core.RuntimePlatform {
+func (as *AppStore) getPlatform() platform.RuntimePlatform {
 	return as.rp
 }
 

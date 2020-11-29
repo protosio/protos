@@ -169,9 +169,9 @@ package app
 // 			t.Error("getOrcreateSandbox() should return an error when the container can't be retrieved")
 // 		}
 
-// 		// container retrieval returns err of type core.ErrContainerNotFound, and container creation fails
+// 		// container retrieval returns err of type platform.ErrContainerNotFound, and container creation fails
 // 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
-// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound)).Times(1)
+// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", platform.ErrContainerNotFound)).Times(1)
 // 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("container creation error")).Times(1)
 // 		_, err = app.getOrcreateSandbox()
 // 		if err == nil {
@@ -181,7 +181,7 @@ package app
 // 		// container retrieval returns err and creation of a new container works
 // 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
 // 		parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
-// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound)).Times(1)
+// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", platform.ErrContainerNotFound)).Times(1)
 // 		platformMock.EXPECT().NewSandbox(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(pruMock, nil).Times(1)
 // 		pruMock.EXPECT().GetID().Return("cntid").Times(1)
 // 		pruMock.EXPECT().GetIP().Return("cntip").Times(1)
@@ -230,7 +230,7 @@ package app
 // 		// app failes to retrieve container because the container is not found
 // 		app.Status = "test"
 // 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
-// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound)).Times(1)
+// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", platform.ErrContainerNotFound)).Times(1)
 // 		app.enrichAppData()
 // 		if app.Status != statusStopped {
 // 			t.Errorf("enrichAppData failed. App status should be '%s' but is '%s'", statusStopped, app.Status)
@@ -337,7 +337,7 @@ package app
 // 		// container not found
 // 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(1)
 // 		parentMock.EXPECT().saveApp(gomock.Any()).Return().Times(1)
-// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound)).Times(1)
+// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", platform.ErrContainerNotFound)).Times(1)
 // 		err = app.Stop()
 // 		if err != nil {
 // 			t.Error("Stop() should NOT return an error when the container of an app does not exist")
@@ -388,7 +388,7 @@ package app
 
 // 		// container not found
 // 		parentMock.EXPECT().getPlatform().Return(platformMock).Times(2)
-// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", core.ErrContainerNotFound)).Times(1)
+// 		platformMock.EXPECT().GetSandbox("cntid").Return(nil, util.NewTypedError("container retrieval error", platform.ErrContainerNotFound)).Times(1)
 // 		platformMock.EXPECT().CleanUpSandbox("cntid").Return(nil).Times(1)
 // 		err = app.remove()
 // 		if err != nil {

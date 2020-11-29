@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/protosio/protos/internal/app"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -22,26 +22,26 @@ var log = util.GetLogger("provider")
 
 // Provider defines a Protos resource provider
 type Provider struct {
-	rm core.ResourceManager `noms:"-"`
+	rm *resource.Manager `noms:"-"`
 
 	// Public members
-	Type  core.ResourceType `storm:"id"`
+	Type  resource.ResourceType `storm:"id"`
 	AppID string
 }
 
 // Manager keeps track of all the providers
 type Manager struct {
-	providers map[core.ResourceType]*Provider
+	providers map[resource.ResourceType]*Provider
 	am        *app.Manager
 	db        db.DB
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
-func CreateManager(rm core.ResourceManager, am *app.Manager, db db.DB) *Manager {
-	providers := map[core.ResourceType]*Provider{}
-	providers[core.DNS] = &Provider{Type: core.DNS, rm: rm}
-	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
-	providers[core.Mail] = &Provider{Type: core.Mail, rm: rm}
+func CreateManager(rm *resource.Manager, am *app.Manager, db db.DB) *Manager {
+	providers := map[resource.ResourceType]*Provider{}
+	providers[resource.DNS] = &Provider{Type: resource.DNS, rm: rm}
+	providers[resource.Certificate] = &Provider{Type: resource.Certificate, rm: rm}
+	providers[resource.Mail] = &Provider{Type: resource.Mail, rm: rm}
 
 	err := db.InitMap(providerDS, true)
 	if err != nil {
@@ -63,7 +63,7 @@ func CreateManager(rm core.ResourceManager, am *app.Manager, db db.DB) *Manager 
 }
 
 // Register registers a resource provider
-func (pm *Manager) Register(app *app.App, rtype core.ResourceType) error {
+func (pm *Manager) Register(app *app.App, rtype resource.ResourceType) error {
 	if pm.providers[rtype].AppID != "" {
 		if app.GetID() == pm.providers[rtype].AppID {
 			return fmt.Errorf("App %s already registered as a provider for resource type %s", app.GetID(), string(rtype))
@@ -86,7 +86,7 @@ func (pm *Manager) Register(app *app.App, rtype core.ResourceType) error {
 }
 
 // Deregister deregisters a resource provider
-func (pm *Manager) Deregister(app *app.App, rtype core.ResourceType) error {
+func (pm *Manager) Deregister(app *app.App, rtype resource.ResourceType) error {
 
 	if pm.providers[rtype].AppID != "" && pm.providers[rtype].AppID != app.GetID() {
 		return errors.New("Application '" + app.GetName() + "' is NOT registered for resource type " + string(rtype))
@@ -116,8 +116,8 @@ func (pm *Manager) Get(app *app.App) (*Provider, error) {
 //
 
 //GetResources retrieves all resources of a specific resource provider.
-func (p *Provider) GetResources() map[string]core.Resource {
-	filter := func(rsc core.Resource) bool {
+func (p *Provider) GetResources() map[string]*resource.Resource {
+	filter := func(rsc *resource.Resource) bool {
 		if rsc.GetType() == p.Type {
 			return true
 		}
@@ -128,7 +128,7 @@ func (p *Provider) GetResources() map[string]core.Resource {
 }
 
 //GetResource retrieves a resource that belongs to this provider
-func (p *Provider) GetResource(resourceID string) core.Resource {
+func (p *Provider) GetResource(resourceID string) *resource.Resource {
 	rsc, err := p.rm.Get(resourceID)
 	if err != nil {
 		// ToDo: add custom error reporting or remove the error logging alltogether

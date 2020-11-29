@@ -6,10 +6,11 @@ import (
 	"sync"
 
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/platform"
+	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 
@@ -34,8 +35,8 @@ type appStore interface {
 type dnsResource interface {
 	GetName() string
 	GetValue() string
-	Update(value core.ResourceValue)
-	Sanitize() core.ResourceValue
+	Update(value resource.ResourceValue)
+	Sanitize() resource.ResourceValue
 }
 
 // Map is a thread safe application map
@@ -96,12 +97,12 @@ func (am Map) copy() map[string]App {
 type Manager struct {
 	apps        Map
 	store       appStore
-	rm          core.ResourceManager
+	rm          *resource.Manager
 	tm          *task.Manager
 	m           *meta.Meta
 	db          db.DB
 	cm          *capability.Manager
-	platform    core.RuntimePlatform
+	platform    platform.RuntimePlatform
 	wspublisher WSPublisher
 }
 
@@ -110,7 +111,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(rm core.ResourceManager, tm *task.Manager, platform core.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
+func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
 
 	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
@@ -144,11 +145,11 @@ func CreateManager(rm core.ResourceManager, tm *task.Manager, platform core.Runt
 
 // methods to satisfy local interfaces
 
-func (am *Manager) getPlatform() core.RuntimePlatform {
+func (am *Manager) getPlatform() platform.RuntimePlatform {
 	return am.platform
 }
 
-func (am *Manager) getResourceManager() core.ResourceManager {
+func (am *Manager) getResourceManager() *resource.Manager {
 	return am.rm
 }
 
@@ -303,8 +304,8 @@ func (am *Manager) GetServices() []util.Service {
 	services := []util.Service{}
 	apps := am.apps.copy()
 
-	resourceFilter := func(rsc core.Resource) bool {
-		if rsc.GetType() == core.DNS {
+	resourceFilter := func(rsc *resource.Resource) bool {
+		if rsc.GetType() == resource.DNS {
 			return true
 		}
 		return false

@@ -1,11 +1,12 @@
 package platform
 
 import (
+	"net"
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
+	"github.com/protosio/protos/pkg/types"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -21,7 +22,49 @@ const (
 
 	dockerRuntime     = "docker"
 	containerdRuntime = "containerd"
+
+	// ErrImageNotFound means the requested docker image is not found locally
+	ErrImageNotFound = 101
+	// ErrNetworkNotFound means the requested docker network is not found locally
+	ErrNetworkNotFound = 102
+	// ErrContainerNotFound means the requested docker container is not found locally
+	ErrContainerNotFound = 103
 )
+
+// PlatformRuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.
+type PlatformRuntimeUnit interface {
+	Start() error
+	Stop() error
+	Update() error
+	Remove() error
+	GetID() string
+	GetIP() string
+	GetStatus() string
+	GetExitCode() int
+}
+
+type PlatformImage interface {
+	GetID() string
+	GetDataPath() string
+	GetRepoTags() []string
+	GetLabels() map[string]string
+}
+
+// RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
+type RuntimePlatform interface {
+	Init(network net.IPNet, devices []types.UserDevice) error
+	GetSandbox(id string) (PlatformRuntimeUnit, error)
+	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
+	GetImage(id string) (PlatformImage, error)
+	GetAllImages() (map[string]PlatformImage, error)
+	PullImage(id string, name string, version string) error
+	RemoveImage(id string) error
+	GetOrCreateVolume(id string, path string) (string, error)
+	RemoveVolume(id string) error
+	CleanUpSandbox(id string) error
+	NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
+	GetHWStats() (HardwareStats, error)
+}
 
 func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 	if len(repoDigests) == 0 {
@@ -35,9 +78,9 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 }
 
 // Create initializes the run time platform
-func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) core.RuntimePlatform {
+func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) RuntimePlatform {
 
-	var dp core.RuntimePlatform
+	var dp RuntimePlatform
 	switch runtime {
 	case containerdRuntime:
 		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, key)

@@ -194,10 +194,10 @@ package app
 // }
 
 // // createSandbox mocks base method
-// func (m *Mockapp) createSandbox() (core.PlatformRuntimeUnit, error) {
+// func (m *Mockapp) createSandbox() (platform.PlatformRuntimeUnit, error) {
 // 	m.ctrl.T.Helper()
 // 	ret := m.ctrl.Call(m, "createSandbox")
-// 	ret0, _ := ret[0].(core.PlatformRuntimeUnit)
+// 	ret0, _ := ret[0].(platform.PlatformRuntimeUnit)
 // 	ret1, _ := ret[1].(error)
 // 	return ret0, ret1
 // }

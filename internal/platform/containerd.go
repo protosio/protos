@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 	"github.com/protosio/protos/pkg/types"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -161,7 +160,7 @@ func (cdp *containerdPlatform) Init(network net.IPNet, devices []types.UserDevic
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error) {
 	pru := &containerdSandbox{p: cdp}
 
 	img, err := cdp.GetImage(imageID)
@@ -254,21 +253,21 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	return pru, nil
 }
 
-func (cdp *containerdPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error) {
 	if id == "" {
-		return nil, util.NewTypedError("containerd sandbox not found", core.ErrContainerNotFound)
+		return nil, util.NewTypedError("containerd sandbox not found", ErrContainerNotFound)
 	}
 	pru := &containerdSandbox{p: cdp}
 	podStatus, err := cdp.runtimeClient.PodSandboxStatus(context.Background(), &pb.PodSandboxStatusRequest{PodSandboxId: id})
 	if err != nil {
-		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", core.ErrContainerNotFound)
+		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", ErrContainerNotFound)
 	}
 	pru.podID = podStatus.Status.Id
 	pru.podStatus = podStatus.Status.State.String()
 	pru.IP = podStatus.Status.Network.Ip
 	cntListResponse, err := cdp.runtimeClient.ListContainers(context.Background(), &pb.ListContainersRequest{Filter: &pb.ContainerFilter{PodSandboxId: podStatus.Status.Id}})
 	if err != nil {
-		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", core.ErrContainerNotFound)
+		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", ErrContainerNotFound)
 	}
 	nrContainers := len(cntListResponse.Containers)
 	if nrContainers != 1 {
@@ -285,11 +284,11 @@ func (cdp *containerdPlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, 
 	return pru, nil
 }
 
-func (cdp *containerdPlatform) GetAllSandboxes() (map[string]core.PlatformRuntimeUnit, error) {
-	return map[string]core.PlatformRuntimeUnit{}, nil
+func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit, error) {
+	return map[string]PlatformRuntimeUnit{}, nil
 }
 
-func (cdp *containerdPlatform) GetImage(id string) (core.PlatformImage, error) {
+func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
 
 	_, normalizedID, err := normalizeRepoDigest([]string{id})
 	if err != nil {
@@ -335,8 +334,8 @@ func (cdp *containerdPlatform) GetImage(id string) (core.PlatformImage, error) {
 	return nil, nil
 }
 
-func (cdp *containerdPlatform) GetAllImages() (map[string]core.PlatformImage, error) {
-	images := map[string]core.PlatformImage{}
+func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) {
+	images := map[string]PlatformImage{}
 
 	imagesResponse, err := cdp.imageClient.ListImages(context.Background(), &pb.ListImagesRequest{})
 	if err != nil {
@@ -397,12 +396,12 @@ func (cdp *containerdPlatform) CleanUpSandbox(id string) error {
 	return nil
 }
 
-func (cdp *containerdPlatform) GetHWStats() (core.HardwareStats, error) {
+func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
 	return getHWStatus()
 }
 
 //
-// struct and methods that satisfy core.PlatformRuntimeUnit
+// struct and methods that satisfy PlatformRuntimeUnit
 //
 
 // containerdSandbox represents a container

@@ -51,10 +51,10 @@ package mock
 // }
 
 // // GetSandbox mocks base method
-// func (m *MockRuntimePlatform) GetSandbox(id string) (core.PlatformRuntimeUnit, error) {
+// func (m *MockRuntimePlatform) GetSandbox(id string) (platform.PlatformRuntimeUnit, error) {
 // 	m.ctrl.T.Helper()
 // 	ret := m.ctrl.Call(m, "GetSandbox", id)
-// 	ret0, _ := ret[0].(core.PlatformRuntimeUnit)
+// 	ret0, _ := ret[0].(platform.PlatformRuntimeUnit)
 // 	ret1, _ := ret[1].(error)
 // 	return ret0, ret1
 // }
@@ -66,10 +66,10 @@ package mock
 // }
 
 // // GetAllSandboxes mocks base method
-// func (m *MockRuntimePlatform) GetAllSandboxes() (map[string]core.PlatformRuntimeUnit, error) {
+// func (m *MockRuntimePlatform) GetAllSandboxes() (map[string]platform.PlatformRuntimeUnit, error) {
 // 	m.ctrl.T.Helper()
 // 	ret := m.ctrl.Call(m, "GetAllSandboxes")
-// 	ret0, _ := ret[0].(map[string]core.PlatformRuntimeUnit)
+// 	ret0, _ := ret[0].(map[string]platform.PlatformRuntimeUnit)
 // 	ret1, _ := ret[1].(error)
 // 	return ret0, ret1
 // }
@@ -182,10 +182,10 @@ package mock
 // }
 
 // // NewSandbox mocks base method
-// func (m *MockRuntimePlatform) NewSandbox(name, appID, imageID, volumeID, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (core.PlatformRuntimeUnit, error) {
+// func (m *MockRuntimePlatform) NewSandbox(name, appID, imageID, volumeID, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (platform.PlatformRuntimeUnit, error) {
 // 	m.ctrl.T.Helper()
 // 	ret := m.ctrl.Call(m, "NewSandbox", name, appID, imageID, volumeID, volumeMountPath, publicPorts, installerParams)
-// 	ret0, _ := ret[0].(core.PlatformRuntimeUnit)
+// 	ret0, _ := ret[0].(platform.PlatformRuntimeUnit)
 // 	ret1, _ := ret[1].(error)
 // 	return ret0, ret1
 // }

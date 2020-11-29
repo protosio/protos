@@ -7,8 +7,9 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/platform"
+	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/task"
 
 	"github.com/protosio/protos/internal/util"
@@ -34,9 +35,9 @@ const (
 type appParent interface {
 	Remove(appID string) error
 	saveApp(app *App)
-	getPlatform() core.RuntimePlatform
+	getPlatform() platform.RuntimePlatform
 	getTaskManager() *task.Manager
-	getResourceManager() core.ResourceManager
+	getResourceManager() *resource.Manager
 	getCapabilityManager() *capability.Manager
 }
 
@@ -170,7 +171,7 @@ func (app *App) Save() {
 }
 
 // createSandbox create the underlying container
-func (app *App) createSandbox() (core.PlatformRuntimeUnit, error) {
+func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	var err error
 	var volumeID string
 	if app.InstallerMetadata.PersistancePath != "" {
@@ -194,10 +195,10 @@ func (app *App) createSandbox() (core.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-func (app *App) getOrcreateSandbox() (core.PlatformRuntimeUnit, error) {
+func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, core.ErrContainerNotFound) {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) {
 			cnt, err := app.createSandbox()
 			if err != nil {
 				return nil, err
@@ -219,7 +220,7 @@ func (app *App) enrichAppData() {
 
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, core.ErrContainerNotFound) {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) {
 			app.Status = statusStopped
 			return
 		}
@@ -266,7 +267,7 @@ func (app *App) Stop() error {
 
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
 			app.SetStatus(statusUnknown)
 			return err
 		}
@@ -290,7 +291,7 @@ func (app *App) remove() error {
 
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
-		if util.IsErrorType(err, core.ErrContainerNotFound) == false {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
 			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
 		log.Warnf("Application %s(%s) has no sandbox to remove", app.Name, app.ID)
@@ -397,7 +398,7 @@ func (app *App) SendMsg(msg interface{}) error {
 //
 
 //CreateResource adds a resource to the internal resources map.
-func (app *App) CreateResource(appJSON []byte) (core.Resource, error) {
+func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 
 	app.access.Lock()
 	rsc, err := app.parent.getResourceManager().CreateFromJSON(appJSON, app.ID)
@@ -431,8 +432,8 @@ func (app *App) DeleteResource(resourceID string) error {
 }
 
 // GetResources retrieves all the resources that belong to an application
-func (app *App) GetResources() map[string]core.Resource {
-	resources := make(map[string]core.Resource)
+func (app *App) GetResources() map[string]*resource.Resource {
+	resources := make(map[string]*resource.Resource)
 	rm := app.parent.getResourceManager()
 	for _, rscid := range app.Resources {
 		rsc, err := rm.Get(rscid)
@@ -446,7 +447,7 @@ func (app *App) GetResources() map[string]core.Resource {
 }
 
 // GetResource returns resource with provided ID, if it belongs to this app
-func (app *App) GetResource(resourceID string) (core.Resource, error) {
+func (app *App) GetResource(resourceID string) (*resource.Resource, error) {
 	if found, _ := util.StringInSlice(resourceID, app.Resources); found {
 		rsc, err := app.parent.getResourceManager().Get(resourceID)
 		if err != nil {

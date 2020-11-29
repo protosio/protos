@@ -3,8 +3,6 @@ package platform
 import (
 	"time"
 
-	"github.com/protosio/protos/internal/core"
-
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 )
@@ -46,7 +44,7 @@ type HardwareStats struct {
 	Storage StorageStats `json:"storage"`
 }
 
-func getHWStatus() (core.HardwareStats, error) {
+func getHWStatus() (HardwareStats, error) {
 	hw := HardwareStats{}
 
 	memDetailedStat, err := mem.VirtualMemory()
