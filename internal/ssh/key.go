@@ -25,6 +25,12 @@ func (k Key) Private() []byte {
 	return k.Priv
 }
 
+func (k Key) PrivateWG() wgtypes.Key {
+	var wgkey wgtypes.Key
+	copy(wgkey[:], k.Seed())
+	return wgkey
+}
+
 func (k Key) PublicWG() wgtypes.Key {
 	var wgkey wgtypes.Key
 	copy(wgkey[:], k.Seed())

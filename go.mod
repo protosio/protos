@@ -6,8 +6,6 @@ replace github.com/foxcpp/wirebox => github.com/nustiueudinastea/wirebox v0.0.0-
 
 replace github.com/attic-labs/noms => /Users/al3x/code/protos/code/noms
 
-replace github.com/libp2p/go-libp2p-gorpc => github.com/nustiueudinastea/go-libp2p-gorpc v0.1.1-0.20201014120241-e1ff5c4b78e3
-
 require (
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Masterminds/semver v1.5.0

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -30,12 +32,12 @@ type Provider struct {
 // Manager keeps track of all the providers
 type Manager struct {
 	providers map[core.ResourceType]*Provider
-	am        core.AppManager
-	db        core.DB
+	am        *app.Manager
+	db        db.DB
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interfaces
-func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Manager {
+func CreateManager(rm core.ResourceManager, am *app.Manager, db db.DB) *Manager {
 	providers := map[core.ResourceType]*Provider{}
 	providers[core.DNS] = &Provider{Type: core.DNS, rm: rm}
 	providers[core.Certificate] = &Provider{Type: core.Certificate, rm: rm}
@@ -61,7 +63,7 @@ func CreateManager(rm core.ResourceManager, am core.AppManager, db core.DB) *Man
 }
 
 // Register registers a resource provider
-func (pm *Manager) Register(app core.App, rtype core.ResourceType) error {
+func (pm *Manager) Register(app *app.App, rtype core.ResourceType) error {
 	if pm.providers[rtype].AppID != "" {
 		if app.GetID() == pm.providers[rtype].AppID {
 			return fmt.Errorf("App %s already registered as a provider for resource type %s", app.GetID(), string(rtype))
@@ -84,7 +86,7 @@ func (pm *Manager) Register(app core.App, rtype core.ResourceType) error {
 }
 
 // Deregister deregisters a resource provider
-func (pm *Manager) Deregister(app core.App, rtype core.ResourceType) error {
+func (pm *Manager) Deregister(app *app.App, rtype core.ResourceType) error {
 
 	if pm.providers[rtype].AppID != "" && pm.providers[rtype].AppID != app.GetID() {
 		return errors.New("Application '" + app.GetName() + "' is NOT registered for resource type " + string(rtype))
@@ -100,7 +102,7 @@ func (pm *Manager) Deregister(app core.App, rtype core.ResourceType) error {
 }
 
 // Get retrieves the resource provider associated with an app
-func (pm *Manager) Get(app core.App) (core.Provider, error) {
+func (pm *Manager) Get(app *app.App) (*Provider, error) {
 	for _, provider := range pm.providers {
 		if provider.AppID != "" && provider.AppID == app.GetID() {
 			return provider, nil

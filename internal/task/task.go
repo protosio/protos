@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/icholy/killable"
@@ -29,16 +28,27 @@ const (
 // ErrKilledByUser is returned when a task is canceled/killed by the user
 var ErrKilledByUser = errors.New("Task cancelled by user")
 
+// CustomTask is the interface that is implemented by custom tasks in various packages
+type CustomTask interface {
+	Run(parent *Base, id string, progress Progrs) error
+}
+
 // Progress tracks the percentage and message of a task
 type Progress struct {
 	Percentage int    `json:"percentage"`
 	State      string `json:"state"`
 }
 
+// Progrs is an interface used to communicate progress inside a task
+type Progrs interface {
+	SetPercentage(percent int)
+	SetState(stateText string)
+}
+
 // Base represents an (a)synchronous piece of work that Protos acts upon
 type Base struct {
 	access   *sync.Mutex       `noms:"-"`
-	custom   core.CustomTask   `noms:"-"`
+	custom   CustomTask        `noms:"-"`
 	parent   *Manager          `noms:"-"`
 	killable killable.Killable `noms:"-"`
 	finish   chan error        `noms:"-"`
@@ -120,7 +130,7 @@ func (b *Base) Kill() error {
 }
 
 // Copy returns a copy of the task base
-func (b *Base) Copy() core.Task {
+func (b *Base) Copy() *Base {
 	var baseCopy Base
 	b.access.Lock()
 	err := copier.Copy(&baseCopy, b)

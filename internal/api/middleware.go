@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/capability"
 
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
@@ -19,7 +19,7 @@ const (
 	appKey key = iota
 )
 
-func checkCapability(cm core.CapabilityManager, capChecker core.CapabilityChecker, routeName string) error {
+func checkCapability(cm *capability.Manager, capChecker capability.Checker, routeName string) error {
 	methodcap, err := cm.GetMethodCap(routeName)
 	if err != nil {
 		log.Warn(err.Error())

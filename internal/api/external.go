@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/installer"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
 
-var createExternalRoutes = func(cm core.CapabilityManager) routes {
+var createExternalRoutes = func(cm *capability.Manager) routes {
 	return routes{
 		route{
 			"getAppsExternal",
@@ -430,7 +431,7 @@ func searchAppStore(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		var err error
-		var installers map[string]core.Installer
+		var installers map[string]*installer.Installer
 
 		if len(queryParams) == 0 {
 			installers, err = ha.as.GetInstallers()

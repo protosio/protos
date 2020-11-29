@@ -3,7 +3,6 @@ package capability
 import (
 	"encoding/gob"
 
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/pkg/errors"
@@ -53,7 +52,7 @@ func (cm *Manager) New(name string) *Capability {
 }
 
 // Validate validates a capability
-func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
+func (cm *Manager) Validate(methodcap *Capability, appcap string) bool {
 	if methodcap.GetName() == appcap {
 		log.Tracef("Matched capability at '%s'", methodcap.GetName())
 		return true
@@ -64,14 +63,13 @@ func (cm *Manager) Validate(methodcap core.Capability, appcap string) bool {
 }
 
 // SetMethodCap adds a capability for a specific method
-func (cm *Manager) SetMethodCap(method string, cap core.Capability) {
-	lcap := cap.(*Capability)
-	log.Tracef("Setting capability '%s' for method '%s'", lcap.Name, method)
-	cm.capMap[method] = lcap
+func (cm *Manager) SetMethodCap(method string, cap *Capability) {
+	log.Tracef("Setting capability '%s' for method '%s'", cap.Name, method)
+	cm.capMap[method] = cap
 }
 
 // GetMethodCap returns a capability for a specific method
-func (cm *Manager) GetMethodCap(method string) (core.Capability, error) {
+func (cm *Manager) GetMethodCap(method string) (*Capability, error) {
 	if cap, ok := cm.capMap[method]; ok {
 		return cap, nil
 	}
@@ -79,7 +77,7 @@ func (cm *Manager) GetMethodCap(method string) (core.Capability, error) {
 }
 
 // GetByName returns the capability based on the provided name, if one exists
-func (cm *Manager) GetByName(name string) (core.Capability, error) {
+func (cm *Manager) GetByName(name string) (*Capability, error) {
 	for _, cap := range cm.allCapabilities {
 		if cap.Name == name {
 			return cap, nil
@@ -89,7 +87,7 @@ func (cm *Manager) GetByName(name string) (core.Capability, error) {
 }
 
 // GetOrPanic returns the capability based on the provided name. It panics if it's not found
-func (cm *Manager) GetOrPanic(name string) core.Capability {
+func (cm *Manager) GetOrPanic(name string) *Capability {
 	for _, cap := range cm.allCapabilities {
 		if cap.Name == name {
 			return cap
@@ -119,7 +117,7 @@ func (cap *Capability) GetName() string {
 }
 
 // GetParent returns the parent of the capability
-func (cap *Capability) GetParent() core.Capability {
+func (cap *Capability) GetParent() *Capability {
 	if cap.Parent == nil {
 		return nil
 	}

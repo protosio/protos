@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/pkg/errors"
@@ -16,8 +21,13 @@ const (
 	appDS = "app"
 )
 
+// WSPublisher returns a channel that can be used to publish WS messages to the frontend
+type WSPublisher interface {
+	GetWSPublishChannel() chan interface{}
+}
+
 type appStore interface {
-	GetInstaller(id string) (core.Installer, error)
+	GetInstaller(id string) (*installer.Installer, error)
 }
 
 // dnsResource is only used locally to retrieve the Name of a DNS record
@@ -32,7 +42,7 @@ type dnsResource interface {
 type Map struct {
 	access *sync.Mutex
 	apps   map[string]*App
-	db     core.DB
+	db     db.DB
 }
 
 // put saves an application into the application map
@@ -87,20 +97,20 @@ type Manager struct {
 	apps        Map
 	store       appStore
 	rm          core.ResourceManager
-	tm          core.TaskManager
-	m           core.Meta
-	db          core.DB
-	cm          core.CapabilityManager
+	tm          *task.Manager
+	m           *meta.Meta
+	db          db.DB
+	cm          *capability.Manager
 	platform    core.RuntimePlatform
-	wspublisher core.WSPublisher
+	wspublisher WSPublisher
 }
 
 //
 // Public methods
 //
 
-// CreateManager returns a Manager, which implements the core.AppManager interface
-func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.RuntimePlatform, db core.DB, meta core.Meta, wspublisher core.WSPublisher, appStore appStore, cm core.CapabilityManager) *Manager {
+// CreateManager returns a Manager, which implements the *AppManager interface
+func CreateManager(rm core.ResourceManager, tm *task.Manager, platform core.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
 
 	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
@@ -108,7 +118,7 @@ func CreateManager(rm core.ResourceManager, tm core.TaskManager, platform core.R
 
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
-	gob.Register(&core.InstallerMetadata{})
+	gob.Register(&installer.InstallerMetadata{})
 	err := db.InitMap(appDS, true)
 	if err != nil {
 		log.Fatal("Failed to initialize app dataset: ", err)
@@ -142,7 +152,7 @@ func (am *Manager) getResourceManager() core.ResourceManager {
 	return am.rm
 }
 
-func (am *Manager) getTaskManager() core.TaskManager {
+func (am *Manager) getTaskManager() *task.Manager {
 	return am.tm
 }
 
@@ -150,21 +160,21 @@ func (am *Manager) getAppStore() appStore {
 	return am.store
 }
 
-func (am *Manager) getCapabilityManager() core.CapabilityManager {
+func (am *Manager) getCapabilityManager() *capability.Manager {
 	return am.cm
 }
 
-func (am *Manager) createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error) {
+func (am *Manager) createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.InstallerMetadata, taskID string) (app, error) {
 	newApp, err := am.Create(installerID, installerVersion, name, installerParams, installerMetadata)
 	if err != nil {
 		return nil, err
 	}
 
-	return newApp.(app), nil
+	return newApp, nil
 }
 
 // GetCopy returns a copy of an application based on its id
-func (am *Manager) GetCopy(id string) (core.App, error) {
+func (am *Manager) GetCopy(id string) (*App, error) {
 	log.Trace("Copying application ", id)
 	app, err := am.apps.get(id)
 	if err != nil {
@@ -177,7 +187,7 @@ func (am *Manager) GetCopy(id string) (core.App, error) {
 }
 
 // Get returns a copy of an application based on its name
-func (am *Manager) Get(name string) (core.App, error) {
+func (am *Manager) Get(name string) (*App, error) {
 	for _, app := range am.apps.copy() {
 		if app.Name == name {
 			return &app, nil
@@ -187,8 +197,8 @@ func (am *Manager) Get(name string) (core.App, error) {
 }
 
 // CopyAll returns a copy of all the applications
-func (am *Manager) CopyAll() map[string]core.App {
-	apps := map[string]core.App{}
+func (am *Manager) CopyAll() map[string]*App {
+	apps := map[string]*App{}
 	for id, app := range am.apps.copy() {
 		apps[id] = &app
 	}
@@ -196,13 +206,13 @@ func (am *Manager) CopyAll() map[string]core.App {
 }
 
 // Read returns an application based on its id
-func (am *Manager) Read(id string) (core.App, error) {
+func (am *Manager) Read(id string) (*App, error) {
 	return am.apps.get(id)
 }
 
 // Select takes a function and applies it to all the apps in the map. The ones that return true are returned
-func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
-	apps := map[string]core.App{}
+func (am *Manager) Select(filter func(*App) bool) map[string]*App {
+	apps := map[string]*App{}
 	am.apps.access.Lock()
 	for k, v := range am.apps.apps {
 		app := v
@@ -217,7 +227,7 @@ func (am *Manager) Select(filter func(core.App) bool) map[string]core.App {
 }
 
 // CreateAsync creates, runs and returns a task of type CreateAppTask
-func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) core.Task {
+func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) *task.Base {
 	if installerID == "" || appName == "" {
 		log.Panic("CreateAsync doesn't have all the required parameters")
 	}
@@ -233,7 +243,7 @@ func (am *Manager) CreateAsync(installerID string, installerVersion string, appN
 }
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata) (core.App, error) {
+func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.InstallerMetadata) (*App, error) {
 
 	var app *App
 	if name == "" || installerID == "" || installerVersion == "" {
@@ -349,7 +359,7 @@ func (am *Manager) Remove(appID string) error {
 }
 
 // RemoveAsync asynchronously removes an applications and returns a task
-func (am *Manager) RemoveAsync(appID string) core.Task {
+func (am *Manager) RemoveAsync(appID string) *task.Base {
 	return am.tm.New("Remove application", &RemoveAppTask{am: am, appID: appID})
 }
 
@@ -370,7 +380,7 @@ func (am *Manager) saveApp(app *App) {
 //
 
 // CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
-func (am *Manager) CreateDevApp(appName string, installerMetadata core.InstallerMetadata, installerParams map[string]string) (core.App, error) {
+func (am *Manager) CreateDevApp(appName string, installerMetadata installer.InstallerMetadata, installerParams map[string]string) (*App, error) {
 
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")

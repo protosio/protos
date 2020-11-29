@@ -2,10 +2,10 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/protosio/protos/internal/core"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/protosio/protos/internal/installer"
 )
 
 var externalDevRoutes = routes{
@@ -32,9 +32,9 @@ var externalDevRoutes = routes{
 func createDevApp(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var appParams struct {
-			Name              string                 `json:"name"`
-			InstallerMetadata core.InstallerMetadata `json:"installer-metadata"`
-			InstallerParams   map[string]string      `json:"installer-params"`
+			Name              string                      `json:"name"`
+			InstallerMetadata installer.InstallerMetadata `json:"installer-metadata"`
+			InstallerParams   map[string]string           `json:"installer-params"`
 		}
 		defer r.Body.Close()
 

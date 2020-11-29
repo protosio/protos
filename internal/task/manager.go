@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/emirpasic/gods/maps/linkedhashmap"
@@ -16,6 +16,11 @@ import (
 const (
 	taskDS = "task"
 )
+
+// WSPublisher returns a channel that can be used to publish WS messages to the frontend
+type WSPublisher interface {
+	GetWSPublishChannel() chan interface{}
+}
 
 // taskContainer is a thread safe tasks map
 type taskContainer struct {
@@ -92,12 +97,12 @@ func getLastNTasks(n int, tsks *linkedhashmap.Map) linkedhashmap.Map {
 // Manager keeps track of all the tasks
 type Manager struct {
 	tasks     taskContainer
-	db        core.DB
-	publisher core.WSPublisher
+	db        db.DB
+	publisher WSPublisher
 }
 
 // CreateManager creates and returns a TaskManager
-func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
+func CreateManager(db db.DB, publisher WSPublisher) *Manager {
 
 	if db == nil || publisher == nil {
 		log.Panic("Failed to create task manager: none of the inputs can be nil")
@@ -140,7 +145,7 @@ func CreateManager(db core.DB, publisher core.WSPublisher) *Manager {
 //
 
 // New creates a new task and returns it
-func (tm *Manager) New(name string, ct core.CustomTask) core.Task {
+func (tm *Manager) New(name string, ct CustomTask) *Base {
 	ts := util.ProtosTime(time.Now())
 	tsk := &Base{
 		access: &sync.Mutex{},
@@ -175,7 +180,7 @@ func (tm *Manager) GetLast() linkedhashmap.Map {
 }
 
 // Get returns a task based on its id
-func (tm *Manager) Get(id string) (core.Task, error) {
+func (tm *Manager) Get(id string) (*Base, error) {
 	return tm.tasks.get(id)
 }
 

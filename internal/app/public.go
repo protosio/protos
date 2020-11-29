@@ -1,8 +1,6 @@
 package app
 
 import (
-	"github.com/protosio/protos/internal/core"
-
 	"github.com/emirpasic/gods/maps/linkedhashmap"
 )
 
@@ -10,15 +8,15 @@ import (
 type taskMap linkedhashmap.Map
 
 // Public returns a public version of the app struct
-func (app App) Public() core.App {
+func (app App) Public() *App {
 	app.enrichAppData()
 	return &app
 }
 
 // GetAllPublic returns all applications in their public form, enriched with the latest status message
-func (am *Manager) GetAllPublic() map[string]core.App {
+func (am *Manager) GetAllPublic() map[string]*App {
 	// ToDo: do app refresh caching in the platform code
-	papps := map[string]core.App{}
+	papps := map[string]*App{}
 
 	for _, app := range am.apps.copy() {
 		tmp := app

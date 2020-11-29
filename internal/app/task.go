@@ -2,14 +2,16 @@ package app
 
 import (
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/task"
 
 	"github.com/pkg/errors"
 )
 
 type taskParent interface {
-	createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata core.InstallerMetadata, taskID string) (app, error)
+	createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.InstallerMetadata, taskID string) (app, error)
 	Remove(appID string) error
-	getTaskManager() core.TaskManager
+	getTaskManager() *task.Manager
 	getAppStore() appStore
 }
 
@@ -19,7 +21,7 @@ type app interface {
 	AddTask(id string)
 	GetID() string
 	SetStatus(status string)
-	StartAsync() core.Task
+	StartAsync() *task.Base
 	createSandbox() (core.PlatformRuntimeUnit, error)
 }
 
@@ -34,16 +36,16 @@ type CreateAppTask struct {
 }
 
 // Run starts the async task
-func (t CreateAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+func (t CreateAppTask) Run(parent *task.Base, tskID string, p task.Progrs) error {
 	log.WithField("proc", tskID).Debugf("Running app creation task '%s' based on installer '%s:%s'", tskID, t.InstallerID, t.InstallerVersion)
 
 	if t.InstallerID == "" || t.AppName == "" || t.am == nil {
 		return errors.Errorf("Failed to run CreateAppTask for app '%s' because one of the required task fields are missing", t.AppName)
 	}
 
-	var inst core.Installer
+	var inst *installer.Installer
 	var version string
-	var metadata core.InstallerMetadata
+	var metadata installer.InstallerMetadata
 	var err error
 
 	// normal app creation, using the app store
@@ -122,7 +124,7 @@ type StartAppTask struct {
 }
 
 // Run starts the async task
-func (t *StartAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+func (t *StartAppTask) Run(parent *task.Base, tskID string, p task.Progrs) error {
 	log.WithField("proc", tskID).Infof("Running start app task '%s'", tskID)
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
@@ -135,7 +137,7 @@ type StopAppTask struct {
 }
 
 // Run starts the async task
-func (t *StopAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+func (t *StopAppTask) Run(parent *task.Base, tskID string, p task.Progrs) error {
 	log.WithField("proc", tskID).Infof("Running stop app task '%s'", tskID)
 	p.SetPercentage(50)
 	t.app.AddTask(tskID)
@@ -149,7 +151,7 @@ type RemoveAppTask struct {
 }
 
 // Run starts the async task
-func (t *RemoveAppTask) Run(parent core.Task, tskID string, p core.Progress) error {
+func (t *RemoveAppTask) Run(parent *task.Base, tskID string, p task.Progrs) error {
 	if t.am == nil {
 		log.Panic("Failed to run RemoveAppTask: application manager is nil")
 	}

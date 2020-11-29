@@ -10,7 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/protosio/protos/internal/app"
+	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/provider"
+	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/pkg/types"
 
 	"github.com/pkg/errors"
@@ -40,7 +47,7 @@ type route struct {
 	Method      string
 	Pattern     string
 	HandlerFunc func(handlerAccess) http.Handler
-	Capability  core.Capability
+	Capability  *capability.Capability
 }
 
 type apiController interface {
@@ -49,15 +56,15 @@ type apiController interface {
 }
 
 type handlerAccess struct {
-	pm  core.ProviderManager
+	pm  *provider.Manager
 	rm  core.ResourceManager
-	am  core.AppManager
-	tm  core.TaskManager
-	m   core.Meta
-	as  core.AppStore
-	um  core.UserManager
+	am  *app.Manager
+	tm  *task.Manager
+	m   *meta.Meta
+	as  *installer.AppStore
+	um  *auth.UserManager
 	rp  core.RuntimePlatform
-	cm  core.CapabilityManager
+	cm  *capability.Manager
 	cs  *sessions.CookieStore
 	api apiController
 }
@@ -291,7 +298,7 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 }
 
 // New returns a new http API
-func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m core.Meta, am core.AppManager, rm core.ResourceManager, tm core.TaskManager, pm core.ProviderManager, as core.AppStore, um core.UserManager, rp core.RuntimePlatform, cm core.CapabilityManager) *HTTP {
+func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m *meta.Meta, am *app.Manager, rm core.ResourceManager, tm *task.Manager, pm *provider.Manager, as *installer.AppStore, um *auth.UserManager, rp core.RuntimePlatform, cm *capability.Manager) *HTTP {
 	httpAPI := &HTTP{
 		devmode:          devmode,
 		staticAssetsPath: staticAssetsPath,

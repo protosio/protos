@@ -6,13 +6,14 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/app"
+	"github.com/protosio/protos/internal/capability"
 
 	"github.com/gorilla/mux"
 	"github.com/tidwall/gjson"
 )
 
-var createInternalRoutes = func(cm core.CapabilityManager) routes {
+var createInternalRoutes = func(cm *capability.Manager) routes {
 	return routes{
 		route{
 			"getOwnResources",
@@ -114,7 +115,7 @@ var createInternalRoutes = func(cm core.CapabilityManager) routes {
 
 func registerResourceProvider(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 
 		rtype, _, err := ha.rm.GetType(mux.Vars(r)["resourceType"])
 		if err != nil {
@@ -137,7 +138,7 @@ func registerResourceProvider(ha handlerAccess) http.Handler {
 func deregisterResourceProvider(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 
 		rtype, _, err := ha.rm.GetType(mux.Vars(r)["resourceType"])
 		if err != nil {
@@ -160,7 +161,7 @@ func deregisterResourceProvider(ha handlerAccess) http.Handler {
 func getProviderResources(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 
 		provider, err := ha.pm.Get(app)
 		if err != nil {
@@ -181,7 +182,7 @@ func updateResourceValue(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		resourceID := vars["resourceID"]
 
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 
 		prvd, err := ha.pm.Get(app)
 		if err != nil {
@@ -229,7 +230,7 @@ func setResourceStatus(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		resourceID := vars["resourceID"]
 
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 
 		bodyJSON, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -312,7 +313,7 @@ func getAdminUser(ha handlerAccess) http.Handler {
 func getOwnResources(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 		resources := app.GetResources()
 
 		json.NewEncoder(w).Encode(resources)
@@ -323,7 +324,7 @@ func getOwnResources(ha handlerAccess) http.Handler {
 func createResource(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 
 		bodyJSON, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -350,7 +351,7 @@ func getAppResource(ha handlerAccess) http.Handler {
 
 		vars := mux.Vars(r)
 		resourceID := vars["resourceID"]
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 		rsc, err := app.GetResource(resourceID)
 		if err != nil {
 			log.Error(err)
@@ -368,7 +369,7 @@ func deleteResource(ha handlerAccess) http.Handler {
 		vars := mux.Vars(r)
 		resourceID := vars["resourceID"]
 
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 		err := app.DeleteResource(resourceID)
 		if err != nil {
 			log.Error(err)
@@ -383,7 +384,7 @@ func deleteResource(ha handlerAccess) http.Handler {
 
 func getAppInfo(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		app := r.Context().Value(appKey).(core.App)
+		app := r.Context().Value(appKey).(*app.App)
 		appInfo := struct {
 			Name string `json:"name"`
 		}{

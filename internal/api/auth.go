@@ -10,7 +10,8 @@ import (
 	validator "github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/pkg/types"
 )
 
@@ -22,7 +23,7 @@ var initRoute = route{
 	nil,
 }
 
-var createAuthRoutes = func(cm core.CapabilityManager) routes {
+var createAuthRoutes = func(cm *capability.Manager) routes {
 	return routes{
 		route{
 			"login",
@@ -108,9 +109,17 @@ func initHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
+		key, err := ha.m.GetKey()
+		if err != nil {
+			erru := errors.Wrap(err, "Failed to retrieve key")
+			log.Error(erru.Error())
+			rend.JSON(w, http.StatusInternalServerError, httperr{Error: erru.Error()})
+			return
+		}
+
 		initResponse := types.RespInit{
 			InstanceIP:    ip.String(),
-			InstacePubKey: ha.m.GetKey().PublicKey().String(),
+			InstacePubKey: key.PublicWG().String(),
 		}
 
 		log.Trace("Sending response: ", initResponse)
@@ -205,9 +214,9 @@ func logoutHandler(ha handlerAccess) http.Handler {
 	})
 }
 
-func getUser(s *sessions.Session, um core.UserManager) (core.User, error) {
+func getUser(s *sessions.Session, um *auth.UserManager) (*auth.User, error) {
 	val := s.Values["user"]
-	user, ok := val.(core.User)
+	user, ok := val.(*auth.User)
 	if !ok {
 		return nil, errors.New("Failed to get user for session")
 	}

@@ -4,212 +4,213 @@
 // Package mock is a generated GoMock package.
 package mock
 
-import (
-	gomock "github.com/golang/mock/gomock"
-	core "github.com/protosio/protos/internal/core"
-	ssh "golang.org/x/crypto/ssh"
-	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	reflect "reflect"
-)
+// import (
+// 	gomock "github.com/golang/mock/gomock"
+// 	core "github.com/protosio/protos/internal/core"
 
-// MockSSHManager is a mock of SSHManager interface
-type MockSSHManager struct {
-	ctrl     *gomock.Controller
-	recorder *MockSSHManagerMockRecorder
-}
+// 	ssh "golang.org/x/crypto/ssh"
+// 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+// 	reflect "reflect"
+// )
 
-// MockSSHManagerMockRecorder is the mock recorder for MockSSHManager
-type MockSSHManagerMockRecorder struct {
-	mock *MockSSHManager
-}
+// // MockSSHManager is a mock of SSHManager interface
+// type MockSSHManager struct {
+// 	ctrl     *gomock.Controller
+// 	recorder *MockSSHManagerMockRecorder
+// }
 
-// NewMockSSHManager creates a new mock instance
-func NewMockSSHManager(ctrl *gomock.Controller) *MockSSHManager {
-	mock := &MockSSHManager{ctrl: ctrl}
-	mock.recorder = &MockSSHManagerMockRecorder{mock}
-	return mock
-}
+// // MockSSHManagerMockRecorder is the mock recorder for MockSSHManager
+// type MockSSHManagerMockRecorder struct {
+// 	mock *MockSSHManager
+// }
 
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockSSHManager) EXPECT() *MockSSHManagerMockRecorder {
-	return m.recorder
-}
+// // NewMockSSHManager creates a new mock instance
+// func NewMockSSHManager(ctrl *gomock.Controller) *MockSSHManager {
+// 	mock := &MockSSHManager{ctrl: ctrl}
+// 	mock.recorder = &MockSSHManagerMockRecorder{mock}
+// 	return mock
+// }
 
-// GenerateKey mocks base method
-func (m *MockSSHManager) GenerateKey() (core.Key, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateKey")
-	ret0, _ := ret[0].(core.Key)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
+// // EXPECT returns an object that allows the caller to indicate expected use
+// func (m *MockSSHManager) EXPECT() *MockSSHManagerMockRecorder {
+// 	return m.recorder
+// }
 
-// GenerateKey indicates an expected call of GenerateKey
-func (mr *MockSSHManagerMockRecorder) GenerateKey() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateKey", reflect.TypeOf((*MockSSHManager)(nil).GenerateKey))
-}
+// // GenerateKey mocks base method
+// func (m *MockSSHManager) GenerateKey() (ssh.Key, error) {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "GenerateKey")
+// 	ret0, _ := ret[0].(core.Key)
+// 	ret1, _ := ret[1].(error)
+// 	return ret0, ret1
+// }
 
-// GetKeyByPub mocks base method
-func (m *MockSSHManager) GetKeyByPub(pubKey string) (core.Key, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetKeyByPub", pubKey)
-	ret0, _ := ret[0].(core.Key)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
+// // GenerateKey indicates an expected call of GenerateKey
+// func (mr *MockSSHManagerMockRecorder) GenerateKey() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateKey", reflect.TypeOf((*MockSSHManager)(nil).GenerateKey))
+// }
 
-// GetKeyByPub indicates an expected call of GetKeyByPub
-func (mr *MockSSHManagerMockRecorder) GetKeyByPub(pubKey interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeyByPub", reflect.TypeOf((*MockSSHManager)(nil).GetKeyByPub), pubKey)
-}
+// // GetKeyByPub mocks base method
+// func (m *MockSSHManager) GetKeyByPub(pubKey string) (core.Key, error) {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "GetKeyByPub", pubKey)
+// 	ret0, _ := ret[0].(core.Key)
+// 	ret1, _ := ret[1].(error)
+// 	return ret0, ret1
+// }
 
-// NewKeyFromSeed mocks base method
-func (m *MockSSHManager) NewKeyFromSeed(seed []byte) (core.Key, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewKeyFromSeed", seed)
-	ret0, _ := ret[0].(core.Key)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
+// // GetKeyByPub indicates an expected call of GetKeyByPub
+// func (mr *MockSSHManagerMockRecorder) GetKeyByPub(pubKey interface{}) *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeyByPub", reflect.TypeOf((*MockSSHManager)(nil).GetKeyByPub), pubKey)
+// }
 
-// NewKeyFromSeed indicates an expected call of NewKeyFromSeed
-func (mr *MockSSHManagerMockRecorder) NewKeyFromSeed(seed interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewKeyFromSeed", reflect.TypeOf((*MockSSHManager)(nil).NewKeyFromSeed), seed)
-}
+// // NewKeyFromSeed mocks base method
+// func (m *MockSSHManager) NewKeyFromSeed(seed []byte) (core.Key, error) {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "NewKeyFromSeed", seed)
+// 	ret0, _ := ret[0].(core.Key)
+// 	ret1, _ := ret[1].(error)
+// 	return ret0, ret1
+// }
 
-// NewAuthFromKeyFile mocks base method
-func (m *MockSSHManager) NewAuthFromKeyFile(keyPath string) (ssh.AuthMethod, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewAuthFromKeyFile", keyPath)
-	ret0, _ := ret[0].(ssh.AuthMethod)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
+// // NewKeyFromSeed indicates an expected call of NewKeyFromSeed
+// func (mr *MockSSHManagerMockRecorder) NewKeyFromSeed(seed interface{}) *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewKeyFromSeed", reflect.TypeOf((*MockSSHManager)(nil).NewKeyFromSeed), seed)
+// }
 
-// NewAuthFromKeyFile indicates an expected call of NewAuthFromKeyFile
-func (mr *MockSSHManagerMockRecorder) NewAuthFromKeyFile(keyPath interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAuthFromKeyFile", reflect.TypeOf((*MockSSHManager)(nil).NewAuthFromKeyFile), keyPath)
-}
+// // NewAuthFromKeyFile mocks base method
+// func (m *MockSSHManager) NewAuthFromKeyFile(keyPath string) (ssh.AuthMethod, error) {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "NewAuthFromKeyFile", keyPath)
+// 	ret0, _ := ret[0].(ssh.AuthMethod)
+// 	ret1, _ := ret[1].(error)
+// 	return ret0, ret1
+// }
 
-// MockKey is a mock of Key interface
-type MockKey struct {
-	ctrl     *gomock.Controller
-	recorder *MockKeyMockRecorder
-}
+// // NewAuthFromKeyFile indicates an expected call of NewAuthFromKeyFile
+// func (mr *MockSSHManagerMockRecorder) NewAuthFromKeyFile(keyPath interface{}) *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAuthFromKeyFile", reflect.TypeOf((*MockSSHManager)(nil).NewAuthFromKeyFile), keyPath)
+// }
 
-// MockKeyMockRecorder is the mock recorder for MockKey
-type MockKeyMockRecorder struct {
-	mock *MockKey
-}
+// // MockKey is a mock of Key interface
+// type MockKey struct {
+// 	ctrl     *gomock.Controller
+// 	recorder *MockKeyMockRecorder
+// }
 
-// NewMockKey creates a new mock instance
-func NewMockKey(ctrl *gomock.Controller) *MockKey {
-	mock := &MockKey{ctrl: ctrl}
-	mock.recorder = &MockKeyMockRecorder{mock}
-	return mock
-}
+// // MockKeyMockRecorder is the mock recorder for MockKey
+// type MockKeyMockRecorder struct {
+// 	mock *MockKey
+// }
 
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockKey) EXPECT() *MockKeyMockRecorder {
-	return m.recorder
-}
+// // NewMockKey creates a new mock instance
+// func NewMockKey(ctrl *gomock.Controller) *MockKey {
+// 	mock := &MockKey{ctrl: ctrl}
+// 	mock.recorder = &MockKeyMockRecorder{mock}
+// 	return mock
+// }
 
-// Public mocks base method
-func (m *MockKey) Public() []byte {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Public")
-	ret0, _ := ret[0].([]byte)
-	return ret0
-}
+// // EXPECT returns an object that allows the caller to indicate expected use
+// func (m *MockKey) EXPECT() *MockKeyMockRecorder {
+// 	return m.recorder
+// }
 
-// Public indicates an expected call of Public
-func (mr *MockKeyMockRecorder) Public() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Public", reflect.TypeOf((*MockKey)(nil).Public))
-}
+// // Public mocks base method
+// func (m *MockKey) Public() []byte {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "Public")
+// 	ret0, _ := ret[0].([]byte)
+// 	return ret0
+// }
 
-// PublicWG mocks base method
-func (m *MockKey) PublicWG() wgtypes.Key {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PublicWG")
-	ret0, _ := ret[0].(wgtypes.Key)
-	return ret0
-}
+// // Public indicates an expected call of Public
+// func (mr *MockKeyMockRecorder) Public() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Public", reflect.TypeOf((*MockKey)(nil).Public))
+// }
 
-// PublicWG indicates an expected call of PublicWG
-func (mr *MockKeyMockRecorder) PublicWG() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublicWG", reflect.TypeOf((*MockKey)(nil).PublicWG))
-}
+// // PublicWG mocks base method
+// func (m *MockKey) PublicWG() wgtypes.Key {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "PublicWG")
+// 	ret0, _ := ret[0].(wgtypes.Key)
+// 	return ret0
+// }
 
-// Seed mocks base method
-func (m *MockKey) Seed() []byte {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Seed")
-	ret0, _ := ret[0].([]byte)
-	return ret0
-}
+// // PublicWG indicates an expected call of PublicWG
+// func (mr *MockKeyMockRecorder) PublicWG() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublicWG", reflect.TypeOf((*MockKey)(nil).PublicWG))
+// }
 
-// Seed indicates an expected call of Seed
-func (mr *MockKeyMockRecorder) Seed() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Seed", reflect.TypeOf((*MockKey)(nil).Seed))
-}
+// // Seed mocks base method
+// func (m *MockKey) Seed() []byte {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "Seed")
+// 	ret0, _ := ret[0].([]byte)
+// 	return ret0
+// }
 
-// EncodePrivateKeytoPEM mocks base method
-func (m *MockKey) EncodePrivateKeytoPEM() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EncodePrivateKeytoPEM")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
+// // Seed indicates an expected call of Seed
+// func (mr *MockKeyMockRecorder) Seed() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Seed", reflect.TypeOf((*MockKey)(nil).Seed))
+// }
 
-// EncodePrivateKeytoPEM indicates an expected call of EncodePrivateKeytoPEM
-func (mr *MockKeyMockRecorder) EncodePrivateKeytoPEM() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncodePrivateKeytoPEM", reflect.TypeOf((*MockKey)(nil).EncodePrivateKeytoPEM))
-}
+// // EncodePrivateKeytoPEM mocks base method
+// func (m *MockKey) EncodePrivateKeytoPEM() string {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "EncodePrivateKeytoPEM")
+// 	ret0, _ := ret[0].(string)
+// 	return ret0
+// }
 
-// SSHAuth mocks base method
-func (m *MockKey) SSHAuth() ssh.AuthMethod {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SSHAuth")
-	ret0, _ := ret[0].(ssh.AuthMethod)
-	return ret0
-}
+// // EncodePrivateKeytoPEM indicates an expected call of EncodePrivateKeytoPEM
+// func (mr *MockKeyMockRecorder) EncodePrivateKeytoPEM() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncodePrivateKeytoPEM", reflect.TypeOf((*MockKey)(nil).EncodePrivateKeytoPEM))
+// }
 
-// SSHAuth indicates an expected call of SSHAuth
-func (mr *MockKeyMockRecorder) SSHAuth() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHAuth", reflect.TypeOf((*MockKey)(nil).SSHAuth))
-}
+// // SSHAuth mocks base method
+// func (m *MockKey) SSHAuth() ssh.AuthMethod {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "SSHAuth")
+// 	ret0, _ := ret[0].(ssh.AuthMethod)
+// 	return ret0
+// }
 
-// AuthorizedKey mocks base method
-func (m *MockKey) AuthorizedKey() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AuthorizedKey")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
+// // SSHAuth indicates an expected call of SSHAuth
+// func (mr *MockKeyMockRecorder) SSHAuth() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHAuth", reflect.TypeOf((*MockKey)(nil).SSHAuth))
+// }
 
-// AuthorizedKey indicates an expected call of AuthorizedKey
-func (mr *MockKeyMockRecorder) AuthorizedKey() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizedKey", reflect.TypeOf((*MockKey)(nil).AuthorizedKey))
-}
+// // AuthorizedKey mocks base method
+// func (m *MockKey) AuthorizedKey() string {
+// 	m.ctrl.T.Helper()
+// 	ret := m.ctrl.Call(m, "AuthorizedKey")
+// 	ret0, _ := ret[0].(string)
+// 	return ret0
+// }
 
-// Save mocks base method
-func (m *MockKey) Save() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Save")
-}
+// // AuthorizedKey indicates an expected call of AuthorizedKey
+// func (mr *MockKeyMockRecorder) AuthorizedKey() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizedKey", reflect.TypeOf((*MockKey)(nil).AuthorizedKey))
+// }
 
-// Save indicates an expected call of Save
-func (mr *MockKeyMockRecorder) Save() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockKey)(nil).Save))
-}
+// // Save mocks base method
+// func (m *MockKey) Save() {
+// 	m.ctrl.T.Helper()
+// 	m.ctrl.Call(m, "Save")
+// }
+
+// // Save indicates an expected call of Save
+// func (mr *MockKeyMockRecorder) Save() *gomock.Call {
+// 	mr.mock.ctrl.T.Helper()
+// 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockKey)(nil).Save))
+// }

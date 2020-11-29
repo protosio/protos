@@ -207,7 +207,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 
 	// create app environment variables
 
-	envvars := []*pb.KeyValue{&pb.KeyValue{Key: "APPID", Value: appID}}
+	envvars := []*pb.KeyValue{{Key: "APPID", Value: appID}}
 	for k, v := range installerParams {
 		envvars = append(envvars, &pb.KeyValue{Key: k, Value: v})
 	}
@@ -361,7 +361,7 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]core.PlatformImage, er
 	return images, nil
 }
 
-func (cdp *containerdPlatform) PullImage(task core.Task, id string, name string, version string) error {
+func (cdp *containerdPlatform) PullImage(id string, name string, version string) error {
 	repoImage := cdp.appStoreHost + "/" + id
 	piRequest := &pb.PullImageRequest{
 		Image: &pb.ImageSpec{Image: repoImage},

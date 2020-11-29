@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/app"
 
 	"github.com/gorilla/websocket"
 )
@@ -42,7 +42,7 @@ var removeWSQueue = make(chan *wsConnection, 100)
 //
 
 // WSManager is the WS connection manager that owns the WS connection data
-func WSManager(am core.AppManager, quit chan bool, wsfrontend chan interface{}) {
+func WSManager(am *app.Manager, quit chan bool, wsfrontend chan interface{}) {
 	log.WithField("proc", "wsmanager").Info("Starting the WS connection manager")
 
 	for {
@@ -157,8 +157,8 @@ func wsInternal(ha handlerAccess) http.Handler {
 		}
 
 		ctx := r.Context()
-		appInstance := ctx.Value(appKey).(core.App)
-		msgq := &core.WSConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
+		appInstance := ctx.Value(appKey).(*app.App)
+		msgq := &app.WSConnection{Send: make(chan interface{}, 100), Close: make(chan bool, 1)}
 		appInstance.SetMsgQ(msgq)
 
 		remoteQuit := make(chan bool, 1)

@@ -13,10 +13,10 @@ import (
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
@@ -37,27 +37,27 @@ var version *semver.Version
 
 // Env is a struct that containts program dependencies that get injected in other modules
 type Env struct {
-	DB  core.DB
-	CM  core.CapabilityManager
+	DB  db.DB
+	CM  *capability.Manager
 	CLM cloud.CloudManager
-	UM  core.UserManager
-	SM  core.SSHManager
-	VPN core.VPN
-	AS  core.AppStore
-	AM  core.AppManager
+	UM  *auth.UserManager
+	SM  *ssh.Manager
+	VPN *vpn.VPN
+	AS  *installer.AppStore
+	AM  *app.Manager
 	Log *logrus.Entry
 }
 
 // NewEnv creates and returns an instance of Env
 func NewEnv(
-	db core.DB,
-	capm core.CapabilityManager,
+	db db.DB,
+	capm *capability.Manager,
 	clm cloud.CloudManager,
-	um core.UserManager,
-	sm core.SSHManager,
-	vpn core.VPN,
-	as core.AppStore,
-	am core.AppManager,
+	um *auth.UserManager,
+	sm *ssh.Manager,
+	vpn *vpn.VPN,
+	as *installer.AppStore,
+	am *app.Manager,
 	log *logrus.Entry) *Env {
 
 	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || log == nil {
@@ -210,16 +210,24 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 	pub := &publisher{pubchan: make(chan interface{}, 100)}
 
 	// create various managers
-
+	rm := resource.CreateManager(dbi)
+	m := meta.SetupForClient(rm, dbi, version.String())
 	sm := ssh.CreateManager(dbi)
 	capm := capability.CreateManager()
 	rp := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, wgtypes.Key{})
 	tm := task.CreateManager(dbi, pub)
 	as := installer.CreateAppStore(rp, tm, capm)
 	um := auth.CreateUserManager(dbi, sm, capm)
-	clm := cloud.CreateManager(dbi, um, sm)
-	rm := resource.CreateManager(dbi)
-	m := meta.SetupForClient(rm, dbi, version.String())
+
+	key, err := m.GetKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+	p2pManager, err := p2p.NewManager(10500, key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	clm := cloud.CreateManager(dbi, um, sm, p2pManager)
 	am := app.CreateManager(rm, tm, rp, dbi, m, pub, as, capm)
 	vpn, err := vpn.New(dbi, um, clm)
 	if err != nil {

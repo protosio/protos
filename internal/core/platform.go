@@ -23,7 +23,7 @@ type RuntimePlatform interface {
 	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
 	GetImage(id string) (PlatformImage, error)
 	GetAllImages() (map[string]PlatformImage, error)
-	PullImage(task Task, id string, name string, version string) error
+	PullImage(id string, name string, version string) error
 	RemoveImage(id string) error
 	GetOrCreateVolume(id string, path string) (string, error)
 	RemoveVolume(id string) error

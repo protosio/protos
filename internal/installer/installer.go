@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver"
+	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/task"
 
 	"github.com/protosio/protos/internal/config"
 
@@ -24,19 +26,32 @@ var log = util.GetLogger("installer")
 
 type installerParent interface {
 	getPlatform() core.RuntimePlatform
-	getTaskManager() core.TaskManager
+	getTaskManager() *task.Manager
+}
+
+// InstallerMetadata holds metadata for the installer
+type InstallerMetadata struct {
+	Params          []string    `json:"params"`
+	Provides        []string    `json:"provides"`
+	Requires        []string    `json:"requires"`
+	PublicPorts     []util.Port `json:"publicports"`
+	Description     string      `json:"description"`
+	PlatformID      string      `json:"platformid"`
+	PlatformType    string      `json:"platformtype"`
+	PersistancePath string      `json:"persistancepath"`
+	Capabilities    []string    `json:"capabilities"`
 }
 
 type localInstaller struct {
 	Installer
 	Versions map[string]struct {
-		core.InstallerMetadata
+		InstallerMetadata
 		Capabilities []map[string]string `json:"capabilities"`
 	} `json:"versions"`
 }
 
-func (li localInstaller) convert(as *AppStore) core.Installer {
-	li.Installer.Versions = map[string]core.InstallerMetadata{}
+func (li localInstaller) convert(as *AppStore) *Installer {
+	li.Installer.Versions = map[string]InstallerMetadata{}
 	for version, metadata := range li.Versions {
 		for _, cap := range metadata.Capabilities {
 			if capName, ok := cap["Name"]; ok {
@@ -48,13 +63,13 @@ func (li localInstaller) convert(as *AppStore) core.Installer {
 		li.Installer.Versions[version] = metadata.InstallerMetadata
 	}
 	li.Installer.parent = as
-	return li.Installer
+	return &li.Installer
 }
 
 type localInstallers map[string]localInstaller
 
-func (li localInstallers) convert(as *AppStore) map[string]core.Installer {
-	installers := map[string]core.Installer{}
+func (li localInstallers) convert(as *AppStore) map[string]*Installer {
+	installers := map[string]*Installer{}
 	for id, inst := range li {
 		installers[id] = inst.convert(as)
 	}
@@ -63,22 +78,22 @@ func (li localInstallers) convert(as *AppStore) map[string]core.Installer {
 
 // Installer represents an application installer
 type Installer struct {
-	Name      string                            `json:"name"`
-	ID        string                            `json:"id"`
-	Thumbnail string                            `json:"thumbnail,omitempty"`
-	Versions  map[string]core.InstallerMetadata `json:"versions"`
+	Name      string                       `json:"name"`
+	ID        string                       `json:"id"`
+	Thumbnail string                       `json:"thumbnail,omitempty"`
+	Versions  map[string]InstallerMetadata `json:"versions"`
 	parent    installerParent
 }
 
 // AppStore manages and downloads application installers
 type AppStore struct {
 	rp core.RuntimePlatform
-	tm core.TaskManager
-	cm core.CapabilityManager
+	tm *task.Manager
+	cm *capability.Manager
 }
 
 // CreateAppStore creates and returns an app store instance
-func CreateAppStore(rp core.RuntimePlatform, tm core.TaskManager, cm core.CapabilityManager) *AppStore {
+func CreateAppStore(rp core.RuntimePlatform, tm *task.Manager, cm *capability.Manager) *AppStore {
 	if rp == nil || tm == nil || cm == nil {
 		log.Panic("Failed to create AppStore: none of the inputs can be nil")
 	}
@@ -86,7 +101,7 @@ func CreateAppStore(rp core.RuntimePlatform, tm core.TaskManager, cm core.Capabi
 	return &AppStore{rp: rp, tm: tm, cm: cm}
 }
 
-func validateInstallerCapabilities(cm core.CapabilityManager, capstring string) []string {
+func validateInstallerCapabilities(cm *capability.Manager, capstring string) []string {
 	caps := []string{}
 	for _, capname := range strings.Split(capstring, ",") {
 		_, err := cm.GetByName(capname)
@@ -131,9 +146,9 @@ func parsePublicPorts(publicports string) []util.Port {
 }
 
 // parseMetadata parses the image metadata from the image labels
-func parseMetadata(cm core.CapabilityManager, labels map[string]string) (core.InstallerMetadata, error) {
+func parseMetadata(cm *capability.Manager, labels map[string]string) (InstallerMetadata, error) {
 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
-	metadata := core.InstallerMetadata{}
+	metadata := InstallerMetadata{}
 	for label, value := range labels {
 		labelParts := r.FindStringSubmatch(label)
 		if len(labelParts) == 3 {
@@ -170,8 +185,8 @@ func (inst Installer) GetName() string {
 }
 
 // GetMetadata returns the metadata for a specific installer version
-func (inst Installer) GetMetadata(version string) (core.InstallerMetadata, error) {
-	var metadata core.InstallerMetadata
+func (inst Installer) GetMetadata(version string) (InstallerMetadata, error) {
+	var metadata InstallerMetadata
 	var found bool
 
 	if metadata, found = inst.Versions[version]; found == false {
@@ -188,7 +203,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 	}
 
 	log.Infof("Downloading image '%s' for installer '%s'(%s) version '%s'", metadata.PlatformID, inst.Name, inst.ID, dt.Version)
-	err = inst.parent.getPlatform().PullImage(dt.b, metadata.PlatformID, inst.Name, dt.Version)
+	err = inst.parent.getPlatform().PullImage(metadata.PlatformID, inst.Name, dt.Version)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
 	}
@@ -196,7 +211,7 @@ func (inst Installer) Download(dt DownloadTask) error {
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task
-func (inst Installer) DownloadAsync(version string, appID string) core.Task {
+func (inst Installer) DownloadAsync(version string, appID string) *task.Base {
 	return inst.parent.getTaskManager().New("Download application installer", &DownloadTask{Inst: inst, Version: version, AppID: appID})
 }
 
@@ -261,8 +276,8 @@ var getHTTPClient = func() httpClient {
 }
 
 // GetInstallers returns all installers from the application store
-func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
-	installers := map[string]core.Installer{}
+func (as *AppStore) GetInstallers() (map[string]*Installer, error) {
+	installers := map[string]*Installer{}
 	localInstallers := localInstallers{}
 
 	client := getHTTPClient()
@@ -288,7 +303,7 @@ func (as *AppStore) GetInstallers() (map[string]core.Installer, error) {
 }
 
 // GetInstaller returns a single installer based on its id
-func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
+func (as *AppStore) GetInstaller(id string) (*Installer, error) {
 	localInstaller := localInstaller{}
 	client := getHTTPClient()
 	url := fmt.Sprintf("%s/api/v1/installers/%s", gconfig.AppStoreURL, id)
@@ -312,8 +327,8 @@ func (as *AppStore) GetInstaller(id string) (core.Installer, error) {
 }
 
 // Search takes a map of search terms and performs a search on the app store
-func (as *AppStore) Search(key string, value string) (map[string]core.Installer, error) {
-	installers := map[string]core.Installer{}
+func (as *AppStore) Search(key string, value string) (map[string]*Installer, error) {
+	installers := map[string]*Installer{}
 	localInstallers := localInstallers{}
 
 	client := getHTTPClient()
@@ -345,6 +360,6 @@ func (as *AppStore) getPlatform() core.RuntimePlatform {
 	return as.rp
 }
 
-func (as *AppStore) getTaskManager() core.TaskManager {
+func (as *AppStore) getTaskManager() *task.Manager {
 	return as.tm
 }

@@ -6,7 +6,10 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/task"
 
 	"github.com/protosio/protos/internal/util"
 )
@@ -32,9 +35,15 @@ type appParent interface {
 	Remove(appID string) error
 	saveApp(app *App)
 	getPlatform() core.RuntimePlatform
-	getTaskManager() core.TaskManager
+	getTaskManager() *task.Manager
 	getResourceManager() core.ResourceManager
-	getCapabilityManager() core.CapabilityManager
+	getCapabilityManager() *capability.Manager
+}
+
+// WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
+type WSConnection struct {
+	Send  chan interface{}
+	Close chan bool
 }
 
 // Config the application config
@@ -47,26 +56,26 @@ type Config struct {
 
 // App represents the application state
 type App struct {
-	access *sync.Mutex        `noms:"-"`
-	parent appParent          `noms:"-"`
-	msgq   *core.WSConnection `noms:"-"`
+	access *sync.Mutex   `noms:"-"`
+	parent appParent     `noms:"-"`
+	msgq   *WSConnection `noms:"-"`
 
 	// Public members
-	Name              string                 `json:"name"`
-	ID                string                 `json:"id"`
-	InstallerID       string                 `json:"installer-id"`
-	InstallerVersion  string                 `json:"installer-version"`
-	InstallerMetadata core.InstallerMetadata `json:"installer-metadata"`
-	ContainerID       string                 `json:"container-id"`
-	VolumeID          string                 `json:"volumeid"`
-	Status            string                 `json:"status"`
-	Actions           []string               `json:"actions"`
-	IP                string                 `json:"ip"`
-	PublicPorts       []util.Port            `json:"publicports"`
-	InstallerParams   map[string]string      `json:"installer-params"`
-	Capabilities      []string               `json:"capabilities"`
-	Resources         []string               `json:"resources"`
-	Tasks             []string               `json:"tasks"`
+	Name              string                      `json:"name"`
+	ID                string                      `json:"id"`
+	InstallerID       string                      `json:"installer-id"`
+	InstallerVersion  string                      `json:"installer-version"`
+	InstallerMetadata installer.InstallerMetadata `json:"installer-metadata"`
+	ContainerID       string                      `json:"container-id"`
+	VolumeID          string                      `json:"volumeid"`
+	Status            string                      `json:"status"`
+	Actions           []string                    `json:"actions"`
+	IP                string                      `json:"ip"`
+	PublicPorts       []util.Port                 `json:"publicports"`
+	InstallerParams   map[string]string           `json:"installer-params"`
+	Capabilities      []string                    `json:"capabilities"`
+	Resources         []string                    `json:"resources"`
+	Tasks             []string                    `json:"tasks"`
 }
 
 //
@@ -85,7 +94,7 @@ func validateInstallerParams(paramsProvided map[string]string, paramsExpected []
 	return nil
 }
 
-func createCapabilities(cm core.CapabilityManager, installerCapabilities []string) []string {
+func createCapabilities(cm *capability.Manager, installerCapabilities []string) []string {
 	caps := []string{}
 	for _, cap := range installerCapabilities {
 		cap, err := cm.GetByName(cap)
@@ -131,7 +140,7 @@ func (app *App) GetVersion() string {
 }
 
 // AddAction performs an action on an application
-func (app *App) AddAction(action string) (core.Task, error) {
+func (app *App) AddAction(action string) (*task.Base, error) {
 	log.Info("Performing action [", action, "] on application ", app.Name, "[", app.ID, "]")
 
 	switch action {
@@ -223,7 +232,7 @@ func (app *App) enrichAppData() {
 }
 
 // StartAsync asynchronously starts an application and returns a task
-func (app *App) StartAsync() core.Task {
+func (app *App) StartAsync() *task.Base {
 	return app.parent.getTaskManager().New("Start application", &StartAppTask{app: app})
 }
 
@@ -247,7 +256,7 @@ func (app *App) Start() error {
 }
 
 // StopAsync asynchronously stops an application and returns a task
-func (app *App) StopAsync() core.Task {
+func (app *App) StopAsync() *task.Base {
 	return app.parent.getTaskManager().New("Stop application", &StopAppTask{app: app})
 }
 
@@ -348,7 +357,7 @@ func (app *App) GetIP() string {
 //
 
 // SetMsgQ sets the channel that can be used to send WS messages to the app
-func (app *App) SetMsgQ(msgq *core.WSConnection) {
+func (app *App) SetMsgQ(msgq *WSConnection) {
 	app.access.Lock()
 	app.msgq = msgq
 	id := app.ID
@@ -450,7 +459,7 @@ func (app *App) GetResource(resourceID string) (core.Resource, error) {
 }
 
 // ValidateCapability implements the capability checker interface
-func (app *App) ValidateCapability(cap core.Capability) error {
+func (app *App) ValidateCapability(cap *capability.Capability) error {
 	for _, capName := range app.Capabilities {
 		if app.parent.getCapabilityManager().Validate(cap, capName) {
 			return nil

@@ -1,21 +1,21 @@
 package installer
 
 import (
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/task"
 
 	"github.com/pkg/errors"
 )
 
 // DownloadTask downloads and installer and conforms to the task interface
 type DownloadTask struct {
-	b       core.Task
+	b       *task.Base
 	Inst    Installer
 	AppID   string
 	Version string
 }
 
 // Run starts the async task
-func (t *DownloadTask) Run(parent core.Task, tskID string, p core.Progress) error {
+func (t *DownloadTask) Run(parent *task.Base, tskID string, p task.Progrs) error {
 	t.b = parent
 	t.b.SetKillable()
 

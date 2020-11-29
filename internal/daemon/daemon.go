@@ -19,6 +19,7 @@ import (
 	"github.com/protosio/protos/internal/dns"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/provider"
 	"github.com/protosio/protos/internal/resource"
@@ -76,16 +77,25 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 
 	// create all the managers
 	rm := resource.CreateManager(dbcli)
-	m := meta.Setup(rm, dbcli, version.String())
-	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, m.GetKey())
-	cm := capability.CreateManager()
 	sm := ssh.CreateManager(dbcli)
+	m := meta.Setup(rm, dbcli, sm, version.String())
+	key, err := m.GetKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, key.PrivateWG())
+	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm)
 	tm := task.CreateManager(dbcli, pub)
 	as := installer.CreateAppStore(p, tm, cm)
 	am := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, am, dbcli)
-	_ = cloud.CreateManager(dbcli, um, sm)
+
+	p2pManager, err := p2p.NewManager(10500, key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = cloud.CreateManager(dbcli, um, sm, p2pManager)
 
 	// check init and dev mode
 

@@ -16,7 +16,6 @@ import (
 	"github.com/attic-labs/noms/go/util/clienttest"
 	"github.com/attic-labs/noms/go/util/status"
 	"github.com/dustin/go-humanize"
-	"github.com/protosio/protos/internal/core"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -40,7 +39,7 @@ func since(start time.Time) string {
 }
 
 // Open opens a noms database on the provided path
-func Open(protosDir string, protosDB string) (core.DB, error) {
+func Open(protosDir string, protosDB string) (DB, error) {
 	dbpath := path.Join(protosDir, protosDB)
 	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
 		err := os.Mkdir(dbpath, 0755)
@@ -77,6 +76,20 @@ func Open(protosDir string, protosDB string) (core.DB, error) {
 	}
 
 	return &dbNoms{dbn: db, cs: cs, sharedDatasets: map[string]bool{}}, nil
+}
+
+// DB represents a DB client instance, used to interract with the database
+type DB interface {
+	SaveStruct(dataset string, data interface{}) error
+	GetStruct(dataset string, to interface{}) error
+	InitMap(dataset string, sync bool) error
+	GetMap(dataset string, to interface{}) error
+	InsertInMap(dataset string, id string, data interface{}) error
+	RemoveFromMap(dataset string, id string) error
+	SyncAll(ips []string) error
+	SyncTo(srcStore, dstStore datas.Database) error
+	SyncServer(address net.IP) (func() error, error)
+	Close() error
 }
 
 //

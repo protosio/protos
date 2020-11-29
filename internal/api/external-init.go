@@ -3,12 +3,14 @@ package api
 import (
 	"net/http"
 
+	"github.com/protosio/protos/internal/app"
+	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/core"
 
 	"github.com/pkg/errors"
 )
 
-var createExternalInitRoutes = func(cm core.CapabilityManager) routes {
+var createExternalInitRoutes = func(cm *capability.Manager) routes {
 	return routes{
 		route{
 			"getProtosResources",
@@ -48,7 +50,7 @@ func removeInitProvider(ha handlerAccess) http.Handler {
 			return
 		}
 
-		providerFilter := func(app core.App) bool {
+		providerFilter := func(app *app.App) bool {
 			return app.Provides(provides)
 		}
 

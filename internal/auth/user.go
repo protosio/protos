@@ -6,7 +6,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
 	"github.com/protosio/protos/pkg/types"
 
@@ -19,6 +21,13 @@ const (
 )
 
 var log = util.GetLogger("auth")
+
+type UserInfo struct {
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	IsAdmin  bool   `json:"isadmin"`
+	Domain   string `json:"domain"`
+}
 
 // User represents a Protos user
 type User struct {
@@ -50,7 +59,7 @@ func generatePasswordHash(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 
-func getUser(username string, db core.DB) (User, error) {
+func getUser(username string, db db.DB) (User, error) {
 	var users map[string]User
 	err := db.GetMap(authDS, &users)
 	if err != nil {
@@ -85,7 +94,7 @@ func (user *User) Save() error {
 }
 
 // ValidateCapability implements the capability checker interface
-func (user *User) ValidateCapability(cap core.Capability) error {
+func (user *User) ValidateCapability(cap *capability.Capability) error {
 	for _, usercap := range user.Capabilities {
 		if user.parent.cm.Validate(cap, usercap) {
 			return nil
@@ -107,8 +116,8 @@ func (user *User) IsAdmin() bool {
 }
 
 // GetInfo returns public information about a user
-func (user *User) GetInfo() core.UserInfo {
-	return core.UserInfo{
+func (user *User) GetInfo() UserInfo {
+	return UserInfo{
 		Username: user.Username,
 		Name:     user.Name,
 		IsAdmin:  user.IsAdmin(),
@@ -136,7 +145,7 @@ func (user *User) GetCurrentDevice() (types.UserDevice, error) {
 }
 
 // GetKeyCurrentDevice returns the private key for the current device
-func (user *User) GetKeyCurrentDevice() (core.Key, error) {
+func (user *User) GetKeyCurrentDevice() (*ssh.Key, error) {
 	dev, err := user.GetCurrentDevice()
 	if err != nil {
 		return nil, err
@@ -166,13 +175,13 @@ func (user *User) SetDomain(domain string) error {
 
 // UserManager implements the core.UserManager interface, which manages users
 type UserManager struct {
-	db core.DB
-	cm core.CapabilityManager
-	sm core.SSHManager
+	db db.DB
+	cm *capability.Manager
+	sm *ssh.Manager
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db core.DB, sm core.SSHManager, cm core.CapabilityManager) *UserManager {
+func CreateUserManager(db db.DB, sm *ssh.Manager, cm *capability.Manager) *UserManager {
 	if db == nil || sm == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
@@ -187,7 +196,7 @@ func CreateUserManager(db core.DB, sm core.SSHManager, cm core.CapabilityManager
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, password string, name string, domain string, isadmin bool, devices []types.UserDevice) (core.User, error) {
+func (um *UserManager) CreateUser(username string, password string, name string, domain string, isadmin bool, devices []types.UserDevice) (*User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {
@@ -219,7 +228,7 @@ func (um *UserManager) CreateUser(username string, password string, name string,
 }
 
 // ValidateAndGetUser takes a username and password and returns the full User struct if credentials are valid
-func (um *UserManager) ValidateAndGetUser(username string, password string) (core.User, error) {
+func (um *UserManager) ValidateAndGetUser(username string, password string) (*User, error) {
 	log.Debugf("Searching for username %s", username)
 
 	errInvalid := errors.New("Invalid credentials")
@@ -247,7 +256,7 @@ func (um *UserManager) ValidateAndGetUser(username string, password string) (cor
 }
 
 // GetUser returns a user based on the username
-func (um *UserManager) GetUser(username string) (core.User, error) {
+func (um *UserManager) GetUser(username string) (*User, error) {
 	errInvalid := errors.New("Invalid username")
 	user, err := getUser(username, um.db)
 	if err != nil {
@@ -259,7 +268,7 @@ func (um *UserManager) GetUser(username string) (core.User, error) {
 }
 
 // GetAdmin returns the admin username. Only one admin is allowed at the moment
-func (um *UserManager) GetAdmin() (core.User, error) {
+func (um *UserManager) GetAdmin() (*User, error) {
 	var users map[string]User
 	err := um.db.GetMap(authDS, &users)
 	if err != nil {
@@ -275,11 +284,7 @@ func (um *UserManager) GetAdmin() (core.User, error) {
 }
 
 // SetParent returns sets the parent (user manager) for a given user
-func (um *UserManager) SetParent(user core.User) (core.User, error) {
-	usr, ok := user.(*User)
-	if !ok {
-		return nil, errors.New("Failed to cast core.User to local type")
-	}
-	usr.parent = um
-	return usr, nil
+func (um *UserManager) SetParent(user *User) (*User, error) {
+	user.parent = um
+	return user, nil
 }

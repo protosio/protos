@@ -9,8 +9,11 @@ import (
 
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/ssh"
 	"github.com/tidwall/gjson"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+
+	// "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	"github.com/pkg/errors"
 
@@ -27,7 +30,8 @@ var gconfig = config.Get()
 // Meta contains information about the Protos instance
 type Meta struct {
 	rm                 core.ResourceManager `noms:"-"`
-	db                 core.DB              `noms:"-"`
+	db                 db.DB                `noms:"-"`
+	keymngr            *ssh.Manager         `noms:"-"`
 	version            string               `noms:"-"`
 	networkSetSignal   chan net.IP          `noms:"-"`
 	domainSetSignal    chan string          `noms:"-"`
@@ -42,7 +46,7 @@ type Meta struct {
 	Resources          []string
 	Network            net.IPNet
 	InternalIP         net.IP
-	PrivateKey         wgtypes.Key
+	PrivateKeySeed     []byte
 }
 
 type dnsResource interface {
@@ -51,8 +55,8 @@ type dnsResource interface {
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
-	if rm == nil || db == nil {
+func Setup(rm core.ResourceManager, db db.DB, keymngr *ssh.Manager, version string) *Meta {
+	if rm == nil || db == nil || keymngr == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
 
@@ -70,14 +74,14 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 		metaRoot.DashboardSubdomain = "protos"
 	}
 
-	if metaRoot.PrivateKey == [wgtypes.KeyLen]byte{} {
-		key, err := wgtypes.GeneratePrivateKey()
+	if len(metaRoot.PrivateKeySeed) == 0 {
+		key, err := keymngr.GenerateKey()
 		if err != nil {
 			log.Fatalf("Failed to generate instance key: ", err.Error())
 		}
-		metaRoot.PrivateKey = key
-		log.Infof("Generated instance key. Wireguard public key: '%s'", key.PublicKey().String())
-		err = ioutil.WriteFile("/tmp/protos_key.txt", []byte(key.PublicKey().String()), 0644)
+		metaRoot.PrivateKeySeed = key.Seed()
+		log.Infof("Generated instance key. Wireguard public key: '%s'", key.PublicWG().String())
+		err = ioutil.WriteFile("/tmp/protos_key.txt", []byte(key.PublicWG().String()), 0644)
 		if err != nil {
 			log.Fatalf("Failed to write public key to disk: ", err.Error())
 		}
@@ -85,6 +89,7 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 
 	metaRoot.db = db
 	metaRoot.rm = rm
+	metaRoot.keymngr = keymngr
 	metaRoot.version = version
 	metaRoot.networkSetSignal = make(chan net.IP, 1)
 	metaRoot.domainSetSignal = make(chan string, 1)
@@ -98,7 +103,7 @@ func Setup(rm core.ResourceManager, db core.DB, version string) *Meta {
 }
 
 // SetupForClient reads the domain and other information on first run and save this information to the database
-func SetupForClient(rm core.ResourceManager, db core.DB, version string) *Meta {
+func SetupForClient(rm core.ResourceManager, db db.DB, version string) *Meta {
 	if rm == nil || db == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
@@ -242,8 +247,12 @@ func (m *Meta) GetTLSCertificate() core.Resource {
 }
 
 // GetKey returns the private key of the instance, in wireguard format
-func (m *Meta) GetKey() wgtypes.Key {
-	return m.PrivateKey
+func (m *Meta) GetKey() (*ssh.Key, error) {
+	key, err := m.keymngr.NewKeyFromSeed(m.PrivateKeySeed)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 // CleanProtosResources removes the MX record resource owned by the instance, created during the init process

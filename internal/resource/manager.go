@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/db"
 
 	"github.com/cnf/structhash"
 	"github.com/pkg/errors"
@@ -19,7 +20,7 @@ const (
 type resourceContainer struct {
 	access *sync.Mutex
 	all    map[string]*Resource
-	db     core.DB
+	db     db.DB
 }
 
 // put saves an application into the application map
@@ -72,7 +73,7 @@ func (rc resourceContainer) copy() map[string]Resource {
 // Manager keeps track of all the resources
 type Manager struct {
 	resources resourceContainer
-	db        core.DB
+	db        db.DB
 }
 
 //
@@ -80,7 +81,7 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interface
-func CreateManager(db core.DB) *Manager {
+func CreateManager(db db.DB) *Manager {
 	if db == nil {
 		log.Panic("Failed to create  resource manager: none of the inputs can be nil")
 	}

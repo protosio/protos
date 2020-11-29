@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/db"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -17,12 +17,12 @@ const (
 
 // Manager keeps track of all the keys
 type Manager struct {
-	db core.DB
+	db db.DB
 }
 
 // GenerateKey generates a SSH key pair
-func (sm *Manager) GenerateKey() (core.Key, error) {
-	key := Key{parent: sm}
+func (sm *Manager) GenerateKey() (*Key, error) {
+	key := &Key{parent: sm}
 	var err error
 	key.Pub, key.Priv, err = ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -32,11 +32,11 @@ func (sm *Manager) GenerateKey() (core.Key, error) {
 }
 
 // GetKeyByPub returns a key that has the provided pubkey (base64 encoded)
-func (sm *Manager) GetKeyByPub(pubKey string) (core.Key, error) {
-	var keys map[string]Key
+func (sm *Manager) GetKeyByPub(pubKey string) (*Key, error) {
+	var keys map[string]*Key
 	err := sm.db.GetMap(sshDS, &keys)
 	if err != nil {
-		return Key{}, err
+		return nil, err
 	}
 
 	for _, k := range keys {
@@ -45,7 +45,7 @@ func (sm *Manager) GetKeyByPub(pubKey string) (core.Key, error) {
 			return k, nil
 		}
 	}
-	return Key{}, fmt.Errorf("Could not find key with pubkey '%s'", pubKey)
+	return nil, fmt.Errorf("Could not find key with pubkey '%s'", pubKey)
 }
 
 // NewAuthFromKeyFile takes a file path and returns an ssh authentication
@@ -65,8 +65,8 @@ func (sm *Manager) NewAuthFromKeyFile(keyPath string) (ssh.AuthMethod, error) {
 }
 
 // NewKeyFromSeed takes an ed25519 key seed and return a Key
-func (sm *Manager) NewKeyFromSeed(seed []byte) (core.Key, error) {
-	key := Key{}
+func (sm *Manager) NewKeyFromSeed(seed []byte) (*Key, error) {
+	key := &Key{}
 	if len(seed) != 32 {
 		return key, errors.Errorf("Can't create key from seed. Seed has incorrect length: %d bytes", len(seed))
 	}
@@ -79,7 +79,7 @@ func (sm *Manager) NewKeyFromSeed(seed []byte) (core.Key, error) {
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interface
-func CreateManager(db core.DB) *Manager {
+func CreateManager(db db.DB) *Manager {
 	if db == nil {
 		log.Panic("Failed to create resource manager: none of the inputs can be nil")
 	}

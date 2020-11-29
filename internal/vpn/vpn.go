@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/foxcpp/wirebox/linkmgr"
+	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/db"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -21,7 +22,7 @@ type instanceGetter interface {
 
 type VPN struct {
 	nm linkmgr.Manager
-	um core.UserManager
+	um *auth.UserManager
 	cm cloud.CloudManager
 }
 
@@ -159,7 +160,7 @@ func (vpn *VPN) Stop() error {
 	return nil
 }
 
-func New(db core.DB, um core.UserManager, cm cloud.CloudManager) (*VPN, error) {
+func New(db db.DB, um *auth.UserManager, cm cloud.CloudManager) (*VPN, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
 		return nil, err

@@ -3,7 +3,6 @@ package p2p
 import (
 	"bufio"
 	"context"
-	"crypto/ed25519"
 	"fmt"
 	"io/ioutil"
 	"time"
@@ -19,6 +18,7 @@ import (
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -62,30 +62,10 @@ func (p2p *P2P) Listen() error {
 }
 
 // Connect to a p2p node
-func (p2p *P2P) Connect(dest string) error {
-	log.Info("Starting client")
+func (p2p *P2P) Connect(id string) error {
+	log.Infof("Connecting to peer ID '%s'", id)
 
-	// pubKey, err := crypto.UnmarshalEd25519PublicKey([]byte(pubKeyString))
-	// if err != nil {
-	// 	return fmt.Errorf("Failed to unmarshall pub key: %w", err)
-	// }
-
-	// pid, err := peer.IDFromPublicKey(pubKey)
-	// if err != nil {
-	// 	return fmt.Errorf("Failed to get ID from pub key: %w", err)
-	// }
-
-	maddr, err := multiaddr.NewMultiaddr(dest)
-	if err != nil {
-		return fmt.Errorf("Failed to create multi address: %w", err)
-	}
-
-	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
-	if err != nil {
-		return fmt.Errorf("Failed to extrat info from address: %w", err)
-	}
-
-	str, err := p2p.host.NewStream(context.Background(), peerInfo.ID, syncProtocolID)
+	str, err := p2p.host.NewStream(context.Background(), peer.ID(id), syncProtocolID)
 	if err != nil {
 		return fmt.Errorf("Failed to start stream: %w", err)
 	}
@@ -105,36 +85,27 @@ func (p2p *P2P) Connect(dest string) error {
 }
 
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(pubKeyString string, dest string) error {
-	maddr, err := multiaddr.NewMultiaddr(dest)
+func (p2p *P2P) AddPeer(pubKeyString string, dest string) (string, error) {
+	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", dest, pubKeyString)
+	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
-		return fmt.Errorf("Failed to create multi address: %w", err)
+		return "", fmt.Errorf("Failed to create multi address: %w", err)
 	}
 
 	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
 	if err != nil {
-		return fmt.Errorf("Failed to extrat info from address: %w", err)
+		return "", fmt.Errorf("Failed to extrat info from address: %w", err)
 	}
 
-	// pubKey, err := crypto.UnmarshalEd25519PublicKey([]byte(pubKeyString))
-	// if err != nil {
-	// 	return err
-	// }
-
-	// pid, err := peer.IDFromPublicKey(pubKey)
-	// if err != nil {
-	// 	return err
-	// }
-
 	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.PermanentAddrTTL)
-	return nil
+	return string(peerInfo.ID), nil
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(port int, privKey ed25519.PrivateKey) (*P2P, error) {
+func NewManager(port int, key *ssh.Key) (*P2P, error) {
 	p2p := &P2P{}
 
-	prvKey, err := crypto.UnmarshalEd25519PrivateKey(privKey)
+	prvKey, err := crypto.UnmarshalEd25519PrivateKey(key.Private())
 	if err != nil {
 		return p2p, err
 	}

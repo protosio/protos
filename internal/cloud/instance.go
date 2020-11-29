@@ -2,6 +2,8 @@ package cloud
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
@@ -11,7 +13,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/core"
+	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
@@ -119,9 +123,10 @@ func AllocateNetwork(instances []InstanceInfo, devices []types.UserDevice) (net.
 
 // Manager manages cloud providers and instances
 type Manager struct {
-	db core.DB
-	um core.UserManager
-	sm core.SSHManager
+	db  db.DB
+	um  *auth.UserManager
+	sm  *ssh.Manager
+	p2p *p2p.P2P
 }
 
 //
@@ -344,12 +349,21 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, err
 	}
 
-	_, err = ssh.ExecuteCommand("cat /tmp/protos_key.txt", sshCon)
+	pubKeyStr, err := ssh.ExecuteCommand("cat /tmp/protos_key.txt", sshCon)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
 
+	var pubKey ed25519.PublicKey
+	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("Failed to decode public key: %w", err)
+	}
+	instanceInfo.PublicKey = pubKey
+
 	// FIXME: do initialisation via p2p
+
+	cm.p2p.AddPeer(pubKeyStr, "asas")
 
 	// // do the initialization
 	// log.Infof("Initializing instance '%s'", instanceName)
@@ -661,8 +675,8 @@ func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
 }
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db core.DB, um core.UserManager, sm core.SSHManager) *Manager {
-	if db == nil || um == nil || sm == nil {
+func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P) *Manager {
+	if db == nil || um == nil || sm == nil || p2p == nil {
 		log.Panic("Failed to create cloud manager: none of the inputs can be nil")
 	}
 
@@ -676,5 +690,5 @@ func CreateManager(db core.DB, um core.UserManager, sm core.SSHManager) *Manager
 		log.Fatal("Failed to initialize cloud dataset: ", err)
 	}
 
-	return &Manager{db: db, um: um, sm: sm}
+	return &Manager{db: db, um: um, sm: sm, p2p: p2p}
 }
