@@ -27,7 +27,12 @@ var cmdTest *cli.Command = &cli.Command{
 				if err != nil {
 					return err
 				}
-				return m.Listen()
+				_, err = m.Listen()
+				if err != nil {
+					return err
+				}
+				<-make(chan struct{})
+				return nil
 			},
 		},
 		{
@@ -48,7 +53,7 @@ var cmdTest *cli.Command = &cli.Command{
 					return err
 				}
 
-				m.AddPeer("12D3KooWCrB97oqtJctK2Dk8zxFyPrWhKdYG4s5cyeABHw4Q9qCs", c.Args().First())
+				m.AddPeer([]byte{}, c.Args().First())
 
 				return m.Connect(c.Args().First())
 			},

@@ -188,7 +188,6 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 	}
 
 	// create protos dir
-	// protosDir := path.Join(homedir, "/.protos")
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		err := os.Mkdir(dataPath, 0755)
 		if err != nil {
@@ -200,7 +199,7 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 	protosDB := "protos.db"
 	dbi, err := db.Open(dataPath, protosDB)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to open db during configuration: %v", err)
 	}
 
 	// get default cfg
@@ -211,8 +210,8 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 
 	// create various managers
 	rm := resource.CreateManager(dbi)
-	m := meta.SetupForClient(rm, dbi, version.String())
 	sm := ssh.CreateManager(dbi)
+	m := meta.SetupForClient(rm, dbi, sm, version.String())
 	capm := capability.CreateManager()
 	rp := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, wgtypes.Key{})
 	tm := task.CreateManager(dbi, pub)
@@ -221,7 +220,7 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 
 	key, err := m.GetKey()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to retrieve key during configuration: %v", err)
 	}
 	p2pManager, err := p2p.NewManager(10500, key)
 	if err != nil {
