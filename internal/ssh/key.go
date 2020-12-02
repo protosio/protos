@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/pem"
 
 	"github.com/mikesmitty/edkey"
@@ -19,6 +20,10 @@ type Key struct {
 
 func (k Key) Public() []byte {
 	return k.Pub
+}
+
+func (k Key) PublicString() string {
+	return base64.StdEncoding.EncodeToString(k.Pub)
 }
 
 func (k Key) Private() []byte {

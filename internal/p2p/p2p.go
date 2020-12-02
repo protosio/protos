@@ -40,7 +40,6 @@ func handleStream(s network.Stream) {
 	}
 	s.Close()
 	fmt.Println(string(buf))
-	// fmt.Fprintln(s, "Hello Friend!")
 }
 
 type P2P struct {
@@ -48,24 +47,32 @@ type P2P struct {
 }
 
 // Listen starts listening for p2p connections
-func (p2p *P2P) Listen() error {
-	log.Info("Starting server")
+func (p2p *P2P) Listen() (func() error, error) {
+	log.Info("Starting p2p server")
 
 	err := p2p.host.Network().Listen()
 	if err != nil {
-		return fmt.Errorf("Failed to listen: %w", err)
+		return func() error { return nil }, fmt.Errorf("Failed to listen: %w", err)
 	}
 
-	// Hang forever
-	<-make(chan struct{})
-	return nil
+	stopper := func() error {
+		log.Debug("Stopping down DNS server")
+		return p2p.host.Close()
+	}
+	return stopper, nil
+
 }
 
 // Connect to a p2p node
 func (p2p *P2P) Connect(id string) error {
-	log.Infof("Connecting to peer ID '%s'", id)
+	peerID, err := peer.IDFromString(id)
+	if err != nil {
+		return fmt.Errorf("Failed to parse peer ID from string: %w", err)
+	}
 
-	str, err := p2p.host.NewStream(context.Background(), peer.ID(id), syncProtocolID)
+	log.Infof("Connecting to peer ID '%s'", peerID.String())
+
+	str, err := p2p.host.NewStream(context.Background(), peerID, syncProtocolID)
 	if err != nil {
 		return fmt.Errorf("Failed to start stream: %w", err)
 	}
@@ -85,8 +92,17 @@ func (p2p *P2P) Connect(id string) error {
 }
 
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(pubKeyString string, dest string) (string, error) {
-	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", dest, pubKeyString)
+func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
+	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshall public key: %w", err)
+	}
+	peerID, err := peer.IDFromPublicKey(pk)
+	if err != nil {
+		return "", fmt.Errorf("Failed to create peer ID from public key: %w", err)
+	}
+
+	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", dest, peerID.String())
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create multi address: %w", err)
@@ -96,6 +112,8 @@ func (p2p *P2P) AddPeer(pubKeyString string, dest string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to extrat info from address: %w", err)
 	}
+
+	log.Debugf("Adding peer id '%s'", peerInfo.ID.String())
 
 	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.PermanentAddrTTL)
 	return string(peerInfo.ID), nil
@@ -124,6 +142,8 @@ func NewManager(port int, key *ssh.Key) (*P2P, error) {
 	if err != nil {
 		return p2p, err
 	}
+
+	log.Debugf("Using host with ID '%s'", host.ID().String())
 
 	host.SetStreamHandler(syncProtocolID, handleStream)
 	p2p.host = host

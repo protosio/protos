@@ -20,7 +20,7 @@ import (
 
 const (
 	metaDS      = "meta"
-	metaKeyPath = "/tmp/protos_key.txt"
+	metaKeyFile = "protos_key.pub"
 )
 
 var log = util.GetLogger("meta")
@@ -79,8 +79,8 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string)
 			log.Fatalf("Failed to generate instance key: ", err.Error())
 		}
 		metaRoot.PrivateKeySeed = key.Seed()
-		log.Infof("Generated instance key. Wireguard public key: '%s'", key.PublicWG().String())
-		err = ioutil.WriteFile(metaKeyPath, []byte(key.PublicWG().String()), 0644)
+		log.Infof("Generated instance key. Writing it to '%s'", gconfig.WorkDir+"/"+metaKeyFile)
+		err = ioutil.WriteFile(gconfig.WorkDir+"/"+metaKeyFile, []byte(key.PublicString()), 0644)
 		if err != nil {
 			log.Fatalf("Failed to write public key to disk: ", err.Error())
 		}
@@ -102,7 +102,7 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string)
 }
 
 // SetupForClient reads the domain and other information on first run and save this information to the database
-func SetupForClient(rm *resource.Manager, db db.DB, version string) *Meta {
+func SetupForClient(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string) *Meta {
 	if rm == nil || db == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
@@ -121,8 +121,22 @@ func SetupForClient(rm *resource.Manager, db db.DB, version string) *Meta {
 		metaRoot.DashboardSubdomain = "protos"
 	}
 
+	if len(metaRoot.PrivateKeySeed) == 0 {
+		key, err := keymngr.GenerateKey()
+		if err != nil {
+			log.Fatalf("Failed to generate instance key: ", err.Error())
+		}
+		metaRoot.PrivateKeySeed = key.Seed()
+		log.Infof("Generated instance key. Writing it to '%s'", gconfig.WorkDir+"/"+metaKeyFile)
+		err = ioutil.WriteFile(gconfig.WorkDir+"/"+metaKeyFile, []byte(key.PublicString()), 0644)
+		if err != nil {
+			log.Fatalf("Failed to write public key to disk: ", err.Error())
+		}
+	}
+
 	metaRoot.db = db
 	metaRoot.rm = rm
+	metaRoot.keymngr = keymngr
 	metaRoot.version = version
 	metaRoot.networkSetSignal = make(chan net.IP, 1)
 	metaRoot.domainSetSignal = make(chan string, 1)

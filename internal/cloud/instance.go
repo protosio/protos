@@ -19,7 +19,6 @@ import (
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
-	pclient "github.com/protosio/protos/pkg/client"
 	"github.com/protosio/protos/pkg/types"
 )
 
@@ -349,7 +348,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, err
 	}
 
-	pubKeyStr, err := ssh.ExecuteCommand("cat /tmp/protos_key.txt", sshCon)
+	pubKeyStr, err := ssh.ExecuteCommand("cat /var/protos/protos_key.pub", sshCon)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
@@ -363,7 +362,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// FIXME: do initialisation via p2p
 
-	cm.p2p.AddPeer(pubKeyStr, "asas")
+	cm.p2p.AddPeer(pubKey, "asas")
 
 	// // do the initialization
 	// log.Infof("Initializing instance '%s'", instanceName)
@@ -408,7 +407,8 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("String '%s' is not a valid IP address", ipString)
 	}
 
-	auth, err := cm.sm.NewAuthFromKeyFile(keyFile)
+	// we use a local key because we don't have a dedicated SSH key for the dev instance
+	sshAuth, err := cm.sm.NewAuthFromKeyFile(keyFile)
 	if err != nil {
 		return err
 	}
@@ -422,53 +422,71 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	if err != nil {
 		return err
 	}
-	developmentNetwork, err := AllocateNetwork(instances, usr.GetDevices())
+	_, err = AllocateNetwork(instances, usr.GetDevices())
 	if err != nil {
 		return fmt.Errorf("Failed to allocate network for instance '%s': %w", "dev", err)
 	}
 
-	log.Infof("Creating SSH tunnel to dev instance IP '%s'", ipString)
-	tunnel := ssh.NewTunnel(ip.String()+":22", "root", auth, "localhost:8080")
-	localPort, err := tunnel.Start()
+	// wait for port 22 to be open
+	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
 	if err != nil {
-		return errors.Wrap(err, "Error while creating the SSH tunnel")
+		return errors.Wrap(err, "Failure while waiting for port")
 	}
 
-	// wait for the API to be up
-	err = util.WaitForHTTP(fmt.Sprintf("http://127.0.0.1:%d/ui/", localPort), 20)
+	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", sshAuth, 10)
 	if err != nil {
-		return errors.Wrap(err, "Failed to deploy instance")
-	}
-	log.Infof("Tunnel to '%s' ready", ipString)
-
-	// do the initialization
-	log.Infof("Initializing instance at '%s'", ipString)
-	protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.GetUsername(), usr.GetPassword())
-	dev, err := usr.GetCurrentDevice()
-	if err != nil {
-		return err
+		return errors.Wrap(err, "Failed to connect to dev instance over SSH")
 	}
 
-	// Doing the instance initialization which returns the internal wireguard IP and the public key created using the wireguard library.
-	instanceIP, instancePublicKey, err := protos.InitInstance(usr.GetInfo().Name, developmentNetwork.String(), usr.GetInfo().Domain, []types.UserDevice{dev})
+	pubKeyStr, err := ssh.ExecuteCommand("cat /var/protos/protos_key.pub", sshCon)
 	if err != nil {
-		return errors.Wrap(err, "Error while doing the instance initialization")
-	}
-	instanceInfo.InternalIP = instanceIP.String()
-	instanceInfo.PublicKey = instancePublicKey
-	instanceInfo.Network = developmentNetwork.String()
-
-	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
+		return errors.Wrap(err, "Failed to retrieve public key from dev instance")
 	}
 
-	// close the SSH tunnel
-	err = tunnel.Close()
+	var pubKey ed25519.PublicKey
+	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
 	if err != nil {
-		return errors.Wrap(err, "Error while terminating the SSH tunnel")
+		return fmt.Errorf("Failed to decode public key: %w", err)
 	}
-	log.Infof("Instance at '%s' is ready", ipString)
+	instanceInfo.PublicKey = pubKey
+
+	peerID, err := cm.p2p.AddPeer(pubKey, instanceInfo.PublicIP)
+	if err != nil {
+		return fmt.Errorf("Failed to add peer: %w", err)
+	}
+	err = cm.p2p.Connect(peerID)
+	if err != nil {
+		return fmt.Errorf("Failed to connect to dev instance: %w", err)
+	}
+
+	// // do the initialization
+	// log.Infof("Initializing instance at '%s'", ipString)
+	// protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.GetUsername(), usr.GetPassword())
+	// dev, err := usr.GetCurrentDevice()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // Doing the instance initialization which returns the internal wireguard IP and the public key of the instance.
+	// instanceIP, instancePublicKey, err := protos.InitInstance(usr.GetInfo().Name, developmentNetwork.String(), usr.GetInfo().Domain, []types.UserDevice{dev})
+	// if err != nil {
+	// 	return errors.Wrap(err, "Error while doing the instance initialization")
+	// }
+	// instanceInfo.InternalIP = instanceIP.String()
+	// instanceInfo.PublicKey = instancePublicKey
+	// instanceInfo.Network = developmentNetwork.String()
+
+	// err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
+	// if err != nil {
+	// 	return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
+	// }
+
+	// // close the SSH tunnel
+	// err = tunnel.Close()
+	// if err != nil {
+	// 	return errors.Wrap(err, "Error while terminating the SSH tunnel")
+	// }
+	// log.Infof("Instance at '%s' is ready", ipString)
 
 	return nil
 }

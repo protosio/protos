@@ -13,7 +13,6 @@ import (
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
@@ -95,7 +94,12 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	if err != nil {
 		log.Fatal(err)
 	}
-	_ = cloud.CreateManager(dbcli, um, sm, p2pManager)
+
+	p2pStopper, err := p2pManager.Listen()
+	if err != nil {
+		log.Fatal(err)
+	}
+	stoppers["p2p"] = p2pStopper
 
 	// check init and dev mode
 
