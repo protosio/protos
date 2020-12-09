@@ -454,10 +454,15 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	if err != nil {
 		return fmt.Errorf("Failed to add peer: %w", err)
 	}
-	err = cm.p2p.Connect(peerID)
+
+	srv := cm.p2p.GetSrv()
+
+	initData, err := srv.Init(peerID, "asdasd", "sdasdasd", "asdasd", "asdas")
 	if err != nil {
-		return fmt.Errorf("Failed to connect to dev instance: %w", err)
+		return fmt.Errorf("Failed to init dev instance: %w", err)
 	}
+
+	log.Info(initData)
 
 	// // do the initialization
 	// log.Infof("Initializing instance at '%s'", ipString)

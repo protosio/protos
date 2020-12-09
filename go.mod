@@ -40,6 +40,7 @@ require (
 	github.com/rakyll/statik v0.1.7
 	github.com/rs/xid v1.2.1
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.7
+	github.com/segmentio/ksuid v1.0.3
 	github.com/shirou/gopsutil v2.20.9+incompatible
 	github.com/sirupsen/logrus v1.7.0
 	github.com/tidwall/gjson v1.6.1

@@ -1,10 +1,11 @@
 package p2p
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -14,36 +15,269 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	noise "github.com/libp2p/go-libp2p-noise"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
+	"github.com/segmentio/ksuid"
 )
 
 var log = util.GetLogger("p2p")
 
-func writeStream(rw *bufio.ReadWriter, data []byte) {
-	rw.Write(data)
-	rw.Flush()
+const protosRequestProtocol = "/protos/request/0.0.1"
+const protosResponseProtocol = "/protos/response/0.0.1"
+
+type Handler interface {
+	Do(data interface{}) (interface{}, error)
 }
 
-func handleStream(s network.Stream) {
-	fmt.Println("Got a stream from: ", s.Conn().RemotePeer())
-	fmt.Println("Proto: ", s.Protocol())
+type payloadRequest struct {
+	ID   string
+	Type string
+	Data interface{}
+}
 
-	buf, err := ioutil.ReadAll(s)
-	if err != nil {
-		log.Errorf("Failed to read from stream: %s", err.Error())
-		return
-	}
-	s.Close()
-	fmt.Println(string(buf))
+type payloadResponse struct {
+	ID    string
+	Error string
+	Data  json.RawMessage
+}
+
+type request struct {
+	resp      chan []byte
+	err       chan error
+	startTime time.Time
+}
+
+type requests struct {
+	*sync.RWMutex
+	reqs map[string]*request
+}
+
+// Server is good
+type Server struct {
+	*InitProtocol
 }
 
 type P2P struct {
-	host host.Host
+	host     host.Host
+	srv      *Server
+	handlers map[string]Handler
+	reqs     *requests
+}
+
+func (p2p *P2P) getHandler(msgType string) (Handler, error) {
+	if handler, found := p2p.handlers[msgType]; found {
+		return handler, nil
+	}
+	return nil, fmt.Errorf("Handler for method '%s' not found", msgType)
+}
+
+func (p2p *P2P) addHandler(methodName string, handler Handler) {
+	p2p.handlers[methodName] = handler
+}
+
+func (p2p *P2P) getRequest(id string) (*request, error) {
+	p2p.reqs.RLock()
+	defer p2p.reqs.RUnlock()
+	if req, found := p2p.reqs.reqs[id]; found {
+		return req, nil
+	}
+	return nil, fmt.Errorf("Could not find request with id '%s'", id)
+}
+
+func (p2p *P2P) addRequest(id string, req *request) {
+	p2p.reqs.Lock()
+	defer p2p.reqs.Unlock()
+	p2p.reqs.reqs[id] = req
+}
+
+func (p2p *P2P) deleteRequest(id string) {
+	p2p.reqs.RLock()
+	defer p2p.reqs.RUnlock()
+	delete(p2p.reqs.reqs, id)
+}
+
+func (p2p *P2P) streamRequestHandler(s network.Stream) {
+
+	reqMsg := payloadRequest{}
+	buf, err := ioutil.ReadAll(s)
+	if err != nil {
+		s.Reset()
+		log.Println(err)
+		return
+	}
+	s.Close()
+
+	// unmarshal it
+	err = json.Unmarshal(buf, &reqMsg)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	log.Infof("Remote request '%s' from peer '%s'", reqMsg.Type, s.Conn().RemotePeer().String())
+
+	respMsg := payloadResponse{
+		ID: reqMsg.ID,
+	}
+
+	handler, err := p2p.getHandler(reqMsg.Type)
+	if err != nil {
+		log.Errorf("Failed to process request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
+
+		respMsg.Error = err.Error()
+
+		// encode the response
+		jsonResp, err := json.Marshal(respMsg)
+		if err != nil {
+			log.Errorf("Failed to encode response for request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
+			return
+		}
+
+		err = p2p.sendMsg(s.Conn().RemotePeer(), protosResponseProtocol, jsonResp)
+		if err != nil {
+			log.Errorf("Failed to send response to '%s': %s", s.Conn().RemotePeer().String(), err.Error())
+			return
+		}
+		return
+	}
+
+	handlerResponse, err := handler.Do(reqMsg.Data)
+	if err != nil {
+		log.Errorf("Failed to process request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
+		return
+	}
+
+	// encode the returned handler response
+	jsonHandler, err := json.Marshal(handlerResponse)
+	if err != nil {
+		log.Errorf("Failed to encode response for request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
+		return
+	}
+
+	// add response data or error
+	if err != nil {
+		respMsg.Error = err.Error()
+	} else {
+		respMsg.Data = jsonHandler
+	}
+
+	// encode the full response
+	jsonResp, err := json.Marshal(respMsg)
+	if err != nil {
+		log.Errorf("Failed to encode response for request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
+		return
+	}
+
+	// send the response
+	err = p2p.sendMsg(s.Conn().RemotePeer(), protosResponseProtocol, jsonResp)
+	if err != nil {
+		log.Errorf("Failed to send response to '%s': %s", s.Conn().RemotePeer().String(), err.Error())
+		return
+	}
+}
+
+func (p2p *P2P) streamResponseHandler(s network.Stream) {
+
+	msg := &payloadResponse{}
+	buf, err := ioutil.ReadAll(s)
+	if err != nil {
+		s.Reset()
+		log.Errorf("Failed to read from peer '%s' stream: %s", s.Conn().RemotePeer().String(), err.Error())
+		return
+	}
+	s.Close()
+
+	// unmarshal it
+	err = json.Unmarshal(buf, msg)
+	if err != nil {
+		log.Errorf("Failed to decode response from '%s': %s", s.Conn().RemotePeer().String(), err.Error())
+		return
+	}
+
+	log.Infof("Received response '%s' from peer '%s'", msg.ID, s.Conn().RemotePeer().String())
+
+	req, err := p2p.getRequest(msg.ID)
+	if err != nil {
+		log.Errorf("Failed to process response '%s' from '%s': %s", msg.ID, s.Conn().RemotePeer().String(), err.Error())
+		return
+	}
+
+	if msg.Error != "" {
+		req.err <- fmt.Errorf("Error returned by '%s': %s", s.Conn().RemotePeer().String(), msg.Error)
+	} else {
+		req.resp <- msg.Data
+	}
+
+	close(req.resp)
+	close(req.err)
+}
+
+func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{}, responseData interface{}) error {
+	reqMsg := &payloadRequest{
+		ID:   ksuid.New().String(),
+		Type: msgType,
+		Data: requestData,
+	}
+
+	// encode the request
+	jsonReq, err := json.Marshal(reqMsg)
+	if err != nil {
+		return fmt.Errorf("Failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
+	}
+
+	// send the request
+	p2p.sendMsg(id, protosRequestProtocol, jsonReq)
+	if err != nil {
+		return fmt.Errorf("Failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
+	}
+
+	req := &request{
+		resp:      make(chan []byte),
+		err:       make(chan error),
+		startTime: time.Now(),
+	}
+	p2p.addRequest(reqMsg.ID, req)
+
+	// wait for response or error and return it, while also deleting the request
+	defer p2p.deleteRequest(reqMsg.ID)
+	select {
+	case resp := <-req.resp:
+		err := json.Unmarshal(resp, responseData)
+		if err != nil {
+			return fmt.Errorf("Failed to decode response payload: %v", err)
+		}
+		return nil
+	case err := <-req.err:
+		return err
+	}
+
+}
+
+func (p2p *P2P) sendMsg(id peer.ID, protocolType protocol.ID, jsonMsg []byte) error {
+	s, err := p2p.host.NewStream(context.Background(), id, protocolType)
+	if err != nil {
+		return err
+	}
+
+	// send the data
+	_, err = s.Write(jsonMsg)
+	if err != nil {
+		return fmt.Errorf("Error while writing to stream: %v", err)
+	}
+
+	// close the stream and wait for the other side to close their half.
+	err = helpers.FullClose(s)
+	if err != nil {
+		s.Reset()
+		return fmt.Errorf("Error while closing stream: %v", err)
+	}
+
+	return nil
 }
 
 // Listen starts listening for p2p connections
@@ -55,8 +289,11 @@ func (p2p *P2P) Listen() (func() error, error) {
 		return func() error { return nil }, fmt.Errorf("Failed to listen: %w", err)
 	}
 
+	// we register the handler for the init method
+	p2p.addHandler("init", p2p.srv.InitProtocol)
+
 	stopper := func() error {
-		log.Debug("Stopping down DNS server")
+		log.Debug("Stopping p2p server")
 		return p2p.host.Close()
 	}
 	return stopper, nil
@@ -119,9 +356,17 @@ func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
 	return string(peerInfo.ID), nil
 }
 
+// GetSrv returns the server that implements all the remote handlers
+func (p2p *P2P) GetSrv() *Server {
+	return p2p.srv
+}
+
 // NewManager creates and returns a new p2p manager
 func NewManager(port int, key *ssh.Key) (*P2P, error) {
-	p2p := &P2P{}
+	p2p := &P2P{
+		handlers: map[string]Handler{},
+		reqs:     &requests{&sync.RWMutex{}, map[string]*request{}},
+	}
 
 	prvKey, err := crypto.UnmarshalEd25519PrivateKey(key.Private())
 	if err != nil {
@@ -145,8 +390,13 @@ func NewManager(port int, key *ssh.Key) (*P2P, error) {
 
 	log.Debugf("Using host with ID '%s'", host.ID().String())
 
-	host.SetStreamHandler(syncProtocolID, handleStream)
 	p2p.host = host
+	p2p.srv = &Server{
+		NewInitProtocol(p2p),
+	}
+
+	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
+	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)
 
 	return p2p, nil
 }

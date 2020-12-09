@@ -1,7 +1,6 @@
 package p2p
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"io/ioutil"
@@ -48,16 +47,16 @@ func sendSync(msg Msg, hst host.Host, id peer.ID) error {
 		panic(err)
 	}
 
-	// Create a buffered stream so that read and writes are non blocking.
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
+	// // Create a buffered stream so that read and writes are non blocking.
+	// rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
 
-	jsonPayload, _ := json.Marshal(Msg{Type: "test", Msg: "yolo"})
+	// jsonPayload, _ := json.Marshal(Msg{Type: "test", Msg: "yolo"})
 
 	// jsonPayload = append(jsonPayload, '\n')
 
-	// Create a thread to read and write data.
-	writeStream(rw, jsonPayload)
-	// go readStream(rw)
+	// // Create a thread to read and write data.
+	// writeStream(rw, jsonPayload)
+	// // go readStream(rw)
 
 	err = helpers.FullClose(s)
 	if err != nil {
