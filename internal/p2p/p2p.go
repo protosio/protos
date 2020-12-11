@@ -49,6 +49,7 @@ type payloadResponse struct {
 type request struct {
 	resp      chan []byte
 	err       chan error
+	closeSig  chan interface{}
 	startTime time.Time
 }
 
@@ -207,6 +208,15 @@ func (p2p *P2P) streamResponseHandler(s network.Stream) {
 		return
 	}
 
+	// if the closeSig channel is closed, the request has been processed, so we return without sending the timeout error and closing the chans
+	select {
+	case <-req.closeSig:
+		return
+	default:
+	}
+
+	close(req.closeSig)
+
 	if msg.Error != "" {
 		req.err <- fmt.Errorf("Error returned by '%s': %s", s.Conn().RemotePeer().String(), msg.Error)
 	} else {
@@ -230,18 +240,40 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 		return fmt.Errorf("Failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
 	}
 
+	// create the request
+	req := &request{
+		resp:      make(chan []byte),
+		err:       make(chan error),
+		closeSig:  make(chan interface{}),
+		startTime: time.Now(),
+	}
+	p2p.addRequest(reqMsg.ID, req)
+
 	// send the request
 	p2p.sendMsg(id, protosRequestProtocol, jsonReq)
 	if err != nil {
 		return fmt.Errorf("Failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
 	}
 
-	req := &request{
-		resp:      make(chan []byte),
-		err:       make(chan error),
-		startTime: time.Now(),
-	}
-	p2p.addRequest(reqMsg.ID, req)
+	go func() {
+		// we sleep for the timeout period
+		time.Sleep(time.Second * 5)
+
+		// if the closeSig channel is closed, the request has been processed, so we return without sending the timeout error and closing the chans
+		select {
+		case <-req.closeSig:
+			fmt.Println("timeout not used")
+			return
+		default:
+		}
+
+		// we close the closeSig channel so any response from the handler is discarded
+		close(req.closeSig)
+
+		req.err <- fmt.Errorf("Timeout waiting for request '%s'", reqMsg.ID)
+		close(req.resp)
+		close(req.err)
+	}()
 
 	// wait for response or error and return it, while also deleting the request
 	defer p2p.deleteRequest(reqMsg.ID)
