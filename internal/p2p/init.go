@@ -3,6 +3,7 @@ package p2p
 import (
 	"fmt"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -50,6 +51,18 @@ func (ip *InitProtocol) Init(id string, username string, name string, domain str
 
 // Do satisfies the Handler interface
 func (ip *InitProtocol) Do(data interface{}) (interface{}, error) {
+
+	req, ok := data.(*InitRequest)
+	if !ok {
+		return InitResp{}, fmt.Errorf("Unknown data struct for init request")
+	}
+
+	validate := validator.New()
+	err := validate.Struct(req)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to validate init request: %w", err)
+	}
+
 	initResp := InitResp{InstancePubKey: "pub key ssdasdas", InstanceIP: "1.1.1.1"}
 	return initResp, nil
 }

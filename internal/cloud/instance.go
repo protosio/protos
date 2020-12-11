@@ -457,7 +457,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	srv := cm.p2p.GetSrv()
 
-	initData, err := srv.Init(peerID, "asdasd", "sdasdasd", "asdasd", "asdas")
+	initData, err := srv.Init(peerID, "alex", "alex giurgiu", "giurgiu.io", "10.10.10.0/24")
 	if err != nil {
 		return fmt.Errorf("Failed to init dev instance: %w", err)
 	}
