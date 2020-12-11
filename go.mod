@@ -1,6 +1,6 @@
 module github.com/protosio/protos
 
-go 1.14
+go 1.15
 
 replace github.com/foxcpp/wirebox => github.com/nustiueudinastea/wirebox v0.0.0-20200525204548-4a9434e8cedf
 
@@ -26,12 +26,12 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/icholy/killable v0.0.0-20170925194751-168925335d1e
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
-	github.com/libp2p/go-libp2p v0.11.0
+	github.com/libp2p/go-libp2p v0.12.0
 	github.com/libp2p/go-libp2p-connmgr v0.2.4
-	github.com/libp2p/go-libp2p-core v0.6.1
-	github.com/libp2p/go-libp2p-noise v0.1.1
+	github.com/libp2p/go-libp2p-core v0.7.0
+	github.com/libp2p/go-libp2p-noise v0.1.2
 	github.com/libp2p/go-libp2p-peerstore v0.2.6
-	github.com/libp2p/go-libp2p-quic-transport v0.8.2
+	github.com/libp2p/go-libp2p-quic-transport v0.9.3
 	github.com/miekg/dns v1.1.33
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 	github.com/multiformats/go-multiaddr v0.3.1

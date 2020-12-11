@@ -55,7 +55,8 @@ var cmdTest *cli.Command = &cli.Command{
 
 				m.AddPeer([]byte{}, c.Args().First())
 
-				return m.Connect(c.Args().First())
+				// return m.Connect(c.Args().First())
+				return nil
 			},
 		},
 	},
