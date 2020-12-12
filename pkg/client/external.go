@@ -14,13 +14,14 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 
+	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/pkg/types"
 	"golang.org/x/net/publicsuffix"
 )
 
 // ExternalClient talks to the external Protos API
 type ExternalClient interface {
-	InitInstance(name string, network string, domain string, devices []types.UserDevice) (net.IP, ed25519.PublicKey, error)
+	InitInstance(name string, network string, domain string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error)
 }
 
 type externalClient struct {
@@ -66,7 +67,7 @@ func (ec externalClient) makeRequest(method string, path string, body io.Reader)
 }
 
 // InitInstance initializes a newly deployed Protos instance
-func (ec *externalClient) InitInstance(name string, network string, domain string, devices []types.UserDevice) (net.IP, ed25519.PublicKey, error) {
+func (ec *externalClient) InitInstance(name string, network string, domain string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
 	reqJSON, err := json.Marshal(types.ReqInit{
 		Username:        ec.username,
 		Password:        ec.password,

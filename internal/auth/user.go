@@ -10,7 +10,6 @@ import (
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
-	"github.com/protosio/protos/pkg/types"
 
 	"github.com/denisbrodbeck/machineid"
 	"golang.org/x/crypto/bcrypt"
@@ -29,19 +28,27 @@ type UserInfo struct {
 	Domain   string `json:"domain"`
 }
 
+// UserDevice - represents a device that a user uses to connect to the instances. A user can have multiple devices (laptop, mobile phone etc)
+type UserDevice struct {
+	Name      string `json:"name" validate:"required"`
+	PublicKey string `json:"publickey" validate:"base64"`   // ed25519 base64 encoded public key
+	Network   string `json:"network" validate:"cidrv4"`     // CIDR notation
+	MachineID string `json:"machineid" validate:"required"` // ID that uniquely identifies a machine
+}
+
 // User represents a Protos user
 type User struct {
 	parent *UserManager `noms:"-"`
 
 	// Public members
-	Username     string             `json:"username"`
-	Password     string             `json:"-"`
-	PasswordHash string             `json:"-"`
-	Name         string             `json:"name"`
-	IsDisabled   bool               `json:"isdisabled"`
-	Capabilities []string           `json:"capabilities"`
-	Domain       string             `json:"domain"`
-	Devices      []types.UserDevice `json:"devices"`
+	Username     string       `json:"username"`
+	Password     string       `json:"-"`
+	PasswordHash string       `json:"-"`
+	Name         string       `json:"name"`
+	IsDisabled   bool         `json:"isdisabled"`
+	Capabilities []string     `json:"capabilities"`
+	Domain       string       `json:"domain"`
+	Devices      []UserDevice `json:"devices"`
 }
 
 // generatePasswordHash takes a string representing the raw password, and generates a hash
@@ -126,22 +133,22 @@ func (user *User) GetInfo() UserInfo {
 }
 
 // GetDevices returns the devices that belong to a user
-func (user *User) GetDevices() []types.UserDevice {
+func (user *User) GetDevices() []UserDevice {
 	return user.Devices
 }
 
 // GetCurrentDevice returns the device that Protos is running on currently
-func (user *User) GetCurrentDevice() (types.UserDevice, error) {
+func (user *User) GetCurrentDevice() (UserDevice, error) {
 	id, err := machineid.ProtectedID("protos")
 	if err != nil {
-		return types.UserDevice{}, fmt.Errorf("Failed to generate machine id: %w", err)
+		return UserDevice{}, fmt.Errorf("Failed to generate machine id: %w", err)
 	}
 	for _, dev := range user.Devices {
 		if dev.MachineID == id {
 			return dev, nil
 		}
 	}
-	return types.UserDevice{}, fmt.Errorf("Failed to find machine with id '%s'", id)
+	return UserDevice{}, fmt.Errorf("Failed to find machine with id '%s'", id)
 }
 
 // GetKeyCurrentDevice returns the private key for the current device
@@ -196,7 +203,7 @@ func CreateUserManager(db db.DB, sm *ssh.Manager, cm *capability.Manager) *UserM
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, password string, name string, domain string, isadmin bool, devices []types.UserDevice) (*User, error) {
+func (um *UserManager) CreateUser(username string, password string, name string, domain string, isadmin bool, devices []UserDevice) (*User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {

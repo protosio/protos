@@ -19,7 +19,6 @@ import (
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
-	"github.com/protosio/protos/pkg/types"
 )
 
 const (
@@ -86,7 +85,7 @@ func createMachineTypesString(machineTypes map[string]MachineSpec) string {
 }
 
 // AllocateNetwork allocates an unused network for an instance
-func AllocateNetwork(instances []InstanceInfo, devices []types.UserDevice) (net.IPNet, error) {
+func AllocateNetwork(instances []InstanceInfo, devices []auth.UserDevice) (net.IPNet, error) {
 	// create list of existing networks
 	usedNetworks := []net.IPNet{}
 	for _, inst := range instances {

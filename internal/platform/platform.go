@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/util"
-	"github.com/protosio/protos/pkg/types"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -52,7 +52,7 @@ type PlatformImage interface {
 
 // RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
 type RuntimePlatform interface {
-	Init(network net.IPNet, devices []types.UserDevice) error
+	Init(network net.IPNet, devices []auth.UserDevice) error
 	GetSandbox(id string) (PlatformRuntimeUnit, error)
 	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
 	GetImage(id string) (PlatformImage, error)

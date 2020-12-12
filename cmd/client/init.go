@@ -9,9 +9,9 @@ import (
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
 	ssh "github.com/protosio/protos/internal/ssh"
-	"github.com/protosio/protos/pkg/types"
 	"github.com/urfave/cli/v2"
 )
 
@@ -117,7 +117,7 @@ func protosUserinit() error {
 		return fmt.Errorf("Failed to add user. Error while generating machine id: %w", err)
 	}
 
-	devices := []types.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), MachineID: machineID, Network: "10.100.0.1/24"}}
+	devices := []auth.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), MachineID: machineID, Network: "10.100.0.1/24"}}
 
 	_, err = envi.UM.CreateUser(username, password, name, domain, true, devices)
 	if err != nil {

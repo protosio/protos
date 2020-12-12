@@ -361,34 +361,6 @@ func (p2p *P2P) Listen() (func() error, error) {
 
 }
 
-// // Connect to a p2p node
-// func (p2p *P2P) Connect(id string) error {
-// 	peerID, err := peer.IDFromString(id)
-// 	if err != nil {
-// 		return fmt.Errorf("Failed to parse peer ID from string: %w", err)
-// 	}
-
-// 	log.Infof("Connecting to peer ID '%s'", peerID.String())
-
-// 	str, err := p2p.host.NewStream(context.Background(), peerID, syncProtocolID)
-// 	if err != nil {
-// 		return fmt.Errorf("Failed to start stream: %w", err)
-// 	}
-
-// 	_, err = str.Write([]byte("tester\n"))
-// 	if err != nil {
-// 		return fmt.Errorf("Failed to write to stream: %w", err)
-// 	}
-
-// 	err = helpers.FullClose(str)
-// 	if err != nil {
-// 		str.Reset()
-// 		return err
-// 	}
-
-// 	return nil
-// }
-
 // AddPeer adds a peer to the p2p manager
 func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
 	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)

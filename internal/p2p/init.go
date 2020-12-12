@@ -2,16 +2,37 @@ package p2p
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/ssh"
 )
 
+// MetaConfigurator allows for the configuration of the meta package
+type MetaConfigurator interface {
+	SetDomain(domainName string)
+	SetNetwork(network net.IPNet) net.IP
+	SetAdminUser(username string)
+	CreateProtosResources() (map[string]*resource.Resource, error)
+	GetKey() (*ssh.Key, error)
+}
+
+// UserCreator allows the creation of a new user
+type UserCreator interface {
+	CreateUser(username string, password string, name string, domain string, isadmin bool, devices []auth.UserDevice) (*auth.User, error)
+}
+
 type InitRequest struct {
-	Username string `json:"username" validate:"required"`
-	Name     string `json:"name" validate:"required"`
-	Domain   string `json:"domain" validate:"fqdn"`
-	Network  string `json:"network" validate:"cidrv4"` // CIDR notation
+	Username string            `json:"username" validate:"required"`
+	Name     string            `json:"name" validate:"required"`
+	Domain   string            `json:"domain" validate:"fqdn"`
+	Network  string            `json:"network" validate:"cidrv4"` // CIDR notation
+	Password string            `json:"password" validate:"min=10,max=100"`
+	Devices  []auth.UserDevice `json:"devices" validate:"gt=0,dive"`
 }
 
 type InitResp struct {
@@ -20,7 +41,9 @@ type InitResp struct {
 }
 
 type InitProtocol struct {
-	p2p *P2P
+	metaConfigurator MetaConfigurator
+	userCreator      UserCreator
+	p2p              *P2P
 }
 
 // Init is a remote call to peer, which triggers an init on the remote machine
@@ -63,7 +86,37 @@ func (ip *InitProtocol) Do(data interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("Failed to validate init request: %w", err)
 	}
 
-	initResp := InitResp{InstancePubKey: "pub key ssdasdas", InstanceIP: "1.1.1.1"}
+	_, network, err := net.ParseCIDR(req.Network)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot perform initialization, network '%s' is invalid: %w", req.Network, err)
+	}
+
+	ip.metaConfigurator.SetDomain(req.Domain)
+	ipNet := ip.metaConfigurator.SetNetwork(*network)
+
+	user, err := ip.userCreator.CreateUser(req.Username, req.Password, req.Name, req.Domain, true, req.Devices)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot perform initialization, faild to create user: %w", err)
+	}
+	ip.metaConfigurator.SetAdminUser(user.GetUsername())
+
+	// create resources
+	_, err = ip.metaConfigurator.CreateProtosResources()
+	if err != nil {
+		log.Error(err)
+		return nil, fmt.Errorf("Cannot perform initialization, faild to create resources: %w", err)
+	}
+
+	key, err := ip.metaConfigurator.GetKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to retrieve key")
+	}
+
+	initResp := InitResp{
+		InstancePubKey: key.PublicWG().String(),
+		InstanceIP:     ipNet.String(),
+	}
+
 	return initResp, nil
 }
 

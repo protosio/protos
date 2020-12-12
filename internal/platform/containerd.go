@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/util"
-	"github.com/protosio/protos/pkg/types"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"google.golang.org/grpc"
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
@@ -134,7 +134,7 @@ func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost stri
 // 	return nil
 // }
 
-func (cdp *containerdPlatform) Init(network net.IPNet, devices []types.UserDevice) error {
+func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice) error {
 	internalInterface, err := initNetwork(network, devices, cdp.key)
 	if err != nil {
 		return fmt.Errorf("Can't initialize network: %s", err.Error())

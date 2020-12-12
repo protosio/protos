@@ -9,7 +9,7 @@ import (
 
 	"github.com/foxcpp/wirebox"
 	"github.com/foxcpp/wirebox/linkmgr"
-	"github.com/protosio/protos/pkg/types"
+	"github.com/protosio/protos/internal/auth"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -55,7 +55,7 @@ func diffRoutes(a []linkmgr.Route, b []linkmgr.Route) ([]linkmgr.Route, []linkmg
 }
 
 // initNetwork initializes the local network
-func initNetwork(network net.IPNet, devices []types.UserDevice, key wgtypes.Key) (string, error) {
+func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) (string, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
 		return "", fmt.Errorf("Failed to initialize network: %w", err)
