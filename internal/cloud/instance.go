@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"syscall"
 	"text/tabwriter"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
@@ -334,23 +333,25 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, errors.Wrap(err, "Failed to deploy instance")
 	}
 
-	// allow some time for Protosd to start up, or else the tunnel might fail
-	time.Sleep(5 * time.Second)
-
 	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
 
+	// connect via SSH
 	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", key.SSHAuth(), 10)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
 
+	// retrieve instance public key via SSH
 	pubKeyStr, err := ssh.ExecuteCommand("cat /var/protos/protos_key.pub", sshCon)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
+
+	// close SSH connection
+	sshCon.Close()
 
 	var pubKey ed25519.PublicKey
 	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
@@ -359,32 +360,34 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 	instanceInfo.PublicKey = pubKey
 
-	// FIXME: do initialisation via p2p
+	dev, err := usr.GetCurrentDevice()
+	if err != nil {
+		return InstanceInfo{}, err
+	}
 
-	cm.p2p.AddPeer(pubKey, "asas")
+	peerID, err := cm.p2p.AddPeer(pubKey, instanceInfo.PublicIP)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("Failed to add peer: %w", err)
+	}
 
-	// // do the initialization
-	// log.Infof("Initializing instance '%s'", instanceName)
-	// protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.GetUsername(), usr.GetPassword())
-	// dev, err := usr.GetCurrentDevice()
-	// if err != nil {
-	// 	return InstanceInfo{}, err
-	// }
+	srv := cm.p2p.GetSrv()
 
-	// ip, pubKey, err := protos.InitInstance(usr.GetInfo().Name, instanceInfo.Network, usr.GetInfo().Domain, []types.UserDevice{dev})
-	// if err != nil {
-	// 	return InstanceInfo{}, errors.Wrap(err, "Error while doing the instance initialization")
-	// }
+	// do the initialization
+	log.Infof("Initializing instance '%s'", instanceName)
+	ip, pubKey, err := srv.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceInfo.Network, []auth.UserDevice{dev})
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("Failed to initialize instance: %w", err)
+	}
 
-	// // final save instance info
-	// instanceInfo.InternalIP = ip.String()
-	// instanceInfo.PublicKey = pubKey
-	// err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
-	// if err != nil {
-	// 	return InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
-	// }
+	// final save instance info
+	instanceInfo.InternalIP = ip.String()
+	instanceInfo.PublicKey = pubKey
+	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
+	if err != nil {
+		return InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
+	}
 
-	// log.Infof("Instance '%s' is ready", instanceName)
+	log.Infof("Instance '%s' is ready", instanceName)
 
 	return instanceInfo, nil
 }
@@ -432,16 +435,19 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return errors.Wrap(err, "Failure while waiting for port")
 	}
 
+	// connect via SSH
 	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", sshAuth, 10)
 	if err != nil {
 		return errors.Wrap(err, "Failed to connect to dev instance over SSH")
 	}
 
+	// retrieve instance public key via SSH
 	pubKeyStr, err := ssh.ExecuteCommand("cat /var/protos/protos_key.pub", sshCon)
 	if err != nil {
 		return errors.Wrap(err, "Failed to retrieve public key from dev instance")
 	}
 
+	// close SSH connection
 	sshCon.Close()
 
 	var pubKey ed25519.PublicKey
@@ -464,6 +470,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	srv := cm.p2p.GetSrv()
 
 	// do the initialization
+	log.Infof("Initializing instance '%s'", instanceName)
 	ip, pubKey, err = srv.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
 	if err != nil {
 		return fmt.Errorf("Failed to init dev instance: %w", err)
