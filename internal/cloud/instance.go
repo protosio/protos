@@ -421,7 +421,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	if err != nil {
 		return err
 	}
-	_, err = AllocateNetwork(instances, usr.GetDevices())
+	developmentNetwork, err := AllocateNetwork(instances, usr.GetDevices())
 	if err != nil {
 		return fmt.Errorf("Failed to allocate network for instance '%s': %w", "dev", err)
 	}
@@ -449,6 +449,11 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 	instanceInfo.PublicKey = pubKey
 
+	dev, err := usr.GetCurrentDevice()
+	if err != nil {
+		return err
+	}
+
 	peerID, err := cm.p2p.AddPeer(pubKey, instanceInfo.PublicIP)
 	if err != nil {
 		return fmt.Errorf("Failed to add peer: %w", err)
@@ -456,7 +461,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	srv := cm.p2p.GetSrv()
 
-	initData, err := srv.Init(peerID, "alex", "alex giurgiu", "giurgiu.io", "10.10.10.0/24")
+	initData, err := srv.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
 	if err != nil {
 		return fmt.Errorf("Failed to init dev instance: %w", err)
 	}

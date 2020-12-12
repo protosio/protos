@@ -70,10 +70,12 @@ type Server struct {
 }
 
 type P2P struct {
-	host     host.Host
-	srv      *Server
-	handlers map[string]*Handler
-	reqs     *requests
+	host             host.Host
+	srv              *Server
+	metaConfigurator MetaConfigurator
+	userCreator      UserCreator
+	handlers         map[string]*Handler
+	reqs             *requests
 }
 
 func (p2p *P2P) getHandler(msgType string) (*Handler, error) {
@@ -395,10 +397,12 @@ func (p2p *P2P) GetSrv() *Server {
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(port int, key *ssh.Key) (*P2P, error) {
+func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userCreator UserCreator) (*P2P, error) {
 	p2p := &P2P{
-		handlers: map[string]*Handler{},
-		reqs:     &requests{&sync.RWMutex{}, map[string]*request{}},
+		handlers:         map[string]*Handler{},
+		reqs:             &requests{&sync.RWMutex{}, map[string]*request{}},
+		metaConfigurator: metaConfigurator,
+		userCreator:      userCreator,
 	}
 
 	prvKey, err := crypto.UnmarshalEd25519PrivateKey(key.Private())
@@ -425,7 +429,7 @@ func NewManager(port int, key *ssh.Key) (*P2P, error) {
 
 	p2p.host = host
 	p2p.srv = &Server{
-		NewInitProtocol(p2p),
+		NewInitProtocol(p2p, p2p.metaConfigurator, p2p.userCreator),
 	}
 
 	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)

@@ -90,7 +90,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	am := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, am, dbcli)
 
-	p2pManager, err := p2p.NewManager(10500, key)
+	p2pManager, err := p2p.NewManager(10500, key, m, um)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -111,20 +111,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	meta.PrintBanner()
 
 	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
-
-	// start ws connection manager
-	wsmStopper, err := httpAPI.StartWSManager()
-	if err != nil {
-		log.Fatal(err)
-	}
-	stoppers["wsm"] = wsmStopper
-
-	// start loopback webserver
-	lpsStopper, err := httpAPI.StartLoopbackWebServer(cfg.InitMode)
-	if err != nil {
-		log.Fatal(err)
-	}
-	stoppers["lps"] = lpsStopper
 
 	// if starting for the first time, this will block until remote init is done
 	ctx, cancel := context.WithCancel(context.Background())
@@ -164,13 +150,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 	stoppers["iws"] = iwsStopper
-
-	// start the db sync server
-	dbStopper, err := dbcli.SyncServer(internalIP)
-	if err != nil {
-		log.Fatal(err)
-	}
-	stoppers["db"] = dbStopper
 
 	log.Info("Started all servers successfully")
 	wg.Wait()

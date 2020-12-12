@@ -47,7 +47,7 @@ type InitProtocol struct {
 }
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *InitProtocol) Init(id string, username string, name string, domain string, network string) (InitResp, error) {
+func (ip *InitProtocol) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (InitResp, error) {
 	peerID, err := peer.IDFromString(id)
 	if err != nil {
 		return InitResp{}, fmt.Errorf("Failed to parse peer ID from string: %w", err)
@@ -55,9 +55,11 @@ func (ip *InitProtocol) Init(id string, username string, name string, domain str
 
 	req := InitRequest{
 		Username: username,
+		Password: password,
 		Name:     name,
 		Domain:   domain,
 		Network:  network,
+		Devices:  devices,
 	}
 
 	respData := &InitResp{}
@@ -121,7 +123,11 @@ func (ip *InitProtocol) Do(data interface{}) (interface{}, error) {
 }
 
 // NewInitProtocol creates a new init protocol handler
-func NewInitProtocol(p2p *P2P) *InitProtocol {
-	ip := &InitProtocol{p2p: p2p}
+func NewInitProtocol(p2p *P2P, metaConfigurator MetaConfigurator, userCreator UserCreator) *InitProtocol {
+	ip := &InitProtocol{
+		p2p:              p2p,
+		metaConfigurator: metaConfigurator,
+		userCreator:      userCreator,
+	}
 	return ip
 }
