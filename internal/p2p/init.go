@@ -1,6 +1,8 @@
 package p2p
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"fmt"
 	"net"
 
@@ -47,10 +49,10 @@ type InitProtocol struct {
 }
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *InitProtocol) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (InitResp, error) {
+func (ip *InitProtocol) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
 	peerID, err := peer.IDFromString(id)
 	if err != nil {
-		return InitResp{}, fmt.Errorf("Failed to parse peer ID from string: %w", err)
+		return nil, nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
 	}
 
 	req := InitRequest{
@@ -68,10 +70,21 @@ func (ip *InitProtocol) Init(id string, username string, password string, name s
 	log.Infof("Sending init request '%s'", peerID.String())
 	err = ip.p2p.sendRequest(peerID, "init", req, respData)
 	if err != nil {
-		return InitResp{}, fmt.Errorf("Init request to '%s' failed: %s", peerID.String(), err.Error())
+		return nil, nil, fmt.Errorf("Init request to '%s' failed: %s", peerID.String(), err.Error())
 	}
 
-	return *respData, nil
+	// prepare IP and public key of instance
+	ipAddr := net.ParseIP(respData.InstanceIP)
+	if ipAddr == nil {
+		return nil, nil, fmt.Errorf("Failed to parse IP: %w", err)
+	}
+	var pubKey ed25519.PublicKey
+	pubKey, err = base64.StdEncoding.DecodeString(respData.InstancePubKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to decode public key: %w", err)
+	}
+
+	return ipAddr, pubKey, nil
 }
 
 // Do satisfies the Handler interface

@@ -442,6 +442,8 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return errors.Wrap(err, "Failed to retrieve public key from dev instance")
 	}
 
+	sshCon.Close()
+
 	var pubKey ed25519.PublicKey
 	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
 	if err != nil {
@@ -461,41 +463,22 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	srv := cm.p2p.GetSrv()
 
-	initData, err := srv.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
+	// do the initialization
+	ip, pubKey, err = srv.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
 	if err != nil {
 		return fmt.Errorf("Failed to init dev instance: %w", err)
 	}
 
-	log.Info(initData)
+	instanceInfo.InternalIP = ip.String()
+	instanceInfo.PublicKey = pubKey
+	instanceInfo.Network = developmentNetwork.String()
 
-	// // do the initialization
-	// log.Infof("Initializing instance at '%s'", ipString)
-	// protos := pclient.NewInitClient(fmt.Sprintf("127.0.0.1:%d", localPort), usr.GetUsername(), usr.GetPassword())
-	// dev, err := usr.GetCurrentDevice()
-	// if err != nil {
-	// 	return err
-	// }
+	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
+	}
 
-	// // Doing the instance initialization which returns the internal wireguard IP and the public key of the instance.
-	// instanceIP, instancePublicKey, err := protos.InitInstance(usr.GetInfo().Name, developmentNetwork.String(), usr.GetInfo().Domain, []types.UserDevice{dev})
-	// if err != nil {
-	// 	return errors.Wrap(err, "Error while doing the instance initialization")
-	// }
-	// instanceInfo.InternalIP = instanceIP.String()
-	// instanceInfo.PublicKey = instancePublicKey
-	// instanceInfo.Network = developmentNetwork.String()
-
-	// err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
-	// if err != nil {
-	// 	return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
-	// }
-
-	// // close the SSH tunnel
-	// err = tunnel.Close()
-	// if err != nil {
-	// 	return errors.Wrap(err, "Error while terminating the SSH tunnel")
-	// }
-	// log.Infof("Instance at '%s' is ready", ipString)
+	log.Infof("Dev instance at '%s' is ready", ipString)
 
 	return nil
 }
