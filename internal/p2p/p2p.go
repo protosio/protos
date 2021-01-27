@@ -66,7 +66,7 @@ type requests struct {
 
 // Server is good
 type Server struct {
-	*InitProtocol
+	*InitRemote
 }
 
 type P2P struct {
@@ -237,7 +237,7 @@ func (p2p *P2P) streamResponseHandler(s network.Stream) {
 		return
 	}
 
-	// if the closeSig channel is closed, the request has been processed, so we return without sending the timeout error and closing the chans
+	// if the closeSig channel is closed, the request has timed out, so we return without sending the response received
 	select {
 	case <-req.closeSig:
 		return
@@ -291,7 +291,6 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 		// if the closeSig channel is closed, the request has been processed, so we return without sending the timeout error and closing the chans
 		select {
 		case <-req.closeSig:
-			fmt.Println("timeout not used")
 			return
 		default:
 		}
@@ -351,9 +350,6 @@ func (p2p *P2P) Listen() (func() error, error) {
 	if err != nil {
 		return func() error { return nil }, fmt.Errorf("Failed to listen: %w", err)
 	}
-
-	// we register the handler for the init method
-	p2p.addHandler("init", &Handler{Do: p2p.srv.InitProtocol.Do, RequestStruct: &InitRequest{}})
 
 	stopper := func() error {
 		log.Debug("Stopping p2p server")
@@ -429,8 +425,11 @@ func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userC
 
 	p2p.host = host
 	p2p.srv = &Server{
-		NewInitProtocol(p2p, p2p.metaConfigurator, p2p.userCreator),
+		NewInitRemote(p2p, p2p.metaConfigurator, p2p.userCreator),
 	}
+
+	// we register the handler for the init method
+	p2p.addHandler("init", &Handler{Do: p2p.srv.InitRemote.Do, RequestStruct: &InitRequest{}})
 
 	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
 	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)

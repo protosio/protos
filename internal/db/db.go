@@ -164,28 +164,30 @@ func (db *dbNoms) SyncAll(ips []string) error {
 
 		dst := fmt.Sprintf("http://%s:%d::%s", ip, dbPort, sharedDS)
 		cfg := config.NewResolver()
-		remoteStore, remoteObj, err := cfg.GetPath(dst)
+		remoteDB, remoteObj, err := cfg.GetPath(dst)
 		if err != nil {
 			return err
 		}
+
+		cfg.GetDatasetFromChunkStore()
 
 		if remoteObj == nil {
 			return fmt.Errorf("Object for dataset '%s' not found on '%s'", sharedDS, "destination")
 		}
 
 		// sync local -> remote
-		err = db.SyncTo(db.dbn, remoteStore)
+		err = db.SyncTo(db.dbn, remoteDB)
 		if err != nil {
 			return err
 		}
 
 		// sync remote -> local
-		err = db.SyncTo(remoteStore, db.dbn)
+		err = db.SyncTo(remoteDB, db.dbn)
 		if err != nil {
 			return err
 		}
 
-		err = remoteStore.Close()
+		err = remoteDB.Close()
 		if err != nil {
 			return err
 		}
@@ -226,13 +228,14 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 	// prepare local db
 	srcObj, found := srcStore.GetDataset(sharedDS).MaybeHead()
 	if !found {
-		return fmt.Errorf("Object not found for local db")
+		return fmt.Errorf("Head not found for local db")
 	}
 	srcRef := types.NewRef(srcObj)
 
 	dstRef, dstExists := dstDataset.MaybeHeadRef()
 	nonFF := false
 
+	// pull the data from, from src towards dst
 	datas.Pull(srcStore, dstStore, srcRef, progressCh)
 
 	dstDataset, err := dstStore.FastForward(dstDataset, srcRef)

@@ -42,14 +42,14 @@ type InitResp struct {
 	InstanceIP     string `json:"instanceip" validate:"ipv4"`       // internal IP of the instance
 }
 
-type InitProtocol struct {
+type InitRemote struct {
 	metaConfigurator MetaConfigurator
 	userCreator      UserCreator
 	p2p              *P2P
 }
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *InitProtocol) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
+func (ip *InitRemote) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
 	peerID, err := peer.IDFromString(id)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
@@ -88,7 +88,7 @@ func (ip *InitProtocol) Init(id string, username string, password string, name s
 }
 
 // Do satisfies the Handler interface
-func (ip *InitProtocol) Do(data interface{}) (interface{}, error) {
+func (ip *InitRemote) Do(data interface{}) (interface{}, error) {
 
 	req, ok := data.(*InitRequest)
 	if !ok {
@@ -135,9 +135,9 @@ func (ip *InitProtocol) Do(data interface{}) (interface{}, error) {
 	return initResp, nil
 }
 
-// NewInitProtocol creates a new init protocol handler
-func NewInitProtocol(p2p *P2P, metaConfigurator MetaConfigurator, userCreator UserCreator) *InitProtocol {
-	ip := &InitProtocol{
+// NewInitRemote creates a new remote init handler
+func NewInitRemote(p2p *P2P, metaConfigurator MetaConfigurator, userCreator UserCreator) *InitRemote {
+	ip := &InitRemote{
 		p2p:              p2p,
 		metaConfigurator: metaConfigurator,
 		userCreator:      userCreator,
