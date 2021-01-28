@@ -1,23 +1,20 @@
 package p2p
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
 
 	"github.com/attic-labs/noms/go/chunks"
-	"github.com/attic-labs/noms/go/constants"
 	"github.com/attic-labs/noms/go/d"
 	"github.com/attic-labs/noms/go/hash"
 	"github.com/attic-labs/noms/go/nbs"
-	"github.com/julienschmidt/httprouter"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-type SyncRemote struct {
-	p2p *P2P
-}
-
-func GetRemoteChunkStore() chunks.ChunkStore {
+// NewChunkStore creates a new remote chunk store
+func NewChunkStore(p2p *P2P, id string) *P2PChunkStore {
 	return &P2PChunkStore{
 		getQueue:      make(chan chunks.ReadRequest),
 		hasQueue:      make(chan chunks.ReadRequest),
@@ -27,6 +24,9 @@ func GetRemoteChunkStore() chunks.ChunkStore {
 		cacheMu:       &sync.RWMutex{},
 		unwrittenPuts: nbs.NewCache(),
 		rootMu:        &sync.RWMutex{},
+
+		p2p: p2p,
+		id:  id,
 	}
 }
 
@@ -43,6 +43,9 @@ type P2PChunkStore struct {
 	rootMu  *sync.RWMutex
 	root    hash.Hash
 	version string
+
+	p2p *P2P
+	id  string
 }
 
 func (p2pcs *P2PChunkStore) getRoot(checkVers bool) (root hash.Hash, vers string) {
@@ -60,22 +63,29 @@ func (p2pcs *P2PChunkStore) getRoot(checkVers bool) (root hash.Hash, vers string
 	return hash.Parse(string(data)), res.Header.Get(NomsVersionHeader)
 }
 
-func (p2pcs *P2PChunkStore) requestRoot(method string, current, last hash.Hash) *http.Response {
-	u := *hcs.host
-	u.Path = httprouter.CleanPath(hcs.host.Path + constants.RootPath)
-	if method == "POST" {
-		params := u.Query()
-		params.Add("last", last.String())
-		params.Add("current", current.String())
-		u.RawQuery = params.Encode()
+func (p2pcs *P2PChunkStore) requestRoot(method string, current, last hash.Hash) (*getRootResp, error) {
+	peerID, err := peer.IDFromString(p2pcs.id)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
 	}
 
-	req := newRequest(method, hcs.auth, u.String(), nil, nil)
+	// FIXME: original HTTP code added params to the POST and no params to the GET
 
-	res, err := hcs.httpClient.Do(req)
-	d.PanicIfError(err)
+	req := &getRootReq{
+		last:    last.String(),
+		current: current.String(),
+	}
 
-	return res
+	respData := &getRootResp{}
+
+	// send the request
+	log.Infof("Sending getRoot request '%s'", peerID.String())
+	err = p2pcs.p2p.sendRequest(peerID, getRootHandler, req, respData)
+	if err != nil {
+		return nil, fmt.Errorf("getRoot request to '%s' failed: %s", peerID.String(), err.Error())
+	}
+
+	return respData, nil
 }
 
 //
@@ -128,12 +138,4 @@ func (p2pcs *P2PChunkStore) StatsSummary() string {
 
 func (p2pcs *P2PChunkStore) Close() error {
 	return nil
-}
-
-// NewSyncRemote creates a new remote sync handler
-func NewSyncRemote(p2p *P2P) *SyncRemote {
-	syncRemote := &SyncRemote{
-		p2p: p2p,
-	}
-	return syncRemote
 }

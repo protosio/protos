@@ -30,7 +30,7 @@ const protosRequestProtocol = "/protos/request/0.0.1"
 const protosResponseProtocol = "/protos/response/0.0.1"
 
 type Handler struct {
-	Do            func(data interface{}) (interface{}, error)
+	Func          func(data interface{}) (interface{}, error)
 	RequestStruct interface{}
 }
 
@@ -176,7 +176,7 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 	}
 
 	var jsonHandlerResponse []byte
-	handlerResponse, err := handler.Do(data)
+	handlerResponse, err := handler.Func(data)
 	if err != nil {
 		err = fmt.Errorf("Failed to process request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
 		log.Errorf(err.Error())
@@ -429,7 +429,8 @@ func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userC
 	}
 
 	// we register the handler for the init method
-	p2p.addHandler("init", &Handler{Do: p2p.srv.InitRemote.Do, RequestStruct: &InitRequest{}})
+	p2p.addHandler(initHandler, &Handler{Func: p2p.srv.InitRemote.PerformInit, RequestStruct: &InitReq{}})
+	p2p.addHandler(getRootHandler, &Handler{Func: getRoot, RequestStruct: &getRootReq{}})
 
 	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
 	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)

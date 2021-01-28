@@ -14,6 +14,8 @@ import (
 	"github.com/protosio/protos/internal/ssh"
 )
 
+const initHandler = "init"
+
 // MetaConfigurator allows for the configuration of the meta package
 type MetaConfigurator interface {
 	SetDomain(domainName string)
@@ -28,7 +30,7 @@ type UserCreator interface {
 	CreateUser(username string, password string, name string, domain string, isadmin bool, devices []auth.UserDevice) (*auth.User, error)
 }
 
-type InitRequest struct {
+type InitReq struct {
 	Username string            `json:"username" validate:"required"`
 	Name     string            `json:"name" validate:"required"`
 	Domain   string            `json:"domain" validate:"fqdn"`
@@ -55,7 +57,7 @@ func (ip *InitRemote) Init(id string, username string, password string, name str
 		return nil, nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
 	}
 
-	req := InitRequest{
+	req := InitReq{
 		Username: username,
 		Password: password,
 		Name:     name,
@@ -68,7 +70,7 @@ func (ip *InitRemote) Init(id string, username string, password string, name str
 
 	// send the request
 	log.Infof("Sending init request '%s'", peerID.String())
-	err = ip.p2p.sendRequest(peerID, "init", req, respData)
+	err = ip.p2p.sendRequest(peerID, initHandler, req, respData)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Init request to '%s' failed: %s", peerID.String(), err.Error())
 	}
@@ -87,10 +89,10 @@ func (ip *InitRemote) Init(id string, username string, password string, name str
 	return ipAddr, pubKey, nil
 }
 
-// Do satisfies the Handler interface
-func (ip *InitRemote) Do(data interface{}) (interface{}, error) {
+// PerformInit does the actual initialisation on the remote side
+func (ip *InitRemote) PerformInit(data interface{}) (interface{}, error) {
 
-	req, ok := data.(*InitRequest)
+	req, ok := data.(*InitReq)
 	if !ok {
 		return InitResp{}, fmt.Errorf("Unknown data struct for init request")
 	}
