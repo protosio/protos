@@ -2,8 +2,6 @@ package p2p
 
 import (
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"sync"
 
 	"github.com/attic-labs/noms/go/chunks"
@@ -50,20 +48,15 @@ type P2PChunkStore struct {
 
 func (p2pcs *P2PChunkStore) getRoot(checkVers bool) (root hash.Hash, vers string) {
 	// GET http://<host>/root. Response will be ref of root.
-	res := p2pcs.requestRoot("GET", hash.Hash{}, hash.Hash{})
+	res, err := p2pcs.requestRoot(hash.Hash{}, hash.Hash{})
+	d.PanicIfError(err)
 
 	// FIXME: check expected version
 
-	defer closeResponse(res.Body)
-
-	checkStatus(http.StatusOK, res, res.Body)
-	data, err := ioutil.ReadAll(res.Body)
-	d.PanicIfError(err)
-
-	return hash.Parse(string(data)), res.Header.Get(NomsVersionHeader)
+	return hash.Parse(res.root), res.nomsVersion
 }
 
-func (p2pcs *P2PChunkStore) requestRoot(method string, current, last hash.Hash) (*getRootResp, error) {
+func (p2pcs *P2PChunkStore) requestRoot(current, last hash.Hash) (*getRootResp, error) {
 	peerID, err := peer.IDFromString(p2pcs.id)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)

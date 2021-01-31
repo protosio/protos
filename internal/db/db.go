@@ -169,8 +169,6 @@ func (db *dbNoms) SyncAll(ips []string) error {
 			return err
 		}
 
-		cfg.GetDatasetFromChunkStore()
-
 		if remoteObj == nil {
 			return fmt.Errorf("Object for dataset '%s' not found on '%s'", sharedDS, "destination")
 		}

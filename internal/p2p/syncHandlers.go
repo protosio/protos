@@ -10,6 +10,8 @@ type getRootReq struct {
 }
 
 type getRootResp struct {
+	root        string
+	nomsVersion string
 }
 
 func getRoot(data interface{}) (interface{}, error) {
