@@ -90,7 +90,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	am := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, am, dbcli)
 
-	p2pManager, err := p2p.NewManager(10500, key, m, um)
+	p2pManager, err := p2p.NewManager(10500, key, m, um, dbcli.GetChunkStore())
 	if err != nil {
 		log.Fatal(err)
 	}

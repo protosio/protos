@@ -221,7 +221,7 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 	if err != nil {
 		log.Fatalf("Failed to retrieve key during configuration: %v", err)
 	}
-	p2pManager, err := p2p.NewManager(10500, key, m, um)
+	p2pManager, err := p2p.NewManager(10500, key, m, um, dbi.GetChunkStore())
 	if err != nil {
 		log.Fatal(err)
 	}

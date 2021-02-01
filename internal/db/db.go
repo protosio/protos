@@ -89,6 +89,7 @@ type DB interface {
 	SyncAll(ips []string) error
 	SyncTo(srcStore, dstStore datas.Database) error
 	SyncServer(address net.IP) (func() error, error)
+	GetChunkStore() chunks.ChunkStore
 	Close() error
 }
 
@@ -155,6 +156,10 @@ func (db *dbNoms) getLocalHeadMap() (datas.Dataset, types.Map) {
 
 func (db *dbNoms) Close() error {
 	return db.dbn.Close()
+}
+
+func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
+	return db.cs
 }
 
 func (db *dbNoms) SyncAll(ips []string) error {

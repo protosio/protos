@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/attic-labs/noms/go/chunks"
 	"github.com/libp2p/go-libp2p"
 	connmgr "github.com/libp2p/go-libp2p-connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -28,6 +29,8 @@ var log = util.GetLogger("p2p")
 
 const protosRequestProtocol = "/protos/request/0.0.1"
 const protosResponseProtocol = "/protos/response/0.0.1"
+
+type emptyReq struct{}
 
 type Handler struct {
 	Func          func(data interface{}) (interface{}, error)
@@ -393,7 +396,7 @@ func (p2p *P2P) GetSrv() *Server {
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userCreator UserCreator) (*P2P, error) {
+func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore) (*P2P, error) {
 	p2p := &P2P{
 		handlers:         map[string]*Handler{},
 		reqs:             &requests{&sync.RWMutex{}, map[string]*request{}},
@@ -428,9 +431,12 @@ func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userC
 		NewInitRemote(p2p, p2p.metaConfigurator, p2p.userCreator),
 	}
 
+	p2pservercs := &P2PServerChunkStore{cs: cs}
+
 	// we register the handler for the init method
 	p2p.addHandler(initHandler, &Handler{Func: p2p.srv.InitRemote.PerformInit, RequestStruct: &InitReq{}})
-	p2p.addHandler(getRootHandler, &Handler{Func: getRoot, RequestStruct: &getRootReq{}})
+	p2p.addHandler(getRootHandler, &Handler{Func: p2pservercs.getRoot, RequestStruct: &emptyReq{}})
+	p2p.addHandler(getRootHandler, &Handler{Func: p2pservercs.setRoot, RequestStruct: &setRootReq{}})
 
 	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
 	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)
