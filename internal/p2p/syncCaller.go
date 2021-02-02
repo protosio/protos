@@ -107,7 +107,25 @@ func (p2pcs *P2PRemoteChunkStore) setRoot(current, last hash.Hash) (*getRootResp
 //
 
 func (p2pcs *P2PRemoteChunkStore) Get(h hash.Hash) chunks.Chunk {
-	return chunks.Chunk{}
+	checkCache := func(h hash.Hash) chunks.Chunk {
+		p2pcs.cacheMu.RLock()
+		defer p2pcs.cacheMu.RUnlock()
+		return p2pcs.unwrittenPuts.Get(h)
+	}
+	if pending := checkCache(h); !pending.IsEmpty() {
+		return pending
+	}
+
+	ch := make(chan *chunks.Chunk)
+	defer close(ch)
+
+	select {
+	case <-p2pcs.finishedChan:
+		d.Panic("Tried to Get %s from closed ChunkStore", h)
+	case p2pcs.getQueue <- chunks.NewGetRequest(h, ch):
+	}
+
+	return *(<-ch)
 }
 
 func (p2pcs *P2PRemoteChunkStore) GetMany(hashes hash.HashSet, foundChunks chan *chunks.Chunk) {

@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/attic-labs/noms/go/chunks"
 	"github.com/attic-labs/noms/go/datas"
@@ -71,7 +72,7 @@ func (p2pcs *P2PServerChunkStore) setRoot(data interface{}) (interface{}, error)
 			return getRootResp{
 				root:        p2pcs.cs.Root().String(),
 				nomsVersion: p2pcs.cs.Version(),
-			}, fmt.Errorf("Attempted root map auto-merge failed: %s", err)
+			}, &responseError{err: fmt.Errorf("Attempted root map auto-merge failed: %s", err), statusCode: http.StatusConflict}
 		}
 		to, from = vs.WriteValue(merged).TargetHash(), root
 	}

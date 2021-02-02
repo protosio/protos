@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"sync"
 	"time"
 
@@ -50,9 +51,23 @@ type payloadRequestServer struct {
 }
 
 type payloadResponse struct {
-	ID    string
-	Error string
-	Data  json.RawMessage
+	ID         string
+	Error      string
+	StatusCode int
+	Data       json.RawMessage
+}
+
+type responseError struct {
+	statusCode int
+	err        error
+}
+
+func (r *responseError) Error() string {
+	return r.err.Error()
+}
+
+func (r *responseError) StatusCode() int {
+	return r.statusCode
 }
 
 type request struct {
@@ -67,7 +82,7 @@ type requests struct {
 	reqs map[string]*request
 }
 
-// Server is good
+// Server is a remote p2p server
 type Server struct {
 	*InitRemote
 }
@@ -124,7 +139,7 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 	}
 	s.Close()
 
-	// unmarshal it
+	// unmarshal remote request
 	err = json.Unmarshal(buf, &reqMsg)
 	if err != nil {
 		log.Errorf("Failed to decode request from '%s': %s", s.Conn().RemotePeer().String(), err.Error())
@@ -137,11 +152,12 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 		ID: reqMsg.ID,
 	}
 
+	// find handler
 	handler, err := p2p.getHandler(reqMsg.Type)
 	if err != nil {
 		log.Errorf("Failed to process request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
-
 		respMsg.Error = err.Error()
+		respMsg.StatusCode = http.StatusBadRequest
 
 		// encode the response
 		jsonResp, err := json.Marshal(respMsg)
@@ -158,10 +174,12 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 		return
 	}
 
+	// execute handler method
 	data := handler.RequestStruct
 	err = json.Unmarshal(reqMsg.Data, &data)
 	if err != nil {
-		respMsg.Error = fmt.Errorf("Failed to decode data struct", err.Error()).Error()
+		respMsg.Error = fmt.Errorf("Failed to decode data struct: %s", err.Error()).Error()
+		respMsg.StatusCode = http.StatusUnsupportedMediaType
 
 		// encode the response
 		jsonResp, err := json.Marshal(respMsg)
@@ -194,8 +212,16 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 
 	// add response data or error
 	if err != nil {
+		// if custom response error, copy the status code
+		re, ok := err.(*responseError)
+		if ok {
+			respMsg.StatusCode = re.StatusCode()
+		} else {
+			respMsg.StatusCode = http.StatusInternalServerError
+		}
 		respMsg.Error = err.Error()
 	} else {
+		respMsg.StatusCode = http.StatusOK
 		respMsg.Data = jsonHandlerResponse
 	}
 
