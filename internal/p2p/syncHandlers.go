@@ -1,16 +1,28 @@
 package p2p
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
+	"runtime"
+	"time"
 
 	"github.com/attic-labs/noms/go/chunks"
+	"github.com/attic-labs/noms/go/d"
 	"github.com/attic-labs/noms/go/datas"
 	"github.com/attic-labs/noms/go/hash"
 	"github.com/attic-labs/noms/go/types"
+	"github.com/attic-labs/noms/go/util/verbose"
 )
 
-const getRootHandler = "getRoot"
+const (
+	getRootHandler    = "getRoot"
+	setRootHandler    = "setRoot"
+	writeValueHandler = "writeValue"
+)
 
 type setRootReq struct {
 	last    string
@@ -20,6 +32,10 @@ type setRootReq struct {
 type getRootResp struct {
 	root        string
 	nomsVersion string
+}
+
+type writeValueReq struct {
+	data string
 }
 
 type P2PServerChunkStore struct {
@@ -82,4 +98,87 @@ func (p2pcs *P2PServerChunkStore) setRoot(data interface{}) (interface{}, error)
 		nomsVersion: p2pcs.cs.Version(),
 	}, nil
 
+}
+
+func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, error) {
+	req, ok := data.(*writeValueReq)
+	if !ok {
+		return getRootResp{}, fmt.Errorf("Unknown data struct for writeValue request")
+	}
+
+	byteData, err := base64.StdEncoding.DecodeString(req.data)
+	if !ok {
+		return getRootResp{}, fmt.Errorf("Failed to base64 decode data in writeValue request: %s", err.Error())
+	}
+
+	t1 := time.Now()
+	totalDataWritten := 0
+	chunkCount := 0
+
+	defer func() {
+		verbose.Log("Wrote %d Kb as %d chunks from remote peer in %s", totalDataWritten/1024, chunkCount, time.Since(t1))
+	}()
+
+	reader := ioutil.NopCloser(bytes.NewReader(byteData))
+	defer func() {
+		// Ensure all data on reader is consumed
+		io.Copy(ioutil.Discard, reader)
+		reader.Close()
+	}()
+	vdc := types.NewValidatingDecoder(p2pcs.cs)
+
+	// Deserialize chunks from reader in background, recovering from errors
+	errChan := make(chan error)
+	chunkChan := make(chan *chunks.Chunk, runtime.NumCPU())
+
+	go func() {
+		var err error
+		defer func() { errChan <- err; close(errChan) }()
+		defer close(chunkChan)
+		err = chunks.Deserialize(reader, chunkChan)
+	}()
+
+	decoded := make(chan chan types.DecodedChunk, runtime.NumCPU())
+
+	go func() {
+		defer close(decoded)
+		for c := range chunkChan {
+			ch := make(chan types.DecodedChunk)
+			decoded <- ch
+
+			go func(ch chan types.DecodedChunk, c *chunks.Chunk) {
+				ch <- vdc.Decode(c)
+			}(ch, c)
+		}
+	}()
+
+	unresolvedRefs := hash.HashSet{}
+	for ch := range decoded {
+		dc := <-ch
+		if dc.Chunk != nil && dc.Value != nil {
+			(*dc.Value).WalkRefs(func(r types.Ref) {
+				unresolvedRefs.Insert(r.TargetHash())
+			})
+
+			totalDataWritten += len(dc.Chunk.Data())
+			p2pcs.cs.Put(*dc.Chunk)
+			chunkCount++
+			if chunkCount%100 == 0 {
+				verbose.Log("Enqueued %d chunks", chunkCount)
+			}
+		}
+	}
+
+	// If there was an error during chunk deserialization, raise so it can be logged and responded to.
+	if err := <-errChan; err != nil {
+		d.Panic("Deserialization failure: %v", err)
+	}
+
+	if chunkCount > 0 {
+		types.PanicIfDangling(unresolvedRefs, p2pcs.cs)
+		for !p2pcs.cs.Commit(p2pcs.cs.Root(), p2pcs.cs.Root()) {
+		}
+	}
+
+	return emptyResp{}, nil
 }

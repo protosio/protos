@@ -32,6 +32,7 @@ const protosRequestProtocol = "/protos/request/0.0.1"
 const protosResponseProtocol = "/protos/response/0.0.1"
 
 type emptyReq struct{}
+type emptyResp struct{}
 
 type Handler struct {
 	Func          func(data interface{}) (interface{}, error)
@@ -462,7 +463,8 @@ func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userC
 	// we register the handler for the init method
 	p2p.addHandler(initHandler, &Handler{Func: p2p.srv.InitRemote.PerformInit, RequestStruct: &InitReq{}})
 	p2p.addHandler(getRootHandler, &Handler{Func: p2pservercs.getRoot, RequestStruct: &emptyReq{}})
-	p2p.addHandler(getRootHandler, &Handler{Func: p2pservercs.setRoot, RequestStruct: &setRootReq{}})
+	p2p.addHandler(setRootHandler, &Handler{Func: p2pservercs.setRoot, RequestStruct: &setRootReq{}})
+	p2p.addHandler(writeValueHandler, &Handler{Func: p2pservercs.writeValue, RequestStruct: &writeValueReq{}})
 
 	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
 	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)
