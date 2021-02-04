@@ -2,18 +2,18 @@ package p2p
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sync"
 
 	"github.com/attic-labs/noms/go/chunks"
-	"github.com/attic-labs/noms/go/constants"
 	"github.com/attic-labs/noms/go/d"
+	"github.com/attic-labs/noms/go/datas"
 	"github.com/attic-labs/noms/go/hash"
 	"github.com/attic-labs/noms/go/nbs"
 	"github.com/attic-labs/noms/go/util/verbose"
-	"github.com/julienschmidt/httprouter"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -79,7 +79,7 @@ func (p2pcs *P2PRemoteChunkStore) getRoot(checkVers bool) (root hash.Hash, vers 
 	return hash.Parse(respData.root), respData.nomsVersion
 }
 
-func (p2pcs *P2PRemoteChunkStore) setRoot(current, last hash.Hash) (*getRootResp, error) {
+func (p2pcs *P2PRemoteChunkStore) setRoot(current, last hash.Hash) (*setRootResp, error) {
 	peerID, err := peer.IDFromString(p2pcs.id)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
@@ -90,7 +90,7 @@ func (p2pcs *P2PRemoteChunkStore) setRoot(current, last hash.Hash) (*getRootResp
 		current: current.String(),
 	}
 
-	respData := &getRootResp{}
+	respData := &setRootResp{}
 
 	// send the request
 	log.Infof("Sending setRoot request '%s'", peerID.String())
@@ -249,11 +249,33 @@ func (p2pcs *P2PRemoteChunkStore) Commit(current, last hash.Hash) bool {
 	}
 
 	if count := p2pcs.unwrittenPuts.Count(); count > 0 {
-		url := *p2pcs.host
-		url.Path = httprouter.CleanPath(hcs.host.Path + constants.WriteValuePath)
 		verbose.Log("Sending %d chunks", count)
-		sendWriteRequest(url, hcs.auth, p2pcs.version, p2pcs.unwrittenPuts, hcs.httpClient)
+
+		chunkChan := make(chan *chunks.Chunk, 1024)
+		go func() {
+			p2pcs.unwrittenPuts.ExtractChunks(chunkChan)
+			close(chunkChan)
+		}()
+
+		body := datas.BuildWriteValueRequest(chunkChan)
+
+		nb := &bytes.Buffer{}
+		var err error
+		_, err = io.Copy(nb, body)
+		d.PanicIfError(err)
+
+		encodedBody := base64.StdEncoding.EncodeToString(nb.Bytes())
+
+		peerID, err := peer.IDFromString(p2pcs.id)
+		d.PanicIfError(fmt.Errorf("Failed to parse peer ID from string: %w", err))
+
+		// send the write value request
+		// FIXME: check version
+		log.Infof("Sending writeValue request '%s'", peerID.String())
+		err = p2pcs.p2p.sendRequest(peerID, writeValueHandler, writeValueReq{data: encodedBody}, emptyResp{})
+		d.PanicIfError(fmt.Errorf("writeValue request to '%s' failed: %s", peerID.String(), err.Error()))
 		verbose.Log("Finished sending %d hashes", count)
+
 		p2pcs.unwrittenPuts.Destroy()
 		p2pcs.unwrittenPuts = nbs.NewCache()
 	}
@@ -263,27 +285,19 @@ func (p2pcs *P2PRemoteChunkStore) Commit(current, last hash.Hash) bool {
 	d.PanicIfError(err)
 	expectVersion(p2pcs.version, resp.nomsVersion)
 
-	// FIXME: figure out a way to pass status codes. They are used all over the place in noms
-
 	var success bool
-	switch resp.StatusCode {
+	switch resp.status {
 	case http.StatusOK:
 		success = true
 	case http.StatusConflict:
 		success = false
 	default:
-		buf := bytes.Buffer{}
-		buf.ReadFrom(res.Body)
-		body := buf.String()
 		d.Chk.Fail(
-			fmt.Sprintf("Unexpected response: %s: %s",
-				http.StatusText(res.StatusCode),
-				body))
+			fmt.Sprintf("Unexpected status: %s",
+				http.StatusText(resp.status)))
 		return false
 	}
-	data, err := ioutil.ReadAll(res.Body)
-	d.PanicIfError(err)
-	p2pcs.root = hash.Parse(string(data))
+	p2pcs.root = hash.Parse(resp.root)
 	return success
 }
 

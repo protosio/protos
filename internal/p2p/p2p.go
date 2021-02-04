@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"sync"
 	"time"
 
@@ -52,10 +51,9 @@ type payloadRequestServer struct {
 }
 
 type payloadResponse struct {
-	ID         string
-	Error      string
-	StatusCode int
-	Data       json.RawMessage
+	ID    string
+	Error string
+	Data  json.RawMessage
 }
 
 type responseError struct {
@@ -158,7 +156,6 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 	if err != nil {
 		log.Errorf("Failed to process request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
 		respMsg.Error = err.Error()
-		respMsg.StatusCode = http.StatusBadRequest
 
 		// encode the response
 		jsonResp, err := json.Marshal(respMsg)
@@ -180,7 +177,6 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 	err = json.Unmarshal(reqMsg.Data, &data)
 	if err != nil {
 		respMsg.Error = fmt.Errorf("Failed to decode data struct: %s", err.Error()).Error()
-		respMsg.StatusCode = http.StatusUnsupportedMediaType
 
 		// encode the response
 		jsonResp, err := json.Marshal(respMsg)
@@ -213,16 +209,8 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 
 	// add response data or error
 	if err != nil {
-		// if custom response error, copy the status code
-		re, ok := err.(*responseError)
-		if ok {
-			respMsg.StatusCode = re.StatusCode()
-		} else {
-			respMsg.StatusCode = http.StatusInternalServerError
-		}
 		respMsg.Error = err.Error()
 	} else {
-		respMsg.StatusCode = http.StatusOK
 		respMsg.Data = jsonHandlerResponse
 	}
 

@@ -34,6 +34,12 @@ type getRootResp struct {
 	nomsVersion string
 }
 
+type setRootResp struct {
+	root        string
+	nomsVersion string
+	status      int
+}
+
 type writeValueReq struct {
 	data string
 }
@@ -85,17 +91,19 @@ func (p2pcs *P2PServerChunkStore) setRoot(data interface{}) (interface{}, error)
 		// and proposedMap were in different Datasets.
 		merged, err := datas.MergeDatasetMaps(proposedMap, rootMap, lastMap, vs)
 		if err != nil {
-			return getRootResp{
+			return setRootResp{
 				root:        p2pcs.cs.Root().String(),
 				nomsVersion: p2pcs.cs.Version(),
-			}, &responseError{err: fmt.Errorf("Attempted root map auto-merge failed: %s", err), statusCode: http.StatusConflict}
+				status:      http.StatusConflict,
+			}, nil
 		}
 		to, from = vs.WriteValue(merged).TargetHash(), root
 	}
 
-	return getRootResp{
+	return setRootResp{
 		root:        p2pcs.cs.Root().String(),
 		nomsVersion: p2pcs.cs.Version(),
+		status:      http.StatusOK,
 	}, nil
 
 }
@@ -103,12 +111,12 @@ func (p2pcs *P2PServerChunkStore) setRoot(data interface{}) (interface{}, error)
 func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, error) {
 	req, ok := data.(*writeValueReq)
 	if !ok {
-		return getRootResp{}, fmt.Errorf("Unknown data struct for writeValue request")
+		return emptyResp{}, fmt.Errorf("Unknown data struct for writeValue request")
 	}
 
 	byteData, err := base64.StdEncoding.DecodeString(req.data)
 	if !ok {
-		return getRootResp{}, fmt.Errorf("Failed to base64 decode data in writeValue request: %s", err.Error())
+		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in writeValue request: %s", err.Error())
 	}
 
 	t1 := time.Now()
