@@ -16,6 +16,7 @@ import (
 	"github.com/attic-labs/noms/go/hash"
 	"github.com/attic-labs/noms/go/types"
 	"github.com/attic-labs/noms/go/util/verbose"
+	"github.com/golang/snappy"
 )
 
 const (
@@ -127,7 +128,7 @@ func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, err
 		verbose.Log("Wrote %d Kb as %d chunks from remote peer in %s", totalDataWritten/1024, chunkCount, time.Since(t1))
 	}()
 
-	reader := ioutil.NopCloser(bytes.NewReader(byteData))
+	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteData)))
 	defer func() {
 		// Ensure all data on reader is consumed
 		io.Copy(ioutil.Discard, reader)
