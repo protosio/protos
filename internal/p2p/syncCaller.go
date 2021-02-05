@@ -306,9 +306,29 @@ func (p2pcs *P2PRemoteChunkStore) Stats() interface{} {
 }
 
 func (p2pcs *P2PRemoteChunkStore) StatsSummary() string {
-	return ""
+	peerID, err := peer.IDFromString(p2pcs.id)
+	d.PanicIfError(fmt.Errorf("Failed to parse peer ID from string: %w", err))
+
+	respData := &getStatsSummaryResp{}
+	err = p2pcs.p2p.sendRequest(peerID, getStatsSummary, emptyReq{}, respData)
+	d.PanicIfError(err)
+
+	return respData.stats
 }
 
 func (p2pcs *P2PRemoteChunkStore) Close() error {
+	p2pcs.rootMu.Lock()
+	defer p2pcs.rootMu.Unlock()
+
+	close(p2pcs.finishedChan)
+	p2pcs.workerWg.Wait()
+
+	close(p2pcs.getQueue)
+	close(p2pcs.hasQueue)
+	close(p2pcs.rateLimit)
+
+	p2pcs.cacheMu.Lock()
+	defer p2pcs.cacheMu.Unlock()
+	p2pcs.unwrittenPuts.Destroy()
 	return nil
 }

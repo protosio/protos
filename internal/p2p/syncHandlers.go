@@ -23,6 +23,7 @@ const (
 	getRootHandler    = "getRoot"
 	setRootHandler    = "setRoot"
 	writeValueHandler = "writeValue"
+	getStatsSummary   = "stats"
 )
 
 type setRootReq struct {
@@ -43,6 +44,10 @@ type setRootResp struct {
 
 type writeValueReq struct {
 	data string
+}
+
+type getStatsSummaryResp struct {
+	stats string
 }
 
 type P2PServerChunkStore struct {
@@ -190,4 +195,10 @@ func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, err
 	}
 
 	return emptyResp{}, nil
+}
+
+func (p2pcs *P2PServerChunkStore) getStatsSummary(data interface{}) (interface{}, error) {
+	resp := getStatsSummaryResp{}
+	resp.stats = p2pcs.cs.StatsSummary()
+	return resp, nil
 }
