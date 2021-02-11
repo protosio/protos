@@ -17,9 +17,13 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-// NewChunkStore creates a new remote chunk store
-func NewRemoteChunkStore(p2p *P2P, id string) *P2PRemoteChunkStore {
-	return &P2PRemoteChunkStore{
+const (
+	readThreshold = 1 << 12 // 4K
+)
+
+// NewRemoteChunkStore creates a new remote chunk store based on libp2p
+func NewRemoteChunkStore(p2p *P2P, id string) *RemoteChunkStore {
+	p2pcs := &RemoteChunkStore{
 		getQueue:      make(chan chunks.ReadRequest),
 		hasQueue:      make(chan chunks.ReadRequest),
 		finishedChan:  make(chan struct{}),
@@ -32,9 +36,14 @@ func NewRemoteChunkStore(p2p *P2P, id string) *P2PRemoteChunkStore {
 		p2p: p2p,
 		id:  id,
 	}
+	p2pcs.root, p2pcs.version = p2pcs.getRoot(false)
+	// p2pcs.batchReadRequests(p2pcs.getQueue, p2pcs.getRefs)
+	// p2pcs.batchReadRequests(p2pcs.hasQueue, p2pcs.hasRefs)
+	return p2pcs
 }
 
-type P2PRemoteChunkStore struct {
+// RemoteChunkStore represents a remote chunk store based on libp2p
+type RemoteChunkStore struct {
 	getQueue     chan chunks.ReadRequest
 	hasQueue     chan chunks.ReadRequest
 	finishedChan chan struct{}
@@ -61,7 +70,7 @@ func expectVersion(expected string, received string) {
 	}
 }
 
-func (p2pcs *P2PRemoteChunkStore) getRoot(checkVers bool) (root hash.Hash, vers string) {
+func (p2pcs *RemoteChunkStore) getRoot(checkVers bool) (root hash.Hash, vers string) {
 	peerID, err := peer.IDFromString(p2pcs.id)
 	d.PanicIfError(fmt.Errorf("Failed to parse peer ID from string: %w", err))
 
@@ -79,7 +88,7 @@ func (p2pcs *P2PRemoteChunkStore) getRoot(checkVers bool) (root hash.Hash, vers 
 	return hash.Parse(respData.root), respData.nomsVersion
 }
 
-func (p2pcs *P2PRemoteChunkStore) setRoot(current, last hash.Hash) (*setRootResp, error) {
+func (p2pcs *RemoteChunkStore) setRoot(current, last hash.Hash) (*setRootResp, error) {
 	peerID, err := peer.IDFromString(p2pcs.id)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
@@ -102,11 +111,120 @@ func (p2pcs *P2PRemoteChunkStore) setRoot(current, last hash.Hash) (*setRootResp
 	return respData, nil
 }
 
+type batchGetter func(batch chunks.ReadBatch)
+
+func (p2pcs *RemoteChunkStore) batchReadRequests(queue <-chan chunks.ReadRequest, getter batchGetter) {
+	p2pcs.workerWg.Add(1)
+	go func() {
+		defer p2pcs.workerWg.Done()
+		for done := false; !done; {
+			select {
+			case req := <-queue:
+				p2pcs.sendReadRequests(req, queue, getter)
+			case <-p2pcs.finishedChan:
+				done = true
+			}
+		}
+	}()
+}
+
+func (p2pcs *RemoteChunkStore) sendReadRequests(req chunks.ReadRequest, queue <-chan chunks.ReadRequest, getter batchGetter) {
+	batch := chunks.ReadBatch{}
+
+	addReq := func(req chunks.ReadRequest) {
+		for h := range req.Hashes() {
+			batch[h] = append(batch[h], req.Outstanding())
+		}
+	}
+
+	addReq(req)
+	for drained := false; !drained && len(batch) < readThreshold; {
+		select {
+		case req := <-queue:
+			addReq(req)
+		default:
+			drained = true
+		}
+	}
+
+	p2pcs.rateLimit <- struct{}{}
+	go func() {
+		defer batch.Close()
+		defer func() { <-p2pcs.rateLimit }()
+
+		getter(batch)
+	}()
+}
+
+// func (p2pcs *RemoteChunkStore) getRefs(batch chunks.ReadBatch) {
+// 	// Indicate to the server that we're OK reading chunks from any store that knows about our root
+// 	q := "root=" + p2pcs.root.String()
+// 	if u.RawQuery != "" {
+// 		q = u.RawQuery + "&" + q
+// 	}
+// 	u.RawQuery = q
+
+// 	req := newRequest("POST", hcs.auth, u.String(), buildHashesRequest(batch), http.Header{
+// 		"Accept-Encoding": {"x-snappy-framed"},
+// 		"Content-Type":    {"application/octet-stream"},
+// 	})
+// 	req.ContentLength = int64(serializedLength(batch))
+
+// 	res, err := hcs.httpClient.Do(req)
+// 	d.Chk.NoError(err)
+// 	expectVersion(p2pcs.version, res)
+// 	reader := resBodyReader(res)
+// 	defer closeResponse(reader)
+
+// 	checkStatus(http.StatusOK, res, reader)
+
+// 	chunkChan := make(chan *chunks.Chunk, 16)
+// 	go func() { defer close(chunkChan); chunks.Deserialize(reader, chunkChan) }()
+
+// 	for c := range chunkChan {
+// 		h := c.Hash()
+// 		for _, or := range batch[h] {
+// 			go or.Satisfy(h, c)
+// 		}
+// 		delete(batch, c.Hash())
+// 	}
+// }
+
+// func (p2pcs *RemoteChunkStore) hasRefs(batch chunks.ReadBatch) {
+// 	// POST http://<host>/hasRefs/. Post body: ref=sha1---&ref=sha1---& Response will be text of lines containing "|ref| |bool|".
+// 	u := *p2pcs.host
+// 	u.Path = httprouter.CleanPath(p2pcs.host.Path + constants.HasRefsPath)
+
+// 	req := newRequest("POST", p2pcs.auth, u.String(), buildHashesRequest(batch), http.Header{
+// 		"Accept-Encoding": {"x-snappy-framed"},
+// 		"Content-Type":    {"application/octet-stream"},
+// 	})
+// 	req.ContentLength = int64(serializedLength(batch))
+
+// 	res, err := p2pcs.httpClient.Do(req)
+// 	d.Chk.NoError(err)
+// 	expectVersion(p2pcs.version, res)
+// 	reader := resBodyReader(res)
+// 	defer closeResponse(reader)
+
+// 	checkStatus(http.StatusOK, res, reader)
+
+// 	scanner := bufio.NewScanner(reader)
+// 	scanner.Split(bufio.ScanWords)
+// 	for scanner.Scan() {
+// 		h := hash.Parse(scanner.Text())
+// 		for _, outstanding := range batch[h] {
+// 			outstanding.Satisfy(h, &chunks.EmptyChunk)
+// 		}
+// 		delete(batch, h)
+// 	}
+// }
+
 //
 // public methods
 //
 
-func (p2pcs *P2PRemoteChunkStore) Get(h hash.Hash) chunks.Chunk {
+func (p2pcs *RemoteChunkStore) Get(h hash.Hash) chunks.Chunk {
 	checkCache := func(h hash.Hash) chunks.Chunk {
 		p2pcs.cacheMu.RLock()
 		defer p2pcs.cacheMu.RUnlock()
@@ -128,7 +246,7 @@ func (p2pcs *P2PRemoteChunkStore) Get(h hash.Hash) chunks.Chunk {
 	return *(<-ch)
 }
 
-func (p2pcs *P2PRemoteChunkStore) GetMany(hashes hash.HashSet, foundChunks chan *chunks.Chunk) {
+func (p2pcs *RemoteChunkStore) GetMany(hashes hash.HashSet, foundChunks chan *chunks.Chunk) {
 	cachedChunks := make(chan *chunks.Chunk)
 	go func() {
 		p2pcs.cacheMu.RLock()
@@ -158,7 +276,7 @@ func (p2pcs *P2PRemoteChunkStore) GetMany(hashes hash.HashSet, foundChunks chan 
 	wg.Wait()
 }
 
-func (p2pcs *P2PRemoteChunkStore) Has(h hash.Hash) bool {
+func (p2pcs *RemoteChunkStore) Has(h hash.Hash) bool {
 	checkCache := func(h hash.Hash) bool {
 		p2pcs.cacheMu.RLock()
 		defer p2pcs.cacheMu.RUnlock()
@@ -179,7 +297,7 @@ func (p2pcs *P2PRemoteChunkStore) Has(h hash.Hash) bool {
 	return <-ch
 }
 
-func (p2pcs *P2PRemoteChunkStore) HasMany(hashes hash.HashSet) (absent hash.HashSet) {
+func (p2pcs *RemoteChunkStore) HasMany(hashes hash.HashSet) (absent hash.HashSet) {
 	var remaining hash.HashSet
 	func() {
 		p2pcs.cacheMu.RLock()
@@ -207,7 +325,7 @@ func (p2pcs *P2PRemoteChunkStore) HasMany(hashes hash.HashSet) (absent hash.Hash
 	return absent
 }
 
-func (p2pcs *P2PRemoteChunkStore) Put(c chunks.Chunk) {
+func (p2pcs *RemoteChunkStore) Put(c chunks.Chunk) {
 	p2pcs.cacheMu.RLock()
 	defer p2pcs.cacheMu.RUnlock()
 	select {
@@ -218,24 +336,24 @@ func (p2pcs *P2PRemoteChunkStore) Put(c chunks.Chunk) {
 	p2pcs.unwrittenPuts.Insert(c)
 }
 
-func (p2pcs *P2PRemoteChunkStore) Version() string {
+func (p2pcs *RemoteChunkStore) Version() string {
 	return p2pcs.version
 }
 
-func (p2pcs *P2PRemoteChunkStore) Rebase() {
+func (p2pcs *RemoteChunkStore) Rebase() {
 	root, _ := p2pcs.getRoot(true)
 	p2pcs.rootMu.Lock()
 	defer p2pcs.rootMu.Unlock()
 	p2pcs.root = root
 }
 
-func (p2pcs *P2PRemoteChunkStore) Root() hash.Hash {
+func (p2pcs *RemoteChunkStore) Root() hash.Hash {
 	p2pcs.rootMu.RLock()
 	defer p2pcs.rootMu.RUnlock()
 	return p2pcs.root
 }
 
-func (p2pcs *P2PRemoteChunkStore) Commit(current, last hash.Hash) bool {
+func (p2pcs *RemoteChunkStore) Commit(current, last hash.Hash) bool {
 	p2pcs.rootMu.Lock()
 	defer p2pcs.rootMu.Unlock()
 	p2pcs.cacheMu.Lock()
@@ -301,22 +419,22 @@ func (p2pcs *P2PRemoteChunkStore) Commit(current, last hash.Hash) bool {
 	return success
 }
 
-func (p2pcs *P2PRemoteChunkStore) Stats() interface{} {
+func (p2pcs *RemoteChunkStore) Stats() interface{} {
 	return nil
 }
 
-func (p2pcs *P2PRemoteChunkStore) StatsSummary() string {
+func (p2pcs *RemoteChunkStore) StatsSummary() string {
 	peerID, err := peer.IDFromString(p2pcs.id)
 	d.PanicIfError(fmt.Errorf("Failed to parse peer ID from string: %w", err))
 
-	respData := &getStatsSummaryResp{}
-	err = p2pcs.p2p.sendRequest(peerID, getStatsSummary, emptyReq{}, respData)
+	respData := &getStatsSummaryHandlerResp{}
+	err = p2pcs.p2p.sendRequest(peerID, getStatsSummaryHandler, emptyReq{}, respData)
 	d.PanicIfError(err)
 
 	return respData.stats
 }
 
-func (p2pcs *P2PRemoteChunkStore) Close() error {
+func (p2pcs *RemoteChunkStore) Close() error {
 	p2pcs.rootMu.Lock()
 	defer p2pcs.rootMu.Unlock()
 

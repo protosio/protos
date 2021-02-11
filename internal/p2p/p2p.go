@@ -453,7 +453,8 @@ func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userC
 	p2p.addHandler(getRootHandler, &Handler{Func: p2pservercs.getRoot, RequestStruct: &emptyReq{}})
 	p2p.addHandler(setRootHandler, &Handler{Func: p2pservercs.setRoot, RequestStruct: &setRootReq{}})
 	p2p.addHandler(writeValueHandler, &Handler{Func: p2pservercs.writeValue, RequestStruct: &writeValueReq{}})
-	p2p.addHandler(getStatsSummary, &Handler{Func: p2pservercs.getStatsSummary, RequestStruct: &emptyReq{}})
+	p2p.addHandler(getStatsSummaryHandler, &Handler{Func: p2pservercs.getStatsSummary, RequestStruct: &emptyReq{}})
+	p2p.addHandler(getRefsHandler, &Handler{Func: p2pservercs.getRefs, RequestStruct: &getRefsReq{}})
 
 	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
 	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)

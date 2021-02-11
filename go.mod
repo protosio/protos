@@ -20,13 +20,13 @@ require (
 	github.com/getlantern/deepcopy v0.0.0-20160317154340-7f45deb8130a
 	github.com/go-playground/validator/v10 v10.4.0
 	github.com/golang/mock v1.4.4
+	github.com/golang/snappy v0.0.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/icholy/killable v0.0.0-20170925194751-168925335d1e
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
-	github.com/julienschmidt/httprouter v1.2.0
 	github.com/libp2p/go-libp2p v0.12.0
 	github.com/libp2p/go-libp2p-connmgr v0.2.4
 	github.com/libp2p/go-libp2p-core v0.7.0

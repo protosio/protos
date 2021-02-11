@@ -2,12 +2,16 @@ package p2p
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/attic-labs/noms/go/chunks"
@@ -20,10 +24,12 @@ import (
 )
 
 const (
-	getRootHandler    = "getRoot"
-	setRootHandler    = "setRoot"
-	writeValueHandler = "writeValue"
-	getStatsSummary   = "stats"
+	getRootHandler         = "getRoot"
+	setRootHandler         = "setRoot"
+	writeValueHandler      = "writeValue"
+	getStatsSummaryHandler = "stats"
+	getRefsHandler         = "getRefs"
+	maxGetBatchSize        = 1 << 14 // Limit GetMany() to ~16k chunks, or ~64MB of data
 )
 
 type setRootReq struct {
@@ -42,11 +48,19 @@ type setRootResp struct {
 	status      int
 }
 
+type getRefsReq struct {
+	hashes string
+}
+
+type getRefsResp struct {
+	chunks string
+}
+
 type writeValueReq struct {
 	data string
 }
 
-type getStatsSummaryResp struct {
+type getStatsSummaryHandlerResp struct {
 	stats string
 }
 
@@ -111,6 +125,91 @@ func (p2pcs *P2PServerChunkStore) setRoot(data interface{}) (interface{}, error)
 		nomsVersion: p2pcs.cs.Version(),
 		status:      http.StatusOK,
 	}, nil
+
+}
+
+func bodyReader(req *http.Request) (reader io.ReadCloser) {
+	reader = req.Body
+	if strings.Contains(req.Header.Get("Content-Encoding"), "gzip") {
+		gr, err := gzip.NewReader(reader)
+		d.PanicIfError(err)
+		reader = gr
+	} else if strings.Contains(req.Header.Get("Content-Encoding"), "x-snappy-framed") {
+		sr := snappy.NewReader(reader)
+		reader = ioutil.NopCloser(sr)
+	}
+	return
+}
+
+func deserializeHashes(reader io.Reader) hash.HashSlice {
+	count := uint32(0)
+	err := binary.Read(reader, binary.BigEndian, &count)
+	d.PanicIfError(err)
+
+	hashes := make(hash.HashSlice, count)
+	for i := range hashes {
+		hashes[i] = deserializeHash(reader)
+	}
+	return hashes
+}
+
+func deserializeHash(reader io.Reader) hash.Hash {
+	h := hash.Hash{}
+	n, err := io.ReadFull(reader, h[:])
+	d.PanicIfError(err)
+	d.PanicIfFalse(int(hash.ByteLen) == n)
+	return h
+}
+
+func (p2pcs *P2PServerChunkStore) getRefs(data interface{}) (interface{}, error) {
+	req, ok := data.(*getRefsReq)
+	if !ok {
+		return getRefsResp{}, fmt.Errorf("Unknown data struct for getRefs request")
+	}
+
+	byteData, err := base64.StdEncoding.DecodeString(req.hashes)
+	if !ok {
+		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in getRefs request: %s", err.Error())
+	}
+
+	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteData)))
+	hashes := deserializeHashes(reader)
+
+	verbose.Log("Handling getRefs request for: %v\n", hashes)
+
+	buf := &bytes.Buffer{}
+	writer := snappy.NewBufferedWriter(buf)
+	defer writer.Close()
+
+	for len(hashes) > 0 {
+		batch := hashes
+
+		// Limit RAM consumption by streaming chunks in ~8MB batches
+		if len(batch) > maxGetBatchSize {
+			batch = batch[:maxGetBatchSize]
+		}
+
+		chunkChan := make(chan *chunks.Chunk, maxGetBatchSize)
+		absent := batch.HashSet()
+		go func() {
+			p2pcs.cs.GetMany(batch.HashSet(), chunkChan)
+			close(chunkChan)
+		}()
+
+		for c := range chunkChan {
+			chunks.Serialize(*c, writer)
+			absent.Remove(c.Hash())
+		}
+
+		if len(absent) > 0 {
+			fmt.Fprintf(os.Stderr, "ERROR: Could not get chunks: %v\n", absent)
+		}
+
+		hashes = hashes[len(batch):]
+	}
+
+	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
+	return getRefsResp{chunks: encodedBody}, nil
 
 }
 
@@ -198,7 +297,7 @@ func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, err
 }
 
 func (p2pcs *P2PServerChunkStore) getStatsSummary(data interface{}) (interface{}, error) {
-	resp := getStatsSummaryResp{}
+	resp := getStatsSummaryHandlerResp{}
 	resp.stats = p2pcs.cs.StatsSummary()
 	return resp, nil
 }
