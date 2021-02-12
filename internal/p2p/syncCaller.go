@@ -3,8 +3,10 @@ package p2p
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"sync"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/attic-labs/noms/go/hash"
 	"github.com/attic-labs/noms/go/nbs"
 	"github.com/attic-labs/noms/go/util/verbose"
+	"github.com/golang/snappy"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -40,6 +43,28 @@ func NewRemoteChunkStore(p2p *P2P, id string) *RemoteChunkStore {
 	// p2pcs.batchReadRequests(p2pcs.getQueue, p2pcs.getRefs)
 	// p2pcs.batchReadRequests(p2pcs.hasQueue, p2pcs.hasRefs)
 	return p2pcs
+}
+
+func serializeHashes(w io.Writer, batch chunks.ReadBatch) {
+	err := binary.Write(w, binary.BigEndian, uint32(len(batch))) // 4 billion hashes is probably absurd. Maybe this should be smaller?
+	d.PanicIfError(err)
+	for h := range batch {
+		serializeHash(w, h)
+	}
+}
+
+func serializeHash(w io.Writer, h hash.Hash) {
+	_, err := w.Write(h[:])
+	d.PanicIfError(err)
+}
+
+func buildHashesRequest(batch chunks.ReadBatch) io.ReadCloser {
+	body, pw := io.Pipe()
+	go func() {
+		defer d.PanicIfError(pw.Close())
+		serializeHashes(pw, batch)
+	}()
+	return body
 }
 
 // RemoteChunkStore represents a remote chunk store based on libp2p
@@ -156,39 +181,49 @@ func (p2pcs *RemoteChunkStore) sendReadRequests(req chunks.ReadRequest, queue <-
 	}()
 }
 
-// func (p2pcs *RemoteChunkStore) getRefs(batch chunks.ReadBatch) {
-// 	// Indicate to the server that we're OK reading chunks from any store that knows about our root
-// 	q := "root=" + p2pcs.root.String()
-// 	if u.RawQuery != "" {
-// 		q = u.RawQuery + "&" + q
-// 	}
-// 	u.RawQuery = q
+func (p2pcs *RemoteChunkStore) getRefs(batch chunks.ReadBatch) {
 
-// 	req := newRequest("POST", hcs.auth, u.String(), buildHashesRequest(batch), http.Header{
-// 		"Accept-Encoding": {"x-snappy-framed"},
-// 		"Content-Type":    {"application/octet-stream"},
-// 	})
-// 	req.ContentLength = int64(serializedLength(batch))
+	peerID, err := peer.IDFromString(p2pcs.id)
+	d.Chk.NoError(err)
 
-// 	res, err := hcs.httpClient.Do(req)
-// 	d.Chk.NoError(err)
-// 	expectVersion(p2pcs.version, res)
-// 	reader := resBodyReader(res)
-// 	defer closeResponse(reader)
+	// FIXME: figure out the query
+	// Indicate to the server that we're OK reading chunks from any store that knows about our root
+	// q := "root=" + p2pcs.root.String()
+	// if u.RawQuery != "" {
+	// 	q = u.RawQuery + "&" + q
+	// }
+	// u.RawQuery = q
 
-// 	checkStatus(http.StatusOK, res, reader)
+	hashes := buildHashesRequest(batch)
+	nb := &bytes.Buffer{}
+	_, err = io.Copy(nb, hashes)
+	d.PanicIfError(err)
 
-// 	chunkChan := make(chan *chunks.Chunk, 16)
-// 	go func() { defer close(chunkChan); chunks.Deserialize(reader, chunkChan) }()
+	encodedBody := base64.StdEncoding.EncodeToString(nb.Bytes())
 
-// 	for c := range chunkChan {
-// 		h := c.Hash()
-// 		for _, or := range batch[h] {
-// 			go or.Satisfy(h, c)
-// 		}
-// 		delete(batch, c.Hash())
-// 	}
-// }
+	resp := &getRefsResp{}
+
+	err = p2pcs.p2p.sendRequest(peerID, getRefsHandler, getRefsReq{hashes: encodedBody}, resp)
+	d.Chk.NoError(err)
+
+	// FIXME: check version in every call
+
+	byteChunks, err := base64.StdEncoding.DecodeString(resp.chunks)
+	d.Chk.NoError(err)
+
+	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteChunks)))
+
+	chunkChan := make(chan *chunks.Chunk, 16)
+	go func() { defer close(chunkChan); chunks.Deserialize(reader, chunkChan) }()
+
+	for c := range chunkChan {
+		h := c.Hash()
+		for _, or := range batch[h] {
+			go or.Satisfy(h, c)
+		}
+		delete(batch, c.Hash())
+	}
+}
 
 // func (p2pcs *RemoteChunkStore) hasRefs(batch chunks.ReadBatch) {
 // 	// POST http://<host>/hasRefs/. Post body: ref=sha1---&ref=sha1---& Response will be text of lines containing "|ref| |bool|".
