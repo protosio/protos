@@ -29,6 +29,7 @@ const (
 	writeValueHandler      = "writeValue"
 	getStatsSummaryHandler = "stats"
 	getRefsHandler         = "getRefs"
+	hasRefsHandler         = "hasRefs"
 	maxGetBatchSize        = 1 << 14 // Limit GetMany() to ~16k chunks, or ~64MB of data
 )
 
@@ -54,6 +55,14 @@ type getRefsReq struct {
 
 type getRefsResp struct {
 	chunks string
+}
+
+type hasRefsReq struct {
+	hashes string
+}
+
+type hasRefsResp struct {
+	hashes string
 }
 
 type writeValueReq struct {
@@ -211,6 +220,34 @@ func (p2pcs *P2PServerChunkStore) getRefs(data interface{}) (interface{}, error)
 	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
 	return getRefsResp{chunks: encodedBody}, nil
 
+}
+
+func (p2pcs *P2PServerChunkStore) hasRefs(data interface{}) (interface{}, error) {
+
+	req, ok := data.(*hasRefsReq)
+	if !ok {
+		return getRefsResp{}, fmt.Errorf("Unknown data struct for hasRefs request")
+	}
+
+	byteData, err := base64.StdEncoding.DecodeString(req.hashes)
+	if !ok {
+		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in hasRefs request: %s", err.Error())
+	}
+
+	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteData)))
+	hashes := deserializeHashes(reader)
+
+	buf := &bytes.Buffer{}
+	writer := snappy.NewBufferedWriter(buf)
+	defer writer.Close()
+
+	absent := p2pcs.cs.HasMany(hashes.HashSet())
+	for h := range absent {
+		fmt.Fprintln(writer, h.String())
+	}
+
+	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
+	return hasRefsResp{hashes: encodedBody}, nil
 }
 
 func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, error) {

@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
@@ -225,35 +226,40 @@ func (p2pcs *RemoteChunkStore) getRefs(batch chunks.ReadBatch) {
 	}
 }
 
-// func (p2pcs *RemoteChunkStore) hasRefs(batch chunks.ReadBatch) {
-// 	// POST http://<host>/hasRefs/. Post body: ref=sha1---&ref=sha1---& Response will be text of lines containing "|ref| |bool|".
-// 	u := *p2pcs.host
-// 	u.Path = httprouter.CleanPath(p2pcs.host.Path + constants.HasRefsPath)
+func (p2pcs *RemoteChunkStore) hasRefs(batch chunks.ReadBatch) {
 
-// 	req := newRequest("POST", p2pcs.auth, u.String(), buildHashesRequest(batch), http.Header{
-// 		"Accept-Encoding": {"x-snappy-framed"},
-// 		"Content-Type":    {"application/octet-stream"},
-// 	})
-// 	req.ContentLength = int64(serializedLength(batch))
+	peerID, err := peer.IDFromString(p2pcs.id)
+	d.Chk.NoError(err)
 
-// 	res, err := p2pcs.httpClient.Do(req)
-// 	d.Chk.NoError(err)
-// 	expectVersion(p2pcs.version, res)
-// 	reader := resBodyReader(res)
-// 	defer closeResponse(reader)
+	hashes := buildHashesRequest(batch)
+	nb := &bytes.Buffer{}
+	_, err = io.Copy(nb, hashes)
+	d.PanicIfError(err)
 
-// 	checkStatus(http.StatusOK, res, reader)
+	encodedBody := base64.StdEncoding.EncodeToString(nb.Bytes())
 
-// 	scanner := bufio.NewScanner(reader)
-// 	scanner.Split(bufio.ScanWords)
-// 	for scanner.Scan() {
-// 		h := hash.Parse(scanner.Text())
-// 		for _, outstanding := range batch[h] {
-// 			outstanding.Satisfy(h, &chunks.EmptyChunk)
-// 		}
-// 		delete(batch, h)
-// 	}
-// }
+	resp := &hasRefsResp{}
+
+	err = p2pcs.p2p.sendRequest(peerID, hasRefsHandler, hasRefsReq{hashes: encodedBody}, resp)
+	d.Chk.NoError(err)
+
+	// FIXME: check version in every call
+
+	byteChunks, err := base64.StdEncoding.DecodeString(resp.hashes)
+	d.Chk.NoError(err)
+
+	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteChunks)))
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Split(bufio.ScanWords)
+	for scanner.Scan() {
+		h := hash.Parse(scanner.Text())
+		for _, outstanding := range batch[h] {
+			outstanding.Satisfy(h, &chunks.EmptyChunk)
+		}
+		delete(batch, h)
+	}
+}
 
 //
 // public methods
