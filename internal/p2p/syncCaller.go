@@ -41,8 +41,8 @@ func NewRemoteChunkStore(p2p *P2P, id string) *RemoteChunkStore {
 		id:  id,
 	}
 	p2pcs.root, p2pcs.version = p2pcs.getRoot(false)
-	// p2pcs.batchReadRequests(p2pcs.getQueue, p2pcs.getRefs)
-	// p2pcs.batchReadRequests(p2pcs.hasQueue, p2pcs.hasRefs)
+	p2pcs.batchReadRequests(p2pcs.getQueue, p2pcs.getRefs)
+	p2pcs.batchReadRequests(p2pcs.hasQueue, p2pcs.hasRefs)
 	return p2pcs
 }
 
