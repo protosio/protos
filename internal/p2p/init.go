@@ -44,14 +44,25 @@ type InitResp struct {
 	InstanceIP     string `json:"instanceip" validate:"ipv4"`       // internal IP of the instance
 }
 
-type InitRemote struct {
-	metaConfigurator MetaConfigurator
-	userCreator      UserCreator
-	p2p              *P2P
+// ClientInit is a client to a remote init server
+type ClientInit struct {
+	p2p *P2P
 }
 
+// NewRemoteInit creates a new remote init client
+func NewRemoteInit(p2p *P2P) *ClientInit {
+	ip := &ClientInit{
+		p2p: p2p,
+	}
+	return ip
+}
+
+//
+// client methods
+//
+
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *InitRemote) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
+func (ip *ClientInit) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
 	peerID, err := peer.IDFromString(id)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
@@ -89,8 +100,18 @@ func (ip *InitRemote) Init(id string, username string, password string, name str
 	return ipAddr, pubKey, nil
 }
 
+//
+// server side handlers
+//
+
+type HandlersInit struct {
+	metaConfigurator MetaConfigurator
+	userCreator      UserCreator
+	p2p              *P2P
+}
+
 // PerformInit does the actual initialisation on the remote side
-func (ip *InitRemote) PerformInit(data interface{}) (interface{}, error) {
+func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 
 	req, ok := data.(*InitReq)
 	if !ok {
@@ -108,23 +129,23 @@ func (ip *InitRemote) PerformInit(data interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("Cannot perform initialization, network '%s' is invalid: %w", req.Network, err)
 	}
 
-	ip.metaConfigurator.SetDomain(req.Domain)
-	ipNet := ip.metaConfigurator.SetNetwork(*network)
+	hi.metaConfigurator.SetDomain(req.Domain)
+	ipNet := hi.metaConfigurator.SetNetwork(*network)
 
-	user, err := ip.userCreator.CreateUser(req.Username, req.Password, req.Name, req.Domain, true, req.Devices)
+	user, err := hi.userCreator.CreateUser(req.Username, req.Password, req.Name, req.Domain, true, req.Devices)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot perform initialization, faild to create user: %w", err)
 	}
-	ip.metaConfigurator.SetAdminUser(user.GetUsername())
+	hi.metaConfigurator.SetAdminUser(user.GetUsername())
 
 	// create resources
-	_, err = ip.metaConfigurator.CreateProtosResources()
+	_, err = hi.metaConfigurator.CreateProtosResources()
 	if err != nil {
 		log.Error(err)
 		return nil, fmt.Errorf("Cannot perform initialization, faild to create resources: %w", err)
 	}
 
-	key, err := ip.metaConfigurator.GetKey()
+	key, err := hi.metaConfigurator.GetKey()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to retrieve key")
 	}
@@ -135,14 +156,4 @@ func (ip *InitRemote) PerformInit(data interface{}) (interface{}, error) {
 	}
 
 	return initResp, nil
-}
-
-// NewInitRemote creates a new remote init handler
-func NewInitRemote(p2p *P2P, metaConfigurator MetaConfigurator, userCreator UserCreator) *InitRemote {
-	ip := &InitRemote{
-		p2p:              p2p,
-		metaConfigurator: metaConfigurator,
-		userCreator:      userCreator,
-	}
-	return ip
 }

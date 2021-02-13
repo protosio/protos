@@ -81,18 +81,16 @@ type requests struct {
 	reqs map[string]*request
 }
 
-// Server is a remote p2p server
-type Server struct {
-	*InitRemote
+// Client is a remote p2p client
+type Client struct {
+	*ClientInit
+	chunks.ChunkStore
 }
 
 type P2P struct {
-	host             host.Host
-	srv              *Server
-	metaConfigurator MetaConfigurator
-	userCreator      UserCreator
-	handlers         map[string]*Handler
-	reqs             *requests
+	host     host.Host
+	handlers map[string]*Handler
+	reqs     *requests
 }
 
 func (p2p *P2P) getHandler(msgType string) (*Handler, error) {
@@ -360,23 +358,6 @@ func (p2p *P2P) sendMsg(id peer.ID, protocolType protocol.ID, jsonMsg []byte) er
 	return nil
 }
 
-// Listen starts listening for p2p connections
-func (p2p *P2P) Listen() (func() error, error) {
-	log.Info("Starting p2p server")
-
-	err := p2p.host.Network().Listen()
-	if err != nil {
-		return func() error { return nil }, fmt.Errorf("Failed to listen: %w", err)
-	}
-
-	stopper := func() error {
-		log.Debug("Stopping p2p server")
-		return p2p.host.Close()
-	}
-	return stopper, nil
-
-}
-
 // AddPeer adds a peer to the p2p manager
 func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
 	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
@@ -405,18 +386,51 @@ func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
 	return string(peerInfo.ID), nil
 }
 
-// GetSrv returns the server that implements all the remote handlers
-func (p2p *P2P) GetSrv() *Server {
-	return p2p.srv
+// GetClient returns the remote client that can reach all remote handlers
+func (p2p *P2P) GetClient() *Client {
+	return &Client{
+		NewRemoteInit(p2p),
+		NewRemoteChunkStore(p2p, "protos"),
+	}
+}
+
+// StartServer starts listening for p2p connections
+func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore) (func() error, error) {
+	log.Info("Starting p2p server")
+
+	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
+	p2pChunkStore := &HandlersChunkStore{cs: cs}
+
+	// we register the handler for the init method
+	p2p.addHandler(initHandler, &Handler{Func: p2pInit.PerformInit, RequestStruct: &InitReq{}})
+	p2p.addHandler(getRootHandler, &Handler{Func: p2pChunkStore.getRoot, RequestStruct: &emptyReq{}})
+	p2p.addHandler(setRootHandler, &Handler{Func: p2pChunkStore.setRoot, RequestStruct: &setRootReq{}})
+	p2p.addHandler(writeValueHandler, &Handler{Func: p2pChunkStore.writeValue, RequestStruct: &writeValueReq{}})
+	p2p.addHandler(getStatsSummaryHandler, &Handler{Func: p2pChunkStore.getStatsSummary, RequestStruct: &emptyReq{}})
+	p2p.addHandler(getRefsHandler, &Handler{Func: p2pChunkStore.getRefs, RequestStruct: &getRefsReq{}})
+	p2p.addHandler(hasRefsHandler, &Handler{Func: p2pChunkStore.hasRefs, RequestStruct: &hasRefsReq{}})
+
+	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
+	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)
+
+	err := p2p.host.Network().Listen()
+	if err != nil {
+		return func() error { return nil }, fmt.Errorf("Failed to listen: %w", err)
+	}
+
+	stopper := func() error {
+		log.Debug("Stopping p2p server")
+		return p2p.host.Close()
+	}
+	return stopper, nil
+
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore) (*P2P, error) {
+func NewManager(port int, key *ssh.Key) (*P2P, error) {
 	p2p := &P2P{
-		handlers:         map[string]*Handler{},
-		reqs:             &requests{&sync.RWMutex{}, map[string]*request{}},
-		metaConfigurator: metaConfigurator,
-		userCreator:      userCreator,
+		handlers: map[string]*Handler{},
+		reqs:     &requests{&sync.RWMutex{}, map[string]*request{}},
 	}
 
 	prvKey, err := crypto.UnmarshalEd25519PrivateKey(key.Private())
@@ -439,26 +453,7 @@ func NewManager(port int, key *ssh.Key, metaConfigurator MetaConfigurator, userC
 		return p2p, err
 	}
 
-	log.Debugf("Using host with ID '%s'", host.ID().String())
-
 	p2p.host = host
-	p2p.srv = &Server{
-		NewInitRemote(p2p, p2p.metaConfigurator, p2p.userCreator),
-	}
-
-	p2pservercs := &P2PServerChunkStore{cs: cs}
-
-	// we register the handler for the init method
-	p2p.addHandler(initHandler, &Handler{Func: p2p.srv.InitRemote.PerformInit, RequestStruct: &InitReq{}})
-	p2p.addHandler(getRootHandler, &Handler{Func: p2pservercs.getRoot, RequestStruct: &emptyReq{}})
-	p2p.addHandler(setRootHandler, &Handler{Func: p2pservercs.setRoot, RequestStruct: &setRootReq{}})
-	p2p.addHandler(writeValueHandler, &Handler{Func: p2pservercs.writeValue, RequestStruct: &writeValueReq{}})
-	p2p.addHandler(getStatsSummaryHandler, &Handler{Func: p2pservercs.getStatsSummary, RequestStruct: &emptyReq{}})
-	p2p.addHandler(getRefsHandler, &Handler{Func: p2pservercs.getRefs, RequestStruct: &getRefsReq{}})
-	p2p.addHandler(hasRefsHandler, &Handler{Func: p2pservercs.hasRefs, RequestStruct: &hasRefsReq{}})
-
-	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
-	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)
-
+	log.Debugf("Using host with ID '%s'", host.ID().String())
 	return p2p, nil
 }

@@ -370,7 +370,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("Failed to add peer: %w", err)
 	}
 
-	srv := cm.p2p.GetSrv()
+	srv := cm.p2p.GetClient()
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
@@ -467,7 +467,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("Failed to add peer: %w", err)
 	}
 
-	srv := cm.p2p.GetSrv()
+	srv := cm.p2p.GetClient()
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)

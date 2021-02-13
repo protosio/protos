@@ -73,11 +73,11 @@ type getStatsSummaryHandlerResp struct {
 	stats string
 }
 
-type P2PServerChunkStore struct {
+type HandlersChunkStore struct {
 	cs chunks.ChunkStore
 }
 
-func (p2pcs *P2PServerChunkStore) getRoot(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) getRoot(data interface{}) (interface{}, error) {
 	resp := getRootResp{
 		root:        p2pcs.cs.Root().String(),
 		nomsVersion: p2pcs.cs.Version(),
@@ -86,7 +86,7 @@ func (p2pcs *P2PServerChunkStore) getRoot(data interface{}) (interface{}, error)
 	return resp, nil
 }
 
-func (p2pcs *P2PServerChunkStore) setRoot(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) {
 	req, ok := data.(*setRootReq)
 	if !ok {
 		return getRootResp{}, fmt.Errorf("Unknown data struct for setRoot request")
@@ -170,7 +170,7 @@ func deserializeHash(reader io.Reader) hash.Hash {
 	return h
 }
 
-func (p2pcs *P2PServerChunkStore) getRefs(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) {
 	req, ok := data.(*getRefsReq)
 	if !ok {
 		return getRefsResp{}, fmt.Errorf("Unknown data struct for getRefs request")
@@ -222,7 +222,7 @@ func (p2pcs *P2PServerChunkStore) getRefs(data interface{}) (interface{}, error)
 
 }
 
-func (p2pcs *P2PServerChunkStore) hasRefs(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) {
 
 	req, ok := data.(*hasRefsReq)
 	if !ok {
@@ -250,7 +250,7 @@ func (p2pcs *P2PServerChunkStore) hasRefs(data interface{}) (interface{}, error)
 	return hasRefsResp{hashes: encodedBody}, nil
 }
 
-func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) writeValue(data interface{}) (interface{}, error) {
 	req, ok := data.(*writeValueReq)
 	if !ok {
 		return emptyResp{}, fmt.Errorf("Unknown data struct for writeValue request")
@@ -333,7 +333,7 @@ func (p2pcs *P2PServerChunkStore) writeValue(data interface{}) (interface{}, err
 	return emptyResp{}, nil
 }
 
-func (p2pcs *P2PServerChunkStore) getStatsSummary(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) getStatsSummary(data interface{}) (interface{}, error) {
 	resp := getStatsSummaryHandlerResp{}
 	resp.stats = p2pcs.cs.StatsSummary()
 	return resp, nil
