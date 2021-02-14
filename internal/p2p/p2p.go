@@ -401,7 +401,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
 	p2pChunkStore := &HandlersChunkStore{cs: cs}
 
-	// we register the handler for the init method
+	// we register handler methods which should be accessible from the client
 	p2p.addHandler(initHandler, &Handler{Func: p2pInit.PerformInit, RequestStruct: &InitReq{}})
 	p2p.addHandler(getRootHandler, &Handler{Func: p2pChunkStore.getRoot, RequestStruct: &emptyReq{}})
 	p2p.addHandler(setRootHandler, &Handler{Func: p2pChunkStore.setRoot, RequestStruct: &setRootReq{}})

@@ -370,11 +370,11 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("Failed to add peer: %w", err)
 	}
 
-	srv := cm.p2p.GetClient()
+	p2pClient := cm.p2p.GetClient()
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, pubKey, err := srv.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceInfo.Network, []auth.UserDevice{dev})
+	ip, pubKey, err := p2pClient.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceInfo.Network, []auth.UserDevice{dev})
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("Failed to initialize instance: %w", err)
 	}
@@ -385,6 +385,11 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
 		return InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
+	}
+
+	err = cm.db.SyncCS(p2pClient.ChunkStore)
+	if err != nil {
+		return InstanceInfo{}, errors.Wrapf(err, "Failed to sync data to instance '%s'", instanceName)
 	}
 
 	log.Infof("Instance '%s' is ready", instanceName)
@@ -467,11 +472,11 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("Failed to add peer: %w", err)
 	}
 
-	srv := cm.p2p.GetClient()
+	p2pClient := cm.p2p.GetClient()
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, pubKey, err = srv.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
+	ip, pubKey, err = p2pClient.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
 	if err != nil {
 		return fmt.Errorf("Failed to init dev instance: %w", err)
 	}
@@ -483,6 +488,11 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
+	}
+
+	err = cm.db.SyncCS(p2pClient.ChunkStore)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to sync data to dev instance '%s'", instanceName)
 	}
 
 	log.Infof("Dev instance at '%s' is ready", ipString)

@@ -88,6 +88,7 @@ type DB interface {
 	RemoveFromMap(dataset string, id string) error
 	SyncAll(ips []string) error
 	SyncTo(srcStore, dstStore datas.Database) error
+	SyncCS(cs chunks.ChunkStore) error
 	SyncServer(address net.IP) (func() error, error)
 	GetChunkStore() chunks.ChunkStore
 	Close() error
@@ -195,6 +196,22 @@ func (db *dbNoms) SyncAll(ips []string) error {
 			return err
 		}
 
+	}
+
+	return nil
+}
+
+func (db *dbNoms) SyncCS(cs chunks.ChunkStore) error {
+	cfg := config.NewResolver()
+	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, "protos")
+	if err != nil {
+		return err
+	}
+
+	// sync local -> remote
+	err = db.SyncTo(db.dbn, remoteDB)
+	if err != nil {
+		return err
 	}
 
 	return nil
