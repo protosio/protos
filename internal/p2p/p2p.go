@@ -219,6 +219,8 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 		return
 	}
 
+	log.Debug("Sending response to '", respMsg.ID, "': ", string(jsonHandlerResponse))
+
 	// send the response
 	err = p2p.sendMsg(s.Conn().RemotePeer(), protosResponseProtocol, jsonResp)
 	if err != nil {
@@ -359,7 +361,7 @@ func (p2p *P2P) sendMsg(id peer.ID, protocolType protocol.ID, jsonMsg []byte) er
 }
 
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
+func (p2p *P2P) AddPeer(pubKey []byte, destHost string) (string, error) {
 	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
 	if err != nil {
 		return "", fmt.Errorf("Failed to unmarshall public key: %w", err)
@@ -369,7 +371,7 @@ func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
 		return "", fmt.Errorf("Failed to create peer ID from public key: %w", err)
 	}
 
-	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", dest, peerID.String())
+	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", destHost, peerID.String())
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create multi address: %w", err)
@@ -387,11 +389,17 @@ func (p2p *P2P) AddPeer(pubKey []byte, dest string) (string, error) {
 }
 
 // GetClient returns the remote client that can reach all remote handlers
-func (p2p *P2P) GetClient() *Client {
-	return &Client{
-		NewRemoteInit(p2p),
-		NewRemoteChunkStore(p2p, "protos"),
+func (p2p *P2P) GetClient(peerID string) (*Client, error) {
+
+	pID, err := peer.IDFromString(peerID)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
 	}
+
+	return &Client{
+		NewRemoteInit(p2p, pID),
+		NewRemoteChunkStore(p2p, pID),
+	}, nil
 }
 
 // StartServer starts listening for p2p connections
@@ -409,9 +417,6 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 	p2p.addHandler(getStatsSummaryHandler, &Handler{Func: p2pChunkStore.getStatsSummary, RequestStruct: &emptyReq{}})
 	p2p.addHandler(getRefsHandler, &Handler{Func: p2pChunkStore.getRefs, RequestStruct: &getRefsReq{}})
 	p2p.addHandler(hasRefsHandler, &Handler{Func: p2pChunkStore.hasRefs, RequestStruct: &hasRefsReq{}})
-
-	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
-	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)
 
 	err := p2p.host.Network().Listen()
 	if err != nil {
@@ -454,6 +459,9 @@ func NewManager(port int, key *ssh.Key) (*P2P, error) {
 	}
 
 	p2p.host = host
+	p2p.host.SetStreamHandler(protosRequestProtocol, p2p.streamRequestHandler)
+	p2p.host.SetStreamHandler(protosResponseProtocol, p2p.streamResponseHandler)
+
 	log.Debugf("Using host with ID '%s'", host.ID().String())
 	return p2p, nil
 }

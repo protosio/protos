@@ -46,13 +46,15 @@ type InitResp struct {
 
 // ClientInit is a client to a remote init server
 type ClientInit struct {
-	p2p *P2P
+	p2p    *P2P
+	peerID peer.ID
 }
 
 // NewRemoteInit creates a new remote init client
-func NewRemoteInit(p2p *P2P) *ClientInit {
+func NewRemoteInit(p2p *P2P, peerID peer.ID) *ClientInit {
 	ip := &ClientInit{
-		p2p: p2p,
+		p2p:    p2p,
+		peerID: peerID,
 	}
 	return ip
 }
@@ -62,11 +64,7 @@ func NewRemoteInit(p2p *P2P) *ClientInit {
 //
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *ClientInit) Init(id string, username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
-	peerID, err := peer.IDFromString(id)
-	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
-	}
+func (ip *ClientInit) Init(username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
 
 	req := InitReq{
 		Username: username,
@@ -80,10 +78,10 @@ func (ip *ClientInit) Init(id string, username string, password string, name str
 	respData := &InitResp{}
 
 	// send the request
-	log.Infof("Sending init request '%s'", peerID.String())
-	err = ip.p2p.sendRequest(peerID, initHandler, req, respData)
+	log.Infof("Sending init request '%s'", ip.peerID.String())
+	err := ip.p2p.sendRequest(ip.peerID, initHandler, req, respData)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Init request to '%s' failed: %s", peerID.String(), err.Error())
+		return nil, nil, fmt.Errorf("Init request to '%s' failed: %s", ip.peerID.String(), err.Error())
 	}
 
 	// prepare IP and public key of instance

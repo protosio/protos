@@ -26,7 +26,7 @@ const (
 )
 
 // NewRemoteChunkStore creates a new remote chunk store based on libp2p
-func NewRemoteChunkStore(p2p *P2P, id string) *ClientChunkStore {
+func NewRemoteChunkStore(p2p *P2P, peerID peer.ID) *ClientChunkStore {
 	p2pcs := &ClientChunkStore{
 		getQueue:      make(chan chunks.ReadRequest),
 		hasQueue:      make(chan chunks.ReadRequest),
@@ -37,8 +37,8 @@ func NewRemoteChunkStore(p2p *P2P, id string) *ClientChunkStore {
 		unwrittenPuts: nbs.NewCache(),
 		rootMu:        &sync.RWMutex{},
 
-		p2p: p2p,
-		id:  id,
+		p2p:    p2p,
+		peerID: peerID,
 	}
 	p2pcs.root, p2pcs.version = p2pcs.getRoot(false)
 	p2pcs.batchReadRequests(p2pcs.getQueue, p2pcs.getRefs)
@@ -62,7 +62,7 @@ func serializeHash(w io.Writer, h hash.Hash) {
 func buildHashesRequest(batch chunks.ReadBatch) io.ReadCloser {
 	body, pw := io.Pipe()
 	go func() {
-		defer d.PanicIfError(pw.Close())
+		defer pw.Close()
 		serializeHashes(pw, batch)
 	}()
 	return body
@@ -83,8 +83,8 @@ type ClientChunkStore struct {
 	root    hash.Hash
 	version string
 
-	p2p *P2P
-	id  string
+	p2p    *P2P
+	peerID peer.ID
 }
 
 func expectVersion(expected string, received string) {
@@ -97,41 +97,34 @@ func expectVersion(expected string, received string) {
 }
 
 func (p2pcs *ClientChunkStore) getRoot(checkVers bool) (root hash.Hash, vers string) {
-	peerID, err := peer.IDFromString(p2pcs.id)
-	d.PanicIfError(fmt.Errorf("Failed to parse peer ID from string: %w", err))
 
 	respData := &getRootResp{}
 
 	// send the request
-	log.Infof("Sending getRoot request '%s'", peerID.String())
-	err = p2pcs.p2p.sendRequest(peerID, getRootHandler, emptyReq{}, respData)
-	d.PanicIfError(fmt.Errorf("getRoot request to '%s' failed: %s", peerID.String(), err.Error()))
+	log.Infof("Sending getRoot request '%s'", p2pcs.peerID.String())
+	err := p2pcs.p2p.sendRequest(p2pcs.peerID, getRootHandler, emptyReq{}, respData)
+	d.PanicIfError(err)
 
-	if checkVers && p2pcs.version != respData.nomsVersion {
-		expectVersion(p2pcs.version, respData.nomsVersion)
+	if checkVers && p2pcs.version != respData.NomsVersion {
+		expectVersion(p2pcs.version, respData.NomsVersion)
 	}
 
-	return hash.Parse(respData.root), respData.nomsVersion
+	return hash.Parse(respData.Root), respData.NomsVersion
 }
 
 func (p2pcs *ClientChunkStore) setRoot(current, last hash.Hash) (*setRootResp, error) {
-	peerID, err := peer.IDFromString(p2pcs.id)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
-	}
-
 	reqData := &setRootReq{
-		last:    last.String(),
-		current: current.String(),
+		Last:    last.String(),
+		Current: current.String(),
 	}
 
 	respData := &setRootResp{}
 
 	// send the request
-	log.Infof("Sending setRoot request '%s'", peerID.String())
-	err = p2pcs.p2p.sendRequest(peerID, getRootHandler, reqData, respData)
+	log.Infof("Sending setRoot request '%s'", p2pcs.peerID.String())
+	err := p2pcs.p2p.sendRequest(p2pcs.peerID, getRootHandler, reqData, respData)
 	if err != nil {
-		return nil, fmt.Errorf("setRoot request to '%s' failed: %s", peerID.String(), err.Error())
+		return nil, fmt.Errorf("setRoot request to '%s' failed: %s", p2pcs.peerID.String(), err.Error())
 	}
 
 	return respData, nil
@@ -184,9 +177,6 @@ func (p2pcs *ClientChunkStore) sendReadRequests(req chunks.ReadRequest, queue <-
 
 func (p2pcs *ClientChunkStore) getRefs(batch chunks.ReadBatch) {
 
-	peerID, err := peer.IDFromString(p2pcs.id)
-	d.Chk.NoError(err)
-
 	// FIXME: figure out the query
 	// Indicate to the server that we're OK reading chunks from any store that knows about our root
 	// q := "root=" + p2pcs.root.String()
@@ -197,19 +187,19 @@ func (p2pcs *ClientChunkStore) getRefs(batch chunks.ReadBatch) {
 
 	hashes := buildHashesRequest(batch)
 	nb := &bytes.Buffer{}
-	_, err = io.Copy(nb, hashes)
+	_, err := io.Copy(nb, hashes)
 	d.PanicIfError(err)
 
 	encodedBody := base64.StdEncoding.EncodeToString(nb.Bytes())
 
 	resp := &getRefsResp{}
 
-	err = p2pcs.p2p.sendRequest(peerID, getRefsHandler, getRefsReq{hashes: encodedBody}, resp)
+	err = p2pcs.p2p.sendRequest(p2pcs.peerID, getRefsHandler, getRefsReq{Hashes: encodedBody}, resp)
 	d.Chk.NoError(err)
 
 	// FIXME: check version in every call
 
-	byteChunks, err := base64.StdEncoding.DecodeString(resp.chunks)
+	byteChunks, err := base64.StdEncoding.DecodeString(resp.Chunks)
 	d.Chk.NoError(err)
 
 	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteChunks)))
@@ -228,24 +218,21 @@ func (p2pcs *ClientChunkStore) getRefs(batch chunks.ReadBatch) {
 
 func (p2pcs *ClientChunkStore) hasRefs(batch chunks.ReadBatch) {
 
-	peerID, err := peer.IDFromString(p2pcs.id)
-	d.Chk.NoError(err)
-
 	hashes := buildHashesRequest(batch)
 	nb := &bytes.Buffer{}
-	_, err = io.Copy(nb, hashes)
+	_, err := io.Copy(nb, hashes)
 	d.PanicIfError(err)
 
 	encodedBody := base64.StdEncoding.EncodeToString(nb.Bytes())
 
 	resp := &hasRefsResp{}
 
-	err = p2pcs.p2p.sendRequest(peerID, hasRefsHandler, hasRefsReq{hashes: encodedBody}, resp)
+	err = p2pcs.p2p.sendRequest(p2pcs.peerID, hasRefsHandler, hasRefsReq{Hashes: encodedBody}, resp)
 	d.Chk.NoError(err)
 
 	// FIXME: check version in every call
 
-	byteChunks, err := base64.StdEncoding.DecodeString(resp.hashes)
+	byteChunks, err := base64.StdEncoding.DecodeString(resp.Hashes)
 	d.Chk.NoError(err)
 
 	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteChunks)))
@@ -425,14 +412,11 @@ func (p2pcs *ClientChunkStore) Commit(current, last hash.Hash) bool {
 
 		encodedBody := base64.StdEncoding.EncodeToString(nb.Bytes())
 
-		peerID, err := peer.IDFromString(p2pcs.id)
-		d.PanicIfError(fmt.Errorf("Failed to parse peer ID from string: %w", err))
-
 		// send the write value request
 		// FIXME: check version
-		log.Infof("Sending writeValue request '%s'", peerID.String())
-		err = p2pcs.p2p.sendRequest(peerID, writeValueHandler, writeValueReq{data: encodedBody}, emptyResp{})
-		d.PanicIfError(fmt.Errorf("writeValue request to '%s' failed: %s", peerID.String(), err.Error()))
+		log.Infof("Sending writeValue request '%s'", p2pcs.peerID.String())
+		err = p2pcs.p2p.sendRequest(p2pcs.peerID, writeValueHandler, writeValueReq{Data: encodedBody}, emptyResp{})
+		d.PanicIfError(fmt.Errorf("writeValue request to '%s' failed: %s", p2pcs.peerID.String(), err.Error()))
 		verbose.Log("Finished sending %d hashes", count)
 
 		p2pcs.unwrittenPuts.Destroy()
@@ -442,7 +426,7 @@ func (p2pcs *ClientChunkStore) Commit(current, last hash.Hash) bool {
 	// POST http://<host>/root?current=<ref>&last=<ref>. Response will be 200 on success, 409 if current is outdated. Regardless, the server returns its current root for this store
 	resp, err := p2pcs.setRoot(current, last)
 	d.PanicIfError(err)
-	expectVersion(p2pcs.version, resp.nomsVersion)
+	expectVersion(p2pcs.version, resp.NomsVersion)
 
 	var success bool
 	switch resp.status {
@@ -456,7 +440,7 @@ func (p2pcs *ClientChunkStore) Commit(current, last hash.Hash) bool {
 				http.StatusText(resp.status)))
 		return false
 	}
-	p2pcs.root = hash.Parse(resp.root)
+	p2pcs.root = hash.Parse(resp.Root)
 	return success
 }
 
@@ -465,14 +449,11 @@ func (p2pcs *ClientChunkStore) Stats() interface{} {
 }
 
 func (p2pcs *ClientChunkStore) StatsSummary() string {
-	peerID, err := peer.IDFromString(p2pcs.id)
-	d.PanicIfError(fmt.Errorf("Failed to parse peer ID from string: %w", err))
-
 	respData := &getStatsSummaryHandlerResp{}
-	err = p2pcs.p2p.sendRequest(peerID, getStatsSummaryHandler, emptyReq{}, respData)
+	err := p2pcs.p2p.sendRequest(p2pcs.peerID, getStatsSummaryHandler, emptyReq{}, respData)
 	d.PanicIfError(err)
 
-	return respData.stats
+	return respData.Stats
 }
 
 func (p2pcs *ClientChunkStore) Close() error {

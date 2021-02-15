@@ -370,11 +370,14 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("Failed to add peer: %w", err)
 	}
 
-	p2pClient := cm.p2p.GetClient()
+	p2pClient, err := cm.p2p.GetClient(peerID)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("Failed to get client: %w", err)
+	}
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, pubKey, err := p2pClient.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceInfo.Network, []auth.UserDevice{dev})
+	ip, pubKey, err := p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceInfo.Network, []auth.UserDevice{dev})
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("Failed to initialize instance: %w", err)
 	}
@@ -472,11 +475,14 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("Failed to add peer: %w", err)
 	}
 
-	p2pClient := cm.p2p.GetClient()
+	p2pClient, err := cm.p2p.GetClient(peerID)
+	if err != nil {
+		return fmt.Errorf("Failed to get client: %w", err)
+	}
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, pubKey, err = p2pClient.Init(peerID, usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
+	ip, pubKey, err = p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
 	if err != nil {
 		return fmt.Errorf("Failed to init dev instance: %w", err)
 	}

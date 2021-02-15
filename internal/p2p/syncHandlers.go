@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/attic-labs/noms/go/chunks"
@@ -34,43 +32,43 @@ const (
 )
 
 type setRootReq struct {
-	last    string
-	current string
+	Last    string
+	Current string
 }
 
 type getRootResp struct {
-	root        string
-	nomsVersion string
+	Root        string
+	NomsVersion string
 }
 
 type setRootResp struct {
-	root        string
-	nomsVersion string
+	Root        string
+	NomsVersion string
 	status      int
 }
 
 type getRefsReq struct {
-	hashes string
+	Hashes string
 }
 
 type getRefsResp struct {
-	chunks string
+	Chunks string
 }
 
 type hasRefsReq struct {
-	hashes string
+	Hashes string
 }
 
 type hasRefsResp struct {
-	hashes string
+	Hashes string
 }
 
 type writeValueReq struct {
-	data string
+	Data string
 }
 
 type getStatsSummaryHandlerResp struct {
-	stats string
+	Stats string
 }
 
 type HandlersChunkStore struct {
@@ -79,8 +77,8 @@ type HandlersChunkStore struct {
 
 func (p2pcs *HandlersChunkStore) getRoot(data interface{}) (interface{}, error) {
 	resp := getRootResp{
-		root:        p2pcs.cs.Root().String(),
-		nomsVersion: p2pcs.cs.Version(),
+		Root:        p2pcs.cs.Root().String(),
+		NomsVersion: p2pcs.cs.Version(),
 	}
 
 	return resp, nil
@@ -92,8 +90,8 @@ func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) 
 		return getRootResp{}, fmt.Errorf("Unknown data struct for setRoot request")
 	}
 
-	last := hash.Parse(req.last)
-	proposed := hash.Parse(req.current)
+	last := hash.Parse(req.Last)
+	proposed := hash.Parse(req.Current)
 
 	vs := types.NewValueStore(p2pcs.cs)
 
@@ -121,8 +119,8 @@ func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) 
 		merged, err := datas.MergeDatasetMaps(proposedMap, rootMap, lastMap, vs)
 		if err != nil {
 			return setRootResp{
-				root:        p2pcs.cs.Root().String(),
-				nomsVersion: p2pcs.cs.Version(),
+				Root:        p2pcs.cs.Root().String(),
+				NomsVersion: p2pcs.cs.Version(),
 				status:      http.StatusConflict,
 			}, nil
 		}
@@ -130,24 +128,11 @@ func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) 
 	}
 
 	return setRootResp{
-		root:        p2pcs.cs.Root().String(),
-		nomsVersion: p2pcs.cs.Version(),
+		Root:        p2pcs.cs.Root().String(),
+		NomsVersion: p2pcs.cs.Version(),
 		status:      http.StatusOK,
 	}, nil
 
-}
-
-func bodyReader(req *http.Request) (reader io.ReadCloser) {
-	reader = req.Body
-	if strings.Contains(req.Header.Get("Content-Encoding"), "gzip") {
-		gr, err := gzip.NewReader(reader)
-		d.PanicIfError(err)
-		reader = gr
-	} else if strings.Contains(req.Header.Get("Content-Encoding"), "x-snappy-framed") {
-		sr := snappy.NewReader(reader)
-		reader = ioutil.NopCloser(sr)
-	}
-	return
 }
 
 func deserializeHashes(reader io.Reader) hash.HashSlice {
@@ -176,7 +161,7 @@ func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) 
 		return getRefsResp{}, fmt.Errorf("Unknown data struct for getRefs request")
 	}
 
-	byteData, err := base64.StdEncoding.DecodeString(req.hashes)
+	byteData, err := base64.StdEncoding.DecodeString(req.Hashes)
 	if !ok {
 		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in getRefs request: %s", err.Error())
 	}
@@ -218,7 +203,7 @@ func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) 
 	}
 
 	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
-	return getRefsResp{chunks: encodedBody}, nil
+	return getRefsResp{Chunks: encodedBody}, nil
 
 }
 
@@ -229,7 +214,7 @@ func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) 
 		return getRefsResp{}, fmt.Errorf("Unknown data struct for hasRefs request")
 	}
 
-	byteData, err := base64.StdEncoding.DecodeString(req.hashes)
+	byteData, err := base64.StdEncoding.DecodeString(req.Hashes)
 	if !ok {
 		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in hasRefs request: %s", err.Error())
 	}
@@ -247,7 +232,7 @@ func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) 
 	}
 
 	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
-	return hasRefsResp{hashes: encodedBody}, nil
+	return hasRefsResp{Hashes: encodedBody}, nil
 }
 
 func (p2pcs *HandlersChunkStore) writeValue(data interface{}) (interface{}, error) {
@@ -256,7 +241,7 @@ func (p2pcs *HandlersChunkStore) writeValue(data interface{}) (interface{}, erro
 		return emptyResp{}, fmt.Errorf("Unknown data struct for writeValue request")
 	}
 
-	byteData, err := base64.StdEncoding.DecodeString(req.data)
+	byteData, err := base64.StdEncoding.DecodeString(req.Data)
 	if !ok {
 		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in writeValue request: %s", err.Error())
 	}
@@ -335,6 +320,6 @@ func (p2pcs *HandlersChunkStore) writeValue(data interface{}) (interface{}, erro
 
 func (p2pcs *HandlersChunkStore) getStatsSummary(data interface{}) (interface{}, error) {
 	resp := getStatsSummaryHandlerResp{}
-	resp.stats = p2pcs.cs.StatsSummary()
+	resp.Stats = p2pcs.cs.StatsSummary()
 	return resp, nil
 }

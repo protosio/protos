@@ -203,7 +203,7 @@ func (db *dbNoms) SyncAll(ips []string) error {
 
 func (db *dbNoms) SyncCS(cs chunks.ChunkStore) error {
 	cfg := config.NewResolver()
-	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, "protos")
+	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedDS)
 	if err != nil {
 		return err
 	}
