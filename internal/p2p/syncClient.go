@@ -121,8 +121,7 @@ func (p2pcs *ClientChunkStore) setRoot(current, last hash.Hash) (*setRootResp, e
 	respData := &setRootResp{}
 
 	// send the request
-	log.Infof("Sending setRoot request '%s'", p2pcs.peerID.String())
-	err := p2pcs.p2p.sendRequest(p2pcs.peerID, getRootHandler, reqData, respData)
+	err := p2pcs.p2p.sendRequest(p2pcs.peerID, setRootHandler, reqData, respData)
 	if err != nil {
 		return nil, fmt.Errorf("setRoot request to '%s' failed: %s", p2pcs.peerID.String(), err.Error())
 	}
@@ -414,9 +413,10 @@ func (p2pcs *ClientChunkStore) Commit(current, last hash.Hash) bool {
 
 		// send the write value request
 		// FIXME: check version
-		log.Infof("Sending writeValue request '%s'", p2pcs.peerID.String())
-		err = p2pcs.p2p.sendRequest(p2pcs.peerID, writeValueHandler, writeValueReq{Data: encodedBody}, emptyResp{})
-		d.PanicIfError(fmt.Errorf("writeValue request to '%s' failed: %s", p2pcs.peerID.String(), err.Error()))
+		err = p2pcs.p2p.sendRequest(p2pcs.peerID, writeValueHandler, writeValueReq{Data: encodedBody}, &emptyResp{})
+		if err != nil {
+			d.PanicIfError(fmt.Errorf("writeValue request to '%s' failed: %s", p2pcs.peerID.String(), err.Error()))
+		}
 		verbose.Log("Finished sending %d hashes", count)
 
 		p2pcs.unwrittenPuts.Destroy()
@@ -429,7 +429,7 @@ func (p2pcs *ClientChunkStore) Commit(current, last hash.Hash) bool {
 	expectVersion(p2pcs.version, resp.NomsVersion)
 
 	var success bool
-	switch resp.status {
+	switch resp.Status {
 	case http.StatusOK:
 		success = true
 	case http.StatusConflict:
@@ -437,7 +437,7 @@ func (p2pcs *ClientChunkStore) Commit(current, last hash.Hash) bool {
 	default:
 		d.Chk.Fail(
 			fmt.Sprintf("Unexpected status: %s",
-				http.StatusText(resp.status)))
+				http.StatusText(resp.Status)))
 		return false
 	}
 	p2pcs.root = hash.Parse(resp.Root)

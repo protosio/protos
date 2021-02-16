@@ -44,7 +44,7 @@ type getRootResp struct {
 type setRootResp struct {
 	Root        string
 	NomsVersion string
-	status      int
+	Status      int
 }
 
 type getRefsReq struct {
@@ -121,7 +121,7 @@ func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) 
 			return setRootResp{
 				Root:        p2pcs.cs.Root().String(),
 				NomsVersion: p2pcs.cs.Version(),
-				status:      http.StatusConflict,
+				Status:      http.StatusConflict,
 			}, nil
 		}
 		to, from = vs.WriteValue(merged).TargetHash(), root
@@ -130,7 +130,7 @@ func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) 
 	return setRootResp{
 		Root:        p2pcs.cs.Root().String(),
 		NomsVersion: p2pcs.cs.Version(),
-		status:      http.StatusOK,
+		Status:      http.StatusOK,
 	}, nil
 
 }
@@ -166,14 +166,11 @@ func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) 
 		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in getRefs request: %s", err.Error())
 	}
 
-	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteData)))
+	reader := ioutil.NopCloser(bytes.NewReader(byteData))
 	hashes := deserializeHashes(reader)
-
-	verbose.Log("Handling getRefs request for: %v\n", hashes)
 
 	buf := &bytes.Buffer{}
 	writer := snappy.NewBufferedWriter(buf)
-	defer writer.Close()
 
 	for len(hashes) > 0 {
 		batch := hashes
@@ -202,6 +199,11 @@ func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) 
 		hashes = hashes[len(batch):]
 	}
 
+	err = writer.Close()
+	if err != nil {
+		return emptyResp{}, fmt.Errorf("Failed to close writer in getRefs request: %s", err.Error())
+	}
+
 	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
 	return getRefsResp{Chunks: encodedBody}, nil
 
@@ -219,16 +221,20 @@ func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) 
 		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in hasRefs request: %s", err.Error())
 	}
 
-	reader := ioutil.NopCloser(snappy.NewReader(bytes.NewReader(byteData)))
+	reader := ioutil.NopCloser(bytes.NewReader(byteData))
 	hashes := deserializeHashes(reader)
 
 	buf := &bytes.Buffer{}
 	writer := snappy.NewBufferedWriter(buf)
-	defer writer.Close()
 
 	absent := p2pcs.cs.HasMany(hashes.HashSet())
 	for h := range absent {
 		fmt.Fprintln(writer, h.String())
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return emptyResp{}, fmt.Errorf("Failed to close writer in hasRefs request: %s", err.Error())
 	}
 
 	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())

@@ -143,7 +143,7 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 		return
 	}
 
-	log.Infof("Remote request '%s' from peer '%s'", reqMsg.Type, s.Conn().RemotePeer().String())
+	log.Tracef("Remote request '%s' from peer '%s': %s", reqMsg.Type, s.Conn().RemotePeer().String(), string(reqMsg.Data))
 
 	respMsg := payloadResponse{
 		ID: reqMsg.ID,
@@ -219,7 +219,7 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 		return
 	}
 
-	log.Debug("Sending response to '", respMsg.ID, "': ", string(jsonHandlerResponse))
+	log.Tracef("Sending response for msg '%s' to peer '%s': %s", respMsg.ID, s.Conn().RemotePeer().String(), string(jsonHandlerResponse))
 
 	// send the response
 	err = p2p.sendMsg(s.Conn().RemotePeer(), protosResponseProtocol, jsonResp)
@@ -247,7 +247,7 @@ func (p2p *P2P) streamResponseHandler(s network.Stream) {
 		return
 	}
 
-	log.Infof("Received response '%s' from peer '%s'", msg.ID, s.Conn().RemotePeer().String())
+	log.Tracef("Received response '%s' from peer '%s': %s", msg.ID, s.Conn().RemotePeer().String(), string(msg.Data))
 
 	req, err := p2p.getRequest(msg.ID)
 	if err != nil {
@@ -295,6 +295,8 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 		startTime: time.Now(),
 	}
 	p2p.addRequest(reqMsg.ID, req)
+
+	log.Tracef("Sending request '%s' to '%s': %s", msgType, id.String(), string(jsonReq))
 
 	// send the request
 	p2p.sendMsg(id, protosRequestProtocol, jsonReq)

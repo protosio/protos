@@ -78,7 +78,6 @@ func (ip *ClientInit) Init(username string, password string, name string, domain
 	respData := &InitResp{}
 
 	// send the request
-	log.Infof("Sending init request '%s'", ip.peerID.String())
 	err := ip.p2p.sendRequest(ip.peerID, initHandler, req, respData)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Init request to '%s' failed: %s", ip.peerID.String(), err.Error())
