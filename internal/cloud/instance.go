@@ -395,7 +395,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, errors.Wrapf(err, "Failed to sync data to instance '%s'", instanceName)
 	}
 
-	log.Infof("Instance '%s' is ready", instanceName)
+	log.Infof("Instance '%s' at '%s' is ready", instanceName, instanceInfo.PublicIP)
 
 	return instanceInfo, nil
 }
@@ -501,7 +501,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return errors.Wrapf(err, "Failed to sync data to dev instance '%s'", instanceName)
 	}
 
-	log.Infof("Dev instance at '%s' is ready", ipString)
+	log.Infof("Dev instance '%s' at '%s' is ready", instanceName, ipString)
 
 	return nil
 }
