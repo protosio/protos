@@ -83,8 +83,8 @@ func createMachineTypesString(machineTypes map[string]MachineSpec) string {
 	return machineTypesStr.String()
 }
 
-// AllocateNetwork allocates an unused network for an instance
-func AllocateNetwork(instances []InstanceInfo, devices []auth.UserDevice) (net.IPNet, error) {
+// allocateNetwork allocates an unused network for an instance
+func allocateNetwork(instances []InstanceInfo, devices []auth.UserDevice) (net.IPNet, error) {
 	// create list of existing networks
 	usedNetworks := []net.IPNet{}
 	for _, inst := range instances {
@@ -280,7 +280,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("Failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
 	}
-	network, err := AllocateNetwork(instances, usr.GetDevices())
+	network, err := allocateNetwork(instances, usr.GetDevices())
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("Failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
 	}
@@ -432,7 +432,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	if err != nil {
 		return err
 	}
-	developmentNetwork, err := AllocateNetwork(instances, usr.GetDevices())
+	developmentNetwork, err := allocateNetwork(instances, usr.GetDevices())
 	if err != nil {
 		return fmt.Errorf("Failed to allocate network for instance '%s': %w", "dev", err)
 	}

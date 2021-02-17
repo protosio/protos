@@ -81,6 +81,7 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 		return "", fmt.Errorf("Network initialization failed because 0 user devices were provided")
 	}
 	for _, userDevice := range devices {
+		log.Debugf("Using route '%s' for device '%s(%s)'", userDevice.Network, userDevice.Name, userDevice.MachineID)
 		publicKey, err := base64.StdEncoding.DecodeString(userDevice.PublicKey)
 		if err != nil {
 			return "", fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
