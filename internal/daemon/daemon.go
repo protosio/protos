@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -87,15 +88,15 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	um := auth.CreateUserManager(dbcli, sm, cm)
 	tm := task.CreateManager(dbcli, pub)
 	as := installer.CreateAppStore(p, tm, cm)
-	am := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
-	pm := provider.CreateManager(rm, am, dbcli)
+	appManager := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
+	pm := provider.CreateManager(rm, appManager, dbcli)
 
 	p2pManager, err := p2p.NewManager(10500, key)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore())
+	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore(), appManager)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -110,7 +111,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, am, rm, tm, pm, as, um, p, cm)
+	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, appManager, rm, tm, pm, as, um, p, cm)
 
 	// if starting for the first time, this will block until remote init is done
 	ctx, cancel := context.WithCancel(context.Background())
@@ -150,6 +151,8 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 	stoppers["iws"] = iwsStopper
+
+	fmt.Println(appManager.GetAll())
 
 	log.Info("Started all servers successfully")
 	wg.Wait()

@@ -239,7 +239,7 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 
 			if status.WillPrint() {
 				pct := 100.0 * float64(info.DoneCount) / float64(info.KnownCount)
-				status.Printf("Syncing - %.2f%% (%s/s)", pct, bytesPerSec(info.ApproxWrittenBytes, start))
+				status.Printf("Syncing - %.2f%% (%s/s)\n", pct, bytesPerSec(info.ApproxWrittenBytes, start))
 			}
 		}
 		lastProgressCh <- last
@@ -266,15 +266,14 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 
 	close(progressCh)
 	if last := <-lastProgressCh; last.DoneCount > 0 {
-		log.Tracef("Done - Synced %s in %s (%s/s)",
-			humanize.Bytes(last.ApproxWrittenBytes), since(start), bytesPerSec(last.ApproxWrittenBytes, start))
+		log.Debugf("Done - Synced %s in %s (%s/s)", humanize.Bytes(last.ApproxWrittenBytes), since(start), bytesPerSec(last.ApproxWrittenBytes, start))
 		status.Done()
 	} else if !dstExists {
-		log.Tracef("All chunks already exist at destination! Created new dataset %s.\n", sharedDS)
+		log.Debugf("All chunks already exist at destination! Created new dataset %s.\n", sharedDS)
 	} else if nonFF && !srcRef.Equals(dstRef) {
-		log.Tracef("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
+		log.Debugf("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
 	} else {
-		log.Tracef("Dataset '%s' is already up to date.\n", sharedDS)
+		log.Debugf("Dataset '%s' is already up to date.\n", sharedDS)
 	}
 
 	return nil

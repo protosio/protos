@@ -23,7 +23,7 @@ var cmdApp *cli.Command = &cli.Command{
 		},
 		{
 			Name:      "create",
-			ArgsUsage: "<name> <installer-id>",
+			ArgsUsage: "<name> <installer-id> <instance-id>",
 			Usage:     "Create a new application",
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
@@ -37,7 +37,14 @@ var cmdApp *cli.Command = &cli.Command{
 					cli.ShowSubcommandHelp(c)
 					os.Exit(1)
 				}
-				return createApp(name, installerID)
+
+				instanceID := c.Args().Get(2)
+				if instanceID == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				return createApp(name, installerID, instanceID)
 			},
 		},
 		{
@@ -84,7 +91,10 @@ var cmdApp *cli.Command = &cli.Command{
 }
 
 func listApps() error {
-	apps := envi.AM.GetAllPublic()
+	apps, err := envi.AM.GetAll()
+	if err != nil {
+		return err
+	}
 
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 0, 2, ' ', 0)
@@ -101,7 +111,7 @@ func listApps() error {
 	return nil
 }
 
-func createApp(name string, installerID string) error {
+func createApp(name string, installerID string, instanceID string) error {
 	installer, err := envi.AS.GetInstaller(installerID)
 	if err != nil {
 		return err
@@ -112,7 +122,7 @@ func createApp(name string, installerID string) error {
 		return err
 	}
 
-	_, err = envi.AM.Create(installerID, installer.GetLastVersion(), name, map[string]string{}, instMetadata)
+	_, err = envi.AM.Create(installerID, installer.GetLastVersion(), name, instanceID, map[string]string{}, instMetadata)
 	if err != nil {
 		return err
 	}

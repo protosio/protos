@@ -19,6 +19,7 @@ import (
 	"github.com/attic-labs/noms/go/types"
 	"github.com/attic-labs/noms/go/util/verbose"
 	"github.com/golang/snappy"
+	"github.com/protosio/protos/internal/app"
 )
 
 const (
@@ -72,7 +73,9 @@ type getStatsSummaryHandlerResp struct {
 }
 
 type HandlersChunkStore struct {
-	cs chunks.ChunkStore
+	cs         chunks.ChunkStore
+	appManager *app.Manager
+	p2p        *P2P
 }
 
 func (p2pcs *HandlersChunkStore) getRoot(data interface{}) (interface{}, error) {
@@ -89,6 +92,8 @@ func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) 
 	if !ok {
 		return getRootResp{}, fmt.Errorf("Unknown data struct for setRoot request")
 	}
+
+	defer p2pcs.p2p.triggerEvent(true)
 
 	last := hash.Parse(req.Last)
 	proposed := hash.Parse(req.Current)

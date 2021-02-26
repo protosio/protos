@@ -57,7 +57,7 @@ func InternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.Hand
 			rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Can't identify request. App ID is missing."})
 			return
 		}
-		appInstance, err := ha.am.Read(appID)
+		appInstance, err := ha.am.GetByID(appID)
 		if err != nil {
 			log.Errorf("Internal request to '%s' from non-existent app '%s': %s", r.URL, appID, err.Error())
 			rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "Request for resource from non-existent app"})

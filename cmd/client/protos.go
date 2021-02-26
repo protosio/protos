@@ -37,15 +37,16 @@ var version *semver.Version
 
 // Env is a struct that containts program dependencies that get injected in other modules
 type Env struct {
-	DB  db.DB
-	CM  *capability.Manager
-	CLM cloud.CloudManager
-	UM  *auth.UserManager
-	SM  *ssh.Manager
-	VPN *vpn.VPN
-	AS  *installer.AppStore
-	AM  *app.Manager
-	Log *logrus.Entry
+	DB         db.DB
+	CM         *capability.Manager
+	CLM        cloud.CloudManager
+	UM         *auth.UserManager
+	SM         *ssh.Manager
+	VPN        *vpn.VPN
+	AS         *installer.AppStore
+	AM         *app.Manager
+	p2pManager *p2p.P2P
+	Log        *logrus.Entry
 }
 
 // NewEnv creates and returns an instance of Env
@@ -58,12 +59,13 @@ func NewEnv(
 	vpn *vpn.VPN,
 	as *installer.AppStore,
 	am *app.Manager,
-	log *logrus.Entry) *Env {
+	log *logrus.Entry,
+	p2pManager *p2p.P2P) *Env {
 
-	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || log == nil {
+	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || log == nil || p2pManager == nil {
 		panic("env: none of the env inputs should be nil")
 	}
-	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, AM: am, Log: log}
+	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, AM: am, Log: log, p2pManager: p2pManager}
 }
 
 func main() {
@@ -111,27 +113,36 @@ func main() {
 		return nil
 	}
 
-	// app.After = func(c *cli.Context) error {
-	// 	fmt.Println("1 -----")
-	// 	if envi != nil && envi.DB != nil {
-	// 		ips := []string{}
-	// 		instances, err := envi.CLM.GetInstances()
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		for _, instance := range instances {
-	// 			ips = append(ips, instance.PublicIP)
-	// 		}
-	// 		fmt.Println("2 -----")
-	// 		err = envi.DB.SyncAll(ips)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		return envi.DB.Close()
-	// 	}
-	// 	fmt.Println("3 -----")
-	// 	return nil
-	// }
+	app.After = func(c *cli.Context) error {
+		fmt.Println("1 -----")
+		if envi != nil && envi.DB != nil {
+			instances, err := envi.CLM.GetInstances()
+			if err != nil {
+				return err
+			}
+			for _, instance := range instances {
+				fmt.Println(instance.InternalIP, " - ", instance.PublicIP, " - ", string(instance.PublicKey))
+				peerID, err := envi.p2pManager.AddPeer(instance.PublicKey, instance.PublicIP)
+				if err != nil {
+					return fmt.Errorf("Failed to add peer: %w", err)
+				}
+
+				p2pClient, err := envi.p2pManager.GetClient(peerID)
+				if err != nil {
+					return fmt.Errorf("Failed to get client: %w", err)
+				}
+
+				err = envi.DB.SyncCS(p2pClient.ChunkStore)
+				if err != nil {
+					return errors.Wrapf(err, "Failed to sync data to dev instance '%s'", instance.Name)
+				}
+			}
+			fmt.Println("2 -----")
+			return envi.DB.Close()
+		}
+		fmt.Println("3 -----")
+		return nil
+	}
 
 	err = app.Run(os.Args)
 	if err != nil {
@@ -232,7 +243,7 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 		log.Fatal(err)
 	}
 
-	envi = NewEnv(dbi, capm, clm, um, sm, vpn, as, am, log)
+	envi = NewEnv(dbi, capm, clm, um, sm, vpn, as, am, log, p2pManager)
 
 	if currentCmd != "init" {
 		_, err = envi.UM.GetAdmin()

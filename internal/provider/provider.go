@@ -69,7 +69,7 @@ func (pm *Manager) Register(app *app.App, rtype resource.ResourceType) error {
 			return fmt.Errorf("App %s already registered as a provider for resource type %s", app.GetID(), string(rtype))
 		}
 
-		_, err := pm.am.Read(pm.providers[rtype].AppID)
+		_, err := pm.am.GetByID(pm.providers[rtype].AppID)
 		if err == nil {
 			return errors.New("Another application is registered as a provider for resource type " + string(rtype))
 		}

@@ -71,7 +71,11 @@ func WSManager(am *app.Manager, quit chan bool, wsfrontend chan interface{}) {
 			}
 
 			// terminating internal WS connections
-			apps := am.CopyAll()
+			apps, err := am.GetAll()
+			if err != nil {
+				log.WithField("proc", "wsmanager").Error("Failed to retrieve apps: %s", err.Error())
+				return
+			}
 			for _, app := range apps {
 				app.CloseMsgQ()
 			}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
 	"github.com/segmentio/ksuid"
@@ -91,6 +93,7 @@ type P2P struct {
 	host     host.Host
 	handlers map[string]*Handler
 	reqs     *requests
+	eventSig chan interface{}
 }
 
 func (p2p *P2P) getHandler(msgType string) (*Handler, error) {
@@ -404,12 +407,16 @@ func (p2p *P2P) GetClient(peerID string) (*Client, error) {
 	}, nil
 }
 
+func (p2p *P2P) triggerEvent(event interface{}) {
+	p2p.eventSig <- event
+}
+
 // StartServer starts listening for p2p connections
-func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore) (func() error, error) {
+func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore, appManager *app.Manager) (func() error, error) {
 	log.Info("Starting p2p server")
 
 	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
-	p2pChunkStore := &HandlersChunkStore{cs: cs}
+	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs, appManager: appManager}
 
 	// we register handler methods which should be accessible from the client
 	p2p.addHandler(initHandler, &Handler{Func: p2pInit.PerformInit, RequestStruct: &InitReq{}})
@@ -425,8 +432,28 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 		return func() error { return nil }, fmt.Errorf("Failed to listen: %w", err)
 	}
 
+	stopSig := make(chan interface{})
+	p2p.eventSig = make(chan interface{}, 100)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Println("Panic in p2p event processor: \n" + string(debug.Stack()))
+			}
+		}()
+		for {
+			select {
+			case <-p2p.eventSig:
+				log.Debug("event")
+				appManager.ReSync()
+			case <-stopSig:
+				return
+			}
+		}
+	}()
+
 	stopper := func() error {
 		log.Debug("Stopping p2p server")
+		stopSig <- true
 		return p2p.host.Close()
 	}
 	return stopper, nil

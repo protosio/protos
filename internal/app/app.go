@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -34,7 +33,7 @@ const (
 
 type appParent interface {
 	Remove(appID string) error
-	saveApp(app *App)
+	saveApp(app *App) error
 	getPlatform() platform.RuntimePlatform
 	getTaskManager() *task.Manager
 	getResourceManager() *resource.Manager
@@ -68,6 +67,7 @@ type App struct {
 	InstallerVersion  string                      `json:"installer-version"`
 	InstallerMetadata installer.InstallerMetadata `json:"installer-metadata"`
 	ContainerID       string                      `json:"container-id"`
+	InstanceName      string                      `json:"instance-id"`
 	VolumeID          string                      `json:"volumeid"`
 	Status            string                      `json:"status"`
 	Actions           []string                    `json:"actions"`
@@ -108,68 +108,6 @@ func createCapabilities(cm *capability.Manager, installerCapabilities []string) 
 	return caps
 }
 
-//
-// Methods for application instance
-//
-
-// GetID returns the id of the application
-func (app *App) GetID() string {
-	return app.ID
-}
-
-// GetName returns the id of the application
-func (app *App) GetName() string {
-	return app.Name
-}
-
-// SetStatus sets the status of an application
-func (app *App) SetStatus(status string) {
-	app.access.Lock()
-	app.Status = status
-	app.access.Unlock()
-	app.Save()
-}
-
-// GetStatus returns the status of an application
-func (app *App) GetStatus() string {
-	return app.Status
-}
-
-// GetVersion returns the version of an application
-func (app *App) GetVersion() string {
-	return app.InstallerVersion
-}
-
-// AddAction performs an action on an application
-func (app *App) AddAction(action string) (*task.Base, error) {
-	log.Info("Performing action [", action, "] on application ", app.Name, "[", app.ID, "]")
-
-	switch action {
-	case "start":
-		tsk := app.StartAsync()
-		return tsk, nil
-	case "stop":
-		tsk := app.StopAsync()
-		return tsk, nil
-	default:
-		return nil, fmt.Errorf("Action '%s' not supported", action)
-	}
-}
-
-// AddTask adds a task owned by the applications
-func (app *App) AddTask(id string) {
-	app.access.Lock()
-	app.Tasks = append(app.Tasks, id)
-	app.access.Unlock()
-	log.Debugf("Added task '%s' to app '%s'", id, app.ID)
-	app.Save()
-}
-
-// Save - sends update to the app manager which persists application data to database
-func (app *App) Save() {
-	app.parent.saveApp(app)
-}
-
 // createSandbox create the underlying container
 func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	var err error
@@ -184,14 +122,17 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	log.Infof("Creating sandbox for app '%s'[%s]", app.Name, app.ID)
 	cnt, err := app.parent.getPlatform().NewSandbox(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to create container for app '%s'", app.ID)
+		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
 	}
 	app.access.Lock()
 	app.VolumeID = volumeID
 	app.ContainerID = cnt.GetID()
 	app.IP = cnt.GetIP()
 	app.access.Unlock()
-	app.Save()
+	err = app.parent.saveApp(app)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
+	}
 	return cnt, nil
 }
 
@@ -210,83 +151,8 @@ func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-// enrichAppData updates the information about the underlying application
-func (app *App) enrichAppData() {
-
-	if app.Status == statusCreating || app.Status == statusFailed || app.Status == statusDeleted || app.Status == statusWillDelete {
-		// not refreshing the platform until the app creation process is done
-		return
-	}
-
-	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
-	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) {
-			app.Status = statusStopped
-			return
-		}
-		log.Errorf("Failed to enrich app data: %s", err.Error())
-		app.Status = statusUnknown
-		return
-	}
-
-	app.Status = cnt.GetStatus()
-}
-
-// StartAsync asynchronously starts an application and returns a task
-func (app *App) StartAsync() *task.Base {
-	return app.parent.getTaskManager().New("Start application", &StartAppTask{app: app})
-}
-
-// Start starts an application
-func (app *App) Start() error {
-	log.Infof("Starting application '%s'[%s]", app.Name, app.ID)
-
-	cnt, err := app.getOrcreateSandbox()
-	if err != nil {
-		app.SetStatus(statusFailed)
-		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
-	}
-
-	err = cnt.Start()
-	if err != nil {
-		app.SetStatus(statusFailed)
-		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
-	}
-	app.SetStatus(statusRunning)
-	return nil
-}
-
-// StopAsync asynchronously stops an application and returns a task
-func (app *App) StopAsync() *task.Base {
-	return app.parent.getTaskManager().New("Stop application", &StopAppTask{app: app})
-}
-
-// Stop stops an application
-func (app *App) Stop() error {
-	log.Infof("Stopping application '%s'[%s]", app.Name, app.ID)
-
-	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
-	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
-			app.SetStatus(statusUnknown)
-			return err
-		}
-		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)
-		app.SetStatus(statusStopped)
-		return nil
-	}
-
-	err = cnt.Stop()
-	if err != nil {
-		app.SetStatus(statusUnknown)
-		return errors.Wrapf(err, "Failed to stop application '%s'(%s)", app.Name, app.ID)
-	}
-	app.SetStatus(statusStopped)
-	return nil
-}
-
 // remove App removes an application container
-func (app *App) remove() error {
+func (app *App) removeSandbox() error {
 	log.Debugf("Removing application '%s'[%s]", app.Name, app.ID)
 
 	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
@@ -332,6 +198,115 @@ func (app *App) remove() error {
 	return nil
 }
 
+// enrichAppData updates the information about the underlying application
+func (app *App) enrichAppData() {
+
+	if app.Status == statusCreating || app.Status == statusFailed || app.Status == statusDeleted || app.Status == statusWillDelete {
+		// not refreshing the platform until the app creation process is done
+		return
+	}
+
+	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) {
+			app.Status = statusStopped
+			return
+		}
+		log.Errorf("Failed to enrich app data: %s", err.Error())
+		app.Status = statusUnknown
+		return
+	}
+
+	app.Status = cnt.GetStatus()
+}
+
+//
+// Methods for application instance
+//
+
+// GetID returns the id of the application
+func (app *App) GetID() string {
+	return app.ID
+}
+
+// GetName returns the id of the application
+func (app *App) GetName() string {
+	return app.Name
+}
+
+// SetStatus sets the status of an application
+func (app *App) SetStatus(status string) error {
+	app.access.Lock()
+	app.Status = status
+	app.access.Unlock()
+	return app.parent.saveApp(app)
+}
+
+// GetStatus returns the status of an application
+func (app *App) GetStatus() string {
+	return app.Status
+}
+
+// GetVersion returns the version of an application
+func (app *App) GetVersion() string {
+	return app.InstallerVersion
+}
+
+// AddTask adds a task owned by the applications
+func (app *App) AddTask(id string) {
+	app.access.Lock()
+	app.Tasks = append(app.Tasks, id)
+	app.access.Unlock()
+	log.Debugf("Added task '%s' to app '%s'", id, app.ID)
+	err := app.parent.saveApp(app)
+	if err != nil {
+		log.Panic(errors.Wrapf(err, "Failed to add task for app '%s'", app.ID))
+	}
+}
+
+// Start starts an application
+func (app *App) Start() error {
+	log.Infof("Starting application '%s'[%s]", app.Name, app.ID)
+
+	cnt, err := app.getOrcreateSandbox()
+	if err != nil {
+		app.SetStatus(statusFailed)
+		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
+	}
+
+	err = cnt.Start()
+	if err != nil {
+		app.SetStatus(statusFailed)
+		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
+	}
+	app.SetStatus(statusRunning)
+	return nil
+}
+
+// Stop stops an application
+func (app *App) Stop() error {
+	log.Infof("Stopping application '%s'[%s]", app.Name, app.ID)
+
+	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
+			app.SetStatus(statusUnknown)
+			return err
+		}
+		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)
+		app.SetStatus(statusStopped)
+		return nil
+	}
+
+	err = cnt.Stop()
+	if err != nil {
+		app.SetStatus(statusUnknown)
+		return errors.Wrapf(err, "Failed to stop application '%s'(%s)", app.Name, app.ID)
+	}
+	app.SetStatus(statusStopped)
+	return nil
+}
+
 // ReplaceContainer replaces the container of the app with the one provided. Used during development
 func (app *App) ReplaceContainer(id string) error {
 	log.Infof("Using container %s for app %s", id, app.Name)
@@ -344,7 +319,9 @@ func (app *App) ReplaceContainer(id string) error {
 	app.ContainerID = id
 	app.IP = cnt.GetIP()
 	app.access.Unlock()
-	app.Save()
+	if err != nil {
+		return errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
+	}
 	return nil
 }
 
@@ -408,7 +385,10 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 	}
 	app.Resources = append(app.Resources, rsc.GetID())
 	app.access.Unlock()
-	app.Save()
+	err = app.parent.saveApp(app)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to create resource for app '%s'", app.ID)
+	}
 
 	return rsc, nil
 }
@@ -423,7 +403,10 @@ func (app *App) DeleteResource(resourceID string) error {
 		app.access.Lock()
 		app.Resources = util.RemoveStringFromSlice(app.Resources, index)
 		app.access.Unlock()
-		app.Save()
+		err = app.parent.saveApp(app)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to delete resource for app '%s'", app.ID)
+		}
 
 		return nil
 	}
@@ -475,4 +458,10 @@ func (app *App) Provides(rscType string) bool {
 		return true
 	}
 	return false
+}
+
+// Public returns a public version of the app struct
+func (app App) Public() *App {
+	app.enrichAppData()
+	return &app
 }

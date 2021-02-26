@@ -377,7 +377,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, pubKey, err := p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceInfo.Network, []auth.UserDevice{dev})
+	ip, pubKey, err := p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceName, instanceInfo.Network, []auth.UserDevice{dev})
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("Failed to initialize instance: %w", err)
 	}
@@ -482,7 +482,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, pubKey, err = p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, developmentNetwork.String(), []auth.UserDevice{dev})
+	ip, _, err = p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, usr.GetInfo().Domain, instanceName, developmentNetwork.String(), []auth.UserDevice{dev})
 	if err != nil {
 		return fmt.Errorf("Failed to init dev instance: %w", err)
 	}

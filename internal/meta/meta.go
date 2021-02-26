@@ -39,6 +39,7 @@ type Meta struct {
 	// Public members
 	ID                 string
 	Domain             string
+	InstanceName       string
 	DashboardSubdomain string
 	PublicIP           net.IP
 	AdminUser          string
@@ -180,6 +181,18 @@ func (m *Meta) SetDomain(domainName string) {
 // GetDomain returns the domain name used in this Protos instance
 func (m *Meta) GetDomain() string {
 	return m.Domain
+}
+
+// SetInstanceName sets the name of the instance
+func (m *Meta) SetInstanceName(name string) {
+	log.Debugf("Setting instance name to '%s'", name)
+	m.InstanceName = name
+	m.save()
+}
+
+// GetInstanceName retrieves the name of the instance
+func (m *Meta) GetInstanceName() string {
+	return m.InstanceName
 }
 
 // SetNetwork sets the instance network

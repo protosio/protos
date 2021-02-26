@@ -39,63 +39,8 @@ type dnsResource interface {
 	Sanitize() resource.ResourceValue
 }
 
-// Map is a thread safe application map
-type Map struct {
-	access *sync.Mutex
-	apps   map[string]*App
-	db     db.DB
-}
-
-// put saves an application into the application map
-func (am Map) put(id string, app *App) {
-	am.access.Lock()
-	am.apps[id] = app
-	am.access.Unlock()
-}
-
-// get retrieves an application from the application map
-func (am Map) get(id string) (*App, error) {
-	am.access.Lock()
-	app, found := am.apps[id]
-	am.access.Unlock()
-	if found {
-		return app, nil
-	}
-	return nil, fmt.Errorf("Could not find app %s", id)
-}
-
-func (am Map) remove(id string) error {
-	am.access.Lock()
-	defer am.access.Unlock()
-	app, found := am.apps[id]
-	if found == false {
-		return fmt.Errorf("Could not find app %s", id)
-	}
-	err := am.db.RemoveFromMap(appDS, app.ID)
-	if err != nil {
-		log.Panicf("Failed to remove app from db: %s", err.Error())
-	}
-	delete(am.apps, id)
-	return nil
-}
-
-// copy returns a copy of the applications map
-func (am Map) copy() map[string]App {
-	apps := map[string]App{}
-	am.access.Lock()
-	for k, v := range am.apps {
-		v.access.Lock()
-		app := *v
-		v.access.Unlock()
-		apps[k] = app
-	}
-	am.access.Unlock()
-	return apps
-}
-
 // Manager keeps track of all the apps
 type Manager struct {
-	apps        Map
 	store       appStore
 	rm          *resource.Manager
 	tm          *task.Manager
@@ -131,16 +76,7 @@ func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.Run
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
 
-	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore, cm: cm}
-	apps := Map{access: &sync.Mutex{}, apps: map[string]*App{}, db: db}
-	for _, app := range dbapps {
-		tmp := app
-		tmp.access = &sync.Mutex{}
-		tmp.parent = manager
-		apps.put(tmp.ID, &tmp)
-	}
-	manager.apps = apps
-	return manager
+	return &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore, cm: cm}
 }
 
 // methods to satisfy local interfaces
@@ -165,90 +101,16 @@ func (am *Manager) getCapabilityManager() *capability.Manager {
 	return am.cm
 }
 
-func (am *Manager) createAppForTask(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.InstallerMetadata, taskID string) (app, error) {
-	newApp, err := am.Create(installerID, installerVersion, name, installerParams, installerMetadata)
-	if err != nil {
-		return nil, err
-	}
-
-	return newApp, nil
-}
-
-// GetCopy returns a copy of an application based on its id
-func (am *Manager) GetCopy(id string) (*App, error) {
-	log.Trace("Copying application ", id)
-	app, err := am.apps.get(id)
-	if err != nil {
-		return nil, err
-	}
-	app.access.Lock()
-	capp := *app
-	app.access.Unlock()
-	return &capp, err
-}
-
-// Get returns a copy of an application based on its name
-func (am *Manager) Get(name string) (*App, error) {
-	for _, app := range am.apps.copy() {
-		if app.Name == name {
-			return &app, nil
-		}
-	}
-	return nil, fmt.Errorf("Could not find application '%s'", name)
-}
-
-// CopyAll returns a copy of all the applications
-func (am *Manager) CopyAll() map[string]*App {
-	apps := map[string]*App{}
-	for id, app := range am.apps.copy() {
-		apps[id] = &app
-	}
-	return apps
-}
-
-// Read returns an application based on its id
-func (am *Manager) Read(id string) (*App, error) {
-	return am.apps.get(id)
-}
-
-// Select takes a function and applies it to all the apps in the map. The ones that return true are returned
-func (am *Manager) Select(filter func(*App) bool) map[string]*App {
-	apps := map[string]*App{}
-	am.apps.access.Lock()
-	for k, v := range am.apps.apps {
-		app := v
-		app.access.Lock()
-		if filter(app) {
-			apps[k] = app
-		}
-		app.access.Unlock()
-	}
-	am.apps.access.Unlock()
-	return apps
-}
-
-// CreateAsync creates, runs and returns a task of type CreateAppTask
-func (am *Manager) CreateAsync(installerID string, installerVersion string, appName string, installerParams map[string]string, startOnCreation bool) *task.Base {
-	if installerID == "" || appName == "" {
-		log.Panic("CreateAsync doesn't have all the required parameters")
-	}
-	createApp := CreateAppTask{
-		am:               am,
-		InstallerID:      installerID,
-		InstallerVersion: installerVersion,
-		AppName:          appName,
-		InstallerParams:  installerParams,
-		StartOnCreation:  startOnCreation,
-	}
-	return am.tm.New("Create application", &createApp)
-}
+//
+// Client methods
+//
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installerID string, installerVersion string, name string, installerParams map[string]string, installerMetadata installer.InstallerMetadata) (*App, error) {
+func (am *Manager) Create(installerID string, installerVersion string, name string, instanceName string, installerParams map[string]string, installerMetadata installer.InstallerMetadata) (*App, error) {
 
 	var app *App
-	if name == "" || installerID == "" || installerVersion == "" {
-		return app, fmt.Errorf("Application name, installer ID or installer version cannot be empty")
+	if name == "" || installerID == "" || installerVersion == "" || instanceName == "" {
+		return app, fmt.Errorf("Application name, installer ID, installer version or instance ID cannot be empty")
 	}
 
 	err := validateInstallerParams(installerParams, installerMetadata.Params)
@@ -256,7 +118,13 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		return app, err
 	}
 
-	for _, app := range am.apps.copy() {
+	apps := map[string]App{}
+	err = am.db.GetMap(appDS, &apps)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
+	}
+
+	for _, app := range apps {
 		if app.Name == name {
 			return nil, fmt.Errorf("Could not create application '%s': another application exists with the same name", name)
 		}
@@ -264,9 +132,20 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
-	app = &App{access: &sync.Mutex{}, Name: name, ID: guid.String(), InstallerID: installerID, InstallerVersion: installerVersion,
-		PublicPorts: installerMetadata.PublicPorts, InstallerParams: installerParams,
-		InstallerMetadata: installerMetadata, Tasks: []string{}, Status: statusCreating, parent: am}
+	app = &App{
+		access:            &sync.Mutex{},
+		Name:              name,
+		ID:                guid.String(),
+		InstallerID:       installerID,
+		InstallerVersion:  installerVersion,
+		InstanceName:      instanceName,
+		PublicPorts:       installerMetadata.PublicPorts,
+		InstallerParams:   installerParams,
+		InstallerMetadata: installerMetadata,
+		Tasks:             []string{},
+		Status:            statusCreating,
+		parent:            am,
+	}
 
 	app.Capabilities = createCapabilities(am.cm, installerMetadata.Capabilities)
 	publicDNSCapability, err := am.cm.GetByName("PublicDNS")
@@ -281,11 +160,82 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		app.Resources = append(app.Resources, rsc.GetID())
 	}
 
-	am.apps.put(app.ID, app)
-	am.saveApp(app)
+	err = am.saveApp(app)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
+	}
 
 	log.Debug("Created application ", name, "[", guid.String(), "]")
 	return app, nil
+}
+
+//
+// Instance methods
+//
+
+// GetByID returns an application based on its id
+func (am *Manager) GetByID(id string) (*App, error) {
+	apps := map[string]App{}
+	err := am.db.GetMap(appDS, &apps)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not retrieve application '%s'", id)
+	}
+
+	for _, app := range apps {
+		if app.ID == id {
+			app.parent = am
+			app.access = &sync.Mutex{}
+			return &app, nil
+		}
+	}
+
+	return nil, errors.Wrapf(err, "Could not find application '%s'", id)
+}
+
+// Get returns a copy of an application based on its name
+func (am *Manager) Get(name string) (*App, error) {
+	apps := map[string]App{}
+	err := am.db.GetMap(appDS, &apps)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not retrieve application '%s'", name)
+	}
+
+	for _, app := range apps {
+		if app.Name == name {
+			app.parent = am
+			app.access = &sync.Mutex{}
+			return &app, nil
+		}
+	}
+
+	return nil, errors.Wrapf(err, "Could not find application '%s'", name)
+}
+
+// GetAll returns a copy of all the applications
+func (am *Manager) GetAll() (map[string]App, error) {
+	apps := map[string]App{}
+	err := am.db.GetMap(appDS, &apps)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not retrieve applications")
+	}
+
+	return apps, nil
+}
+
+// ReSync checks the db for new apps and deploys them if they belong to the current instance
+func (am *Manager) ReSync() {
+	log.Debug("Syncing apps")
+	dbapps := map[string]App{}
+	err := am.db.GetMap(appDS, &dbapps)
+	if err != nil {
+		log.Fatal("Could not retrieve applications from database: ", err)
+	}
+
+	for _, app := range dbapps {
+		if app.InstanceName == am.m.GetInstanceName() && app.Status == statusCreating {
+			log.Infof("App '%s' will be started")
+		}
+	}
 }
 
 // Delete sets the status of the app to WillDelete, which triggers the deletion of the app
@@ -300,9 +250,12 @@ func (am *Manager) Delete(name string) error {
 }
 
 // GetServices returns a list of services performed by apps
-func (am *Manager) GetServices() []util.Service {
+func (am *Manager) GetServices() ([]util.Service, error) {
 	services := []util.Service{}
-	apps := am.apps.copy()
+	apps, err := am.GetAll()
+	if err != nil {
+		return services, errors.Wrap(err, "Could not retrieve services")
+	}
 
 	resourceFilter := func(rsc *resource.Resource) bool {
 		if rsc.GetType() == resource.DNS {
@@ -337,34 +290,26 @@ func (am *Manager) GetServices() []util.Service {
 		}
 		services = append(services, service)
 	}
-	return services
+	return services, nil
 }
 
 // Remove removes an application based on the provided id
 func (am *Manager) Remove(appID string) error {
-	app, err := am.apps.get(appID)
+	app, err := am.GetByID(appID)
 	if err != nil {
 		return errors.Wrapf(err, "Can't remove application %s", appID)
 	}
 
-	err = app.remove()
+	err = app.removeSandbox()
 	if err != nil {
 		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
 	}
 	app.SetStatus(statusDeleted)
-	err = am.apps.remove(app.ID)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to remove application %s(%s) from database", app.Name, app.ID)
-	}
+
 	return nil
 }
 
-// RemoveAsync asynchronously removes an applications and returns a task
-func (am *Manager) RemoveAsync(appID string) *task.Base {
-	return am.tm.New("Remove application", &RemoveAppTask{am: am, appID: appID})
-}
-
-func (am *Manager) saveApp(app *App) {
+func (am *Manager) saveApp(app *App) error {
 	app.access.Lock()
 	papp := *app
 	app.access.Unlock()
@@ -372,8 +317,9 @@ func (am *Manager) saveApp(app *App) {
 	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
 	err := am.db.InsertInMap(appDS, papp.ID, papp)
 	if err != nil {
-		log.Panic(errors.Wrap(err, "Could not save app to database"))
+		return errors.Wrap(err, "Could not save app to database")
 	}
+	return nil
 }
 
 //
@@ -386,7 +332,7 @@ func (am *Manager) CreateDevApp(appName string, installerMetadata installer.Inst
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")
 
-	newApp, err := am.Create("dev", "0.0.0-dev", appName, installerParams, installerMetadata)
+	newApp, err := am.Create("dev", "0.0.0-dev", appName, "", installerParams, installerMetadata)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}

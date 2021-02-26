@@ -21,6 +21,7 @@ type MetaConfigurator interface {
 	SetDomain(domainName string)
 	SetNetwork(network net.IPNet) net.IP
 	SetAdminUser(username string)
+	SetInstanceName(name string)
 	CreateProtosResources() (map[string]*resource.Resource, error)
 	GetKey() (*ssh.Key, error)
 }
@@ -31,12 +32,13 @@ type UserCreator interface {
 }
 
 type InitReq struct {
-	Username string            `json:"username" validate:"required"`
-	Name     string            `json:"name" validate:"required"`
-	Domain   string            `json:"domain" validate:"fqdn"`
-	Network  string            `json:"network" validate:"cidrv4"` // CIDR notation
-	Password string            `json:"password" validate:"min=10,max=100"`
-	Devices  []auth.UserDevice `json:"devices" validate:"gt=0,dive"`
+	Username     string            `json:"username" validate:"required"`
+	Name         string            `json:"name" validate:"required"`
+	Domain       string            `json:"domain" validate:"fqdn"`
+	Network      string            `json:"network" validate:"cidrv4"` // CIDR notation
+	Password     string            `json:"password" validate:"min=10,max=100"`
+	InstanceName string            `json:"instance_name" validate:"required"`
+	Devices      []auth.UserDevice `json:"devices" validate:"gt=0,dive"`
 }
 
 type InitResp struct {
@@ -64,15 +66,16 @@ func NewRemoteInit(p2p *P2P, peerID peer.ID) *ClientInit {
 //
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *ClientInit) Init(username string, password string, name string, domain string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
+func (ip *ClientInit) Init(username string, password string, name string, domain string, instanceName string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
 
 	req := InitReq{
-		Username: username,
-		Password: password,
-		Name:     name,
-		Domain:   domain,
-		Network:  network,
-		Devices:  devices,
+		Username:     username,
+		Password:     password,
+		Name:         name,
+		Domain:       domain,
+		Network:      network,
+		InstanceName: instanceName,
+		Devices:      devices,
 	}
 
 	respData := &InitResp{}
@@ -127,6 +130,7 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 	}
 
 	hi.metaConfigurator.SetDomain(req.Domain)
+	hi.metaConfigurator.SetInstanceName(req.InstanceName)
 	ipNet := hi.metaConfigurator.SetNetwork(*network)
 
 	user, err := hi.userCreator.CreateUser(req.Username, req.Password, req.Name, req.Domain, true, req.Devices)

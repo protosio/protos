@@ -272,25 +272,25 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 		negroni.Wrap(internalRouter),
 	))
 
-	// external routes
-	externalRouter := mux.NewRouter().PathPrefix(types.APIExternalPath).Subrouter().StrictSlash(true)
-	addRoutesToRouter(httpAPI.ha, externalRouter, createExternalRoutes(httpAPI.ha.cm))
-	addRoutesToRouter(httpAPI.ha, externalRouter, externalWSRoutes)
-	rtr.PathPrefix(types.APIExternalPath).Handler(negroni.New(
-		ExternalRequestValidator(httpAPI.ha, externalRouter, initmode),
-		negroni.Wrap(externalRouter),
-	))
+	// // external routes
+	// externalRouter := mux.NewRouter().PathPrefix(types.APIExternalPath).Subrouter().StrictSlash(true)
+	// addRoutesToRouter(httpAPI.ha, externalRouter, createExternalRoutes(httpAPI.ha.cm))
+	// addRoutesToRouter(httpAPI.ha, externalRouter, externalWSRoutes)
+	// rtr.PathPrefix(types.APIExternalPath).Handler(negroni.New(
+	// 	ExternalRequestValidator(httpAPI.ha, externalRouter, initmode),
+	// 	negroni.Wrap(externalRouter),
+	// ))
 
-	// init routes
-	if initmode {
-		addRoutesToRouter(httpAPI.ha, externalRouter, createExternalInitRoutes(httpAPI.ha.cm))
-	}
+	// // init routes
+	// if initmode {
+	// 	addRoutesToRouter(httpAPI.ha, externalRouter, createExternalInitRoutes(httpAPI.ha.cm))
+	// }
 
-	// if dev mode is enabled we add the dev routes
-	if devmode {
-		devRouter := rtr.PathPrefix("/api/v1/dev").Subrouter().StrictSlash(true)
-		addRoutesToRouter(httpAPI.ha, devRouter, externalDevRoutes)
-	}
+	// // if dev mode is enabled we add the dev routes
+	// if devmode {
+	// 	devRouter := rtr.PathPrefix("/api/v1/dev").Subrouter().StrictSlash(true)
+	// 	addRoutesToRouter(httpAPI.ha, devRouter, externalDevRoutes)
+	// }
 
 	// static file routes
 	applyStaticRoutes(rtr, staticAssetsPath)
