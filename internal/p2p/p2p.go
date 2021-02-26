@@ -443,7 +443,6 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 		for {
 			select {
 			case <-p2p.eventSig:
-				log.Debug("event")
 				appManager.ReSync()
 			case <-stopSig:
 				return

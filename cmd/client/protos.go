@@ -114,14 +114,12 @@ func main() {
 	}
 
 	app.After = func(c *cli.Context) error {
-		fmt.Println("1 -----")
 		if envi != nil && envi.DB != nil {
 			instances, err := envi.CLM.GetInstances()
 			if err != nil {
 				return err
 			}
 			for _, instance := range instances {
-				fmt.Println(instance.InternalIP, " - ", instance.PublicIP, " - ", string(instance.PublicKey))
 				peerID, err := envi.p2pManager.AddPeer(instance.PublicKey, instance.PublicIP)
 				if err != nil {
 					return fmt.Errorf("Failed to add peer: %w", err)
@@ -137,10 +135,8 @@ func main() {
 					return errors.Wrapf(err, "Failed to sync data to dev instance '%s'", instance.Name)
 				}
 			}
-			fmt.Println("2 -----")
 			return envi.DB.Close()
 		}
-		fmt.Println("3 -----")
 		return nil
 	}
 

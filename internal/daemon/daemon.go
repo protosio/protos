@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -151,8 +150,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 	stoppers["iws"] = iwsStopper
-
-	fmt.Println(appManager.GetAll())
 
 	log.Info("Started all servers successfully")
 	wg.Wait()

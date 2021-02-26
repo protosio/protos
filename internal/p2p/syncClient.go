@@ -101,7 +101,6 @@ func (p2pcs *ClientChunkStore) getRoot(checkVers bool) (root hash.Hash, vers str
 	respData := &getRootResp{}
 
 	// send the request
-	log.Infof("Sending getRoot request '%s'", p2pcs.peerID.String())
 	err := p2pcs.p2p.sendRequest(p2pcs.peerID, getRootHandler, emptyReq{}, respData)
 	d.PanicIfError(err)
 

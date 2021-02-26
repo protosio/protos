@@ -232,8 +232,8 @@ func (am *Manager) ReSync() {
 	}
 
 	for _, app := range dbapps {
-		if app.InstanceName == am.m.GetInstanceName() && app.Status == statusCreating {
-			log.Infof("App '%s' will be started")
+		if app.InstanceName == am.m.GetInstanceName() {
+			log.Infof("App '%s' status: '%s'", app.Name, app.Status)
 		}
 	}
 }
