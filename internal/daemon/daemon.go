@@ -152,6 +152,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	stoppers["iws"] = iwsStopper
 
 	log.Info("Started all servers successfully")
+	appManager.ReSync()
 	wg.Wait()
 	log.Info("Shutdown completed")
 

@@ -122,6 +122,7 @@ func createApp(name string, installerID string, instanceID string) error {
 		return err
 	}
 
+	// FIXME: read the installer params from the command line
 	_, err = envi.AM.Create(installerID, installer.GetLastVersion(), name, instanceID, map[string]string{}, instMetadata)
 	if err != nil {
 		return err

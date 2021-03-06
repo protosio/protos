@@ -133,7 +133,9 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
 	app = &App{
-		access:            &sync.Mutex{},
+		access: &sync.Mutex{},
+		mgr:    am,
+
 		Name:              name,
 		ID:                guid.String(),
 		InstallerID:       installerID,
@@ -144,7 +146,6 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		InstallerMetadata: installerMetadata,
 		Tasks:             []string{},
 		Status:            statusCreating,
-		parent:            am,
 	}
 
 	app.Capabilities = createCapabilities(am.cm, installerMetadata.Capabilities)
@@ -183,7 +184,7 @@ func (am *Manager) GetByID(id string) (*App, error) {
 
 	for _, app := range apps {
 		if app.ID == id {
-			app.parent = am
+			app.mgr = am
 			app.access = &sync.Mutex{}
 			return &app, nil
 		}
@@ -202,7 +203,7 @@ func (am *Manager) Get(name string) (*App, error) {
 
 	for _, app := range apps {
 		if app.Name == name {
-			app.parent = am
+			app.mgr = am
 			app.access = &sync.Mutex{}
 			return &app, nil
 		}
@@ -233,7 +234,34 @@ func (am *Manager) ReSync() {
 
 	for _, app := range dbapps {
 		if app.InstanceName == am.m.GetInstanceName() {
+			app.mgr = am
+			app.access = &sync.Mutex{}
 			log.Infof("App '%s' status: '%s'", app.Name, app.Status)
+			sandBox, err := app.getSandbox()
+			if err != nil {
+				log.Error("Failed to retrieve sandbox for app '%s': '%s'", app.Name, err.Error())
+				continue
+			}
+			if app.Status == statusCreating && sandBox == nil {
+				sandBox, err = app.createSandbox()
+				if err != nil {
+					log.Errorf("Failed to create sandbox for app '%s': '%s'", app.Name, err.Error())
+					continue
+				}
+
+				app.Status = statusRunning
+				err = app.mgr.saveApp(&app)
+				if err != nil {
+					log.Errorf("Failed to save app '%s': '%s'", app.Name, err.Error())
+					continue
+				}
+			} else if app.Status == statusWillDelete && sandBox != nil {
+				err = app.removeSandbox()
+				if err != nil {
+					log.Errorf("Failed to delete sandbox for app '%s': '%s'", app.Name, err.Error())
+					continue
+				}
+			}
 		}
 	}
 }

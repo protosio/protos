@@ -9,7 +9,6 @@ import (
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/resource"
-	"github.com/protosio/protos/internal/task"
 
 	"github.com/protosio/protos/internal/util"
 )
@@ -31,15 +30,6 @@ const (
 	appBucket = "app"
 )
 
-type appParent interface {
-	Remove(appID string) error
-	saveApp(app *App) error
-	getPlatform() platform.RuntimePlatform
-	getTaskManager() *task.Manager
-	getResourceManager() *resource.Manager
-	getCapabilityManager() *capability.Manager
-}
-
 // WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
 type WSConnection struct {
 	Send  chan interface{}
@@ -57,8 +47,8 @@ type Config struct {
 // App represents the application state
 type App struct {
 	access *sync.Mutex   `noms:"-"`
-	parent appParent     `noms:"-"`
 	msgq   *WSConnection `noms:"-"`
+	mgr    *Manager      `noms:"-"`
 
 	// Public members
 	Name              string                      `json:"name"`
@@ -110,17 +100,51 @@ func createCapabilities(cm *capability.Manager, installerCapabilities []string) 
 
 // createSandbox create the underlying container
 func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
-	var err error
+
+	// normal app creation, using the app store
+	inst, err := app.mgr.store.GetInstaller(app.InstallerID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
+	}
+
+	var version string
+	if app.InstallerVersion == "" {
+		version = inst.GetLastVersion()
+		log.Infof("Creating application using latest version (%s) of installer '%s'", version, app.InstallerID)
+	} else {
+		version = app.InstallerVersion
+	}
+
+	metadata, err := inst.GetMetadata(version)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
+	}
+
+	// var err error
 	var volumeID string
-	if app.InstallerMetadata.PersistancePath != "" {
-		volumeID, err = app.parent.getPlatform().GetOrCreateVolume(app.VolumeID, app.InstallerMetadata.PersistancePath)
+	if metadata.PersistancePath != "" {
+		volumeID, err = app.mgr.getPlatform().GetOrCreateVolume(app.VolumeID, metadata.PersistancePath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to create volume for app '%s'", app.ID)
 		}
 	}
 
+	available, err := inst.IsPlatformImageAvailable(version)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
+	}
+	if available != true {
+		log.Infof("Downloading image '%s' for installer '%s'(%s) version '%s'", metadata.PlatformID, inst.Name, inst.ID, version)
+		err = app.mgr.getPlatform().PullImage(metadata.PlatformID, inst.Name, version)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, version)
+		}
+	} else {
+		log.Debugf("Container image for installer %s(%s) found locally", app.InstallerID, version)
+	}
+
 	log.Infof("Creating sandbox for app '%s'[%s]", app.Name, app.ID)
-	cnt, err := app.parent.getPlatform().NewSandbox(app.Name, app.ID, app.InstallerMetadata.PlatformID, app.VolumeID, app.InstallerMetadata.PersistancePath, app.PublicPorts, app.InstallerParams)
+	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, metadata.PlatformID, app.VolumeID, metadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
 	}
@@ -129,7 +153,7 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	app.ContainerID = cnt.GetID()
 	app.IP = cnt.GetIP()
 	app.access.Unlock()
-	err = app.parent.saveApp(app)
+	err = app.mgr.saveApp(app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
 	}
@@ -137,7 +161,7 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 }
 
 func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
-	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrContainerNotFound) {
 			cnt, err := app.createSandbox()
@@ -151,11 +175,22 @@ func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
+func (app *App) getSandbox() (platform.PlatformRuntimeUnit, error) {
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
+	}
+	return cnt, nil
+}
+
 // remove App removes an application container
 func (app *App) removeSandbox() error {
 	log.Debugf("Removing application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
 			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
@@ -169,13 +204,13 @@ func (app *App) removeSandbox() error {
 	}
 
 	// perform CleanUpSandbox for the sandbox
-	err = app.parent.getPlatform().CleanUpSandbox(app.ContainerID)
+	err = app.mgr.getPlatform().CleanUpSandbox(app.ContainerID)
 	if err != nil {
 		log.Warnf("Failed to perform CleanUpSandbox for sandbox '%s': %s", app.ContainerID, err.Error())
 	}
 
 	if app.VolumeID != "" {
-		err := app.parent.getPlatform().RemoveVolume(app.VolumeID)
+		err := app.mgr.getPlatform().RemoveVolume(app.VolumeID)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 		}
@@ -183,12 +218,12 @@ func (app *App) removeSandbox() error {
 
 	// Removing resources requested by this app
 	for _, rscID := range app.Resources {
-		_, err := app.parent.getResourceManager().Get(rscID)
+		_, err := app.mgr.getResourceManager().Get(rscID)
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-		err = app.parent.getResourceManager().Delete(rscID)
+		err = app.mgr.getResourceManager().Delete(rscID)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -206,7 +241,7 @@ func (app *App) enrichAppData() {
 		return
 	}
 
-	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrContainerNotFound) {
 			app.Status = statusStopped
@@ -239,7 +274,7 @@ func (app *App) SetStatus(status string) error {
 	app.access.Lock()
 	app.Status = status
 	app.access.Unlock()
-	return app.parent.saveApp(app)
+	return app.mgr.saveApp(app)
 }
 
 // GetStatus returns the status of an application
@@ -258,7 +293,7 @@ func (app *App) AddTask(id string) {
 	app.Tasks = append(app.Tasks, id)
 	app.access.Unlock()
 	log.Debugf("Added task '%s' to app '%s'", id, app.ID)
-	err := app.parent.saveApp(app)
+	err := app.mgr.saveApp(app)
 	if err != nil {
 		log.Panic(errors.Wrapf(err, "Failed to add task for app '%s'", app.ID))
 	}
@@ -287,7 +322,7 @@ func (app *App) Start() error {
 func (app *App) Stop() error {
 	log.Infof("Stopping application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.parent.getPlatform().GetSandbox(app.ContainerID)
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
 			app.SetStatus(statusUnknown)
@@ -310,7 +345,7 @@ func (app *App) Stop() error {
 // ReplaceContainer replaces the container of the app with the one provided. Used during development
 func (app *App) ReplaceContainer(id string) error {
 	log.Infof("Using container %s for app %s", id, app.Name)
-	cnt, err := app.parent.getPlatform().GetSandbox(id)
+	cnt, err := app.mgr.getPlatform().GetSandbox(id)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to replace container for app '%s'", app.ID)
 	}
@@ -378,14 +413,14 @@ func (app *App) SendMsg(msg interface{}) error {
 func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 
 	app.access.Lock()
-	rsc, err := app.parent.getResourceManager().CreateFromJSON(appJSON, app.ID)
+	rsc, err := app.mgr.getResourceManager().CreateFromJSON(appJSON, app.ID)
 	if err != nil {
 		app.access.Unlock()
 		return nil, errors.Wrapf(err, "Failed to create resource for app '%s'", app.ID)
 	}
 	app.Resources = append(app.Resources, rsc.GetID())
 	app.access.Unlock()
-	err = app.parent.saveApp(app)
+	err = app.mgr.saveApp(app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create resource for app '%s'", app.ID)
 	}
@@ -396,14 +431,14 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 //DeleteResource deletes a resource
 func (app *App) DeleteResource(resourceID string) error {
 	if v, index := util.StringInSlice(resourceID, app.Resources); v {
-		err := app.parent.getResourceManager().Delete(resourceID)
+		err := app.mgr.getResourceManager().Delete(resourceID)
 		if err != nil {
 			return errors.Wrap(err, "Failed to delete resource for app "+app.ID)
 		}
 		app.access.Lock()
 		app.Resources = util.RemoveStringFromSlice(app.Resources, index)
 		app.access.Unlock()
-		err = app.parent.saveApp(app)
+		err = app.mgr.saveApp(app)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to delete resource for app '%s'", app.ID)
 		}
@@ -417,7 +452,7 @@ func (app *App) DeleteResource(resourceID string) error {
 // GetResources retrieves all the resources that belong to an application
 func (app *App) GetResources() map[string]*resource.Resource {
 	resources := make(map[string]*resource.Resource)
-	rm := app.parent.getResourceManager()
+	rm := app.mgr.getResourceManager()
 	for _, rscid := range app.Resources {
 		rsc, err := rm.Get(rscid)
 		if err != nil {
@@ -432,7 +467,7 @@ func (app *App) GetResources() map[string]*resource.Resource {
 // GetResource returns resource with provided ID, if it belongs to this app
 func (app *App) GetResource(resourceID string) (*resource.Resource, error) {
 	if found, _ := util.StringInSlice(resourceID, app.Resources); found {
-		rsc, err := app.parent.getResourceManager().Get(resourceID)
+		rsc, err := app.mgr.getResourceManager().Get(resourceID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to get resource %s for app %s", resourceID, app.ID)
 		}
@@ -445,7 +480,7 @@ func (app *App) GetResource(resourceID string) (*resource.Resource, error) {
 // ValidateCapability implements the capability checker interface
 func (app *App) ValidateCapability(cap *capability.Capability) error {
 	for _, capName := range app.Capabilities {
-		if app.parent.getCapabilityManager().Validate(cap, capName) {
+		if app.mgr.getCapabilityManager().Validate(cap, capName) {
 			return nil
 		}
 	}

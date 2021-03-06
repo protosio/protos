@@ -185,9 +185,10 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		Hostname: name,
 		Metadata: &pb.PodSandboxMetadata{
 			Name:      name + "-sandbox",
-			Namespace: "default",
+			Namespace: "protos",
 			Attempt:   1,
 		},
+		Labels:       map[string]string{"platform": "protos", "appID": appID, "appName": name},
 		PortMappings: podPorts,
 		DnsConfig:    &pb.DNSConfig{Servers: []string{cdp.dnsServer}, Searches: []string{"protos.local"}},
 		Linux:        &pb.LinuxPodSandboxConfig{},
@@ -253,31 +254,42 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	return pru, nil
 }
 
-func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error) {
-	if id == "" {
+func (cdp *containerdPlatform) GetSandbox(appID string) (PlatformRuntimeUnit, error) {
+	if appID == "" {
 		return nil, util.NewTypedError("containerd sandbox not found", ErrContainerNotFound)
 	}
 	pru := &containerdSandbox{p: cdp}
-	podStatus, err := cdp.runtimeClient.PodSandboxStatus(context.Background(), &pb.PodSandboxStatusRequest{PodSandboxId: id})
+
+	listPodsResponse, err := cdp.runtimeClient.ListPodSandbox(context.Background(), &pb.ListPodSandboxRequest{Filter: &pb.PodSandboxFilter{LabelSelector: map[string]string{"platform": "protos", "appID": appID}}})
 	if err != nil {
-		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", ErrContainerNotFound)
+		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox for app %s", appID), "does not exist", ErrContainerNotFound)
+	}
+
+	if len(listPodsResponse.Items) == 0 {
+		return pru, fmt.Errorf("Could not find sandbox '%s'", appID)
+	}
+
+	podID := listPodsResponse.Items[0].Id
+	podStatus, err := cdp.runtimeClient.PodSandboxStatus(context.Background(), &pb.PodSandboxStatusRequest{PodSandboxId: podID})
+	if err != nil {
+		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", podID), "does not exist", ErrContainerNotFound)
 	}
 	pru.podID = podStatus.Status.Id
 	pru.podStatus = podStatus.Status.State.String()
 	pru.IP = podStatus.Status.Network.Ip
 	cntListResponse, err := cdp.runtimeClient.ListContainers(context.Background(), &pb.ListContainersRequest{Filter: &pb.ContainerFilter{PodSandboxId: podStatus.Status.Id}})
 	if err != nil {
-		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", id), "does not exist", ErrContainerNotFound)
+		return pru, util.ErrorContainsTransform(errors.Wrapf(err, "Error retrieving containerd sandbox %s", podID), "does not exist", ErrContainerNotFound)
 	}
 	nrContainers := len(cntListResponse.Containers)
 	if nrContainers != 1 {
-		return pru, errors.Wrapf(err, "Containerd sandbox %s, has '%d' containers instead of 1", id, len(cntListResponse.Containers))
+		return pru, errors.Wrapf(err, "Containerd sandbox %s, has '%d' containers instead of 1", podID, len(cntListResponse.Containers))
 	}
 	pru.containerID = cntListResponse.Containers[0].Id
 	// get status and save exit code
 	statusResponse, err := cdp.runtimeClient.ContainerStatus(context.Background(), &pb.ContainerStatusRequest{ContainerId: pru.containerID})
 	if err != nil {
-		return nil, errors.Wrapf(err, "Error retrieving containerd sandbox %s", id)
+		return nil, errors.Wrapf(err, "Error retrieving containerd sandbox %s", podID)
 	}
 	pru.containerStatus = statusResponse.Status.State.String()
 	pru.exitCode = int(statusResponse.Status.ExitCode)
