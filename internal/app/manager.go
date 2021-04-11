@@ -239,13 +239,13 @@ func (am *Manager) ReSync() {
 			log.Infof("App '%s' status: '%s'", app.Name, app.Status)
 			sandBox, err := app.getSandbox()
 			if err != nil {
-				log.Error("Failed to retrieve sandbox for app '%s': '%s'", app.Name, err.Error())
+				log.Error("Failed to retrieve app '%s': '%s'", app.Name, err.Error())
 				continue
 			}
 			if app.Status == statusCreating && sandBox == nil {
 				sandBox, err = app.createSandbox()
 				if err != nil {
-					log.Errorf("Failed to create sandbox for app '%s': '%s'", app.Name, err.Error())
+					log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
 					continue
 				}
 
@@ -258,7 +258,7 @@ func (am *Manager) ReSync() {
 			} else if app.Status == statusWillDelete && sandBox != nil {
 				err = app.removeSandbox()
 				if err != nil {
-					log.Errorf("Failed to delete sandbox for app '%s': '%s'", app.Name, err.Error())
+					log.Errorf("Failed to delete app '%s': '%s'", app.Name, err.Error())
 					continue
 				}
 			}
@@ -343,10 +343,10 @@ func (am *Manager) saveApp(app *App) error {
 	app.access.Unlock()
 	papp.access = nil
 	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
-	err := am.db.InsertInMap(appDS, papp.ID, papp)
-	if err != nil {
-		return errors.Wrap(err, "Could not save app to database")
-	}
+	// err := am.db.InsertInMap(appDS, papp.ID, papp)
+	// if err != nil {
+	// 	return errors.Wrap(err, "Could not save app to database")
+	// }
 	return nil
 }
 
