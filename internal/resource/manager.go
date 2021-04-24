@@ -15,64 +15,9 @@ const (
 	resourceDS = "resource"
 )
 
-// resourceContainer is a thread safe application map
-type resourceContainer struct {
-	access *sync.Mutex
-	all    map[string]*Resource
-	db     db.DB
-}
-
-// put saves an application into the application map
-func (rc resourceContainer) put(id string, app *Resource) {
-	rc.access.Lock()
-	rc.all[id] = app
-	rc.access.Unlock()
-}
-
-// get retrieves an application from the application map
-func (rc resourceContainer) get(id string) (*Resource, error) {
-	rc.access.Lock()
-	app, found := rc.all[id]
-	rc.access.Unlock()
-	if found {
-		return app, nil
-	}
-	return nil, fmt.Errorf("Could not find resource '%s'", id)
-}
-
-func (rc resourceContainer) remove(id string) error {
-	rc.access.Lock()
-	defer rc.access.Unlock()
-	rsc, found := rc.all[id]
-	if found == false {
-		return fmt.Errorf("Could not find resource '%s'", id)
-	}
-	err := rc.db.RemoveFromMap(resourceDS, string(rsc.Type))
-	if err != nil {
-		log.Panicf("Failed to remove resource from db: %s", err.Error())
-	}
-	delete(rc.all, id)
-	return nil
-}
-
-// copy returns a copy of the applications map
-func (rc resourceContainer) copy() map[string]Resource {
-	copyResources := map[string]Resource{}
-	rc.access.Lock()
-	defer rc.access.Unlock()
-	for k, v := range rc.all {
-		v.access.Lock()
-		rsc := *v
-		v.access.Unlock()
-		copyResources[k] = rsc
-	}
-	return copyResources
-}
-
 // Manager keeps track of all the resources
 type Manager struct {
-	resources resourceContainer
-	db        db.DB
+	db db.DB
 }
 
 //
@@ -92,22 +37,6 @@ func CreateManager(db db.DB) *Manager {
 
 	log.Debug("Retrieving resources from DB")
 	manager := &Manager{db: db}
-
-	rscs := map[string]Resource{}
-	err = db.GetMap(resourceDS, &rscs)
-	if err != nil {
-		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
-	}
-
-	resources := resourceContainer{access: &sync.Mutex{}, all: map[string]*Resource{}, db: db}
-	for _, rsc := range rscs {
-		rscCopy := rsc
-		rscCopy.access = &sync.Mutex{}
-		rscCopy.parent = manager
-		resources.put(rsc.ID, &rscCopy)
-	}
-
-	manager.resources = resources
 	return manager
 }
 
@@ -115,10 +44,10 @@ func CreateManager(db db.DB) *Manager {
 func (rm *Manager) Create(rtype ResourceType, value ResourceValue, appID string) (*Resource, error) {
 	resource := &Resource{Type: rtype, Value: value}
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
-	rsc, err := rm.resources.get(rhash)
 
+	_, err := rm.Get(rhash)
 	if err == nil {
-		return rsc, errors.Wrapf(ErrResourceExists{}, "Could not create resource with hash '%s'(%s)", rhash, rtype)
+		return resource, errors.Wrapf(ErrResourceExists{}, "Could not create resource with hash '%s'(%s) because it already exists", rhash, rtype)
 	}
 
 	resource.App = appID
@@ -129,15 +58,18 @@ func (rm *Manager) Create(rtype ResourceType, value ResourceValue, appID string)
 	resource.parent = rm
 	resource.Save()
 
-	log.Debugf("Adding resource '%s:%+v'", rhash, resource)
-	rm.resources.put(rhash, resource)
 	return resource, nil
 
 }
 
 //Delete deletes a resource
-func (rm *Manager) Delete(appID string) error {
-	return rm.resources.remove(appID)
+func (rm *Manager) Delete(id string) error {
+	err := rm.db.RemoveFromMap(resourceDS, id)
+	if err != nil {
+		return fmt.Errorf("Could not remove resource from database: %s", err.Error())
+	}
+
+	return nil
 }
 
 //CreateFromJSON creates a resource from the input JSON and adds it to the internal resources map.
@@ -150,9 +82,9 @@ func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (*Resource, erro
 
 	resource := &Resource{Value: rscInitial.Value, Type: rscInitial.Type}
 	rhash := fmt.Sprintf("%x", structhash.Md5(resource, 1))
-	rsc, err := rm.resources.get(rhash)
+	_, err = rm.Get(rhash)
 	if err == nil {
-		return rsc, errors.Errorf("Could not create resource with hash '%s' because it already exists", rhash)
+		return resource, errors.Wrapf(ErrResourceExists{}, "Could not create resource with hash '%s'(%s) because it already exists", rhash, rscInitial.Type)
 	}
 	resource.parent = rm
 	resource.access = &sync.Mutex{}
@@ -161,30 +93,38 @@ func (rm *Manager) CreateFromJSON(appJSON []byte, appID string) (*Resource, erro
 	resource.App = appID
 	resource.Save()
 
-	log.Debugf("Adding resource '%s:%p'", rhash, resource)
-	rm.resources.put(rhash, resource)
 	return resource, nil
 }
 
 // Select takes a function and applies it to all the resources in the map. The ones that return true are returned
 func (rm *Manager) Select(filter func(*Resource) bool) map[string]*Resource {
 	selectedResources := map[string]*Resource{}
-	rm.resources.access.Lock()
-	for k, v := range rm.resources.all {
-		rsc := v
-		rsc.access.Lock()
+
+	rscs := map[string]Resource{}
+	err := rm.db.GetMap(resourceDS, &rscs)
+	if err != nil {
+		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
+	}
+
+	for k, v := range rscs {
+		rsc := &v
 		if filter(rsc) {
 			selectedResources[k] = rsc
 		}
-		rsc.access.Unlock()
 	}
-	rm.resources.access.Unlock()
+
 	return selectedResources
 }
 
 //GetAll retrieves all the saved resources
 func (rm *Manager) GetAll(sanitize bool) map[string]*Resource {
-	rscs := rm.resources.copy()
+
+	rscs := map[string]Resource{}
+	err := rm.db.GetMap(resourceDS, &rscs)
+	if err != nil {
+		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
+	}
+
 	var sanitizedResources = make(map[string]*Resource, len(rscs))
 	for _, rsc := range rscs {
 		if sanitize == false {
@@ -197,8 +137,20 @@ func (rm *Manager) GetAll(sanitize bool) map[string]*Resource {
 }
 
 //Get retrieves a resources based on the provided id
-func (rm *Manager) Get(resourceID string) (*Resource, error) {
-	return rm.resources.get(resourceID)
+func (rm *Manager) Get(id string) (*Resource, error) {
+
+	rscs := map[string]Resource{}
+	err := rm.db.GetMap(resourceDS, &rscs)
+	if err != nil {
+		log.Fatalf("Could not retrieve resources from the database: %s", err.Error())
+	}
+
+	rsc, found := rscs[id]
+	if found {
+		return &rsc, nil
+	}
+
+	return nil, fmt.Errorf("Could not find resource '%s'", id)
 }
 
 //GetType retrieves a resource type based on the provided string

@@ -45,6 +45,7 @@ type Env struct {
 	VPN        *vpn.VPN
 	AS         *installer.AppStore
 	AM         *app.Manager
+	RM         *resource.Manager
 	p2pManager *p2p.P2P
 	Log        *logrus.Entry
 }
@@ -59,13 +60,14 @@ func NewEnv(
 	vpn *vpn.VPN,
 	as *installer.AppStore,
 	am *app.Manager,
+	rm *resource.Manager,
 	log *logrus.Entry,
 	p2pManager *p2p.P2P) *Env {
 
-	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || log == nil || p2pManager == nil {
+	if db == nil || capm == nil || clm == nil || um == nil || sm == nil || vpn == nil || as == nil || am == nil || rm == nil || log == nil || p2pManager == nil {
 		panic("env: none of the env inputs should be nil")
 	}
-	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, AM: am, Log: log, p2pManager: p2pManager}
+	return &Env{DB: db, CM: capm, CLM: clm, UM: um, SM: sm, VPN: vpn, AS: as, AM: am, RM: rm, Log: log, p2pManager: p2pManager}
 }
 
 func main() {
@@ -103,6 +105,7 @@ func main() {
 			cmdCloud,
 			cmdInstance,
 			cmdApp,
+			cmdResource,
 			cmdUser,
 			cmdVPN,
 		},
@@ -239,7 +242,7 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 		log.Fatal(err)
 	}
 
-	envi = NewEnv(dbi, capm, clm, um, sm, vpn, as, am, log, p2pManager)
+	envi = NewEnv(dbi, capm, clm, um, sm, vpn, as, am, rm, log, p2pManager)
 
 	if currentCmd != "init" {
 		_, err = envi.UM.GetAdmin()
