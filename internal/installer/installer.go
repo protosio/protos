@@ -219,7 +219,7 @@ func (inst Installer) DownloadAsync(version string, appID string) *task.Base {
 func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
 	metadata, err := inst.GetMetadata(version)
 	if err != nil {
-		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
+		return false, errors.Wrapf(err, "Failed to check local image metadata for installer %s(%s)", inst.Name, inst.ID)
 	}
 
 	img, err := inst.parent.getPlatform().GetImage(metadata.PlatformID)

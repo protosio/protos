@@ -22,9 +22,9 @@ var cmdApp *cli.Command = &cli.Command{
 			},
 		},
 		{
-			Name:      "create",
+			Name:      "run",
 			ArgsUsage: "<name> <installer-id> <instance-id>",
-			Usage:     "Create a new application",
+			Usage:     "Run an application",
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
@@ -44,13 +44,13 @@ var cmdApp *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				return createApp(name, installerID, instanceID)
+				return runApp(name, installerID, instanceID)
 			},
 		},
 		{
-			Name:      "delete",
+			Name:      "start",
 			ArgsUsage: "<name>",
-			Usage:     "Delete an existing application",
+			Usage:     "Start an application",
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
@@ -58,7 +58,35 @@ var cmdApp *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				return deleteApp(name)
+				return startApp(name)
+			},
+		},
+		{
+			Name:      "stop",
+			ArgsUsage: "<name>",
+			Usage:     "Stop an application",
+			Action: func(c *cli.Context) error {
+				name := c.Args().Get(0)
+				if name == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				return stopApp(name)
+			},
+		},
+		{
+			Name:      "rm",
+			ArgsUsage: "<name>",
+			Usage:     "Remove an application",
+			Action: func(c *cli.Context) error {
+				name := c.Args().Get(0)
+				if name == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				return removeApp(name)
 			},
 		},
 		{
@@ -104,14 +132,14 @@ func listApps() error {
 	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Name", "ID", "Version", "Status")
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "----", "--", "-------", "------")
 	for id, appi := range apps {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", appi.GetName(), id, appi.GetVersion(), appi.GetStatus())
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", appi.GetName(), id, appi.GetVersion(), appi.DesiredStatus)
 	}
 	fmt.Fprint(w, "\n")
 
 	return nil
 }
 
-func createApp(name string, installerID string, instanceID string) error {
+func runApp(name string, installerID string, instanceID string) error {
 	installer, err := envi.AS.GetInstaller(installerID)
 	if err != nil {
 		return err
@@ -131,9 +159,29 @@ func createApp(name string, installerID string, instanceID string) error {
 	return nil
 }
 
-func deleteApp(name string) error {
+func startApp(name string) error {
 
-	err := envi.AM.Delete(name)
+	err := envi.AM.Start(name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func stopApp(name string) error {
+
+	err := envi.AM.Stop(name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func removeApp(name string) error {
+
+	err := envi.AM.Remove(name)
 	if err != nil {
 		return err
 	}

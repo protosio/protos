@@ -145,7 +145,7 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		InstallerParams:   installerParams,
 		InstallerMetadata: installerMetadata,
 		Tasks:             []string{},
-		Status:            statusCreating,
+		DesiredStatus:     statusRunning,
 	}
 
 	app.Capabilities = createCapabilities(am.cm, installerMetadata.Capabilities)
@@ -209,7 +209,7 @@ func (am *Manager) Get(name string) (*App, error) {
 		}
 	}
 
-	return nil, errors.Wrapf(err, "Could not find application '%s'", name)
+	return nil, fmt.Errorf("Could not find application '%s'", name)
 }
 
 // GetAll returns a copy of all the applications
@@ -236,44 +236,48 @@ func (am *Manager) ReSync() {
 		if app.InstanceName == am.m.GetInstanceName() {
 			app.mgr = am
 			app.access = &sync.Mutex{}
-			log.Infof("App '%s' status: '%s'", app.Name, app.Status)
-			sandBox, err := app.getSandbox()
-			if err != nil {
-				log.Error("Failed to retrieve app '%s': '%s'", app.Name, err.Error())
-				continue
-			}
-			if app.Status == statusCreating && sandBox == nil {
-				sandBox, err = app.createSandbox()
-				if err != nil {
-					log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
-					continue
+			log.Infof("App '%s' desired status: '%s'", app.Name, app.DesiredStatus)
+			if app.DesiredStatus == statusRunning {
+				if app.GetStatus() != statusRunning {
+					err := app.Start()
+					if err != nil {
+						log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
+						continue
+					}
 				}
-
-				app.Status = statusRunning
-				err = app.mgr.saveApp(&app)
-				if err != nil {
-					log.Errorf("Failed to save app '%s': '%s'", app.Name, err.Error())
-					continue
-				}
-			} else if app.Status == statusWillDelete && sandBox != nil {
-				err = app.removeSandbox()
-				if err != nil {
-					log.Errorf("Failed to delete app '%s': '%s'", app.Name, err.Error())
-					continue
+			} else if app.DesiredStatus == statusStopped {
+				if app.GetStatus() != statusStopped {
+					err := app.Stop()
+					if err != nil {
+						log.Errorf("Failed to stop app '%s': '%s'", app.Name, err.Error())
+						continue
+					}
 				}
 			}
+			log.Infof("App '%s' actual status: '%s'", app.Name, app.GetStatus())
 		}
 	}
 }
 
-// Delete sets the status of the app to WillDelete, which triggers the deletion of the app
-func (am *Manager) Delete(name string) error {
+// Start sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance
+func (am *Manager) Start(name string) error {
 	app, err := am.Get(name)
 	if err != nil {
 		return err
 	}
 
-	app.SetStatus(statusWillDelete)
+	app.SetDesiredStatus(statusRunning)
+	return nil
+}
+
+// Stop sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance
+func (am *Manager) Stop(name string) error {
+	app, err := am.Get(name)
+	if err != nil {
+		return err
+	}
+
+	app.SetDesiredStatus(statusStopped)
 	return nil
 }
 
@@ -302,7 +306,7 @@ func (am *Manager) GetServices() ([]util.Service, error) {
 			Ports: app.PublicPorts,
 		}
 
-		if app.Status == statusRunning {
+		if app.DesiredStatus == statusRunning {
 			service.Status = util.StatusActive
 		} else {
 			service.Status = util.StatusInactive
@@ -322,17 +326,20 @@ func (am *Manager) GetServices() ([]util.Service, error) {
 }
 
 // Remove removes an application based on the provided id
-func (am *Manager) Remove(appID string) error {
-	app, err := am.GetByID(appID)
+func (am *Manager) Remove(name string) error {
+	app, err := am.Get(name)
 	if err != nil {
-		return errors.Wrapf(err, "Can't remove application %s", appID)
+		return errors.Wrapf(err, "Failed to remove application %s", name)
 	}
 
-	err = app.removeSandbox()
-	if err != nil {
-		return errors.Wrapf(err, "Can't remove application %s(%s)", app.Name, app.ID)
+	if app.DesiredStatus != statusStopped {
+		return fmt.Errorf("Application '%s' should be stopped before being removed", name)
 	}
-	app.SetStatus(statusDeleted)
+
+	err = am.db.RemoveFromMap(appDS, app.ID)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to remove application %s", name)
+	}
 
 	return nil
 }
@@ -342,11 +349,11 @@ func (am *Manager) saveApp(app *App) error {
 	papp := *app
 	app.access.Unlock()
 	papp.access = nil
-	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp.Public()}
-	// err := am.db.InsertInMap(appDS, papp.ID, papp)
-	// if err != nil {
-	// 	return errors.Wrap(err, "Could not save app to database")
-	// }
+	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp}
+	err := am.db.InsertInMap(appDS, papp.ID, papp)
+	if err != nil {
+		return errors.Wrap(err, "Could not save app to database")
+	}
 	return nil
 }
 
@@ -365,6 +372,5 @@ func (am *Manager) CreateDevApp(appName string, installerMetadata installer.Inst
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}
 
-	newApp.SetStatus(statusUnknown)
 	return newApp, nil
 }

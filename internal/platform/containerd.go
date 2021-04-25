@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"syscall"
 
 	"github.com/containerd/containerd"
@@ -65,21 +66,27 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", imageID)
 	}
 
+	opts := []oci.SpecOpts{
+		oci.WithImageConfig(image),
+		oci.WithEnv([]string{fmt.Sprintf("APPID=%s", appID)}),
+	}
+
 	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageID)
 	cnt, err := cdp.client.NewContainer(
 		ctx,
 		appID,
-		containerd.WithNewSnapshot(imageID+"-snapshot", image),
-		containerd.WithNewSpec(oci.WithImageConfig(image)),
+		containerd.WithNewSnapshot(appID+"-snapshot", image),
+		containerd.WithNewSpec(opts...),
 		containerd.WithContainerLabels(map[string]string{"platform": protosNamespace, "appID": appID, "appName": name}),
 	)
 	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+		return pru, errors.Wrapf(err, "Failed to create container '%s' for app '%s'", name, appID)
 	}
+
 	pru.containerID = appID
 	pru.task, err = cnt.NewTask(ctx, cio.NewCreator(cio.WithStdio))
 	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create sandbox '%s' for app '%s'", name, appID)
+		return pru, errors.Wrapf(err, "Failed to create task '%s' for app '%s'", name, appID)
 	}
 
 	return pru, nil
@@ -91,12 +98,15 @@ func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
 	repoImage := cdp.appStoreHost + "/" + id
 	image, err := cdp.client.GetImage(ctx, repoImage)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+		if strings.Contains(err.Error(), "not found") {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "Failed to retrieve image '%s' from containerd", id)
 	}
 
 	_, normalizedID, err := normalizeRepoDigest([]string{id})
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", id)
+		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd. Failed to normalize digest", id)
 	}
 
 	pi := &platformImage{
@@ -124,7 +134,6 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) 
 	}
 
 	for _, img := range listImagesResponse {
-		fmt.Println(img)
 		image := platformImage{
 			localID: img.Name(),
 			labels:  img.Labels(),
@@ -141,21 +150,17 @@ func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error
 		return nil, util.NewTypedError("containerd sandbox not found", ErrContainerNotFound)
 	}
 
-	cnts, err := cdp.client.Containers(ctx, id)
+	cnt, err := cdp.client.LoadContainer(ctx, id)
 	if err != nil {
-		return nil, util.NewTypedError("containerd sandbox not found", ErrContainerNotFound)
-	}
-	if len(cnts) == 0 {
-		return nil, util.NewTypedError("containerd sandbox not found", ErrContainerNotFound)
+		return nil, util.NewTypedError("Container not found", ErrContainerNotFound)
 	}
 
-	cnt := cnts[0]
 	task, err := cnt.Task(ctx, nil)
 	if err != nil {
-		return nil, util.NewTypedError("containerd sandbox not found", ErrContainerNotFound)
+		return nil, util.NewTypedError("Taskandbox not found", ErrContainerNotFound)
 	}
 
-	return &containerdSandbox{p: cdp, task: task}, nil
+	return &containerdSandbox{p: cdp, task: task, cnt: cnt}, nil
 }
 
 func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit, error) {
@@ -195,13 +200,14 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 
 // containerdSandbox represents a container
 type containerdSandbox struct {
-	p *containerdPlatform
+	p    *containerdPlatform
+	task containerd.Task
+	cnt  containerd.Container
 
 	containerID     string
 	IP              string
 	containerStatus string
 	exitCode        int
-	task            containerd.Task
 }
 
 // Update reads the container and updates the struct fields
@@ -231,11 +237,22 @@ func (cnt *containerdSandbox) Stop() error {
 	}
 
 	status := <-exitStatusC
-	code, exitedAt, err := status.Result()
+	code, _, err := status.Result()
 	if err != nil {
 		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.containerID)
 	}
-	fmt.Println(code, " ", exitedAt)
+	log.Warnf("App '%s' exited with code '%d'", cnt.containerID, code)
+
+	_, err = cnt.task.Delete(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "Error while stopping sandbox '%s'", cnt.containerID)
+	}
+
+	err = cnt.cnt.Delete(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "Error while stopping sandbox '%s'", cnt.containerID)
+	}
+
 	return nil
 }
 
@@ -261,6 +278,7 @@ func (cnt *containerdSandbox) GetStatus() string {
 	if err != nil {
 		return "UNKNOWN"
 	}
+
 	return string(status.Status)
 }
 

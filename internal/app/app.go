@@ -56,10 +56,9 @@ type App struct {
 	InstallerID       string                      `json:"installer-id"`
 	InstallerVersion  string                      `json:"installer-version"`
 	InstallerMetadata installer.InstallerMetadata `json:"installer-metadata"`
-	ContainerID       string                      `json:"container-id"`
 	InstanceName      string                      `json:"instance-id"`
 	VolumeID          string                      `json:"volumeid"`
-	Status            string                      `json:"status"`
+	DesiredStatus     string                      `json:"desired-status"`
 	Actions           []string                    `json:"actions"`
 	IP                string                      `json:"ip"`
 	PublicPorts       []util.Port                 `json:"publicports"`
@@ -150,7 +149,6 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	}
 	app.access.Lock()
 	app.VolumeID = volumeID
-	app.ContainerID = cnt.GetID()
 	app.IP = cnt.GetIP()
 	app.access.Unlock()
 	err = app.mgr.saveApp(app)
@@ -161,7 +159,7 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 }
 
 func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrContainerNotFound) {
 			cnt, err := app.createSandbox()
@@ -176,7 +174,7 @@ func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
 }
 
 func (app *App) getSandbox() (platform.PlatformRuntimeUnit, error) {
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrContainerNotFound) {
 			return nil, nil
@@ -184,75 +182,6 @@ func (app *App) getSandbox() (platform.PlatformRuntimeUnit, error) {
 		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
 	}
 	return cnt, nil
-}
-
-// remove App removes an application container
-func (app *App) removeSandbox() error {
-	log.Debugf("Removing application '%s'[%s]", app.Name, app.ID)
-
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
-	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
-			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
-		}
-		log.Warnf("Application %s(%s) has no sandbox to remove", app.Name, app.ID)
-	} else {
-		err := cnt.Remove()
-		if err != nil {
-			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
-		}
-	}
-
-	// perform CleanUpSandbox for the sandbox
-	err = app.mgr.getPlatform().CleanUpSandbox(app.ContainerID)
-	if err != nil {
-		log.Warnf("Failed to perform CleanUpSandbox for sandbox '%s': %s", app.ContainerID, err.Error())
-	}
-
-	if app.VolumeID != "" {
-		err := app.mgr.getPlatform().RemoveVolume(app.VolumeID)
-		if err != nil {
-			return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
-		}
-	}
-
-	// Removing resources requested by this app
-	for _, rscID := range app.Resources {
-		_, err := app.mgr.getResourceManager().Get(rscID)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		err = app.mgr.getResourceManager().Delete(rscID)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-	}
-
-	return nil
-}
-
-// enrichAppData updates the information about the underlying application
-func (app *App) enrichAppData() {
-
-	if app.Status == statusCreating || app.Status == statusFailed || app.Status == statusDeleted || app.Status == statusWillDelete {
-		// not refreshing the platform until the app creation process is done
-		return
-	}
-
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
-	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) {
-			app.Status = statusStopped
-			return
-		}
-		log.Errorf("Failed to enrich app data: %s", err.Error())
-		app.Status = statusUnknown
-		return
-	}
-
-	app.Status = cnt.GetStatus()
 }
 
 //
@@ -269,17 +198,25 @@ func (app *App) GetName() string {
 	return app.Name
 }
 
-// SetStatus sets the status of an application
-func (app *App) SetStatus(status string) error {
+// SetDesiredStatus sets the status of an application
+func (app *App) SetDesiredStatus(status string) error {
 	app.access.Lock()
-	app.Status = status
+	app.DesiredStatus = status
 	app.access.Unlock()
 	return app.mgr.saveApp(app)
 }
 
 // GetStatus returns the status of an application
 func (app *App) GetStatus() string {
-	return app.Status
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
+	if err != nil {
+		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
+			log.Warnf("Failed to retrieve app (%s) sandbox: %s", app.ID, err.Error())
+		}
+		return statusStopped
+	}
+
+	return cnt.GetStatus()
 }
 
 // GetVersion returns the version of an application
@@ -305,16 +242,13 @@ func (app *App) Start() error {
 
 	cnt, err := app.getOrcreateSandbox()
 	if err != nil {
-		app.SetStatus(statusFailed)
 		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
 	}
 
 	err = cnt.Start()
 	if err != nil {
-		app.SetStatus(statusFailed)
 		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
 	}
-	app.SetStatus(statusRunning)
 	return nil
 }
 
@@ -322,23 +256,25 @@ func (app *App) Start() error {
 func (app *App) Stop() error {
 	log.Infof("Stopping application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ContainerID)
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
 		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
-			app.SetStatus(statusUnknown)
 			return err
 		}
 		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)
-		app.SetStatus(statusStopped)
 		return nil
 	}
 
 	err = cnt.Stop()
 	if err != nil {
-		app.SetStatus(statusUnknown)
 		return errors.Wrapf(err, "Failed to stop application '%s'(%s)", app.Name, app.ID)
 	}
-	app.SetStatus(statusStopped)
+
+	err = cnt.Remove()
+	if err != nil {
+		return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
+	}
+
 	return nil
 }
 
@@ -351,7 +287,6 @@ func (app *App) ReplaceContainer(id string) error {
 	}
 
 	app.access.Lock()
-	app.ContainerID = id
 	app.IP = cnt.GetIP()
 	app.access.Unlock()
 	if err != nil {
@@ -493,10 +428,4 @@ func (app *App) Provides(rscType string) bool {
 		return true
 	}
 	return false
-}
-
-// Public returns a public version of the app struct
-func (app App) Public() *App {
-	app.enrichAppData()
-	return &app
 }
