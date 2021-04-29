@@ -20,6 +20,7 @@ require (
 	github.com/containerd/continuity v0.0.0-20210208174643-50096c924a4e // indirect
 	github.com/containerd/fifo v0.0.0-20210129194248-f8e8fdba47ef // indirect
 	github.com/containerd/go-runc v0.0.0-20201020171139-16b287bc67d0 // indirect
+	github.com/containernetworking/plugins v0.8.6
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emirpasic/gods v1.12.0
@@ -56,6 +57,7 @@ require (
 	github.com/unrolled/render v1.0.3
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/urfave/negroni v1.0.0
+	github.com/vishvananda/netlink v1.1.0
 	github.com/vjeantet/jodaTime v1.0.0
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20201012173705-84dcc777aaee

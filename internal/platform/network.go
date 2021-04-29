@@ -137,5 +137,12 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 	log.Debugf("Waiting for link '%s' to come up", interfaceName)
 	time.Sleep(2 * time.Second)
 
+	brName := interfacePrefix + "1"
+	log.Debugf("Setting up bridge interface '%s'", brName)
+	err = initBridge(brName)
+	if err != nil {
+		return "", err
+	}
+
 	return interfaceName, nil
 }
