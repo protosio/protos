@@ -61,7 +61,6 @@ type RuntimePlatform interface {
 	RemoveImage(id string) error
 	GetOrCreateVolume(id string, path string) (string, error)
 	RemoveVolume(id string) error
-	CleanUpSandbox(id string) error
 	NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
 	GetHWStats() (HardwareStats, error)
 }

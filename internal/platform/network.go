@@ -10,12 +10,14 @@ import (
 	"github.com/foxcpp/wirebox"
 	"github.com/foxcpp/wirebox/linkmgr"
 	"github.com/protosio/protos/internal/auth"
+	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 const interfacePrefix = "protos"
 
 var wgPort int = 10999
+var netBridge *netlink.Bridge
 
 func compareRoutes(a linkmgr.Route, b linkmgr.Route) bool {
 	if a.Dest.String() == b.Dest.String() && a.Src.Equal(b.Src) {
@@ -139,7 +141,7 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 
 	brName := interfacePrefix + "1"
 	log.Debugf("Setting up bridge interface '%s'", brName)
-	err = initBridge(brName)
+	netBridge, err = initBridge(brName)
 	if err != nil {
 		return "", err
 	}

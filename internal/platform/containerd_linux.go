@@ -11,9 +11,13 @@ import (
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
+	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/util"
+	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -89,6 +93,50 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		return pru, errors.Wrapf(err, "Failed to create task '%s' for app '%s'", name, appID)
 	}
 
+	log.Debugf("Created task for containerd sandbox '%s', with PID '%d'", appID, pru.task.Pid())
+	netNSpath := fmt.Sprintf("/proc/%d/ns/net", pru.task.Pid())
+	netns, err := ns.GetNS(netNSpath)
+	if err != nil {
+		return pru, fmt.Errorf("Failed to open netns '%s' for app '%s': %v", netNSpath, appID, err)
+	}
+	defer netns.Close()
+
+	contIface := &current.Interface{}
+	hostIface := &current.Interface{}
+	err = netns.Do(func(hostNS ns.NetNS) error {
+		// create the veth pair in the container and move host end into host netns
+		hostVeth, containerVeth, err := ip.SetupVeth("eth0", netBridge.MTU, hostNS)
+		if err != nil {
+			return err
+		}
+		contIface.Name = containerVeth.Name
+		contIface.Mac = containerVeth.HardwareAddr.String()
+		contIface.Sandbox = netns.Path()
+		hostIface.Name = hostVeth.Name
+
+		configureInterface("eth0", net.ParseIP("10.100.1.9"))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create veth pair for '%s': %v", appID, err)
+	}
+
+	// need to lookup hostVeth again as its index has changed during ns move
+	hostVeth, err := netlink.LinkByName(hostIface.Name)
+	if err != nil {
+		return pru, fmt.Errorf("Failed to find host interface '%s': %v", hostIface.Name, err)
+	}
+	hostIface.Mac = hostVeth.Attrs().HardwareAddr.String()
+
+	// connect host veth end to the bridge
+	if err := netlink.LinkSetMaster(hostVeth, netBridge); err != nil {
+		return pru, fmt.Errorf("Failed to connect %q to bridge %v: %v", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
+	}
+
 	return pru, nil
 }
 
@@ -119,11 +167,6 @@ func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
 	return pi, nil
 }
 
-func (cdp *containerdPlatform) CleanUpSandbox(id string) error {
-	// remove logs
-	return nil
-}
-
 func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	images := map[string]PlatformImage{}
@@ -147,7 +190,7 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) 
 func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	if id == "" {
-		return nil, util.NewTypedError("containerd sandbox not found", ErrContainerNotFound)
+		return nil, util.NewTypedError("Containerd namespace not found", ErrContainerNotFound)
 	}
 
 	cnt, err := cdp.client.LoadContainer(ctx, id)
@@ -157,10 +200,10 @@ func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error
 
 	task, err := cnt.Task(ctx, nil)
 	if err != nil {
-		return nil, util.NewTypedError("Taskandbox not found", ErrContainerNotFound)
+		return nil, util.NewTypedError("Task sandbox not found", ErrContainerNotFound)
 	}
 
-	return &containerdSandbox{p: cdp, task: task, cnt: cnt}, nil
+	return &containerdSandbox{p: cdp, task: task, cnt: cnt, containerID: id}, nil
 }
 
 func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit, error) {
