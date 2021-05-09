@@ -77,12 +77,12 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 }
 
 // Create initializes the run time platform
-func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) RuntimePlatform {
+func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key, logsPath string) RuntimePlatform {
 
 	var dp RuntimePlatform
 	switch runtime {
 	case containerdRuntime:
-		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, key)
+		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, key, logsPath)
 	default:
 		log.Fatalf("Runtime '%s' is not supported", runtime)
 	}

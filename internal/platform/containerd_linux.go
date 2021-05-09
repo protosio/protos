@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"syscall"
 
@@ -30,21 +31,31 @@ type containerdPlatform struct {
 	appStoreHost      string
 	dnsServer         string
 	internalInterface string
+	logsPath          string
 	initSignal        chan net.IP
 	key               wgtypes.Key
 	client            *containerd.Client
 }
 
-func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) *containerdPlatform {
+func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key, logsPath string) *containerdPlatform {
 	return &containerdPlatform{
 		endpoint:     runtimeUnixSocket,
 		appStoreHost: appStoreHost,
+		logsPath:     logsPath,
 		initSignal:   make(chan net.IP, 1),
 		key:          key,
 	}
 }
 
 func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice) error {
+
+	if _, err := os.Stat(cdp.logsPath); os.IsNotExist(err) {
+		err := os.Mkdir(cdp.logsPath, os.ModeDir)
+		if err != nil {
+			return fmt.Errorf("Failed to initialize platform. Failed to create logs directory: %s", err.Error())
+		}
+	}
+
 	internalInterface, err := initNetwork(network, devices, cdp.key)
 	if err != nil {
 		return fmt.Errorf("Can't initialize network: %s", err.Error())
@@ -88,7 +99,8 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	}
 
 	pru.containerID = appID
-	pru.task, err = cnt.NewTask(ctx, cio.NewCreator(cio.WithStdio))
+	logFilePath := fmt.Sprintf("%s/%s.log", cdp.logsPath, appID)
+	pru.task, err = cnt.NewTask(ctx, cio.LogFile(logFilePath))
 	if err != nil {
 		return pru, errors.Wrapf(err, "Failed to create task '%s' for app '%s'", name, appID)
 	}
@@ -292,6 +304,11 @@ func (cnt *containerdSandbox) Stop() error {
 	}
 
 	err = cnt.cnt.Delete(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "Error while stopping sandbox '%s'", cnt.containerID)
+	}
+
+	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
 	if err != nil {
 		return errors.Wrapf(err, "Error while stopping sandbox '%s'", cnt.containerID)
 	}

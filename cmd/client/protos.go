@@ -222,7 +222,7 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 	sm := ssh.CreateManager(dbi)
 	m := meta.SetupForClient(rm, dbi, sm, version.String())
 	capm := capability.CreateManager()
-	rp := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, wgtypes.Key{})
+	rp := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, wgtypes.Key{}, "")
 	tm := task.CreateManager(dbi, pub)
 	as := installer.CreateAppStore(rp, tm, capm)
 	um := auth.CreateUserManager(dbi, sm, capm)

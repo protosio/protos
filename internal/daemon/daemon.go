@@ -82,7 +82,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	if err != nil {
 		log.Fatal(err)
 	}
-	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, key.PrivateWG())
+	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, key.PrivateWG(), cfg.WorkDir+"/logs")
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm)
 	tm := task.CreateManager(dbcli, pub)

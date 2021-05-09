@@ -3,7 +3,6 @@ package platform
 import (
 	"net"
 
-	"github.com/containerd/containerd"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/util"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -13,23 +12,10 @@ const (
 	protosNamespace string = "protos"
 )
 
-type containerdPlatform struct {
-	endpoint          string
-	appStoreHost      string
-	dnsServer         string
-	internalInterface string
-	initSignal        chan net.IP
-	key               wgtypes.Key
-	client            *containerd.Client
-}
+type containerdPlatform struct{}
 
-func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key) *containerdPlatform {
-	return &containerdPlatform{
-		endpoint:     runtimeUnixSocket,
-		appStoreHost: appStoreHost,
-		initSignal:   make(chan net.IP, 1),
-		key:          key,
-	}
+func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key, logsPath string) *containerdPlatform {
+	return &containerdPlatform{}
 }
 
 func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice) error {
