@@ -33,6 +33,7 @@ type containerdPlatform struct {
 	internalInterface string
 	logsPath          string
 	initSignal        chan net.IP
+	network           net.IPNet
 	key               wgtypes.Key
 	client            *containerd.Client
 }
@@ -67,6 +68,8 @@ func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice
 	if err != nil {
 		return errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
 	}
+
+	cdp.network = network
 
 	return nil
 }
@@ -202,7 +205,7 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) 
 func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	if id == "" {
-		return nil, util.NewTypedError("Containerd namespace not found", ErrContainerNotFound)
+		return nil, util.NewTypedError("Container ID can't be empty", ErrContainerNotFound)
 	}
 
 	cnt, err := cdp.client.LoadContainer(ctx, id)
@@ -219,7 +222,24 @@ func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error
 }
 
 func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit, error) {
-	return map[string]PlatformRuntimeUnit{}, nil
+	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
+
+	containers := map[string]PlatformRuntimeUnit{}
+
+	cnts, err := cdp.client.Containers(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to retrieve containers")
+	}
+
+	for _, cnt := range cnts {
+		task, err := cnt.Task(ctx, nil)
+		if err != nil {
+			continue
+		}
+		containers[cnt.ID()] = &containerdSandbox{p: cdp, task: task, cnt: cnt, containerID: cnt.ID()}
+	}
+
+	return containers, nil
 }
 
 func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
