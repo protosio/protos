@@ -5,6 +5,8 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	"github.com/vishvananda/netlink"
@@ -42,21 +44,56 @@ func initBridge(name string) (*netlink.Bridge, error) {
 	return brInterface, nil
 }
 
-func configureInterface(name string, ip net.IP) error {
-	link, err := netlink.LinkByName(name)
+func configureInterface(netNSpath string, IP net.IP, network net.IPNet) error {
+	netns, err := ns.GetNS(netNSpath)
 	if err != nil {
-		return fmt.Errorf("Failed to find interface %q: %v", name, err)
+		return fmt.Errorf("Failed to open netns '%s': %v", netNSpath, err)
+	}
+	defer netns.Close()
+
+	contIface := &current.Interface{}
+	hostIface := &current.Interface{}
+	err = netns.Do(func(hostNS ns.NetNS) error {
+		// create the veth pair in the container and move host end into host netns
+		name := "prts0"
+		hostVeth, containerVeth, err := ip.SetupVeth(name, netBridge.MTU, hostNS)
+		if err != nil {
+			return err
+		}
+		contIface.Name = containerVeth.Name
+		contIface.Mac = containerVeth.HardwareAddr.String()
+		contIface.Sandbox = netns.Path()
+		hostIface.Name = hostVeth.Name
+
+		link, err := netlink.LinkByName(name)
+		if err != nil {
+			return fmt.Errorf("Failed to find interface %q: %v", name, err)
+		}
+
+		if err := netlink.LinkSetUp(link); err != nil {
+			return fmt.Errorf("Failed to bring interface %q UP: %v", name, err)
+		}
+
+		addr := &netlink.Addr{IPNet: &net.IPNet{Mask: network.Mask, IP: IP}, Label: ""}
+		if err = netlink.AddrAdd(link, addr); err != nil {
+			return fmt.Errorf("Failed to configure IP address '%s' on interface %v", IP.String(), err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("Failed to create veth pair: %v", err)
 	}
 
-	if err := netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("Failed to bring interface %q UP: %v", name, err)
+	hostVeth, err := netlink.LinkByName(hostIface.Name)
+	if err != nil {
+		return fmt.Errorf("Failed to find host interface '%s': %v", hostIface.Name, err)
 	}
+	hostIface.Mac = hostVeth.Attrs().HardwareAddr.String()
 
-	addr := &netlink.Addr{IPNet: &net.IPNet{Mask: net.CIDRMask(24, 32), IP: ip}, Label: ""}
-	if err = netlink.AddrAdd(link, addr); err != nil {
-		return fmt.Errorf("Failed to configure IP address '%s' on interface %v", ip.String(), err)
+	if err := netlink.LinkSetMaster(hostVeth, netBridge); err != nil {
+		return fmt.Errorf("Failed to connect %q to bridge %v: %v", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
 	}
-
 	return nil
 }
 
