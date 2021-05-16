@@ -5,6 +5,7 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	"github.com/vishvananda/netlink"
 )
@@ -57,4 +58,63 @@ func configureInterface(name string, ip net.IP) error {
 	}
 
 	return nil
+}
+
+func getNetNSInterfaceIP(nsPath string, filterNetwork net.IPNet) (net.IP, error) {
+	var ipAddr net.IP
+	fn := func(_ ns.NetNS) error {
+		interfaces, err := net.Interfaces()
+		if err != nil {
+			return err
+		}
+
+		for _, iface := range interfaces {
+			addresses, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, addr := range addresses {
+				ip, _, err := net.ParseCIDR(addr.String())
+				if err != nil {
+					continue
+				}
+				if filterNetwork.Contains(ip) {
+					ipAddr = ip
+					return nil
+				}
+			}
+		}
+		return nil
+	}
+	if err := ns.WithNetNSPath(nsPath, fn); err != nil {
+		return ipAddr, err
+	}
+	return ipAddr, nil
+}
+
+// https://play.golang.org/p/m8TNTtygK0
+func incIP(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
+
+func allocateIP(network net.IPNet, usedIPs map[string]bool) (net.IP, error) {
+	allIPs := []net.IP{}
+	for ip := network.IP.Mask(network.Mask); network.Contains(ip); incIP(ip) {
+		newIP := make(net.IP, len(ip))
+		copy(newIP, ip)
+		allIPs = append(allIPs, newIP)
+	}
+
+	// starting from the 3 position in the slice to avoid allocating the network IP and the gateway
+	for _, ip := range allIPs[2 : len(allIPs)-1] {
+		if _, found := usedIPs[ip.String()]; !found {
+			return ip, nil
+		}
+	}
+	return nil, fmt.Errorf("Failed to allocate IP. No IP's left")
 }

@@ -108,13 +108,22 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		return pru, errors.Wrapf(err, "Failed to create task '%s' for app '%s'", name, appID)
 	}
 
-	log.Debugf("Created task for containerd sandbox '%s', with PID '%d'", appID, pru.task.Pid())
 	netNSpath := fmt.Sprintf("/proc/%d/ns/net", pru.task.Pid())
 	netns, err := ns.GetNS(netNSpath)
 	if err != nil {
 		return pru, fmt.Errorf("Failed to open netns '%s' for app '%s': %v", netNSpath, appID, err)
 	}
 	defer netns.Close()
+
+	usedIPs, err := cdp.getAllIPs()
+	if err != nil {
+		return pru, fmt.Errorf("Failed to allocate IP for app '%s': %v", appID, err)
+	}
+
+	newIP, err := allocateIP(cdp.network, usedIPs)
+	if err != nil {
+		return pru, fmt.Errorf("Failed to allocate IP for app '%s': %v", appID, err)
+	}
 
 	contIface := &current.Interface{}
 	hostIface := &current.Interface{}
@@ -129,7 +138,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		contIface.Sandbox = netns.Path()
 		hostIface.Name = hostVeth.Name
 
-		configureInterface("eth0", net.ParseIP("10.100.1.9"))
+		configureInterface("eth0", newIP)
 		if err != nil {
 			return err
 		}
@@ -151,6 +160,8 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	if err := netlink.LinkSetMaster(hostVeth, netBridge); err != nil {
 		return pru, fmt.Errorf("Failed to connect %q to bridge %v: %v", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
 	}
+
+	log.Debugf("Created task for containerd sandbox '%s', with PID '%d' and ip '%s'", appID, pru.task.Pid(), newIP.String())
 
 	return pru, nil
 }
@@ -240,6 +251,34 @@ func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit
 	}
 
 	return containers, nil
+}
+
+func (cdp *containerdPlatform) getAllIPs() (map[string]bool, error) {
+	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
+
+	ips := map[string]bool{}
+
+	cnts, err := cdp.client.Containers(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to retrieve IPs")
+	}
+
+	for _, cnt := range cnts {
+		task, err := cnt.Task(ctx, nil)
+		if err != nil {
+			continue
+		}
+		netNSPath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
+		ip, err := getNetNSInterfaceIP(netNSPath, cdp.network)
+		if err != nil {
+			log.Errorf("Failed to retrieve IP for cnt '%s': %s")
+		}
+		if ip != nil {
+			ips[ip.String()] = true
+		}
+	}
+
+	return ips, nil
 }
 
 func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
