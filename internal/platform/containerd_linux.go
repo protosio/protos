@@ -314,7 +314,9 @@ func (cnt *containerdSandbox) Stop() error {
 	if err != nil {
 		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.containerID)
 	}
-	log.Warnf("App '%s' exited with code '%d'", cnt.containerID, code)
+	if code != 0 {
+		log.Warnf("App '%s' exited with code '%d'", cnt.containerID, code)
+	}
 
 	_, err = cnt.task.Delete(ctx)
 	if err != nil {
