@@ -412,10 +412,10 @@ func (p2p *P2P) triggerEvent(event interface{}) {
 }
 
 // StartServer starts listening for p2p connections
-func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore, appManager *app.Manager) (func() error, error) {
+func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore, appManager *app.Manager, platformConfigurator PlatformConfigurator) (func() error, error) {
 	log.Info("Starting p2p server")
 
-	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
+	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator, platformConfigurator: platformConfigurator}
 	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs, appManager: appManager}
 
 	// we register handler methods which should be accessible from the client

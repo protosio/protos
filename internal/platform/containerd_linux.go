@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/containerd/containerd"
@@ -22,6 +23,8 @@ const (
 	protosNamespace string = "protos"
 )
 
+var pltfrm *containerdPlatform
+
 type containerdPlatform struct {
 	endpoint          string
 	appStoreHost      string
@@ -32,16 +35,23 @@ type containerdPlatform struct {
 	network           net.IPNet
 	key               wgtypes.Key
 	client            *containerd.Client
+	initLock          *sync.RWMutex
 }
 
 func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key, logsPath string) *containerdPlatform {
-	return &containerdPlatform{
-		endpoint:     runtimeUnixSocket,
-		appStoreHost: appStoreHost,
-		logsPath:     logsPath,
-		initSignal:   make(chan net.IP, 1),
-		key:          key,
+	if pltfrm == nil {
+		pltfrm = &containerdPlatform{
+			endpoint:     runtimeUnixSocket,
+			appStoreHost: appStoreHost,
+			logsPath:     logsPath,
+			initSignal:   make(chan net.IP, 1),
+			key:          key,
+			network:      net.IPNet{},
+			initLock:     &sync.RWMutex{},
+		}
 	}
+
+	return pltfrm
 }
 
 func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice) error {
@@ -53,20 +63,29 @@ func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice
 		}
 	}
 
-	internalInterface, err := initNetwork(network, devices, cdp.key)
-	if err != nil {
-		return fmt.Errorf("Can't initialize network: %s", err.Error())
-	}
-	cdp.internalInterface = internalInterface
+	var err error
 
-	log.Infof("Connecting to the containerd daemon using endpoint '%s'", cdp.endpoint)
-	cdp.client, err = containerd.New(cdp.endpoint)
-	if err != nil {
-		return errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
+	cdp.initLock.Lock()
+
+	if cdp.internalInterface == "" {
+		internalInterface, err := initNetwork(network, devices, cdp.key)
+		if err != nil {
+			return fmt.Errorf("Can't initialize network: %s", err.Error())
+		}
+		cdp.internalInterface = internalInterface
+	}
+
+	if cdp.client == nil {
+		log.Infof("Connecting to the containerd daemon using endpoint '%s'", cdp.endpoint)
+		cdp.client, err = containerd.New(cdp.endpoint)
+		if err != nil {
+			return errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
+		}
 	}
 
 	cdp.network = network
 
+	cdp.initLock.Unlock()
 	return nil
 }
 

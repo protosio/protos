@@ -95,7 +95,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore(), appManager)
+	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore(), appManager, pltfrm)
 	if err != nil {
 		log.Fatal(err)
 	}

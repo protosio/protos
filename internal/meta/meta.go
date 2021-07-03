@@ -437,7 +437,7 @@ func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string, stri
 		log.Debug("Init did not finish. Canceled by user")
 		return internalIP, m.Network, domain, adminUser
 	case <-initialized:
-		log.Debug("Init finished")
+		log.Debug("Meta init finished")
 		return internalIP, m.Network, domain, adminUser
 	}
 
