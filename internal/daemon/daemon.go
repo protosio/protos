@@ -82,12 +82,12 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	if err != nil {
 		log.Fatal(err)
 	}
-	p := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, key.PrivateWG(), cfg.WorkDir+"/logs")
+	pltfrm := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, key.PrivateWG(), cfg.WorkDir+"/logs")
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm)
 	tm := task.CreateManager(dbcli, pub)
-	as := installer.CreateAppStore(p, tm, cm)
-	appManager := app.CreateManager(rm, tm, p, dbcli, m, pub, as, cm)
+	as := installer.CreateAppStore(pltfrm, tm, cm)
+	appManager := app.CreateManager(rm, tm, pltfrm, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, appManager, dbcli)
 
 	p2pManager, err := p2p.NewManager(10500, key)
@@ -110,7 +110,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, appManager, rm, tm, pm, as, um, p, cm)
+	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, appManager, rm, tm, pm, as, um, pltfrm, cm)
 
 	// if starting for the first time, this will block until remote init is done
 	ctx, cancel := context.WithCancel(context.Background())
@@ -137,7 +137,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 
 	// perform the runtime initialization (network + container runtime)
-	err = p.Init(network, usr.GetDevices())
+	err = pltfrm.Init(network, usr.GetDevices())
 	if err != nil {
 		log.Fatal(err)
 	}
