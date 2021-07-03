@@ -435,15 +435,17 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 	stopSig := make(chan interface{})
 	p2p.eventSig = make(chan interface{}, 100)
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Println("Panic in p2p event processor: \n" + string(debug.Stack()))
-			}
-		}()
 		for {
 			select {
 			case <-p2p.eventSig:
-				appManager.ReSync()
+				go func() {
+					defer func() {
+						if r := recover(); r != nil {
+							fmt.Println("Panic in p2p event processor: \n" + string(debug.Stack()))
+						}
+					}()
+					appManager.ReSync()
+				}()
 			case <-stopSig:
 				return
 			}
