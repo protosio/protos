@@ -237,7 +237,7 @@ func configure(currentCmd string, logLevel string, dataPath string) {
 	}
 	clm := cloud.CreateManager(dbi, um, sm, p2pManager)
 	am := app.CreateManager(rm, tm, rp, dbi, m, pub, as, capm)
-	vpn, err := vpn.New(dbi, um, clm)
+	vpn, err := vpn.New(dbi, um, clm, sm)
 	if err != nil {
 		log.Fatal(err)
 	}

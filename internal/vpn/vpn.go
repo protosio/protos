@@ -5,11 +5,11 @@ import (
 	"net"
 	"time"
 
-	"filippo.io/edwards25519"
 	"github.com/foxcpp/wirebox/linkmgr"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/ssh"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -25,6 +25,7 @@ type VPN struct {
 	nm linkmgr.Manager
 	um *auth.UserManager
 	cm cloud.CloudManager
+	sm *ssh.Manager
 }
 
 func (vpn *VPN) Start() error {
@@ -57,20 +58,18 @@ func (vpn *VPN) Start() error {
 	// create wireguard peer configurations and route list
 	instances, err := vpn.cm.GetInstances()
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve instanes while starting VPN: %v", err)
+		return fmt.Errorf("Failed to retrieve instances while starting VPN: %v", err)
 	}
 	var masterInstaceIP net.IP
 	keepAliveInterval := 25 * time.Second
 	peers := []wgtypes.PeerConfig{}
 	routes := []linkmgr.Route{}
 	for _, instance := range instances {
-		var pubkey wgtypes.Key
-		edPoint, err := new(edwards25519.Point).SetBytes(instance.PublicKey)
-		if err != nil {
-			return fmt.Errorf("Failed to conver pub key to wg key for instance '%s': %w", instance.Name, err)
-		}
 
-		copy(pubkey[:], edPoint.BytesMontgomery())
+		pubkey, err := vpn.sm.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		if err != nil {
+			return fmt.Errorf("Failed to start VPN for instance '%s': %v", instance.Name, err)
+		}
 
 		_, instanceNetwork, err := net.ParseCIDR(instance.Network)
 		if err != nil {
@@ -167,10 +166,10 @@ func (vpn *VPN) Stop() error {
 	return nil
 }
 
-func New(db db.DB, um *auth.UserManager, cm cloud.CloudManager) (*VPN, error) {
-	manager, err := linkmgr.NewManager()
+func New(db db.DB, um *auth.UserManager, cm cloud.CloudManager, sm *ssh.Manager) (*VPN, error) {
+	linkManager, err := linkmgr.NewManager()
 	if err != nil {
 		return nil, err
 	}
-	return &VPN{um: um, cm: cm, nm: manager}, nil
+	return &VPN{um: um, cm: cm, nm: linkManager, sm: sm}, nil
 }
