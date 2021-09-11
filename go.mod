@@ -15,7 +15,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
 	github.com/cheggaaa/pb/v3 v3.0.5
 	github.com/cnf/structhash v0.0.0-20201013183111-a92e111048cd
-	github.com/containerd/containerd v1.5.1
+	github.com/containerd/containerd v1.5.5
 	github.com/containernetworking/cni v0.8.1
 	github.com/containernetworking/plugins v0.9.1
 	github.com/denisbrodbeck/machineid v1.0.1
@@ -48,8 +48,8 @@ require (
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.7
 	github.com/segmentio/ksuid v1.0.3
 	github.com/shirou/gopsutil v2.20.9+incompatible
-	github.com/sirupsen/logrus v1.7.0
-	github.com/tidwall/gjson v1.6.1
+	github.com/sirupsen/logrus v1.8.1
+	github.com/tidwall/gjson v1.9.0
 	github.com/unrolled/render v1.0.3
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/urfave/negroni v1.0.0
