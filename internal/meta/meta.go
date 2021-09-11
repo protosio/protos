@@ -81,7 +81,7 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string)
 		}
 		metaRoot.PrivateKeySeed = key.Seed()
 		log.Infof("Generated instance key. Writing it to '%s'", gconfig.WorkDir+"/"+metaKeyFile)
-		err = ioutil.WriteFile(gconfig.WorkDir+"/"+metaKeyFile, []byte(key.PublicString()), 0644)
+		err = ioutil.WriteFile(gconfig.WorkDir+"/"+metaKeyFile, key.Public(), 0644)
 		if err != nil {
 			log.Fatalf("Failed to write public key to disk: ", err.Error())
 		}

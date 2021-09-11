@@ -30,6 +30,7 @@ type containerdPlatform struct {
 	appStoreHost      string
 	dnsServer         string
 	internalInterface string
+	wireguardIP       net.IP
 	logsPath          string
 	initSignal        chan net.IP
 	network           net.IPNet
@@ -68,11 +69,12 @@ func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice
 	cdp.initLock.Lock()
 
 	if cdp.internalInterface == "" {
-		internalInterface, err := initNetwork(network, devices, cdp.key)
+		internalInterface, wireguardIP, err := initNetwork(network, devices, cdp.key)
 		if err != nil {
 			return fmt.Errorf("Can't initialize network: %s", err.Error())
 		}
 		cdp.internalInterface = internalInterface
+		cdp.wireguardIP = wireguardIP
 	}
 
 	if cdp.client == nil {
@@ -134,7 +136,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		return pru, fmt.Errorf("Failed to allocate IP for app '%s': %v", appID, err)
 	}
 
-	err = configureInterface(netNSpath, newIP, cdp.network)
+	err = configureInterface(netNSpath, newIP, cdp.network, cdp.wireguardIP)
 	if err != nil {
 		return pru, fmt.Errorf("Failed to configure network interface for app '%s': %v", appID, err)
 	}

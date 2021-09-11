@@ -33,16 +33,16 @@ func (sm *Manager) GenerateKey() (*Key, error) {
 
 // GetKeyByPub returns a key that has the provided pubkey (base64 encoded)
 func (sm *Manager) GetKeyByPub(pubKey string) (*Key, error) {
-	var keys map[string]*Key
+	var keys map[string]Key
 	err := sm.db.GetMap(sshDS, &keys)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Could not retrieve keys: %v", err)
 	}
 
 	for _, k := range keys {
 		if k.PublicWG().String() == pubKey {
 			k.parent = sm
-			return k, nil
+			return &k, nil
 		}
 	}
 	return nil, fmt.Errorf("Could not find key with pubkey '%s'", pubKey)

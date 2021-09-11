@@ -2,10 +2,12 @@ package ssh
 
 import (
 	"crypto/ed25519"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/pem"
 
 	"github.com/mikesmitty/edkey"
+	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ssh"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -32,8 +34,19 @@ func (k Key) Private() []byte {
 
 func (k Key) PrivateWG() wgtypes.Key {
 	var wgkey wgtypes.Key
-	copy(wgkey[:], k.Seed())
+
+	h := sha512.New()
+	h.Write(k.Seed())
+	out := h.Sum(nil)
+
+	// Magic from the high priests of Crypto (libsodium)
+	out[0] &= 248
+	out[31] &= 127
+	out[31] |= 64
+	copy(wgkey[:], out[:curve25519.ScalarSize])
+
 	return wgkey
+
 }
 
 func (k Key) PublicWG() wgtypes.Key {

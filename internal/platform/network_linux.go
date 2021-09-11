@@ -62,10 +62,10 @@ func diffRoutes(a []netlink.Route, b []netlink.Route) ([]netlink.Route, []netlin
 }
 
 // initNetwork initializes the local network
-func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) (string, error) {
+func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) (string, net.IP, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {
-		return "", fmt.Errorf("Failed to initialize network: %w", err)
+		return "", nil, fmt.Errorf("Failed to initialize network: %w", err)
 	}
 
 	// allocate the first IP in the network for Wireguard
@@ -85,17 +85,17 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 	newRoutes := []netlink.Route{}
 	peers := []wgtypes.PeerConfig{}
 	if len(devices) == 0 {
-		return "", fmt.Errorf("Network initialization failed because 0 user devices were provided")
+		return "", nil, fmt.Errorf("Network initialization failed because 0 user devices were provided")
 	}
 	for _, userDevice := range devices {
 		log.Debugf("Using route '%s' for device '%s(%s)'", userDevice.Network, userDevice.Name, userDevice.MachineID)
 		publicKey, err := base64.StdEncoding.DecodeString(userDevice.PublicKey)
 		if err != nil {
-			return "", fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
+			return "", nil, fmt.Errorf("Failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
 		}
 		_, deviceNetwork, err := net.ParseCIDR(userDevice.Network)
 		if err != nil {
-			return "", fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
+			return "", nil, fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
 		}
 		newRoutes = append(newRoutes, netlink.Route{Dst: deviceNetwork})
 		var pkey wgtypes.Key
@@ -114,17 +114,17 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 	wgInterfaceName := interfacePrefix + "WG"
 	_, _, err = wirebox.CreateWG(manager, wgInterfaceName, cfg, linkAddrs)
 	if err != nil {
-		return "", fmt.Errorf("Failed to create interface during network initialization: %w", err)
+		return "", nil, fmt.Errorf("Failed to create interface during network initialization: %w", err)
 	}
 
 	netlinkWG, err := netlink.LinkByName(wgInterfaceName)
 	if err != nil {
-		return "", fmt.Errorf("Failed to retrieve interface during network initialization: %w", err)
+		return "", nil, fmt.Errorf("Failed to retrieve interface during network initialization: %w", err)
 	}
 
 	existingRoutes, err := netlink.RouteList(netlinkWG, netlink.FAMILY_V4)
 	if err != nil {
-		return "", fmt.Errorf("Failed to get routes during network initialization: %w", err)
+		return "", nil, fmt.Errorf("Failed to get routes during network initialization: %w", err)
 	}
 
 	delRoutes, addRoutes := diffRoutes(existingRoutes, newRoutes)
@@ -134,7 +134,7 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 		route.LinkIndex = netlinkWG.Attrs().Index
 		err = netlink.RouteAdd(&route)
 		if err != nil {
-			return "", fmt.Errorf("Failed to add route during network initialization: %w", err)
+			return "", nil, fmt.Errorf("Failed to add route during network initialization: %w", err)
 		}
 	}
 
@@ -142,7 +142,7 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 	for _, route := range delRoutes {
 		err = netlink.RouteDel(&route)
 		if err != nil {
-			return "", fmt.Errorf("Failed to delete route during network initialization: %w", err)
+			return "", nil, fmt.Errorf("Failed to delete route during network initialization: %w", err)
 		}
 	}
 
@@ -152,14 +152,16 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 
 	brName := interfacePrefix + "BR"
 	log.Debugf("Setting up bridge interface '%s'", brName)
-	bridgeIP := wireguardIP
+	// for the brdige IP we just increment the WG IP
+	bridgeIP := make(net.IP, len(wireguardIP))
+	copy(bridgeIP, wireguardIP)
 	bridgeIP[3]++
 	netBridge, err = configureBridge(brName, bridgeIP, network)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return wgInterfaceName, nil
+	return wgInterfaceName, wireguardIP, nil
 }
 
 func configureBridge(name string, IP net.IP, network net.IPNet) (*netlink.Bridge, error) {
@@ -193,13 +195,15 @@ func configureBridge(name string, IP net.IP, network net.IPNet) (*netlink.Bridge
 
 	addr := &netlink.Addr{IPNet: &net.IPNet{Mask: network.Mask, IP: IP}, Label: ""}
 	if err = netlink.AddrAdd(brInterface, addr); err != nil {
-		return nil, fmt.Errorf("Failed to configure IP address '%s' on interface: %v", IP.String(), err)
+		if err.Error() != "file exists" {
+			return nil, fmt.Errorf("Failed to configure IP address '%s' on interface: %v", IP.String(), err)
+		}
 	}
 
 	return brInterface, nil
 }
 
-func configureInterface(netNSpath string, IP net.IP, network net.IPNet) error {
+func configureInterface(netNSpath string, IP net.IP, network net.IPNet, wireguardIP net.IP) error {
 	netns, err := ns.GetNS(netNSpath)
 	if err != nil {
 		return fmt.Errorf("Failed to open netns '%s': %v", netNSpath, err)
@@ -232,6 +236,17 @@ func configureInterface(netNSpath string, IP net.IP, network net.IPNet) error {
 		addr := &netlink.Addr{IPNet: &net.IPNet{Mask: network.Mask, IP: IP}, Label: ""}
 		if err = netlink.AddrAdd(link, addr); err != nil {
 			return fmt.Errorf("Failed to configure IP address '%s' on interface: %v", IP.String(), err)
+		}
+
+		_, networkALL, _ := net.ParseCIDR("0.0.0.0/0")
+		route := netlink.Route{
+			LinkIndex: link.Attrs().Index,
+			Gw:        wireguardIP,
+			Dst:       networkALL,
+		}
+		err = netlink.RouteAdd(&route)
+		if err != nil {
+			return fmt.Errorf("Failed to add route on interface: %v", err)
 		}
 
 		return nil
