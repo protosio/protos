@@ -1,0 +1,18 @@
+
+syntax = "proto3";
+
+package apic;
+
+option go_package = "github.com/protosio/protos/internal/apic;apic";
+
+import "google/protobuf/empty.proto";
+
+
+service AppService {
+    rpc GetApps(google.protobuf.Empty) returns (stream App);
+}
+
+message App {
+    string id = 1;
+    string name = 2;
+}
