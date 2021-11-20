@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Masterminds/semver"
 	"github.com/getlantern/systray"
@@ -12,7 +14,30 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var log = util.GetLogger("protosClient")
+var log = util.GetLogger("protosc")
+var stoppers = map[string]func() error{}
+
+func stopServers() {
+	for _, stopper := range stoppers {
+		err := stopper()
+		if err != nil {
+			log.Error(err)
+		}
+	}
+}
+
+func handleQuitSignals(osSigs chan os.Signal, traySig chan struct{}) {
+	select {
+	case osSig := <-osSigs:
+		log.Infof("Received OS signal %s. Terminating", osSig.String())
+	case <-traySig:
+		log.Info("Received tray quit signal. Terminating")
+	}
+
+	log.Info("Shutting down Protos client")
+	stopServers()
+	systray.Quit()
+}
 
 func main() {
 
@@ -27,7 +52,8 @@ func main() {
 		Authors: []*cli.Author{{Name: "Alex Giurgiu", Email: "alex@giurgiu.io"}},
 		Version: version.String(),
 		Action: func(c *cli.Context) error {
-			start()
+			log.Info("Starting Protos client")
+			systray.Run(onReady, onExit)
 			return nil
 		},
 	}
@@ -56,15 +82,6 @@ func main() {
 
 }
 
-func start() {
-	onExit := func() {
-		log.Info("Shutdown complete")
-	}
-
-	log.Info("Starting Protos client")
-	systray.Run(onReady, onExit)
-}
-
 func onReady() {
 	systray.SetTemplateIcon(icon.Data, icon.Data)
 	systray.SetTooltip("Protos")
@@ -74,12 +91,14 @@ func onReady() {
 	if err != nil {
 		log.Fatalf("Failed to start gRPC server: %s", err.Error())
 	}
+	stoppers["grpc"] = grpcStopper
 
-	go func() {
-		<-mQuitOrig.ClickedCh
-		log.Info("Shutting down Protos client")
-		grpcStopper()
-		systray.Quit()
-	}()
+	// Handle OS signals and tray icon quit signal
+	osSigs := make(chan os.Signal, 1)
+	signal.Notify(osSigs, syscall.SIGINT, syscall.SIGTERM)
+	go handleQuitSignals(osSigs, mQuitOrig.ClickedCh)
+}
 
+func onExit() {
+	log.Info("Shutdown complete")
 }
