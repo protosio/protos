@@ -7,7 +7,6 @@ replace github.com/foxcpp/wirebox => /Users/al3x/code/protos/code/wirebox
 replace github.com/attic-labs/noms => /Users/al3x/code/protos/code/noms
 
 require (
-	cuelang.org/go v0.4.0
 	filippo.io/edwards25519 v1.0.0-rc.1
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Masterminds/semver v1.5.0
@@ -19,7 +18,6 @@ require (
 	github.com/containerd/containerd v1.5.5
 	github.com/containernetworking/cni v0.8.1
 	github.com/containernetworking/plugins v0.9.1
-	github.com/cratonica/2goarray v0.0.0-20190331194516-514510793eaa // indirect
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emirpasic/gods v1.12.0
@@ -28,7 +26,6 @@ require (
 	github.com/getlantern/systray v1.1.0
 	github.com/go-playground/validator/v10 v10.4.0
 	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.5.0
 	github.com/golang/snappy v0.0.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/securecookie v1.1.1
@@ -62,6 +59,7 @@ require (
 	github.com/vjeantet/jodaTime v1.0.0
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
+	golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449 // indirect
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20200609130330-bd2cb7843e1b
 	google.golang.org/grpc v1.33.2

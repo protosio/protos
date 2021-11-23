@@ -2,14 +2,13 @@
 // versions:
 // 	protoc-gen-go v1.27.1
 // 	protoc        v3.17.3
-// source: proto/apic.proto
+// source: apic.proto
 
 package apic
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 )
@@ -20,6 +19,200 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+type InitRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	Name     string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Domain   string `protobuf:"bytes,4,opt,name=domain,proto3" json:"domain,omitempty"`
+}
+
+func (x *InitRequest) Reset() {
+	*x = InitRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *InitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitRequest) ProtoMessage() {}
+
+func (x *InitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitRequest.ProtoReflect.Descriptor instead.
+func (*InitRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *InitRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *InitRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *InitRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *InitRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+type InitResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *InitResponse) Reset() {
+	*x = InitResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *InitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitResponse) ProtoMessage() {}
+
+func (x *InitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitResponse.ProtoReflect.Descriptor instead.
+func (*InitResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{1}
+}
+
+type GetAppsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *GetAppsRequest) Reset() {
+	*x = GetAppsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetAppsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAppsRequest) ProtoMessage() {}
+
+func (x *GetAppsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAppsRequest.ProtoReflect.Descriptor instead.
+func (*GetAppsRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{2}
+}
+
+type GetAppsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Apps []*App `protobuf:"bytes,1,rep,name=apps,proto3" json:"apps,omitempty"`
+}
+
+func (x *GetAppsResponse) Reset() {
+	*x = GetAppsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetAppsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAppsResponse) ProtoMessage() {}
+
+func (x *GetAppsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAppsResponse.ProtoReflect.Descriptor instead.
+func (*GetAppsResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetAppsResponse) GetApps() []*App {
+	if x != nil {
+		return x.Apps
+	}
+	return nil
+}
 
 type App struct {
 	state         protoimpl.MessageState
@@ -33,7 +226,7 @@ type App struct {
 func (x *App) Reset() {
 	*x = App{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_proto_apic_proto_msgTypes[0]
+		mi := &file_apic_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -46,7 +239,7 @@ func (x *App) String() string {
 func (*App) ProtoMessage() {}
 
 func (x *App) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_apic_proto_msgTypes[0]
+	mi := &file_apic_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +252,7 @@ func (x *App) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use App.ProtoReflect.Descriptor instead.
 func (*App) Descriptor() ([]byte, []int) {
-	return file_proto_apic_proto_rawDescGZIP(), []int{0}
+	return file_apic_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *App) GetId() string {
@@ -76,19 +269,33 @@ func (x *App) GetName() string {
 	return ""
 }
 
-var File_proto_apic_proto protoreflect.FileDescriptor
+var File_apic_proto protoreflect.FileDescriptor
 
-var file_proto_apic_proto_rawDesc = []byte{
-	0x0a, 0x10, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x12, 0x04, 0x61, 0x70, 0x69, 0x63, 0x1a, 0x1b, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65,
-	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x65, 0x6d, 0x70, 0x74, 0x79, 0x2e,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x29, 0x0a, 0x03, 0x41, 0x70, 0x70, 0x12, 0x0e, 0x0a, 0x02,
-	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04,
-	0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65,
-	0x32, 0x3c, 0x0a, 0x0a, 0x41, 0x70, 0x70, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x2e,
-	0x0a, 0x07, 0x47, 0x65, 0x74, 0x41, 0x70, 0x70, 0x73, 0x12, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67,
-	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74,
-	0x79, 0x1a, 0x09, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x41, 0x70, 0x70, 0x30, 0x01, 0x42, 0x2f,
+var file_apic_proto_rawDesc = []byte{
+	0x0a, 0x0a, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x04, 0x61, 0x70,
+	0x69, 0x63, 0x22, 0x71, 0x0a, 0x0b, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x1a, 0x0a, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1a, 0x0a,
+	0x08, 0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x08, 0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d,
+	0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x16, 0x0a,
+	0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64,
+	0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x0e, 0x0a, 0x0c, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x10, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x41, 0x70, 0x70, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x30, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x41, 0x70,
+	0x70, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x1d, 0x0a, 0x04, 0x61, 0x70,
+	0x70, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x09, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e,
+	0x41, 0x70, 0x70, 0x52, 0x04, 0x61, 0x70, 0x70, 0x73, 0x22, 0x29, 0x0a, 0x03, 0x41, 0x70, 0x70,
+	0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64,
+	0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
+	0x6e, 0x61, 0x6d, 0x65, 0x32, 0x78, 0x0a, 0x0f, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x43, 0x6c,
+	0x69, 0x65, 0x6e, 0x74, 0x41, 0x70, 0x69, 0x12, 0x2d, 0x0a, 0x04, 0x49, 0x6e, 0x69, 0x74, 0x12,
+	0x11, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0x12, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x36, 0x0a, 0x07, 0x47, 0x65, 0x74, 0x41, 0x70, 0x70,
+	0x73, 0x12, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x70, 0x70, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x15, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x47,
+	0x65, 0x74, 0x41, 0x70, 0x70, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x2f,
 	0x5a, 0x2d, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x72, 0x6f,
 	0x74, 0x6f, 0x73, 0x69, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x69, 0x6e, 0x74,
 	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x61, 0x70, 0x69, 0x63, 0x3b, 0x61, 0x70, 0x69, 0x63, 0x62,
@@ -96,39 +303,93 @@ var file_proto_apic_proto_rawDesc = []byte{
 }
 
 var (
-	file_proto_apic_proto_rawDescOnce sync.Once
-	file_proto_apic_proto_rawDescData = file_proto_apic_proto_rawDesc
+	file_apic_proto_rawDescOnce sync.Once
+	file_apic_proto_rawDescData = file_apic_proto_rawDesc
 )
 
-func file_proto_apic_proto_rawDescGZIP() []byte {
-	file_proto_apic_proto_rawDescOnce.Do(func() {
-		file_proto_apic_proto_rawDescData = protoimpl.X.CompressGZIP(file_proto_apic_proto_rawDescData)
+func file_apic_proto_rawDescGZIP() []byte {
+	file_apic_proto_rawDescOnce.Do(func() {
+		file_apic_proto_rawDescData = protoimpl.X.CompressGZIP(file_apic_proto_rawDescData)
 	})
-	return file_proto_apic_proto_rawDescData
+	return file_apic_proto_rawDescData
 }
 
-var file_proto_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_proto_apic_proto_goTypes = []interface{}{
-	(*App)(nil),           // 0: apic.App
-	(*emptypb.Empty)(nil), // 1: google.protobuf.Empty
+var file_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_apic_proto_goTypes = []interface{}{
+	(*InitRequest)(nil),     // 0: apic.InitRequest
+	(*InitResponse)(nil),    // 1: apic.InitResponse
+	(*GetAppsRequest)(nil),  // 2: apic.GetAppsRequest
+	(*GetAppsResponse)(nil), // 3: apic.GetAppsResponse
+	(*App)(nil),             // 4: apic.App
 }
-var file_proto_apic_proto_depIdxs = []int32{
-	1, // 0: apic.AppService.GetApps:input_type -> google.protobuf.Empty
-	0, // 1: apic.AppService.GetApps:output_type -> apic.App
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+var file_apic_proto_depIdxs = []int32{
+	4, // 0: apic.GetAppsResponse.apps:type_name -> apic.App
+	0, // 1: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
+	2, // 2: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
+	1, // 3: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
+	3, // 4: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_proto_apic_proto_init() }
-func file_proto_apic_proto_init() {
-	if File_proto_apic_proto != nil {
+func init() { file_apic_proto_init() }
+func file_apic_proto_init() {
+	if File_apic_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_proto_apic_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_apic_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InitRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InitResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetAppsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetAppsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*App); i {
 			case 0:
 				return &v.state
@@ -145,18 +406,18 @@ func file_proto_apic_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_proto_apic_proto_rawDesc,
+			RawDescriptor: file_apic_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_apic_proto_goTypes,
-		DependencyIndexes: file_proto_apic_proto_depIdxs,
-		MessageInfos:      file_proto_apic_proto_msgTypes,
+		GoTypes:           file_apic_proto_goTypes,
+		DependencyIndexes: file_apic_proto_depIdxs,
+		MessageInfos:      file_apic_proto_msgTypes,
 	}.Build()
-	File_proto_apic_proto = out.File
-	file_proto_apic_proto_rawDesc = nil
-	file_proto_apic_proto_goTypes = nil
-	file_proto_apic_proto_depIdxs = nil
+	File_apic_proto = out.File
+	file_apic_proto_rawDesc = nil
+	file_apic_proto_goTypes = nil
+	file_apic_proto_depIdxs = nil
 }

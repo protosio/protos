@@ -16,6 +16,10 @@ import (
 
 var log = util.GetLogger("protosc")
 var stoppers = map[string]func() error{}
+var logLevel string
+var dataPath string
+var unixSocketPath string
+var version *semver.Version
 
 func stopServers() {
 	for _, stopper := range stoppers {
@@ -41,7 +45,8 @@ func handleQuitSignals(osSigs chan os.Signal, traySig chan struct{}) {
 
 func main() {
 
-	version, err := semver.NewVersion("0.1.0-dev.4")
+	var err error
+	version, err = semver.NewVersion("0.1.0-dev.4")
 	if err != nil {
 		panic(err)
 	}
@@ -51,26 +56,37 @@ func main() {
 		Usage:   "Protos client",
 		Authors: []*cli.Author{{Name: "Alex Giurgiu", Email: "alex@giurgiu.io"}},
 		Version: version.String(),
-		Action: func(c *cli.Context) error {
-			log.Info("Starting Protos client")
-			systray.Run(onReady, onExit)
-			return nil
-		},
 	}
-
-	var loglevel string
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
-			Name:        "loglevel",
+			Name:        "log",
 			Value:       "info",
-			Usage:       "Specify log level: debug, info, warn, error",
-			Destination: &loglevel,
+			Usage:       "Log level: debug, info, warn, error",
+			Destination: &logLevel,
+		},
+		&cli.StringFlag{
+			Name:        "data-dir",
+			Value:       "~/.protos",
+			Usage:       "Path where protos data is stored",
+			Destination: &dataPath,
+		},
+		&cli.StringFlag{
+			Name:        "unix-socket-dir",
+			Value:       "/var/run/protos",
+			Usage:       "Path where GRPC API unix socket is created",
+			Destination: &unixSocketPath,
 		},
 	}
 
+	app.Action = func(c *cli.Context) error {
+		log.Info("Starting Protos client")
+		systray.Run(onReady, onExit)
+		return nil
+	}
+
 	app.Before = func(c *cli.Context) error {
-		level, err := logrus.ParseLevel(loglevel)
+		level, err := logrus.ParseLevel(logLevel)
 		if err != nil {
 			return err
 		}
@@ -87,7 +103,7 @@ func onReady() {
 	systray.SetTooltip("Protos")
 	mQuitOrig := systray.AddMenuItem("Quit", "Quit")
 
-	grpcStopper, err := apic.StartGRPCServer("/var/run/protos")
+	grpcStopper, err := apic.StartGRPCServer(unixSocketPath, dataPath, version.String())
 	if err != nil {
 		log.Fatalf("Failed to start gRPC server: %s", err.Error())
 	}

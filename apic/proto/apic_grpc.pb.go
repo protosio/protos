@@ -7,7 +7,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -15,115 +14,124 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// AppServiceClient is the client API for AppService service.
+// ProtosClientApiClient is the client API for ProtosClientApi service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type AppServiceClient interface {
-	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AppService_GetAppsClient, error)
+type ProtosClientApiClient interface {
+	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
+	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
 }
 
-type appServiceClient struct {
+type protosClientApiClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewAppServiceClient(cc grpc.ClientConnInterface) AppServiceClient {
-	return &appServiceClient{cc}
+func NewProtosClientApiClient(cc grpc.ClientConnInterface) ProtosClientApiClient {
+	return &protosClientApiClient{cc}
 }
 
-func (c *appServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AppService_GetAppsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &AppService_ServiceDesc.Streams[0], "/apic.AppService/GetApps", opts...)
+func (c *protosClientApiClient) Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error) {
+	out := new(InitResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/Init", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &appServiceGetAppsClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error) {
+	out := new(GetAppsResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetApps", in, out, opts...)
+	if err != nil {
 		return nil, err
 	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
+	return out, nil
 }
 
-type AppService_GetAppsClient interface {
-	Recv() (*App, error)
-	grpc.ClientStream
-}
-
-type appServiceGetAppsClient struct {
-	grpc.ClientStream
-}
-
-func (x *appServiceGetAppsClient) Recv() (*App, error) {
-	m := new(App)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// AppServiceServer is the server API for AppService service.
-// All implementations must embed UnimplementedAppServiceServer
+// ProtosClientApiServer is the server API for ProtosClientApi service.
+// All implementations must embed UnimplementedProtosClientApiServer
 // for forward compatibility
-type AppServiceServer interface {
-	GetApps(*emptypb.Empty, AppService_GetAppsServer) error
-	mustEmbedUnimplementedAppServiceServer()
+type ProtosClientApiServer interface {
+	Init(context.Context, *InitRequest) (*InitResponse, error)
+	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
+	mustEmbedUnimplementedProtosClientApiServer()
 }
 
-// UnimplementedAppServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedAppServiceServer struct {
+// UnimplementedProtosClientApiServer must be embedded to have forward compatible implementations.
+type UnimplementedProtosClientApiServer struct {
 }
 
-func (UnimplementedAppServiceServer) GetApps(*emptypb.Empty, AppService_GetAppsServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetApps not implemented")
+func (UnimplementedProtosClientApiServer) Init(context.Context, *InitRequest) (*InitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Init not implemented")
 }
-func (UnimplementedAppServiceServer) mustEmbedUnimplementedAppServiceServer() {}
+func (UnimplementedProtosClientApiServer) GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
+}
+func (UnimplementedProtosClientApiServer) mustEmbedUnimplementedProtosClientApiServer() {}
 
-// UnsafeAppServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to AppServiceServer will
+// UnsafeProtosClientApiServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ProtosClientApiServer will
 // result in compilation errors.
-type UnsafeAppServiceServer interface {
-	mustEmbedUnimplementedAppServiceServer()
+type UnsafeProtosClientApiServer interface {
+	mustEmbedUnimplementedProtosClientApiServer()
 }
 
-func RegisterAppServiceServer(s grpc.ServiceRegistrar, srv AppServiceServer) {
-	s.RegisterService(&AppService_ServiceDesc, srv)
+func RegisterProtosClientApiServer(s grpc.ServiceRegistrar, srv ProtosClientApiServer) {
+	s.RegisterService(&ProtosClientApi_ServiceDesc, srv)
 }
 
-func _AppService_GetApps_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(emptypb.Empty)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _ProtosClientApi_Init_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(AppServiceServer).GetApps(m, &appServiceGetAppsServer{stream})
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).Init(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/Init",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).Init(ctx, req.(*InitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type AppService_GetAppsServer interface {
-	Send(*App) error
-	grpc.ServerStream
+func _ProtosClientApi_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAppsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetApps",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetApps(ctx, req.(*GetAppsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type appServiceGetAppsServer struct {
-	grpc.ServerStream
-}
-
-func (x *appServiceGetAppsServer) Send(m *App) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-// AppService_ServiceDesc is the grpc.ServiceDesc for AppService service.
+// ProtosClientApi_ServiceDesc is the grpc.ServiceDesc for ProtosClientApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var AppService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "apic.AppService",
-	HandlerType: (*AppServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
+var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "apic.ProtosClientApi",
+	HandlerType: (*ProtosClientApiServer)(nil),
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "GetApps",
-			Handler:       _AppService_GetApps_Handler,
-			ServerStreams: true,
+			MethodName: "Init",
+			Handler:    _ProtosClientApi_Init_Handler,
+		},
+		{
+			MethodName: "GetApps",
+			Handler:    _ProtosClientApi_GetApps_Handler,
 		},
 	},
-	Metadata: "proto/apic.proto",
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "apic.proto",
 }

@@ -5,13 +5,23 @@ package apic;
 
 option go_package = "github.com/protosio/protos/internal/apic;apic";
 
-import "google/protobuf/empty.proto";
-
-
-service AppService {
-    rpc GetApps(google.protobuf.Empty) returns (stream App);
+service ProtosClientApi {
+    rpc Init(InitRequest) returns (InitResponse);
+    rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
 }
 
+message InitRequest {
+    string username = 1;
+    string password = 2;
+    string name = 3;
+    string domain = 4;
+}
+message InitResponse {}
+
+message GetAppsRequest {}
+message GetAppsResponse {
+    repeated App apps = 1;
+}
 message App {
     string id = 1;
     string name = 2;

@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	pbApic "github.com/protosio/protos/apic/proto"
+	"github.com/protosio/protos/internal/protosc"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
 )
@@ -15,28 +14,16 @@ import (
 var log = util.GetLogger("grpcAPI")
 
 type Backend struct {
-	pbApic.UnimplementedAppServiceServer
-	mu   *sync.RWMutex
-	apps []*pbApic.App
+	pbApic.UnimplementedProtosClientApiServer
+	protosClient *protosc.ProtosClient
 }
 
-func (b *Backend) GetApps(_ *empty.Empty, srv pbApic.AppService_GetAppsServer) error {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+func StartGRPCServer(socketPath string, dataPath string, version string) (func() error, error) {
 
-	for _, app := range b.apps {
-		err := srv.Send(app)
-		if err != nil {
-			return err
-		}
+	protosClient, err := protosc.New(dataPath, version)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create Protos client: %w", err)
 	}
-
-	return nil
-}
-
-var _ pbApic.AppServiceServer = (*Backend)(nil)
-
-func StartGRPCServer(socketPath string) (func() error, error) {
 
 	// create protos run dir
 	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
@@ -46,17 +33,18 @@ func StartGRPCServer(socketPath string) (func() error, error) {
 		}
 	}
 
-	l, err := net.Listen("unix", socketPath+"/protos.socket")
+	unixSocketFile := socketPath + "/protos.socket"
+	l, err := net.Listen("unix", unixSocketFile)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to listen on local socket: %w", err)
 	}
 
 	srv := grpc.NewServer()
-	pbApic.RegisterAppServiceServer(srv, &Backend{
-		mu: &sync.RWMutex{},
+	pbApic.RegisterProtosClientApiServer(srv, &Backend{
+		protosClient: protosClient,
 	})
 
-	log.Info("Starting gRPC server at unix://", socketPath)
+	log.Info("Starting gRPC server at unix://", unixSocketFile)
 	go func() {
 		if err := srv.Serve(l); err != nil {
 			log.Fatalf("Failed to serve gRPC service: %w", err)
