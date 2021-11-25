@@ -19,7 +19,15 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ProtosClientApiClient interface {
 	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
+	// App methods
 	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
+	RunApp(ctx context.Context, in *RunAppRequest, opts ...grpc.CallOption) (*RunAppResponse, error)
+	StartApp(ctx context.Context, in *StartAppRequest, opts ...grpc.CallOption) (*StartAppResponse, error)
+	StopApp(ctx context.Context, in *StopAppRequest, opts ...grpc.CallOption) (*StopAppResponse, error)
+	RemoveApp(ctx context.Context, in *RemoveAppRequest, opts ...grpc.CallOption) (*RemoveAppResponse, error)
+	// App store methods
+	GetInstallers(ctx context.Context, in *GetInstallersRequest, opts ...grpc.CallOption) (*GetInstallersResponse, error)
+	GetInstaller(ctx context.Context, in *GetInstallerRequest, opts ...grpc.CallOption) (*GetInstallerResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -48,12 +56,74 @@ func (c *protosClientApiClient) GetApps(ctx context.Context, in *GetAppsRequest,
 	return out, nil
 }
 
+func (c *protosClientApiClient) RunApp(ctx context.Context, in *RunAppRequest, opts ...grpc.CallOption) (*RunAppResponse, error) {
+	out := new(RunAppResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/RunApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) StartApp(ctx context.Context, in *StartAppRequest, opts ...grpc.CallOption) (*StartAppResponse, error) {
+	out := new(StartAppResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/StartApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) StopApp(ctx context.Context, in *StopAppRequest, opts ...grpc.CallOption) (*StopAppResponse, error) {
+	out := new(StopAppResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/StopApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) RemoveApp(ctx context.Context, in *RemoveAppRequest, opts ...grpc.CallOption) (*RemoveAppResponse, error) {
+	out := new(RemoveAppResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/RemoveApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetInstallers(ctx context.Context, in *GetInstallersRequest, opts ...grpc.CallOption) (*GetInstallersResponse, error) {
+	out := new(GetInstallersResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetInstallers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetInstaller(ctx context.Context, in *GetInstallerRequest, opts ...grpc.CallOption) (*GetInstallerResponse, error) {
+	out := new(GetInstallerResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetInstaller", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProtosClientApiServer is the server API for ProtosClientApi service.
 // All implementations must embed UnimplementedProtosClientApiServer
 // for forward compatibility
 type ProtosClientApiServer interface {
 	Init(context.Context, *InitRequest) (*InitResponse, error)
+	// App methods
 	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
+	RunApp(context.Context, *RunAppRequest) (*RunAppResponse, error)
+	StartApp(context.Context, *StartAppRequest) (*StartAppResponse, error)
+	StopApp(context.Context, *StopAppRequest) (*StopAppResponse, error)
+	RemoveApp(context.Context, *RemoveAppRequest) (*RemoveAppResponse, error)
+	// App store methods
+	GetInstallers(context.Context, *GetInstallersRequest) (*GetInstallersResponse, error)
+	GetInstaller(context.Context, *GetInstallerRequest) (*GetInstallerResponse, error)
 	mustEmbedUnimplementedProtosClientApiServer()
 }
 
@@ -66,6 +136,24 @@ func (UnimplementedProtosClientApiServer) Init(context.Context, *InitRequest) (*
 }
 func (UnimplementedProtosClientApiServer) GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
+}
+func (UnimplementedProtosClientApiServer) RunApp(context.Context, *RunAppRequest) (*RunAppResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RunApp not implemented")
+}
+func (UnimplementedProtosClientApiServer) StartApp(context.Context, *StartAppRequest) (*StartAppResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartApp not implemented")
+}
+func (UnimplementedProtosClientApiServer) StopApp(context.Context, *StopAppRequest) (*StopAppResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopApp not implemented")
+}
+func (UnimplementedProtosClientApiServer) RemoveApp(context.Context, *RemoveAppRequest) (*RemoveAppResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveApp not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetInstallers(context.Context, *GetInstallersRequest) (*GetInstallersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstallers not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetInstaller(context.Context, *GetInstallerRequest) (*GetInstallerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstaller not implemented")
 }
 func (UnimplementedProtosClientApiServer) mustEmbedUnimplementedProtosClientApiServer() {}
 
@@ -116,6 +204,114 @@ func _ProtosClientApi_GetApps_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_RunApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).RunApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/RunApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).RunApp(ctx, req.(*RunAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_StartApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).StartApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/StartApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).StartApp(ctx, req.(*StartAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_StopApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).StopApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/StopApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).StopApp(ctx, req.(*StopAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_RemoveApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).RemoveApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/RemoveApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).RemoveApp(ctx, req.(*RemoveAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetInstallers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstallersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetInstallers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetInstallers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetInstallers(ctx, req.(*GetInstallersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetInstaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstallerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetInstaller(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetInstaller",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetInstaller(ctx, req.(*GetInstallerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProtosClientApi_ServiceDesc is the grpc.ServiceDesc for ProtosClientApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -130,6 +326,30 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetApps",
 			Handler:    _ProtosClientApi_GetApps_Handler,
+		},
+		{
+			MethodName: "RunApp",
+			Handler:    _ProtosClientApi_RunApp_Handler,
+		},
+		{
+			MethodName: "StartApp",
+			Handler:    _ProtosClientApi_StartApp_Handler,
+		},
+		{
+			MethodName: "StopApp",
+			Handler:    _ProtosClientApi_StopApp_Handler,
+		},
+		{
+			MethodName: "RemoveApp",
+			Handler:    _ProtosClientApi_RemoveApp_Handler,
+		},
+		{
+			MethodName: "GetInstallers",
+			Handler:    _ProtosClientApi_GetInstallers_Handler,
+		},
+		{
+			MethodName: "GetInstaller",
+			Handler:    _ProtosClientApi_GetInstaller_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

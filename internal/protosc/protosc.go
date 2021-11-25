@@ -5,11 +5,19 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/installer"
+	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/platform"
+	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var log = util.GetLogger("protosc")
@@ -26,6 +34,8 @@ func (pub *publisher) GetWSPublishChannel() chan interface{} {
 type ProtosClient struct {
 	UserManager *auth.UserManager
 	KeyManager  *ssh.Manager
+	AppManager  *app.Manager
+	AppStore    *installer.AppStore
 }
 
 func New(dataPath string, version string) (*ProtosClient, error) {
@@ -55,14 +65,28 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 		log.Fatalf("Failed to open db during configuration: %v", err)
 	}
 
+	// get default cfg
+	cfg := config.Get()
+
+	// create publisher
+	pub := &publisher{pubchan: make(chan interface{}, 100)}
+
 	// create various managers
 	keyManager := ssh.CreateManager(dbi)
 	capabilityManager := capability.CreateManager()
 	userManager := auth.CreateUserManager(dbi, keyManager, capabilityManager)
+	resourceManager := resource.CreateManager(dbi)
+	taskManager := task.CreateManager(dbi, pub)
+	runtimePlatform := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, wgtypes.Key{}, "")
+	metaClient := meta.SetupForClient(resourceManager, dbi, keyManager, version)
+	appStore := installer.CreateAppStore(runtimePlatform, taskManager, capabilityManager)
+	appManager := app.CreateManager(resourceManager, taskManager, runtimePlatform, dbi, metaClient, pub, appStore, capabilityManager)
 
 	protosClient := ProtosClient{
 		UserManager: userManager,
 		KeyManager:  keyManager,
+		AppManager:  appManager,
+		AppStore:    appStore,
 	}
 
 	return &protosClient, nil

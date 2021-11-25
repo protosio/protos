@@ -219,8 +219,12 @@ type App struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id   string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Version       string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	DesiredStatus string `protobuf:"bytes,4,opt,name=desired_status,json=desiredStatus,proto3" json:"desired_status,omitempty"`
+	InstanceName  string `protobuf:"bytes,5,opt,name=instance_name,json=instanceName,proto3" json:"instance_name,omitempty"`
+	Ip            string `protobuf:"bytes,6,opt,name=ip,proto3" json:"ip,omitempty"`
 }
 
 func (x *App) Reset() {
@@ -269,6 +273,673 @@ func (x *App) GetName() string {
 	return ""
 }
 
+func (x *App) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *App) GetDesiredStatus() string {
+	if x != nil {
+		return x.DesiredStatus
+	}
+	return ""
+}
+
+func (x *App) GetInstanceName() string {
+	if x != nil {
+		return x.InstanceName
+	}
+	return ""
+}
+
+func (x *App) GetIp() string {
+	if x != nil {
+		return x.Ip
+	}
+	return ""
+}
+
+type RunAppRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name        string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	InstallerId string `protobuf:"bytes,2,opt,name=installer_id,json=installerId,proto3" json:"installer_id,omitempty"`
+	InstanceId  string `protobuf:"bytes,3,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+}
+
+func (x *RunAppRequest) Reset() {
+	*x = RunAppRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RunAppRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunAppRequest) ProtoMessage() {}
+
+func (x *RunAppRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunAppRequest.ProtoReflect.Descriptor instead.
+func (*RunAppRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RunAppRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RunAppRequest) GetInstallerId() string {
+	if x != nil {
+		return x.InstallerId
+	}
+	return ""
+}
+
+func (x *RunAppRequest) GetInstanceId() string {
+	if x != nil {
+		return x.InstanceId
+	}
+	return ""
+}
+
+type RunAppResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+}
+
+func (x *RunAppResponse) Reset() {
+	*x = RunAppResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RunAppResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunAppResponse) ProtoMessage() {}
+
+func (x *RunAppResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunAppResponse.ProtoReflect.Descriptor instead.
+func (*RunAppResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RunAppResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type StartAppRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+}
+
+func (x *StartAppRequest) Reset() {
+	*x = StartAppRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StartAppRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartAppRequest) ProtoMessage() {}
+
+func (x *StartAppRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartAppRequest.ProtoReflect.Descriptor instead.
+func (*StartAppRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *StartAppRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type StartAppResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *StartAppResponse) Reset() {
+	*x = StartAppResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StartAppResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartAppResponse) ProtoMessage() {}
+
+func (x *StartAppResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartAppResponse.ProtoReflect.Descriptor instead.
+func (*StartAppResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{8}
+}
+
+type StopAppRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+}
+
+func (x *StopAppRequest) Reset() {
+	*x = StopAppRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StopAppRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StopAppRequest) ProtoMessage() {}
+
+func (x *StopAppRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StopAppRequest.ProtoReflect.Descriptor instead.
+func (*StopAppRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *StopAppRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type StopAppResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *StopAppResponse) Reset() {
+	*x = StopAppResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StopAppResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StopAppResponse) ProtoMessage() {}
+
+func (x *StopAppResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StopAppResponse.ProtoReflect.Descriptor instead.
+func (*StopAppResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{10}
+}
+
+type RemoveAppRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+}
+
+func (x *RemoveAppRequest) Reset() {
+	*x = RemoveAppRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RemoveAppRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAppRequest) ProtoMessage() {}
+
+func (x *RemoveAppRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAppRequest.ProtoReflect.Descriptor instead.
+func (*RemoveAppRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RemoveAppRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type RemoveAppResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *RemoveAppResponse) Reset() {
+	*x = RemoveAppResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RemoveAppResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAppResponse) ProtoMessage() {}
+
+func (x *RemoveAppResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAppResponse.ProtoReflect.Descriptor instead.
+func (*RemoveAppResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{12}
+}
+
+type GetInstallersRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *GetInstallersRequest) Reset() {
+	*x = GetInstallersRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetInstallersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstallersRequest) ProtoMessage() {}
+
+func (x *GetInstallersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstallersRequest.ProtoReflect.Descriptor instead.
+func (*GetInstallersRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{13}
+}
+
+type GetInstallersResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Installers []*Installer `protobuf:"bytes,1,rep,name=installers,proto3" json:"installers,omitempty"`
+}
+
+func (x *GetInstallersResponse) Reset() {
+	*x = GetInstallersResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetInstallersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstallersResponse) ProtoMessage() {}
+
+func (x *GetInstallersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstallersResponse.ProtoReflect.Descriptor instead.
+func (*GetInstallersResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetInstallersResponse) GetInstallers() []*Installer {
+	if x != nil {
+		return x.Installers
+	}
+	return nil
+}
+
+type Installer struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id                string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name              string   `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Version           string   `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Description       string   `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	RequiresResources []string `protobuf:"bytes,5,rep,name=requires_resources,json=requiresResources,proto3" json:"requires_resources,omitempty"`
+	ProvidesResources []string `protobuf:"bytes,6,rep,name=provides_resources,json=providesResources,proto3" json:"provides_resources,omitempty"`
+	Capabilities      []string `protobuf:"bytes,7,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+}
+
+func (x *Installer) Reset() {
+	*x = Installer{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Installer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Installer) ProtoMessage() {}
+
+func (x *Installer) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Installer.ProtoReflect.Descriptor instead.
+func (*Installer) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *Installer) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Installer) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Installer) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *Installer) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *Installer) GetRequiresResources() []string {
+	if x != nil {
+		return x.RequiresResources
+	}
+	return nil
+}
+
+func (x *Installer) GetProvidesResources() []string {
+	if x != nil {
+		return x.ProvidesResources
+	}
+	return nil
+}
+
+func (x *Installer) GetCapabilities() []string {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+type GetInstallerRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+}
+
+func (x *GetInstallerRequest) Reset() {
+	*x = GetInstallerRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetInstallerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstallerRequest) ProtoMessage() {}
+
+func (x *GetInstallerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstallerRequest.ProtoReflect.Descriptor instead.
+func (*GetInstallerRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetInstallerRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetInstallerResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Installer *Installer `protobuf:"bytes,1,opt,name=installer,proto3" json:"installer,omitempty"`
+}
+
+func (x *GetInstallerResponse) Reset() {
+	*x = GetInstallerResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_apic_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetInstallerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstallerResponse) ProtoMessage() {}
+
+func (x *GetInstallerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_msgTypes[17]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstallerResponse.ProtoReflect.Descriptor instead.
+func (*GetInstallerResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *GetInstallerResponse) GetInstaller() *Installer {
+	if x != nil {
+		return x.Installer
+	}
+	return nil
+}
+
 var File_apic_proto protoreflect.FileDescriptor
 
 var file_apic_proto_rawDesc = []byte{
@@ -285,21 +956,100 @@ var file_apic_proto_rawDesc = []byte{
 	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x30, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x41, 0x70,
 	0x70, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x1d, 0x0a, 0x04, 0x61, 0x70,
 	0x70, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x09, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e,
-	0x41, 0x70, 0x70, 0x52, 0x04, 0x61, 0x70, 0x70, 0x73, 0x22, 0x29, 0x0a, 0x03, 0x41, 0x70, 0x70,
+	0x41, 0x70, 0x70, 0x52, 0x04, 0x61, 0x70, 0x70, 0x73, 0x22, 0x9f, 0x01, 0x0a, 0x03, 0x41, 0x70,
+	0x70, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69,
+	0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12,
+	0x25, 0x0a, 0x0e, 0x64, 0x65, 0x73, 0x69, 0x72, 0x65, 0x64, 0x5f, 0x73, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x64, 0x65, 0x73, 0x69, 0x72, 0x65, 0x64,
+	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x23, 0x0a, 0x0d, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e,
+	0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x69,
+	0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69,
+	0x70, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x70, 0x22, 0x67, 0x0a, 0x0d, 0x52,
+	0x75, 0x6e, 0x41, 0x70, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04,
+	0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65,
+	0x12, 0x21, 0x0a, 0x0c, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x5f, 0x69, 0x64,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65,
+	0x72, 0x49, 0x64, 0x12, 0x1f, 0x0a, 0x0b, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x5f,
+	0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e,
+	0x63, 0x65, 0x49, 0x64, 0x22, 0x20, 0x0a, 0x0e, 0x52, 0x75, 0x6e, 0x41, 0x70, 0x70, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x22, 0x25, 0x0a, 0x0f, 0x53, 0x74, 0x61, 0x72, 0x74, 0x41,
+	0x70, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d,
+	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x12, 0x0a,
+	0x10, 0x53, 0x74, 0x61, 0x72, 0x74, 0x41, 0x70, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x22, 0x24, 0x0a, 0x0e, 0x53, 0x74, 0x6f, 0x70, 0x41, 0x70, 0x70, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x11, 0x0a, 0x0f, 0x53, 0x74, 0x6f, 0x70, 0x41,
+	0x70, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x26, 0x0a, 0x10, 0x52, 0x65,
+	0x6d, 0x6f, 0x76, 0x65, 0x41, 0x70, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12,
+	0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x22, 0x13, 0x0a, 0x11, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x41, 0x70, 0x70, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x16, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x49, 0x6e,
+	0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22,
+	0x48, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2f, 0x0a, 0x0a, 0x69, 0x6e, 0x73, 0x74,
+	0x61, 0x6c, 0x6c, 0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61,
+	0x70, 0x69, 0x63, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x52, 0x0a, 0x69,
+	0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x73, 0x22, 0xed, 0x01, 0x0a, 0x09, 0x49, 0x6e,
+	0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x76,
+	0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x76, 0x65,
+	0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70,
+	0x74, 0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x64, 0x65, 0x73, 0x63,
+	0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x2d, 0x0a, 0x12, 0x72, 0x65, 0x71, 0x75, 0x69,
+	0x72, 0x65, 0x73, 0x5f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x18, 0x05, 0x20,
+	0x03, 0x28, 0x09, 0x52, 0x11, 0x72, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x73, 0x52, 0x65, 0x73,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x12, 0x2d, 0x0a, 0x12, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x64,
+	0x65, 0x73, 0x5f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x18, 0x06, 0x20, 0x03,
+	0x28, 0x09, 0x52, 0x11, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x73, 0x52, 0x65, 0x73, 0x6f,
+	0x75, 0x72, 0x63, 0x65, 0x73, 0x12, 0x22, 0x0a, 0x0c, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c,
+	0x69, 0x74, 0x69, 0x65, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0c, 0x63, 0x61, 0x70,
+	0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x69, 0x65, 0x73, 0x22, 0x25, 0x0a, 0x13, 0x47, 0x65, 0x74,
+	0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64,
-	0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
-	0x6e, 0x61, 0x6d, 0x65, 0x32, 0x78, 0x0a, 0x0f, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x43, 0x6c,
-	0x69, 0x65, 0x6e, 0x74, 0x41, 0x70, 0x69, 0x12, 0x2d, 0x0a, 0x04, 0x49, 0x6e, 0x69, 0x74, 0x12,
-	0x11, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x12, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x36, 0x0a, 0x07, 0x47, 0x65, 0x74, 0x41, 0x70, 0x70,
-	0x73, 0x12, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x70, 0x70, 0x73,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x15, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x47,
-	0x65, 0x74, 0x41, 0x70, 0x70, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x2f,
-	0x5a, 0x2d, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x73, 0x69, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x69, 0x6e, 0x74,
-	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x61, 0x70, 0x69, 0x63, 0x3b, 0x61, 0x70, 0x69, 0x63, 0x62,
-	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x22, 0x45, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2d, 0x0a, 0x09, 0x69, 0x6e, 0x73, 0x74,
+	0x61, 0x6c, 0x6c, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70,
+	0x69, 0x63, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x52, 0x09, 0x69, 0x6e,
+	0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x32, 0xef, 0x03, 0x0a, 0x0f, 0x50, 0x72, 0x6f, 0x74,
+	0x6f, 0x73, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x41, 0x70, 0x69, 0x12, 0x2d, 0x0a, 0x04, 0x49,
+	0x6e, 0x69, 0x74, 0x12, 0x11, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x49, 0x6e, 0x69, 0x74, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x12, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x49, 0x6e,
+	0x69, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x36, 0x0a, 0x07, 0x47, 0x65,
+	0x74, 0x41, 0x70, 0x70, 0x73, 0x12, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x47, 0x65, 0x74,
+	0x41, 0x70, 0x70, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x15, 0x2e, 0x61, 0x70,
+	0x69, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x70, 0x70, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x33, 0x0a, 0x06, 0x52, 0x75, 0x6e, 0x41, 0x70, 0x70, 0x12, 0x13, 0x2e, 0x61,
+	0x70, 0x69, 0x63, 0x2e, 0x52, 0x75, 0x6e, 0x41, 0x70, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x52, 0x75, 0x6e, 0x41, 0x70, 0x70, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x39, 0x0a, 0x08, 0x53, 0x74, 0x61, 0x72, 0x74,
+	0x41, 0x70, 0x70, 0x12, 0x15, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74,
+	0x41, 0x70, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x16, 0x2e, 0x61, 0x70, 0x69,
+	0x63, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x41, 0x70, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x36, 0x0a, 0x07, 0x53, 0x74, 0x6f, 0x70, 0x41, 0x70, 0x70, 0x12, 0x14, 0x2e,
+	0x61, 0x70, 0x69, 0x63, 0x2e, 0x53, 0x74, 0x6f, 0x70, 0x41, 0x70, 0x70, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x15, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x53, 0x74, 0x6f, 0x70, 0x41,
+	0x70, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3c, 0x0a, 0x09, 0x52, 0x65,
+	0x6d, 0x6f, 0x76, 0x65, 0x41, 0x70, 0x70, 0x12, 0x16, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x52,
+	0x65, 0x6d, 0x6f, 0x76, 0x65, 0x41, 0x70, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x17, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x41, 0x70, 0x70,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x48, 0x0a, 0x0d, 0x47, 0x65, 0x74, 0x49,
+	0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x73, 0x12, 0x1a, 0x2e, 0x61, 0x70, 0x69, 0x63,
+	0x2e, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x47, 0x65, 0x74,
+	0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x45, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c,
+	0x65, 0x72, 0x12, 0x19, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73,
+	0x74, 0x61, 0x6c, 0x6c, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a, 0x2e,
+	0x61, 0x70, 0x69, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x65,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x2f, 0x5a, 0x2d, 0x67, 0x69, 0x74,
+	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x69, 0x6f,
+	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
+	0x2f, 0x61, 0x70, 0x69, 0x63, 0x3b, 0x61, 0x70, 0x69, 0x63, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 }
 
 var (
@@ -314,25 +1064,52 @@ func file_apic_proto_rawDescGZIP() []byte {
 	return file_apic_proto_rawDescData
 }
 
-var file_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_apic_proto_goTypes = []interface{}{
-	(*InitRequest)(nil),     // 0: apic.InitRequest
-	(*InitResponse)(nil),    // 1: apic.InitResponse
-	(*GetAppsRequest)(nil),  // 2: apic.GetAppsRequest
-	(*GetAppsResponse)(nil), // 3: apic.GetAppsResponse
-	(*App)(nil),             // 4: apic.App
+	(*InitRequest)(nil),           // 0: apic.InitRequest
+	(*InitResponse)(nil),          // 1: apic.InitResponse
+	(*GetAppsRequest)(nil),        // 2: apic.GetAppsRequest
+	(*GetAppsResponse)(nil),       // 3: apic.GetAppsResponse
+	(*App)(nil),                   // 4: apic.App
+	(*RunAppRequest)(nil),         // 5: apic.RunAppRequest
+	(*RunAppResponse)(nil),        // 6: apic.RunAppResponse
+	(*StartAppRequest)(nil),       // 7: apic.StartAppRequest
+	(*StartAppResponse)(nil),      // 8: apic.StartAppResponse
+	(*StopAppRequest)(nil),        // 9: apic.StopAppRequest
+	(*StopAppResponse)(nil),       // 10: apic.StopAppResponse
+	(*RemoveAppRequest)(nil),      // 11: apic.RemoveAppRequest
+	(*RemoveAppResponse)(nil),     // 12: apic.RemoveAppResponse
+	(*GetInstallersRequest)(nil),  // 13: apic.GetInstallersRequest
+	(*GetInstallersResponse)(nil), // 14: apic.GetInstallersResponse
+	(*Installer)(nil),             // 15: apic.Installer
+	(*GetInstallerRequest)(nil),   // 16: apic.GetInstallerRequest
+	(*GetInstallerResponse)(nil),  // 17: apic.GetInstallerResponse
 }
 var file_apic_proto_depIdxs = []int32{
-	4, // 0: apic.GetAppsResponse.apps:type_name -> apic.App
-	0, // 1: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
-	2, // 2: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
-	1, // 3: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
-	3, // 4: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4,  // 0: apic.GetAppsResponse.apps:type_name -> apic.App
+	15, // 1: apic.GetInstallersResponse.installers:type_name -> apic.Installer
+	15, // 2: apic.GetInstallerResponse.installer:type_name -> apic.Installer
+	0,  // 3: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
+	2,  // 4: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
+	5,  // 5: apic.ProtosClientApi.RunApp:input_type -> apic.RunAppRequest
+	7,  // 6: apic.ProtosClientApi.StartApp:input_type -> apic.StartAppRequest
+	9,  // 7: apic.ProtosClientApi.StopApp:input_type -> apic.StopAppRequest
+	11, // 8: apic.ProtosClientApi.RemoveApp:input_type -> apic.RemoveAppRequest
+	13, // 9: apic.ProtosClientApi.GetInstallers:input_type -> apic.GetInstallersRequest
+	16, // 10: apic.ProtosClientApi.GetInstaller:input_type -> apic.GetInstallerRequest
+	1,  // 11: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
+	3,  // 12: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
+	6,  // 13: apic.ProtosClientApi.RunApp:output_type -> apic.RunAppResponse
+	8,  // 14: apic.ProtosClientApi.StartApp:output_type -> apic.StartAppResponse
+	10, // 15: apic.ProtosClientApi.StopApp:output_type -> apic.StopAppResponse
+	12, // 16: apic.ProtosClientApi.RemoveApp:output_type -> apic.RemoveAppResponse
+	14, // 17: apic.ProtosClientApi.GetInstallers:output_type -> apic.GetInstallersResponse
+	17, // 18: apic.ProtosClientApi.GetInstaller:output_type -> apic.GetInstallerResponse
+	11, // [11:19] is the sub-list for method output_type
+	3,  // [3:11] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_apic_proto_init() }
@@ -401,6 +1178,162 @@ func file_apic_proto_init() {
 				return nil
 			}
 		}
+		file_apic_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RunAppRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RunAppResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*StartAppRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*StartAppResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*StopAppRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*StopAppResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RemoveAppRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RemoveAppResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetInstallersRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetInstallersResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Installer); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetInstallerRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_apic_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetInstallerResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -408,7 +1341,7 @@ func file_apic_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_apic_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

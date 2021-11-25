@@ -7,7 +7,17 @@ option go_package = "github.com/protosio/protos/internal/apic;apic";
 
 service ProtosClientApi {
     rpc Init(InitRequest) returns (InitResponse);
+
+    // App methods
     rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
+    rpc RunApp(RunAppRequest) returns (RunAppResponse);
+    rpc StartApp(StartAppRequest) returns (StartAppResponse);
+    rpc StopApp(StopAppRequest) returns (StopAppResponse);
+    rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse);
+
+    // App store methods
+    rpc GetInstallers(GetInstallersRequest) returns (GetInstallersResponse);
+    rpc GetInstaller(GetInstallerRequest) returns (GetInstallerResponse);
 }
 
 message InitRequest {
@@ -25,4 +35,54 @@ message GetAppsResponse {
 message App {
     string id = 1;
     string name = 2;
+    string version = 3;
+    string desired_status = 4;
+    string instance_name = 5;
+    string ip = 6;
+}
+
+message RunAppRequest {
+    string name = 1;
+    string installer_id = 2;
+    string instance_id = 3;
+}
+message RunAppResponse {
+    string id = 1;
+}
+
+message StartAppRequest {
+    string name = 1;
+}
+message StartAppResponse {}
+
+message StopAppRequest {
+    string name = 1;
+}
+message StopAppResponse {}
+
+message RemoveAppRequest {
+    string name = 1;
+}
+message RemoveAppResponse {}
+
+message GetInstallersRequest {}
+message GetInstallersResponse {
+    repeated Installer installers = 1;
+}
+
+message Installer {
+    string id = 1;
+    string name = 2;
+    string version = 3;
+    string description = 4;
+    repeated string requires_resources = 5;
+    repeated string provides_resources = 6;
+    repeated string capabilities = 7;
+}
+
+message GetInstallerRequest {
+    string id = 1;
+}
+message GetInstallerResponse {
+    Installer installer = 1;
 }
