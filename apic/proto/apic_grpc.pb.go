@@ -28,6 +28,12 @@ type ProtosClientApiClient interface {
 	// App store methods
 	GetInstallers(ctx context.Context, in *GetInstallersRequest, opts ...grpc.CallOption) (*GetInstallersResponse, error)
 	GetInstaller(ctx context.Context, in *GetInstallerRequest, opts ...grpc.CallOption) (*GetInstallerResponse, error)
+	// Cloud provider methods
+	GetSupportedCloudProviders(ctx context.Context, in *GetSupportedCloudProvidersRequest, opts ...grpc.CallOption) (*GetSupportedCloudProvidersResponse, error)
+	GetCloudProviders(ctx context.Context, in *GetCloudProvidersRequest, opts ...grpc.CallOption) (*GetCloudProvidersResponse, error)
+	GetCloudProvider(ctx context.Context, in *GetCloudProviderRequest, opts ...grpc.CallOption) (*GetCloudProviderResponse, error)
+	AddCloudProvider(ctx context.Context, in *AddCloudProviderRequest, opts ...grpc.CallOption) (*AddCloudProviderResponse, error)
+	RemoveCloudProvider(ctx context.Context, in *RemoveCloudProviderRequest, opts ...grpc.CallOption) (*RemoveCloudProviderResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -110,6 +116,51 @@ func (c *protosClientApiClient) GetInstaller(ctx context.Context, in *GetInstall
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetSupportedCloudProviders(ctx context.Context, in *GetSupportedCloudProvidersRequest, opts ...grpc.CallOption) (*GetSupportedCloudProvidersResponse, error) {
+	out := new(GetSupportedCloudProvidersResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetSupportedCloudProviders", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetCloudProviders(ctx context.Context, in *GetCloudProvidersRequest, opts ...grpc.CallOption) (*GetCloudProvidersResponse, error) {
+	out := new(GetCloudProvidersResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetCloudProviders", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetCloudProvider(ctx context.Context, in *GetCloudProviderRequest, opts ...grpc.CallOption) (*GetCloudProviderResponse, error) {
+	out := new(GetCloudProviderResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetCloudProvider", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) AddCloudProvider(ctx context.Context, in *AddCloudProviderRequest, opts ...grpc.CallOption) (*AddCloudProviderResponse, error) {
+	out := new(AddCloudProviderResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/AddCloudProvider", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) RemoveCloudProvider(ctx context.Context, in *RemoveCloudProviderRequest, opts ...grpc.CallOption) (*RemoveCloudProviderResponse, error) {
+	out := new(RemoveCloudProviderResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/RemoveCloudProvider", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProtosClientApiServer is the server API for ProtosClientApi service.
 // All implementations must embed UnimplementedProtosClientApiServer
 // for forward compatibility
@@ -124,6 +175,12 @@ type ProtosClientApiServer interface {
 	// App store methods
 	GetInstallers(context.Context, *GetInstallersRequest) (*GetInstallersResponse, error)
 	GetInstaller(context.Context, *GetInstallerRequest) (*GetInstallerResponse, error)
+	// Cloud provider methods
+	GetSupportedCloudProviders(context.Context, *GetSupportedCloudProvidersRequest) (*GetSupportedCloudProvidersResponse, error)
+	GetCloudProviders(context.Context, *GetCloudProvidersRequest) (*GetCloudProvidersResponse, error)
+	GetCloudProvider(context.Context, *GetCloudProviderRequest) (*GetCloudProviderResponse, error)
+	AddCloudProvider(context.Context, *AddCloudProviderRequest) (*AddCloudProviderResponse, error)
+	RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error)
 	mustEmbedUnimplementedProtosClientApiServer()
 }
 
@@ -154,6 +211,21 @@ func (UnimplementedProtosClientApiServer) GetInstallers(context.Context, *GetIns
 }
 func (UnimplementedProtosClientApiServer) GetInstaller(context.Context, *GetInstallerRequest) (*GetInstallerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstaller not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetSupportedCloudProviders(context.Context, *GetSupportedCloudProvidersRequest) (*GetSupportedCloudProvidersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSupportedCloudProviders not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetCloudProviders(context.Context, *GetCloudProvidersRequest) (*GetCloudProvidersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCloudProviders not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetCloudProvider(context.Context, *GetCloudProviderRequest) (*GetCloudProviderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCloudProvider not implemented")
+}
+func (UnimplementedProtosClientApiServer) AddCloudProvider(context.Context, *AddCloudProviderRequest) (*AddCloudProviderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddCloudProvider not implemented")
+}
+func (UnimplementedProtosClientApiServer) RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveCloudProvider not implemented")
 }
 func (UnimplementedProtosClientApiServer) mustEmbedUnimplementedProtosClientApiServer() {}
 
@@ -312,6 +384,96 @@ func _ProtosClientApi_GetInstaller_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetSupportedCloudProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSupportedCloudProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetSupportedCloudProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetSupportedCloudProviders",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetSupportedCloudProviders(ctx, req.(*GetSupportedCloudProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetCloudProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCloudProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetCloudProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetCloudProviders",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetCloudProviders(ctx, req.(*GetCloudProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetCloudProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCloudProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetCloudProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetCloudProvider",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetCloudProvider(ctx, req.(*GetCloudProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_AddCloudProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddCloudProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).AddCloudProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/AddCloudProvider",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).AddCloudProvider(ctx, req.(*AddCloudProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_RemoveCloudProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveCloudProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).RemoveCloudProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/RemoveCloudProvider",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).RemoveCloudProvider(ctx, req.(*RemoveCloudProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProtosClientApi_ServiceDesc is the grpc.ServiceDesc for ProtosClientApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -350,6 +512,26 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInstaller",
 			Handler:    _ProtosClientApi_GetInstaller_Handler,
+		},
+		{
+			MethodName: "GetSupportedCloudProviders",
+			Handler:    _ProtosClientApi_GetSupportedCloudProviders_Handler,
+		},
+		{
+			MethodName: "GetCloudProviders",
+			Handler:    _ProtosClientApi_GetCloudProviders_Handler,
+		},
+		{
+			MethodName: "GetCloudProvider",
+			Handler:    _ProtosClientApi_GetCloudProvider_Handler,
+		},
+		{
+			MethodName: "AddCloudProvider",
+			Handler:    _ProtosClientApi_AddCloudProvider_Handler,
+		},
+		{
+			MethodName: "RemoveCloudProvider",
+			Handler:    _ProtosClientApi_RemoveCloudProvider_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

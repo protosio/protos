@@ -41,6 +41,10 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 	return &pbApic.InitResponse{}, nil
 }
 
+//
+// App methods
+//
+
 func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbApic.GetAppsResponse, error) {
 
 	log.Debugf("Retrieving apps")
@@ -117,6 +121,10 @@ func (b *Backend) RemoveApp(ctx context.Context, in *pbApic.RemoveAppRequest) (*
 	return &pbApic.RemoveAppResponse{}, nil
 }
 
+//
+// App store methods
+//
+
 func (b *Backend) GetInstallers(ctx context.Context, in *pbApic.GetInstallersRequest) (*pbApic.GetInstallersResponse, error) {
 	log.Debugf("Retrieving installers from app store")
 	installers, err := b.protosClient.AppStore.GetInstallers()
@@ -167,4 +175,131 @@ func (b *Backend) GetInstaller(ctx context.Context, in *pbApic.GetInstallerReque
 	}
 
 	return &resp, nil
+}
+
+//
+// Cloud provider methods
+//
+
+func (b *Backend) GetSupportedCloudProviders(ctx context.Context, in *pbApic.GetSupportedCloudProvidersRequest) (*pbApic.GetSupportedCloudProvidersResponse, error) {
+	log.Debug("Retrieving supported cloud providers")
+	supportedCloudProviders := b.protosClient.CloudManager.SupportedProviders()
+
+	resp := pbApic.GetSupportedCloudProvidersResponse{}
+	for _, supportedCloudProvider := range supportedCloudProviders {
+		// create new temporary cloud provider to retrieve the required auth fields
+		tempCloud, err := b.protosClient.CloudManager.NewProvider("tempCloud", supportedCloudProvider)
+		if err != nil {
+			return nil, err
+		}
+		respCloudType := pbApic.CloudType{
+			Name:                 supportedCloudProvider,
+			AuthenticationFields: tempCloud.AuthFields(),
+		}
+		resp.CloudTypes = append(resp.CloudTypes, &respCloudType)
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) GetCloudProviders(ctx context.Context, in *pbApic.GetCloudProvidersRequest) (*pbApic.GetCloudProvidersResponse, error) {
+	log.Debug("Retrieving cloud providers")
+	cloudProviders, err := b.protosClient.CloudManager.GetProviders()
+	if err != nil {
+		return nil, err
+	}
+
+	resp := pbApic.GetCloudProvidersResponse{}
+	for _, cloudProvider := range cloudProviders {
+		respCloudProvider := pbApic.CloudProvider{
+			Name: cloudProvider.NameStr(),
+			Type: &pbApic.CloudType{
+				Name:                 cloudProvider.TypeStr(),
+				AuthenticationFields: cloudProvider.AuthFields(),
+			},
+		}
+		resp.CloudProviders = append(resp.CloudProviders, &respCloudProvider)
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProviderRequest) (*pbApic.GetCloudProviderResponse, error) {
+	log.Debugf("Retrieving cloud provider '%s'", in.Name)
+	cloudProvider, err := b.protosClient.CloudManager.GetProvider(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve cloud provider: %w", err)
+	}
+	err = cloudProvider.Init()
+	if err != nil {
+		return nil, fmt.Errorf("Error reaching cloud provider '%s'(%s) API: %w", in.Name, cloudProvider.TypeStr(), err)
+	}
+	supportedLocations := cloudProvider.SupportedLocations()
+	supportedMachines, err := cloudProvider.SupportedMachines(supportedLocations[0])
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve supported machines: %w", err)
+	}
+
+	respSupportedMachines := map[string]*pbApic.CloudMachineSpec{}
+	for name, supportedMachine := range supportedMachines {
+		respSupportedMachines[name] = &pbApic.CloudMachineSpec{
+			Cores:                int32(supportedMachine.Cores),
+			Memory:               int32(supportedMachine.Memory),
+			DefaultStorage:       int32(supportedMachine.DefaultStorage),
+			Bandwidth:            int32(supportedMachine.Bandwidth),
+			IncludedDataTransfer: int32(supportedMachine.IncludedDataTransfer),
+			Baremetal:            supportedMachine.Baremetal,
+			PriceMonthly:         supportedMachine.PriceMonthly,
+		}
+	}
+
+	resp := pbApic.GetCloudProviderResponse{
+		CloudProvider: &pbApic.CloudProvider{
+			Name:               cloudProvider.NameStr(),
+			SupportedLocations: supportedLocations,
+			SupportedMachines:  respSupportedMachines,
+			Type: &pbApic.CloudType{
+				Name:                 cloudProvider.TypeStr(),
+				AuthenticationFields: cloudProvider.AuthFields(),
+			},
+		},
+	}
+	return &resp, nil
+}
+
+func (b *Backend) AddCloudProvider(ctx context.Context, in *pbApic.AddCloudProviderRequest) (*pbApic.AddCloudProviderResponse, error) {
+	// create new cloud provider
+	provider, err := b.protosClient.CloudManager.NewProvider(in.Name, in.Type)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create cloud provider: %w", err)
+	}
+
+	// set authentication
+	err = provider.SetAuth(in.Credentials)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to set credentials for cloud provider: %w", err)
+	}
+
+	// init cloud client
+	err = provider.Init()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to initialize cloud provider: %w", err)
+	}
+
+	// save the cloud provider in the db
+	err = provider.Save()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to save cloud provider: %w", err)
+	}
+	return &pbApic.AddCloudProviderResponse{}, nil
+}
+
+func (b *Backend) RemoveCloudProvider(ctx context.Context, in *pbApic.RemoveCloudProviderRequest) (*pbApic.RemoveCloudProviderResponse, error) {
+	// delete existing cloud provider
+	err := b.protosClient.CloudManager.DeleteProvider(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to delete cloud provider '%s': %w", in.Name, err)
+	}
+
+	return &pbApic.RemoveCloudProviderResponse{}, nil
 }

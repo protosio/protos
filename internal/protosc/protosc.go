@@ -8,10 +8,12 @@ import (
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
@@ -32,10 +34,12 @@ func (pub *publisher) GetWSPublishChannel() chan interface{} {
 }
 
 type ProtosClient struct {
-	UserManager *auth.UserManager
-	KeyManager  *ssh.Manager
-	AppManager  *app.Manager
-	AppStore    *installer.AppStore
+	// FIXME: standardize manager name
+	UserManager  *auth.UserManager
+	KeyManager   *ssh.Manager
+	AppManager   *app.Manager
+	AppStore     *installer.AppStore
+	CloudManager *cloud.Manager
 }
 
 func New(dataPath string, version string) (*ProtosClient, error) {
@@ -62,7 +66,7 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	protosDB := "protos.db"
 	dbi, err := db.Open(dataPath, protosDB)
 	if err != nil {
-		log.Fatalf("Failed to open db during configuration: %v", err)
+		log.Fatalf("Failed to open db during configuration: %s", err.Error())
 	}
 
 	// get default cfg
@@ -82,11 +86,24 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	appStore := installer.CreateAppStore(runtimePlatform, taskManager, capabilityManager)
 	appManager := app.CreateManager(resourceManager, taskManager, runtimePlatform, dbi, metaClient, pub, appStore, capabilityManager)
 
+	// get device key
+	key, err := metaClient.GetKey()
+	if err != nil {
+		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
+	}
+
+	p2pManager, err := p2p.NewManager(10500, key)
+	if err != nil {
+		log.Fatalf("Failed to create p2p manager: %s", err.Error())
+	}
+	cloudManager := cloud.CreateManager(dbi, userManager, keyManager, p2pManager)
+
 	protosClient := ProtosClient{
-		UserManager: userManager,
-		KeyManager:  keyManager,
-		AppManager:  appManager,
-		AppStore:    appStore,
+		UserManager:  userManager,
+		KeyManager:   keyManager,
+		AppManager:   appManager,
+		AppStore:     appStore,
+		CloudManager: cloudManager,
 	}
 
 	return &protosClient, nil

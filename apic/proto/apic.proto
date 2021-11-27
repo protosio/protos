@@ -6,83 +6,136 @@ package apic;
 option go_package = "github.com/protosio/protos/internal/apic;apic";
 
 service ProtosClientApi {
-    rpc Init(InitRequest) returns (InitResponse);
+  rpc Init(InitRequest) returns (InitResponse);
 
-    // App methods
-    rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
-    rpc RunApp(RunAppRequest) returns (RunAppResponse);
-    rpc StartApp(StartAppRequest) returns (StartAppResponse);
-    rpc StopApp(StopAppRequest) returns (StopAppResponse);
-    rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse);
+  // App methods
+  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
+  rpc RunApp(RunAppRequest) returns (RunAppResponse);
+  rpc StartApp(StartAppRequest) returns (StartAppResponse);
+  rpc StopApp(StopAppRequest) returns (StopAppResponse);
+  rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse);
 
-    // App store methods
-    rpc GetInstallers(GetInstallersRequest) returns (GetInstallersResponse);
-    rpc GetInstaller(GetInstallerRequest) returns (GetInstallerResponse);
+  // App store methods
+  rpc GetInstallers(GetInstallersRequest) returns (GetInstallersResponse);
+  rpc GetInstaller(GetInstallerRequest) returns (GetInstallerResponse);
+
+  // Cloud provider methods
+  rpc GetSupportedCloudProviders(GetSupportedCloudProvidersRequest)
+      returns (GetSupportedCloudProvidersResponse);
+  rpc GetCloudProviders(GetCloudProvidersRequest)
+      returns (GetCloudProvidersResponse);
+  rpc GetCloudProvider(GetCloudProviderRequest)
+      returns (GetCloudProviderResponse);
+  rpc AddCloudProvider(AddCloudProviderRequest)
+      returns (AddCloudProviderResponse);
+  rpc RemoveCloudProvider(RemoveCloudProviderRequest)
+      returns (RemoveCloudProviderResponse);
 }
 
 message InitRequest {
-    string username = 1;
-    string password = 2;
-    string name = 3;
-    string domain = 4;
+  string username = 1;
+  string password = 2;
+  string name = 3;
+  string domain = 4;
 }
 message InitResponse {}
 
-message GetAppsRequest {}
-message GetAppsResponse {
-    repeated App apps = 1;
-}
+//
+// App
+//
 message App {
-    string id = 1;
-    string name = 2;
-    string version = 3;
-    string desired_status = 4;
-    string instance_name = 5;
-    string ip = 6;
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string desired_status = 4;
+  string instance_name = 5;
+  string ip = 6;
 }
+
+message GetAppsRequest {}
+message GetAppsResponse { repeated App apps = 1; }
 
 message RunAppRequest {
-    string name = 1;
-    string installer_id = 2;
-    string instance_id = 3;
+  string name = 1;
+  string installer_id = 2;
+  string instance_id = 3;
 }
-message RunAppResponse {
-    string id = 1;
-}
+message RunAppResponse { string id = 1; }
 
-message StartAppRequest {
-    string name = 1;
-}
+message StartAppRequest { string name = 1; }
 message StartAppResponse {}
 
-message StopAppRequest {
-    string name = 1;
-}
+message StopAppRequest { string name = 1; }
 message StopAppResponse {}
 
-message RemoveAppRequest {
-    string name = 1;
-}
+message RemoveAppRequest { string name = 1; }
 message RemoveAppResponse {}
 
-message GetInstallersRequest {}
-message GetInstallersResponse {
-    repeated Installer installers = 1;
-}
-
+//
+// App store
+//
 message Installer {
-    string id = 1;
-    string name = 2;
-    string version = 3;
-    string description = 4;
-    repeated string requires_resources = 5;
-    repeated string provides_resources = 6;
-    repeated string capabilities = 7;
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string description = 4;
+  repeated string requires_resources = 5;
+  repeated string provides_resources = 6;
+  repeated string capabilities = 7;
 }
 
-message GetInstallerRequest {
-    string id = 1;
+message GetInstallersRequest {}
+message GetInstallersResponse { repeated Installer installers = 1; }
+
+message GetInstallerRequest { string id = 1; }
+message GetInstallerResponse { Installer installer = 1; }
+
+//
+// Cloud provider
+//
+
+message CloudMachineSpec {
+  int32 cores = 1;                  // Nr of cores
+  int32 memory = 2;                 // MiB
+  int32 default_storage = 3;        // GB
+  int32 bandwidth = 4;              // Mbit
+  int32 included_data_transfer = 5; // GB. 0 for unlimited
+  bool baremetal = 6;               // true if machine is bare metal
+  float price_monthly = 7; // no currency conversion at the moment. Each cloud
+                           // reports this differently
 }
-message GetInstallerResponse {
-    Installer installer = 1;
+
+message CloudType {
+  string name = 1;
+  repeated string authentication_fields = 2;
 }
+
+message CloudProvider {
+  string name = 1;
+  CloudType type = 2;
+  repeated string supported_locations = 3;
+  map<string, CloudMachineSpec> supported_machines = 4;
+}
+
+message GetSupportedCloudProvidersRequest {}
+message GetSupportedCloudProvidersResponse {
+  repeated CloudType cloud_types = 1;
+}
+
+message GetCloudProvidersRequest {}
+message GetCloudProvidersResponse {
+  repeated CloudProvider cloud_providers = 1;
+}
+
+message GetCloudProviderRequest { string name = 1; }
+message GetCloudProviderResponse { CloudProvider cloud_provider = 1; }
+
+message AddCloudProviderRequest {
+  string name = 1;
+  string type = 2;
+  map<string, string> credentials = 3;
+}
+message AddCloudProviderResponse {}
+
+message RemoveCloudProviderRequest { string name = 1; }
+message RemoveCloudProviderResponse {}

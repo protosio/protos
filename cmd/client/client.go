@@ -38,6 +38,7 @@ func main() {
 		Commands: []*cli.Command{
 			cmdInit,
 			cmdApp,
+			cmdCloud,
 		},
 	}
 
