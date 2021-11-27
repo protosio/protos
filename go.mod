@@ -41,7 +41,6 @@ require (
 	github.com/libp2p/go-libp2p-connmgr v0.2.4
 	github.com/libp2p/go-libp2p-core v0.11.0
 	github.com/libp2p/go-libp2p-noise v0.3.0
-	github.com/libp2p/go-libp2p-quic-transport v0.15.0
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/miekg/dns v1.1.43
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a

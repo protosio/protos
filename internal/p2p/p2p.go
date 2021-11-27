@@ -18,8 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	noise "github.com/libp2p/go-libp2p-noise"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
-	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/ssh"
@@ -389,7 +387,7 @@ func (p2p *P2P) AddPeer(pubKey []byte, destHost string) (string, error) {
 
 	log.Debugf("Adding peer id '%s'", peerInfo.ID.String())
 
-	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.PermanentAddrTTL)
+	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, 10*time.Second)
 	return string(peerInfo.ID), nil
 }
 
@@ -473,14 +471,13 @@ func NewManager(port int, key *ssh.Key) (*P2P, error) {
 		return p2p, err
 	}
 
-	host, err := libp2p.New(context.Background(),
+	host, err := libp2p.New(
 		libp2p.Identity(prvKey),
 		libp2p.ListenAddrStrings(
 			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port),
 			fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic", port),
 		),
 		libp2p.Security(noise.ID, noise.New),
-		libp2p.Transport(libp2pquic.NewTransport),
 		libp2p.DefaultTransports,
 		libp2p.ConnectionManager(connmgr.NewConnManager(100, 400, time.Minute)),
 	)
