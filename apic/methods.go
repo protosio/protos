@@ -230,10 +230,13 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 	if err != nil {
 		return nil, fmt.Errorf("Failed to retrieve cloud provider: %w", err)
 	}
+
+	// initialize cloud provider before use
 	err = cloudProvider.Init()
 	if err != nil {
 		return nil, fmt.Errorf("Error reaching cloud provider '%s'(%s) API: %w", in.Name, cloudProvider.TypeStr(), err)
 	}
+
 	supportedLocations := cloudProvider.SupportedLocations()
 	supportedMachines, err := cloudProvider.SupportedMachines(supportedLocations[0])
 	if err != nil {

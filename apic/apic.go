@@ -1,14 +1,20 @@
 package apic
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
+	"runtime/debug"
 
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/protosc"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var log = util.GetLogger("grpcAPI")
@@ -39,7 +45,21 @@ func StartGRPCServer(socketPath string, dataPath string, version string) (func()
 		return nil, fmt.Errorf("Failed to listen on local socket: %w", err)
 	}
 
-	srv := grpc.NewServer()
+	recoveryOpt := grpc_recovery.WithRecoveryHandlerContext(
+		func(ctx context.Context, p interface{}) error {
+			log.Errorf("[PANIC] %s\n----------------\n%s----------------", p, string(debug.Stack()))
+			return status.Error(codes.Internal, "Internal error. Please check client logs")
+		},
+	)
+
+	srv := grpc.NewServer(
+		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
+			grpc_recovery.StreamServerInterceptor(recoveryOpt),
+		)),
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+			grpc_recovery.UnaryServerInterceptor(recoveryOpt),
+		)),
+	)
 	pbApic.RegisterProtosClientApiServer(srv, &Backend{
 		protosClient: protosClient,
 	})
