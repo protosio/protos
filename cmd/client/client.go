@@ -39,6 +39,7 @@ func main() {
 			cmdInit,
 			cmdApp,
 			cmdCloud,
+			cmdInstance,
 		},
 	}
 

@@ -1,10 +1,13 @@
 package protosc
 
 import (
+	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
@@ -15,6 +18,7 @@ import (
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/platform"
+	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
@@ -23,6 +27,10 @@ import (
 )
 
 var log = util.GetLogger("protosc")
+
+const (
+	releasesURL = "https://releases.protos.io/releases.json"
+)
 
 type publisher struct {
 	pubchan chan interface{}
@@ -108,4 +116,24 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 
 	return &protosClient, nil
 
+}
+
+func (pc *ProtosClient) GetProtosAvailableReleases() (release.Releases, error) {
+	var releases release.Releases
+	resp, err := http.Get(releasesURL)
+	if err != nil {
+		return releases, errors.Wrapf(err, "Failed to retrieve releases from '%s'", releasesURL)
+	}
+	defer resp.Body.Close()
+
+	err = json.NewDecoder(resp.Body).Decode(&releases)
+	if err != nil {
+		return releases, errors.Wrap(err, "Failed to JSON decode the releases response")
+	}
+
+	if len(releases.Releases) == 0 {
+		return releases, errors.Errorf("Something went wrong. Parsed 0 releases from '%s'", releasesURL)
+	}
+
+	return releases, nil
 }

@@ -30,6 +30,17 @@ service ProtosClientApi {
       returns (AddCloudProviderResponse);
   rpc RemoveCloudProvider(RemoveCloudProviderRequest)
       returns (RemoveCloudProviderResponse);
+
+  // Cloud instance methods
+  rpc GetInstances(GetInstancesRequest) returns (GetInstancesResponse);
+  rpc GetInstance(GetInstanceRequest) returns (GetInstanceResponse);
+  rpc DeployInstance(DeployInstanceRequest) returns (DeployInstanceResponse);
+  rpc RemoveInstance(RemoveInstanceRequest) returns (RemoveInstanceResponse);
+  rpc StartInstance(StartInstanceRequest) returns (StartInstanceResponse);
+  rpc StopInstance(StopInstanceRequest) returns (StopInstanceResponse);
+  rpc GetInstanceKey(GetInstanceKeyRequest) returns (GetInstanceKeyResponse);
+  rpc GetInstanceLogs(GetInstanceLogsRequest) returns (GetInstanceLogsResponse);
+  rpc InitDevInstance(InitDevInstanceRequest) returns (InitDevInstanceResponse);
 }
 
 message InitRequest {
@@ -139,3 +150,81 @@ message AddCloudProviderResponse {}
 
 message RemoveCloudProviderRequest { string name = 1; }
 message RemoveCloudProviderResponse {}
+
+//
+// Cloud instances
+//
+
+message CloudInstance {
+  string name = 1;
+  string public_ip = 2;
+  string internal_ip = 3;
+  string network = 4;
+  string cloud_name = 5;
+  string cloud_type = 6;
+  string vm_id = 7;
+  string location = 8;
+  string public_key = 9;
+  string protos_version = 10;
+}
+
+message GetInstancesRequest {}
+message GetInstancesResponse {
+  repeated CloudInstance instances = 1;
+}
+
+message GetInstanceRequest {
+  string name = 1;
+}
+message GetInstanceResponse {
+  CloudInstance instance = 1;
+}
+
+message DeployInstanceRequest {
+  string name = 1;
+  string cloud_name = 2;
+  string cloud_location = 3;
+  string machine_type = 4;
+  string protos_version = 5;
+  string dev_img = 6;
+}
+message DeployInstanceResponse {
+  CloudInstance instance = 1;
+}
+
+message RemoveInstanceRequest {
+  string name = 1;
+  bool local_only = 2;
+}
+message RemoveInstanceResponse {}
+
+message StartInstanceRequest {
+  string name = 1;
+}
+message StartInstanceResponse {}
+
+message StopInstanceRequest {
+  string name = 1;
+}
+message StopInstanceResponse {}
+
+message GetInstanceKeyRequest {
+  string name = 1;
+}
+message GetInstanceKeyResponse {
+  string key = 1;
+}
+
+message GetInstanceLogsRequest {
+  string name = 1;
+}
+message GetInstanceLogsResponse {
+  string logs = 1;
+}
+
+message InitDevInstanceRequest {
+  string name = 1;
+  string key_file = 2;
+  string ip = 3;
+}
+message InitDevInstanceResponse {}

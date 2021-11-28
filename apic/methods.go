@@ -8,6 +8,7 @@ import (
 	"github.com/denisbrodbeck/machineid"
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/release"
 )
 
 func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.InitResponse, error) {
@@ -305,4 +306,177 @@ func (b *Backend) RemoveCloudProvider(ctx context.Context, in *pbApic.RemoveClou
 	}
 
 	return &pbApic.RemoveCloudProviderResponse{}, nil
+}
+
+//
+// Cloud instance methods
+//
+
+func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesRequest) (*pbApic.GetInstancesResponse, error) {
+	log.Debugf("Retrieving instances")
+	instances, err := b.protosClient.CloudManager.GetInstances()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve instances: %w", err)
+	}
+
+	resp := pbApic.GetInstancesResponse{}
+	for _, instance := range instances {
+		key, err := b.protosClient.KeyManager.NewKeyFromSeed(instance.SSHKeySeed)
+		if err != nil {
+			return nil, fmt.Errorf("Instance '%s' has an invalid SSH key: %s", instance.Name, err)
+		}
+
+		respInstance := pbApic.CloudInstance{
+			Name:          instance.Name,
+			PublicIp:      instance.PublicIP,
+			InternalIp:    instance.InternalIP,
+			Network:       instance.Network,
+			CloudName:     instance.CloudName,
+			CloudType:     instance.CloudType,
+			VmId:          instance.VMID,
+			Location:      instance.Location,
+			PublicKey:     key.EncodePrivateKeytoPEM(),
+			ProtosVersion: instance.ProtosVersion,
+		}
+		resp.Instances = append(resp.Instances, &respInstance)
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest) (*pbApic.GetInstanceResponse, error) {
+	log.Debugf("Retrieving instance '%s'", in.Name)
+	instance, err := b.protosClient.CloudManager.GetInstance(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve instance '%s': %w", in.Name, err)
+	}
+
+	key, err := b.protosClient.KeyManager.NewKeyFromSeed(instance.SSHKeySeed)
+	if err != nil {
+		return nil, fmt.Errorf("Instance '%s' has an invalid SSH key: %s", instance.Name, err)
+	}
+
+	resp := pbApic.GetInstanceResponse{
+		Instance: &pbApic.CloudInstance{
+			Name:          instance.Name,
+			PublicIp:      instance.PublicIP,
+			InternalIp:    instance.InternalIP,
+			Network:       instance.Network,
+			CloudName:     instance.CloudName,
+			CloudType:     instance.CloudType,
+			VmId:          instance.VMID,
+			Location:      instance.Location,
+			PublicKey:     key.EncodePrivateKeytoPEM(),
+			ProtosVersion: instance.ProtosVersion,
+		},
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceRequest) (*pbApic.DeployInstanceResponse, error) {
+	log.Debugf("Deploying new instance '%s'", in.Name)
+
+	releases, err := b.protosClient.GetProtosAvailableReleases()
+	if err != nil {
+		return nil, err
+	}
+	rls := release.Release{}
+	if in.DevImg != "" {
+		rls.Version = in.DevImg
+	} else if in.ProtosVersion != "" {
+		rls, err = releases.GetVersion(in.ProtosVersion)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		rls, err = releases.GetLatest()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	instance, err := b.protosClient.CloudManager.DeployInstance(in.Name, in.CloudName, in.CloudLocation, rls, in.MachineType)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to deploy instance '%s': %w", in.Name, err)
+	}
+
+	resp := pbApic.DeployInstanceResponse{
+		Instance: &pbApic.CloudInstance{
+			Name:          instance.Name,
+			PublicIp:      instance.PublicIP,
+			InternalIp:    instance.InternalIP,
+			Network:       instance.Network,
+			CloudName:     instance.CloudName,
+			CloudType:     instance.CloudType,
+			VmId:          instance.VMID,
+			Location:      instance.Location,
+			PublicKey:     string(instance.PublicKey),
+			ProtosVersion: instance.ProtosVersion,
+		},
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceRequest) (*pbApic.RemoveInstanceResponse, error) {
+	err := b.protosClient.CloudManager.DeleteInstance(in.Name, in.LocalOnly)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to remove instance '%s': %w", in.Name, err)
+	}
+
+	return &pbApic.RemoveInstanceResponse{}, nil
+}
+
+func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceRequest) (*pbApic.StartInstanceResponse, error) {
+	err := b.protosClient.CloudManager.StartInstance(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to start instance '%s': %w", in.Name, err)
+	}
+	return &pbApic.StartInstanceResponse{}, nil
+}
+
+func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceRequest) (*pbApic.StopInstanceResponse, error) {
+	err := b.protosClient.CloudManager.StopInstance(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to stop instance '%s': %w", in.Name, err)
+	}
+	return &pbApic.StopInstanceResponse{}, nil
+}
+
+func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyRequest) (*pbApic.GetInstanceKeyResponse, error) {
+	instance, err := b.protosClient.CloudManager.GetInstance(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Could not retrieve instance '%s' key: %w", in.Name, err)
+	}
+	if len(instance.SSHKeySeed) == 0 {
+		return nil, fmt.Errorf("Instance '%s' is missing its SSH key", in.Name)
+	}
+	key, err := b.protosClient.KeyManager.NewKeyFromSeed(instance.SSHKeySeed)
+	if err != nil {
+		return nil, fmt.Errorf("Instance '%s' has an invalid SSH key: %w", in.Name, err)
+	}
+	return &pbApic.GetInstanceKeyResponse{Key: key.EncodePrivateKeytoPEM()}, nil
+}
+
+func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLogsRequest) (*pbApic.GetInstanceLogsResponse, error) {
+	logs, err := b.protosClient.CloudManager.LogsInstance(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Could not retrieve instance '%s' logs: %w", in.Name, err)
+	}
+
+	return &pbApic.GetInstanceLogsResponse{Logs: logs}, nil
+}
+
+func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("Could not initialize dev instance '%s': %w", in.Name, err)
+	}
+
+	err = b.protosClient.CloudManager.InitDevInstance(in.Name, hostname, hostname, in.KeyFile, in.Ip)
+	if err != nil {
+		return nil, fmt.Errorf("Could not initialize dev instance '%s': %w", in.Name, err)
+	}
+	return &pbApic.InitDevInstanceResponse{}, nil
 }

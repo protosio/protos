@@ -34,6 +34,16 @@ type ProtosClientApiClient interface {
 	GetCloudProvider(ctx context.Context, in *GetCloudProviderRequest, opts ...grpc.CallOption) (*GetCloudProviderResponse, error)
 	AddCloudProvider(ctx context.Context, in *AddCloudProviderRequest, opts ...grpc.CallOption) (*AddCloudProviderResponse, error)
 	RemoveCloudProvider(ctx context.Context, in *RemoveCloudProviderRequest, opts ...grpc.CallOption) (*RemoveCloudProviderResponse, error)
+	// Cloud instance methods
+	GetInstances(ctx context.Context, in *GetInstancesRequest, opts ...grpc.CallOption) (*GetInstancesResponse, error)
+	GetInstance(ctx context.Context, in *GetInstanceRequest, opts ...grpc.CallOption) (*GetInstanceResponse, error)
+	DeployInstance(ctx context.Context, in *DeployInstanceRequest, opts ...grpc.CallOption) (*DeployInstanceResponse, error)
+	RemoveInstance(ctx context.Context, in *RemoveInstanceRequest, opts ...grpc.CallOption) (*RemoveInstanceResponse, error)
+	StartInstance(ctx context.Context, in *StartInstanceRequest, opts ...grpc.CallOption) (*StartInstanceResponse, error)
+	StopInstance(ctx context.Context, in *StopInstanceRequest, opts ...grpc.CallOption) (*StopInstanceResponse, error)
+	GetInstanceKey(ctx context.Context, in *GetInstanceKeyRequest, opts ...grpc.CallOption) (*GetInstanceKeyResponse, error)
+	GetInstanceLogs(ctx context.Context, in *GetInstanceLogsRequest, opts ...grpc.CallOption) (*GetInstanceLogsResponse, error)
+	InitDevInstance(ctx context.Context, in *InitDevInstanceRequest, opts ...grpc.CallOption) (*InitDevInstanceResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -161,6 +171,87 @@ func (c *protosClientApiClient) RemoveCloudProvider(ctx context.Context, in *Rem
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetInstances(ctx context.Context, in *GetInstancesRequest, opts ...grpc.CallOption) (*GetInstancesResponse, error) {
+	out := new(GetInstancesResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetInstances", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetInstance(ctx context.Context, in *GetInstanceRequest, opts ...grpc.CallOption) (*GetInstanceResponse, error) {
+	out := new(GetInstanceResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) DeployInstance(ctx context.Context, in *DeployInstanceRequest, opts ...grpc.CallOption) (*DeployInstanceResponse, error) {
+	out := new(DeployInstanceResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/DeployInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) RemoveInstance(ctx context.Context, in *RemoveInstanceRequest, opts ...grpc.CallOption) (*RemoveInstanceResponse, error) {
+	out := new(RemoveInstanceResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/RemoveInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) StartInstance(ctx context.Context, in *StartInstanceRequest, opts ...grpc.CallOption) (*StartInstanceResponse, error) {
+	out := new(StartInstanceResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/StartInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) StopInstance(ctx context.Context, in *StopInstanceRequest, opts ...grpc.CallOption) (*StopInstanceResponse, error) {
+	out := new(StopInstanceResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/StopInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetInstanceKey(ctx context.Context, in *GetInstanceKeyRequest, opts ...grpc.CallOption) (*GetInstanceKeyResponse, error) {
+	out := new(GetInstanceKeyResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetInstanceKey", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetInstanceLogs(ctx context.Context, in *GetInstanceLogsRequest, opts ...grpc.CallOption) (*GetInstanceLogsResponse, error) {
+	out := new(GetInstanceLogsResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetInstanceLogs", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) InitDevInstance(ctx context.Context, in *InitDevInstanceRequest, opts ...grpc.CallOption) (*InitDevInstanceResponse, error) {
+	out := new(InitDevInstanceResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/InitDevInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProtosClientApiServer is the server API for ProtosClientApi service.
 // All implementations must embed UnimplementedProtosClientApiServer
 // for forward compatibility
@@ -181,6 +272,16 @@ type ProtosClientApiServer interface {
 	GetCloudProvider(context.Context, *GetCloudProviderRequest) (*GetCloudProviderResponse, error)
 	AddCloudProvider(context.Context, *AddCloudProviderRequest) (*AddCloudProviderResponse, error)
 	RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error)
+	// Cloud instance methods
+	GetInstances(context.Context, *GetInstancesRequest) (*GetInstancesResponse, error)
+	GetInstance(context.Context, *GetInstanceRequest) (*GetInstanceResponse, error)
+	DeployInstance(context.Context, *DeployInstanceRequest) (*DeployInstanceResponse, error)
+	RemoveInstance(context.Context, *RemoveInstanceRequest) (*RemoveInstanceResponse, error)
+	StartInstance(context.Context, *StartInstanceRequest) (*StartInstanceResponse, error)
+	StopInstance(context.Context, *StopInstanceRequest) (*StopInstanceResponse, error)
+	GetInstanceKey(context.Context, *GetInstanceKeyRequest) (*GetInstanceKeyResponse, error)
+	GetInstanceLogs(context.Context, *GetInstanceLogsRequest) (*GetInstanceLogsResponse, error)
+	InitDevInstance(context.Context, *InitDevInstanceRequest) (*InitDevInstanceResponse, error)
 	mustEmbedUnimplementedProtosClientApiServer()
 }
 
@@ -226,6 +327,33 @@ func (UnimplementedProtosClientApiServer) AddCloudProvider(context.Context, *Add
 }
 func (UnimplementedProtosClientApiServer) RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveCloudProvider not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetInstances(context.Context, *GetInstancesRequest) (*GetInstancesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstances not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetInstance(context.Context, *GetInstanceRequest) (*GetInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstance not implemented")
+}
+func (UnimplementedProtosClientApiServer) DeployInstance(context.Context, *DeployInstanceRequest) (*DeployInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeployInstance not implemented")
+}
+func (UnimplementedProtosClientApiServer) RemoveInstance(context.Context, *RemoveInstanceRequest) (*RemoveInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveInstance not implemented")
+}
+func (UnimplementedProtosClientApiServer) StartInstance(context.Context, *StartInstanceRequest) (*StartInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartInstance not implemented")
+}
+func (UnimplementedProtosClientApiServer) StopInstance(context.Context, *StopInstanceRequest) (*StopInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopInstance not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetInstanceKey(context.Context, *GetInstanceKeyRequest) (*GetInstanceKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstanceKey not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetInstanceLogs(context.Context, *GetInstanceLogsRequest) (*GetInstanceLogsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstanceLogs not implemented")
+}
+func (UnimplementedProtosClientApiServer) InitDevInstance(context.Context, *InitDevInstanceRequest) (*InitDevInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitDevInstance not implemented")
 }
 func (UnimplementedProtosClientApiServer) mustEmbedUnimplementedProtosClientApiServer() {}
 
@@ -474,6 +602,168 @@ func _ProtosClientApi_RemoveCloudProvider_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetInstances_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstancesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetInstances(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetInstances",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetInstances(ctx, req.(*GetInstancesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetInstance(ctx, req.(*GetInstanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_DeployInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeployInstanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).DeployInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/DeployInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).DeployInstance(ctx, req.(*DeployInstanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_RemoveInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveInstanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).RemoveInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/RemoveInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).RemoveInstance(ctx, req.(*RemoveInstanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_StartInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartInstanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).StartInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/StartInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).StartInstance(ctx, req.(*StartInstanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_StopInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopInstanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).StopInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/StopInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).StopInstance(ctx, req.(*StopInstanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetInstanceKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstanceKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetInstanceKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetInstanceKey",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetInstanceKey(ctx, req.(*GetInstanceKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetInstanceLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstanceLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetInstanceLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetInstanceLogs",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetInstanceLogs(ctx, req.(*GetInstanceLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_InitDevInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitDevInstanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).InitDevInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/InitDevInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).InitDevInstance(ctx, req.(*InitDevInstanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProtosClientApi_ServiceDesc is the grpc.ServiceDesc for ProtosClientApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -532,6 +822,42 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveCloudProvider",
 			Handler:    _ProtosClientApi_RemoveCloudProvider_Handler,
+		},
+		{
+			MethodName: "GetInstances",
+			Handler:    _ProtosClientApi_GetInstances_Handler,
+		},
+		{
+			MethodName: "GetInstance",
+			Handler:    _ProtosClientApi_GetInstance_Handler,
+		},
+		{
+			MethodName: "DeployInstance",
+			Handler:    _ProtosClientApi_DeployInstance_Handler,
+		},
+		{
+			MethodName: "RemoveInstance",
+			Handler:    _ProtosClientApi_RemoveInstance_Handler,
+		},
+		{
+			MethodName: "StartInstance",
+			Handler:    _ProtosClientApi_StartInstance_Handler,
+		},
+		{
+			MethodName: "StopInstance",
+			Handler:    _ProtosClientApi_StopInstance_Handler,
+		},
+		{
+			MethodName: "GetInstanceKey",
+			Handler:    _ProtosClientApi_GetInstanceKey_Handler,
+		},
+		{
+			MethodName: "GetInstanceLogs",
+			Handler:    _ProtosClientApi_GetInstanceLogs_Handler,
+		},
+		{
+			MethodName: "InitDevInstance",
+			Handler:    _ProtosClientApi_InitDevInstance_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
