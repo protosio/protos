@@ -44,6 +44,11 @@ type ProtosClientApiClient interface {
 	GetInstanceKey(ctx context.Context, in *GetInstanceKeyRequest, opts ...grpc.CallOption) (*GetInstanceKeyResponse, error)
 	GetInstanceLogs(ctx context.Context, in *GetInstanceLogsRequest, opts ...grpc.CallOption) (*GetInstanceLogsResponse, error)
 	InitDevInstance(ctx context.Context, in *InitDevInstanceRequest, opts ...grpc.CallOption) (*InitDevInstanceResponse, error)
+	// Releases methods
+	GetProtosdReleases(ctx context.Context, in *GetProtosdReleasesRequest, opts ...grpc.CallOption) (*GetProtosdReleasesResponse, error)
+	GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error)
+	UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error)
+	RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -252,6 +257,42 @@ func (c *protosClientApiClient) InitDevInstance(ctx context.Context, in *InitDev
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetProtosdReleases(ctx context.Context, in *GetProtosdReleasesRequest, opts ...grpc.CallOption) (*GetProtosdReleasesResponse, error) {
+	out := new(GetProtosdReleasesResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetProtosdReleases", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error) {
+	out := new(GetCloudImagesResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetCloudImages", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error) {
+	out := new(UploadCloudImageResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/UploadCloudImage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error) {
+	out := new(RemoveCloudImageResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/RemoveCloudImage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProtosClientApiServer is the server API for ProtosClientApi service.
 // All implementations must embed UnimplementedProtosClientApiServer
 // for forward compatibility
@@ -282,6 +323,11 @@ type ProtosClientApiServer interface {
 	GetInstanceKey(context.Context, *GetInstanceKeyRequest) (*GetInstanceKeyResponse, error)
 	GetInstanceLogs(context.Context, *GetInstanceLogsRequest) (*GetInstanceLogsResponse, error)
 	InitDevInstance(context.Context, *InitDevInstanceRequest) (*InitDevInstanceResponse, error)
+	// Releases methods
+	GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error)
+	GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error)
+	UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error)
+	RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error)
 	mustEmbedUnimplementedProtosClientApiServer()
 }
 
@@ -354,6 +400,18 @@ func (UnimplementedProtosClientApiServer) GetInstanceLogs(context.Context, *GetI
 }
 func (UnimplementedProtosClientApiServer) InitDevInstance(context.Context, *InitDevInstanceRequest) (*InitDevInstanceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitDevInstance not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetProtosdReleases not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCloudImages not implemented")
+}
+func (UnimplementedProtosClientApiServer) UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UploadCloudImage not implemented")
+}
+func (UnimplementedProtosClientApiServer) RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveCloudImage not implemented")
 }
 func (UnimplementedProtosClientApiServer) mustEmbedUnimplementedProtosClientApiServer() {}
 
@@ -764,6 +822,78 @@ func _ProtosClientApi_InitDevInstance_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetProtosdReleases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProtosdReleasesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetProtosdReleases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetProtosdReleases",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetProtosdReleases(ctx, req.(*GetProtosdReleasesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetCloudImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCloudImagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetCloudImages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetCloudImages",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetCloudImages(ctx, req.(*GetCloudImagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_UploadCloudImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadCloudImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).UploadCloudImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/UploadCloudImage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).UploadCloudImage(ctx, req.(*UploadCloudImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_RemoveCloudImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveCloudImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).RemoveCloudImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/RemoveCloudImage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).RemoveCloudImage(ctx, req.(*RemoveCloudImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProtosClientApi_ServiceDesc is the grpc.ServiceDesc for ProtosClientApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -858,6 +988,22 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InitDevInstance",
 			Handler:    _ProtosClientApi_InitDevInstance_Handler,
+		},
+		{
+			MethodName: "GetProtosdReleases",
+			Handler:    _ProtosClientApi_GetProtosdReleases_Handler,
+		},
+		{
+			MethodName: "GetCloudImages",
+			Handler:    _ProtosClientApi_GetCloudImages_Handler,
+		},
+		{
+			MethodName: "UploadCloudImage",
+			Handler:    _ProtosClientApi_UploadCloudImage_Handler,
+		},
+		{
+			MethodName: "RemoveCloudImage",
+			Handler:    _ProtosClientApi_RemoveCloudImage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

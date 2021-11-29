@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 	"text/tabwriter"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
@@ -705,6 +706,50 @@ func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
 		instances = append(instances, instance)
 	}
 	return instances, nil
+}
+
+// UploadLocalImage uploads a local Protosd image to a specific cloud
+func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudName string, cloudLocation string, timeout time.Duration) error {
+	errMsg := fmt.Sprintf("Failed to upload local image '%s' to cloud '%s'", imagePath, cloudName)
+	// check local image file
+	finfo, err := os.Stat(imagePath)
+	if err != nil {
+		return fmt.Errorf("%s: %w", errMsg, err)
+	}
+	if finfo.IsDir() {
+		return fmt.Errorf("%s: Path '%s' is a directory", errMsg, imagePath)
+	}
+	if finfo.Size() == 0 {
+		return fmt.Errorf("%s: Image '%s' has 0 bytes", errMsg, imagePath)
+	}
+
+	provider, err := cm.GetProvider(cloudName)
+	if err != nil {
+		return fmt.Errorf("%s: %w", errMsg, err)
+	}
+
+	err = provider.Init()
+	if err != nil {
+		return fmt.Errorf("%s: %w", errMsg, err)
+	}
+
+	// find image
+	images, err := provider.GetImages()
+	if err != nil {
+		return fmt.Errorf("%s: %w", errMsg, err)
+	}
+	for _, img := range images {
+		if img.Location == cloudLocation && img.Name == imageName {
+			return fmt.Errorf("%s: Found an image with the same name", errMsg)
+		}
+	}
+
+	// upload image
+	_, err = provider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
+	if err != nil {
+		return fmt.Errorf("%s: %w", errMsg, err)
+	}
+	return nil
 }
 
 // CreateManager creates and returns a cloud manager

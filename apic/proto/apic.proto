@@ -41,6 +41,15 @@ service ProtosClientApi {
   rpc GetInstanceKey(GetInstanceKeyRequest) returns (GetInstanceKeyResponse);
   rpc GetInstanceLogs(GetInstanceLogsRequest) returns (GetInstanceLogsResponse);
   rpc InitDevInstance(InitDevInstanceRequest) returns (InitDevInstanceResponse);
+
+  // Releases methods
+  rpc GetProtosdReleases(GetProtosdReleasesRequest)
+      returns (GetProtosdReleasesResponse);
+  rpc GetCloudImages(GetCloudImagesRequest) returns (GetCloudImagesResponse);
+  rpc UploadCloudImage(UploadCloudImageRequest)
+      returns (UploadCloudImageResponse);
+  rpc RemoveCloudImage(RemoveCloudImageRequest)
+      returns (RemoveCloudImageResponse);
 }
 
 message InitRequest {
@@ -169,16 +178,10 @@ message CloudInstance {
 }
 
 message GetInstancesRequest {}
-message GetInstancesResponse {
-  repeated CloudInstance instances = 1;
-}
+message GetInstancesResponse { repeated CloudInstance instances = 1; }
 
-message GetInstanceRequest {
-  string name = 1;
-}
-message GetInstanceResponse {
-  CloudInstance instance = 1;
-}
+message GetInstanceRequest { string name = 1; }
+message GetInstanceResponse { CloudInstance instance = 1; }
 
 message DeployInstanceRequest {
   string name = 1;
@@ -188,9 +191,7 @@ message DeployInstanceRequest {
   string protos_version = 5;
   string dev_img = 6;
 }
-message DeployInstanceResponse {
-  CloudInstance instance = 1;
-}
+message DeployInstanceResponse { CloudInstance instance = 1; }
 
 message RemoveInstanceRequest {
   string name = 1;
@@ -198,29 +199,17 @@ message RemoveInstanceRequest {
 }
 message RemoveInstanceResponse {}
 
-message StartInstanceRequest {
-  string name = 1;
-}
+message StartInstanceRequest { string name = 1; }
 message StartInstanceResponse {}
 
-message StopInstanceRequest {
-  string name = 1;
-}
+message StopInstanceRequest { string name = 1; }
 message StopInstanceResponse {}
 
-message GetInstanceKeyRequest {
-  string name = 1;
-}
-message GetInstanceKeyResponse {
-  string key = 1;
-}
+message GetInstanceKeyRequest { string name = 1; }
+message GetInstanceKeyResponse { string key = 1; }
 
-message GetInstanceLogsRequest {
-  string name = 1;
-}
-message GetInstanceLogsResponse {
-  string logs = 1;
-}
+message GetInstanceLogsRequest { string name = 1; }
+message GetInstanceLogsResponse { string logs = 1; }
 
 message InitDevInstanceRequest {
   string name = 1;
@@ -228,3 +217,51 @@ message InitDevInstanceRequest {
   string ip = 3;
 }
 message InitDevInstanceResponse {}
+
+//
+// Releases methods
+//
+
+message CloudImage {
+  string provider = 1;
+  string url = 2;
+  string digest = 3;
+  int64 release_date = 4;
+}
+
+message CloudSpecificImage {
+  string id = 1;
+  string name = 2;
+  string location = 3;
+}
+
+message Release {
+  map<string, CloudImage> cloud_images = 1;
+  string version = 2;
+  string description = 3;
+  int64 release_date = 4;
+}
+
+message GetProtosdReleasesRequest {}
+message GetProtosdReleasesResponse { repeated Release releases = 1; }
+
+message GetCloudImagesRequest { string name = 1; }
+message GetCloudImagesResponse {
+  map<string, CloudSpecificImage> cloud_images = 1;
+}
+
+message UploadCloudImageRequest {
+  string image_path = 1;
+  string image_name = 2;
+  string cloud_name = 3;
+  string cloud_location = 4;
+  int32 timeout = 5;
+}
+message UploadCloudImageResponse {}
+
+message RemoveCloudImageRequest {
+  string image_name = 2;
+  string cloud_name = 3;
+  string cloud_location = 4;
+}
+message RemoveCloudImageResponse {}

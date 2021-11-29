@@ -33,6 +33,7 @@ type CloudManager interface {
 	GetProviders() ([]CloudProvider, error)
 	NewProvider(cloudName string, cloud string) (CloudProvider, error)
 	DeleteProvider(name string) error
+	UploadLocalImage(imagePath string, imageName string, cloudName string, cloudLocation string, timeout time.Duration) error
 
 	// instance methods
 	DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error)

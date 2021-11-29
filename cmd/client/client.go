@@ -40,6 +40,7 @@ func main() {
 			cmdApp,
 			cmdCloud,
 			cmdInstance,
+			cmdRelease,
 		},
 	}
 

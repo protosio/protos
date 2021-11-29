@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/denisbrodbeck/machineid"
 	pbApic "github.com/protosio/protos/apic/proto"
@@ -420,6 +421,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 }
 
 func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceRequest) (*pbApic.RemoveInstanceResponse, error) {
+	log.Debugf("Removing instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.DeleteInstance(in.Name, in.LocalOnly)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to remove instance '%s': %w", in.Name, err)
@@ -429,6 +431,7 @@ func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceR
 }
 
 func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceRequest) (*pbApic.StartInstanceResponse, error) {
+	log.Debugf("Starting instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.StartInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to start instance '%s': %w", in.Name, err)
@@ -437,6 +440,7 @@ func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceReq
 }
 
 func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceRequest) (*pbApic.StopInstanceResponse, error) {
+	log.Debugf("Stopping instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.StopInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to stop instance '%s': %w", in.Name, err)
@@ -445,6 +449,7 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 }
 
 func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyRequest) (*pbApic.GetInstanceKeyResponse, error) {
+	log.Debugf("Retrieving key for instance '%s'", in.Name)
 	instance, err := b.protosClient.CloudManager.GetInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Could not retrieve instance '%s' key: %w", in.Name, err)
@@ -460,6 +465,7 @@ func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyR
 }
 
 func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLogsRequest) (*pbApic.GetInstanceLogsResponse, error) {
+	log.Debugf("Retrieving logs for instance '%s'", in.Name)
 	logs, err := b.protosClient.CloudManager.LogsInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Could not retrieve instance '%s' logs: %w", in.Name, err)
@@ -469,6 +475,7 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 }
 
 func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {
+	log.Debugf("Initializing dev instance '%s' at '%s'", in.Name, in.Ip)
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("Could not initialize dev instance '%s': %w", in.Name, err)
@@ -479,4 +486,92 @@ func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanc
 		return nil, fmt.Errorf("Could not initialize dev instance '%s': %w", in.Name, err)
 	}
 	return &pbApic.InitDevInstanceResponse{}, nil
+}
+
+//
+// Releases methods
+//
+
+func (b *Backend) GetProtosdReleases(ctx context.Context, in *pbApic.GetProtosdReleasesRequest) (*pbApic.GetProtosdReleasesResponse, error) {
+	log.Debug("Retrieving Protosd releases")
+	releases, err := b.protosClient.GetProtosAvailableReleases()
+	if err != nil {
+		return nil, err
+	}
+
+	resp := pbApic.GetProtosdReleasesResponse{}
+	for _, release := range releases.Releases {
+		respCloudImages := map[string]*pbApic.CloudImage{}
+		for n, ci := range release.CloudImages {
+			respCloudImage := pbApic.CloudImage{
+				Provider:    ci.Provider,
+				Digest:      ci.Digest,
+				Url:         ci.URL,
+				ReleaseDate: ci.ReleaseDate.Unix(),
+			}
+			respCloudImages[n] = &respCloudImage
+		}
+		respRelease := pbApic.Release{
+			CloudImages: respCloudImages,
+			Version:     release.Version,
+			Description: release.Description,
+			ReleaseDate: release.ReleaseDate.Unix(),
+		}
+		resp.Releases = append(resp.Releases, &respRelease)
+	}
+	return &resp, nil
+}
+
+func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesRequest) (*pbApic.GetCloudImagesResponse, error) {
+	log.Debugf("Retrieving cloud images from cloud '%s'", in.Name)
+	provider, err := b.protosClient.CloudManager.GetProvider(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Could not retrieve cloud '%s': %w", in.Name, err)
+	}
+
+	err = provider.Init()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to connect to cloud provider '%s'(%s) API: %w", in.Name, provider.TypeStr(), err)
+	}
+
+	images, err := provider.GetProtosImages()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve cloud images from cloud '%s': %w", in.Name, err)
+	}
+	resp := pbApic.GetCloudImagesResponse{}
+	for id, image := range images {
+		respImage := pbApic.CloudSpecificImage{
+			Id:       image.ID,
+			Name:     image.Name,
+			Location: image.Location,
+		}
+		resp.CloudImages[id] = &respImage
+	}
+	return &resp, nil
+}
+
+func (b *Backend) UploadCloudImage(ctx context.Context, in *pbApic.UploadCloudImageRequest) (*pbApic.UploadCloudImageResponse, error) {
+	log.Debugf("Uploading cloud image '%s'(%s) to cloud '%s'", in.ImageName, in.ImagePath, in.CloudName)
+	return &pbApic.UploadCloudImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Second)
+}
+
+func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudImageRequest) (*pbApic.RemoveCloudImageResponse, error) {
+	log.Debugf("Removing cloud image '%s' from cloud '%s'", in.ImageName, in.CloudName)
+	errMsg := fmt.Sprintf("Failed to delete image '%s' from cloud '%s'", in.ImageName, in.CloudLocation)
+	provider, err := b.protosClient.CloudManager.GetProvider(in.CloudName)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", errMsg, err)
+	}
+
+	err = provider.Init()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", errMsg, err)
+	}
+
+	// delete image
+	err = provider.RemoveImage(in.ImageName, in.CloudLocation)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", errMsg, err)
+	}
+	return &pbApic.RemoveCloudImageResponse{}, nil
 }
