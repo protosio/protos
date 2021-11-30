@@ -10,6 +10,6 @@ function finish {
 }
 trap finish EXIT
 
-cp -R ${SCRIPTPATH}/../{cmd,configs,internal,pkg,go.mod,go.sum} ${SCRIPTPATH}/src/
+cp -R ${SCRIPTPATH}/../{apic,cmd,configs,internal,pkg,go.mod,go.sum} ${SCRIPTPATH}/src/
 linuxkit pkg build -disable-cache $SCRIPTPATH
 
