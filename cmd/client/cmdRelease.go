@@ -162,7 +162,7 @@ func listProtosCloudImages(cloudName string) error {
 }
 
 func uploadLocalImageToCloud(imagePath string, imageName string, cloudName string, cloudLocation string, timeout int32) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Second)
 	defer cancel()
 	_, err := client.UploadCloudImage(ctx, &apic.UploadCloudImageRequest{ImagePath: imagePath, ImageName: imageName, CloudName: cloudName, CloudLocation: cloudLocation, Timeout: timeout})
 	if err != nil {
@@ -173,7 +173,7 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 }
 
 func deleteImageFromCloud(imageName string, cloudName string, cloudLocation string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := client.RemoveCloudImage(ctx, &apic.RemoveCloudImageRequest{ImageName: imageName, CloudName: cloudName, CloudLocation: cloudLocation})
 	if err != nil {
