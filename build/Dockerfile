@@ -5,7 +5,7 @@ ENV GOPATH=/go PATH=$PATH:/go/bin
 ADD ./src /go/src/github.com/protos
 WORKDIR /go/src/github.com/protos
 RUN apk --update add git
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-w -extldflags "-static"' -o bin/protosd cmd/protosd/protos.go
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-w -extldflags "-static"' -o bin/protosd cmd/protosd/protosd.go
 RUN mkdir /root/tmp
 
 
