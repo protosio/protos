@@ -305,7 +305,7 @@ func (db *dbNoms) SaveStruct(dataset string, data interface{}) error {
 
 	_, err = db.dbn.CommitValue(ds, mapHead.Edit().Set(types.String(dataset), marshaled).Map())
 	if err != nil {
-		return fmt.Errorf("Error committing: %w", err)
+		return fmt.Errorf("Error committing to DB: %w", err)
 	}
 	return nil
 }
@@ -316,12 +316,12 @@ func (db *dbNoms) GetStruct(dataset string, to interface{}) error {
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Struct dataset '%s' not found", dataset)
+		return fmt.Errorf("Db struct dataset '%s' not found", dataset)
 	}
 
 	err := marshal.Unmarshal(iv.Value(), to)
 	if err != nil {
-		return fmt.Errorf("Failed to unmarshall: %w", err)
+		return fmt.Errorf("Failed to unmarshall data from db: %w", err)
 	}
 	return nil
 }
@@ -332,14 +332,14 @@ func (db *dbNoms) GetMap(dataset string, to interface{}) error {
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Map dataset '%s' not found", dataset)
+		return fmt.Errorf("Db map dataset '%s' not found", dataset)
 	}
 
 	mapi := iv.(types.Map)
 
 	err := marshal.Unmarshal(mapi.Value(), to)
 	if err != nil {
-		return fmt.Errorf("Failed to unmarshall: %w", err)
+		return fmt.Errorf("Failed to unmarshall data from db: %w", err)
 	}
 
 	return nil
@@ -351,7 +351,7 @@ func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Map dataset '%s' not found", dataset)
+		return fmt.Errorf("Db map dataset '%s' not found", dataset)
 	}
 
 	mapi := iv.(types.Map)
@@ -365,7 +365,7 @@ func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error
 	newMapHead := mapHead.Edit().Set(types.String(dataset), marshal.MustMarshal(db.dbn, newMapi)).Map()
 	_, err = db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
 	if err != nil {
-		return fmt.Errorf("Error committing: %w", err)
+		return fmt.Errorf("Error committing to db: %w", err)
 	}
 	return nil
 }
@@ -376,7 +376,7 @@ func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Map dataset '%s' not found", dataset)
+		return fmt.Errorf("Db map dataset '%s' not found", dataset)
 	}
 
 	mapi := iv.(types.Map)
@@ -385,14 +385,14 @@ func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 	newMapHead := mapHead.Edit().Set(types.String(dataset), marshal.MustMarshal(db.dbn, newMapi)).Map()
 	_, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
 	if err != nil {
-		return fmt.Errorf("Error committing: %w", err)
+		return fmt.Errorf("Error committing to db: %w", err)
 	}
 	return nil
 }
 
 // InitMap initializes a map dataset in the db
 func (db *dbNoms) InitMap(name string, sync bool) error {
-	log.Tracef("Initializing map '%s' (sync: '%t')", name, sync)
+	log.Tracef("Initializing db map '%s' (sync: '%t')", name, sync)
 	var ds datas.Dataset
 	var mapHead types.Map
 	if sync {
@@ -413,7 +413,7 @@ func (db *dbNoms) InitMap(name string, sync bool) error {
 	newMapHead := mapHead.Edit().Set(types.String(name), marshal.MustMarshal(db.dbn, mapNew)).Map()
 	_, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
 	if err != nil {
-		return fmt.Errorf("Error committing map '%s': %w", name, err)
+		return fmt.Errorf("Error committing map '%s' to db: %w", name, err)
 	}
 
 	return nil
