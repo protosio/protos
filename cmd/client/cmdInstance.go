@@ -84,7 +84,7 @@ var cmdInstance *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				return deployInstance(name, cloudName, cloudLocation, protosVersion, machineType)
+				return deployInstance(name, cloudName, cloudLocation, protosVersion, machineType, devImg)
 			},
 		},
 		{
@@ -246,10 +246,10 @@ func infoInstance(instanceName string) error {
 	return nil
 }
 
-func deployInstance(instanceName string, cloudName string, cloudLocation string, protosVersion string, machineType string) error {
+func deployInstance(instanceName string, cloudName string, cloudLocation string, protosVersion string, machineType string, devImage string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Second)
 	defer cancel()
-	resp, err := client.DeployInstance(ctx, &apic.DeployInstanceRequest{Name: instanceName, CloudName: cloudName, CloudLocation: cloudLocation, ProtosVersion: protosVersion, MachineType: machineType})
+	resp, err := client.DeployInstance(ctx, &apic.DeployInstanceRequest{Name: instanceName, CloudName: cloudName, CloudLocation: cloudLocation, ProtosVersion: protosVersion, MachineType: machineType, DevImg: devImage})
 	if err != nil {
 		return fmt.Errorf("Could not deploy instance '%s': %w", instanceName, err)
 	}
