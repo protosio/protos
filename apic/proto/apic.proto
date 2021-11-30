@@ -3,7 +3,7 @@ syntax = "proto3";
 
 package apic;
 
-option go_package = "github.com/protosio/protos/internal/apic;apic";
+option go_package = "github.com/protosio/protos/internal/apic;proto";
 
 service ProtosClientApi {
   rpc Init(InitRequest) returns (InitResponse);
