@@ -27,6 +27,13 @@ const (
 	netSpace   = "10.100.0.0/16"
 )
 
+const (
+	ServerStateRunning  = "running"
+	ServerStateStopped  = "stopped"
+	ServerStateOther    = "other"
+	ServerStateChanging = "changing"
+)
+
 // InstanceInfo holds information about a cloud instance
 type InstanceInfo struct {
 	VMID          string
@@ -40,6 +47,7 @@ type InstanceInfo struct {
 	Location      string
 	Network       string
 	ProtosVersion string
+	Status        string
 	Volumes       []VolumeInfo
 }
 
@@ -526,14 +534,16 @@ func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 			return errors.Wrapf(err, "Could not init cloud '%s'", name)
 		}
 
-		log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
-		err = provider.StopInstance(instance.VMID, instance.Location)
-		if err != nil {
-			return errors.Wrapf(err, "Could not stop instance '%s'", name)
-		}
 		vmInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to get details for instance '%s'", name)
+		}
+		if vmInfo.Status == ServerStateRunning {
+			log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
+			err = provider.StopInstance(instance.VMID, instance.Location)
+			if err != nil {
+				return errors.Wrapf(err, "Could not stop instance '%s'", name)
+			}
 		}
 		log.Infof("Deleting instance '%s' (%s)", instance.Name, instance.VMID)
 		err = provider.DeleteInstance(instance.VMID, instance.Location)
@@ -688,6 +698,19 @@ func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 	}
 	for _, instance := range instances {
 		if instance.Name == name {
+			provider, err := cm.GetProvider(instance.CloudName)
+			if err != nil {
+				return InstanceInfo{}, err
+			}
+			err = provider.Init()
+			if err != nil {
+				return InstanceInfo{}, err
+			}
+			instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
+			if err != nil {
+				return InstanceInfo{}, err
+			}
+			instance.Status = instanceInfo.Status
 			return instance, nil
 		}
 	}

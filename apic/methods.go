@@ -369,6 +369,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			Location:      instance.Location,
 			PublicKey:     key.EncodePrivateKeytoPEM(),
 			ProtosVersion: instance.ProtosVersion,
+			Status:        instance.Status,
 		},
 	}
 
@@ -414,6 +415,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 			Location:      instance.Location,
 			PublicKey:     string(instance.PublicKey),
 			ProtosVersion: instance.ProtosVersion,
+			Status:        instance.Status,
 		},
 	}
 

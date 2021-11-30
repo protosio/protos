@@ -51,6 +51,23 @@ func newScalewayClient(pi *ProviderInfo, cm *Manager) *scaleway {
 	return &scaleway{name: pi.Name, pi: pi, cm: cm}
 }
 
+func transformStatus(status instance.ServerState) string {
+	var instanceStatus string
+	switch status {
+	case instance.ServerStateRunning:
+		instanceStatus = ServerStateRunning
+	case instance.ServerStateStopped:
+		instanceStatus = ServerStateStopped
+	case instance.ServerStateStarting:
+		instanceStatus = ServerStateChanging
+	case instance.ServerStateStopping:
+		instanceStatus = ServerStateChanging
+	default:
+		instanceStatus = ServerStateOther
+	}
+	return instanceStatus
+}
+
 //
 // Config methods
 //
@@ -260,7 +277,7 @@ func (sw *scaleway) GetInstanceInfo(id string, location string) (InstanceInfo, e
 	if err != nil {
 		return InstanceInfo{}, errors.Wrapf(err, "Failed to retrieve Scaleway instance (%s) information", id)
 	}
-	info := InstanceInfo{VMID: id, Name: resp.Server.Name, CloudName: sw.name, CloudType: Scaleway.String(), Location: string(scw.Zone(location))}
+	info := InstanceInfo{VMID: id, Name: resp.Server.Name, CloudName: sw.name, CloudType: Scaleway.String(), Location: string(scw.Zone(location)), Status: transformStatus(resp.Server.State)}
 	if resp.Server.PublicIP != nil {
 		info.PublicIP = resp.Server.PublicIP.Address.String()
 	}

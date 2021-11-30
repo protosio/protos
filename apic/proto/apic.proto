@@ -175,6 +175,7 @@ message CloudInstance {
   string location = 8;
   string public_key = 9;
   string protos_version = 10;
+  string status = 11;
 }
 
 message GetInstancesRequest {}

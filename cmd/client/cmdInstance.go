@@ -60,7 +60,7 @@ var cmdInstance *cli.Command = &cli.Command{
 				},
 				&cli.StringFlag{
 					Name:        "version",
-					Usage:       "Specify Protos `VERSION` to deploy",
+					Usage:       "Specify Protosd `VERSION` to deploy",
 					Required:    false,
 					Destination: &protosVersion,
 				},
@@ -242,13 +242,14 @@ func infoInstance(instanceName string) error {
 	fmt.Printf("Cloud name: %s\n", instance.CloudName)
 	fmt.Printf("Location: %s\n", instance.Location)
 	fmt.Printf("Protosd version: %s\n", instance.ProtosVersion)
+	fmt.Printf("Status: %s\n", instance.Status)
 	return nil
 }
 
 func deployInstance(instanceName string, cloudName string, cloudLocation string, protosVersion string, machineType string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Second)
 	defer cancel()
-	resp, err := client.DeployInstance(ctx, &apic.DeployInstanceRequest{Name: instanceName, CloudName: cloudName, CloudLocation: cloudLocation, ProtosVersion: protosVersion})
+	resp, err := client.DeployInstance(ctx, &apic.DeployInstanceRequest{Name: instanceName, CloudName: cloudName, CloudLocation: cloudLocation, ProtosVersion: protosVersion, MachineType: machineType})
 	if err != nil {
 		return fmt.Errorf("Could not deploy instance '%s': %w", instanceName, err)
 	}
@@ -263,11 +264,12 @@ func deployInstance(instanceName string, cloudName string, cloudLocation string,
 	fmt.Printf("Cloud name: %s\n", instance.CloudName)
 	fmt.Printf("Location: %s\n", instance.Location)
 	fmt.Printf("Protosd version: %s\n", instance.ProtosVersion)
+	fmt.Printf("Status: %s\n", instance.Status)
 	return nil
 }
 
 func deleteInstance(instanceName string, localOnly bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Second)
 	defer cancel()
 	_, err := client.RemoveInstance(ctx, &apic.RemoveInstanceRequest{Name: instanceName, LocalOnly: localOnly})
 	if err != nil {
@@ -277,7 +279,7 @@ func deleteInstance(instanceName string, localOnly bool) error {
 }
 
 func startInstance(instanceName string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
 	_, err := client.StartInstance(ctx, &apic.StartInstanceRequest{Name: instanceName})
 	if err != nil {
@@ -287,7 +289,7 @@ func startInstance(instanceName string) error {
 }
 
 func stopInstance(instanceName string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
 	_, err := client.StopInstance(ctx, &apic.StopInstanceRequest{Name: instanceName})
 	if err != nil {
