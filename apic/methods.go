@@ -2,6 +2,7 @@ package apic
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"time"
@@ -352,11 +353,6 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		return nil, fmt.Errorf("Failed to retrieve instance '%s': %w", in.Name, err)
 	}
 
-	key, err := b.protosClient.KeyManager.NewKeyFromSeed(instance.SSHKeySeed)
-	if err != nil {
-		return nil, fmt.Errorf("Instance '%s' has an invalid SSH key: %s", instance.Name, err)
-	}
-
 	resp := pbApic.GetInstanceResponse{
 		Instance: &pbApic.CloudInstance{
 			Name:          instance.Name,
@@ -367,7 +363,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			CloudType:     instance.CloudType,
 			VmId:          instance.VMID,
 			Location:      instance.Location,
-			PublicKey:     key.EncodePrivateKeytoPEM(),
+			PublicKey:     base64.StdEncoding.EncodeToString(instance.PublicKey),
 			ProtosVersion: instance.ProtosVersion,
 			Status:        instance.Status,
 		},
@@ -413,7 +409,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 			CloudType:     instance.CloudType,
 			VmId:          instance.VMID,
 			Location:      instance.Location,
-			PublicKey:     string(instance.PublicKey),
+			PublicKey:     base64.StdEncoding.EncodeToString(instance.PublicKey),
 			ProtosVersion: instance.ProtosVersion,
 			Status:        instance.Status,
 		},
