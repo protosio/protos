@@ -573,3 +573,17 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 	}
 	return &pbApic.RemoveCloudImageResponse{}, nil
 }
+
+//
+// VPN methods
+//
+
+func (b *Backend) StartVPN(ctx context.Context, in *pbApic.StartVPNRequest) (*pbApic.StartVPNResponse, error) {
+	log.Debug("Starting VPN")
+	return &pbApic.StartVPNResponse{}, b.protosClient.VPNManager.Start()
+}
+
+func (b *Backend) StopVPN(ctx context.Context, in *pbApic.StopVPNRequest) (*pbApic.StopVPNResponse, error) {
+	log.Debug("Starting VPN")
+	return &pbApic.StopVPNResponse{}, b.protosClient.VPNManager.Stop()
+}

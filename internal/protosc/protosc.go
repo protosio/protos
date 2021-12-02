@@ -23,6 +23,7 @@ import (
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
+	"github.com/protosio/protos/internal/vpn"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -48,6 +49,7 @@ type ProtosClient struct {
 	AppManager   *app.Manager
 	AppStore     *installer.AppStore
 	CloudManager *cloud.Manager
+	VPNManager   *vpn.VPN
 }
 
 func New(dataPath string, version string) (*ProtosClient, error) {
@@ -105,6 +107,10 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
 	cloudManager := cloud.CreateManager(dbi, userManager, keyManager, p2pManager)
+	vpn, err := vpn.New(dbi, userManager, cloudManager, keyManager)
+	if err != nil {
+		log.Fatalf("Failed to create VPN manager: %s", err.Error())
+	}
 
 	protosClient := ProtosClient{
 		UserManager:  userManager,
@@ -112,6 +118,7 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 		AppManager:   appManager,
 		AppStore:     appStore,
 		CloudManager: cloudManager,
+		VPNManager:   vpn,
 	}
 
 	return &protosClient, nil
