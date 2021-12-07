@@ -15,6 +15,11 @@ remove_tun() {
     rm -f $WG_DIR/$TUN_IFACE.sock && rm -f $WG_DIR/$1.name
 }
 
+check_uid() {
+    [[ $UID == 0 ]] || echo "Please run this script as root"
+    exit 1
+}
+
 help() {
         echo "Usage: $PROGRAM [ up | down ] INTERFACE"
 }
@@ -23,8 +28,10 @@ help() {
 if [[ $# -eq 1 && ( $1 == --help || $1 == -h || $1 == help ) ]]; then
         help
 elif [[ $# -eq 2 && $1 == up ]]; then
+        check_uid
         create_tun $2
 elif [[ $# -eq 2 && $1 == down ]]; then
+        check_uid
         remove_tun $2
 else
         help
