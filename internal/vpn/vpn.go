@@ -31,34 +31,34 @@ type VPN struct {
 func (vpn *VPN) Start() error {
 	usr, err := vpn.um.GetAdmin()
 	if err != nil {
-		return fmt.Errorf("Failed to get admin while starting VPN: %v", err)
+		return fmt.Errorf("Failed to get admin while starting VPN: %w", err)
 	}
 
 	dev, err := usr.GetCurrentDevice()
 	if err != nil {
-		return fmt.Errorf("Failed to get current device while starting VPN: %v", err)
+		return fmt.Errorf("Failed to get current device while starting VPN: %w", err)
 	}
 
 	// create protos vpn interface and configure the address
 	lnk, err := vpn.nm.CreateLink(protosNetworkInterface)
 	if err != nil {
-		return fmt.Errorf("Failed to create link while starting VPN: %v", err)
+		return fmt.Errorf("Failed to create link while starting VPN: %w", err)
 	}
 
 	ip, netp, err := net.ParseCIDR(dev.Network)
 	if err != nil {
-		return fmt.Errorf("Failed to parse CIDR while starting VPN: %v", err)
+		return fmt.Errorf("Failed to parse CIDR while starting VPN: %w", err)
 	}
 	netp.IP = ip
 	err = lnk.AddAddr(linkmgr.Address{IPNet: *netp})
 	if err != nil {
-		return fmt.Errorf("Failed to add address while starting VPN: %v", err)
+		return fmt.Errorf("Failed to add address while starting VPN: %w", err)
 	}
 
 	// create wireguard peer configurations and route list
 	instances, err := vpn.cm.GetInstances()
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve instances while starting VPN: %v", err)
+		return fmt.Errorf("Failed to retrieve instances while starting VPN: %w", err)
 	}
 	var masterInstaceIP net.IP
 	keepAliveInterval := 25 * time.Second
@@ -68,7 +68,7 @@ func (vpn *VPN) Start() error {
 
 		pubkey, err := vpn.sm.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 		if err != nil {
-			return fmt.Errorf("Failed to start VPN for instance '%s': %v", instance.Name, err)
+			return fmt.Errorf("Failed to start VPN for instance '%s': %w", instance.Name, err)
 		}
 
 		_, instanceNetwork, err := net.ParseCIDR(instance.Network)
@@ -99,7 +99,7 @@ func (vpn *VPN) Start() error {
 	// configure wireguard
 	key, err := usr.GetKeyCurrentDevice()
 	if err != nil {
-		return fmt.Errorf("Failed to get device key while starting VPN: %v", err)
+		return fmt.Errorf("Failed to get device key while starting VPN: %w", err)
 	}
 
 	var pkey wgtypes.Key
@@ -110,26 +110,26 @@ func (vpn *VPN) Start() error {
 	}
 	err = lnk.ConfigureWG(wgcfg)
 	if err != nil {
-		return fmt.Errorf("Failed to configure WG interface while starting VPN: %v", err)
+		return fmt.Errorf("Failed to configure WG interface while starting VPN: %w", err)
 	}
 
 	// add the routes towards instances
 	for _, route := range routes {
 		err = lnk.AddRoute(route)
 		if err != nil {
-			return fmt.Errorf("Failed to add route while starting VPN: %v", err)
+			return fmt.Errorf("Failed to add route while starting VPN: %w", err)
 		}
 	}
 
 	// add DNS server for domain
 	dns, err := NewDNS()
 	if err != nil {
-		return fmt.Errorf("Failed to configure DNS while starting VPN: %v", err)
+		return fmt.Errorf("Failed to configure DNS while starting VPN: %w", err)
 	}
 
 	err = dns.AddDomainServer(usr.GetInfo().Domain, masterInstaceIP)
 	if err != nil {
-		return fmt.Errorf("Failed to add DNS domain while starting VPN: %v", err)
+		return fmt.Errorf("Failed to add DNS domain while starting VPN: %w", err)
 	}
 
 	return nil
