@@ -32,35 +32,85 @@ func main() {
 		Version: version.String(),
 		Commands: []*cli.Command{
 			{
-				Name:      "up",
-				Usage:     "Creates a new Protos WG interface",
-				ArgsUsage: "<cidr>",
-				Action: func(c *cli.Context) error {
-					cidr := c.Args().First()
-					if cidr == "" {
-						return fmt.Errorf("CIDR argument cannot be empty")
-					}
-					return createLink("protos0", cidr)
+				Name:  "wg",
+				Usage: "Manage WireGuard interface",
+				Subcommands: []*cli.Command{
+					{
+						Name:      "up",
+						Usage:     "Creates a new Protos WG interface",
+						ArgsUsage: "<interface> <cidr>",
+						Action: func(c *cli.Context) error {
+							iface := c.Args().First()
+							if iface == "" {
+								return fmt.Errorf("Interface argument cannot be empty")
+							}
+
+							cidr := c.Args().Get(1)
+							if cidr == "" {
+								return fmt.Errorf("CIDR argument cannot be empty")
+							}
+							return createLink(iface, cidr)
+						},
+					},
+					{
+						Name:      "down",
+						Usage:     "Deletes the existing Protos WG interface",
+						ArgsUsage: "<interface>",
+						Action: func(c *cli.Context) error {
+							iface := c.Args().First()
+							if iface == "" {
+								return fmt.Errorf("Interface argument cannot be empty")
+							}
+
+							return deleteLink(iface)
+						},
+					},
+					{
+						Name:      "configure",
+						Usage:     "Configures the existing Protos WG interface",
+						ArgsUsage: "<interface> <private key> <name:pubkey:publicIP:internalIP:CIDR> [<name:pubkey:publicIP:internalIP:CIDR> ...]",
+						Action: func(c *cli.Context) error {
+							args := c.Args().Slice()
+							if len(args) < 3 {
+								return fmt.Errorf("Please provide at least these 3 arguments: <interface> <private key> <name:pubkey:publicIP:internalIP:CIDR> ")
+							}
+							return configureLink(c.Args().First(), c.Args().Get(1), c.Args().Slice()[2:])
+						},
+					},
 				},
 			},
 			{
-				Name:      "down",
-				Usage:     "Deletes the existing Protos WG interface",
-				ArgsUsage: "[domain]",
-				Action: func(c *cli.Context) error {
-					return deleteLink("protos0", c.Args().First())
-				},
-			},
-			{
-				Name:      "configure",
-				Usage:     "Configures the existing Protos WG interface",
-				ArgsUsage: "<private key> <domain> <name:pubkey:publicIP:internalIP:CIDR> [<name:pubkey:publicIP:internalIP:CIDR> ...]",
-				Action: func(c *cli.Context) error {
-					args := c.Args().Slice()
-					if len(args) < 3 {
-						return fmt.Errorf("Please provide at least these 3 arguments argument: <private key> <domain> <name:pubkey:publicIP:internalIP:CIDR> ")
-					}
-					return configureLink("protos0", c.Args().Get(0), c.Args().Get(1), c.Args().Slice()[2:])
+				Name:  "domain",
+				Usage: "Manage domains",
+				Subcommands: []*cli.Command{
+					{
+						Name:      "add",
+						Usage:     "Add DNS server for domain",
+						ArgsUsage: "<domain> <DNS server>",
+						Action: func(c *cli.Context) error {
+							domain := c.Args().First()
+							if domain == "" {
+								return fmt.Errorf("domain argument cannot be empty")
+							}
+							dnsServer := c.Args().Get(1)
+							if dnsServer == "" {
+								return fmt.Errorf("DNS server argument cannot be empty")
+							}
+							return addDomain(domain, dnsServer)
+						},
+					},
+					{
+						Name:      "del",
+						Usage:     "Delete DNS server for domain",
+						ArgsUsage: "<domain>",
+						Action: func(c *cli.Context) error {
+							domain := c.Args().First()
+							if domain == "" {
+								return fmt.Errorf("domain argument cannot be empty")
+							}
+							return delDomain(domain)
+						},
+					},
 				},
 			},
 		},
@@ -89,7 +139,13 @@ func createLink(iface string, network string) error {
 	// create protos vpn interface and configure the address
 	lnk, err := linkManager.CreateLink(iface)
 	if err != nil {
-		return fmt.Errorf("Failed to create VPN interface '%s': %w", iface, err)
+		if !strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf("Failed to create VPN interface '%s': %w", iface, err)
+		}
+		lnk, err = linkManager.GetLink(iface)
+		if err != nil {
+			return fmt.Errorf("Failed to create VPN interface '%s': %w", iface, err)
+		}
 	}
 
 	ip, netp, err := net.ParseCIDR(network)
@@ -105,49 +161,33 @@ func createLink(iface string, network string) error {
 	return nil
 }
 
-func deleteLink(iface string, domain string) error {
+func deleteLink(iface string) error {
 	// remove vpn interface
-	_, err := linkManager.GetLink(iface)
+	err := linkManager.DelLink(iface)
 	if err != nil {
-		return err
-	}
-
-	if domain != "" {
-		// delete DNS server for domain
-		err = DNSManager.DelDomainServer(domain)
-		if err != nil {
-			return fmt.Errorf("Failed to remove domain '%s': %w", domain, err)
+		if !strings.Contains(err.Error(), "no such network interface") {
+			return fmt.Errorf("Failed to delete VPN interface '%s': %w", iface, err)
 		}
-	}
-
-	err = linkManager.DelLink(iface)
-	if err != nil {
-		return err
 	}
 
 	return nil
 }
 
-func configureLink(iface string, privateKey string, domain string, peerConfigs []string) error {
+func configureLink(iface string, privateKey string, peerConfigs []string) error {
 
 	// remove vpn interface
 	lnk, err := linkManager.GetLink(iface)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to configure VPN interface '%s': %w", iface, err)
 	}
 
 	keepAliveInterval := 25 * time.Second
 	peers := []wgtypes.PeerConfig{}
 	routes := []linkmgr.Route{}
-	var mainInstaceIP net.IP
 	for _, peerConfig := range peerConfigs {
-		instance, pubkey, peerPublicIP, peerInternalIP, peerNet, err := parsePeerConfig(peerConfig)
+		_, pubkey, peerPublicIP, _, peerNet, err := parsePeerConfig(peerConfig)
 		if err != nil {
-			return fmt.Errorf("Failed to parse peer config for instance '%s': %w", instance, err)
-		}
-
-		if mainInstaceIP == nil {
-			mainInstaceIP = peerInternalIP
+			return fmt.Errorf("Failed to configure VPN interface '%s': %w", iface, err)
 		}
 
 		routes = append(routes, linkmgr.Route{Dest: peerNet})
@@ -162,7 +202,7 @@ func configureLink(iface string, privateKey string, domain string, peerConfigs [
 
 	decodedPrivateKey, err := base64.StdEncoding.DecodeString(privateKey)
 	if err != nil {
-		return fmt.Errorf("Failed to decode private key for interface '%s': %w", iface, err)
+		return fmt.Errorf("Failed to configure VPN interface '%s': %w", iface, err)
 	}
 
 	var wgPrivateKey wgtypes.Key
@@ -173,33 +213,47 @@ func configureLink(iface string, privateKey string, domain string, peerConfigs [
 	}
 	err = lnk.ConfigureWG(wgcfg)
 	if err != nil {
-		return fmt.Errorf("Failed to configure WG interface: %w", err)
+		return fmt.Errorf("Failed to configure VPN interface '%s': %w", iface, err)
 	}
 
 	// add the routes towards instances
 	for _, route := range routes {
 		err = lnk.AddRoute(route)
 		if err != nil {
-			return fmt.Errorf("Failed to add route: %w", err)
-		}
-	}
-
-	// set DNS server to the IP of the first instance
-	if len(peers) > 0 {
-		// add DNS server for domain
-		err = DNSManager.AddDomainServer(domain, mainInstaceIP)
-		if err != nil {
-			return fmt.Errorf("Failed to add domain: %w", err)
+			return fmt.Errorf("Failed to configure VPN interface '%s': %w", iface, fmt.Errorf("Failed to add route: %w", err))
 		}
 	}
 
 	return nil
 }
 
+func addDomain(domain string, dnsServer string) error {
+	dnsServerIP := net.ParseIP(dnsServer)
+	if dnsServerIP == nil {
+		return fmt.Errorf("Failed to parse DNS server IP '%s'", dnsServer)
+	}
+
+	err := DNSManager.AddDomainServer(domain, dnsServerIP)
+	if err != nil {
+		return fmt.Errorf("Failed to add domain: %w", err)
+	}
+	return nil
+}
+
+func delDomain(domain string) error {
+	err := DNSManager.DelDomainServer(domain)
+	if err != nil {
+		if !strings.Contains(err.Error(), "no such file or directory") {
+			return fmt.Errorf("Failed to delete DNS server for domain '%s': %w", domain, err)
+		}
+	}
+	return nil
+}
+
 func parsePeerConfig(peerConfig string) (string, wgtypes.Key, net.IP, net.IP, net.IPNet, error) {
 	parts := strings.Split(peerConfig, ":")
 	if len(parts) != 5 {
-		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("Failed to parse peer config: '%s'", peerConfig)
+		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("Failed to parse the following peer config: '%s'", peerConfig)
 	}
 
 	publicKey, err := base64.StdEncoding.DecodeString(parts[1])
@@ -218,16 +272,10 @@ func parsePeerConfig(peerConfig string) (string, wgtypes.Key, net.IP, net.IP, ne
 	if peerPublicIP == nil {
 		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("Failed to parse internal IP in peer config '%s': %w", peerConfig, err)
 	}
-	ip, peerNet, err := net.ParseCIDR(parts[4])
+	_, peerNet, err := net.ParseCIDR(parts[4])
 	if err != nil {
 		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("Failed to parse network in peer config '%s': %w", peerConfig, err)
 	}
-	fmt.Println(parts[0])
-	fmt.Println(parts[1])
-	fmt.Println(peerPublicIP)
-	fmt.Println(peerInternalIP)
-	fmt.Println(peerNet)
-	fmt.Println(ip)
 
 	return parts[0], wgPublicKey, peerPublicIP, peerInternalIP, *peerNet, nil
 }

@@ -1,8 +1,10 @@
 package vpn
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
+	"os/exec"
 	"time"
 
 	"github.com/foxcpp/wirebox/linkmgr"
@@ -16,6 +18,7 @@ import (
 const (
 	instanceDS             = "instance"
 	protosNetworkInterface = "protos0"
+	wgProtosBinary         = "wg-protos"
 )
 
 type instanceGetter interface {
@@ -161,6 +164,109 @@ func (vpn *VPN) Stop() error {
 	err = dns.DelDomainServer(usr.GetInfo().Domain)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (vpn *VPN) StartWithExec() error {
+	usr, err := vpn.um.GetAdmin()
+	if err != nil {
+		return fmt.Errorf("Failed to get admin while starting VPN: %w", err)
+	}
+
+	dev, err := usr.GetCurrentDevice()
+	if err != nil {
+		return fmt.Errorf("Failed to get current device while starting VPN: %w", err)
+	}
+
+	ip, netp, err := net.ParseCIDR(dev.Network)
+	if err != nil {
+		return fmt.Errorf("Failed to parse CIDR while starting VPN: %w", err)
+	}
+	netp.IP = ip
+
+	// create wireguard peer configurations and route list
+	instances, err := vpn.cm.GetInstances()
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve instances while starting VPN: %w", err)
+	}
+
+	peerConfigs := []string{}
+	var masterInstaceIP string
+
+	for _, instance := range instances {
+
+		if masterInstaceIP == "" {
+			masterInstaceIP = instance.InternalIP
+		}
+
+		pubkey, err := vpn.sm.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		if err != nil {
+			return fmt.Errorf("Failed to start VPN for instance '%s': %w", instance.Name, err)
+		}
+
+		_, instanceNetwork, err := net.ParseCIDR(instance.Network)
+		if err != nil {
+			return fmt.Errorf("Failed to parse network for instance '%s': %w", instance.Name, err)
+		}
+
+		encodedPubKey := base64.StdEncoding.EncodeToString(pubkey[:])
+		peerConf := fmt.Sprintf("%s:%s:%s:%s:%s", instance.Name, encodedPubKey, instance.PublicIP, instance.InternalIP, instanceNetwork.String())
+		peerConfigs = append(peerConfigs, peerConf)
+	}
+
+	cmd := exec.Command("sudo", wgProtosBinary, "wg", "up", protosNetworkInterface, netp.String())
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Failed to create link using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
+	}
+
+	key, err := usr.GetKeyCurrentDevice()
+	if err != nil {
+		return fmt.Errorf("Failed to get device key while starting VPN: %w", err)
+	}
+	encodedPrivKey := base64.StdEncoding.EncodeToString(key.Seed())
+
+	if len(peerConfigs) > 0 {
+		configureArgs := []string{wgProtosBinary, "wg", "configure", protosNetworkInterface, encodedPrivKey}
+		configureArgs = append(configureArgs, peerConfigs...)
+		cmd = exec.Command("sudo", configureArgs...)
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("Failed to configure link using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
+		}
+	}
+
+	// add domain DNS
+	if masterInstaceIP != "" {
+		cmd = exec.Command("sudo", wgProtosBinary, "domain", "add", usr.GetInfo().Domain, masterInstaceIP)
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("Failed to add domain using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
+		}
+	}
+
+	return nil
+}
+
+func (vpn *VPN) StopWithExec() error {
+	usr, err := vpn.um.GetAdmin()
+	if err != nil {
+		return fmt.Errorf("Failed to get admin while stopping VPN: %w", err)
+	}
+
+	cmd := exec.Command("sudo", wgProtosBinary, "wg", "down", protosNetworkInterface)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Failed to delete link using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
+	}
+
+	// add domain DNS
+	cmd = exec.Command("sudo", wgProtosBinary, "domain", "del", usr.GetInfo().Domain)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Failed to delete domain using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
 	}
 
 	return nil
