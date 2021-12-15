@@ -163,7 +163,7 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 	}
 
 	initResp := InitResp{
-		InstancePubKey: key.PublicWG().String(),
+		InstancePubKey: key.PublicString(),
 		InstanceIP:     ipNet.String(),
 	}
 
