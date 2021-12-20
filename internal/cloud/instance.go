@@ -32,6 +32,8 @@ const (
 	ServerStateStopped  = "stopped"
 	ServerStateOther    = "other"
 	ServerStateChanging = "changing"
+
+	protosPublicKey = "/var/protos/protos_key.pub"
 )
 
 // InstanceInfo holds information about a cloud instance
@@ -354,7 +356,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// retrieve instance public key via SSH
-	pubKeyStr, err := ssh.ExecuteCommand("cat /var/protos/protos_key.pub", sshCon)
+	pubKeyStr, err := ssh.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
@@ -459,7 +461,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 
 	// retrieve instance public key via SSH
-	pubKeyStr, err := ssh.ExecuteCommand("cat /var/protos/protos_key.pub", sshCon)
+	pubKeyStr, err := ssh.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
 		return errors.Wrap(err, "Failed to retrieve public key from dev instance")
 	}
