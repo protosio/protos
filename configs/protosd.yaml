@@ -1,6 +1,1 @@
-httpport: 8080
-httpsport: 8443
-workdir: /var/protos
-runtime: containerd
-runtimeendpoint: "/var/protos-containerd/run/sock/containerd.sock"
-internalinterface: protos0
+runtimeendpoint: /var/protos-containerd/run/sock/containerd.sock
