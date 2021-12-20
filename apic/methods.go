@@ -19,16 +19,16 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 
 	host, err := os.Hostname()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to add user. Could not retrieve hostname: %w", err)
+		return nil, fmt.Errorf("failed to add user. Could not retrieve hostname: %w", err)
 	}
 	key, err := b.protosClient.KeyManager.GenerateKey()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to add user. Could not generate key: %w", err)
+		return nil, fmt.Errorf("failed to add user. Could not generate key: %w", err)
 	}
 
 	machineID, err := machineid.ProtectedID("protos")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to add user. Error while generating machine id: %w", err)
+		return nil, fmt.Errorf("failed to add user. Error while generating machine id: %w", err)
 	}
 
 	devices := []auth.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), MachineID: machineID, Network: "10.100.0.1/24"}}
@@ -53,7 +53,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 	log.Debugf("Retrieving apps")
 	apps, err := b.protosClient.AppManager.GetAll()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve apps: %w", err)
+		return nil, fmt.Errorf("failed to retrieve apps: %w", err)
 	}
 
 	resp := pbApic.GetAppsResponse{}
@@ -77,18 +77,18 @@ func (b *Backend) RunApp(ctx context.Context, in *pbApic.RunAppRequest) (*pbApic
 	log.Debugf("Running app '%s' based on installer '%s', on instance '%s'", in.Name, in.InstallerId, in.InstanceId)
 	installer, err := b.protosClient.AppStore.GetInstaller(in.InstallerId)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to run app %s: %w", in.Name, err)
+		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
 	instMetadata, err := installer.GetMetadata(installer.GetLastVersion())
 	if err != nil {
-		return nil, fmt.Errorf("Failed to run app %s: %w", in.Name, err)
+		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
 	// FIXME: read the installer params from the command line
 	app, err := b.protosClient.AppManager.Create(in.InstallerId, installer.GetLastVersion(), in.Name, in.InstanceId, map[string]string{}, instMetadata)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to run app %s: %w", in.Name, err)
+		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
 	return &pbApic.RunAppResponse{Id: app.ID}, nil
@@ -139,7 +139,7 @@ func (b *Backend) GetInstallers(ctx context.Context, in *pbApic.GetInstallersReq
 	for _, installer := range installers {
 		installerMetadata, err := installer.GetMetadata(installer.GetLastVersion())
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get metadata for installer '%s': %w", installer.ID, err)
+			return nil, fmt.Errorf("failed to get metadata for installer '%s': %w", installer.ID, err)
 		}
 		respInstaller := pbApic.Installer{
 			Id:          installer.ID,
@@ -231,7 +231,7 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 	log.Debugf("Retrieving cloud provider '%s'", in.Name)
 	cloudProvider, err := b.protosClient.CloudManager.GetProvider(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve cloud provider: %w", err)
+		return nil, fmt.Errorf("failed to retrieve cloud provider: %w", err)
 	}
 
 	// initialize cloud provider before use
@@ -243,7 +243,7 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 	supportedLocations := cloudProvider.SupportedLocations()
 	supportedMachines, err := cloudProvider.SupportedMachines(supportedLocations[0])
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve supported machines: %w", err)
+		return nil, fmt.Errorf("failed to retrieve supported machines: %w", err)
 	}
 
 	respSupportedMachines := map[string]*pbApic.CloudMachineSpec{}
@@ -277,25 +277,25 @@ func (b *Backend) AddCloudProvider(ctx context.Context, in *pbApic.AddCloudProvi
 	// create new cloud provider
 	provider, err := b.protosClient.CloudManager.NewProvider(in.Name, in.Type)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create cloud provider: %w", err)
+		return nil, fmt.Errorf("failed to create cloud provider: %w", err)
 	}
 
 	// set authentication
 	err = provider.SetAuth(in.Credentials)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to set credentials for cloud provider: %w", err)
+		return nil, fmt.Errorf("failed to set credentials for cloud provider: %w", err)
 	}
 
 	// init cloud client
 	err = provider.Init()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to initialize cloud provider: %w", err)
+		return nil, fmt.Errorf("failed to initialize cloud provider: %w", err)
 	}
 
 	// save the cloud provider in the db
 	err = provider.Save()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to save cloud provider: %w", err)
+		return nil, fmt.Errorf("failed to save cloud provider: %w", err)
 	}
 	return &pbApic.AddCloudProviderResponse{}, nil
 }
@@ -304,7 +304,7 @@ func (b *Backend) RemoveCloudProvider(ctx context.Context, in *pbApic.RemoveClou
 	// delete existing cloud provider
 	err := b.protosClient.CloudManager.DeleteProvider(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to delete cloud provider '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to delete cloud provider '%s': %w", in.Name, err)
 	}
 
 	return &pbApic.RemoveCloudProviderResponse{}, nil
@@ -318,7 +318,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 	log.Debugf("Retrieving instances")
 	instances, err := b.protosClient.CloudManager.GetInstances()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve instances: %w", err)
+		return nil, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 
 	resp := pbApic.GetInstancesResponse{}
@@ -326,7 +326,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 
 		wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to retrieve instances: %w", err)
+			log.Error(err.Error())
 		}
 
 		respInstance := pbApic.CloudInstance{
@@ -352,12 +352,12 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 	log.Debugf("Retrieving instance '%s'", in.Name)
 	instance, err := b.protosClient.CloudManager.GetInstance(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to retrieve instance '%s': %w", in.Name, err)
 	}
 
 	wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve instance '%s': %w", in.Name, err)
+		log.Error(err.Error())
 	}
 
 	resp := pbApic.GetInstanceResponse{
@@ -404,12 +404,12 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 
 	instance, err := b.protosClient.CloudManager.DeployInstance(in.Name, in.CloudName, in.CloudLocation, rls, in.MachineType)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to deploy instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}
 
 	wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to deploy instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}
 
 	resp := pbApic.DeployInstanceResponse{
@@ -436,7 +436,7 @@ func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceR
 	log.Debugf("Removing instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.DeleteInstance(in.Name, in.LocalOnly)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to remove instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to remove instance '%s': %w", in.Name, err)
 	}
 
 	return &pbApic.RemoveInstanceResponse{}, nil
@@ -446,7 +446,7 @@ func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceReq
 	log.Debugf("Starting instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.StartInstance(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to start instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to start instance '%s': %w", in.Name, err)
 	}
 	return &pbApic.StartInstanceResponse{}, nil
 }
@@ -455,7 +455,7 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 	log.Debugf("Stopping instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.StopInstance(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to stop instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to stop instance '%s': %w", in.Name, err)
 	}
 	return &pbApic.StopInstanceResponse{}, nil
 }
@@ -539,12 +539,12 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 
 	err = provider.Init()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to connect to cloud provider '%s'(%s) API: %w", in.Name, provider.TypeStr(), err)
+		return nil, fmt.Errorf("failed to connect to cloud provider '%s'(%s) API: %w", in.Name, provider.TypeStr(), err)
 	}
 
 	images, err := provider.GetProtosImages()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve cloud images from cloud '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("failed to retrieve cloud images from cloud '%s': %w", in.Name, err)
 	}
 	resp := pbApic.GetCloudImagesResponse{}
 	for id, image := range images {
@@ -565,7 +565,7 @@ func (b *Backend) UploadCloudImage(ctx context.Context, in *pbApic.UploadCloudIm
 
 func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudImageRequest) (*pbApic.RemoveCloudImageResponse, error) {
 	log.Debugf("Removing cloud image '%s' from cloud '%s'", in.ImageName, in.CloudName)
-	errMsg := fmt.Sprintf("Failed to delete image '%s' from cloud '%s'", in.ImageName, in.CloudLocation)
+	errMsg := fmt.Sprintf("failed to delete image '%s' from cloud '%s'", in.ImageName, in.CloudLocation)
 	provider, err := b.protosClient.CloudManager.GetProvider(in.CloudName)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
