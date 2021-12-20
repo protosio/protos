@@ -95,7 +95,7 @@ func listCloudProviders() error {
 	defer cancel()
 	resp, err := client.GetCloudProviders(ctx, &pbApic.GetCloudProvidersRequest{})
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve cloud providers: %w", err)
+		return fmt.Errorf("failed to retrieve cloud providers: %w", err)
 	}
 
 	w := new(tabwriter.Writer)
@@ -118,7 +118,7 @@ func addCloudProvider(cloudName string) error {
 	defer cancel()
 	resp, err := client.GetSupportedCloudProviders(ctx, &pbApic.GetSupportedCloudProvidersRequest{})
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve supported cloud providers: %w", err)
+		return fmt.Errorf("failed to retrieve supported cloud providers: %w", err)
 	}
 
 	supportedCloudTypes := make([]string, len(resp.CloudTypes))
@@ -155,7 +155,7 @@ func addCloudProvider(cloudName string) error {
 		Credentials: transformCredentials(cloudCredentials),
 	})
 	if err != nil {
-		return fmt.Errorf("Failed to add cloud provider: %w", err)
+		return fmt.Errorf("failed to add cloud provider: %w", err)
 	}
 
 	return nil
@@ -166,7 +166,7 @@ func deleteCloudProvider(name string) error {
 	defer cancel()
 	_, err := client.RemoveCloudProvider(ctx, &pbApic.RemoveCloudProviderRequest{Name: name})
 	if err != nil {
-		return fmt.Errorf("Failed to remove cloud provider '%s': %w", name, err)
+		return fmt.Errorf("failed to remove cloud provider '%s': %w", name, err)
 	}
 	return nil
 }
@@ -176,7 +176,7 @@ func infoCloudProvider(name string) error {
 	defer cancel()
 	resp, err := client.GetCloudProvider(ctx, &pbApic.GetCloudProviderRequest{Name: name})
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve cloud provider '%s': %w", name, err)
+		return fmt.Errorf("failed to retrieve cloud provider '%s': %w", name, err)
 	}
 
 	fmt.Printf("Name: %s\n", name)

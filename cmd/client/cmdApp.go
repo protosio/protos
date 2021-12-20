@@ -125,7 +125,7 @@ func listApps() error {
 	defer cancel()
 	resp, err := client.GetApps(ctx, &pbApic.GetAppsRequest{})
 	if err != nil {
-		return fmt.Errorf("Failed to list apps: %w", err)
+		return fmt.Errorf("failed to list apps: %w", err)
 	}
 
 	w := new(tabwriter.Writer)
@@ -148,7 +148,7 @@ func runApp(name string, installerID string, instanceID string) error {
 	defer cancel()
 	_, err := client.RunApp(ctx, &pbApic.RunAppRequest{Name: name, InstallerId: installerID, InstanceId: instanceID})
 	if err != nil {
-		return fmt.Errorf("Failed to run app '%s': %w", name, err)
+		return fmt.Errorf("failed to run app '%s': %w", name, err)
 	}
 	return nil
 }
@@ -158,7 +158,7 @@ func startApp(name string) error {
 	defer cancel()
 	_, err := client.StartApp(ctx, &pbApic.StartAppRequest{Name: name})
 	if err != nil {
-		return fmt.Errorf("Failed to start app '%s': %w", name, err)
+		return fmt.Errorf("failed to start app '%s': %w", name, err)
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func stopApp(name string) error {
 	defer cancel()
 	_, err := client.StopApp(ctx, &pbApic.StopAppRequest{Name: name})
 	if err != nil {
-		return fmt.Errorf("Failed to stop app '%s': %w", name, err)
+		return fmt.Errorf("failed to stop app '%s': %w", name, err)
 	}
 	return nil
 }
@@ -178,7 +178,7 @@ func removeApp(name string) error {
 	defer cancel()
 	_, err := client.RemoveApp(ctx, &pbApic.RemoveAppRequest{Name: name})
 	if err != nil {
-		return fmt.Errorf("Failed to remove app '%s': %w", name, err)
+		return fmt.Errorf("failed to remove app '%s': %w", name, err)
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func listAppStoreApps() error {
 	defer cancel()
 	resp, err := client.GetInstallers(ctx, &pbApic.GetInstallersRequest{})
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve installers: %w", err)
+		return fmt.Errorf("failed to retrieve installers: %w", err)
 	}
 
 	w := new(tabwriter.Writer)
@@ -210,7 +210,7 @@ func infoAppStoreApp(id string) error {
 	defer cancel()
 	resp, err := client.GetInstaller(ctx, &pbApic.GetInstallerRequest{Id: id})
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve installers: %w", err)
+		return fmt.Errorf("failed to retrieve installers: %w", err)
 	}
 
 	w := new(tabwriter.Writer)
