@@ -273,7 +273,7 @@ func (m *Meta) GetTLSCertificate() *resource.Resource {
 }
 
 // GetKey returns the private key of the instance, in wireguard format
-func (m *Meta) GetKey() (*ssh.Key, error) {
+func (m *Meta) GetPrivateKey() (*ssh.Key, error) {
 	key, err := m.keymngr.NewKeyFromSeed(m.PrivateKeySeed)
 	if err != nil {
 		return nil, err

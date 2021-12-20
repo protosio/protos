@@ -78,7 +78,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	rm := resource.CreateManager(dbcli)
 	sm := ssh.CreateManager(dbcli)
 	m := meta.Setup(rm, dbcli, sm, version.String())
-	key, err := m.GetKey()
+	key, err := m.GetPrivateKey()
 	if err != nil {
 		log.Fatal(err)
 	}

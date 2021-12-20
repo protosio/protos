@@ -103,7 +103,8 @@ var cmdInstance *cli.Command = &cli.Command{
 					cli.ShowSubcommandHelp(c)
 					os.Exit(1)
 				}
-				return deleteInstance(name, c.Bool("local"))
+				local := c.Bool("local")
+				return deleteInstance(name, local)
 			},
 		},
 		{
@@ -228,7 +229,7 @@ func infoInstance(instanceName string) error {
 	defer cancel()
 	resp, err := client.GetInstance(ctx, &apic.GetInstanceRequest{Name: instanceName})
 	if err != nil {
-		return fmt.Errorf("Could not retrieve instance '%s': %w", instanceName, err)
+		return fmt.Errorf("could not retrieve instance '%s': %w", instanceName, err)
 	}
 	instance := resp.Instance
 
@@ -251,7 +252,7 @@ func deployInstance(instanceName string, cloudName string, cloudLocation string,
 	defer cancel()
 	resp, err := client.DeployInstance(ctx, &apic.DeployInstanceRequest{Name: instanceName, CloudName: cloudName, CloudLocation: cloudLocation, ProtosVersion: protosVersion, MachineType: machineType, DevImg: devImage})
 	if err != nil {
-		return fmt.Errorf("Could not deploy instance '%s': %w", instanceName, err)
+		return fmt.Errorf("could not deploy instance '%s': %w", instanceName, err)
 	}
 	instance := resp.Instance
 	fmt.Printf("Name: %s\n", instance.Name)
@@ -273,7 +274,7 @@ func deleteInstance(instanceName string, localOnly bool) error {
 	defer cancel()
 	_, err := client.RemoveInstance(ctx, &apic.RemoveInstanceRequest{Name: instanceName, LocalOnly: localOnly})
 	if err != nil {
-		return fmt.Errorf("Could not remove instance '%s': %w", instanceName, err)
+		return fmt.Errorf("could not remove instance '%s': %w", instanceName, err)
 	}
 	return nil
 }
@@ -283,7 +284,7 @@ func startInstance(instanceName string) error {
 	defer cancel()
 	_, err := client.StartInstance(ctx, &apic.StartInstanceRequest{Name: instanceName})
 	if err != nil {
-		return fmt.Errorf("Could not start instance '%s': %w", instanceName, err)
+		return fmt.Errorf("could not start instance '%s': %w", instanceName, err)
 	}
 	return nil
 }
@@ -293,7 +294,7 @@ func stopInstance(instanceName string) error {
 	defer cancel()
 	_, err := client.StopInstance(ctx, &apic.StopInstanceRequest{Name: instanceName})
 	if err != nil {
-		return fmt.Errorf("Could not stop instance '%s': %w", instanceName, err)
+		return fmt.Errorf("could not stop instance '%s': %w", instanceName, err)
 	}
 	return nil
 }
@@ -303,7 +304,7 @@ func getInstanceKey(instanceName string) error {
 	defer cancel()
 	resp, err := client.GetInstanceKey(ctx, &apic.GetInstanceKeyRequest{Name: instanceName})
 	if err != nil {
-		return fmt.Errorf("Could not get instance '%s' key: %w", instanceName, err)
+		return fmt.Errorf("could not get instance '%s' key: %w", instanceName, err)
 	}
 	fmt.Print(resp.Key)
 	return nil
@@ -314,7 +315,7 @@ func getInstanceLogs(instanceName string, follow bool) error {
 	defer cancel()
 	resp, err := client.GetInstanceLogs(ctx, &apic.GetInstanceLogsRequest{Name: instanceName})
 	if err != nil {
-		return fmt.Errorf("Could not get instance '%s' logs: %w", instanceName, err)
+		return fmt.Errorf("could not get instance '%s' logs: %w", instanceName, err)
 	}
 	fmt.Print(resp.Logs)
 	return nil
@@ -324,9 +325,9 @@ func devInit(instanceName string, keyFile string, ipString string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := client.InitDevInstance(ctx, &apic.InitDevInstanceRequest{Name: instanceName})
+	_, err := client.InitDevInstance(ctx, &apic.InitDevInstanceRequest{Name: instanceName, KeyFile: keyFile, Ip: ipString})
 	if err != nil {
-		return fmt.Errorf("Could not get instance '%s' key: %w", instanceName, err)
+		return fmt.Errorf("could not get instance '%s' key: %w", instanceName, err)
 	}
 
 	return nil

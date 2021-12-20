@@ -1,7 +1,6 @@
 package vpn
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net"
 	"os/exec"
@@ -211,8 +210,7 @@ func (vpn *VPN) StartWithExec() error {
 			return fmt.Errorf("Failed to parse network for instance '%s': %w", instance.Name, err)
 		}
 
-		encodedPubKey := base64.StdEncoding.EncodeToString(pubkey[:])
-		peerConf := fmt.Sprintf("%s:%s:%s:%s:%s", instance.Name, encodedPubKey, instance.PublicIP, instance.InternalIP, instanceNetwork.String())
+		peerConf := fmt.Sprintf("%s:%s:%s:%s:%s", instance.Name, pubkey.String(), instance.PublicIP, instance.InternalIP, instanceNetwork.String())
 		peerConfigs = append(peerConfigs, peerConf)
 	}
 
@@ -226,10 +224,9 @@ func (vpn *VPN) StartWithExec() error {
 	if err != nil {
 		return fmt.Errorf("Failed to get device key while starting VPN: %w", err)
 	}
-	encodedPrivKey := base64.StdEncoding.EncodeToString(key.Seed())
 
 	if len(peerConfigs) > 0 {
-		configureArgs := []string{wgProtosBinary, "wg", "configure", protosNetworkInterface, encodedPrivKey}
+		configureArgs := []string{wgProtosBinary, "wg", "configure", protosNetworkInterface, key.PrivateWG().String()}
 		configureArgs = append(configureArgs, peerConfigs...)
 		cmd = exec.Command("sudo", configureArgs...)
 		output, err = cmd.CombinedOutput()

@@ -97,7 +97,7 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	appManager := app.CreateManager(resourceManager, taskManager, runtimePlatform, dbi, metaClient, pub, appStore, capabilityManager)
 
 	// get device key
-	key, err := metaClient.GetKey()
+	key, err := metaClient.GetPrivateKey()
 	if err != nil {
 		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
 	}

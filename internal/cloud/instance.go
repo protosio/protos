@@ -39,7 +39,7 @@ type InstanceInfo struct {
 	VMID          string
 	Name          string
 	SSHKeySeed    []byte // private SSH key stored only on the client
-	PublicKey     []byte // public key used for wireguard connection
+	PublicKey     []byte // ed25519 public key
 	PublicIP      string
 	InternalIP    string
 	CloudType     string
@@ -157,7 +157,7 @@ func (cm *Manager) GetProvider(name string) (CloudProvider, error) {
 			return cld.getCloudProvider()
 		}
 	}
-	return nil, fmt.Errorf("Could not find cloud provider '%s'", name)
+	return nil, fmt.Errorf("could not find cloud provider '%s'", name)
 }
 
 // DeleteProvider deletes a cloud provider from the db
@@ -259,7 +259,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 				return InstanceInfo{}, errors.Wrap(err, "Failed to deploy Protos instance")
 			}
 		} else {
-			return InstanceInfo{}, errors.Errorf("Could not find a Protos version '%s' release for cloud '%s'", release.Version, provider.TypeStr())
+			return InstanceInfo{}, errors.Errorf("could not find a Protos version '%s' release for cloud '%s'", release.Version, provider.TypeStr())
 		}
 	}
 
@@ -304,7 +304,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// create protos data volume
-	log.Infof("Creating data volume for Protos instance '%s'", instanceName)
+	log.Infof("creating data volume for Protos instance '%s'", instanceName)
 	volumeID, err := provider.NewVolume(instanceName, 30000, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, errors.Wrap(err, "Failed to create data volume")
@@ -638,7 +638,7 @@ func (cm *Manager) TunnelInstance(name string) error {
 		return errors.Wrapf(err, "Instance '%s' has an invalid SSH key", name)
 	}
 
-	log.Infof("Creating SSH tunnel to instance '%s', using ip '%s'", instanceInfo.Name, instanceInfo.PublicIP)
+	log.Infof("creating SSH tunnel to instance '%s', using ip '%s'", instanceInfo.Name, instanceInfo.PublicIP)
 	tunnel := ssh.NewTunnel(instanceInfo.PublicIP+":22", "root", key.SSHAuth(), "localhost:8080")
 	localPort, err := tunnel.Start()
 	if err != nil {
@@ -696,25 +696,29 @@ func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 	if err != nil {
 		return InstanceInfo{}, err
 	}
+
 	for _, instance := range instances {
 		if instance.Name == name {
-			provider, err := cm.GetProvider(instance.CloudName)
-			if err != nil {
-				return InstanceInfo{}, err
+			// if not local, we update the instance status
+			if instance.CloudName != "local" {
+				provider, err := cm.GetProvider(instance.CloudName)
+				if err != nil {
+					return InstanceInfo{}, err
+				}
+				err = provider.Init()
+				if err != nil {
+					return InstanceInfo{}, err
+				}
+				instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
+				if err != nil {
+					return InstanceInfo{}, err
+				}
+				instance.Status = instanceInfo.Status
 			}
-			err = provider.Init()
-			if err != nil {
-				return InstanceInfo{}, err
-			}
-			instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
-			if err != nil {
-				return InstanceInfo{}, err
-			}
-			instance.Status = instanceInfo.Status
 			return instance, nil
 		}
 	}
-	return InstanceInfo{}, fmt.Errorf("Could not find instance '%s'", name)
+	return InstanceInfo{}, fmt.Errorf("could not find instance '%s'", name)
 }
 
 // GetInstances returns all the instances from the db

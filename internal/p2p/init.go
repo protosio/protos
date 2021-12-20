@@ -23,7 +23,7 @@ type MetaConfigurator interface {
 	SetAdminUser(username string)
 	SetInstanceName(name string)
 	CreateProtosResources() (map[string]*resource.Resource, error)
-	GetKey() (*ssh.Key, error)
+	GetPrivateKey() (*ssh.Key, error)
 }
 
 // UserCreator allows the creation of a new user
@@ -152,7 +152,7 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("Cannot perform initialization, faild to create resources: %w", err)
 	}
 
-	key, err := hi.metaConfigurator.GetKey()
+	key, err := hi.metaConfigurator.GetPrivateKey()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to retrieve key")
 	}

@@ -109,7 +109,7 @@ func initHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		key, err := ha.m.GetKey()
+		key, err := ha.m.GetPrivateKey()
 		if err != nil {
 			erru := errors.Wrap(err, "Failed to retrieve key")
 			log.Error(erru.Error())

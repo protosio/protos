@@ -50,9 +50,7 @@ func (k Key) PrivateWG() wgtypes.Key {
 }
 
 func (k Key) PublicWG() wgtypes.Key {
-	var wgkey wgtypes.Key
-	copy(wgkey[:], k.Seed())
-	return wgkey.PublicKey()
+	return k.PrivateWG().PublicKey()
 }
 
 func (k Key) Seed() []byte {

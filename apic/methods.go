@@ -323,10 +323,6 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 
 	resp := pbApic.GetInstancesResponse{}
 	for _, instance := range instances {
-		key, err := b.protosClient.KeyManager.NewKeyFromSeed(instance.SSHKeySeed)
-		if err != nil {
-			return nil, fmt.Errorf("Instance '%s' has an invalid SSH key: %s", instance.Name, err)
-		}
 
 		respInstance := pbApic.CloudInstance{
 			Name:          instance.Name,
@@ -337,7 +333,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			CloudType:     instance.CloudType,
 			VmId:          instance.VMID,
 			Location:      instance.Location,
-			PublicKey:     key.EncodePrivateKeytoPEM(),
+			PublicKey:     base64.StdEncoding.EncodeToString(instance.PublicKey),
 			ProtosVersion: instance.ProtosVersion,
 		}
 		resp.Instances = append(resp.Instances, &respInstance)
@@ -353,6 +349,11 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		return nil, fmt.Errorf("Failed to retrieve instance '%s': %w", in.Name, err)
 	}
 
+	wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve instance '%s': %w", in.Name, err)
+	}
+
 	resp := pbApic.GetInstanceResponse{
 		Instance: &pbApic.CloudInstance{
 			Name:          instance.Name,
@@ -363,7 +364,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			CloudType:     instance.CloudType,
 			VmId:          instance.VMID,
 			Location:      instance.Location,
-			PublicKey:     base64.StdEncoding.EncodeToString(instance.PublicKey),
+			PublicKey:     wgPublicKey.String(),
 			ProtosVersion: instance.ProtosVersion,
 			Status:        instance.Status,
 		},
@@ -474,12 +475,8 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 
 func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {
 	log.Debugf("Initializing dev instance '%s' at '%s'", in.Name, in.Ip)
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("Could not initialize dev instance '%s': %w", in.Name, err)
-	}
 
-	err = b.protosClient.CloudManager.InitDevInstance(in.Name, hostname, hostname, in.KeyFile, in.Ip)
+	err := b.protosClient.CloudManager.InitDevInstance(in.Name, "local", "local", in.KeyFile, in.Ip)
 	if err != nil {
 		return nil, fmt.Errorf("Could not initialize dev instance '%s': %w", in.Name, err)
 	}
