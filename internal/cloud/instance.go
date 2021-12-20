@@ -415,7 +415,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		VMID:          instanceName,
 		PublicIP:      ipString,
 		Name:          instanceName,
-		CloudType:     Hyperkit.String(),
+		CloudType:     Local.String(),
 		CloudName:     cloudName,
 		Location:      locationName,
 		ProtosVersion: "dev",
@@ -700,7 +700,7 @@ func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 	for _, instance := range instances {
 		if instance.Name == name {
 			// if not local, we update the instance status
-			if instance.CloudName != "local" {
+			if instance.CloudName != Local.String() {
 				provider, err := cm.GetProvider(instance.CloudName)
 				if err != nil {
 					return InstanceInfo{}, err

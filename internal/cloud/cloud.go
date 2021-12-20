@@ -22,8 +22,8 @@ const (
 	DigitalOcean = Type("digitalocean")
 	// Scaleway cloud provider
 	Scaleway = Type("scaleway")
-	// Hyperkit is a MacOS hypervisor based on xhyve
-	Hyperkit = Type("hyperkit")
+	// Local is a local VM provider
+	Local = Type("local")
 )
 
 type CloudManager interface {
