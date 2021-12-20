@@ -324,17 +324,23 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 	resp := pbApic.GetInstancesResponse{}
 	for _, instance := range instances {
 
+		wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to retrieve instances: %w", err)
+		}
+
 		respInstance := pbApic.CloudInstance{
-			Name:          instance.Name,
-			PublicIp:      instance.PublicIP,
-			InternalIp:    instance.InternalIP,
-			Network:       instance.Network,
-			CloudName:     instance.CloudName,
-			CloudType:     instance.CloudType,
-			VmId:          instance.VMID,
-			Location:      instance.Location,
-			PublicKey:     base64.StdEncoding.EncodeToString(instance.PublicKey),
-			ProtosVersion: instance.ProtosVersion,
+			Name:               instance.Name,
+			PublicIp:           instance.PublicIP,
+			InternalIp:         instance.InternalIP,
+			Network:            instance.Network,
+			CloudName:          instance.CloudName,
+			CloudType:          instance.CloudType,
+			VmId:               instance.VMID,
+			Location:           instance.Location,
+			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
+			PublicKeyWireguard: wgPublicKey.String(),
+			ProtosVersion:      instance.ProtosVersion,
 		}
 		resp.Instances = append(resp.Instances, &respInstance)
 	}
@@ -356,17 +362,18 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 
 	resp := pbApic.GetInstanceResponse{
 		Instance: &pbApic.CloudInstance{
-			Name:          instance.Name,
-			PublicIp:      instance.PublicIP,
-			InternalIp:    instance.InternalIP,
-			Network:       instance.Network,
-			CloudName:     instance.CloudName,
-			CloudType:     instance.CloudType,
-			VmId:          instance.VMID,
-			Location:      instance.Location,
-			PublicKey:     wgPublicKey.String(),
-			ProtosVersion: instance.ProtosVersion,
-			Status:        instance.Status,
+			Name:               instance.Name,
+			PublicIp:           instance.PublicIP,
+			InternalIp:         instance.InternalIP,
+			Network:            instance.Network,
+			CloudName:          instance.CloudName,
+			CloudType:          instance.CloudType,
+			VmId:               instance.VMID,
+			Location:           instance.Location,
+			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
+			PublicKeyWireguard: wgPublicKey.String(),
+			ProtosVersion:      instance.ProtosVersion,
+			Status:             instance.Status,
 		},
 	}
 
@@ -400,19 +407,25 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 		return nil, fmt.Errorf("Failed to deploy instance '%s': %w", in.Name, err)
 	}
 
+	wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to deploy instance '%s': %w", in.Name, err)
+	}
+
 	resp := pbApic.DeployInstanceResponse{
 		Instance: &pbApic.CloudInstance{
-			Name:          instance.Name,
-			PublicIp:      instance.PublicIP,
-			InternalIp:    instance.InternalIP,
-			Network:       instance.Network,
-			CloudName:     instance.CloudName,
-			CloudType:     instance.CloudType,
-			VmId:          instance.VMID,
-			Location:      instance.Location,
-			PublicKey:     base64.StdEncoding.EncodeToString(instance.PublicKey),
-			ProtosVersion: instance.ProtosVersion,
-			Status:        instance.Status,
+			Name:               instance.Name,
+			PublicIp:           instance.PublicIP,
+			InternalIp:         instance.InternalIP,
+			Network:            instance.Network,
+			CloudName:          instance.CloudName,
+			CloudType:          instance.CloudType,
+			VmId:               instance.VMID,
+			Location:           instance.Location,
+			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
+			PublicKeyWireguard: wgPublicKey.String(),
+			ProtosVersion:      instance.ProtosVersion,
+			Status:             instance.Status,
 		},
 	}
 

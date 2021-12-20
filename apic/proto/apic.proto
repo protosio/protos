@@ -178,8 +178,9 @@ message CloudInstance {
   string vm_id = 7;
   string location = 8;
   string public_key = 9;
-  string protos_version = 10;
-  string status = 11;
+  string public_key_wireguard = 10;
+  string protos_version = 11;
+  string status = 12;
 }
 
 message GetInstancesRequest {}

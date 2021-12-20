@@ -235,7 +235,8 @@ func infoInstance(instanceName string) error {
 
 	fmt.Printf("Name: %s\n", instance.Name)
 	fmt.Printf("VM ID: %s\n", instance.VmId)
-	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKey)
+	fmt.Printf("Public Key: %s\n", instance.PublicKey)
+	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKeyWireguard)
 	fmt.Printf("Public IP: %s\n", instance.PublicIp)
 	fmt.Printf("Internal IP: %s\n", instance.InternalIp)
 	fmt.Printf("Network: %s\n", instance.Network)
@@ -257,7 +258,8 @@ func deployInstance(instanceName string, cloudName string, cloudLocation string,
 	instance := resp.Instance
 	fmt.Printf("Name: %s\n", instance.Name)
 	fmt.Printf("VM ID: %s\n", instance.VmId)
-	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKey)
+	fmt.Printf("Public Key: %s\n", instance.PublicKey)
+	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKeyWireguard)
 	fmt.Printf("Public IP: %s\n", instance.PublicIp)
 	fmt.Printf("Internal IP: %s\n", instance.InternalIp)
 	fmt.Printf("Network: %s\n", instance.Network)
