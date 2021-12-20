@@ -572,6 +572,9 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 		bar.SetTotal(total)
 		return bar.NewProxyReader(r)
 	})
+	if err != nil {
+		return "", errors.Wrap(err, errMsg)
+	}
 	bar.Finish()
 
 	//
