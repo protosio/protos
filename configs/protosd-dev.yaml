@@ -1,2 +1,1 @@
-workdir: /var/protos
 runtimeendpoint: /run/containerd/containerd.sock
