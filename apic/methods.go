@@ -237,7 +237,7 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 	// initialize cloud provider before use
 	err = cloudProvider.Init()
 	if err != nil {
-		return nil, fmt.Errorf("Error reaching cloud provider '%s'(%s) API: %w", in.Name, cloudProvider.TypeStr(), err)
+		return nil, fmt.Errorf("error reaching cloud provider '%s'(%s) API: %w", in.Name, cloudProvider.TypeStr(), err)
 	}
 
 	supportedLocations := cloudProvider.SupportedLocations()
@@ -464,14 +464,14 @@ func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyR
 	log.Debugf("Retrieving key for instance '%s'", in.Name)
 	instance, err := b.protosClient.CloudManager.GetInstance(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Could not retrieve instance '%s' key: %w", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve instance '%s' key: %w", in.Name, err)
 	}
 	if len(instance.SSHKeySeed) == 0 {
-		return nil, fmt.Errorf("Instance '%s' is missing its SSH key", in.Name)
+		return nil, fmt.Errorf("instance '%s' is missing its SSH key", in.Name)
 	}
 	key, err := b.protosClient.KeyManager.NewKeyFromSeed(instance.SSHKeySeed)
 	if err != nil {
-		return nil, fmt.Errorf("Instance '%s' has an invalid SSH key: %w", in.Name, err)
+		return nil, fmt.Errorf("instance '%s' has an invalid SSH key: %w", in.Name, err)
 	}
 	return &pbApic.GetInstanceKeyResponse{Key: key.EncodePrivateKeytoPEM()}, nil
 }
@@ -480,18 +480,18 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 	log.Debugf("Retrieving logs for instance '%s'", in.Name)
 	logs, err := b.protosClient.CloudManager.LogsInstance(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Could not retrieve instance '%s' logs: %w", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
 	}
 
 	return &pbApic.GetInstanceLogsResponse{Logs: logs}, nil
 }
 
 func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {
-	log.Debugf("Initializing dev instance '%s' at '%s'", in.Name, in.Ip)
+	log.Debugf("initializing dev instance '%s' at '%s'", in.Name, in.Ip)
 
 	err := b.protosClient.CloudManager.InitDevInstance(in.Name, "local", "local", in.KeyFile, in.Ip)
 	if err != nil {
-		return nil, fmt.Errorf("Could not initialize dev instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("could not initialize dev instance '%s': %w", in.Name, err)
 	}
 	return &pbApic.InitDevInstanceResponse{}, nil
 }
@@ -534,7 +534,7 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 	log.Debugf("Retrieving cloud images from cloud '%s'", in.Name)
 	provider, err := b.protosClient.CloudManager.GetProvider(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Could not retrieve cloud '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve cloud '%s': %w", in.Name, err)
 	}
 
 	err = provider.Init()
