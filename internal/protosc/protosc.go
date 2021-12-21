@@ -106,7 +106,10 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
-	cloudManager := cloud.CreateManager(dbi, userManager, keyManager, p2pManager)
+	cloudManager, err := cloud.CreateManager(dbi, userManager, keyManager, p2pManager)
+	if err != nil {
+		log.Fatalf("Failed to create cloud manager: %s", err.Error())
+	}
 	vpn, err := vpn.New(dbi, userManager, cloudManager, keyManager)
 	if err != nil {
 		log.Fatalf("Failed to create VPN manager: %s", err.Error())

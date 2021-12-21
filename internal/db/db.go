@@ -21,9 +21,9 @@ import (
 var log = util.GetLogger("db")
 
 const (
-	dbPort   = 19199
-	sharedDS = "protosshared"
-	localDS  = "protoslocal"
+	dbPort     = 19199
+	sharedData = "protosshared"
+	localData  = "protoslocal"
 )
 
 func bytesPerSec(bytes uint64, start time.Time) string {
@@ -53,7 +53,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 	var err error
 
 	// create local dataset
-	lds := db.GetDataset(localDS)
+	lds := db.GetDataset(localData)
 	_, found := lds.MaybeHeadValue()
 	if !found {
 		mapi := types.NewMap(lds.Database())
@@ -64,7 +64,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 	}
 
 	// create shared dataset
-	sds := db.GetDataset(sharedDS)
+	sds := db.GetDataset(sharedData)
 	_, found = sds.MaybeHeadValue()
 	if !found {
 		mapi := types.NewMap(sds.Database())
@@ -74,7 +74,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 		}
 	}
 
-	return &dbNoms{dbn: db, cs: cs, sharedDatasets: map[string]bool{}}, nil
+	return &dbNoms{dbn: db, cs: cs, sharedDatasets: map[string]bool{}, remoteChunkStores: map[string]chunks.ChunkStore{}}, nil
 }
 
 // DB represents a DB client instance, used to interract with the database
@@ -85,9 +85,11 @@ type DB interface {
 	GetMap(dataset string, to interface{}) error
 	InsertInMap(dataset string, id string, data interface{}) error
 	RemoveFromMap(dataset string, id string) error
-	SyncTo(srcStore, dstStore datas.Database) error
 	SyncCS(cs chunks.ChunkStore) error
 	GetChunkStore() chunks.ChunkStore
+	SyncAll() error
+	AddRemoteCS(id string, cs chunks.ChunkStore) error
+	DeleteRemoteCS(id string) error
 	Close() error
 }
 
@@ -96,22 +98,26 @@ type DB interface {
 //
 
 type dbNoms struct {
-	cs             chunks.ChunkStore
-	dbn            datas.Database
-	sharedDatasets map[string]bool
+	cs                chunks.ChunkStore
+	remoteChunkStores map[string]chunks.ChunkStore
+	dbn               datas.Database
+	sharedDatasets    map[string]bool
 }
 
 //
 // private methods
 //
 
-func (db *dbNoms) getHeadMap(name string) (datas.Dataset, types.Map) {
+func (db *dbNoms) getHeadMap(name string) (datas.Dataset, types.Map, bool) {
 	var ds datas.Dataset
 	_, found := db.sharedDatasets[name]
+	var shared bool
 	if found {
-		ds = db.dbn.GetDataset(sharedDS)
+		ds = db.dbn.GetDataset(sharedData)
+		shared = true
 	} else {
-		ds = db.dbn.GetDataset(localDS)
+		ds = db.dbn.GetDataset(localData)
+		shared = false
 	}
 
 	hv, ok := ds.MaybeHeadValue()
@@ -120,12 +126,12 @@ func (db *dbNoms) getHeadMap(name string) (datas.Dataset, types.Map) {
 	}
 
 	mapHead := hv.(types.Map)
-	return ds, mapHead
+	return ds, mapHead, shared
 }
 
 func (db *dbNoms) getSharedHeadMap() (datas.Dataset, types.Map) {
 
-	ds := db.dbn.GetDataset(sharedDS)
+	ds := db.dbn.GetDataset(sharedData)
 	hv, ok := ds.MaybeHeadValue()
 	if !ok {
 		panic("Shared dataset does not have a head value")
@@ -137,7 +143,7 @@ func (db *dbNoms) getSharedHeadMap() (datas.Dataset, types.Map) {
 
 func (db *dbNoms) getLocalHeadMap() (datas.Dataset, types.Map) {
 
-	ds := db.dbn.GetDataset(localDS)
+	ds := db.dbn.GetDataset(localData)
 	hv, ok := ds.MaybeHeadValue()
 	if !ok {
 		panic("Shared dataset does not have a head value")
@@ -159,10 +165,42 @@ func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
 	return db.cs
 }
 
+// AddRemoteCS adds a remote chunk store which can be synced
+func (db *dbNoms) AddRemoteCS(id string, cs chunks.ChunkStore) error {
+	db.remoteChunkStores[id] = cs
+	return nil
+}
+
+// DeleteRemoteCS removes a remote chunk store
+func (db *dbNoms) DeleteRemoteCS(id string) error {
+
+	if _, found := db.remoteChunkStores[id]; found {
+		delete(db.remoteChunkStores, id)
+		return nil
+	}
+
+	return fmt.Errorf("remote chunk store not found for '%s'", id)
+}
+
+// AddRemoteCS adds a remote chunk store which can be synced
+func (db *dbNoms) SyncAll() error {
+	for id, cs := range db.remoteChunkStores {
+		localCS := cs
+		localID := id
+		go func() {
+			err := db.SyncCS(localCS)
+			if err != nil {
+				log.Errorf("Failed to sync db to '%s': %w", localID, err)
+			}
+		}()
+	}
+	return nil
+}
+
 // SyncCS syncs a remote chunk store
 func (db *dbNoms) SyncCS(cs chunks.ChunkStore) error {
 	cfg := config.NewResolver()
-	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedDS)
+	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedData)
 	if err != nil {
 		return err
 	}
@@ -179,7 +217,7 @@ func (db *dbNoms) SyncCS(cs chunks.ChunkStore) error {
 func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 
 	// prepare destination db
-	dstDataset := dstStore.GetDataset(sharedDS)
+	dstDataset := dstStore.GetDataset(sharedData)
 
 	// sync
 	start := time.Now()
@@ -205,7 +243,7 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 	}()
 
 	// prepare local db
-	srcObj, found := srcStore.GetDataset(sharedDS).MaybeHead()
+	srcObj, found := srcStore.GetDataset(sharedData).MaybeHead()
 	if !found {
 		return fmt.Errorf("head not found for local db")
 	}
@@ -231,11 +269,11 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 		log.Debugf("Done - Synced %s in %s (%s/s)", humanize.Bytes(last.ApproxWrittenBytes), since(start), bytesPerSec(last.ApproxWrittenBytes, start))
 		status.Done()
 	} else if !dstExists {
-		log.Debugf("All chunks already exist at destination! Created new dataset %s.\n", sharedDS)
+		log.Debugf("All chunks already exist at destination! Created new dataset %s.\n", sharedData)
 	} else if nonFF && !srcRef.Equals(dstRef) {
 		log.Debugf("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
 	} else {
-		log.Debugf("Dataset '%s' is already up to date.\n", sharedDS)
+		log.Debugf("Dataset '%s' is already up to date.\n", sharedData)
 	}
 
 	return nil
@@ -244,7 +282,7 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 // SaveStruct writes a new value for a given struct
 func (db *dbNoms) SaveStruct(dataset string, data interface{}) error {
 
-	ds, mapHead := db.getHeadMap(dataset)
+	ds, mapHead, _ := db.getHeadMap(dataset)
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
@@ -260,7 +298,7 @@ func (db *dbNoms) SaveStruct(dataset string, data interface{}) error {
 
 // GetStruct retrieves a struct from a dataset
 func (db *dbNoms) GetStruct(dataset string, to interface{}) error {
-	_, mapHead := db.getHeadMap(dataset)
+	_, mapHead, _ := db.getHeadMap(dataset)
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
@@ -276,7 +314,7 @@ func (db *dbNoms) GetStruct(dataset string, to interface{}) error {
 
 // GetMap retrieves all records in a map
 func (db *dbNoms) GetMap(dataset string, to interface{}) error {
-	_, mapHead := db.getHeadMap(dataset)
+	_, mapHead, _ := db.getHeadMap(dataset)
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
@@ -295,7 +333,7 @@ func (db *dbNoms) GetMap(dataset string, to interface{}) error {
 
 // InsertInMap inserts an element in a map, or updates an existing one
 func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error {
-	ds, mapHead := db.getHeadMap(dataset)
+	ds, mapHead, shared := db.getHeadMap(dataset)
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
@@ -315,12 +353,16 @@ func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error
 	if err != nil {
 		return fmt.Errorf("error committing to db: %w", err)
 	}
+
+	if shared {
+		db.SyncAll()
+	}
 	return nil
 }
 
 // RemoveFromMap removes an element from a map
 func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
-	ds, mapHead := db.getHeadMap(dataset)
+	ds, mapHead, shared := db.getHeadMap(dataset)
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
@@ -334,6 +376,10 @@ func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 	_, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
 	if err != nil {
 		return fmt.Errorf("error committing to db: %w", err)
+	}
+
+	if shared {
+		db.SyncAll()
 	}
 	return nil
 }

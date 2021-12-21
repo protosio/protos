@@ -426,12 +426,17 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.PublicKey = pubKey
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
+		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
 
-	err = cm.db.SyncCS(p2pClient.ChunkStore)
+	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Failed to sync data to instance '%s'", instanceName)
+		return InstanceInfo{}, fmt.Errorf("failed to add chunk store for instance '%s': %w", instanceName, err)
+	}
+
+	err = cm.db.SyncAll()
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to sync data to instance '%s': %w", instanceName, err)
 	}
 
 	log.Infof("Instance '%s' at '%s' is ready", instanceName, instanceInfo.PublicIP)
@@ -535,9 +540,14 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
 	}
 
-	err = cm.db.SyncCS(p2pClient.ChunkStore)
+	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to sync data to dev instance '%s'", instanceName)
+		return fmt.Errorf("failed to add chunk store for instance '%s': %w", instanceName, err)
+	}
+
+	err = cm.db.SyncAll()
+	if err != nil {
+		return fmt.Errorf("failed to sync data to instance '%s': %w", instanceName, err)
 	}
 
 	log.Infof("Dev instance '%s' at '%s' is ready", instanceName, ipString)
@@ -588,6 +598,17 @@ func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 			}
 		}
 	}
+
+	err = cm.db.DeleteRemoteCS(name)
+	if err != nil {
+		return fmt.Errorf("failed to delete chunk store for instance '%s': %w", name, err)
+	}
+
+	err = cm.db.SyncAll()
+	if err != nil {
+		return fmt.Errorf("failed to sync data: %w", err)
+	}
+
 	return cm.db.RemoveFromMap(instanceDS, instance.Name)
 }
 
@@ -810,20 +831,47 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 }
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P) *Manager {
+func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
-		log.Panic("Failed to create cloud manager: none of the inputs can be nil")
+		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
 	err := db.InitMap(instanceDS, true)
 	if err != nil {
-		log.Fatal("Failed to initialize instance dataset: ", err)
+		return nil, fmt.Errorf("failed to initialize instance dataset: ", err)
 	}
 
 	err = db.InitMap(cloudDS, false)
 	if err != nil {
-		log.Fatal("Failed to initialize cloud dataset: ", err)
+		return nil, fmt.Errorf("failed to initialize cloud dataset: ", err)
 	}
 
-	return &Manager{db: db, um: um, sm: sm, p2p: p2p}
+	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p}
+
+	instances, err := manager.GetInstances()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve instances: ", err)
+	}
+	for _, instance := range instances {
+		peerID, err := manager.p2p.AddPeer(instance.PublicKey, instance.PublicIP)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add peer: %w", err)
+		}
+
+		p2pClient, err := manager.p2p.GetClient(peerID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get p2p client for '%s': %w", instance.Name, err)
+		}
+		err = manager.db.AddRemoteCS(instance.Name, p2pClient.ChunkStore)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add chunk store for instance '%s': %w", instance.Name, err)
+		}
+
+		err = manager.db.SyncAll()
+		if err != nil {
+			return nil, fmt.Errorf("failed to sync data to instance '%s': %w", instance.Name, err)
+		}
+	}
+
+	return manager, nil
 }
