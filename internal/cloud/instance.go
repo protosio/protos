@@ -94,6 +94,24 @@ func createMachineTypesString(machineTypes map[string]MachineSpec) string {
 	return machineTypesStr.String()
 }
 
+func removeNetworkFromSlice(s []net.IPNet, i int) []net.IPNet {
+	networks := make([]net.IPNet, 0)
+	networks = append(networks, s[:i]...)
+	return append(networks, s[i+1:]...)
+}
+
+func copyIP(ip net.IP) net.IP {
+	ipCopy := make(net.IP, len(ip))
+	copy(ipCopy, ip)
+	return ipCopy
+}
+
+func copyMask(mask net.IPMask) net.IPMask {
+	maskCopy := make(net.IPMask, len(mask))
+	copy(maskCopy, mask)
+	return maskCopy
+}
+
 // allocateNetwork allocates an unused network for an instance
 func allocateNetwork(instances []InstanceInfo, devices []auth.UserDevice) (net.IPNet, error) {
 	// create list of existing networks
@@ -101,32 +119,42 @@ func allocateNetwork(instances []InstanceInfo, devices []auth.UserDevice) (net.I
 	for _, inst := range instances {
 		_, inet, err := net.ParseCIDR(inst.Network)
 		if err != nil {
-			panic(err)
+			return net.IPNet{}, err
 		}
 		usedNetworks = append(usedNetworks, *inet)
 	}
 	for _, dev := range devices {
 		_, inet, err := net.ParseCIDR(dev.Network)
 		if err != nil {
-			panic(err)
+			return net.IPNet{}, err
 		}
 		usedNetworks = append(usedNetworks, *inet)
 	}
 
 	// figure out which is the first network that is not currently used
+	allNetworks := []net.IPNet{}
 	_, netspace, _ := net.ParseCIDR(netSpace)
 	for i := 0; i <= 255; i++ {
-		newNet := *netspace
+		newNet := net.IPNet{}
+		newNet.IP = copyIP(netspace.IP)
+		newNet.Mask = copyMask(netspace.Mask)
 		newNet.IP[2] = byte(i)
 		newNet.Mask[2] = byte(255)
-		for _, usedNet := range usedNetworks {
-			if !newNet.Contains(usedNet.IP) {
-				return newNet, nil
+		allNetworks = append(allNetworks, newNet)
+	}
+	for _, usedNet := range usedNetworks {
+		for i, network := range allNetworks {
+			if usedNet.IP.String() == network.IP.String() && usedNet.Mask.String() == network.Mask.String() {
+				allNetworks = removeNetworkFromSlice(allNetworks, i)
+				break
 			}
 		}
 	}
+	if len(allNetworks) == 0 {
+		return net.IPNet{}, fmt.Errorf("failed to allocate network. Maximum number of networks allocated")
+	}
 
-	return net.IPNet{}, fmt.Errorf("failed to allocate network")
+	return allNetworks[0], nil
 }
 
 // Manager manages cloud providers and instances

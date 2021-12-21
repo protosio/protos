@@ -687,7 +687,7 @@ func (sw *scaleway) RemoveImage(name string, location string) error {
 		}
 	}
 	if id == "" {
-		return errors.Wrap(fmt.Errorf("Could not find image '%s'", name), errMsg)
+		return fmt.Errorf("%s: could not find image '%s'", errMsg, name)
 	}
 	img, err := sw.instanceAPI.GetImage(&instance.GetImageRequest{ImageID: id, Zone: scw.Zone(location)})
 	if err != nil {
