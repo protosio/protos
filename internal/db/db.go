@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"path"
 	"time"
@@ -44,7 +43,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
 		err := os.Mkdir(dbpath, 0755)
 		if err != nil {
-			return &dbNoms{}, fmt.Errorf("Failed to open database: %w", err)
+			return &dbNoms{}, fmt.Errorf("failed to open database: %w", err)
 		}
 	}
 
@@ -60,7 +59,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 		mapi := types.NewMap(lds.Database())
 		lds, err = db.CommitValue(lds, mapi)
 		if err != nil {
-			return &dbNoms{}, fmt.Errorf("Error creating local dataset: %w", err)
+			return &dbNoms{}, fmt.Errorf("error creating local dataset: %w", err)
 		}
 	}
 
@@ -71,7 +70,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 		mapi := types.NewMap(sds.Database())
 		sds, err = db.CommitValue(sds, mapi)
 		if err != nil {
-			return &dbNoms{}, fmt.Errorf("Error creating local dataset: %w", err)
+			return &dbNoms{}, fmt.Errorf("error creating local dataset: %w", err)
 		}
 	}
 
@@ -86,10 +85,8 @@ type DB interface {
 	GetMap(dataset string, to interface{}) error
 	InsertInMap(dataset string, id string, data interface{}) error
 	RemoveFromMap(dataset string, id string) error
-	SyncAll(ips []string) error
 	SyncTo(srcStore, dstStore datas.Database) error
 	SyncCS(cs chunks.ChunkStore) error
-	SyncServer(address net.IP) (func() error, error)
 	GetChunkStore() chunks.ChunkStore
 	Close() error
 }
@@ -99,7 +96,6 @@ type DB interface {
 //
 
 type dbNoms struct {
-	uri            string
 	cs             chunks.ChunkStore
 	dbn            datas.Database
 	sharedDatasets map[string]bool
@@ -163,44 +159,7 @@ func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
 	return db.cs
 }
 
-func (db *dbNoms) SyncAll(ips []string) error {
-
-	for _, ip := range ips {
-		log.Tracef("Syncing dataset '%s' to '%s'", sharedDS, ip)
-
-		dst := fmt.Sprintf("http://%s:%d::%s", ip, dbPort, sharedDS)
-		cfg := config.NewResolver()
-		remoteDB, remoteObj, err := cfg.GetPath(dst)
-		if err != nil {
-			return err
-		}
-
-		if remoteObj == nil {
-			return fmt.Errorf("Object for dataset '%s' not found on '%s'", sharedDS, "destination")
-		}
-
-		// sync local -> remote
-		err = db.SyncTo(db.dbn, remoteDB)
-		if err != nil {
-			return err
-		}
-
-		// sync remote -> local
-		err = db.SyncTo(remoteDB, db.dbn)
-		if err != nil {
-			return err
-		}
-
-		err = remoteDB.Close()
-		if err != nil {
-			return err
-		}
-
-	}
-
-	return nil
-}
-
+// SyncCS syncs a remote chunk store
 func (db *dbNoms) SyncCS(cs chunks.ChunkStore) error {
 	cfg := config.NewResolver()
 	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedDS)
@@ -248,7 +207,7 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 	// prepare local db
 	srcObj, found := srcStore.GetDataset(sharedDS).MaybeHead()
 	if !found {
-		return fmt.Errorf("Head not found for local db")
+		return fmt.Errorf("head not found for local db")
 	}
 	srcRef := types.NewRef(srcObj)
 
@@ -260,7 +219,10 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 
 	dstDataset, err := dstStore.FastForward(dstDataset, srcRef)
 	if err == datas.ErrMergeNeeded {
-		dstDataset, err = dstStore.SetHead(dstDataset, srcRef)
+		_, err = dstStore.SetHead(dstDataset, srcRef)
+		if err != nil {
+			return fmt.Errorf("failed to set head on destination store: %w", err)
+		}
 		nonFF = true
 	}
 
@@ -279,20 +241,6 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 	return nil
 }
 
-func (db *dbNoms) SyncServer(address net.IP) (func() error, error) {
-	server := datas.NewRemoteDatabaseServer(db.cs, address.String(), dbPort)
-
-	go server.Run()
-
-	stopper := func() error {
-		log.Debug("Shutting down DB sync server")
-		server.Stop()
-		return nil
-	}
-
-	return stopper, nil
-}
-
 // SaveStruct writes a new value for a given struct
 func (db *dbNoms) SaveStruct(dataset string, data interface{}) error {
 
@@ -300,12 +248,12 @@ func (db *dbNoms) SaveStruct(dataset string, data interface{}) error {
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
-		return fmt.Errorf("Failed to marshal db data: %w", err)
+		return fmt.Errorf("failed to marshal db data: %w", err)
 	}
 
 	_, err = db.dbn.CommitValue(ds, mapHead.Edit().Set(types.String(dataset), marshaled).Map())
 	if err != nil {
-		return fmt.Errorf("Error committing to DB: %w", err)
+		return fmt.Errorf("error committing to DB: %w", err)
 	}
 	return nil
 }
@@ -316,12 +264,12 @@ func (db *dbNoms) GetStruct(dataset string, to interface{}) error {
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Db struct dataset '%s' not found", dataset)
+		return fmt.Errorf("db struct dataset '%s' not found", dataset)
 	}
 
 	err := marshal.Unmarshal(iv.Value(), to)
 	if err != nil {
-		return fmt.Errorf("Failed to unmarshall data from db: %w", err)
+		return fmt.Errorf("failed to unmarshall data from db: %w", err)
 	}
 	return nil
 }
@@ -332,14 +280,14 @@ func (db *dbNoms) GetMap(dataset string, to interface{}) error {
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Db map dataset '%s' not found", dataset)
+		return fmt.Errorf("db map dataset '%s' not found", dataset)
 	}
 
 	mapi := iv.(types.Map)
 
 	err := marshal.Unmarshal(mapi.Value(), to)
 	if err != nil {
-		return fmt.Errorf("Failed to unmarshall data from db: %w", err)
+		return fmt.Errorf("failed to unmarshall data from db: %w", err)
 	}
 
 	return nil
@@ -351,21 +299,21 @@ func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Db map dataset '%s' not found", dataset)
+		return fmt.Errorf("db map dataset '%s' not found", dataset)
 	}
 
 	mapi := iv.(types.Map)
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
-		return fmt.Errorf("Failed to marshal db data: %w", err)
+		return fmt.Errorf("failed to marshal db data: %w", err)
 	}
 
 	newMapi := mapi.Edit().Set(types.String(id), marshaled).Map()
 	newMapHead := mapHead.Edit().Set(types.String(dataset), marshal.MustMarshal(db.dbn, newMapi)).Map()
 	_, err = db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
 	if err != nil {
-		return fmt.Errorf("Error committing to db: %w", err)
+		return fmt.Errorf("error committing to db: %w", err)
 	}
 	return nil
 }
@@ -376,7 +324,7 @@ func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 
 	iv, found := mapHead.MaybeGet(types.String(dataset))
 	if !found {
-		return fmt.Errorf("Db map dataset '%s' not found", dataset)
+		return fmt.Errorf("db map dataset '%s' not found", dataset)
 	}
 
 	mapi := iv.(types.Map)
@@ -385,7 +333,7 @@ func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 	newMapHead := mapHead.Edit().Set(types.String(dataset), marshal.MustMarshal(db.dbn, newMapi)).Map()
 	_, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
 	if err != nil {
-		return fmt.Errorf("Error committing to db: %w", err)
+		return fmt.Errorf("error committing to db: %w", err)
 	}
 	return nil
 }
@@ -413,7 +361,7 @@ func (db *dbNoms) InitMap(name string, sync bool) error {
 	newMapHead := mapHead.Edit().Set(types.String(name), marshal.MustMarshal(db.dbn, mapNew)).Map()
 	_, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
 	if err != nil {
-		return fmt.Errorf("Error committing map '%s' to db: %w", name, err)
+		return fmt.Errorf("error committing map '%s' to db: %w", name, err)
 	}
 
 	return nil
