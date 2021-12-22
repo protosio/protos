@@ -560,7 +560,7 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 
 func (b *Backend) UploadCloudImage(ctx context.Context, in *pbApic.UploadCloudImageRequest) (*pbApic.UploadCloudImageResponse, error) {
 	log.Debugf("Uploading cloud image '%s'(%s) to cloud '%s'", in.ImageName, in.ImagePath, in.CloudName)
-	return &pbApic.UploadCloudImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Second)
+	return &pbApic.UploadCloudImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Minute)
 }
 
 func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudImageRequest) (*pbApic.RemoveCloudImageResponse, error) {

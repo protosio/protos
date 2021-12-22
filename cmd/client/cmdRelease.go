@@ -57,11 +57,11 @@ var cmdRelease *cli.Command = &cli.Command{
 					Required:    false,
 					Destination: &cloudLocation,
 				},
-				&cli.DurationFlag{
+				&cli.IntFlag{
 					Name:     "timeout",
 					Usage:    "Upload timeout in minutes",
 					Required: false,
-					Value:    time.Minute * 30,
+					Value:    30,
 				},
 			},
 			Action: func(c *cli.Context) error {
@@ -162,7 +162,7 @@ func listProtosCloudImages(cloudName string) error {
 }
 
 func uploadLocalImageToCloud(imagePath string, imageName string, cloudName string, cloudLocation string, timeout int32) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout+30)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout+1)*time.Minute)
 	defer cancel()
 	_, err := client.UploadCloudImage(ctx, &apic.UploadCloudImageRequest{ImagePath: imagePath, ImageName: imageName, CloudName: cloudName, CloudLocation: cloudLocation, Timeout: timeout})
 	if err != nil {
