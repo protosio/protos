@@ -24,8 +24,8 @@ import (
 const (
 	scalewayArch          = "x86_64"
 	scalewayUploadSSHkey  = "protos-upload-key"
-	scalewayImageDisk     = "/dev/sda"
-	scalewayUploadImageOS = "Ubuntu 20.04 Focal Fossa"
+	scalewayImageDisk     = "/dev/vdb"
+	scalewayUploadImageID = "ubuntu_focal"
 )
 
 type scalewayCredentials struct {
@@ -349,21 +349,10 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	defer sw.cleanImageSSHkeys(sshKey.ID)
 
 	//
-	// find correct image
-	//
-
-	imageID, err := sw.getUploadImageID(scw.Zone(location))
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway")
-	}
-
-	log.Infof("Using image '%s' for adding Protos image to Scaleway", imageID)
-
-	//
 	// create upload server
 	//
 
-	srv, vol, err := sw.createImageUploadVM(imageID, location)
+	srv, vol, err := sw.createImageUploadVM(scalewayUploadImageID, location)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway")
 	}
@@ -514,13 +503,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	// Create upload server
 	//
 
-	imageID, err := sw.getUploadImageID(scw.Zone(location))
-	if err != nil {
-		return "", errors.Wrap(err, errMsg)
-	}
-	log.Infof("Using image '%s' for adding Protos image to Scaleway", imageID)
-
-	srv, vol, err := sw.createImageUploadVM(imageID, location)
+	srv, vol, err := sw.createImageUploadVM(scalewayUploadImageID, location)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}
@@ -720,11 +703,11 @@ func (sw *scaleway) NewVolume(name string, size int, location string) (string, e
 		Zone:       scw.Zone(location),
 	}
 
-	volumeResp, err := sw.instanceAPI.CreateVolume(createVolumeReq)
+	targetVolumeResp, err := sw.instanceAPI.CreateVolume(createVolumeReq)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to create Scaleway volume")
 	}
-	return volumeResp.Volume.ID, nil
+	return targetVolumeResp.Volume.ID, nil
 }
 
 func (sw *scaleway) DeleteVolume(id string, location string) error {
@@ -768,26 +751,6 @@ func (sw *scaleway) DettachVolume(volumeID string, instanceID string, location s
 // helper methods
 //
 
-func (sw *scaleway) getUploadImageID(zone scw.Zone) (string, error) {
-	resp, err := sw.marketplaceAPI.ListImages(&marketplace.ListImagesRequest{})
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to retrieve marketplace images from Scaleway")
-	}
-	for _, img := range resp.Images {
-
-		if img.Name == scalewayUploadImageOS {
-			for _, ver := range img.Versions {
-				for _, li := range ver.LocalImages {
-					if li.Arch == scalewayArch && li.Zone == zone {
-						return li.ID, nil
-					}
-				}
-			}
-		}
-	}
-	return "", errors.Errorf("%s image in zone '%s' not found on Scaleway", scalewayUploadImageOS, scw.ZoneFrPar1)
-}
-
 func (sw *scaleway) cleanImageSSHkeys(keyID string) {
 	err := sw.accountAPI.DeleteSSHKey(&account.DeleteSSHKeyRequest{SSHKeyID: keyID})
 	if err != nil {
@@ -802,16 +765,16 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	// create volume
 	//
 
-	sizeLocalDisk := scw.Size(uint64(20)) * scw.GB
+	sizeTargetDisk := scw.Size(uint64(1)) * scw.GB
 	createVolumeReq := &instance.CreateVolumeRequest{
-		Name:       "protos-image-uploader-os",
+		Name:       "protos-image-uploader-target",
 		VolumeType: instance.VolumeVolumeTypeLSSD,
-		Size:       &sizeLocalDisk,
+		Size:       &sizeTargetDisk,
 		Zone:       scw.Zone(location),
 	}
 
 	log.Info("Creating image volume")
-	volumeResp, err := sw.instanceAPI.CreateVolume(createVolumeReq)
+	targetVolumeResp, err := sw.instanceAPI.CreateVolume(createVolumeReq)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Failed to create image volume")
 	}
@@ -820,14 +783,14 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	// create server
 	//
 
-	sizeVolumeDisk := scw.Size(uint64(20)) * scw.GB
-	volumeMap := make(map[string]*instance.VolumeServerTemplate)
-	volumeTemplate := &instance.VolumeServerTemplate{
-		Name:       "protos-image-uploader-target",
-		VolumeType: instance.VolumeVolumeTypeBSSD,
-		Size:       sizeVolumeDisk,
+	sizeOSDisk := scw.Size(uint64(19)) * scw.GB
+	volumeMap := make(map[string]*instance.VolumeServerTemplate, 1)
+	osVolumeTemplate := &instance.VolumeServerTemplate{
+		VolumeType: instance.VolumeVolumeTypeLSSD,
+		Size:       sizeOSDisk,
+		Boot:       true,
 	}
-	volumeMap["0"] = volumeTemplate
+	volumeMap["0"] = osVolumeTemplate
 
 	ipreq := true
 	bootType := instance.BootTypeLocal
@@ -855,7 +818,7 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	log.Info("Attaching snapshot volume to upload VM")
 	attachVolumeReq := &instance.AttachVolumeRequest{
 		ServerID: srvResp.Server.ID,
-		VolumeID: volumeResp.Volume.ID,
+		VolumeID: targetVolumeResp.Volume.ID,
 		Zone:     scw.Zone(location),
 	}
 
@@ -890,7 +853,7 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 		return nil, nil, errors.Wrap(err, "Failed to retrieve upload VM details")
 	}
 
-	return srvStatusResp.Server, volumeResp.Volume, nil
+	return srvStatusResp.Server, targetVolumeResp.Volume, nil
 }
 
 func (sw *scaleway) cleanImageUploadVM(srv *instance.Server, location string) {
