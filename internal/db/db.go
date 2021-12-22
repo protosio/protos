@@ -87,7 +87,7 @@ type DB interface {
 	RemoveFromMap(dataset string, id string) error
 	SyncCS(cs chunks.ChunkStore) error
 	GetChunkStore() chunks.ChunkStore
-	SyncAll() error
+	SyncAll()
 	AddRemoteCS(id string, cs chunks.ChunkStore) error
 	DeleteRemoteCS(id string) error
 	Close() error
@@ -178,7 +178,7 @@ func (db *dbNoms) DeleteRemoteCS(id string) error {
 }
 
 // AddRemoteCS adds a remote chunk store which can be synced
-func (db *dbNoms) SyncAll() error {
+func (db *dbNoms) SyncAll() {
 	for id, cs := range db.remoteChunkStores {
 		localCS := cs
 		localID := id
@@ -189,7 +189,6 @@ func (db *dbNoms) SyncAll() error {
 			}
 		}()
 	}
-	return nil
 }
 
 // SyncCS syncs a remote chunk store

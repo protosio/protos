@@ -422,22 +422,17 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
+	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to add chunk store for instance '%s': %w", instanceName, err)
+	}
+
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
-	}
-
-	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to add chunk store for instance '%s': %w", instanceName, err)
-	}
-
-	err = cm.db.SyncAll()
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to sync data to instance '%s': %w", instanceName, err)
 	}
 
 	log.Infof("Instance '%s' at '%s' is ready", instanceName, instanceInfo.PublicIP)
@@ -532,23 +527,17 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("failed to init dev instance: %w", err)
 	}
 
-	instanceInfo.InternalIP = ip.String()
-	instanceInfo.PublicKey = pubKey
-	instanceInfo.Network = developmentNetwork.String()
-
-	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
-	if err != nil {
-		return fmt.Errorf("failed to save dev instance '%s': %w", instanceName, err)
-	}
-
 	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
 	if err != nil {
 		return fmt.Errorf("failed to add chunk store for instance '%s': %w", instanceName, err)
 	}
 
-	err = cm.db.SyncAll()
+	instanceInfo.InternalIP = ip.String()
+	instanceInfo.PublicKey = pubKey
+	instanceInfo.Network = developmentNetwork.String()
+	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return fmt.Errorf("failed to sync data to instance '%s': %w", instanceName, err)
+		return fmt.Errorf("failed to save dev instance '%s': %w", instanceName, err)
 	}
 
 	log.Infof("Dev instance '%s' at '%s' is ready", instanceName, ipString)
@@ -606,11 +595,6 @@ func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 	err = cm.db.DeleteRemoteCS(name)
 	if err != nil {
 		return fmt.Errorf("failed to delete chunk store for instance '%s': %w", name, err)
-	}
-
-	err = cm.db.SyncAll()
-	if err != nil {
-		return fmt.Errorf("failed to sync data: %w", err)
 	}
 
 	return cm.db.RemoveFromMap(instanceDS, instance.Name)
@@ -875,10 +859,6 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 		}
 	}
 
-	err = manager.db.SyncAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to sync data to peers: %w", err)
-	}
-
+	manager.db.SyncAll()
 	return manager, nil
 }
