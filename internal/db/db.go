@@ -88,8 +88,8 @@ type DB interface {
 	SyncCS(cs chunks.ChunkStore) error
 	GetChunkStore() chunks.ChunkStore
 	SyncAll()
-	AddRemoteCS(id string, cs chunks.ChunkStore) error
-	DeleteRemoteCS(id string) error
+	AddRemoteCS(id string, cs chunks.ChunkStore)
+	DeleteRemoteCS(id string)
 	Close() error
 }
 
@@ -166,15 +166,13 @@ func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
 }
 
 // AddRemoteCS adds a remote chunk store which can be synced
-func (db *dbNoms) AddRemoteCS(id string, cs chunks.ChunkStore) error {
+func (db *dbNoms) AddRemoteCS(id string, cs chunks.ChunkStore) {
 	db.remoteChunkStores[id] = cs
-	return nil
 }
 
 // DeleteRemoteCS removes a remote chunk store
-func (db *dbNoms) DeleteRemoteCS(id string) error {
+func (db *dbNoms) DeleteRemoteCS(id string) {
 	delete(db.remoteChunkStores, id)
-	return nil
 }
 
 // AddRemoteCS adds a remote chunk store which can be synced

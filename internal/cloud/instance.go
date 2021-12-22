@@ -422,11 +422,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
-	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to add chunk store for instance '%s': %w", instanceName, err)
-	}
-
+	cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
@@ -527,10 +523,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("failed to init dev instance: %w", err)
 	}
 
-	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
-	if err != nil {
-		return fmt.Errorf("failed to add chunk store for instance '%s': %w", instanceName, err)
-	}
+	cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
 
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
@@ -592,11 +585,7 @@ func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 		}
 	}
 
-	err = cm.db.DeleteRemoteCS(name)
-	if err != nil {
-		return fmt.Errorf("failed to delete chunk store for instance '%s': %w", name, err)
-	}
-
+	cm.db.DeleteRemoteCS(name)
 	return cm.db.RemoveFromMap(instanceDS, instance.Name)
 }
 
@@ -852,11 +841,7 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 			log.Errorf("failed to get p2p client for '%s': %s", instance.Name, err.Error())
 			continue
 		}
-		err = manager.db.AddRemoteCS(instance.Name, p2pClient.ChunkStore)
-		if err != nil {
-			log.Errorf("failed to add chunk store for instance '%s': %s", instance.Name, err.Error())
-			continue
-		}
+		manager.db.AddRemoteCS(instance.Name, p2pClient.ChunkStore)
 	}
 
 	manager.db.SyncAll()
