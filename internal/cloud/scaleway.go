@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	scalewayArch = "x86_64"
-	uploadSSHkey = "protos-upload-key"
-	imageDisk    = "/dev/sda"
+	scalewayArch          = "x86_64"
+	scalewayUploadSSHkey  = "protos-upload-key"
+	scalewayImageDisk     = "/dev/sda"
+	scalewayUploadImageOS = "Ubuntu 20.04 Focal Fossa"
 )
 
 type scalewayCredentials struct {
@@ -341,7 +342,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	}
 	pubKey := strings.TrimSuffix(key.AuthorizedKey(), "\n") + " root@protos.io"
 
-	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: uploadSSHkey, OrganizationID: &sw.credentials.organisationID, PublicKey: pubKey})
+	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: scalewayUploadSSHkey, OrganizationID: &sw.credentials.organisationID, PublicKey: pubKey})
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway: Failed to add temporary SSH key")
 	}
@@ -407,14 +408,14 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", imageDisk), sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", localISO, imageDisk), sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", localISO, scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Error while writing image to volume")
@@ -503,7 +504,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	}
 	pubKey := strings.TrimSuffix(key.AuthorizedKey(), "\n") + " root@protos.io"
 
-	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: uploadSSHkey, OrganizationID: &sw.credentials.organisationID, PublicKey: pubKey})
+	sshKey, err := sw.accountAPI.CreateSSHKey(&account.CreateSSHKeyRequest{Name: scalewayUploadSSHkey, OrganizationID: &sw.credentials.organisationID, PublicKey: pubKey})
 	if err != nil {
 		return "", errors.Wrap(err, errMsg+". Failed to add temporary SSH key")
 	}
@@ -600,14 +601,14 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", imageDisk), sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, errMsg+". Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", remoteImage, imageDisk), sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", remoteImage, scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, errMsg+". Error while writing image to volume")
@@ -773,8 +774,8 @@ func (sw *scaleway) getUploadImageID(zone scw.Zone) (string, error) {
 		return "", errors.Wrap(err, "Failed to retrieve marketplace images from Scaleway")
 	}
 	for _, img := range resp.Images {
-		fmt.Println(img.Name)
-		if img.Name == "Ubuntu 20.04 Focal Fossa" {
+
+		if img.Name == scalewayUploadImageOS {
 			for _, ver := range img.Versions {
 				for _, li := range ver.LocalImages {
 					if li.Arch == scalewayArch && li.Zone == zone {
@@ -784,7 +785,7 @@ func (sw *scaleway) getUploadImageID(zone scw.Zone) (string, error) {
 			}
 		}
 	}
-	return "", errors.Errorf("Ubuntu 20.04 Focal Fossa image in zone '%s' not found", scw.ZoneFrPar1)
+	return "", errors.Errorf("%s image in zone '%s' not found on Scaleway", scalewayUploadImageOS, scw.ZoneFrPar1)
 }
 
 func (sw *scaleway) cleanImageSSHkeys(keyID string) {
