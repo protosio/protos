@@ -434,7 +434,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 
 func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceRequest) (*pbApic.RemoveInstanceResponse, error) {
 	log.Debugf("Removing instance '%s'", in.Name)
-	err := b.protosClient.CloudManager.DeleteInstance(in.Name, in.LocalOnly)
+	err := b.protosClient.CloudManager.DeleteInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove instance '%s': %w", in.Name, err)
 	}

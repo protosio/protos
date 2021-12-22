@@ -39,7 +39,7 @@ type CloudManager interface {
 	DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error)
 	GetInstance(name string) (InstanceInfo, error)
 	GetInstances() ([]InstanceInfo, error)
-	DeleteInstance(name string, localOnly bool) error
+	DeleteInstance(name string) error
 	StartInstance(name string) error
 	StopInstance(name string) error
 	TunnelInstance(name string) error

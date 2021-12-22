@@ -539,17 +539,14 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 }
 
 // DeleteInstance deletes an instance
-func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
+func (cm *Manager) DeleteInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
-		if !strings.Contains(err.Error(), "not found") {
-			return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
-		}
-		localOnly = true
+		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
 	}
 
 	// if local only, ignore any cloud resources
-	if !localOnly {
+	if instance.CloudType != string(Local) {
 		provider, err := cm.GetProvider(instance.CloudName)
 		if err != nil {
 			return fmt.Errorf("could not retrieve cloud '%s': %w", name, err)
@@ -560,27 +557,36 @@ func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 			return fmt.Errorf("could not init cloud '%s': %w", name, err)
 		}
 
+		found := true
 		vmInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
 		if err != nil {
-			return fmt.Errorf("failed to get details for instance '%s': %w", name, err)
-		}
-		if vmInfo.Status == ServerStateRunning {
-			log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
-			err = provider.StopInstance(instance.VMID, instance.Location)
-			if err != nil {
-				return fmt.Errorf("could not stop instance '%s': %w", name, err)
+			if strings.Contains(err.Error(), "not found") {
+				found = false
+			} else {
+				return fmt.Errorf("failed to get details for instance '%s': %w", name, err)
 			}
 		}
-		log.Infof("Deleting instance '%s' (%s)", instance.Name, instance.VMID)
-		err = provider.DeleteInstance(instance.VMID, instance.Location)
-		if err != nil {
-			return fmt.Errorf("could not delete instance '%s': %w", name, err)
-		}
-		for _, vol := range vmInfo.Volumes {
-			log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, name)
-			err = provider.DeleteVolume(vol.VolumeID, instance.Location)
+
+		// only delete cloud instance if found. Otherwise we proceed with removing it from local db
+		if found {
+			if vmInfo.Status == ServerStateRunning {
+				log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
+				err = provider.StopInstance(instance.VMID, instance.Location)
+				if err != nil {
+					return fmt.Errorf("could not stop instance '%s': %w", name, err)
+				}
+			}
+			log.Infof("Deleting instance '%s' (%s)", instance.Name, instance.VMID)
+			err = provider.DeleteInstance(instance.VMID, instance.Location)
 			if err != nil {
-				log.Errorf("failed to delete volume '%s': %s", vol.Name, err.Error())
+				return fmt.Errorf("could not delete instance '%s': %w", name, err)
+			}
+			for _, vol := range vmInfo.Volumes {
+				log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, name)
+				err = provider.DeleteVolume(vol.VolumeID, instance.Location)
+				if err != nil {
+					log.Errorf("failed to delete volume '%s': %s", vol.Name, err.Error())
+				}
 			}
 		}
 	}
@@ -739,9 +745,11 @@ func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 				}
 				instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
 				if err != nil {
-					return InstanceInfo{}, err
+					log.Warn(err.Error())
+					instance.Status = "n/a"
+				} else {
+					instance.Status = instanceInfo.Status
 				}
-				instance.Status = instanceInfo.Status
 			}
 			return instance, nil
 		}
