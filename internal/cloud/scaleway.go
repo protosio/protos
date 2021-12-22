@@ -43,8 +43,6 @@ type scaleway struct {
 	instanceAPI    *instance.API
 	accountAPI     *account.API
 	marketplaceAPI *marketplace.API
-	auth           map[string]string
-	location       scw.Zone
 }
 
 func newScalewayClient(pi *ProviderInfo, cm *Manager) *scaleway {
@@ -408,14 +406,14 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand("ls /dev/vdb", sshClient)
+	out, err = ssh.ExecuteCommand("ls /dev/sda", sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand("dd if="+localISO+" of=/dev/vdb", sshClient)
+	out, err = ssh.ExecuteCommand("dd if="+localISO+" of=/dev/sda", sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Error while writing image to volume")
@@ -601,14 +599,14 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand("ls /dev/vdb", sshClient)
+	out, err = ssh.ExecuteCommand("ls /dev/sda", sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, errMsg+". Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand("dd if="+remoteImage+" of=/dev/vdb", sshClient)
+	out, err = ssh.ExecuteCommand("dd if="+remoteImage+" of=/dev/sda", sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, errMsg+". Error while writing image to volume")
@@ -801,7 +799,7 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	// create volume
 	//
 
-	size := scw.Size(uint64(10000000000))
+	size := scw.Size(uint64(20)) * scw.GB
 	createVolumeReq := &instance.CreateVolumeRequest{
 		Name:       "protos-image-uploader",
 		VolumeType: "l_ssd",

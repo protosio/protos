@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -250,11 +251,11 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// init cloud
 	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Could not retrieve cloud '%s'", cloudName)
+		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
 	}
 	err = provider.Init()
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Failed to init cloud provider '%s'(%s) API", cloudName, provider.TypeStr())
+		return InstanceInfo{}, fmt.Errorf("failed to init cloud provider '%s'(%s) API: %w", cloudName, provider.TypeStr(), err)
 	}
 
 	// validate machine type
@@ -270,7 +271,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	imageID := ""
 	images, err := provider.GetImages()
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to deploy Protos instance")
+		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
 	for id, img := range images {
 		if img.Location == cloudLocation && img.Name == release.Version {
@@ -286,7 +287,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 			log.Infof("Protos image version '%s' not in your infra cloud account. Adding it.", release.Version)
 			imageID, err = provider.AddImage(image.URL, image.Digest, release.Version, cloudLocation)
 			if err != nil {
-				return InstanceInfo{}, errors.Wrap(err, "Failed to deploy Protos instance")
+				return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 			}
 		} else {
 			return InstanceInfo{}, errors.Errorf("could not find a Protos version '%s' release for cloud '%s'", release.Version, provider.TypeStr())
@@ -297,21 +298,21 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	log.Info("Generating SSH key for the new VM instance")
 	instanceSSHKey, err := cm.sm.GenerateKey()
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to deploy Protos instance")
+		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
 
 	// deploy a protos instance
 	log.Infof("Deploying instance '%s' of type '%s', using Protos version '%s' (image id '%s')", instanceName, machineType, release.Version, imageID)
 	vmID, err := provider.NewInstance(instanceName, imageID, instanceSSHKey.AuthorizedKey(), machineType, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to deploy Protos instance")
+		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
 	log.Infof("Instance with ID '%s' deployed", vmID)
 
 	// get instance info
 	instanceInfo, err := provider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to get Protos instance info")
+		return InstanceInfo{}, fmt.Errorf("failed to get Protos instance info: %w", err)
 	}
 
 	// allocate network
@@ -330,46 +331,46 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.Network = network.String()
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
+		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
 	volumeID, err := provider.NewVolume(instanceName, 30000, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to create data volume")
+		return InstanceInfo{}, fmt.Errorf("failed to create data volume: %w", err)
 	}
 
 	// attach volume to instance
 	err = provider.AttachVolume(volumeID, vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Failed to attach volume to instance '%s'", instanceName)
+		return InstanceInfo{}, fmt.Errorf("failed to attach volume to instance '%s': %w", instanceName, err)
 	}
 
 	// start protos instance
 	log.Infof("Starting instance '%s'", instanceName)
 	err = provider.StartInstance(vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to start instance")
+		return InstanceInfo{}, fmt.Errorf("failed to start instance: %w", err)
 	}
 
 	// get instance info again
 	instanceUpdate, err := provider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to get instance info")
+		return InstanceInfo{}, fmt.Errorf("failed to get instance info: %w", err)
 	}
 	instanceInfo.PublicIP = instanceUpdate.PublicIP
 	instanceInfo.Volumes = instanceUpdate.Volumes
 	// second save of the instance information
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrapf(err, "Failed to save instance '%s'", instanceName)
+		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
 
 	// wait for port 22 to be open
 	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
 	if err != nil {
-		return InstanceInfo{}, errors.Wrap(err, "Failed to deploy instance")
+		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
 	}
 
 	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
@@ -484,19 +485,19 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	// wait for port 22 to be open
 	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
 	if err != nil {
-		return errors.Wrap(err, "Failure while waiting for port")
+		return fmt.Errorf("failure while waiting for port: %w", err)
 	}
 
 	// connect via SSH
 	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", sshAuth, 10)
 	if err != nil {
-		return errors.Wrap(err, "Failed to connect to dev instance over SSH")
+		return fmt.Errorf("failed to connect to dev instance over SSH: %w", err)
 	}
 
 	// retrieve instance public key via SSH
 	pubKeyStr, err := ssh.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
-		return errors.Wrap(err, "Failed to retrieve public key from dev instance")
+		return fmt.Errorf("failed to retrieve public key from dev instance: %w", err)
 	}
 
 	// close SSH connection
@@ -537,7 +538,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to save dev instance '%s'", instanceName)
+		return fmt.Errorf("failed to save dev instance '%s': %w", instanceName, err)
 	}
 
 	err = cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
@@ -559,36 +560,39 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
-		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
+		if !strings.Contains(err.Error(), "not found") {
+			return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
+		}
+		localOnly = true
 	}
 
 	// if local only, ignore any cloud resources
 	if !localOnly {
 		provider, err := cm.GetProvider(instance.CloudName)
 		if err != nil {
-			return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
+			return fmt.Errorf("could not retrieve cloud '%s': %w", name, err)
 		}
 
 		err = provider.Init()
 		if err != nil {
-			return errors.Wrapf(err, "Could not init cloud '%s'", name)
+			return fmt.Errorf("could not init cloud '%s': %w", name, err)
 		}
 
 		vmInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
 		if err != nil {
-			return errors.Wrapf(err, "Failed to get details for instance '%s'", name)
+			return fmt.Errorf("failed to get details for instance '%s': %w", name, err)
 		}
 		if vmInfo.Status == ServerStateRunning {
 			log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
 			err = provider.StopInstance(instance.VMID, instance.Location)
 			if err != nil {
-				return errors.Wrapf(err, "Could not stop instance '%s'", name)
+				return fmt.Errorf("could not stop instance '%s': %w", name, err)
 			}
 		}
 		log.Infof("Deleting instance '%s' (%s)", instance.Name, instance.VMID)
 		err = provider.DeleteInstance(instance.VMID, instance.Location)
 		if err != nil {
-			return errors.Wrapf(err, "Could not delete instance '%s'", name)
+			return fmt.Errorf("could not delete instance '%s': %w", name, err)
 		}
 		for _, vol := range vmInfo.Volumes {
 			log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, name)
@@ -616,28 +620,28 @@ func (cm *Manager) DeleteInstance(name string, localOnly bool) error {
 func (cm *Manager) StartInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
-		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
+		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
 	}
 	provider, err := cm.GetProvider(instance.CloudName)
 	if err != nil {
-		return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
+		return fmt.Errorf("could not retrieve cloud '%s': %w", name, err)
 	}
 
 	err = provider.Init()
 	if err != nil {
-		return errors.Wrapf(err, "Could not init cloud '%s'", name)
+		return fmt.Errorf("could not init cloud '%s': %w", name, err)
 	}
 
 	log.Infof("Starting instance '%s' (%s)", instance.Name, instance.VMID)
 	err = provider.StartInstance(instance.VMID, instance.Location)
 	if err != nil {
-		return errors.Wrapf(err, "Could not start instance '%s'", name)
+		return fmt.Errorf("could not start instance '%s': %w", name, err)
 	}
 
 	// IP can change if an instance is stopped and started so a refresh is required
 	info, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
 	if err != nil {
-		return errors.Wrapf(err, "Could not retrieve instance info for '%s'", name)
+		return fmt.Errorf("could not retrieve instance info for '%s': %w", name, err)
 	}
 
 	instance.PublicIP = info.PublicIP
@@ -645,7 +649,7 @@ func (cm *Manager) StartInstance(name string) error {
 
 	err = cm.db.InsertInMap(instanceDS, instance.Name, instance)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to save instance '%s'", name)
+		return fmt.Errorf("failed to save instance '%s': %w", name, err)
 	}
 
 	return nil
@@ -655,22 +659,22 @@ func (cm *Manager) StartInstance(name string) error {
 func (cm *Manager) StopInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
-		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
+		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
 	}
 	provider, err := cm.GetProvider(instance.CloudName)
 	if err != nil {
-		return errors.Wrapf(err, "Could not retrieve cloud '%s'", name)
+		return fmt.Errorf("could not retrieve cloud '%s': %w", name, err)
 	}
 
 	err = provider.Init()
 	if err != nil {
-		return errors.Wrapf(err, "Could not init cloud '%s'", name)
+		return fmt.Errorf("could not init cloud '%s': %w", name, err)
 	}
 
 	log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
 	err = provider.StopInstance(instance.VMID, instance.Location)
 	if err != nil {
-		return errors.Wrapf(err, "Could not stop instance '%s'", name)
+		return fmt.Errorf("could not stop instance '%s': %w", name, err)
 	}
 	return nil
 }
@@ -679,21 +683,21 @@ func (cm *Manager) StopInstance(name string) error {
 func (cm *Manager) TunnelInstance(name string) error {
 	instanceInfo, err := cm.GetInstance(name)
 	if err != nil {
-		return errors.Wrapf(err, "Could not retrieve instance '%s'", name)
+		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
 	}
 	if len(instanceInfo.SSHKeySeed) == 0 {
 		return errors.Errorf("Instance '%s' is missing its SSH key", name)
 	}
 	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
 	if err != nil {
-		return errors.Wrapf(err, "Instance '%s' has an invalid SSH key", name)
+		return fmt.Errorf("instance '%s' has an invalid SSH key: %w", name, err)
 	}
 
 	log.Infof("creating SSH tunnel to instance '%s', using ip '%s'", instanceInfo.Name, instanceInfo.PublicIP)
 	tunnel := ssh.NewTunnel(instanceInfo.PublicIP+":22", "root", key.SSHAuth(), "localhost:8080")
 	localPort, err := tunnel.Start()
 	if err != nil {
-		return errors.Wrap(err, "Error while creating the SSH tunnel")
+		return fmt.Errorf("error while creating the SSH tunnel: %w", err)
 	}
 
 	quit := make(chan interface{}, 1)
@@ -709,7 +713,7 @@ func (cm *Manager) TunnelInstance(name string) error {
 	log.Info("CTRL+C received. Terminating the SSH tunnel")
 	err = tunnel.Close()
 	if err != nil {
-		return errors.Wrap(err, "Error while terminating the SSH tunnel")
+		return fmt.Errorf("error while terminating the SSH tunnel: %w", err)
 	}
 	log.Info("SSH tunnel terminated successfully")
 	return nil
@@ -838,39 +842,42 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 
 	err := db.InitMap(instanceDS, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize instance dataset: ", err)
+		return nil, fmt.Errorf("failed to initialize instance dataset: %w", err)
 	}
 
 	err = db.InitMap(cloudDS, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cloud dataset: ", err)
+		return nil, fmt.Errorf("failed to initialize cloud dataset: %w", err)
 	}
 
 	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p}
 
 	instances, err := manager.GetInstances()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve instances: ", err)
+		return nil, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 	for _, instance := range instances {
 		peerID, err := manager.p2p.AddPeer(instance.PublicKey, instance.PublicIP)
 		if err != nil {
-			return nil, fmt.Errorf("failed to add peer: %w", err)
+			log.Errorf("failed to add peer: %s", err.Error())
+			continue
 		}
 
 		p2pClient, err := manager.p2p.GetClient(peerID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get p2p client for '%s': %w", instance.Name, err)
+			log.Errorf("failed to get p2p client for '%s': %s", instance.Name, err.Error())
+			continue
 		}
 		err = manager.db.AddRemoteCS(instance.Name, p2pClient.ChunkStore)
 		if err != nil {
-			return nil, fmt.Errorf("failed to add chunk store for instance '%s': %w", instance.Name, err)
+			log.Errorf("failed to add chunk store for instance '%s': %s", instance.Name, err.Error())
+			continue
 		}
+	}
 
-		err = manager.db.SyncAll()
-		if err != nil {
-			return nil, fmt.Errorf("failed to sync data to instance '%s': %w", instance.Name, err)
-		}
+	err = manager.db.SyncAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to sync data to peers: %w", err)
 	}
 
 	return manager, nil
