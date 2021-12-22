@@ -546,7 +546,7 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve cloud images from cloud '%s': %w", in.Name, err)
 	}
-	resp := pbApic.GetCloudImagesResponse{}
+	resp := pbApic.GetCloudImagesResponse{CloudImages: map[string]*pbApic.CloudSpecificImage{}}
 	for id, image := range images {
 		respImage := pbApic.CloudSpecificImage{
 			Id:       image.ID,
