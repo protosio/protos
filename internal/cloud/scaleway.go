@@ -206,7 +206,7 @@ func (sw *scaleway) NewInstance(name string, imageID string, pubKey string, mach
 	}
 
 	// deploying the instance
-	volumeMap := make(map[string]*instance.VolumeTemplate)
+	volumeMap := make(map[string]*instance.VolumeServerTemplate)
 	log.Infof("Deploing VM using image '%s'", imageID)
 	ipreq := true
 	bootType := instance.BootTypeLocal
@@ -804,8 +804,8 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 
 	sizeLocalDisk := scw.Size(uint64(20)) * scw.GB
 	createVolumeReq := &instance.CreateVolumeRequest{
-		Name:       "protos-image-uploader",
-		VolumeType: "l_ssd",
+		Name:       "protos-image-uploader-os",
+		VolumeType: instance.VolumeVolumeTypeLSSD,
 		Size:       &sizeLocalDisk,
 		Zone:       scw.Zone(location),
 	}
@@ -820,10 +820,12 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	// create server
 	//
 
-	sizeVolumeDisk := scw.Size(uint64(5)) * scw.GB
-	volumeMap := make(map[string]*instance.VolumeTemplate)
-	volumeTemplate := &instance.VolumeTemplate{
-		Size: sizeVolumeDisk,
+	sizeVolumeDisk := scw.Size(uint64(20)) * scw.GB
+	volumeMap := make(map[string]*instance.VolumeServerTemplate)
+	volumeTemplate := &instance.VolumeServerTemplate{
+		Name:       "protos-image-uploader-target",
+		VolumeType: instance.VolumeVolumeTypeBSSD,
+		Size:       sizeVolumeDisk,
 	}
 	volumeMap["0"] = volumeTemplate
 

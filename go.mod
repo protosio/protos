@@ -43,7 +43,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rakyll/statik v0.1.7
 	github.com/rs/xid v1.2.1
-	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.7
+	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.7.0.20211220100852-08383f52f6f5
 	github.com/segmentio/ksuid v1.0.3
 	github.com/shirou/gopsutil v3.21.10+incompatible
 	github.com/sirupsen/logrus v1.8.1
