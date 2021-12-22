@@ -24,6 +24,7 @@ import (
 const (
 	scalewayArch = "x86_64"
 	uploadSSHkey = "protos-upload-key"
+	imageDisk    = "/dev/sda"
 )
 
 type scalewayCredentials struct {
@@ -406,14 +407,14 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand("ls /dev/sda", sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", imageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand("dd if="+localISO+" of=/dev/sda", sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", localISO, imageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Error while writing image to volume")
@@ -599,14 +600,14 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand("ls /dev/sda", sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", imageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, errMsg+". Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand("dd if="+remoteImage+" of=/dev/sda", sshClient)
+	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", remoteImage, imageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, errMsg+". Error while writing image to volume")
@@ -772,7 +773,8 @@ func (sw *scaleway) getUploadImageID(zone scw.Zone) (string, error) {
 		return "", errors.Wrap(err, "Failed to retrieve marketplace images from Scaleway")
 	}
 	for _, img := range resp.Images {
-		if img.Name == "Ubuntu Bionic" {
+		fmt.Println(img.Name)
+		if img.Name == "Ubuntu 20.04 Focal Fossa" {
 			for _, ver := range img.Versions {
 				for _, li := range ver.LocalImages {
 					if li.Arch == scalewayArch && li.Zone == zone {
@@ -782,7 +784,7 @@ func (sw *scaleway) getUploadImageID(zone scw.Zone) (string, error) {
 			}
 		}
 	}
-	return "", errors.Errorf("Ubuntu Bionic image in zone '%s' not found", scw.ZoneFrPar1)
+	return "", errors.Errorf("Ubuntu 20.04 Focal Fossa image in zone '%s' not found", scw.ZoneFrPar1)
 }
 
 func (sw *scaleway) cleanImageSSHkeys(keyID string) {
@@ -799,11 +801,11 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	// create volume
 	//
 
-	size := scw.Size(uint64(20)) * scw.GB
+	sizeLocalDisk := scw.Size(uint64(20)) * scw.GB
 	createVolumeReq := &instance.CreateVolumeRequest{
 		Name:       "protos-image-uploader",
 		VolumeType: "l_ssd",
-		Size:       &size,
+		Size:       &sizeLocalDisk,
 		Zone:       scw.Zone(location),
 	}
 
@@ -817,9 +819,10 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	// create server
 	//
 
+	sizeVolumeDisk := scw.Size(uint64(5)) * scw.GB
 	volumeMap := make(map[string]*instance.VolumeTemplate)
 	volumeTemplate := &instance.VolumeTemplate{
-		Size: size,
+		Size: sizeVolumeDisk,
 	}
 	volumeMap["0"] = volumeTemplate
 
