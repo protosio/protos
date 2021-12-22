@@ -173,13 +173,8 @@ func (db *dbNoms) AddRemoteCS(id string, cs chunks.ChunkStore) error {
 
 // DeleteRemoteCS removes a remote chunk store
 func (db *dbNoms) DeleteRemoteCS(id string) error {
-
-	if _, found := db.remoteChunkStores[id]; found {
-		delete(db.remoteChunkStores, id)
-		return nil
-	}
-
-	return fmt.Errorf("remote chunk store not found for '%s'", id)
+	delete(db.remoteChunkStores, id)
+	return nil
 }
 
 // AddRemoteCS adds a remote chunk store which can be synced
