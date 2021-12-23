@@ -97,7 +97,7 @@ func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) 
 		if err != nil {
 			return "", nil, fmt.Errorf("Failed to parse network for device '%s': %w", userDevice.Name, err)
 		}
-		newRoutes = append(newRoutes, netlink.Route{Dst: deviceNetwork})
+		newRoutes = append(newRoutes, netlink.Route{Dst: deviceNetwork, Src: wireguardIP})
 		var pkey wgtypes.Key
 		copy(pkey[:], publicKey)
 
