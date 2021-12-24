@@ -28,7 +28,6 @@ var pltfrm *containerdPlatform
 type containerdPlatform struct {
 	endpoint          string
 	appStoreHost      string
-	dnsServer         string
 	internalInterface string
 	wireguardIP       net.IP
 	logsPath          string
@@ -60,7 +59,7 @@ func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice
 	if _, err := os.Stat(cdp.logsPath); os.IsNotExist(err) {
 		err := os.Mkdir(cdp.logsPath, os.ModeDir)
 		if err != nil {
-			return fmt.Errorf("Failed to initialize platform. Failed to create logs directory: %s", err.Error())
+			return fmt.Errorf("failed to initialize platform. Failed to create logs directory: %s", err.Error())
 		}
 	}
 
@@ -71,7 +70,7 @@ func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice
 	if cdp.internalInterface == "" {
 		internalInterface, wireguardIP, err := initNetwork(network, devices, cdp.key)
 		if err != nil {
-			return fmt.Errorf("Can't initialize network: %s", err.Error())
+			return fmt.Errorf("can't initialize network: %s", err.Error())
 		}
 		cdp.internalInterface = internalInterface
 		cdp.wireguardIP = wireguardIP
@@ -128,17 +127,17 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	netNSpath := fmt.Sprintf("/proc/%d/ns/net", pru.task.Pid())
 	usedIPs, err := cdp.getAllIPs()
 	if err != nil {
-		return pru, fmt.Errorf("Failed to allocate IP for app '%s': %v", appID, err)
+		return pru, fmt.Errorf("failed to allocate IP for app '%s': %v", appID, err)
 	}
 
 	newIP, err := allocateIP(cdp.network, usedIPs)
 	if err != nil {
-		return pru, fmt.Errorf("Failed to allocate IP for app '%s': %v", appID, err)
+		return pru, fmt.Errorf("failed to allocate IP for app '%s': %v", appID, err)
 	}
 
 	err = configureInterface(netNSpath, newIP, cdp.network, cdp.wireguardIP)
 	if err != nil {
-		return pru, fmt.Errorf("Failed to configure network interface for app '%s': %v", appID, err)
+		return pru, fmt.Errorf("failed to configure network interface for app '%s': %v", appID, err)
 	}
 
 	log.Debugf("Created task for containerd sandbox '%s', with PID '%d' and ip '%s'", appID, pru.task.Pid(), newIP.String())
@@ -298,10 +297,8 @@ type containerdSandbox struct {
 	task containerd.Task
 	cnt  containerd.Container
 
-	containerID     string
-	IP              string
-	containerStatus string
-	exitCode        int
+	containerID string
+	IP          string
 }
 
 // Update reads the container and updates the struct fields
