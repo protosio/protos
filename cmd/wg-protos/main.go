@@ -10,13 +10,13 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/foxcpp/wirebox/linkmgr"
-	"github.com/protosio/protos/internal/vpn"
+	"github.com/protosio/protos/internal/network"
 	"github.com/urfave/cli/v2"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var linkManager linkmgr.Manager
-var DNSManager vpn.DNSManager
+var DNSManager *network.DNSManager
 
 func main() {
 
@@ -121,7 +121,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		DNSManager, err = vpn.NewDNS()
+		DNSManager, err = network.NewDNSManager()
 		if err != nil {
 			return err
 		}

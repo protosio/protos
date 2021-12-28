@@ -49,9 +49,6 @@ type ProtosClientApiClient interface {
 	GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error)
 	UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error)
-	// VPN methods
-	StartVPN(ctx context.Context, in *StartVPNRequest, opts ...grpc.CallOption) (*StartVPNResponse, error)
-	StopVPN(ctx context.Context, in *StopVPNRequest, opts ...grpc.CallOption) (*StopVPNResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -296,24 +293,6 @@ func (c *protosClientApiClient) RemoveCloudImage(ctx context.Context, in *Remove
 	return out, nil
 }
 
-func (c *protosClientApiClient) StartVPN(ctx context.Context, in *StartVPNRequest, opts ...grpc.CallOption) (*StartVPNResponse, error) {
-	out := new(StartVPNResponse)
-	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/StartVPN", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) StopVPN(ctx context.Context, in *StopVPNRequest, opts ...grpc.CallOption) (*StopVPNResponse, error) {
-	out := new(StopVPNResponse)
-	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/StopVPN", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ProtosClientApiServer is the server API for ProtosClientApi service.
 // All implementations must embed UnimplementedProtosClientApiServer
 // for forward compatibility
@@ -349,9 +328,6 @@ type ProtosClientApiServer interface {
 	GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error)
 	UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error)
-	// VPN methods
-	StartVPN(context.Context, *StartVPNRequest) (*StartVPNResponse, error)
-	StopVPN(context.Context, *StopVPNRequest) (*StopVPNResponse, error)
 	mustEmbedUnimplementedProtosClientApiServer()
 }
 
@@ -436,12 +412,6 @@ func (UnimplementedProtosClientApiServer) UploadCloudImage(context.Context, *Upl
 }
 func (UnimplementedProtosClientApiServer) RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveCloudImage not implemented")
-}
-func (UnimplementedProtosClientApiServer) StartVPN(context.Context, *StartVPNRequest) (*StartVPNResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method StartVPN not implemented")
-}
-func (UnimplementedProtosClientApiServer) StopVPN(context.Context, *StopVPNRequest) (*StopVPNResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method StopVPN not implemented")
 }
 func (UnimplementedProtosClientApiServer) mustEmbedUnimplementedProtosClientApiServer() {}
 
@@ -924,42 +894,6 @@ func _ProtosClientApi_RemoveCloudImage_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProtosClientApi_StartVPN_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StartVPNRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).StartVPN(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/apic.ProtosClientApi/StartVPN",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).StartVPN(ctx, req.(*StartVPNRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_StopVPN_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StopVPNRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).StopVPN(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/apic.ProtosClientApi/StopVPN",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).StopVPN(ctx, req.(*StopVPNRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ProtosClientApi_ServiceDesc is the grpc.ServiceDesc for ProtosClientApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1070,14 +1004,6 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveCloudImage",
 			Handler:    _ProtosClientApi_RemoveCloudImage_Handler,
-		},
-		{
-			MethodName: "StartVPN",
-			Handler:    _ProtosClientApi_StartVPN_Handler,
-		},
-		{
-			MethodName: "StopVPN",
-			Handler:    _ProtosClientApi_StopVPN_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

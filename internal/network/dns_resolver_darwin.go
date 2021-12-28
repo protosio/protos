@@ -1,4 +1,4 @@
-package vpn
+package network
 
 import (
 	"fmt"
@@ -12,10 +12,10 @@ const (
 	resolverPath     = "/etc/resolver"
 )
 
-type dnsManager struct {
+type DNSManager struct {
 }
 
-func (m *dnsManager) AddDomainServer(domain string, server net.IP) error {
+func (m *DNSManager) AddDomainServer(domain string, server net.IP) error {
 	if domain == "" {
 		return fmt.Errorf("domain cannot be empty")
 	}
@@ -32,7 +32,7 @@ func (m *dnsManager) AddDomainServer(domain string, server net.IP) error {
 	return nil
 }
 
-func (m *dnsManager) DelDomainServer(domain string) error {
+func (m *DNSManager) DelDomainServer(domain string) error {
 	if domain == "" {
 		return fmt.Errorf("domain cannot be empty")
 	}
@@ -47,15 +47,15 @@ func (m *dnsManager) DelDomainServer(domain string) error {
 	return nil
 }
 
-func (m *dnsManager) AddServer(server net.IP) error {
+func (m *DNSManager) AddServer(server net.IP) error {
 	return nil
 }
 
-func (m *dnsManager) DelServer(server net.IP) error {
+func (m *DNSManager) DelServer(server net.IP) error {
 	return nil
 }
 
 // NewDNS returns a new DNS manager on MacOS
-func NewDNS() (DNSManager, error) {
-	return &dnsManager{}, nil
+func NewDNSManager() (*DNSManager, error) {
+	return &DNSManager{}, nil
 }

@@ -50,10 +50,6 @@ service ProtosClientApi {
       returns (UploadCloudImageResponse);
   rpc RemoveCloudImage(RemoveCloudImageRequest)
       returns (RemoveCloudImageResponse);
-
-  // VPN methods
-  rpc StartVPN(StartVPNRequest) returns (StartVPNResponse);
-  rpc StopVPN(StopVPNRequest) returns (StopVPNResponse);
 }
 
 message InitRequest {
@@ -271,13 +267,3 @@ message RemoveCloudImageRequest {
   string cloud_location = 4;
 }
 message RemoveCloudImageResponse {}
-
-//
-// VPN methods
-//
-
-message StartVPNRequest {}
-message StartVPNResponse {}
-
-message StopVPNRequest {}
-message StopVPNResponse {}
