@@ -77,6 +77,10 @@ func Open(protosDir string, protosDB string) (DB, error) {
 	return &dbNoms{dbn: db, cs: cs, sharedDatasets: map[string]bool{}, remoteChunkStores: map[string]chunks.ChunkStore{}}, nil
 }
 
+type Refresher interface {
+	Refresh() error
+}
+
 // DB represents a DB client instance, used to interract with the database
 type DB interface {
 	SaveStruct(dataset string, data interface{}) error
@@ -90,6 +94,7 @@ type DB interface {
 	SyncAll()
 	AddRemoteCS(id string, cs chunks.ChunkStore)
 	DeleteRemoteCS(id string)
+	AddRefresher(refresher Refresher)
 	Close() error
 }
 
@@ -102,6 +107,7 @@ type dbNoms struct {
 	remoteChunkStores map[string]chunks.ChunkStore
 	dbn               datas.Database
 	sharedDatasets    map[string]bool
+	refresher         Refresher
 }
 
 //
@@ -153,9 +159,24 @@ func (db *dbNoms) getLocalHeadMap() (datas.Dataset, types.Map) {
 	return ds, mapHead
 }
 
+func (db *dbNoms) refresh() {
+	if db.refresher != nil {
+		go func() {
+			err := db.refresher.Refresh()
+			if err != nil {
+				log.Errorf("Failed to do refresh in db: %s", err.Error())
+			}
+		}()
+	}
+}
+
 //
 // public methods
 //
+
+func (db *dbNoms) AddRefresher(refresher Refresher) {
+	db.refresher = refresher
+}
 
 func (db *dbNoms) Close() error {
 	return db.dbn.Close()
@@ -261,7 +282,7 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 		log.Debugf("Done - Synced %s in %s (%s/s)", humanize.Bytes(last.ApproxWrittenBytes), since(start), bytesPerSec(last.ApproxWrittenBytes, start))
 		status.Done()
 	} else if !dstExists {
-		log.Debugf("All chunks already exist at destination! Created new dataset %s.\n", sharedData)
+		log.Debugf("All chunks already exist at destination")
 	} else if nonFF && !srcRef.Equals(dstRef) {
 		log.Debugf("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
 	} else {
@@ -346,6 +367,7 @@ func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error
 		return fmt.Errorf("error committing to db: %w", err)
 	}
 
+	db.refresh()
 	if shared {
 		db.SyncAll()
 	}
@@ -370,6 +392,7 @@ func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 		return fmt.Errorf("error committing to db: %w", err)
 	}
 
+	db.refresh()
 	if shared {
 		db.SyncAll()
 	}

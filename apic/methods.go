@@ -11,6 +11,7 @@ import (
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/release"
+	"github.com/protosio/protos/internal/ssh"
 )
 
 func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.InitResponse, error) {
@@ -324,7 +325,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 	resp := pbApic.GetInstancesResponse{}
 	for _, instance := range instances {
 
-		wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		wgPublicKey, err := ssh.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 		if err != nil {
 			log.Error(err.Error())
 		}
@@ -355,7 +356,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		return nil, fmt.Errorf("failed to retrieve instance '%s': %w", in.Name, err)
 	}
 
-	wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+	wgPublicKey, err := ssh.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 	if err != nil {
 		log.Error(err.Error())
 	}
@@ -407,7 +408,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}
 
-	wgPublicKey, err := b.protosClient.KeyManager.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+	wgPublicKey, err := ssh.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}

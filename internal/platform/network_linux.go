@@ -61,7 +61,7 @@ func diffRoutes(a []netlink.Route, b []netlink.Route) ([]netlink.Route, []netlin
 	return extraA, extraB
 }
 
-// initNetwork initializes the local network
+// initNetwork initializes the protos network
 func initNetwork(network net.IPNet, devices []auth.UserDevice, key wgtypes.Key) (string, net.IP, error) {
 	manager, err := linkmgr.NewManager()
 	if err != nil {

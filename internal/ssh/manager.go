@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"filippo.io/edwards25519"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/db"
 	"golang.org/x/crypto/ssh"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 const (
@@ -78,17 +76,6 @@ func (sm *Manager) NewKeyFromSeed(seed []byte) (*Key, error) {
 	key.Pub = publicKey
 	key.parent = sm
 	return key, nil
-}
-
-func (sm *Manager) ConvertPublicEd25519ToCurve25519(ed25519Key []byte) (wgtypes.Key, error) {
-	var pubkey wgtypes.Key
-	edPoint, err := new(edwards25519.Point).SetBytes(ed25519Key)
-	if err != nil {
-		return pubkey, fmt.Errorf("Failed to convert public Ed25519 key to WG public key: %v", err)
-	}
-
-	copy(pubkey[:], edPoint.BytesMontgomery())
-	return pubkey, nil
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interface

@@ -2,6 +2,8 @@ package protosc
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +18,7 @@ import (
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/release"
@@ -44,12 +47,13 @@ func (pub *publisher) GetWSPublishChannel() chan interface{} {
 
 type ProtosClient struct {
 	// FIXME: standardize manager name
-	UserManager  *auth.UserManager
-	KeyManager   *ssh.Manager
-	AppManager   *app.Manager
-	AppStore     *installer.AppStore
-	CloudManager *cloud.Manager
-	VPNManager   *vpn.VPN
+	UserManager    *auth.UserManager
+	KeyManager     *ssh.Manager
+	AppManager     *app.Manager
+	NetworkManager *network.Manager
+	AppStore       *installer.AppStore
+	CloudManager   *cloud.Manager
+	VPNManager     *vpn.VPN
 }
 
 func New(dataPath string, version string) (*ProtosClient, error) {
@@ -115,17 +119,79 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 		log.Fatalf("Failed to create VPN manager: %s", err.Error())
 	}
 
-	protosClient := ProtosClient{
-		UserManager:  userManager,
-		KeyManager:   keyManager,
-		AppManager:   appManager,
-		AppStore:     appStore,
-		CloudManager: cloudManager,
-		VPNManager:   vpn,
+	networkManager, err := networkUp(userManager)
+	if err != nil {
+		log.Fatalf("Failed to create network manager: %s", err.Error())
 	}
 
-	return &protosClient, nil
+	instances, err := cloudManager.GetInstances()
+	if err != nil {
+		log.Fatalf("Failed to retrieve instances: %s", err.Error())
+	}
 
+	err = networkManager.ConfigurePeers(instances)
+	if err != nil {
+		log.Fatalf("Failed to configure network peers: %s", err.Error())
+	}
+
+	protosClient := &ProtosClient{
+		UserManager:    userManager,
+		KeyManager:     keyManager,
+		AppManager:     appManager,
+		AppStore:       appStore,
+		CloudManager:   cloudManager,
+		VPNManager:     vpn,
+		NetworkManager: networkManager,
+	}
+
+	dbi.AddRefresher(protosClient)
+
+	return protosClient, nil
+
+}
+
+func networkUp(userManager *auth.UserManager) (*network.Manager, error) {
+	usr, err := userManager.GetAdmin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get admin while setting up network: %w", err)
+	}
+
+	dev, err := usr.GetCurrentDevice()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current device while setting up network: %w", err)
+	}
+
+	ip, netp, err := net.ParseCIDR(dev.Network)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CIDR while setting up network: %w", err)
+	}
+	netp.IP = ip
+
+	key, err := usr.GetKeyCurrentDevice()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get device key while setting up network: %w", err)
+	}
+
+	return network.NewManager(*netp, key.PrivateWG(), usr.GetInfo().Domain)
+}
+
+//
+// public methods
+//
+
+func (pc *ProtosClient) Refresh() error {
+
+	instances, err := pc.CloudManager.GetInstances()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve instances: %w", err)
+	}
+
+	err = pc.NetworkManager.ConfigurePeers(instances)
+	if err != nil {
+		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+
+	return nil
 }
 
 func (pc *ProtosClient) GetProtosAvailableReleases() (release.Releases, error) {

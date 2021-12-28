@@ -5,7 +5,9 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/pem"
+	"fmt"
 
+	"filippo.io/edwards25519"
 	"github.com/mikesmitty/edkey"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ssh"
@@ -92,4 +94,15 @@ func (k Key) Save() {
 	if err != nil {
 		log.Panicf("Failed to save resource to db: %s", err.Error())
 	}
+}
+
+func ConvertPublicEd25519ToCurve25519(ed25519Key []byte) (wgtypes.Key, error) {
+	var pubkey wgtypes.Key
+	edPoint, err := new(edwards25519.Point).SetBytes(ed25519Key)
+	if err != nil {
+		return pubkey, fmt.Errorf("failed to convert public Ed25519 key to WG public key: %v", err)
+	}
+
+	copy(pubkey[:], edPoint.BytesMontgomery())
+	return pubkey, nil
 }

@@ -68,7 +68,7 @@ func (vpn *VPN) Start() error {
 	routes := []linkmgr.Route{}
 	for _, instance := range instances {
 
-		pubkey, err := vpn.sm.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		pubkey, err := ssh.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to start VPN for instance '%s': %w", instance.Name, err)
 		}
@@ -200,7 +200,7 @@ func (vpn *VPN) StartWithExec() error {
 			masterInstaceIP = instance.InternalIP
 		}
 
-		pubkey, err := vpn.sm.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		pubkey, err := ssh.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to start VPN for instance '%s': %w", instance.Name, err)
 		}
@@ -259,7 +259,7 @@ func (vpn *VPN) StopWithExec() error {
 		return fmt.Errorf("failed to delete link using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
 	}
 
-	// add domain DNS
+	// delete domain DNS
 	cmd = exec.Command("sudo", wgProtosBinary, "domain", "del", usr.GetInfo().Domain)
 	output, err = cmd.CombinedOutput()
 	if err != nil {

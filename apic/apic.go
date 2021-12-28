@@ -74,6 +74,10 @@ func StartGRPCServer(socketPath string, dataPath string, version string) (func()
 	stopper := func() error {
 		log.Info("Stopping gRPC server")
 		srv.GracefulStop()
+		err = protosClient.NetworkManager.Down()
+		if err != nil {
+			log.Error(err)
+		}
 		return nil
 	}
 	return stopper, nil
