@@ -16,6 +16,7 @@ import (
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/dns"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
@@ -26,13 +27,14 @@ import (
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var log = util.GetLogger("protosc")
 
 const (
-	releasesURL = "https://releases.protos.io/releases.json"
+	releasesURL     = "https://releases.protos.io/releases.json"
+	localDNSPort    = 10053
+	localDNSAddress = "127.0.0.1"
 )
 
 type publisher struct {
@@ -45,7 +47,8 @@ func (pub *publisher) GetWSPublishChannel() chan interface{} {
 }
 
 type ProtosClient struct {
-	// FIXME: standardize manager name
+	stoppers map[string]func() error
+
 	UserManager    *auth.UserManager
 	KeyManager     *ssh.Manager
 	AppManager     *app.Manager
@@ -93,7 +96,13 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	userManager := auth.CreateUserManager(dbi, keyManager, capabilityManager)
 	resourceManager := resource.CreateManager(dbi)
 	taskManager := task.CreateManager(dbi, pub)
-	runtimePlatform := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, wgtypes.Key{}, "")
+
+	networkManager, err := networkUp(userManager)
+	if err != nil {
+		log.Fatalf("Failed to create network manager: %s", err.Error())
+	}
+
+	runtimePlatform := platform.Create(networkManager, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, "")
 	metaClient := meta.SetupForClient(resourceManager, dbi, keyManager, version)
 	appStore := installer.CreateAppStore(runtimePlatform, taskManager, capabilityManager)
 	appManager := app.CreateManager(resourceManager, taskManager, runtimePlatform, dbi, metaClient, pub, appStore, capabilityManager)
@@ -113,22 +122,28 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
 
-	networkManager, err := networkUp(userManager)
-	if err != nil {
-		log.Fatalf("Failed to create network manager: %s", err.Error())
-	}
-
 	instances, err := cloudManager.GetInstances()
 	if err != nil {
 		log.Fatalf("Failed to retrieve instances: %s", err.Error())
 	}
 
-	err = networkManager.ConfigurePeers(instances)
+	admin, err := userManager.GetAdmin()
+	if err != nil {
+		log.Fatalf("Failed to retrieve admin user: %s", err.Error())
+	}
+
+	err = networkManager.ConfigurePeers(instances, admin.GetDevices())
 	if err != nil {
 		log.Fatalf("Failed to configure network peers: %s", err.Error())
 	}
 
+	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", admin.GetInfo().Domain, appManager)
+
 	protosClient := &ProtosClient{
+		stoppers: map[string]func() error{
+			"dns": dnsStopper,
+		},
+
 		UserManager:    userManager,
 		KeyManager:     keyManager,
 		AppManager:     appManager,
@@ -159,13 +174,25 @@ func networkUp(userManager *auth.UserManager) (*network.Manager, error) {
 		return nil, fmt.Errorf("failed to parse CIDR while setting up network: %w", err)
 	}
 	netp.IP = ip
+	internalIP := netp.IP.Mask(netp.Mask)
+	internalIP[3]++
 
 	key, err := usr.GetKeyCurrentDevice()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device key while setting up network: %w", err)
 	}
 
-	return network.NewManager(*netp, key.PrivateWG(), usr.GetInfo().Domain)
+	networkManager, err := network.NewManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure network: %w", err)
+	}
+
+	err = networkManager.Init(*netp, internalIP, key.PrivateWG(), usr.GetInfo().Domain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure network: %w", err)
+	}
+
+	return networkManager, nil
 }
 
 //
@@ -179,7 +206,12 @@ func (pc *ProtosClient) Refresh() error {
 		return fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 
-	err = pc.NetworkManager.ConfigurePeers(instances)
+	admin, err := pc.UserManager.GetAdmin()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve admin user: %w", err)
+	}
+
+	err = pc.NetworkManager.ConfigurePeers(instances, admin.GetDevices())
 	if err != nil {
 		return fmt.Errorf("failed to configure network peers: %w", err)
 	}
@@ -205,4 +237,14 @@ func (pc *ProtosClient) GetProtosAvailableReleases() (release.Releases, error) {
 	}
 
 	return releases, nil
+}
+
+func (pc *ProtosClient) Stop() error {
+	for _, stopper := range pc.stoppers {
+		err := stopper()
+		if err != nil {
+			log.Error(err)
+		}
+	}
+	return nil
 }

@@ -1,11 +1,8 @@
 package platform
 
 import (
-	"net"
-
-	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/util"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 const (
@@ -14,11 +11,11 @@ const (
 
 type containerdPlatform struct{}
 
-func createContainerdRuntimePlatform(runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key, logsPath string) *containerdPlatform {
+func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUnixSocket string, appStoreHost string, inContainer bool, logsPath string) *containerdPlatform {
 	return &containerdPlatform{}
 }
 
-func (cdp *containerdPlatform) Init(network net.IPNet, devices []auth.UserDevice) error {
+func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
@@ -61,6 +58,10 @@ func (cdp *containerdPlatform) GetOrCreateVolume(id string, path string) (string
 
 func (cdp *containerdPlatform) RemoveVolume(id string) error {
 	return nil
+}
+
+func (cdp *containerdPlatform) ImageExistsLocally(id string) (bool, error) {
+	return false, nil
 }
 
 //

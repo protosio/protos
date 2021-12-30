@@ -8,6 +8,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/pkg/errors"
 
+	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -25,11 +26,17 @@ func (h *handler) localResolve(w dns.ResponseWriter, r *dns.Msg) {
 		msg.Authoritative = true
 		domain := msg.Question[0].Name
 		address, ok := domainsMap[domain]
+		domainParts := strings.Split(domain, ".")
 
 		if ok {
 			msg.Answer = append(msg.Answer, &dns.A{
 				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
 				A:   net.ParseIP(address),
+			})
+		} else if app, err := h.appManager.Get(domainParts[0]); err == nil {
+			msg.Answer = append(msg.Answer, &dns.A{
+				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
+				A:   net.ParseIP(app.IP),
 			})
 		}
 	}
@@ -51,9 +58,9 @@ func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
 }
 
 type handler struct {
-	protosIP  string
-	dnsServer string
-	domain    string
+	listenAddr string
+	dnsServer  string
+	appManager *app.Manager
 }
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
@@ -64,24 +71,30 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	domainqParts := strings.Split(domainq, ".")
 	if len(domainqParts) == 3 && domainqParts[2] == domainlParts[2] && domainqParts[1] == domainlParts[1] {
 		h.localResolve(w, r)
-	} else {
+	} else if h.dnsServer != "" {
 		h.remoteResolve(w, r)
+	} else {
+		msg := &dns.Msg{}
+		msg.SetReply(r)
+		w.WriteMsg(msg)
 	}
 }
 
 var srv *dns.Server
 
 // StartServer starts a DNS server used for resolving internal Protos addresses
-func StartServer(protosIP string, dnsServer string, domain string) func() error {
-	log.Infof("Starting DNS server. Listening internally on '%s:%s' for domain '%s'", protosIP, "53", domain)
-	log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
+func StartServer(internalIP string, port int, dnsServer string, domain string, appManager *app.Manager) func() error {
+	log.Infof("Starting DNS server. Listening internally on '%s:%d' for domain '%s'", internalIP, port, domain)
+	if dnsServer != "" {
+		log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
+	}
 
 	// adding the IP address used for the internal protos domain
 	// ToDo: improve this
-	domainsMap["protos."+domain+"."] = protosIP
+	domainsMap["protos."+domain+"."] = internalIP
 
-	srv = &dns.Server{Addr: ":" + strconv.Itoa(53), Net: "udp"}
-	srv.Handler = &handler{protosIP: protosIP, dnsServer: dnsServer}
+	srv = &dns.Server{Addr: internalIP + ":" + strconv.Itoa(port), Net: "udp"}
+	srv.Handler = &handler{listenAddr: internalIP, dnsServer: dnsServer, appManager: appManager}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			log.Fatalf("Failed to set udp listener %s\n", err.Error())

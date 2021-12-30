@@ -15,7 +15,7 @@ const (
 type DNSManager struct {
 }
 
-func (m *DNSManager) AddDomainServer(domain string, server net.IP) error {
+func (m *DNSManager) AddDomainServer(domain string, server net.IP, port int) error {
 	if domain == "" {
 		return fmt.Errorf("domain cannot be empty")
 	}
@@ -23,7 +23,7 @@ func (m *DNSManager) AddDomainServer(domain string, server net.IP) error {
 	// check if the file exists
 	resolverFile := resolverPath + "/" + domain
 	// write file
-	dnsData := fmt.Sprintf("nameserver %s\n", server.String())
+	dnsData := fmt.Sprintf("domain %s\nport %d\nnameserver %s.%d\n", domain, port, server.String(), port)
 	err := ioutil.WriteFile(resolverFile, []byte(dnsData), 0644)
 	if err != nil {
 		return fmt.Errorf("could not add DNS server for domainss '%s': %w", domain, err)
@@ -44,14 +44,6 @@ func (m *DNSManager) DelDomainServer(domain string) error {
 		return fmt.Errorf("could not delete DNS server for domain '%s': %w", domain, err)
 	}
 
-	return nil
-}
-
-func (m *DNSManager) AddServer(server net.IP) error {
-	return nil
-}
-
-func (m *DNSManager) DelServer(server net.IP) error {
 	return nil
 }
 

@@ -202,6 +202,12 @@ func (db *dbNoms) SyncAll() {
 		localCS := cs
 		localID := id
 		go func() {
+			defer func() {
+				if err := recover(); err != nil {
+					log.Errorf("Exception during db sync to '%s': %v", localID, err)
+				}
+			}()
+
 			err := db.SyncCS(localCS)
 			if err != nil {
 				log.Errorf("Failed to sync db to '%s': %w", localID, err)

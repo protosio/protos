@@ -19,7 +19,6 @@ import (
 	"github.com/attic-labs/noms/go/types"
 	"github.com/attic-labs/noms/go/util/verbose"
 	"github.com/golang/snappy"
-	"github.com/protosio/protos/internal/app"
 )
 
 const (
@@ -74,7 +73,7 @@ type getStatsSummaryHandlerResp struct {
 
 type HandlersChunkStore struct {
 	cs         chunks.ChunkStore
-	appManager *app.Manager
+	appManager AppReSyncer
 	p2p        *P2P
 }
 

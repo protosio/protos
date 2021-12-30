@@ -234,7 +234,7 @@ func addDomain(domain string, dnsServer string) error {
 		return fmt.Errorf("failed to parse DNS server IP '%s'", dnsServer)
 	}
 
-	err := DNSManager.AddDomainServer(domain, dnsServerIP)
+	err := DNSManager.AddDomainServer(domain, dnsServerIP, 10053)
 	if err != nil {
 		return fmt.Errorf("failed to add domain: %w", err)
 	}

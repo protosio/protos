@@ -1,13 +1,11 @@
 package platform
 
 import (
-	"net"
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/util"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var log = util.GetLogger("platform")
@@ -52,10 +50,11 @@ type PlatformImage interface {
 
 // RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
 type RuntimePlatform interface {
-	Init(network net.IPNet, devices []auth.UserDevice) error
+	Init() error
 	GetSandbox(id string) (PlatformRuntimeUnit, error)
 	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
 	GetImage(id string) (PlatformImage, error)
+	ImageExistsLocally(id string) (bool, error)
 	GetAllImages() (map[string]PlatformImage, error)
 	PullImage(id string, name string, version string) error
 	RemoveImage(id string) error
@@ -77,17 +76,8 @@ func normalizeRepoDigest(repoDigests []string) (string, string, error) {
 }
 
 // Create initializes the run time platform
-func Create(runtime string, runtimeUnixSocket string, appStoreHost string, inContainer bool, key wgtypes.Key, logsPath string) RuntimePlatform {
-
-	var dp RuntimePlatform
-	switch runtime {
-	case containerdRuntime:
-		dp = createContainerdRuntimePlatform(runtimeUnixSocket, appStoreHost, inContainer, key, logsPath)
-	default:
-		log.Fatalf("Runtime '%s' is not supported", runtime)
-	}
-
-	return dp
+func Create(networkManager *network.Manager, runtimeUnixSocket string, appStoreHost string, inContainer bool, logsPath string) RuntimePlatform {
+	return createContainerdRuntimePlatform(networkManager, runtimeUnixSocket, appStoreHost, inContainer, logsPath)
 }
 
 type platformImage struct {

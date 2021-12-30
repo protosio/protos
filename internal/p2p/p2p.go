@@ -19,7 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	noise "github.com/libp2p/go-libp2p-noise"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
 	"github.com/segmentio/ksuid"
@@ -29,6 +28,10 @@ var log = util.GetLogger("p2p")
 
 const protosRequestProtocol = "/protos/request/0.0.1"
 const protosResponseProtocol = "/protos/response/0.0.1"
+
+type AppReSyncer interface {
+	ReSync()
+}
 
 type emptyReq struct{}
 type emptyResp struct{}
@@ -410,10 +413,10 @@ func (p2p *P2P) triggerEvent(event interface{}) {
 }
 
 // StartServer starts listening for p2p connections
-func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore, appManager *app.Manager, platformConfigurator PlatformConfigurator) (func() error, error) {
+func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore, appManager AppReSyncer) (func() error, error) {
 	log.Info("Starting p2p server")
 
-	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator, platformConfigurator: platformConfigurator}
+	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
 	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs, appManager: appManager}
 
 	// we register handler methods which should be accessible from the client

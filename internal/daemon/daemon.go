@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -13,11 +14,13 @@ import (
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/capability"
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
+	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/provider"
@@ -26,6 +29,8 @@ import (
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 )
+
+const DNSPort = 53
 
 var log = util.GetLogger("daemon")
 
@@ -82,7 +87,13 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	if err != nil {
 		log.Fatal(err)
 	}
-	pltfrm := platform.Create(cfg.Runtime, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, key.PrivateWG(), cfg.WorkDir+"/logs")
+
+	networkManager, err := network.NewManager()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pltfrm := platform.Create(networkManager, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg.WorkDir+"/logs")
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm)
 	tm := task.CreateManager(dbcli, pub)
@@ -95,14 +106,18 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore(), appManager, pltfrm)
+	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore(), appManager)
 	if err != nil {
 		log.Fatal(err)
 	}
 	stoppers["p2p"] = p2pStopper
 
 	// check init and dev mode
-
 	cfg.InitMode = m.InitMode() || init
 	if cfg.InitMode {
 		log.Info("Starting up in init mode")
@@ -136,13 +151,34 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	// perform the runtime initialization (network + container runtime)
-	err = pltfrm.Init(network, usr.GetDevices())
+	// perform network initialization
+	err = networkManager.Init(network, internalIP, key.PrivateWG(), domain)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	dnsStopper := dns.StartServer(internalIP.String(), cfg.ExternalDNS, domain)
+	instances, err := cloudManager.GetInstances()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// configure network peers
+	err = networkManager.ConfigurePeers(instances, usr.GetDevices())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// add the refresher to the db so on any data change the network will reconfigured
+	ref := &refresher{cloudManager: cloudManager, userManager: um, networkManager: networkManager}
+	dbcli.AddRefresher(ref)
+
+	// perform runtime initialization (container runtime)
+	err = pltfrm.Init()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	dnsStopper := dns.StartServer(internalIP.String(), DNSPort, cfg.ExternalDNS, domain, appManager)
 	stoppers["dns"] = dnsStopper
 
 	iwsStopper, err := httpAPI.StartInternalWebServer(cfg.InitMode, internalIP.String())
@@ -156,4 +192,30 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	wg.Wait()
 	log.Info("Shutdown completed")
 
+}
+
+type refresher struct {
+	cloudManager   cloud.CloudManager
+	userManager    *auth.UserManager
+	networkManager *network.Manager
+}
+
+func (r *refresher) Refresh() error {
+
+	instances, err := r.cloudManager.GetInstances()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve instances: %w", err)
+	}
+
+	admin, err := r.userManager.GetAdmin()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve admin user: %w", err)
+	}
+
+	err = r.networkManager.ConfigurePeers(instances, admin.GetDevices())
+	if err != nil {
+		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+
+	return nil
 }

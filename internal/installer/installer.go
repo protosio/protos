@@ -11,7 +11,6 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/task"
 
 	"github.com/protosio/protos/internal/config"
@@ -24,8 +23,14 @@ import (
 var gconfig = config.Get()
 var log = util.GetLogger("installer")
 
+type ImageManager interface {
+	PullImage(id string, name string, version string) error
+	ImageExistsLocally(id string) (bool, error)
+	RemoveImage(id string) error
+}
+
 type installerParent interface {
-	getPlatform() platform.RuntimePlatform
+	getPlatform() ImageManager
 	getTaskManager() *task.Manager
 }
 
@@ -87,13 +92,13 @@ type Installer struct {
 
 // AppStore manages and downloads application installers
 type AppStore struct {
-	rp platform.RuntimePlatform
+	rp ImageManager
 	tm *task.Manager
 	cm *capability.Manager
 }
 
 // CreateAppStore creates and returns an app store instance
-func CreateAppStore(rp platform.RuntimePlatform, tm *task.Manager, cm *capability.Manager) *AppStore {
+func CreateAppStore(rp ImageManager, tm *task.Manager, cm *capability.Manager) *AppStore {
 	if rp == nil || tm == nil || cm == nil {
 		log.Panic("Failed to create AppStore: none of the inputs can be nil")
 	}
@@ -222,14 +227,11 @@ func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
 		return false, errors.Wrapf(err, "Failed to check local image metadata for installer %s(%s)", inst.Name, inst.ID)
 	}
 
-	img, err := inst.parent.getPlatform().GetImage(metadata.PlatformID)
+	exists, err := inst.parent.getPlatform().ImageExistsLocally(metadata.PlatformID)
 	if err != nil {
 		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
 	}
-	if img == nil {
-		return false, nil
-	}
-	return true, nil
+	return exists, nil
 }
 
 // Remove Installer removes an installer image
@@ -356,7 +358,7 @@ func (as *AppStore) Search(key string, value string) (map[string]*Installer, err
 // AppStore methods that satisfy the installerParent interface
 //
 
-func (as *AppStore) getPlatform() platform.RuntimePlatform {
+func (as *AppStore) getPlatform() ImageManager {
 	return as.rp
 }
 

@@ -5,6 +5,7 @@ import (
 	"net"
 	"os/exec"
 
+	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/ssh"
 )
@@ -22,7 +23,7 @@ func (m *Manager) Up() error {
 		return fmt.Errorf("failed to create link using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
 	}
 
-	cmd = exec.Command("sudo", wgProtosBinary, "domain", "add", m.domain, m.network.IP.String())
+	cmd = exec.Command("sudo", wgProtosBinary, "domain", "add", m.domain, "127.0.0.1")
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to add domain using wg-protos: \n---- wg-protos output ----\n%s-------------------", string(output))
@@ -48,13 +49,13 @@ func (m *Manager) Down() error {
 	return nil
 }
 
-func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo) error {
+func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.UserDevice) error {
 
 	log.Debug("Configuring network")
 	peerConfigs := []string{}
 
 	for _, instance := range instances {
-		if len(instance.PublicKey) == 0 {
+		if len(instance.PublicKey) == 0 || instance.PublicIP == "" || instance.InternalIP == "" || instance.Network == "" || instance.Name == "" {
 			continue
 		}
 
@@ -72,7 +73,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo) error {
 		peerConfigs = append(peerConfigs, peerConf)
 	}
 
-	if len(instances) > 0 {
+	if len(peerConfigs) > 0 {
 		configureArgs := []string{wgProtosBinary, "wg", "configure", protosNetworkInterface, m.privateKey.String()}
 		configureArgs = append(configureArgs, peerConfigs...)
 		cmd := exec.Command("sudo", configureArgs...)

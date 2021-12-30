@@ -31,11 +31,6 @@ type UserCreator interface {
 	CreateUser(username string, password string, name string, domain string, isadmin bool, devices []auth.UserDevice) (*auth.User, error)
 }
 
-// PlatformConfigurator allows the configuration of the container runtime and network
-type PlatformConfigurator interface {
-	Init(network net.IPNet, devices []auth.UserDevice) error
-}
-
 type InitReq struct {
 	Username     string            `json:"username" validate:"required"`
 	Name         string            `json:"name" validate:"required"`
@@ -110,10 +105,9 @@ func (ip *ClientInit) Init(username string, password string, name string, domain
 //
 
 type HandlersInit struct {
-	metaConfigurator     MetaConfigurator
-	userCreator          UserCreator
-	platformConfigurator PlatformConfigurator
-	p2p                  *P2P
+	metaConfigurator MetaConfigurator
+	userCreator      UserCreator
+	p2p              *P2P
 }
 
 // PerformInit does the actual initialisation on the remote side
@@ -155,11 +149,6 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 	key, err := hi.metaConfigurator.GetPrivateKey()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to retrieve key")
-	}
-
-	err = hi.platformConfigurator.Init(*network, req.Devices)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to initialize platform")
 	}
 
 	initResp := InitResp{

@@ -838,6 +838,7 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 		return nil, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 	for _, instance := range instances {
+		log.Debugf("Connecting to instance '%s'(cloud: %s, IP: %s)", instance.Name, instance.CloudName, instance.PublicIP)
 		peerID, err := manager.p2p.AddPeer(instance.PublicKey, instance.PublicIP)
 		if err != nil {
 			log.Errorf("failed to add peer: %s", err.Error())

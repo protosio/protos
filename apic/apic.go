@@ -24,12 +24,7 @@ type Backend struct {
 	protosClient *protosc.ProtosClient
 }
 
-func StartGRPCServer(socketPath string, dataPath string, version string) (func() error, error) {
-
-	protosClient, err := protosc.New(dataPath, version)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Protos client: %w", err)
-	}
+func StartGRPCServer(socketPath string, dataPath string, version string, protosClient *protosc.ProtosClient) (func() error, error) {
 
 	// create protos run dir
 	if _, err := os.Stat(socketPath); os.IsNotExist(err) {

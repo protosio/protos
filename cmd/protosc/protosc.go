@@ -9,6 +9,7 @@ import (
 	"github.com/getlantern/systray"
 	"github.com/protosio/protos/apic"
 	"github.com/protosio/protos/cmd/protosc/icon"
+	"github.com/protosio/protos/internal/protosc"
 	"github.com/protosio/protos/internal/util"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -103,7 +104,13 @@ func onReady() {
 	systray.SetTooltip("Protos")
 	mQuitOrig := systray.AddMenuItem("Quit", "Quit")
 
-	grpcStopper, err := apic.StartGRPCServer(unixSocketPath, dataPath, version.String())
+	protosClient, err := protosc.New(dataPath, version.String())
+	if err != nil {
+		log.Fatalf("Failed to create Protos client: %w", err)
+	}
+	stoppers["protosClient"] = protosClient.Stop
+
+	grpcStopper, err := apic.StartGRPCServer(unixSocketPath, dataPath, version.String(), protosClient)
 	if err != nil {
 		log.Fatalf("Failed to start gRPC server: %s", err.Error())
 	}
