@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
@@ -47,7 +48,12 @@ func (pub *publisher) GetWSPublishChannel() chan interface{} {
 }
 
 type ProtosClient struct {
-	stoppers map[string]func() error
+	stoppers          map[string]func() error
+	db                db.DB
+	cfg               *config.Config
+	version           string
+	wg                sync.WaitGroup
+	capabilityManager *capability.Manager
 
 	UserManager    *auth.UserManager
 	KeyManager     *ssh.Manager
@@ -58,9 +64,17 @@ type ProtosClient struct {
 }
 
 func New(dataPath string, version string) (*ProtosClient, error) {
+
+	protosClient := &ProtosClient{
+		stoppers: map[string]func() error{},
+		version:  version,
+		wg:       sync.WaitGroup{},
+		cfg:      config.Get(),
+	}
+
 	homedir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed to retrieve home directory: %w", err)
 	}
 
 	if dataPath == "~" {
@@ -68,91 +82,31 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	} else if strings.HasPrefix(dataPath, "~/") {
 		dataPath = filepath.Join(homedir, dataPath[2:])
 	}
+	protosClient.cfg.WorkDir = dataPath
 
 	// create protos dir
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		err := os.Mkdir(dataPath, 0755)
 		if err != nil {
-			log.Fatalf("Failed to create protos dir '%s': %s", dataPath, err.Error())
+			return nil, fmt.Errorf("failed to create Protos directory '%s': %w", dataPath, err)
 		}
 	}
 
 	// open db
 	protosDB := "protos.db"
-	dbi, err := db.Open(dataPath, protosDB)
+	protosClient.db, err = db.Open(dataPath, protosDB)
 	if err != nil {
-		log.Fatalf("Failed to open db during configuration: %s", err.Error())
+		return nil, fmt.Errorf("failed to open db during configuration: %w", err)
 	}
-
-	// get default cfg
-	cfg := config.Get()
-
-	// create publisher
-	pub := &publisher{pubchan: make(chan interface{}, 100)}
 
 	// create various managers
-	keyManager := ssh.CreateManager(dbi)
+	keyManager := ssh.CreateManager(protosClient.db)
 	capabilityManager := capability.CreateManager()
-	userManager := auth.CreateUserManager(dbi, keyManager, capabilityManager)
-	resourceManager := resource.CreateManager(dbi)
-	taskManager := task.CreateManager(dbi, pub)
+	userManager := auth.CreateUserManager(protosClient.db, keyManager, capabilityManager)
 
-	networkManager, err := networkUp(userManager)
-	if err != nil {
-		log.Fatalf("Failed to create network manager: %s", err.Error())
-	}
-
-	runtimePlatform := platform.Create(networkManager, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, "")
-	metaClient := meta.SetupForClient(resourceManager, dbi, keyManager, version)
-	appStore := installer.CreateAppStore(runtimePlatform, taskManager, capabilityManager)
-	appManager := app.CreateManager(resourceManager, taskManager, runtimePlatform, dbi, metaClient, pub, appStore, capabilityManager)
-
-	// get device key
-	key, err := metaClient.GetPrivateKey()
-	if err != nil {
-		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
-	}
-
-	p2pManager, err := p2p.NewManager(10500, key)
-	if err != nil {
-		log.Fatalf("Failed to create p2p manager: %s", err.Error())
-	}
-	cloudManager, err := cloud.CreateManager(dbi, userManager, keyManager, p2pManager)
-	if err != nil {
-		log.Fatalf("Failed to create cloud manager: %s", err.Error())
-	}
-
-	instances, err := cloudManager.GetInstances()
-	if err != nil {
-		log.Fatalf("Failed to retrieve instances: %s", err.Error())
-	}
-
-	admin, err := userManager.GetAdmin()
-	if err != nil {
-		log.Fatalf("Failed to retrieve admin user: %s", err.Error())
-	}
-
-	err = networkManager.ConfigurePeers(instances, admin.GetDevices())
-	if err != nil {
-		log.Fatalf("Failed to configure network peers: %s", err.Error())
-	}
-
-	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", admin.GetInfo().Domain, appManager)
-
-	protosClient := &ProtosClient{
-		stoppers: map[string]func() error{
-			"dns": dnsStopper,
-		},
-
-		UserManager:    userManager,
-		KeyManager:     keyManager,
-		AppManager:     appManager,
-		AppStore:       appStore,
-		CloudManager:   cloudManager,
-		NetworkManager: networkManager,
-	}
-
-	dbi.AddRefresher(protosClient)
+	protosClient.UserManager = userManager
+	protosClient.KeyManager = keyManager
+	protosClient.capabilityManager = capabilityManager
 
 	return protosClient, nil
 
@@ -199,6 +153,67 @@ func networkUp(userManager *auth.UserManager) (*network.Manager, error) {
 // public methods
 //
 
+func (pc *ProtosClient) FinishInit() error {
+
+	// create publisher
+	pub := &publisher{pubchan: make(chan interface{}, 100)}
+
+	resourceManager := resource.CreateManager(pc.db)
+
+	taskManager := task.CreateManager(pc.db, pub)
+	networkManager, err := networkUp(pc.UserManager)
+	if err != nil {
+		log.Fatalf("Failed to create network manager: %s", err.Error())
+	}
+
+	runtimePlatform := platform.Create(networkManager, pc.cfg.RuntimeEndpoint, pc.cfg.AppStoreHost, pc.cfg.InContainer, "")
+	metaClient := meta.SetupForClient(resourceManager, pc.db, pc.KeyManager, pc.version)
+	appStore := installer.CreateAppStore(runtimePlatform, taskManager, pc.capabilityManager)
+	appManager := app.CreateManager(resourceManager, taskManager, runtimePlatform, pc.db, metaClient, pub, appStore, pc.capabilityManager)
+
+	// get device key
+	key, err := metaClient.GetPrivateKey()
+	if err != nil {
+		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
+	}
+
+	p2pManager, err := p2p.NewManager(10500, key)
+	if err != nil {
+		log.Fatalf("Failed to create p2p manager: %s", err.Error())
+	}
+	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager)
+	if err != nil {
+		log.Fatalf("Failed to create cloud manager: %s", err.Error())
+	}
+
+	instances, err := cloudManager.GetInstances()
+	if err != nil {
+		log.Fatalf("Failed to retrieve instances: %s", err.Error())
+	}
+
+	admin, err := pc.UserManager.GetAdmin()
+	if err != nil {
+		log.Fatalf("Failed to retrieve admin user: %s", err.Error())
+	}
+
+	err = networkManager.ConfigurePeers(instances, admin.GetDevices())
+	if err != nil {
+		log.Fatalf("Failed to configure network peers: %s", err.Error())
+	}
+
+	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", admin.GetInfo().Domain, appManager)
+	pc.stoppers["dns"] = dnsStopper
+	pc.AppManager = appManager
+	pc.AppStore = appStore
+	pc.CloudManager = cloudManager
+	pc.NetworkManager = networkManager
+
+	pc.db.AddRefresher(pc)
+
+	return nil
+
+}
+
 func (pc *ProtosClient) Refresh() error {
 
 	instances, err := pc.CloudManager.GetInstances()
@@ -217,6 +232,24 @@ func (pc *ProtosClient) Refresh() error {
 	}
 
 	return nil
+}
+
+func (pc *ProtosClient) IsInitialized() bool {
+	_, err := pc.UserManager.GetAdmin()
+	if err != nil {
+		pc.wg.Add(1)
+		return false
+	}
+	return true
+}
+
+func (pc *ProtosClient) SetInitialized() {
+	pc.wg.Done()
+}
+
+func (pc *ProtosClient) WaitForInitialization() {
+	log.Info("Waiting for initialization")
+	pc.wg.Wait()
 }
 
 func (pc *ProtosClient) GetProtosAvailableReleases() (release.Releases, error) {

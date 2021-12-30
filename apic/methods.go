@@ -41,6 +41,7 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 
 	// saving the key to disk
 	key.Save()
+	b.protosClient.SetInitialized()
 
 	return &pbApic.InitResponse{}, nil
 }

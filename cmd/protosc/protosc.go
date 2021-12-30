@@ -116,6 +116,15 @@ func onReady() {
 	}
 	stoppers["grpc"] = grpcStopper
 
+	if !protosClient.IsInitialized() {
+		protosClient.WaitForInitialization()
+	}
+
+	err = protosClient.FinishInit()
+	if err != nil {
+		log.Fatalf("Failed to finish initialization: %s", err.Error())
+	}
+
 	// Handle OS signals and tray icon quit signal
 	osSigs := make(chan os.Signal, 1)
 	signal.Notify(osSigs, syscall.SIGINT, syscall.SIGTERM)

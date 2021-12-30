@@ -83,7 +83,7 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string)
 		log.Infof("Generated instance key. Writing it to '%s'", gconfig.WorkDir+"/"+metaKeyFile)
 		err = ioutil.WriteFile(gconfig.WorkDir+"/"+metaKeyFile, []byte(key.PublicString()), 0644)
 		if err != nil {
-			log.Fatalf("Failed to write public key to disk: ", err.Error())
+			log.Fatalf("Failed to write public key to disk: %s", err.Error())
 		}
 	}
 
@@ -131,7 +131,7 @@ func SetupForClient(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, versio
 		log.Infof("Generated instance key. Writing it to '%s'", gconfig.WorkDir+"/"+metaKeyFile)
 		err = ioutil.WriteFile(gconfig.WorkDir+"/"+metaKeyFile, []byte(key.PublicString()), 0644)
 		if err != nil {
-			log.Fatalf("Failed to write public key to disk: ", err.Error())
+			log.Fatalf("Failed to write public key to disk: %s", err.Error())
 		}
 	}
 
