@@ -181,7 +181,18 @@ func (pc *ProtosClient) FinishInit() error {
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
-	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager)
+
+	admin, err := pc.UserManager.GetAdmin()
+	if err != nil {
+		log.Fatalf("Failed to retrieve admin user: %s", err.Error())
+	}
+
+	currentDevice, err := admin.GetCurrentDevice()
+	if err != nil {
+		log.Fatalf("Failed to get current device: %s", err.Error())
+	}
+
+	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, currentDevice.Name)
 	if err != nil {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
@@ -189,11 +200,6 @@ func (pc *ProtosClient) FinishInit() error {
 	instances, err := cloudManager.GetInstances()
 	if err != nil {
 		log.Fatalf("Failed to retrieve instances: %s", err.Error())
-	}
-
-	admin, err := pc.UserManager.GetAdmin()
-	if err != nil {
-		log.Fatalf("Failed to retrieve admin user: %s", err.Error())
 	}
 
 	err = networkManager.ConfigurePeers(instances, admin.GetDevices())

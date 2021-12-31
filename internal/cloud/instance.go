@@ -816,7 +816,7 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 }
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P) (*Manager, error) {
+func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P, selfName string) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
@@ -838,6 +838,9 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 		return nil, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 	for _, instance := range instances {
+		if instance.Name == selfName {
+			continue
+		}
 		log.Debugf("Connecting to instance '%s'(cloud: %s, IP: %s)", instance.Name, instance.CloudName, instance.PublicIP)
 		peerID, err := manager.p2p.AddPeer(instance.PublicKey, instance.PublicIP)
 		if err != nil {

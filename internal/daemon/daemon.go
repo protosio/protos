@@ -106,7 +106,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager)
+	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, m.InstanceName)
 	if err != nil {
 		log.Fatal(err)
 	}
