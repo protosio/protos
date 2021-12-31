@@ -83,18 +83,18 @@ func (ip *ClientInit) Init(username string, password string, name string, domain
 	// send the request
 	err := ip.p2p.sendRequest(ip.peerID, initHandler, req, respData)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Init request to '%s' failed: %s", ip.peerID.String(), err.Error())
+		return nil, nil, fmt.Errorf("init request to '%s' failed: %s", ip.peerID.String(), err.Error())
 	}
 
 	// prepare IP and public key of instance
 	ipAddr := net.ParseIP(respData.InstanceIP)
 	if ipAddr == nil {
-		return nil, nil, fmt.Errorf("Failed to parse IP: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse IP: %w", err)
 	}
 	var pubKey ed25519.PublicKey
 	pubKey, err = base64.StdEncoding.DecodeString(respData.InstancePubKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to decode public key: %w", err)
+		return nil, nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
 	return ipAddr, pubKey, nil
@@ -115,18 +115,18 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 
 	req, ok := data.(*InitReq)
 	if !ok {
-		return InitResp{}, fmt.Errorf("Unknown data struct for init request")
+		return InitResp{}, fmt.Errorf("unknown data struct for init request")
 	}
 
 	validate := validator.New()
 	err := validate.Struct(req)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to validate init request: %w", err)
+		return nil, fmt.Errorf("failed to validate init request: %w", err)
 	}
 
 	_, network, err := net.ParseCIDR(req.Network)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot perform initialization, network '%s' is invalid: %w", req.Network, err)
+		return nil, fmt.Errorf("cannot perform initialization, network '%s' is invalid: %w", req.Network, err)
 	}
 
 	hi.metaConfigurator.SetDomain(req.Domain)
@@ -135,7 +135,7 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 
 	user, err := hi.userCreator.CreateUser(req.Username, req.Password, req.Name, req.Domain, true, req.Devices)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot perform initialization, faild to create user: %w", err)
+		return nil, fmt.Errorf("cannot perform initialization, faild to create user: %w", err)
 	}
 	hi.metaConfigurator.SetAdminUser(user.GetUsername())
 
@@ -143,7 +143,7 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 	_, err = hi.metaConfigurator.CreateProtosResources()
 	if err != nil {
 		log.Error(err)
-		return nil, fmt.Errorf("Cannot perform initialization, faild to create resources: %w", err)
+		return nil, fmt.Errorf("cannot perform initialization, faild to create resources: %w", err)
 	}
 
 	key, err := hi.metaConfigurator.GetPrivateKey()

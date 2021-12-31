@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,19 +60,6 @@ type payloadResponse struct {
 	Data  json.RawMessage
 }
 
-type responseError struct {
-	statusCode int
-	err        error
-}
-
-func (r *responseError) Error() string {
-	return r.err.Error()
-}
-
-func (r *responseError) StatusCode() int {
-	return r.statusCode
-}
-
 type request struct {
 	resp      chan []byte
 	err       chan error
@@ -114,7 +102,7 @@ func (p2p *P2P) getRequest(id string) (*request, error) {
 	if req, found := p2p.reqs.reqs[id]; found {
 		return req, nil
 	}
-	return nil, fmt.Errorf("Could not find request with id '%s'", id)
+	return nil, fmt.Errorf("could not find request with id '%s'", id)
 }
 
 func (p2p *P2P) addRequest(id string, req *request) {
@@ -178,7 +166,7 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 	data := handler.RequestStruct
 	err = json.Unmarshal(reqMsg.Data, &data)
 	if err != nil {
-		respMsg.Error = fmt.Errorf("Failed to decode data struct: %s", err.Error()).Error()
+		respMsg.Error = fmt.Errorf("failed to decode data struct: %s", err.Error()).Error()
 
 		// encode the response
 		jsonResp, err := json.Marshal(respMsg)
@@ -198,13 +186,13 @@ func (p2p *P2P) streamRequestHandler(s network.Stream) {
 	var jsonHandlerResponse []byte
 	handlerResponse, err := handler.Func(data)
 	if err != nil {
-		err = fmt.Errorf("Failed to process request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
+		err = fmt.Errorf("failed to process request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
 		log.Errorf(err.Error())
 	} else {
 		// encode the returned handler response
 		jsonHandlerResponse, err = json.Marshal(handlerResponse)
 		if err != nil {
-			err = fmt.Errorf("Failed to encode response for request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
+			err = fmt.Errorf("failed to encode response for request '%s' from '%s': %s", reqMsg.ID, s.Conn().RemotePeer().String(), err.Error())
 			log.Errorf(err.Error())
 		}
 	}
@@ -269,7 +257,7 @@ func (p2p *P2P) streamResponseHandler(s network.Stream) {
 	close(req.closeSig)
 
 	if msg.Error != "" {
-		req.err <- fmt.Errorf("Error returned by '%s': %s", s.Conn().RemotePeer().String(), msg.Error)
+		req.err <- fmt.Errorf("error returned by '%s': %s", s.Conn().RemotePeer().String(), msg.Error)
 	} else {
 		req.resp <- msg.Data
 	}
@@ -288,7 +276,7 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 	// encode the request
 	jsonReq, err := json.Marshal(reqMsg)
 	if err != nil {
-		return fmt.Errorf("Failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
+		return fmt.Errorf("failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
 	}
 
 	// create the request
@@ -305,7 +293,7 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 	// send the request
 	p2p.sendMsg(id, protosRequestProtocol, jsonReq)
 	if err != nil {
-		return fmt.Errorf("Failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
+		return fmt.Errorf("failed to encode request '%s' for peer '%s': %s", reqMsg.ID, id.String(), err.Error())
 	}
 
 	go func() {
@@ -322,7 +310,7 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 		// we close the closeSig channel so any response from the handler is discarded
 		close(req.closeSig)
 
-		req.err <- fmt.Errorf("Timeout waiting for request '%s'", reqMsg.ID)
+		req.err <- fmt.Errorf("timeout waiting for request '%s'", reqMsg.ID)
 		close(req.resp)
 		close(req.err)
 	}()
@@ -333,7 +321,7 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 	case resp := <-req.resp:
 		err := json.Unmarshal(resp, responseData)
 		if err != nil {
-			return fmt.Errorf("Failed to decode response payload: %v", err)
+			return fmt.Errorf("failed to decode response payload: %v", err)
 		}
 		return nil
 	case err := <-req.err:
@@ -351,7 +339,7 @@ func (p2p *P2P) sendMsg(id peer.ID, protocolType protocol.ID, jsonMsg []byte) er
 	// send the data
 	_, err = s.Write(jsonMsg)
 	if err != nil {
-		return fmt.Errorf("Error while writing to stream: %v", err)
+		return fmt.Errorf("error while writing to stream: %v", err)
 	}
 
 	s.Close()
@@ -360,7 +348,7 @@ func (p2p *P2P) sendMsg(id peer.ID, protocolType protocol.ID, jsonMsg []byte) er
 	err = s.Close()
 	if err != nil {
 		s.Reset()
-		return fmt.Errorf("Error while closing stream: %v", err)
+		return fmt.Errorf("error while closing stream: %v", err)
 	}
 
 	return nil
@@ -370,22 +358,22 @@ func (p2p *P2P) sendMsg(id peer.ID, protocolType protocol.ID, jsonMsg []byte) er
 func (p2p *P2P) AddPeer(pubKey []byte, destHost string) (string, error) {
 	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
 	if err != nil {
-		return "", fmt.Errorf("Failed to unmarshall public key: %w", err)
+		return "", fmt.Errorf("failed to unmarshall public key: %w", err)
 	}
 	peerID, err := peer.IDFromPublicKey(pk)
 	if err != nil {
-		return "", fmt.Errorf("Failed to create peer ID from public key: %w", err)
+		return "", fmt.Errorf("failed to create peer ID from public key: %w", err)
 	}
 
 	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", destHost, peerID.String())
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
-		return "", fmt.Errorf("Failed to create multi address: %w", err)
+		return "", fmt.Errorf("failed to create multi address: %w", err)
 	}
 
 	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
 	if err != nil {
-		return "", fmt.Errorf("Failed to extrat info from address: %w", err)
+		return "", fmt.Errorf("failed to extrat info from address: %w", err)
 	}
 
 	log.Debugf("Adding peer id '%s'", peerInfo.ID.String())
@@ -395,17 +383,31 @@ func (p2p *P2P) AddPeer(pubKey []byte, destHost string) (string, error) {
 }
 
 // GetClient returns the remote client that can reach all remote handlers
-func (p2p *P2P) GetClient(peerID string) (*Client, error) {
+func (p2p *P2P) GetClient(peerID string) (client *Client, err error) {
 
 	pID, err := peer.IDFromString(peerID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse peer ID from string: %w", err)
+		return nil, fmt.Errorf("failed to parse peer ID from string: %w", err)
 	}
 
-	return &Client{
+	// err should be nil, and if there is a panic, we change it in the defer function
+	// this is required because noms implements control flow using panics
+	err = nil
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("exception whie building p2p client: %v", r)
+			if strings.Contains(err.Error(), "timeout waiting for request") {
+				err = fmt.Errorf("timeout waiting for p2p client")
+			}
+		}
+	}()
+
+	client = &Client{
 		NewRemoteInit(p2p, pID),
 		NewRemoteChunkStore(p2p, pID),
-	}, nil
+	}
+
+	return client, err
 }
 
 func (p2p *P2P) triggerEvent(event interface{}) {
@@ -430,7 +432,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 
 	err := p2p.host.Network().Listen()
 	if err != nil {
-		return func() error { return nil }, fmt.Errorf("Failed to listen: %w", err)
+		return func() error { return nil }, fmt.Errorf("failed to listen: %w", err)
 	}
 
 	stopSig := make(chan interface{})

@@ -841,13 +841,13 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 		log.Debugf("Connecting to instance '%s'(cloud: %s, IP: %s)", instance.Name, instance.CloudName, instance.PublicIP)
 		peerID, err := manager.p2p.AddPeer(instance.PublicKey, instance.PublicIP)
 		if err != nil {
-			log.Errorf("failed to add peer: %s", err.Error())
+			log.Errorf("Failed to add peer: %s", err.Error())
 			continue
 		}
 
 		p2pClient, err := manager.p2p.GetClient(peerID)
 		if err != nil {
-			log.Errorf("failed to get p2p client for '%s': %s", instance.Name, err.Error())
+			log.Errorf("Failed to retrieve p2p client for '%s': %s", instance.Name, err.Error())
 			continue
 		}
 		manager.db.AddRemoteCS(instance.Name, p2pClient.ChunkStore)

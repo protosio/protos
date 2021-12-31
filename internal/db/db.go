@@ -210,7 +210,7 @@ func (db *dbNoms) SyncAll() {
 
 			err := db.SyncCS(localCS)
 			if err != nil {
-				log.Errorf("Failed to sync db to '%s': %w", localID, err)
+				log.Errorf("Failed to sync db to '%s': %s", localID, err.Error())
 			}
 		}()
 	}

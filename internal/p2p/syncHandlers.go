@@ -89,7 +89,7 @@ func (p2pcs *HandlersChunkStore) getRoot(data interface{}) (interface{}, error) 
 func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) {
 	req, ok := data.(*setRootReq)
 	if !ok {
-		return getRootResp{}, fmt.Errorf("Unknown data struct for setRoot request")
+		return getRootResp{}, fmt.Errorf("unknown data struct for setRoot request")
 	}
 
 	defer p2pcs.p2p.triggerEvent(true)
@@ -162,12 +162,12 @@ func deserializeHash(reader io.Reader) hash.Hash {
 func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) {
 	req, ok := data.(*getRefsReq)
 	if !ok {
-		return getRefsResp{}, fmt.Errorf("Unknown data struct for getRefs request")
+		return getRefsResp{}, fmt.Errorf("unknown data struct for getRefs request")
 	}
 
 	byteData, err := base64.StdEncoding.DecodeString(req.Hashes)
 	if !ok {
-		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in getRefs request: %s", err.Error())
+		return emptyResp{}, fmt.Errorf("failed to base64 decode data in getRefs request: %s", err.Error())
 	}
 
 	reader := ioutil.NopCloser(bytes.NewReader(byteData))
@@ -205,7 +205,7 @@ func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) 
 
 	err = writer.Close()
 	if err != nil {
-		return emptyResp{}, fmt.Errorf("Failed to close writer in getRefs request: %s", err.Error())
+		return emptyResp{}, fmt.Errorf("failed to close writer in getRefs request: %s", err.Error())
 	}
 
 	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
@@ -217,12 +217,12 @@ func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) 
 
 	req, ok := data.(*hasRefsReq)
 	if !ok {
-		return getRefsResp{}, fmt.Errorf("Unknown data struct for hasRefs request")
+		return getRefsResp{}, fmt.Errorf("unknown data struct for hasRefs request")
 	}
 
 	byteData, err := base64.StdEncoding.DecodeString(req.Hashes)
 	if !ok {
-		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in hasRefs request: %s", err.Error())
+		return emptyResp{}, fmt.Errorf("failed to base64 decode data in hasRefs request: %s", err.Error())
 	}
 
 	reader := ioutil.NopCloser(bytes.NewReader(byteData))
@@ -238,7 +238,7 @@ func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) 
 
 	err = writer.Close()
 	if err != nil {
-		return emptyResp{}, fmt.Errorf("Failed to close writer in hasRefs request: %s", err.Error())
+		return emptyResp{}, fmt.Errorf("failed to close writer in hasRefs request: %s", err.Error())
 	}
 
 	encodedBody := base64.StdEncoding.EncodeToString(buf.Bytes())
@@ -248,12 +248,12 @@ func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) 
 func (p2pcs *HandlersChunkStore) writeValue(data interface{}) (interface{}, error) {
 	req, ok := data.(*writeValueReq)
 	if !ok {
-		return emptyResp{}, fmt.Errorf("Unknown data struct for writeValue request")
+		return emptyResp{}, fmt.Errorf("unknown data struct for writeValue request")
 	}
 
 	byteData, err := base64.StdEncoding.DecodeString(req.Data)
 	if !ok {
-		return emptyResp{}, fmt.Errorf("Failed to base64 decode data in writeValue request: %s", err.Error())
+		return emptyResp{}, fmt.Errorf("failed to base64 decode data in writeValue request: %s", err.Error())
 	}
 
 	t1 := time.Now()
