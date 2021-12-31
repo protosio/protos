@@ -99,6 +99,30 @@ func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
 		return nil, err
 	}
 
+	newRoutes := []netlink.Route{{Dst: &network, LinkIndex: l.Attrs().Index}}
+	existingRoutes, err := netlink.RouteList(l, netlink.FAMILY_V4)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve routes: %w", err)
+	}
+	delRoutes, addRoutes := diffRoutes(existingRoutes, newRoutes)
+
+	// add the new routes to the bridge interface
+	for _, route := range addRoutes {
+		route.LinkIndex = l.Attrs().Index
+		err = netlink.RouteAdd(&route)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add route: %w", err)
+		}
+	}
+
+	// delete old routes from the bridge interface
+	for _, route := range delRoutes {
+		err = netlink.RouteDel(&route)
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete route: %w", err)
+		}
+	}
+
 	return brInterface, nil
 }
 
@@ -220,6 +244,8 @@ func (m *Manager) Down() error {
 }
 
 func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.UserDevice) error {
+
+	log.Debug("Configuring network")
 	lnk, err := m.linkManager.GetLink(wireguardNetworkInterface)
 	if err != nil {
 		return fmt.Errorf("failed to configure interface '%s': %w", wireguardNetworkInterface, err)
@@ -234,7 +260,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 
 	// build instances peer list
 	for _, instance := range instances {
-		if len(instance.PublicKey) == 0 {
+		if len(instance.PublicKey) == 0 || m.network.String() == instance.Network {
 			continue
 		}
 
