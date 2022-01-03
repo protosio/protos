@@ -69,6 +69,7 @@ func diffRoutes(a []netlink.Route, b []netlink.Route) ([]netlink.Route, []netlin
 
 func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
 
+	log.Debugf("Setting up bridge interface '%s'", bridgeNetworkInterface)
 	brInterface := &netlink.Bridge{
 		LinkAttrs: netlink.LinkAttrs{
 			Name:   name,
@@ -184,6 +185,12 @@ func (m *Manager) Up() error {
 		return fmt.Errorf("failed to set IP forwarding while initializing network: %w", err)
 	}
 
+	// configure the bridge interface
+	netBridge, err = configureBridge(bridgeNetworkInterface, m.network)
+	if err != nil {
+		return fmt.Errorf("failed to create bridge interface during network initialization: %w", err)
+	}
+
 	// the instance gateway IP is also used for WG
 	linkAddrs := []linkmgr.Address{
 		{
@@ -204,18 +211,12 @@ func (m *Manager) Up() error {
 
 	_, _, err = wirebox.CreateWG(manager, wireguardNetworkInterface, cfg, linkAddrs)
 	if err != nil {
-		return fmt.Errorf("failed to create interface during network initialization: %w", err)
+		return fmt.Errorf("failed to create WireGuard interface during network initialization: %w", err)
 	}
 
 	// cheating by sleeping 2 seconds
 	log.Debugf("Waiting for link '%s' to come up", wireguardNetworkInterface)
 	time.Sleep(2 * time.Second)
-
-	log.Debugf("Setting up bridge interface '%s'", bridgeNetworkInterface)
-	netBridge, err = configureBridge(bridgeNetworkInterface, m.network)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
