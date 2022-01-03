@@ -99,19 +99,21 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	tm := task.CreateManager(dbcli, pub)
 	as := installer.CreateAppStore(pltfrm, tm, cm)
 	appManager := app.CreateManager(rm, tm, pltfrm, dbcli, m, pub, as, cm)
+	dbcli.AddRefresher("apps", appManager)
 	pm := provider.CreateManager(rm, appManager, dbcli)
 
-	p2pManager, err := p2p.NewManager(10500, key)
+	p2pManager, err := p2p.NewManager(10500, key, dbcli)
 	if err != nil {
 		log.Fatal(err)
 	}
+	dbcli.AddPublisher(p2pManager)
 
 	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, m.InstanceName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore(), appManager)
+	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -170,7 +172,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 
 	// add the refresher to the db so on any data change the network will reconfigured
 	ref := &refresher{cloudManager: cloudManager, userManager: um, networkManager: networkManager}
-	dbcli.AddRefresher(ref)
+	dbcli.AddRefresher("network", ref)
 
 	// perform runtime initialization (container runtime)
 	err = pltfrm.Init()
@@ -187,8 +189,10 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 	stoppers["iws"] = iwsStopper
 
+	dbcli.BroadcastHead()
+
 	log.Info("Started all servers successfully")
-	appManager.ReSync()
+	appManager.Refresh()
 	wg.Wait()
 	log.Info("Shutdown completed")
 

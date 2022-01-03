@@ -177,10 +177,17 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
 	}
 
-	p2pManager, err := p2p.NewManager(10500, key)
+	p2pManager, err := p2p.NewManager(10500, key, pc.db)
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
+	pc.db.AddPublisher(p2pManager)
+
+	p2pStopper, err := p2pManager.StartServer(metaClient, pc.UserManager, pc.db.GetChunkStore())
+	if err != nil {
+		log.Fatalf("Failed to start p2p server: %s", err.Error())
+	}
+	pc.stoppers["p2p"] = p2pStopper
 
 	admin, err := pc.UserManager.GetAdmin()
 	if err != nil {
@@ -214,7 +221,8 @@ func (pc *ProtosClient) FinishInit() error {
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-	pc.db.AddRefresher(pc)
+	pc.db.AddRefresher("network", pc)
+	pc.db.BroadcastHead()
 
 	return nil
 

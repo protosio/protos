@@ -15,6 +15,7 @@ import (
 	"github.com/attic-labs/noms/go/util/clienttest"
 	"github.com/attic-labs/noms/go/util/status"
 	"github.com/dustin/go-humanize"
+	cmap "github.com/orcaman/concurrent-map"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -25,6 +26,34 @@ const (
 	sharedData = "protosshared"
 	localData  = "protoslocal"
 )
+
+type Refresher interface {
+	Refresh() error
+}
+
+type Publisher interface {
+	Broadcast(message string) error
+}
+
+// DB represents a DB client instance, used to interract with the database
+type DB interface {
+	SaveStruct(dataset string, data interface{}) error
+	GetStruct(dataset string, to interface{}) error
+	InitMap(dataset string, sync bool) error
+	GetMap(dataset string, to interface{}) error
+	InsertInMap(dataset string, id string, data interface{}) error
+	RemoveFromMap(dataset string, id string) error
+	GetChunkStore() chunks.ChunkStore
+	// SyncAll()
+	HasCS(id string) bool
+	AddRemoteCS(id string, cs chunks.ChunkStore)
+	DeleteRemoteCS(id string)
+	Sync(id string, head string)
+	AddRefresher(name string, refresher Refresher)
+	AddPublisher(publisher Publisher)
+	BroadcastHead()
+	Close() error
+}
 
 func bytesPerSec(bytes uint64, start time.Time) string {
 	bps := float64(bytes) / float64(time.Since(start).Seconds())
@@ -74,28 +103,13 @@ func Open(protosDir string, protosDB string) (DB, error) {
 		}
 	}
 
-	return &dbNoms{dbn: db, cs: cs, sharedDatasets: map[string]bool{}, remoteChunkStores: map[string]chunks.ChunkStore{}}, nil
-}
-
-type Refresher interface {
-	Refresh() error
-}
-
-// DB represents a DB client instance, used to interract with the database
-type DB interface {
-	SaveStruct(dataset string, data interface{}) error
-	GetStruct(dataset string, to interface{}) error
-	InitMap(dataset string, sync bool) error
-	GetMap(dataset string, to interface{}) error
-	InsertInMap(dataset string, id string, data interface{}) error
-	RemoveFromMap(dataset string, id string) error
-	SyncCS(cs chunks.ChunkStore) error
-	GetChunkStore() chunks.ChunkStore
-	SyncAll()
-	AddRemoteCS(id string, cs chunks.ChunkStore)
-	DeleteRemoteCS(id string)
-	AddRefresher(refresher Refresher)
-	Close() error
+	return &dbNoms{
+		dbn:               db,
+		cs:                cs,
+		sharedDatasets:    map[string]bool{},
+		remoteChunkStores: map[string]chunks.ChunkStore{},
+		refreshers:        cmap.New(),
+	}, nil
 }
 
 //
@@ -107,12 +121,31 @@ type dbNoms struct {
 	remoteChunkStores map[string]chunks.ChunkStore
 	dbn               datas.Database
 	sharedDatasets    map[string]bool
-	refresher         Refresher
+	refreshers        cmap.ConcurrentMap
+	publisher         Publisher
 }
 
 //
 // private methods
 //
+
+func (db *dbNoms) publishHead(head string) {
+	if db.publisher != nil {
+		log.Debugf("Publishing new head '%s'", head)
+		err := db.publisher.Broadcast(head)
+		if err != nil {
+			log.Errorf("Failed to publish DB head: %s", err.Error())
+		}
+	}
+}
+
+func (db *dbNoms) BroadcastHead() {
+	ds, _ := db.getLocalHeadMap()
+	ref, found := ds.MaybeHeadRef()
+	if found {
+		db.publishHead(ref.TargetHash().String())
+	}
+}
 
 func (db *dbNoms) getHeadMap(name string) (datas.Dataset, types.Map, bool) {
 	var ds datas.Dataset
@@ -160,13 +193,14 @@ func (db *dbNoms) getLocalHeadMap() (datas.Dataset, types.Map) {
 }
 
 func (db *dbNoms) refresh() {
-	if db.refresher != nil {
-		go func() {
-			err := db.refresher.Refresh()
+	for refresher := range db.refreshers.IterBuffered() {
+		go func(ref cmap.Tuple) {
+			cRefresher := ref.Val.(Refresher)
+			err := cRefresher.Refresh()
 			if err != nil {
-				log.Errorf("Failed to do refresh in db: %s", err.Error())
+				log.Errorf("Failed to refresh '%s' in db: %s", ref.Key, err.Error())
 			}
-		}()
+		}(refresher)
 	}
 }
 
@@ -174,8 +208,12 @@ func (db *dbNoms) refresh() {
 // public methods
 //
 
-func (db *dbNoms) AddRefresher(refresher Refresher) {
-	db.refresher = refresher
+func (db *dbNoms) AddRefresher(name string, refresher Refresher) {
+	db.refreshers.Set(name, refresher)
+}
+
+func (db *dbNoms) AddPublisher(publisher Publisher) {
+	db.publisher = publisher
 }
 
 func (db *dbNoms) Close() error {
@@ -184,6 +222,14 @@ func (db *dbNoms) Close() error {
 
 func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
 	return db.cs
+}
+
+// HasCS checks if a remote chunk store is present
+func (db *dbNoms) HasCS(id string) bool {
+	if _, found := db.remoteChunkStores[id]; found {
+		return true
+	}
+	return false
 }
 
 // AddRemoteCS adds a remote chunk store which can be synced
@@ -196,23 +242,43 @@ func (db *dbNoms) DeleteRemoteCS(id string) {
 	delete(db.remoteChunkStores, id)
 }
 
-// AddRemoteCS adds a remote chunk store which can be synced
-func (db *dbNoms) SyncAll() {
-	for id, cs := range db.remoteChunkStores {
-		localCS := cs
-		localID := id
+// // SyncAll syncs (push) too all the available peers
+// func (db *dbNoms) SyncAll() {
+// 	for id, cs := range db.remoteChunkStores {
+// 		localCS := cs
+// 		localID := id
+// 		go func() {
+// 			defer func() {
+// 				if err := recover(); err != nil {
+// 					log.Errorf("Exception during db sync to '%s': %v", localID, err)
+// 				}
+// 			}()
+
+// 			err := db.SyncCS(localCS)
+// 			if err != nil {
+// 				log.Errorf("Failed to sync db to '%s': %s", localID, err.Error())
+// 			}
+// 		}()
+// 	}
+// }
+
+// Sync syncs (pull) from a specific peer
+func (db *dbNoms) Sync(id string, head string) {
+	if cs, found := db.remoteChunkStores[id]; found {
 		go func() {
 			defer func() {
 				if err := recover(); err != nil {
-					log.Errorf("Exception during db sync to '%s': %v", localID, err)
+					log.Errorf("Exception during db sync to '%s': %v", id, err)
 				}
 			}()
 
-			err := db.SyncCS(localCS)
+			err := db.PullFromCS(cs)
 			if err != nil {
-				log.Errorf("Failed to sync db to '%s': %s", localID, err.Error())
+				log.Errorf("Failed to sync db head '%s' from '%s': %s", head, id, err.Error())
 			}
 		}()
+	} else {
+		log.Errorf("Failed to sync db head '%s' from '%s': could not find peer '%s'", head, id, id)
 	}
 }
 
@@ -226,6 +292,23 @@ func (db *dbNoms) SyncCS(cs chunks.ChunkStore) error {
 
 	// sync local -> remote
 	err = db.SyncTo(db.dbn, remoteDB)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// PullFromCS syncs by pulling from a remote chunk store
+func (db *dbNoms) PullFromCS(cs chunks.ChunkStore) error {
+	cfg := config.NewResolver()
+	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedData)
+	if err != nil {
+		return err
+	}
+
+	// sync local <- remote
+	err = db.SyncTo(remoteDB, db.dbn)
 	if err != nil {
 		return err
 	}
@@ -287,6 +370,7 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 	if last := <-lastProgressCh; last.DoneCount > 0 {
 		log.Debugf("Done - Synced %s in %s (%s/s)", humanize.Bytes(last.ApproxWrittenBytes), since(start), bytesPerSec(last.ApproxWrittenBytes, start))
 		status.Done()
+		db.refresh()
 	} else if !dstExists {
 		log.Debugf("All chunks already exist at destination")
 	} else if nonFF && !srcRef.Equals(dstRef) {
@@ -373,9 +457,10 @@ func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error
 		return fmt.Errorf("error committing to db: %w", err)
 	}
 
-	db.refresh()
 	if shared {
-		db.SyncAll()
+		db.refresh()
+		db.publishHead(newMapHead.Hash().String())
+		// db.SyncAll()
 	}
 	return nil
 }
@@ -398,9 +483,10 @@ func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
 		return fmt.Errorf("error committing to db: %w", err)
 	}
 
-	db.refresh()
 	if shared {
-		db.SyncAll()
+		db.refresh()
+		db.publishHead(newMapHead.Hash().String())
+		// db.SyncAll()
 	}
 	return nil
 }

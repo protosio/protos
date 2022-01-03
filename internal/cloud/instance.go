@@ -422,7 +422,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
-	cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
+	cm.db.AddRemoteCS(peerID, p2pClient.ChunkStore)
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
@@ -523,7 +523,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("failed to init dev instance: %w", err)
 	}
 
-	cm.db.AddRemoteCS(instanceInfo.Name, p2pClient.ChunkStore)
+	cm.db.AddRemoteCS(peerID, p2pClient.ChunkStore)
 
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
@@ -591,7 +591,13 @@ func (cm *Manager) DeleteInstance(name string) error {
 		}
 	}
 
-	cm.db.DeleteRemoteCS(name)
+	peerID, err := cm.p2p.PubKeyToPeerID(instance.PublicKey)
+	if err != nil {
+		log.Warnf("Failed to calculate peer ID for instance '%s' and remove it from the database chunk stores")
+	} else {
+		cm.db.DeleteRemoteCS(peerID)
+	}
+
 	return cm.db.RemoveFromMap(instanceDS, instance.Name)
 }
 
@@ -853,9 +859,9 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 			log.Errorf("Failed to retrieve p2p client for '%s': %s", instance.Name, err.Error())
 			continue
 		}
-		manager.db.AddRemoteCS(instance.Name, p2pClient.ChunkStore)
+		manager.db.AddRemoteCS(peerID, p2pClient.ChunkStore)
 	}
 
-	manager.db.SyncAll()
+	// manager.db.SyncAll()
 	return manager, nil
 }

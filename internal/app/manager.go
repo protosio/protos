@@ -223,13 +223,13 @@ func (am *Manager) GetAll() (map[string]App, error) {
 	return apps, nil
 }
 
-// ReSync checks the db for new apps and deploys them if they belong to the current instance
-func (am *Manager) ReSync() {
+// Refresh checks the db for new apps and deploys them if they belong to the current instance
+func (am *Manager) Refresh() error {
 	log.Debug("Syncing apps")
 	dbapps := map[string]App{}
 	err := am.db.GetMap(appDS, &dbapps)
 	if err != nil {
-		log.Fatal("Could not retrieve applications from database: ", err)
+		return fmt.Errorf("could not retrieve applications from database: %w", err)
 	}
 
 	for _, app := range dbapps {
@@ -257,6 +257,7 @@ func (am *Manager) ReSync() {
 			log.Infof("App '%s' actual status: '%s'", app.Name, app.GetStatus())
 		}
 	}
+	return nil
 }
 
 // Start sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance
