@@ -84,7 +84,7 @@ func CreateManager(db db.DB) *Manager {
 		log.Panic("Failed to create resource manager: none of the inputs can be nil")
 	}
 
-	err := db.InitMap(sshDS, false)
+	err := db.InitDataset(sshDS, false)
 	if err != nil {
 		log.Fatal("Failed to initialize ssh dataset: ", err)
 	}

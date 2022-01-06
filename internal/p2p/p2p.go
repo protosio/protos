@@ -36,9 +36,9 @@ const RPCRequest RPCMsgType = "request"
 const RPCResponse RPCMsgType = "response"
 
 type DBSyncer interface {
-	Sync(id string, head string)
-	HasCS(id string) bool
-	AddRemoteCS(id string, cs chunks.ChunkStore)
+	Sync(peerID string, dataset string, head string)
+	HasCS(peerID string) bool
+	AddRemoteCS(peerID string, cs chunks.ChunkStore)
 }
 
 type emptyReq struct{}
@@ -66,8 +66,9 @@ type payloadResponse struct {
 }
 
 type payloadPubSub struct {
-	ID   string
-	Head string
+	ID      string
+	Dataset string
+	Head    string
 }
 
 type requestTracker struct {
@@ -482,32 +483,7 @@ func (p2p *P2P) GetClientForPeer(peer peer.ID) (client *Client, err error) {
 	return client, err
 }
 
-// StartServer starts listening for p2p connections
-func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore) (func() error, error) {
-	log.Info("Starting p2p server")
-
-	p2pPing := &HandlersPing{}
-	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
-	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs}
-
-	// we register handler methods which should be accessible from the client
-	// ping handler
-	p2p.addHandler(pingHandler, &Handler{Func: p2pPing.PerformPing, RequestStruct: &PingReq{}})
-	// init handler
-	p2p.addHandler(initHandler, &Handler{Func: p2pInit.PerformInit, RequestStruct: &InitReq{}})
-	// db handlers
-	p2p.addHandler(getRootHandler, &Handler{Func: p2pChunkStore.getRoot, RequestStruct: &emptyReq{}})
-	p2p.addHandler(setRootHandler, &Handler{Func: p2pChunkStore.setRoot, RequestStruct: &setRootReq{}})
-	p2p.addHandler(writeValueHandler, &Handler{Func: p2pChunkStore.writeValue, RequestStruct: &writeValueReq{}})
-	p2p.addHandler(getStatsSummaryHandler, &Handler{Func: p2pChunkStore.getStatsSummary, RequestStruct: &emptyReq{}})
-	p2p.addHandler(getRefsHandler, &Handler{Func: p2pChunkStore.getRefs, RequestStruct: &getRefsReq{}})
-	p2p.addHandler(hasRefsHandler, &Handler{Func: p2pChunkStore.hasRefs, RequestStruct: &hasRefsReq{}})
-
-	err := p2p.host.Network().Listen()
-	if err != nil {
-		return func() error { return nil }, fmt.Errorf("failed to listen: %w", err)
-	}
-
+func (p2p *P2P) pubSubMsgHandler() func() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		defer func() {
@@ -535,7 +511,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 				log.Errorf("Failed to decode pub sub message from '%s': %w", peerID, err.Error())
 				continue
 			}
-			log.Debugf("Peer '%s' advertised DB head '%s'", peerID, data.Head)
+			log.Debugf("Peer '%s' advertised dataset '%s' head '%s'", peerID, data.Dataset, data.Head)
 
 			if !p2p.dbSyncer.HasCS(peerID) {
 				p2pClient, err := p2p.GetClientForPeer(msg.ReceivedFrom)
@@ -546,7 +522,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 				p2p.dbSyncer.AddRemoteCS(peerID, p2pClient)
 			}
 
-			p2p.dbSyncer.Sync(peerID, data.Head)
+			p2p.dbSyncer.Sync(peerID, data.Dataset, data.Head)
 		}
 	}()
 
@@ -555,14 +531,45 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 		cancel()
 		return p2p.host.Close()
 	}
+	return stopper
+}
+
+// StartServer starts listening for p2p connections
+func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserCreator, cs chunks.ChunkStore) (func() error, error) {
+	log.Info("Starting p2p server")
+
+	p2pPing := &HandlersPing{}
+	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
+	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs}
+
+	// we register handler methods which should be accessible from the client
+	// ping handler
+	p2p.addHandler(pingHandler, &Handler{Func: p2pPing.PerformPing, RequestStruct: &PingReq{}})
+	// init handler
+	p2p.addHandler(initHandler, &Handler{Func: p2pInit.PerformInit, RequestStruct: &InitReq{}})
+	// db handlers
+	p2p.addHandler(getRootHandler, &Handler{Func: p2pChunkStore.getRoot, RequestStruct: &emptyReq{}})
+	p2p.addHandler(setRootHandler, &Handler{Func: p2pChunkStore.setRoot, RequestStruct: &setRootReq{}})
+	p2p.addHandler(writeValueHandler, &Handler{Func: p2pChunkStore.writeValue, RequestStruct: &writeValueReq{}})
+	p2p.addHandler(getStatsSummaryHandler, &Handler{Func: p2pChunkStore.getStatsSummary, RequestStruct: &emptyReq{}})
+	p2p.addHandler(getRefsHandler, &Handler{Func: p2pChunkStore.getRefs, RequestStruct: &getRefsReq{}})
+	p2p.addHandler(hasRefsHandler, &Handler{Func: p2pChunkStore.hasRefs, RequestStruct: &hasRefsReq{}})
+
+	err := p2p.host.Network().Listen()
+	if err != nil {
+		return func() error { return nil }, fmt.Errorf("failed to listen: %w", err)
+	}
+
+	stopper := p2p.pubSubMsgHandler()
 	return stopper, nil
 
 }
 
-func (p2p *P2P) Broadcast(head string) error {
+func (p2p *P2P) Broadcast(dataset string, head string) error {
 	data := payloadPubSub{
-		ID:   ksuid.New().String(),
-		Head: head,
+		ID:      ksuid.New().String(),
+		Dataset: dataset,
+		Head:    head,
 	}
 	msgBytes, err := json.Marshal(data)
 	if err != nil {

@@ -19,36 +19,33 @@ import (
 	"github.com/protosio/protos/internal/util"
 )
 
-var log = util.GetLogger("db")
-
 const (
-	dbPort     = 19199
-	sharedData = "protosshared"
-	localData  = "protoslocal"
+	defaultDataset = "protos"
 )
+
+var log = util.GetLogger("db")
 
 type Refresher interface {
 	Refresh() error
 }
 
 type Publisher interface {
-	Broadcast(message string) error
+	Broadcast(dataset string, head string) error
 }
 
 // DB represents a DB client instance, used to interract with the database
 type DB interface {
-	SaveStruct(dataset string, data interface{}) error
-	GetStruct(dataset string, to interface{}) error
-	InitMap(dataset string, sync bool) error
+	SaveStruct(id string, data interface{}) error
+	GetStruct(id string, to interface{}) error
+	InitDataset(dataset string, sync bool) error
 	GetMap(dataset string, to interface{}) error
 	InsertInMap(dataset string, id string, data interface{}) error
 	RemoveFromMap(dataset string, id string) error
 	GetChunkStore() chunks.ChunkStore
-	// SyncAll()
 	HasCS(id string) bool
 	AddRemoteCS(id string, cs chunks.ChunkStore)
 	DeleteRemoteCS(id string)
-	Sync(id string, head string)
+	Sync(peerID string, dataset string, head string)
 	AddRefresher(name string, refresher Refresher)
 	AddPublisher(publisher Publisher)
 	BroadcastHead()
@@ -77,39 +74,21 @@ func Open(protosDir string, protosDB string) (DB, error) {
 	}
 
 	cs := nbs.NewLocalStore(dbpath, clienttest.DefaultMemTableSize)
-	db := datas.NewDatabase(cs)
-
-	var err error
-
-	// create local dataset
-	lds := db.GetDataset(localData)
-	_, found := lds.MaybeHeadValue()
-	if !found {
-		mapi := types.NewMap(lds.Database())
-		lds, err = db.CommitValue(lds, mapi)
-		if err != nil {
-			return &dbNoms{}, fmt.Errorf("error creating local dataset: %w", err)
-		}
-	}
-
-	// create shared dataset
-	sds := db.GetDataset(sharedData)
-	_, found = sds.MaybeHeadValue()
-	if !found {
-		mapi := types.NewMap(sds.Database())
-		sds, err = db.CommitValue(sds, mapi)
-		if err != nil {
-			return &dbNoms{}, fmt.Errorf("error creating local dataset: %w", err)
-		}
-	}
-
-	return &dbNoms{
-		dbn:               db,
+	dbn := datas.NewDatabase(cs)
+	db := &dbNoms{
+		dbn:               dbn,
 		cs:                cs,
 		sharedDatasets:    map[string]bool{},
-		remoteChunkStores: map[string]chunks.ChunkStore{},
+		remoteChunkStores: cmap.New(),
 		refreshers:        cmap.New(),
-	}, nil
+	}
+
+	err := db.InitDataset(defaultDataset, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize db: %w", err)
+	}
+
+	return db, nil
 }
 
 //
@@ -118,7 +97,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 
 type dbNoms struct {
 	cs                chunks.ChunkStore
-	remoteChunkStores map[string]chunks.ChunkStore
+	remoteChunkStores cmap.ConcurrentMap
 	dbn               datas.Database
 	sharedDatasets    map[string]bool
 	refreshers        cmap.ConcurrentMap
@@ -129,10 +108,10 @@ type dbNoms struct {
 // private methods
 //
 
-func (db *dbNoms) publishHead(head string) {
+func (db *dbNoms) publishHead(dataset string, head string) {
 	if db.publisher != nil {
-		log.Debugf("Publishing new head '%s'", head)
-		err := db.publisher.Broadcast(head)
+		log.Debugf("Publishing dataset '%s' head '%s'", dataset, head)
+		err := db.publisher.Broadcast(dataset, head)
 		if err != nil {
 			log.Errorf("Failed to publish DB head: %s", err.Error())
 		}
@@ -140,56 +119,20 @@ func (db *dbNoms) publishHead(head string) {
 }
 
 func (db *dbNoms) BroadcastHead() {
-	ds, _ := db.getLocalHeadMap()
-	ref, found := ds.MaybeHeadRef()
-	if found {
-		db.publishHead(ref.TargetHash().String())
+	for dsName := range db.sharedDatasets {
+		ds := db.dbn.GetDataset(dsName)
+		db.publishHead(dsName, ds.Head().Hash().String())
 	}
 }
 
-func (db *dbNoms) getHeadMap(name string) (datas.Dataset, types.Map, bool) {
-	var ds datas.Dataset
+func (db *dbNoms) getDataset(name string) (datas.Dataset, bool) {
 	_, found := db.sharedDatasets[name]
-	var shared bool
+	shared := false
 	if found {
-		ds = db.dbn.GetDataset(sharedData)
 		shared = true
-	} else {
-		ds = db.dbn.GetDataset(localData)
-		shared = false
 	}
-
-	hv, ok := ds.MaybeHeadValue()
-	if !ok {
-		panic("Local or Shared dataset does not have a head value")
-	}
-
-	mapHead := hv.(types.Map)
-	return ds, mapHead, shared
-}
-
-func (db *dbNoms) getSharedHeadMap() (datas.Dataset, types.Map) {
-
-	ds := db.dbn.GetDataset(sharedData)
-	hv, ok := ds.MaybeHeadValue()
-	if !ok {
-		panic("Shared dataset does not have a head value")
-	}
-
-	mapHead := hv.(types.Map)
-	return ds, mapHead
-}
-
-func (db *dbNoms) getLocalHeadMap() (datas.Dataset, types.Map) {
-
-	ds := db.dbn.GetDataset(localData)
-	hv, ok := ds.MaybeHeadValue()
-	if !ok {
-		panic("Shared dataset does not have a head value")
-	}
-
-	mapHead := hv.(types.Map)
-	return ds, mapHead
+	ds := db.dbn.GetDataset(name)
+	return ds, shared
 }
 
 func (db *dbNoms) refresh() {
@@ -226,20 +169,17 @@ func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
 
 // HasCS checks if a remote chunk store is present
 func (db *dbNoms) HasCS(id string) bool {
-	if _, found := db.remoteChunkStores[id]; found {
-		return true
-	}
-	return false
+	return db.remoteChunkStores.Has(id)
 }
 
 // AddRemoteCS adds a remote chunk store which can be synced
 func (db *dbNoms) AddRemoteCS(id string, cs chunks.ChunkStore) {
-	db.remoteChunkStores[id] = cs
+	db.remoteChunkStores.Set(id, cs)
 }
 
 // DeleteRemoteCS removes a remote chunk store
 func (db *dbNoms) DeleteRemoteCS(id string) {
-	delete(db.remoteChunkStores, id)
+	db.remoteChunkStores.Remove(id)
 }
 
 // // SyncAll syncs (push) too all the available peers
@@ -254,7 +194,7 @@ func (db *dbNoms) DeleteRemoteCS(id string) {
 // 				}
 // 			}()
 
-// 			err := db.SyncCS(localCS)
+// 			err := db.pushToRemoteCS(localCS)
 // 			if err != nil {
 // 				log.Errorf("Failed to sync db to '%s': %s", localID, err.Error())
 // 			}
@@ -263,52 +203,58 @@ func (db *dbNoms) DeleteRemoteCS(id string) {
 // }
 
 // Sync syncs (pull) from a specific peer
-func (db *dbNoms) Sync(id string, head string) {
-	if cs, found := db.remoteChunkStores[id]; found {
+func (db *dbNoms) Sync(id string, dataset string, head string) {
+	if csRemoteI, found := db.remoteChunkStores.Get(id); found {
+		csRemote := csRemoteI.(chunks.ChunkStore)
 		go func() {
 			defer func() {
 				if err := recover(); err != nil {
-					log.Errorf("Exception during db sync to '%s': %v", id, err)
+					log.Errorf("Exception during dataset '%s' sync to '%s': %v", dataset, id, err)
 				}
 			}()
 
-			err := db.PullFromCS(cs)
-			if err != nil {
-				log.Errorf("Failed to sync db head '%s' from '%s': %s", head, id, err.Error())
+			csRemote.Rebase()
+			localDataset := db.dbn.GetDataset(dataset)
+			if localDataset.Head().Hash().String() != head {
+				err := db.pullFromRemoteCS(csRemote, dataset)
+				if err != nil {
+					log.Errorf("Failed to sync db head '%s' from '%s': %s", head, id, err.Error())
+				}
 			}
+
 		}()
 	} else {
 		log.Errorf("Failed to sync db head '%s' from '%s': could not find peer '%s'", head, id, id)
 	}
 }
 
-// SyncCS syncs a remote chunk store
-func (db *dbNoms) SyncCS(cs chunks.ChunkStore) error {
+// // pushToRemoteCS syncs a remote chunk store
+// func (db *dbNoms) pushToRemoteCS(cs chunks.ChunkStore) error {
+// 	cfg := config.NewResolver()
+// 	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedData)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	// sync local -> remote
+// 	err = db.SyncTo(db.dbn, remoteDB)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	return nil
+// }
+
+// pullFromRemoteCS syncs by pulling from a remote chunk store
+func (db *dbNoms) pullFromRemoteCS(cs chunks.ChunkStore, dataset string) error {
 	cfg := config.NewResolver()
-	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedData)
-	if err != nil {
-		return err
-	}
-
-	// sync local -> remote
-	err = db.SyncTo(db.dbn, remoteDB)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// PullFromCS syncs by pulling from a remote chunk store
-func (db *dbNoms) PullFromCS(cs chunks.ChunkStore) error {
-	cfg := config.NewResolver()
-	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedData)
+	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, dataset)
 	if err != nil {
 		return err
 	}
 
 	// sync local <- remote
-	err = db.SyncTo(remoteDB, db.dbn)
+	err = db.SyncTo(remoteDB, db.dbn, dataset)
 	if err != nil {
 		return err
 	}
@@ -316,10 +262,10 @@ func (db *dbNoms) PullFromCS(cs chunks.ChunkStore) error {
 	return nil
 }
 
-func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
+func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database, dataset string) error {
 
 	// prepare destination db
-	dstDataset := dstStore.GetDataset(sharedData)
+	dstDataset := dstStore.GetDataset(dataset)
 
 	// sync
 	start := time.Now()
@@ -344,24 +290,24 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 		lastProgressCh <- last
 	}()
 
-	// prepare local db
-	srcObj, found := srcStore.GetDataset(sharedData).MaybeHead()
+	// prepare src db
+	srcObj, found := srcStore.GetDataset(dataset).MaybeHead()
 	if !found {
-		return fmt.Errorf("head not found for local db")
+		return fmt.Errorf("head not found for source db dataset '%s'", dataset)
 	}
 	srcRef := types.NewRef(srcObj)
 
 	dstRef, dstExists := dstDataset.MaybeHeadRef()
 	nonFF := false
 
-	// pull the data from, from src towards dst
+	// pull the data from src towards dst
 	datas.Pull(srcStore, dstStore, srcRef, progressCh)
 
 	dstDataset, err := dstStore.FastForward(dstDataset, srcRef)
 	if err == datas.ErrMergeNeeded {
-		_, err = dstStore.SetHead(dstDataset, srcRef)
+		dstDataset, err = dstStore.SetHead(dstDataset, srcRef)
 		if err != nil {
-			return fmt.Errorf("failed to set head on destination store: %w", err)
+			return fmt.Errorf("failed to set head on destination dataset '%s': %w", dataset, err)
 		}
 		nonFF = true
 	}
@@ -376,39 +322,53 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database) error {
 	} else if nonFF && !srcRef.Equals(dstRef) {
 		log.Debugf("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
 	} else {
-		log.Debugf("Dataset '%s' is already up to date.\n", sharedData)
+		log.Debugf("Dataset '%s' is already up to date.\n", dataset)
 	}
+
+	db.publishHead(dataset, dstDataset.Head().Hash().String())
 
 	return nil
 }
 
-// SaveStruct writes a new value for a given struct
-func (db *dbNoms) SaveStruct(dataset string, data interface{}) error {
+// SaveStruct writes a new value for a given struct, in the default protos dataset
+func (db *dbNoms) SaveStruct(id string, data interface{}) error {
 
-	ds, mapHead, _ := db.getHeadMap(dataset)
+	ds, _ := db.getDataset(defaultDataset)
+	hv, ok := ds.MaybeHeadValue()
+	if !ok {
+		return fmt.Errorf("dataset '%s' does not have a head value", defaultDataset)
+	}
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal db data: %w", err)
 	}
 
-	_, err = db.dbn.CommitValue(ds, mapHead.Edit().Set(types.String(dataset), marshaled).Map())
+	currentMap := hv.(types.Map)
+	newMap := currentMap.Edit().Set(types.String(id), marshaled).Map()
+	ds, err = db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMap))
 	if err != nil {
-		return fmt.Errorf("error committing to DB: %w", err)
+		return fmt.Errorf("error committing to db: %w", err)
 	}
+
 	return nil
 }
 
-// GetStruct retrieves a struct from a dataset
-func (db *dbNoms) GetStruct(dataset string, to interface{}) error {
-	_, mapHead, _ := db.getHeadMap(dataset)
-
-	iv, found := mapHead.MaybeGet(types.String(dataset))
-	if !found {
-		return fmt.Errorf("db struct dataset '%s' not found", dataset)
+// GetStruct retrieves a struct from the default dataset
+func (db *dbNoms) GetStruct(id string, to interface{}) error {
+	ds, _ := db.getDataset(defaultDataset)
+	hv, ok := ds.MaybeHeadValue()
+	if !ok {
+		return fmt.Errorf("dataset '%s' does not have a head value", defaultDataset)
 	}
 
-	err := marshal.Unmarshal(iv.Value(), to)
+	currentMap := hv.(types.Map)
+	existingValue, found := currentMap.MaybeGet(types.String(id))
+	if !found {
+		return fmt.Errorf("db struct '%s' not found in dataset '%s'", id, defaultDataset)
+	}
+
+	err := marshal.Unmarshal(existingValue.Value(), to)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall data from db: %w", err)
 	}
@@ -417,18 +377,16 @@ func (db *dbNoms) GetStruct(dataset string, to interface{}) error {
 
 // GetMap retrieves all records in a map
 func (db *dbNoms) GetMap(dataset string, to interface{}) error {
-	_, mapHead, _ := db.getHeadMap(dataset)
-
-	iv, found := mapHead.MaybeGet(types.String(dataset))
-	if !found {
-		return fmt.Errorf("db map dataset '%s' not found", dataset)
+	ds, _ := db.getDataset(dataset)
+	hv, ok := ds.MaybeHeadValue()
+	if !ok {
+		return fmt.Errorf("dataset '%s' does not have a head value", dataset)
 	}
 
-	mapi := iv.(types.Map)
-
-	err := marshal.Unmarshal(mapi.Value(), to)
+	currentMap := hv.(types.Map)
+	err := marshal.Unmarshal(currentMap.Value(), to)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshall data from db: %w", err)
+		return fmt.Errorf("failed to unmarshall data from dataset '%s': %w", dataset, err)
 	}
 
 	return nil
@@ -436,85 +394,71 @@ func (db *dbNoms) GetMap(dataset string, to interface{}) error {
 
 // InsertInMap inserts an element in a map, or updates an existing one
 func (db *dbNoms) InsertInMap(dataset string, id string, data interface{}) error {
-	ds, mapHead, shared := db.getHeadMap(dataset)
-
-	iv, found := mapHead.MaybeGet(types.String(dataset))
-	if !found {
-		return fmt.Errorf("db map dataset '%s' not found", dataset)
+	ds, shared := db.getDataset(dataset)
+	hv, ok := ds.MaybeHeadValue()
+	if !ok {
+		return fmt.Errorf("dataset '%s' does not have a head value", dataset)
 	}
-
-	mapi := iv.(types.Map)
 
 	marshaled, err := marshal.Marshal(db.dbn, data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal db data: %w", err)
 	}
 
-	newMapi := mapi.Edit().Set(types.String(id), marshaled).Map()
-	newMapHead := mapHead.Edit().Set(types.String(dataset), marshal.MustMarshal(db.dbn, newMapi)).Map()
-	_, err = db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
+	currentMap := hv.(types.Map)
+	newMap := currentMap.Edit().Set(types.String(id), marshaled).Map()
+	ds, err = db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMap))
 	if err != nil {
 		return fmt.Errorf("error committing to db: %w", err)
 	}
 
 	if shared {
 		db.refresh()
-		db.publishHead(newMapHead.Hash().String())
-		// db.SyncAll()
+		db.publishHead(dataset, ds.Head().Hash().String())
 	}
 	return nil
 }
 
 // RemoveFromMap removes an element from a map
 func (db *dbNoms) RemoveFromMap(dataset string, id string) error {
-	ds, mapHead, shared := db.getHeadMap(dataset)
-
-	iv, found := mapHead.MaybeGet(types.String(dataset))
-	if !found {
-		return fmt.Errorf("db map dataset '%s' not found", dataset)
+	ds, shared := db.getDataset(dataset)
+	hv, ok := ds.MaybeHeadValue()
+	if !ok {
+		return fmt.Errorf("dataset '%s' does not have a head value", dataset)
 	}
 
-	mapi := iv.(types.Map)
-
-	newMapi := mapi.Edit().Remove(types.String(id)).Map()
-	newMapHead := mapHead.Edit().Set(types.String(dataset), marshal.MustMarshal(db.dbn, newMapi)).Map()
-	_, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
+	currentMap := hv.(types.Map)
+	newMap := currentMap.Edit().Remove(types.String(id)).Map()
+	ds, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMap))
 	if err != nil {
 		return fmt.Errorf("error committing to db: %w", err)
 	}
 
 	if shared {
 		db.refresh()
-		db.publishHead(newMapHead.Hash().String())
-		// db.SyncAll()
+		db.publishHead(dataset, ds.Head().Hash().String())
 	}
 	return nil
 }
 
-// InitMap initializes a map dataset in the db
-func (db *dbNoms) InitMap(name string, sync bool) error {
-	log.Tracef("Initializing db map '%s' (sync: '%t')", name, sync)
-	var ds datas.Dataset
-	var mapHead types.Map
+// InitDataset initializes a map dataset in the db
+func (db *dbNoms) InitDataset(name string, sync bool) error {
+	log.Debugf("Initializing dataset '%s'(sync: '%t')", name, sync)
+	var err error
 	if sync {
-		ds, mapHead = db.getSharedHeadMap()
 		db.sharedDatasets[name] = true
-	} else {
-		ds, mapHead = db.getLocalHeadMap()
 	}
 
-	// if item found in head map, return without doing anything
-	_, found := mapHead.MaybeGet(types.String(name))
-	if found {
-		return nil
-	}
-
-	// if item not found in head map, create a new map and add it
-	mapNew := types.NewMap(ds.Database())
-	newMapHead := mapHead.Edit().Set(types.String(name), marshal.MustMarshal(db.dbn, mapNew)).Map()
-	_, err := db.dbn.CommitValue(ds, marshal.MustMarshal(db.dbn, newMapHead))
-	if err != nil {
-		return fmt.Errorf("error committing map '%s' to db: %w", name, err)
+	// create dataset
+	ds := db.dbn.GetDataset(name)
+	_, found := ds.MaybeHeadValue()
+	if !found {
+		newMap := types.NewMap(ds.Database())
+		ds, err = db.dbn.CommitValue(ds, newMap)
+		if err != nil {
+			return fmt.Errorf("error creating dataset '%s'(sync: '%t'): %w", name, sync, err)
+		}
+		fmt.Println("init ds - ", ds.Head().Hash().String())
 	}
 
 	return nil

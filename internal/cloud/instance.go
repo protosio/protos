@@ -827,12 +827,12 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
-	err := db.InitMap(instanceDS, true)
+	err := db.InitDataset(instanceDS, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize instance dataset: %w", err)
 	}
 
-	err = db.InitMap(cloudDS, false)
+	err = db.InitDataset(cloudDS, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize cloud dataset: %w", err)
 	}

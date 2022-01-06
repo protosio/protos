@@ -65,7 +65,7 @@ func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.Run
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 	gob.Register(&installer.InstallerMetadata{})
-	err := db.InitMap(appDS, true)
+	err := db.InitDataset(appDS, true)
 	if err != nil {
 		log.Fatal("Failed to initialize app dataset: ", err)
 	}
