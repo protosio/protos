@@ -66,7 +66,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 			Version:       app.InstallerVersion,
 			DesiredStatus: app.DesiredStatus,
 			InstanceName:  app.InstanceName,
-			Ip:            app.IP,
+			Ip:            app.IP.String(),
 		}
 		resp.Apps = append(resp.Apps, &respApp)
 	}
@@ -87,8 +87,13 @@ func (b *Backend) RunApp(ctx context.Context, in *pbApic.RunAppRequest) (*pbApic
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
+	instance, err := b.protosClient.CloudManager.GetInstance(in.InstanceId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
+	}
+
 	// FIXME: read the installer params from the command line
-	app, err := b.protosClient.AppManager.Create(in.InstallerId, installer.GetLastVersion(), in.Name, in.InstanceId, map[string]string{}, instMetadata)
+	app, err := b.protosClient.AppManager.Create(in.InstallerId, installer.GetLastVersion(), in.Name, in.InstanceId, instance.Network, map[string]string{}, instMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}

@@ -30,7 +30,7 @@ func CreateManager(db db.DB) *Manager {
 		log.Panic("Failed to create  resource manager: none of the inputs can be nil")
 	}
 
-	err := db.InitDataset(resourceDS, true)
+	err := db.InitDataset(resourceDS, false)
 	if err != nil {
 		log.Fatal("Failed to initialize resource dataset: ", err)
 	}

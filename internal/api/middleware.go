@@ -64,7 +64,7 @@ func InternalRequestValidator(ha handlerAccess, router *mux.Router) negroni.Hand
 			return
 		}
 		ip := strings.Split(r.RemoteAddr, ":")[0]
-		if appInstance.GetIP() != ip {
+		if appInstance.GetIP().String() != ip {
 			log.Errorf("App IP mismatch for request to '%s': ip '%s' incorrect for app '%s'", r.URL, ip, appID)
 			rend.JSON(rw, http.StatusUnauthorized, httperr{Error: "App IP mismatch"})
 			return

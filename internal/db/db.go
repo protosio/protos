@@ -325,8 +325,6 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database, dataset string) erro
 		log.Debugf("Dataset '%s' is already up to date.\n", dataset)
 	}
 
-	db.publishHead(dataset, dstDataset.Head().Hash().String())
-
 	return nil
 }
 
@@ -458,7 +456,6 @@ func (db *dbNoms) InitDataset(name string, sync bool) error {
 		if err != nil {
 			return fmt.Errorf("error creating dataset '%s'(sync: '%t'): %w", name, sync, err)
 		}
-		fmt.Println("init ds - ", ds.Head().Hash().String())
 	}
 
 	return nil

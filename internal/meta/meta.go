@@ -13,8 +13,6 @@ import (
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/tidwall/gjson"
 
-	"github.com/pkg/errors"
-
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -256,21 +254,21 @@ func (m *Meta) GetPublicIP() string {
 	return m.PublicIP.String()
 }
 
-// GetTLSCertificate returns the TLS certificate resource owned by the instance
-func (m *Meta) GetTLSCertificate() *resource.Resource {
+// // GetTLSCertificate returns the TLS certificate resource owned by the instance
+// func (m *Meta) GetTLSCertificate() *resource.Resource {
 
-	for _, rscid := range m.Resources {
-		rsc, err := m.rm.Get(rscid)
-		if err != nil {
-			log.Errorf("Could not find protos resource: %s", err.Error())
-			continue
-		}
-		if rsc.GetType() == resource.ResourceType("certificate") {
-			return rsc
-		}
-	}
-	return nil
-}
+// 	for _, rscid := range m.Resources {
+// 		rsc, err := m.rm.Get(rscid)
+// 		if err != nil {
+// 			log.Errorf("Could not find protos resource: %s", err.Error())
+// 			continue
+// 		}
+// 		if rsc.GetType() == resource.ResourceType("certificate") {
+// 			return rsc
+// 		}
+// 	}
+// 	return nil
+// }
 
 // GetKey returns the private key of the instance, in wireguard format
 func (m *Meta) GetPrivateKey() (*ssh.Key, error) {
@@ -281,30 +279,30 @@ func (m *Meta) GetPrivateKey() (*ssh.Key, error) {
 	return key, nil
 }
 
-// CleanProtosResources removes the MX record resource owned by the instance, created during the init process
-func (m *Meta) CleanProtosResources() error {
-	log.Info("Cleaning fake DNS (MX) Protos resource")
-	for i, rscid := range m.Resources {
-		rsc, err := m.rm.Get(rscid)
-		if err != nil {
-			log.Errorf("Could not find protos resource: %s", err.Error())
-			continue
-		}
-		if rsc.GetType() == resource.DNS {
-			val := rsc.GetValue().(dnsResource)
-			if val.IsType("MX") {
-				err = m.rm.Delete(rscid)
-				if err != nil {
-					return errors.Wrap(err, "Could not clean Protos resources")
-				}
-				m.Resources = util.RemoveStringFromSlice(m.Resources, i)
-				m.save()
-				return nil
-			}
-		}
-	}
-	return errors.New("Could not clean Protos resources: MX DNS record not found")
-}
+// // CleanProtosResources removes the MX record resource owned by the instance, created during the init process
+// func (m *Meta) CleanProtosResources() error {
+// 	log.Info("Cleaning fake DNS (MX) Protos resource")
+// 	for i, rscid := range m.Resources {
+// 		rsc, err := m.rm.Get(rscid)
+// 		if err != nil {
+// 			log.Errorf("Could not find protos resource: %s", err.Error())
+// 			continue
+// 		}
+// 		if rsc.GetType() == resource.DNS {
+// 			val := rsc.GetValue().(dnsResource)
+// 			if val.IsType("MX") {
+// 				err = m.rm.Delete(rscid)
+// 				if err != nil {
+// 					return errors.Wrap(err, "Could not clean Protos resources")
+// 				}
+// 				m.Resources = util.RemoveStringFromSlice(m.Resources, i)
+// 				m.save()
+// 				return nil
+// 			}
+// 		}
+// 	}
+// 	return errors.New("Could not clean Protos resources: MX DNS record not found")
+// }
 
 // GetDashboardDomain returns the full domain through which the dashboard can be accessed
 func (m *Meta) GetDashboardDomain() string {
@@ -320,67 +318,67 @@ func (m *Meta) GetVersion() string {
 	return m.version
 }
 
-// CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
-func (m *Meta) CreateProtosResources() (map[string]*resource.Resource, error) {
-	resources := map[string]*resource.Resource{}
+// // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
+// func (m *Meta) CreateProtosResources() (map[string]*resource.Resource, error) {
+// 	resources := map[string]*resource.Resource{}
 
-	// creating the protos subdomain for the dashboard
-	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP.String(), 300)
-	if err != nil {
-		switch err := errors.Cause(err).(type) {
-		case resource.ErrResourceExists:
-			dnsrscValue, ok := dnsrsc.GetValue().(dnsResource)
-			if ok == false {
-				log.Fatal("dnsrscValue does not implement interface dnsResource")
-			}
-			dnsrscValue.UpdateValueAndTTL(m.PublicIP.String(), 300)
-			dnsrsc.UpdateValue(dnsrscValue.(resource.ResourceValue))
-		default:
-			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
-		}
-	}
-	// creating the bogus MX record, which is checked by LetsEncrypt before creating a certificate
-	mxrsc, err := m.rm.CreateDNS("protos", "@", "MX", "protos."+m.Domain, 300)
-	if err != nil {
-		switch err := errors.Cause(err).(type) {
-		case resource.ErrResourceExists:
-		default:
-			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
-		}
-	}
-	// creating a TLS certificate for the protos subdomain
-	certrsc, err := m.rm.CreateCert("protos", []string{"protos"})
-	if err != nil {
-		switch err := errors.Cause(err).(type) {
-		case resource.ErrResourceExists:
-		default:
-			return resources, errors.Wrap(err, "Could not create Protos certificate resource")
-		}
-	}
-	m.Resources = append(m.Resources, dnsrsc.GetID(), mxrsc.GetID(), certrsc.GetID())
-	m.save()
+// 	// creating the protos subdomain for the dashboard
+// 	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP.String(), 300)
+// 	if err != nil {
+// 		switch err := errors.Cause(err).(type) {
+// 		case resource.ErrResourceExists:
+// 			dnsrscValue, ok := dnsrsc.GetValue().(dnsResource)
+// 			if ok == false {
+// 				log.Fatal("dnsrscValue does not implement interface dnsResource")
+// 			}
+// 			dnsrscValue.UpdateValueAndTTL(m.PublicIP.String(), 300)
+// 			dnsrsc.UpdateValue(dnsrscValue.(resource.ResourceValue))
+// 		default:
+// 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
+// 		}
+// 	}
+// 	// creating the bogus MX record, which is checked by LetsEncrypt before creating a certificate
+// 	mxrsc, err := m.rm.CreateDNS("protos", "@", "MX", "protos."+m.Domain, 300)
+// 	if err != nil {
+// 		switch err := errors.Cause(err).(type) {
+// 		case resource.ErrResourceExists:
+// 		default:
+// 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
+// 		}
+// 	}
+// 	// creating a TLS certificate for the protos subdomain
+// 	certrsc, err := m.rm.CreateCert("protos", []string{"protos"})
+// 	if err != nil {
+// 		switch err := errors.Cause(err).(type) {
+// 		case resource.ErrResourceExists:
+// 		default:
+// 			return resources, errors.Wrap(err, "Could not create Protos certificate resource")
+// 		}
+// 	}
+// 	m.Resources = append(m.Resources, dnsrsc.GetID(), mxrsc.GetID(), certrsc.GetID())
+// 	m.save()
 
-	resources[dnsrsc.GetID()] = dnsrsc
-	resources[certrsc.GetID()] = certrsc
-	resources[mxrsc.GetID()] = mxrsc
+// 	resources[dnsrsc.GetID()] = dnsrsc
+// 	resources[certrsc.GetID()] = certrsc
+// 	resources[mxrsc.GetID()] = mxrsc
 
-	return resources, nil
-}
+// 	return resources, nil
+// }
 
-// GetProtosResources returns the resources owned by Protos
-func (m *Meta) GetProtosResources() map[string]*resource.Resource {
-	resources := map[string]*resource.Resource{}
-	for _, rscid := range m.Resources {
-		rsc, err := m.rm.Get(rscid)
-		if err != nil {
-			log.Errorf("Could not find protos resource: %s", err.Error())
-			continue
-		}
-		resources[rscid] = rsc
+// // GetProtosResources returns the resources owned by Protos
+// func (m *Meta) GetProtosResources() map[string]*resource.Resource {
+// 	resources := map[string]*resource.Resource{}
+// 	for _, rscid := range m.Resources {
+// 		rsc, err := m.rm.Get(rscid)
+// 		if err != nil {
+// 			log.Errorf("Could not find protos resource: %s", err.Error())
+// 			continue
+// 		}
+// 		resources[rscid] = rsc
 
-	}
-	return resources
-}
+// 	}
+// 	return resources
+// }
 
 // GetService returns the protos dashboard service
 func (m *Meta) GetService() util.Service {

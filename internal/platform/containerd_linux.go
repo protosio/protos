@@ -74,7 +74,7 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	pru := &containerdSandbox{p: cdp}
 
@@ -109,22 +109,13 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	}
 
 	netNSpath := fmt.Sprintf("/proc/%d/ns/net", pru.task.Pid())
-	networkNamespaces, err := cdp.getAllNetworkNamespaces()
+
+	err = cdp.networkManager.CreateNamespacedInterface(netNSpath, ip)
 	if err != nil {
 		return pru, fmt.Errorf("failed to allocate IP for app '%s': %v", appID, err)
 	}
 
-	newIP, err := cdp.networkManager.AllocateIP(networkNamespaces)
-	if err != nil {
-		return pru, fmt.Errorf("failed to allocate IP for app '%s': %v", appID, err)
-	}
-
-	err = cdp.networkManager.CreateNamespacedInterface(netNSpath, newIP)
-	if err != nil {
-		return pru, fmt.Errorf("failed to allocate IP for app '%s': %v", appID, err)
-	}
-
-	log.Debugf("Created task for containerd sandbox '%s', with PID '%d' and ip '%s'", appID, pru.task.Pid(), newIP.String())
+	log.Debugf("Created task for containerd sandbox '%s', with PID '%d' and ip '%s'", appID, pru.task.Pid(), ip.String())
 
 	return pru, nil
 }
@@ -270,7 +261,7 @@ func (cdp *containerdPlatform) RemoveImage(id string) error {
 	return nil
 }
 
-func (cdp *containerdPlatform) GetOrCreateVolume(id string, path string) (string, error) {
+func (cdp *containerdPlatform) GetOrCreateVolume(path string) (string, error) {
 	return "", nil
 }
 

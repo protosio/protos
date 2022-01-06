@@ -127,48 +127,6 @@ func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
 	return brInterface, nil
 }
 
-func getNetNSInterfaceIP(nsPath string, filterNetwork net.IPNet) (net.IP, error) {
-	var ipAddr net.IP
-	fn := func(_ ns.NetNS) error {
-		interfaces, err := net.Interfaces()
-		if err != nil {
-			return err
-		}
-
-		for _, iface := range interfaces {
-			addresses, err := iface.Addrs()
-			if err != nil {
-				continue
-			}
-			for _, addr := range addresses {
-				ip, _, err := net.ParseCIDR(addr.String())
-				if err != nil {
-					continue
-				}
-				if filterNetwork.Contains(ip) {
-					ipAddr = ip
-					return nil
-				}
-			}
-		}
-		return nil
-	}
-	if err := ns.WithNetNSPath(nsPath, fn); err != nil {
-		return ipAddr, err
-	}
-	return ipAddr, nil
-}
-
-// https://play.golang.org/p/m8TNTtygK0
-func incIP(ip net.IP) {
-	for j := len(ip) - 1; j >= 0; j-- {
-		ip[j]++
-		if ip[j] > 0 {
-			break
-		}
-	}
-}
-
 //
 // public methods
 //
@@ -338,35 +296,6 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 		}
 	}
 	return nil
-}
-
-func (m *Manager) AllocateIP(networkNamespaces []string) (net.IP, error) {
-
-	usedIPs := map[string]bool{}
-	for _, netNSPath := range networkNamespaces {
-		ip, err := getNetNSInterfaceIP(netNSPath, m.network)
-		if err != nil {
-			log.Errorf("Failed to retrieve IP for network namespace '%s': %s", netNSPath, err.Error())
-		}
-		if ip != nil {
-			usedIPs[ip.String()] = true
-		}
-	}
-
-	allIPs := []net.IP{}
-	for ip := m.network.IP.Mask(m.network.Mask); m.network.Contains(ip); incIP(ip) {
-		newIP := make(net.IP, len(ip))
-		copy(newIP, ip)
-		allIPs = append(allIPs, newIP)
-	}
-
-	// starting from the 4th position in the slice to avoid allocating the network IP, WG and bridge interface IPs
-	for _, ip := range allIPs[3 : len(allIPs)-1] {
-		if _, found := usedIPs[ip.String()]; !found {
-			return ip, nil
-		}
-	}
-	return nil, fmt.Errorf("failed to allocate IP. No IP's left")
 }
 
 func (m *Manager) CreateNamespacedInterface(netNSpath string, IP net.IP) error {

@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"net"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -58,9 +59,9 @@ type RuntimePlatform interface {
 	GetAllImages() (map[string]PlatformImage, error)
 	PullImage(id string, name string, version string) error
 	RemoveImage(id string) error
-	GetOrCreateVolume(id string, path string) (string, error)
+	GetOrCreateVolume(path string) (string, error)
 	RemoveVolume(id string) error
-	NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
+	NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
 	GetHWStats() (HardwareStats, error)
 }
 

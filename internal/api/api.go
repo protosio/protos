@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -52,7 +51,7 @@ type route struct {
 }
 
 type apiController interface {
-	StartExternalWebServer() (func() error, error)
+	// StartExternalWebServer() (func() error, error)
 	DisableInitRoutes() error
 }
 
@@ -417,28 +416,28 @@ func (api *HTTP) DisableInitRoutes() error {
 	return nil
 }
 
-// StartExternalWebServer starts the HTTPS API using the provided certificate
-func (api *HTTP) StartExternalWebServer() (func() error, error) {
-	rtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
+// // StartExternalWebServer starts the HTTPS API using the provided certificate
+// func (api *HTTP) StartExternalWebServer() (func() error, error) {
+// 	rtr := createRouter(api, api.devmode, false, api.staticAssetsPath)
 
-	api.externalWebServerQuit = make(chan bool, 1)
-	// Negroni middleware
-	api.root = negroni.New()
-	api.root.Use(negroni.HandlerFunc(HTTPLogger))
-	api.root.UseHandler(rtr)
-	cert := api.ha.m.GetTLSCertificate()
-	if cert == nil || cert.GetStatus() != resource.Created {
-		return nil, fmt.Errorf("Failed to start secure web server. TLS certificate not available")
-	}
+// 	api.externalWebServerQuit = make(chan bool, 1)
+// 	// Negroni middleware
+// 	api.root = negroni.New()
+// 	api.root.Use(negroni.HandlerFunc(HTTPLogger))
+// 	api.root.UseHandler(rtr)
+// 	cert := api.ha.m.GetTLSCertificate()
+// 	if cert == nil || cert.GetStatus() != resource.Created {
+// 		return nil, fmt.Errorf("Failed to start secure web server. TLS certificate not available")
+// 	}
 
-	go secureListen(api.root, cert.GetValue(), api.externalWebServerQuit, api.httpPort, api.httpsPort)
+// 	go secureListen(api.root, cert.GetValue(), api.externalWebServerQuit, api.httpPort, api.httpsPort)
 
-	stopper := func() error {
-		return api.StopExternalWebServer()
-	}
+// 	stopper := func() error {
+// 		return api.StopExternalWebServer()
+// 	}
 
-	return stopper, nil
-}
+// 	return stopper, nil
+// }
 
 // StopExternalWebServer stops the HTTPS API
 func (api *HTTP) StopExternalWebServer() error {

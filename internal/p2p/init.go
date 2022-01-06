@@ -10,7 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
-	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/ssh"
 )
 
@@ -22,7 +21,6 @@ type MetaConfigurator interface {
 	SetNetwork(network net.IPNet) net.IP
 	SetAdminUser(username string)
 	SetInstanceName(name string)
-	CreateProtosResources() (map[string]*resource.Resource, error)
 	GetPrivateKey() (*ssh.Key, error)
 }
 
@@ -138,13 +136,6 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("cannot perform initialization, faild to create user: %w", err)
 	}
 	hi.metaConfigurator.SetAdminUser(user.GetUsername())
-
-	// create resources
-	_, err = hi.metaConfigurator.CreateProtosResources()
-	if err != nil {
-		log.Error(err)
-		return nil, fmt.Errorf("cannot perform initialization, faild to create resources: %w", err)
-	}
 
 	key, err := hi.metaConfigurator.GetPrivateKey()
 	if err != nil {

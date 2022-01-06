@@ -1,6 +1,8 @@
 package platform
 
 import (
+	"net"
+
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/util"
 )
@@ -19,7 +21,7 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error) {
 	return nil, nil
 }
 
@@ -52,7 +54,7 @@ func (cdp *containerdPlatform) RemoveImage(id string) error {
 	return nil
 }
 
-func (cdp *containerdPlatform) GetOrCreateVolume(id string, path string) (string, error) {
+func (cdp *containerdPlatform) GetOrCreateVolume(path string) (string, error) {
 	return "", nil
 }
 

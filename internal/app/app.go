@@ -1,6 +1,7 @@
 package app
 
 import (
+	"net"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -26,8 +27,6 @@ const (
 	statusUnknown    = "unknown"
 	statusDeleted    = "deleted"
 	statusWillDelete = "willdelete"
-
-	appBucket = "app"
 )
 
 // WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
@@ -57,10 +56,9 @@ type App struct {
 	InstallerVersion  string                      `json:"installer-version"`
 	InstallerMetadata installer.InstallerMetadata `json:"installer-metadata"`
 	InstanceName      string                      `json:"instance-id"`
-	VolumeID          string                      `json:"volumeid"`
 	DesiredStatus     string                      `json:"desired-status"`
 	Actions           []string                    `json:"actions"`
-	IP                string                      `json:"ip"`
+	IP                net.IP                      `json:"ip"`
 	PublicPorts       []util.Port                 `json:"publicports"`
 	InstallerParams   map[string]string           `json:"installer-params"`
 	Capabilities      []string                    `json:"capabilities"`
@@ -120,9 +118,8 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	}
 
 	// var err error
-	var volumeID string
 	if metadata.PersistancePath != "" {
-		volumeID, err = app.mgr.getPlatform().GetOrCreateVolume(app.VolumeID, metadata.PersistancePath)
+		_, err = app.mgr.getPlatform().GetOrCreateVolume(metadata.PersistancePath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to create volume for app '%s'", app.ID)
 		}
@@ -132,7 +129,7 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
 	}
-	if available != true {
+	if !available {
 		log.Infof("Downloading image '%s' for installer '%s'(%s) version '%s'", metadata.PlatformID, inst.Name, inst.ID, version)
 		err = app.mgr.getPlatform().PullImage(metadata.PlatformID, inst.Name, version)
 		if err != nil {
@@ -143,15 +140,7 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	}
 
 	log.Infof("Creating sandbox for app '%s'[%s]", app.Name, app.ID)
-	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, metadata.PlatformID, app.VolumeID, metadata.PersistancePath, app.PublicPorts, app.InstallerParams)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
-	}
-	app.access.Lock()
-	app.VolumeID = volumeID
-	app.IP = cnt.GetIP()
-	app.access.Unlock()
-	err = app.mgr.saveApp(app)
+	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, metadata.PlatformID, metadata.PersistancePath, app.IP, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
 	}
@@ -173,16 +162,16 @@ func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-func (app *App) getSandbox() (platform.PlatformRuntimeUnit, error) {
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
-	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) {
-			return nil, nil
-		}
-		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
-	}
-	return cnt, nil
-}
+// func (app *App) getSandbox() (platform.PlatformRuntimeUnit, error) {
+// 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
+// 	if err != nil {
+// 		if util.IsErrorType(err, platform.ErrContainerNotFound) {
+// 			return nil, nil
+// 		}
+// 		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
+// 	}
+// 	return cnt, nil
+// }
 
 //
 // Methods for application instance
@@ -210,7 +199,7 @@ func (app *App) SetDesiredStatus(status string) error {
 func (app *App) GetStatus() string {
 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
+		if !util.IsErrorType(err, platform.ErrContainerNotFound) {
 			log.Warnf("Failed to retrieve app (%s) sandbox: %s", app.ID, err.Error())
 		}
 		return statusStopped
@@ -258,7 +247,7 @@ func (app *App) Stop() error {
 
 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) == false {
+		if !util.IsErrorType(err, platform.ErrContainerNotFound) {
 			return err
 		}
 		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)
@@ -278,25 +267,8 @@ func (app *App) Stop() error {
 	return nil
 }
 
-// ReplaceContainer replaces the container of the app with the one provided. Used during development
-func (app *App) ReplaceContainer(id string) error {
-	log.Infof("Using container %s for app %s", id, app.Name)
-	cnt, err := app.mgr.getPlatform().GetSandbox(id)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to replace container for app '%s'", app.ID)
-	}
-
-	app.access.Lock()
-	app.IP = cnt.GetIP()
-	app.access.Unlock()
-	if err != nil {
-		return errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
-	}
-	return nil
-}
-
 // GetIP returns the ip address of the app
-func (app *App) GetIP() string {
+func (app *App) GetIP() net.IP {
 	return app.IP
 }
 

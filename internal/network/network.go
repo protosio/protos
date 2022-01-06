@@ -12,6 +12,14 @@ import (
 // var wgPort int = 10999
 var log = util.GetLogger("network")
 
+func NewManager() (*Manager, error) {
+	linkManager, err := linkmgr.NewManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize network: %w", err)
+	}
+	return &Manager{linkManager: linkManager}, nil
+}
+
 type Manager struct {
 	privateKey  wgtypes.Key
 	network     net.IPNet
@@ -34,12 +42,4 @@ func (m *Manager) Init(network net.IPNet, gateway net.IP, privateKey wgtypes.Key
 
 func (m *Manager) GetInternalIP() net.IP {
 	return m.gateway
-}
-
-func NewManager() (*Manager, error) {
-	linkManager, err := linkmgr.NewManager()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize network: %w", err)
-	}
-	return &Manager{linkManager: linkManager}, nil
 }

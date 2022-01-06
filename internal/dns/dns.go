@@ -36,7 +36,7 @@ func (h *handler) localResolve(w dns.ResponseWriter, r *dns.Msg) {
 		} else if app, err := h.appManager.Get(domainParts[0]); err == nil {
 			msg.Answer = append(msg.Answer, &dns.A{
 				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
-				A:   net.ParseIP(app.IP),
+				A:   app.IP,
 			})
 		}
 	}

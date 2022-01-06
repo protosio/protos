@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/gob"
 	"fmt"
+	"net"
 	"sync"
 
 	"github.com/protosio/protos/internal/capability"
@@ -89,13 +90,13 @@ func (am *Manager) getResourceManager() *resource.Manager {
 	return am.rm
 }
 
-func (am *Manager) getTaskManager() *task.Manager {
-	return am.tm
-}
+// func (am *Manager) getTaskManager() *task.Manager {
+// 	return am.tm
+// }
 
-func (am *Manager) getAppStore() appStore {
-	return am.store
-}
+// func (am *Manager) getAppStore() appStore {
+// 	return am.store
+// }
 
 func (am *Manager) getCapabilityManager() *capability.Manager {
 	return am.cm
@@ -106,11 +107,11 @@ func (am *Manager) getCapabilityManager() *capability.Manager {
 //
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installerID string, installerVersion string, name string, instanceName string, installerParams map[string]string, installerMetadata installer.InstallerMetadata) (*App, error) {
+func (am *Manager) Create(installerID string, installerVersion string, name string, instanceName string, instanceNetwork string, installerParams map[string]string, installerMetadata installer.InstallerMetadata) (*App, error) {
 
 	var app *App
 	if name == "" || installerID == "" || installerVersion == "" || instanceName == "" {
-		return app, fmt.Errorf("Application name, installer ID, installer version or instance ID cannot be empty")
+		return app, fmt.Errorf("application name, installer ID, installer version or instance ID cannot be empty")
 	}
 
 	err := validateInstallerParams(installerParams, installerMetadata.Params)
@@ -126,8 +127,13 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 
 	for _, app := range apps {
 		if app.Name == name {
-			return nil, fmt.Errorf("Could not create application '%s': another application exists with the same name", name)
+			return nil, fmt.Errorf("could not create application '%s': another application exists with the same name", name)
 		}
+	}
+
+	appIP, err := allocateIP(apps, instanceNetwork)
+	if err != nil {
+		return nil, fmt.Errorf("could not create application '%s': %w", name, err)
 	}
 
 	guid := xid.New()
@@ -145,6 +151,7 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 		InstallerParams:   installerParams,
 		InstallerMetadata: installerMetadata,
 		Tasks:             []string{},
+		IP:                appIP,
 		DesiredStatus:     statusRunning,
 	}
 
@@ -209,7 +216,7 @@ func (am *Manager) Get(name string) (*App, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("Could not find application '%s'", name)
+	return nil, fmt.Errorf("could not find application '%s'", name)
 }
 
 // GetAll returns a copy of all the applications
@@ -291,10 +298,7 @@ func (am *Manager) GetServices() ([]util.Service, error) {
 	}
 
 	resourceFilter := func(rsc *resource.Resource) bool {
-		if rsc.GetType() == resource.DNS {
-			return true
-		}
-		return false
+		return rsc.GetType() == resource.DNS
 	}
 	rscs := am.rm.Select(resourceFilter)
 
@@ -334,7 +338,7 @@ func (am *Manager) Remove(name string) error {
 	}
 
 	if app.DesiredStatus != statusStopped {
-		return fmt.Errorf("Application '%s' should be stopped before being removed", name)
+		return fmt.Errorf("application '%s' should be stopped before being removed", name)
 	}
 
 	err = am.db.RemoveFromMap(appDS, app.ID)
@@ -368,10 +372,55 @@ func (am *Manager) CreateDevApp(appName string, installerMetadata installer.Inst
 	// app creation (dev purposes)
 	log.Info("Creating application using local installer (DEV)")
 
-	newApp, err := am.Create("dev", "0.0.0-dev", appName, "", installerParams, installerMetadata)
+	newApp, err := am.Create("dev", "0.0.0-dev", appName, "", "", installerParams, installerMetadata)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
 	}
 
 	return newApp, nil
+}
+
+//
+// helper methods
+//
+
+func allocateIP(apps map[string]App, networkStr string) (net.IP, error) {
+
+	_, network, err := net.ParseCIDR(networkStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to allocate IP: %w", err)
+	}
+
+	usedIPs := map[string]bool{}
+	for _, app := range apps {
+		ip := app.GetIP()
+		if ip != nil && network.Contains(ip) {
+			usedIPs[ip.String()] = true
+		}
+	}
+
+	allIPs := []net.IP{}
+	for ip := network.IP.Mask(network.Mask); network.Contains(ip); incIP(ip) {
+		newIP := make(net.IP, len(ip))
+		copy(newIP, ip)
+		allIPs = append(allIPs, newIP)
+	}
+
+	// starting from the 4th position in the slice to avoid allocating the network IP, WG and bridge interface IPs
+	for _, ip := range allIPs[3 : len(allIPs)-1] {
+		if _, found := usedIPs[ip.String()]; !found {
+			return ip, nil
+		}
+	}
+	return nil, fmt.Errorf("failed to allocate IP. No IP's left")
+}
+
+// From https://play.golang.org/p/m8TNTtygK0
+func incIP(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
 }
