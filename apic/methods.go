@@ -494,7 +494,7 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 }
 
 func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {
-	log.Debugf("initializing dev instance '%s' at '%s'", in.Name, in.Ip)
+	log.Debugf("Initializing dev instance '%s' at '%s'", in.Name, in.Ip)
 
 	err := b.protosClient.CloudManager.InitDevInstance(in.Name, "local", "local", in.KeyFile, in.Ip)
 	if err != nil {

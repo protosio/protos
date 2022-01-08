@@ -405,14 +405,9 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, err
 	}
 
-	peerID, err := cm.p2p.AddPeer(pubKey, instanceInfo.PublicIP)
+	p2pClient, err := cm.p2p.AddPeer(pubKey, instanceInfo.PublicIP)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to add peer: %w", err)
-	}
-
-	p2pClient, err := cm.p2p.GetClient(peerID)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to get client: %w", err)
 	}
 
 	// do the initialization
@@ -422,7 +417,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
-	cm.db.AddRemoteCS(peerID, p2pClient.ChunkStore)
+	cm.db.AddRemoteCS(p2pClient.GetPeerID(), p2pClient.ChunkStore)
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
@@ -506,14 +501,9 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return err
 	}
 
-	peerID, err := cm.p2p.AddPeer(pubKey, instanceInfo.PublicIP)
+	p2pClient, err := cm.p2p.AddPeer(pubKey, instanceInfo.PublicIP)
 	if err != nil {
 		return fmt.Errorf("failed to add peer: %w", err)
-	}
-
-	p2pClient, err := cm.p2p.GetClient(peerID)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
 	}
 
 	// do the initialization
@@ -523,7 +513,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("failed to init dev instance: %w", err)
 	}
 
-	cm.db.AddRemoteCS(peerID, p2pClient.ChunkStore)
+	cm.db.AddRemoteCS(p2pClient.GetPeerID(), p2pClient.ChunkStore)
 
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.PublicKey = pubKey
@@ -848,18 +838,13 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P
 			continue
 		}
 		log.Debugf("Connecting to instance '%s'(cloud: %s, IP: %s)", instance.Name, instance.CloudName, instance.PublicIP)
-		peerID, err := manager.p2p.AddPeer(instance.PublicKey, instance.PublicIP)
+		p2pClient, err := manager.p2p.AddPeer(instance.PublicKey, instance.PublicIP)
 		if err != nil {
 			log.Errorf("Failed to add peer: %s", err.Error())
 			continue
 		}
 
-		p2pClient, err := manager.p2p.GetClient(peerID)
-		if err != nil {
-			log.Errorf("Failed to retrieve p2p client for '%s': %s", instance.Name, err.Error())
-			continue
-		}
-		manager.db.AddRemoteCS(peerID, p2pClient.ChunkStore)
+		manager.db.AddRemoteCS(p2pClient.GetPeerID(), p2pClient.ChunkStore)
 	}
 
 	// manager.db.SyncAll()

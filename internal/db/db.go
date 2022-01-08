@@ -30,7 +30,7 @@ type Refresher interface {
 }
 
 type Publisher interface {
-	Broadcast(dataset string, head string) error
+	BroadcastHead(dataset string, head string) error
 }
 
 // DB represents a DB client instance, used to interract with the database
@@ -48,7 +48,7 @@ type DB interface {
 	Sync(peerID string, dataset string, head string)
 	AddRefresher(name string, refresher Refresher)
 	AddPublisher(publisher Publisher)
-	BroadcastHead()
+	BroadcastLocalDatasets()
 	Close() error
 }
 
@@ -111,14 +111,14 @@ type dbNoms struct {
 func (db *dbNoms) publishHead(dataset string, head string) {
 	if db.publisher != nil {
 		log.Debugf("Publishing dataset '%s' head '%s'", dataset, head)
-		err := db.publisher.Broadcast(dataset, head)
+		err := db.publisher.BroadcastHead(dataset, head)
 		if err != nil {
 			log.Errorf("Failed to publish DB head: %s", err.Error())
 		}
 	}
 }
 
-func (db *dbNoms) BroadcastHead() {
+func (db *dbNoms) BroadcastLocalDatasets() {
 	for dsName := range db.sharedDatasets {
 		ds := db.dbn.GetDataset(dsName)
 		db.publishHead(dsName, ds.Head().Hash().String())
@@ -182,68 +182,23 @@ func (db *dbNoms) DeleteRemoteCS(id string) {
 	db.remoteChunkStores.Remove(id)
 }
 
-// // SyncAll syncs (push) too all the available peers
-// func (db *dbNoms) SyncAll() {
-// 	for id, cs := range db.remoteChunkStores {
-// 		localCS := cs
-// 		localID := id
-// 		go func() {
-// 			defer func() {
-// 				if err := recover(); err != nil {
-// 					log.Errorf("Exception during db sync to '%s': %v", localID, err)
-// 				}
-// 			}()
-
-// 			err := db.pushToRemoteCS(localCS)
-// 			if err != nil {
-// 				log.Errorf("Failed to sync db to '%s': %s", localID, err.Error())
-// 			}
-// 		}()
-// 	}
-// }
-
 // Sync syncs (pull) from a specific peer
-func (db *dbNoms) Sync(id string, dataset string, head string) {
-	if csRemoteI, found := db.remoteChunkStores.Get(id); found {
+func (db *dbNoms) Sync(peerID string, dataset string, head string) {
+	if csRemoteI, found := db.remoteChunkStores.Get(peerID); found {
 		csRemote := csRemoteI.(chunks.ChunkStore)
-		go func() {
-			defer func() {
-				if err := recover(); err != nil {
-					log.Errorf("Exception during dataset '%s' sync to '%s': %v", dataset, id, err)
-				}
-			}()
-
-			csRemote.Rebase()
-			localDataset := db.dbn.GetDataset(dataset)
-			if localDataset.Head().Hash().String() != head {
-				err := db.pullFromRemoteCS(csRemote, dataset)
-				if err != nil {
-					log.Errorf("Failed to sync db head '%s' from '%s': %s", head, id, err.Error())
-				}
+		csRemote.Rebase()
+		localDataset := db.dbn.GetDataset(dataset)
+		if localDataset.Head().Hash().String() != head {
+			log.Debugf("Syncing dataset '%s' from peer '%s'. Local head is '%s' while remote is '%s'", dataset, peerID, localDataset.Head().Hash().String(), head)
+			err := db.pullFromRemoteCS(csRemote, dataset)
+			if err != nil {
+				log.Errorf("Failed to sync db head '%s' from '%s': %s", head, peerID, err.Error())
 			}
-
-		}()
+		}
 	} else {
-		log.Errorf("Failed to sync db head '%s' from '%s': could not find peer '%s'", head, id, id)
+		log.Errorf("Failed to sync db head '%s': could not find peer '%s'", head, peerID)
 	}
 }
-
-// // pushToRemoteCS syncs a remote chunk store
-// func (db *dbNoms) pushToRemoteCS(cs chunks.ChunkStore) error {
-// 	cfg := config.NewResolver()
-// 	remoteDB, _, err := cfg.GetDatasetFromChunkStore(cs, sharedData)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// sync local -> remote
-// 	err = db.SyncTo(db.dbn, remoteDB)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
 
 // pullFromRemoteCS syncs by pulling from a remote chunk store
 func (db *dbNoms) pullFromRemoteCS(cs chunks.ChunkStore, dataset string) error {
@@ -291,7 +246,8 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database, dataset string) erro
 	}()
 
 	// prepare src db
-	srcObj, found := srcStore.GetDataset(dataset).MaybeHead()
+	srcDataset := srcStore.GetDataset(dataset)
+	srcObj, found := srcDataset.MaybeHead()
 	if !found {
 		return fmt.Errorf("head not found for source db dataset '%s'", dataset)
 	}
@@ -321,8 +277,13 @@ func (db *dbNoms) SyncTo(srcStore, dstStore datas.Database, dataset string) erro
 		log.Debugf("All chunks already exist at destination")
 	} else if nonFF && !srcRef.Equals(dstRef) {
 		log.Debugf("Abandoning %s; new head is %s\n", dstRef.TargetHash(), srcRef.TargetHash())
+		db.refresh()
 	} else {
 		log.Debugf("Dataset '%s' is already up to date.\n", dataset)
+	}
+
+	if dstDataset.Head().Hash().String() != srcDataset.Head().Hash().String() {
+		db.publishHead(dataset, dstDataset.Head().Hash().String())
 	}
 
 	return nil

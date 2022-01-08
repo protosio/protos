@@ -189,7 +189,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 	stoppers["iws"] = iwsStopper
 
-	dbcli.BroadcastHead()
+	p2pManager.RequestHead()
 
 	log.Info("Started all servers successfully")
 	appManager.Refresh()

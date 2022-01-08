@@ -21,15 +21,6 @@ type ClientPing struct {
 	peerID peer.ID
 }
 
-// NewRemotePing creates a new remote ping client
-func NewRemotePing(p2p *P2P, peerID peer.ID) *ClientPing {
-	ip := &ClientPing{
-		p2p:    p2p,
-		peerID: peerID,
-	}
-	return ip
-}
-
 //
 // client methods
 //

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,10 +15,12 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	noise "github.com/libp2p/go-libp2p-noise"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/multiformats/go-multiaddr"
 	cmap "github.com/orcaman/concurrent-map"
+	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
 	"github.com/segmentio/ksuid"
@@ -27,48 +28,58 @@ import (
 
 var log = util.GetLogger("p2p")
 
-const protosRPCProtocol = "/protos/rpc/0.0.1"
-const protosUpdatesTopic = "/protos/updates/0.0.1"
+type rpcMsgType string
+type pubsubMsgType string
 
-type RPCMsgType string
-
-const RPCRequest RPCMsgType = "request"
-const RPCResponse RPCMsgType = "response"
+const (
+	protosRPCProtocol                 = "/protos/rpc/0.0.1"
+	protosUpdatesTopic                = "/protos/updates/0.0.1"
+	rpcRequest          rpcMsgType    = "request"
+	rpcResponse         rpcMsgType    = "response"
+	pubsubBroadcastHead pubsubMsgType = "broadcasthead"
+	pubsubRequestHead   pubsubMsgType = "requesthead"
+)
 
 type DBSyncer interface {
 	Sync(peerID string, dataset string, head string)
 	HasCS(peerID string) bool
 	AddRemoteCS(peerID string, cs chunks.ChunkStore)
+	BroadcastLocalDatasets()
 }
 
 type emptyReq struct{}
 type emptyResp struct{}
 
-type Handler struct {
+type rpcHandler struct {
 	Func          func(data interface{}) (interface{}, error)
 	RequestStruct interface{}
 }
 
-type rpcMsg struct {
+type pubsubHandler struct {
+	Func          func(peer peer.ID, data interface{}) error
+	PayloadStruct interface{}
+}
+
+type pubsubMsg struct {
 	ID      string
-	Type    RPCMsgType
+	Type    pubsubMsgType
 	Payload json.RawMessage
 }
 
-type payloadRequest struct {
+type rpcMsg struct {
+	ID      string
+	Type    rpcMsgType
+	Payload json.RawMessage
+}
+
+type rpcPayloadRequest struct {
 	Type string
 	Data json.RawMessage
 }
 
-type payloadResponse struct {
+type rpcPayloadResponse struct {
 	Error string
 	Data  json.RawMessage
-}
-
-type payloadPubSub struct {
-	ID      string
-	Dataset string
-	Head    string
 }
 
 type requestTracker struct {
@@ -83,38 +94,59 @@ type Client struct {
 	*ClientInit
 	chunks.ChunkStore
 	*ClientPing
+
+	peer peer.ID
+}
+
+func (c *Client) GetPeerID() string {
+	return c.peer.String()
 }
 
 type P2P struct {
-	host         host.Host
-	handlers     map[string]*Handler
-	reqs         cmap.ConcurrentMap
-	peerWriters  cmap.ConcurrentMap
-	subscription *pubsub.Subscription
-	topic        *pubsub.Topic
-	dbSyncer     DBSyncer
+	*ClientPubSub
+
+	host           host.Host
+	rpcHandlers    map[string]*rpcHandler
+	pubsubHandlers map[pubsubMsgType]*pubsubHandler
+	reqs           cmap.ConcurrentMap
+	peerWriters    cmap.ConcurrentMap
+	subscription   *pubsub.Subscription
+	topic          *pubsub.Topic
+	dbSyncer       DBSyncer
 }
 
-func (p2p *P2P) getHandler(msgType string) (*Handler, error) {
-	if handler, found := p2p.handlers[msgType]; found {
+func (p2p *P2P) getRPCHandler(msgType string) (*rpcHandler, error) {
+	if handler, found := p2p.rpcHandlers[msgType]; found {
 		return handler, nil
 	}
-	return nil, fmt.Errorf("Handler for method '%s' not found", msgType)
+	return nil, fmt.Errorf("RPC handler for method '%s' not found", msgType)
 }
 
-func (p2p *P2P) addHandler(methodName string, handler *Handler) {
-	p2p.handlers[methodName] = handler
+func (p2p *P2P) addRPCHandler(methodName string, handler *rpcHandler) {
+	p2p.rpcHandlers[methodName] = handler
+}
+
+func (p2p *P2P) getPubSubHandler(msgType pubsubMsgType) (*pubsubHandler, error) {
+	if handler, found := p2p.pubsubHandlers[msgType]; found {
+		return handler, nil
+	}
+	return nil, fmt.Errorf("PubSub handler for msg type '%s' not found", msgType)
+}
+
+func (p2p *P2P) addPubSubHandler(msgType pubsubMsgType, handler *pubsubHandler) {
+	p2p.pubsubHandlers[msgType] = handler
 }
 
 func (p2p *P2P) newRPCStreamHandler(s network.Stream) {
-	log.Debugf("New RPC stream for peer '%s'", s.Conn().RemotePeer().String())
+	log.Debugf("Starting RPC stream processor for peer '%s'", s.Conn().RemotePeer().String())
 	writeQueue := make(chan rpcMsg, 200)
+	stopSignal := make(chan struct{}, 1)
 	p2p.peerWriters.Set(s.Conn().RemotePeer().String(), writeQueue)
-	go p2p.rpcReader(s, writeQueue)
-	go p2p.rpcWriter(s, writeQueue)
+	go p2p.rpcReader(s, writeQueue, stopSignal)
+	go p2p.rpcWriter(s, writeQueue, stopSignal)
 }
 
-func (p2p *P2P) rpcReader(s network.Stream, writeQueue chan rpcMsg) {
+func (p2p *P2P) rpcReader(s network.Stream, writeQueue chan rpcMsg, stopSignal chan struct{}) {
 	stdReader := bufio.NewReader(s)
 	for {
 		buf, err := stdReader.ReadBytes('\n')
@@ -124,7 +156,8 @@ func (p2p *P2P) rpcReader(s network.Stream, writeQueue chan rpcMsg) {
 				return
 			}
 			s.Reset()
-			log.Debugf("Remote peer '%s' closed the connection", s.Conn().RemotePeer().String())
+			log.Debugf("Connection to '%s' has been closed. Stopping RPC msg reader", s.Conn().RemotePeer().String())
+			stopSignal <- struct{}{}
 			return
 		}
 
@@ -143,18 +176,18 @@ func (p2p *P2P) rpcReader(s network.Stream, writeQueue chan rpcMsg) {
 				return
 			}
 
-			if msg.Type == RPCRequest {
+			if msg.Type == rpcRequest {
 				// unmarshal remote request
-				reqMsg := payloadRequest{}
+				reqMsg := rpcPayloadRequest{}
 				err = json.Unmarshal(msg.Payload, &reqMsg)
 				if err != nil {
 					log.Errorf("Failed to decode request from '%s': %s", s.Conn().RemotePeer().String(), err.Error())
 					return
 				}
 				p2p.requestHandler(msg.ID, s.Conn().RemotePeer().String(), reqMsg, writeQueue)
-			} else if msg.Type == RPCResponse {
+			} else if msg.Type == rpcResponse {
 				// unmarshal remote request
-				respMsg := payloadResponse{}
+				respMsg := rpcPayloadResponse{}
 				err = json.Unmarshal(msg.Payload, &respMsg)
 				if err != nil {
 					log.Errorf("Failed to decode response from '%s': %s", s.Conn().RemotePeer().String(), err.Error())
@@ -168,38 +201,43 @@ func (p2p *P2P) rpcReader(s network.Stream, writeQueue chan rpcMsg) {
 	}
 }
 
-func (p2p *P2P) rpcWriter(s network.Stream, writeQueue chan rpcMsg) {
+func (p2p *P2P) rpcWriter(s network.Stream, writeQueue chan rpcMsg, stopSignal chan struct{}) {
 	for {
-		msg := <-writeQueue
+		select {
+		case msg := <-writeQueue:
+			// encode the full response
+			jsonMsg, err := json.Marshal(msg)
+			if err != nil {
+				log.Errorf("Failed to encode msg '%s'(%s) for '%s': %s", msg.ID, msg.Type, s.Conn().RemotePeer().String(), err.Error())
+				continue
+			}
 
-		// encode the full response
-		jsonMsg, err := json.Marshal(msg)
-		if err != nil {
-			log.Errorf("Failed to encode msg '%s'(%s) for '%s': %s", msg.ID, msg.Type, s.Conn().RemotePeer().String(), err.Error())
-			continue
+			jsonMsg = append(jsonMsg, '\n')
+			_, err = s.Write(jsonMsg)
+			if err != nil {
+				log.Errorf("Failed to send msg '%s'(%s) to '%s': %s", msg.ID, msg.Type, s.Conn().RemotePeer().String(), err.Error())
+				continue
+			}
+		case <-stopSignal:
+			log.Debugf("Connection to '%s' has been closed. Stopping RPC msg writer", s.Conn().RemotePeer().String())
+			return
 		}
 
-		jsonMsg = append(jsonMsg, '\n')
-		_, err = s.Write(jsonMsg)
-		if err != nil {
-			log.Errorf("Failed to send msg '%s'(%s) to '%s': %s", msg.ID, msg.Type, s.Conn().RemotePeer().String(), err.Error())
-			continue
-		}
 	}
 }
 
-func (p2p *P2P) requestHandler(id string, peerID string, request payloadRequest, writeQueue chan rpcMsg) {
+func (p2p *P2P) requestHandler(id string, peerID string, request rpcPayloadRequest, writeQueue chan rpcMsg) {
 	log.Tracef("Remote request '%s' from peer '%s': %v", id, peerID, request)
 
 	msg := rpcMsg{
 		ID:   id,
-		Type: RPCResponse,
+		Type: rpcResponse,
 	}
 
-	response := payloadResponse{}
+	response := rpcPayloadResponse{}
 
 	// find handler
-	handler, err := p2p.getHandler(request.Type)
+	handler, err := p2p.getRPCHandler(request.Type)
 	if err != nil {
 		log.Errorf("Failed to process request '%s' from '%s': %s", id, peerID, err.Error())
 		response.Error = err.Error()
@@ -265,7 +303,7 @@ func (p2p *P2P) requestHandler(id string, peerID string, request payloadRequest,
 	writeQueue <- msg
 }
 
-func (p2p *P2P) responseHandler(id string, peerID string, response payloadResponse) {
+func (p2p *P2P) responseHandler(id string, peerID string, response rpcPayloadResponse) {
 	log.Tracef("Received response '%s' from peer '%s': %v", id, peerID, response)
 
 	reqInteface, found := p2p.reqs.Get(id)
@@ -298,7 +336,7 @@ func (p2p *P2P) responseHandler(id string, peerID string, response payloadRespon
 func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{}, responseData interface{}) error {
 	msg := rpcMsg{
 		ID:   ksuid.New().String(),
-		Type: RPCRequest,
+		Type: rpcRequest,
 	}
 
 	// encode the request data
@@ -307,7 +345,7 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 		return fmt.Errorf("failed to encode data for request '%s' for peer '%s': %s", msg.ID, id.String(), err.Error())
 	}
 
-	request := &payloadRequest{
+	request := &rpcPayloadRequest{
 		Type: msgType,
 		Data: jsonReqData,
 	}
@@ -373,119 +411,10 @@ func (p2p *P2P) sendRequest(id peer.ID, msgType string, requestData interface{},
 
 }
 
-// GetPeerID adds a peer to the p2p manager
-func (p2p *P2P) PubKeyToPeerID(pubKey []byte) (string, error) {
-	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to unmarshall public key: %w", err)
-	}
-	peerID, err := peer.IDFromPublicKey(pk)
-	if err != nil {
-		return "", fmt.Errorf("failed to create peer ID from public key: %w", err)
-	}
-	return peerID.String(), nil
-}
-
-// AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(pubKey []byte, destHost string) (string, error) {
-	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to unmarshall public key: %w", err)
-	}
-	peerID, err := peer.IDFromPublicKey(pk)
-	if err != nil {
-		return "", fmt.Errorf("failed to create peer ID from public key: %w", err)
-	}
-
-	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", destHost, peerID.String())
-	maddr, err := multiaddr.NewMultiaddr(destinationString)
-	if err != nil {
-		return "", fmt.Errorf("failed to create multi address: %w", err)
-	}
-
-	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
-	if err != nil {
-		return "", fmt.Errorf("failed to extrat info from address: %w", err)
-	}
-
-	log.Debugf("Adding peer id '%s'", peerInfo.ID.String())
-
-	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, 10*time.Second)
-	return string(peerInfo.ID), nil
-}
-
-// GetClient returns the remote client that can reach all remote handlers
-func (p2p *P2P) GetClient(peerID string) (client *Client, err error) {
-
-	pID, err := peer.IDFromString(peerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse peer ID from string: %w", err)
-	}
-
-	s, err := p2p.host.NewStream(context.Background(), pID, protosRPCProtocol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stream with peer '%s': %w", peerID, err)
-	}
-	p2p.newRPCStreamHandler(s)
-
-	// err should be nil, and if there is a panic, we change it in the defer function
-	// this is required because noms implements control flow using panics
-	err = nil
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("exception whie building p2p client: %v", r)
-			// if strings.Contains(err.Error(), "timeout waiting for request") {
-			// 	err = fmt.Errorf("timeout waiting for p2p client")
-			// }
-		}
-	}()
-
-	client = &Client{
-		NewRemoteInit(p2p, pID),
-		NewRemoteChunkStore(p2p, pID),
-		NewRemotePing(p2p, pID),
-	}
-
-	_, err = client.Ping()
-	if err != nil {
-		return nil, err
-	}
-
-	return client, err
-}
-
-// GetClient returns the remote client that can reach all remote handlers
-func (p2p *P2P) GetClientForPeer(peer peer.ID) (client *Client, err error) {
-
-	// err should be nil, and if there is a panic, we change it in the defer function
-	// this is required because noms implements control flow using panics
-	err = nil
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("exception whie building p2p client: %v", r)
-			// if strings.Contains(err.Error(), "timeout waiting for request") {
-			// 	err = fmt.Errorf("timeout waiting for p2p client")
-			// }
-		}
-	}()
-
-	client = &Client{
-		NewRemoteInit(p2p, peer),
-		NewRemoteChunkStore(p2p, peer),
-		NewRemotePing(p2p, peer),
-	}
-
-	_, err = client.Ping()
-	if err != nil {
-		return nil, err
-	}
-
-	return client, err
-}
-
-func (p2p *P2P) pubSubMsgHandler() func() error {
+func (p2p *P2P) pubsubMsgProcessor() func() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
+		log.Debug("Starting PubSub processor")
 		defer func() {
 			if r := recover(); r != nil {
 				log.Errorf("Exception whie processing incoming p2p message: %v", r)
@@ -505,33 +434,144 @@ func (p2p *P2P) pubSubMsgHandler() func() error {
 				continue
 			}
 
-			var data payloadPubSub
-			err = json.Unmarshal(msg.Data, &data)
-			if err != nil {
-				log.Errorf("Failed to decode pub sub message from '%s': %w", peerID, err.Error())
-				continue
-			}
-			log.Debugf("Peer '%s' advertised dataset '%s' head '%s'", peerID, data.Dataset, data.Head)
+			go func(data []byte, peerID string) {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Errorf("Exception whie processing incoming p2p message: %v", r)
+					}
+				}()
 
-			if !p2p.dbSyncer.HasCS(peerID) {
-				p2pClient, err := p2p.GetClientForPeer(msg.ReceivedFrom)
+				var pubsubMsg pubsubMsg
+				err = json.Unmarshal(data, &pubsubMsg)
 				if err != nil {
-					log.Errorf("Failed to retrieve p2p client for '%s': %s", peerID, err.Error())
-					continue
+					log.Errorf("Failed to decode pub sub message from '%s': %w", peerID, err.Error())
+					return
 				}
-				p2p.dbSyncer.AddRemoteCS(peerID, p2pClient)
-			}
 
-			p2p.dbSyncer.Sync(peerID, data.Dataset, data.Head)
+				handler, err := p2p.getPubSubHandler(pubsubMsg.Type)
+				if err != nil {
+					log.Errorf("Failed to process message from '%s': %w", peerID, err.Error())
+					return
+				}
+
+				payload := handler.PayloadStruct
+				err = json.Unmarshal(pubsubMsg.Payload, &payload)
+				if err != nil {
+					log.Errorf("Failed to process message from '%s': %w", peerID, err.Error())
+					return
+				}
+
+				handler.Func(msg.ReceivedFrom, payload)
+			}(msg.Data, peerID)
 		}
 	}()
 
 	stopper := func() error {
-		log.Debug("Stopping p2p server")
+		log.Debug("Stopping PubSub processor")
 		cancel()
-		return p2p.host.Close()
+		return nil
 	}
 	return stopper
+}
+
+func (p2p *P2P) BroadcastMsg(msgType pubsubMsgType, data interface{}) error {
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	msg := pubsubMsg{
+		ID:      ksuid.New().String(),
+		Type:    msgType,
+		Payload: dataBytes,
+	}
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return p2p.topic.Publish(context.Background(), msgBytes)
+}
+
+// GetPeerID adds a peer to the p2p manager
+func (p2p *P2P) PubKeyToPeerID(pubKey []byte) (string, error) {
+	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshall public key: %w", err)
+	}
+	peerID, err := peer.IDFromPublicKey(pk)
+	if err != nil {
+		return "", fmt.Errorf("failed to create peer ID from public key: %w", err)
+	}
+	return peerID.String(), nil
+}
+
+// AddPeer adds a peer to the p2p manager
+func (p2p *P2P) AddPeer(pubKey []byte, destHost string) (*Client, error) {
+	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall public key: %w", err)
+	}
+	peerID, err := peer.IDFromPublicKey(pk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create peer ID from public key: %w", err)
+	}
+
+	destinationString := fmt.Sprintf("/ip4/%s/tcp/10500/p2p/%s", destHost, peerID.String())
+	maddr, err := multiaddr.NewMultiaddr(destinationString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create multi address: %w", err)
+	}
+
+	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract info from address: %w", err)
+	}
+
+	log.Debugf("Adding peer id '%s'", peerInfo.ID.String())
+
+	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, 10*time.Second)
+	s, err := p2p.host.NewStream(context.Background(), peerID, protocol.ID(protosRPCProtocol))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stream with peer '%s': %w", peerID.String(), err)
+	}
+	p2p.newRPCStreamHandler(s)
+
+	client, err := p2p.getClientForPeer(peerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve client: %w", err)
+	}
+
+	return client, nil
+}
+
+// GetClient returns the remote client that can reach all remote handlers
+func (p2p *P2P) getClientForPeer(pID peer.ID) (client *Client, err error) {
+
+	// err should be nil, and if there is a panic, we change it in the defer function
+	// this is required because noms implements control flow using panics
+	err = nil
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("exception whie building p2p client: %v", r)
+			if strings.Contains(err.Error(), "timeout waiting for request") {
+				err = fmt.Errorf("timeout waiting for p2p client")
+			}
+		}
+	}()
+
+	client = &Client{
+		&ClientInit{p2p: p2p, peerID: pID},
+		NewRemoteChunkStore(p2p, pID),
+		&ClientPing{p2p: p2p, peerID: pID},
+		pID,
+	}
+
+	_, err = client.Ping()
+	if err != nil {
+		return nil, err
+	}
+
+	return client, err
 }
 
 // StartServer starts listening for p2p connections
@@ -542,50 +582,52 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator, userCreator: userCreator}
 	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs}
 
-	// we register handler methods which should be accessible from the client
+	p2pPubSub := &pubSub{p2p: p2p, dbSyncer: p2p.dbSyncer}
+
+	// register RPC handler methods which should be accessible from the client
 	// ping handler
-	p2p.addHandler(pingHandler, &Handler{Func: p2pPing.PerformPing, RequestStruct: &PingReq{}})
+	p2p.addRPCHandler(pingHandler, &rpcHandler{Func: p2pPing.PerformPing, RequestStruct: &PingReq{}})
 	// init handler
-	p2p.addHandler(initHandler, &Handler{Func: p2pInit.PerformInit, RequestStruct: &InitReq{}})
+	p2p.addRPCHandler(initHandler, &rpcHandler{Func: p2pInit.PerformInit, RequestStruct: &InitReq{}})
 	// db handlers
-	p2p.addHandler(getRootHandler, &Handler{Func: p2pChunkStore.getRoot, RequestStruct: &emptyReq{}})
-	p2p.addHandler(setRootHandler, &Handler{Func: p2pChunkStore.setRoot, RequestStruct: &setRootReq{}})
-	p2p.addHandler(writeValueHandler, &Handler{Func: p2pChunkStore.writeValue, RequestStruct: &writeValueReq{}})
-	p2p.addHandler(getStatsSummaryHandler, &Handler{Func: p2pChunkStore.getStatsSummary, RequestStruct: &emptyReq{}})
-	p2p.addHandler(getRefsHandler, &Handler{Func: p2pChunkStore.getRefs, RequestStruct: &getRefsReq{}})
-	p2p.addHandler(hasRefsHandler, &Handler{Func: p2pChunkStore.hasRefs, RequestStruct: &hasRefsReq{}})
+	p2p.addRPCHandler(getRootHandler, &rpcHandler{Func: p2pChunkStore.getRoot, RequestStruct: &emptyReq{}})
+	p2p.addRPCHandler(setRootHandler, &rpcHandler{Func: p2pChunkStore.setRoot, RequestStruct: &setRootReq{}})
+	p2p.addRPCHandler(writeValueHandler, &rpcHandler{Func: p2pChunkStore.writeValue, RequestStruct: &writeValueReq{}})
+	p2p.addRPCHandler(getStatsSummaryHandler, &rpcHandler{Func: p2pChunkStore.getStatsSummary, RequestStruct: &emptyReq{}})
+	p2p.addRPCHandler(getRefsHandler, &rpcHandler{Func: p2pChunkStore.getRefs, RequestStruct: &getRefsReq{}})
+	p2p.addRPCHandler(hasRefsHandler, &rpcHandler{Func: p2pChunkStore.hasRefs, RequestStruct: &hasRefsReq{}})
+
+	// register PubSub hanlder methods
+	p2p.addPubSubHandler(pubsubBroadcastHead, &pubsubHandler{Func: p2pPubSub.BroadcastHeadHandler, PayloadStruct: &pubsubPayloadBroadcastHead{}})
+	p2p.addPubSubHandler(pubsubRequestHead, &pubsubHandler{Func: p2pPubSub.RequestHeadHandler, PayloadStruct: &emptyReq{}})
 
 	err := p2p.host.Network().Listen()
 	if err != nil {
 		return func() error { return nil }, fmt.Errorf("failed to listen: %w", err)
 	}
 
-	stopper := p2p.pubSubMsgHandler()
+	pubsubStopper := p2p.pubsubMsgProcessor()
+
+	stopper := func() error {
+		log.Debug("Stopping p2p server")
+		pubsubStopper()
+		return p2p.host.Close()
+	}
 	return stopper, nil
 
-}
-
-func (p2p *P2P) Broadcast(dataset string, head string) error {
-	data := payloadPubSub{
-		ID:      ksuid.New().String(),
-		Dataset: dataset,
-		Head:    head,
-	}
-	msgBytes, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	return p2p.topic.Publish(context.Background(), msgBytes)
 }
 
 // NewManager creates and returns a new p2p manager
 func NewManager(port int, key *ssh.Key, dbSyncer DBSyncer) (*P2P, error) {
 	p2p := &P2P{
-		handlers:    map[string]*Handler{},
-		reqs:        cmap.New(),
-		peerWriters: cmap.New(),
-		dbSyncer:    dbSyncer,
+		rpcHandlers:    map[string]*rpcHandler{},
+		pubsubHandlers: map[pubsubMsgType]*pubsubHandler{},
+		reqs:           cmap.New(),
+		peerWriters:    cmap.New(),
+		dbSyncer:       dbSyncer,
 	}
+
+	p2p.ClientPubSub = &ClientPubSub{p2p: p2p}
 
 	prvKey, err := crypto.UnmarshalEd25519PrivateKey(key.Private())
 	if err != nil {
@@ -607,8 +649,7 @@ func NewManager(port int, key *ssh.Key, dbSyncer DBSyncer) (*P2P, error) {
 	}
 
 	p2p.host = host
-	p2p.host.SetStreamHandler(protosRPCProtocol, p2p.newRPCStreamHandler)
-
+	p2p.host.SetStreamHandler(protocol.ID(protosRPCProtocol), p2p.newRPCStreamHandler)
 	pubSub, err := pubsub.NewFloodSub(context.Background(), host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup PubSub channel: %w", err)

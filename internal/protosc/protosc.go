@@ -222,7 +222,7 @@ func (pc *ProtosClient) FinishInit() error {
 	pc.NetworkManager = networkManager
 
 	pc.db.AddRefresher("network", pc)
-	pc.db.BroadcastHead()
+	p2pManager.RequestHead()
 
 	return nil
 

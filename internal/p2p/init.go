@@ -50,15 +50,6 @@ type ClientInit struct {
 	peerID peer.ID
 }
 
-// NewRemoteInit creates a new remote init client
-func NewRemoteInit(p2p *P2P, peerID peer.ID) *ClientInit {
-	ip := &ClientInit{
-		p2p:    p2p,
-		peerID: peerID,
-	}
-	return ip
-}
-
 //
 // client methods
 //
