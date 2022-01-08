@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -99,7 +98,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	tm := task.CreateManager(dbcli, pub)
 	as := installer.CreateAppStore(pltfrm, tm, cm)
 	appManager := app.CreateManager(rm, tm, pltfrm, dbcli, m, pub, as, cm)
-	dbcli.AddRefresher("apps", appManager)
 	pm := provider.CreateManager(rm, appManager, dbcli)
 
 	p2pManager, err := p2p.NewManager(10500, key, dbcli)
@@ -108,7 +106,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 	dbcli.AddPublisher(p2pManager)
 
-	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, m.InstanceName)
+	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, networkManager, m.InstanceName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -170,10 +168,6 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	// add the refresher to the db so on any data change the network will reconfigured
-	ref := &refresher{cloudManager: cloudManager, userManager: um, networkManager: networkManager}
-	dbcli.AddRefresher("network", ref)
-
 	// perform runtime initialization (container runtime)
 	err = pltfrm.Init()
 	if err != nil {
@@ -196,30 +190,4 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	wg.Wait()
 	log.Info("Shutdown completed")
 
-}
-
-type refresher struct {
-	cloudManager   cloud.CloudManager
-	userManager    *auth.UserManager
-	networkManager *network.Manager
-}
-
-func (r *refresher) Refresh() error {
-
-	instances, err := r.cloudManager.GetInstances()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve instances: %w", err)
-	}
-
-	admin, err := r.userManager.GetAdmin()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve admin user: %w", err)
-	}
-
-	err = r.networkManager.ConfigurePeers(instances, admin.GetDevices())
-	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
-	}
-
-	return nil
 }

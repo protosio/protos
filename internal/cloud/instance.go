@@ -37,6 +37,10 @@ const (
 	protosPublicKey = "/var/protos/protos_key.pub"
 )
 
+type NetworkConfigurator interface {
+	ConfigurePeers(instances []InstanceInfo, devices []auth.UserDevice) error
+}
+
 // InstanceInfo holds information about a cloud instance
 type InstanceInfo struct {
 	VMID          string
@@ -160,10 +164,11 @@ func allocateNetwork(instances []InstanceInfo, devices []auth.UserDevice) (net.I
 
 // Manager manages cloud providers and instances
 type Manager struct {
-	db  db.DB
-	um  *auth.UserManager
-	sm  *ssh.Manager
-	p2p *p2p.P2P
+	db                  db.DB
+	um                  *auth.UserManager
+	sm                  *ssh.Manager
+	p2p                 *p2p.P2P
+	networkConfigurator NetworkConfigurator
 }
 
 //
@@ -811,23 +816,43 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 	return nil
 }
 
+func (cm *Manager) Refresh() error {
+
+	instances, err := cm.GetInstances()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve instances: %w", err)
+	}
+
+	admin, err := cm.um.GetAdmin()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve admin user: %w", err)
+	}
+
+	err = cm.networkConfigurator.ConfigurePeers(instances, admin.GetDevices())
+	if err != nil {
+		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+
+	return nil
+}
+
 // CreateManager creates and returns a cloud manager
-func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P, selfName string) (*Manager, error) {
+func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P, networkConfiguration NetworkConfigurator, selfName string) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
-	err := db.InitDataset(instanceDS, true)
+	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, networkConfigurator: networkConfiguration}
+
+	err := db.InitDataset(instanceDS, manager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize instance dataset: %w", err)
 	}
 
-	err = db.InitDataset(cloudDS, false)
+	err = db.InitDataset(cloudDS, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize cloud dataset: %w", err)
 	}
-
-	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p}
 
 	instances, err := manager.GetInstances()
 	if err != nil {

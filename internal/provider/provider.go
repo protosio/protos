@@ -43,7 +43,7 @@ func CreateManager(rm *resource.Manager, am *app.Manager, db db.DB) *Manager {
 	providers[resource.Certificate] = &Provider{Type: resource.Certificate, rm: rm}
 	providers[resource.Mail] = &Provider{Type: resource.Mail, rm: rm}
 
-	err := db.InitDataset(providerDS, false)
+	err := db.InitDataset(providerDS, nil)
 	if err != nil {
 		log.Fatal("Failed to initialize provider dataset: ", err)
 	}

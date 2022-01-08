@@ -194,7 +194,7 @@ func CreateUserManager(db db.DB, sm *ssh.Manager, cm *capability.Manager) *UserM
 	}
 	gob.Register(&User{})
 
-	err := db.InitDataset(authDS, false)
+	err := db.InitDataset(authDS, nil)
 	if err != nil {
 		log.Fatal("Failed to initialize auth dataset: ", err)
 	}

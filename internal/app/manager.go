@@ -66,7 +66,10 @@ func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.Run
 	log.Debug("Retrieving applications from DB")
 	gob.Register(&App{})
 	gob.Register(&installer.InstallerMetadata{})
-	err := db.InitDataset(appDS, true)
+
+	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore, cm: cm}
+
+	err := db.InitDataset(appDS, manager)
 	if err != nil {
 		log.Fatal("Failed to initialize app dataset: ", err)
 	}
@@ -77,7 +80,7 @@ func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.Run
 		log.Fatal("Could not retrieve applications from database: ", err)
 	}
 
-	return &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore, cm: cm}
+	return manager
 }
 
 // methods to satisfy local interfaces
@@ -89,14 +92,6 @@ func (am *Manager) getPlatform() platform.RuntimePlatform {
 func (am *Manager) getResourceManager() *resource.Manager {
 	return am.rm
 }
-
-// func (am *Manager) getTaskManager() *task.Manager {
-// 	return am.tm
-// }
-
-// func (am *Manager) getAppStore() appStore {
-// 	return am.store
-// }
 
 func (am *Manager) getCapabilityManager() *capability.Manager {
 	return am.cm

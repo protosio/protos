@@ -199,7 +199,7 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to get current device: %s", err.Error())
 	}
 
-	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, currentDevice.Name)
+	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, networkManager, currentDevice.Name)
 	if err != nil {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
@@ -221,31 +221,10 @@ func (pc *ProtosClient) FinishInit() error {
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-	pc.db.AddRefresher("network", pc)
 	p2pManager.RequestHead()
 
 	return nil
 
-}
-
-func (pc *ProtosClient) Refresh() error {
-
-	instances, err := pc.CloudManager.GetInstances()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve instances: %w", err)
-	}
-
-	admin, err := pc.UserManager.GetAdmin()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve admin user: %w", err)
-	}
-
-	err = pc.NetworkManager.ConfigurePeers(instances, admin.GetDevices())
-	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
-	}
-
-	return nil
 }
 
 func (pc *ProtosClient) IsInitialized() bool {
