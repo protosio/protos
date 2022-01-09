@@ -3,13 +3,15 @@ package main
 import (
 	"os"
 
-	"github.com/protosio/protos/internal/daemon"
+	"github.com/protosio/protos/internal/protosd"
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/Masterminds/semver"
 	"github.com/sirupsen/logrus"
 	cli "github.com/urfave/cli/v2"
 )
+
+var log = util.GetLogger("protosd")
 
 func main() {
 
@@ -55,23 +57,10 @@ func main() {
 		return nil
 	}
 
-	app.Commands = []*cli.Command{
-		{
-			Name:  "daemon",
-			Usage: "start the server",
-			Action: func(c *cli.Context) error {
-				daemon.StartUp(configFile, false, version, devmode)
-				return nil
-			},
-		},
-		{
-			Name:  "init",
-			Usage: "create initial configuration and user",
-			Action: func(c *cli.Context) error {
-				daemon.StartUp(configFile, true, version, devmode)
-				return nil
-			},
-		},
+	app.Action = func(c *cli.Context) error {
+		log.Info("Starting Protos daemon")
+		protosd.StartUp(configFile, false, version, devmode)
+		return nil
 	}
 
 	app.Run(os.Args)
