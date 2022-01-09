@@ -57,7 +57,7 @@ func (pub *publisher) GetWSPublishChannel() chan interface{} {
 }
 
 // StartUp triggers a sequence of steps required to start the application
-func StartUp(configFile string, init bool, version *semver.Version, devmode bool) {
+func StartUp(configFile string, version *semver.Version, devmode bool) {
 	// Load config and print banner
 	cfg := config.Load(configFile, version)
 
@@ -118,7 +118,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	stoppers["p2p"] = p2pStopper
 
 	// check init and dev mode
-	cfg.InitMode = m.InitMode() || init
+	cfg.InitMode = m.InitMode()
 	if cfg.InitMode {
 		log.Info("Starting up in init mode")
 	}

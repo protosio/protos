@@ -59,7 +59,7 @@ func main() {
 
 	app.Action = func(c *cli.Context) error {
 		log.Info("Starting Protos daemon")
-		protosd.StartUp(configFile, false, version, devmode)
+		protosd.StartUp(configFile, version, devmode)
 		return nil
 	}
 
