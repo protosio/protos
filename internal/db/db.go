@@ -29,8 +29,13 @@ type Refresher interface {
 	Refresh() error
 }
 
+type ChunkStoreClient interface {
+	GetCS() chunks.ChunkStore
+}
+
 type Publisher interface {
 	BroadcastHead(dataset string, head string) error
+	GetCSClient(peerID string) (ChunkStoreClient, error)
 }
 
 // DB represents a DB client instance, used to interract with the database
@@ -42,9 +47,6 @@ type DB interface {
 	InsertInMap(dataset string, id string, data interface{}) error
 	RemoveFromMap(dataset string, id string) error
 	GetChunkStore() chunks.ChunkStore
-	HasCS(id string) bool
-	AddRemoteCS(id string, cs chunks.ChunkStore)
-	DeleteRemoteCS(id string)
 	Sync(peerID string, dataset string, head string)
 	AddPublisher(publisher Publisher)
 	BroadcastLocalDatasets()
@@ -75,10 +77,9 @@ func Open(protosDir string, protosDB string) (DB, error) {
 	cs := nbs.NewLocalStore(dbpath, clienttest.DefaultMemTableSize)
 	dbn := datas.NewDatabase(cs)
 	db := &dbNoms{
-		dbn:               dbn,
-		cs:                cs,
-		sharedDatasets:    cmap.New(),
-		remoteChunkStores: cmap.New(),
+		dbn:            dbn,
+		cs:             cs,
+		sharedDatasets: cmap.New(),
 	}
 
 	err := db.InitDataset(defaultDataset, nil)
@@ -94,11 +95,10 @@ func Open(protosDir string, protosDB string) (DB, error) {
 //
 
 type dbNoms struct {
-	cs                chunks.ChunkStore
-	remoteChunkStores cmap.ConcurrentMap
-	dbn               datas.Database
-	sharedDatasets    cmap.ConcurrentMap
-	publisher         Publisher
+	cs             chunks.ChunkStore
+	dbn            datas.Database
+	sharedDatasets cmap.ConcurrentMap
+	publisher      Publisher
 }
 
 //
@@ -157,37 +157,25 @@ func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
 	return db.cs
 }
 
-// HasCS checks if a remote chunk store is present
-func (db *dbNoms) HasCS(id string) bool {
-	return db.remoteChunkStores.Has(id)
-}
-
-// AddRemoteCS adds a remote chunk store which can be synced
-func (db *dbNoms) AddRemoteCS(id string, cs chunks.ChunkStore) {
-	db.remoteChunkStores.Set(id, cs)
-}
-
-// DeleteRemoteCS removes a remote chunk store
-func (db *dbNoms) DeleteRemoteCS(id string) {
-	db.remoteChunkStores.Remove(id)
-}
-
 // Sync syncs (pull) from a specific peer
 func (db *dbNoms) Sync(peerID string, dataset string, head string) {
-	if csRemoteI, found := db.remoteChunkStores.Get(peerID); found {
-		csRemote := csRemoteI.(chunks.ChunkStore)
-		csRemote.Rebase()
-		localDataset := db.dbn.GetDataset(dataset)
-		if localDataset.Head().Hash().String() != head {
-			log.Debugf("Syncing dataset '%s' from peer '%s'. Local head is '%s' while remote is '%s'", dataset, peerID, localDataset.Head().Hash().String(), head)
-			err := db.pullFromRemoteCS(csRemote, dataset)
-			if err != nil {
-				log.Errorf("Failed to sync db head '%s' from '%s': %s", head, peerID, err.Error())
-			}
-		}
-	} else {
-		log.Errorf("Failed to sync db head '%s': could not find peer '%s'", head, peerID)
+	csClient, err := db.publisher.GetCSClient(peerID)
+	if err != nil {
+		log.Errorf("Failed to sync db head '%s': could not get CS for peer '%s': %s", head, peerID, err.Error())
+		return
 	}
+
+	csRemote := csClient.GetCS()
+	csRemote.Rebase()
+	localDataset := db.dbn.GetDataset(dataset)
+	if localDataset.Head().Hash().String() != head {
+		log.Debugf("Syncing dataset '%s' from peer '%s'. Local head is '%s' while remote is '%s'", dataset, peerID, localDataset.Head().Hash().String(), head)
+		err := db.pullFromRemoteCS(csRemote, dataset)
+		if err != nil {
+			log.Errorf("Failed to sync db head '%s' from '%s': %s", head, peerID, err.Error())
+		}
+	}
+
 }
 
 // pullFromRemoteCS syncs by pulling from a remote chunk store

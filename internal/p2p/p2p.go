@@ -21,6 +21,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
 	"github.com/segmentio/ksuid"
@@ -42,8 +43,6 @@ const (
 
 type DBSyncer interface {
 	Sync(peerID string, dataset string, head string)
-	HasCS(peerID string) bool
-	AddRemoteCS(peerID string, cs chunks.ChunkStore)
 	BroadcastLocalDatasets()
 }
 
@@ -98,8 +97,8 @@ type Client struct {
 	peer peer.ID
 }
 
-func (c *Client) GetPeerID() string {
-	return c.peer.String()
+func (c *Client) GetCS() chunks.ChunkStore {
+	return c.ChunkStore
 }
 
 type P2P struct {
@@ -110,6 +109,7 @@ type P2P struct {
 	pubsubHandlers map[pubsubMsgType]*pubsubHandler
 	reqs           cmap.ConcurrentMap
 	peerWriters    cmap.ConcurrentMap
+	rpcClients     cmap.ConcurrentMap
 	subscription   *pubsub.Subscription
 	topic          *pubsub.Topic
 	dbSyncer       DBSyncer
@@ -540,8 +540,35 @@ func (p2p *P2P) AddPeer(pubKey []byte, destHost string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve client: %w", err)
 	}
+	p2p.rpcClients.Set(peerID.String(), client)
 
 	return client, nil
+}
+
+// RemovePeer removes a peer from the p2p manager
+func (p2p *P2P) RemovePeer(pubKey []byte) error {
+	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
+	if err != nil {
+		return fmt.Errorf("failed to remove peer: %w", err)
+	}
+	peerID, err := peer.IDFromPublicKey(pk)
+	if err != nil {
+		return fmt.Errorf("failed to remove peer: %w", err)
+	}
+
+	log.Debugf("Removing peer id '%s'", peerID.String())
+	p2p.rpcClients.Remove(peerID.String())
+
+	return nil
+}
+
+func (p2p *P2P) GetCSClient(peerID string) (db.ChunkStoreClient, error) {
+	clientI, found := p2p.rpcClients.Get(peerID)
+	client := clientI.(*Client)
+	if found {
+		return client, nil
+	}
+	return nil, fmt.Errorf("could not find RPC client for peer '%s'", peerID)
 }
 
 // GetClient returns the remote client that can reach all remote handlers
@@ -624,6 +651,7 @@ func NewManager(port int, key *ssh.Key, dbSyncer DBSyncer) (*P2P, error) {
 		pubsubHandlers: map[pubsubMsgType]*pubsubHandler{},
 		reqs:           cmap.New(),
 		peerWriters:    cmap.New(),
+		rpcClients:     cmap.New(),
 		dbSyncer:       dbSyncer,
 	}
 
