@@ -7,7 +7,7 @@ import (
 
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
-	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/pcrypto"
 )
 
 const (
@@ -59,7 +59,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 			continue
 		}
 
-		pubkey, err := ssh.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		pubkey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}

@@ -17,8 +17,8 @@ import (
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/p2p"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
-	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -166,7 +166,7 @@ func allocateNetwork(instances []InstanceInfo, devices []auth.UserDevice) (net.I
 type Manager struct {
 	db                  db.DB
 	um                  *auth.UserManager
-	sm                  *ssh.Manager
+	sm                  *pcrypto.Manager
 	p2p                 *p2p.P2P
 	networkConfigurator NetworkConfigurator
 }
@@ -384,13 +384,13 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// connect via SSH
-	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", key.SSHAuth(), 10)
+	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", key.SSHAuth(), 10)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
 
 	// retrieve instance public key via SSH
-	pubKeyStr, err := ssh.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
+	pubKeyStr, err := pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
@@ -479,13 +479,13 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 
 	// connect via SSH
-	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", sshAuth, 10)
+	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", sshAuth, 10)
 	if err != nil {
 		return fmt.Errorf("failed to connect to dev instance over SSH: %w", err)
 	}
 
 	// retrieve instance public key via SSH
-	pubKeyStr, err := ssh.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
+	pubKeyStr, err := pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve public key from dev instance: %w", err)
 	}
@@ -669,7 +669,7 @@ func (cm *Manager) TunnelInstance(name string) error {
 	}
 
 	log.Infof("creating SSH tunnel to instance '%s', using ip '%s'", instanceInfo.Name, instanceInfo.PublicIP)
-	tunnel := ssh.NewTunnel(instanceInfo.PublicIP+":22", "root", key.SSHAuth(), "localhost:8080")
+	tunnel := pcrypto.NewTunnel(instanceInfo.PublicIP+":22", "root", key.SSHAuth(), "localhost:8080")
 	localPort, err := tunnel.Start()
 	if err != nil {
 		return fmt.Errorf("error while creating the SSH tunnel: %w", err)
@@ -708,11 +708,11 @@ func (cm *Manager) LogsInstance(name string) (string, error) {
 		return "", err
 	}
 
-	sshCon, err := ssh.NewConnection(instanceInfo.PublicIP, "root", key.SSHAuth(), 10)
+	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", key.SSHAuth(), 10)
 	if err != nil {
 		return "", err
 	}
-	output, err := ssh.ExecuteCommand("cat /var/log/protos.log", sshCon)
+	output, err := pcrypto.ExecuteCommand("cat /var/log/protos.log", sshCon)
 	if err != nil {
 		return "", err
 	}
@@ -832,7 +832,7 @@ func (cm *Manager) Refresh() error {
 }
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db db.DB, um *auth.UserManager, sm *ssh.Manager, p2p *p2p.P2P, networkConfiguration NetworkConfigurator, selfName string) (*Manager, error) {
+func CreateManager(db db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, networkConfiguration NetworkConfigurator, selfName string) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}

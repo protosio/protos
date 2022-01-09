@@ -10,7 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
-	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/pcrypto"
 )
 
 const initHandler = "init"
@@ -20,7 +20,7 @@ type MetaConfigurator interface {
 	SetNetwork(network net.IPNet) net.IP
 	SetAdminUser(username string)
 	SetInstanceName(name string)
-	GetPrivateKey() (*ssh.Key, error)
+	GetPrivateKey() (*pcrypto.Key, error)
 }
 
 // UserCreator allows the creation of a new user

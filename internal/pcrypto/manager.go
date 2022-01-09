@@ -1,4 +1,4 @@
-package ssh
+package pcrypto
 
 import (
 	"crypto/ed25519"
@@ -36,7 +36,7 @@ func (sm *Manager) GetKeyByPub(pubKey string) (*Key, error) {
 	var keys map[string]Key
 	err := sm.db.GetMap(sshDS, &keys)
 	if err != nil {
-		return nil, fmt.Errorf("Could not retrieve keys: %v", err)
+		return nil, fmt.Errorf("could not retrieve keys: %v", err)
 	}
 
 	for _, k := range keys {
@@ -45,7 +45,7 @@ func (sm *Manager) GetKeyByPub(pubKey string) (*Key, error) {
 			return &k, nil
 		}
 	}
-	return nil, fmt.Errorf("Could not find key with pubkey '%s'", pubKey)
+	return nil, fmt.Errorf("could not find key with pubkey '%s'", pubKey)
 }
 
 // NewAuthFromKeyFile takes a file path and returns an ssh authentication
@@ -53,12 +53,12 @@ func (sm *Manager) NewAuthFromKeyFile(keyPath string) (ssh.AuthMethod, error) {
 
 	privKey, err := ioutil.ReadFile(keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read file: %w", err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	signer, err := ssh.ParsePrivateKey(privKey)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to parse private key: %w", err)
+		return nil, fmt.Errorf("unable to parse private key: %w", err)
 	}
 
 	return ssh.PublicKeys(signer), nil

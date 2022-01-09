@@ -12,13 +12,13 @@ import (
 	scp "github.com/bramvdbogaerde/go-scp"
 	pb "github.com/cheggaaa/pb/v3"
 	"github.com/pkg/errors"
-	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
 	account "github.com/scaleway/scaleway-sdk-go/api/account/v2alpha1"
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	"github.com/scaleway/scaleway-sdk-go/api/marketplace/v1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
-	gssh "golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -370,7 +370,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 
 	log.Info("Trying to connect to Scaleway upload instance over SSH")
 
-	sshClient, err := ssh.NewConnection(srv.PublicIP.Address.String(), "root", key.SSHAuth(), 10)
+	sshClient, err := pcrypto.NewConnection(srv.PublicIP.Address.String(), "root", key.SSHAuth(), 10)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Failed to deploy VM to Scaleway")
 	}
@@ -379,7 +379,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	localISO := "/tmp/protos-scaleway.iso"
 
 	log.Info("Downloading Protos image")
-	out, err := ssh.ExecuteCommand("wget -O "+localISO+" "+url, sshClient)
+	out, err := pcrypto.ExecuteCommand("wget -O "+localISO+" "+url, sshClient)
 	if err != nil {
 		log.Errorf("Error downloading Protos VM image: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Error downloading Protos VM image")
@@ -387,7 +387,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 
 	log.Info("Checking image integrity")
 	cmdString := fmt.Sprintf("openssl dgst -r -sha256 %s | awk '{ print $1 }' | { read digest; if [ \"$digest\" = \"%s\" ]; then true; else false; fi }", localISO, hash)
-	out, err = ssh.ExecuteCommand(cmdString, sshClient)
+	out, err = pcrypto.ExecuteCommand(cmdString, sshClient)
 	if err != nil {
 		log.Errorf("Image integrity check failed: %s: %s", out, err.Error())
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Error downloading Protos VM image. Integrity check failed")
@@ -397,14 +397,14 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", scalewayImageDisk), sshClient)
+	out, err = pcrypto.ExecuteCommand(fmt.Sprintf("ls %s", scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", localISO, scalewayImageDisk), sshClient)
+	out, err = pcrypto.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", localISO, scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Error while writing image to volume")
@@ -519,12 +519,12 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 		return "", errors.Wrap(err, errMsg)
 	}
 
-	sshConfig := &gssh.ClientConfig{
+	sshConfig := &ssh.ClientConfig{
 		User: "root",
-		Auth: []gssh.AuthMethod{
+		Auth: []ssh.AuthMethod{
 			key.SSHAuth(),
 		},
-		HostKeyCallback: gssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
 	client := scp.NewClient(srv.PublicIP.Address.String()+":22", sshConfig)
@@ -566,7 +566,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 
 	log.Info("Trying to connect to Scaleway upload instance over SSH")
 
-	sshClient, err := ssh.NewConnection(srv.PublicIP.Address.String(), "root", key.SSHAuth(), 10)
+	sshClient, err := pcrypto.NewConnection(srv.PublicIP.Address.String(), "root", key.SSHAuth(), 10)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg+". Failed to deploy VM to Scaleway")
 	}
@@ -574,7 +574,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 
 	log.Info("Checking image integrity")
 	cmdString := fmt.Sprintf("openssl dgst -r -sha256 %s | awk '{ print $1 }' | { read digest; if [ \"$digest\" = \"%s\" ]; then true; else false; fi }", remoteImage, imageHash)
-	out, err := ssh.ExecuteCommand(cmdString, sshClient)
+	out, err := pcrypto.ExecuteCommand(cmdString, sshClient)
 	if err != nil {
 		log.Errorf("Image integrity check failed: %s: %s", out, err.Error())
 		return "", errors.Wrap(err, errMsg+". Integrity check failed")
@@ -584,14 +584,14 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	// wite Protos image to volume
 	//
 
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("ls %s", scalewayImageDisk), sshClient)
+	out, err = pcrypto.ExecuteCommand(fmt.Sprintf("ls %s", scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Snapshot volume not found: %s", out)
 		return "", errors.Wrap(err, errMsg+". Snapshot volume not found")
 	}
 
 	log.Info("Writing Protos image to volume")
-	out, err = ssh.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", remoteImage, scalewayImageDisk), sshClient)
+	out, err = pcrypto.ExecuteCommand(fmt.Sprintf("dd if=%s of=%s", remoteImage, scalewayImageDisk), sshClient)
 	if err != nil {
 		log.Errorf("Error while writing image to volume: %s", out)
 		return "", errors.Wrap(err, errMsg+". Error while writing image to volume")

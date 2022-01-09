@@ -1,4 +1,4 @@
-package ssh
+package pcrypto
 
 import (
 	"fmt"
@@ -46,7 +46,7 @@ func (t *forwarder) pipe(src, dst net.Conn, name string) {
 		b := buff[:n]
 
 		// write to the other connection
-		n, err = dst.Write(b)
+		_, err = dst.Write(b)
 		if err != nil {
 			t.errSig(fmt.Sprintf("Write failed to '%s' -> '%s' (%s): ", dst.LocalAddr(), dst.RemoteAddr(), name), err)
 			src.Close()

@@ -22,7 +22,7 @@ import (
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/db"
-	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
 	"github.com/segmentio/ksuid"
 )
@@ -645,7 +645,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, userCreator UserC
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(port int, key *ssh.Key, dbSyncer DBSyncer) (*P2P, error) {
+func NewManager(port int, key *pcrypto.Key, dbSyncer DBSyncer) (*P2P, error) {
 	p2p := &P2P{
 		rpcHandlers:    map[string]*rpcHandler{},
 		pubsubHandlers: map[pubsubMsgType]*pubsubHandler{},

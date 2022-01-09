@@ -22,10 +22,10 @@ import (
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
-	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 )
@@ -56,7 +56,7 @@ type ProtosClient struct {
 	capabilityManager *capability.Manager
 
 	UserManager    *auth.UserManager
-	KeyManager     *ssh.Manager
+	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
 	NetworkManager *network.Manager
 	AppStore       *installer.AppStore
@@ -100,7 +100,7 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	}
 
 	// create various managers
-	keyManager := ssh.CreateManager(protosClient.db)
+	keyManager := pcrypto.CreateManager(protosClient.db)
 	capabilityManager := capability.CreateManager()
 	userManager := auth.CreateUserManager(protosClient.db, keyManager, capabilityManager)
 

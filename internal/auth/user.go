@@ -8,7 +8,7 @@ import (
 
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/db"
-	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/denisbrodbeck/machineid"
@@ -149,7 +149,7 @@ func (user *User) GetCurrentDevice() (UserDevice, error) {
 }
 
 // GetKeyCurrentDevice returns the private key for the current device
-func (user *User) GetKeyCurrentDevice() (*ssh.Key, error) {
+func (user *User) GetKeyCurrentDevice() (*pcrypto.Key, error) {
 	dev, err := user.GetCurrentDevice()
 	if err != nil {
 		return nil, err
@@ -175,11 +175,11 @@ func (user *User) SetName(name string) error {
 type UserManager struct {
 	db db.DB
 	cm *capability.Manager
-	sm *ssh.Manager
+	sm *pcrypto.Manager
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db db.DB, sm *ssh.Manager, cm *capability.Manager) *UserManager {
+func CreateUserManager(db db.DB, sm *pcrypto.Manager, cm *capability.Manager) *UserManager {
 	if db == nil || sm == nil || cm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}

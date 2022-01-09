@@ -8,8 +8,8 @@ import (
 
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/resource"
-	"github.com/protosio/protos/internal/ssh"
 	"github.com/tidwall/gjson"
 
 	"github.com/protosio/protos/internal/util"
@@ -27,7 +27,7 @@ var gconfig = config.Get()
 type Meta struct {
 	rm                 *resource.Manager `noms:"-"`
 	db                 db.DB             `noms:"-"`
-	keymngr            *ssh.Manager      `noms:"-"`
+	keymngr            *pcrypto.Manager  `noms:"-"`
 	version            string            `noms:"-"`
 	networkSetSignal   chan net.IP       `noms:"-"`
 	adminUserSetSignal chan string       `noms:"-"`
@@ -50,7 +50,7 @@ type dnsResource interface {
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string) *Meta {
+func Setup(rm *resource.Manager, db db.DB, keymngr *pcrypto.Manager, version string) *Meta {
 	if rm == nil || db == nil || keymngr == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
@@ -97,7 +97,7 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string)
 }
 
 // SetupForClient reads the domain and other information on first run and save this information to the database
-func SetupForClient(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string) *Meta {
+func SetupForClient(rm *resource.Manager, db db.DB, keymngr *pcrypto.Manager, version string) *Meta {
 	if rm == nil || db == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
@@ -253,7 +253,7 @@ func (m *Meta) GetPublicIP() string {
 // }
 
 // GetKey returns the private key of the instance, in wireguard format
-func (m *Meta) GetPrivateKey() (*ssh.Key, error) {
+func (m *Meta) GetPrivateKey() (*pcrypto.Key, error) {
 	key, err := m.keymngr.NewKeyFromSeed(m.PrivateKeySeed)
 	if err != nil {
 		return nil, err

@@ -21,10 +21,10 @@ import (
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provider"
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
-	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 )
@@ -80,7 +80,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 
 	// create all the managers
 	rm := resource.CreateManager(dbcli)
-	sm := ssh.CreateManager(dbcli)
+	sm := pcrypto.CreateManager(dbcli)
 	m := meta.Setup(rm, dbcli, sm, version.String())
 	key, err := m.GetPrivateKey()
 	if err != nil {

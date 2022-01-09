@@ -16,7 +16,7 @@ import (
 	"github.com/foxcpp/wirebox/linkmgr"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
-	"github.com/protosio/protos/internal/ssh"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -223,7 +223,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 			continue
 		}
 
-		publicKey, err := ssh.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		publicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}

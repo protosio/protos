@@ -1,4 +1,4 @@
-package ssh
+package pcrypto
 
 import (
 	"crypto/ed25519"
