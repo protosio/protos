@@ -138,7 +138,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 	stoppers["wfi"] = ctxStopper
 
-	internalIP, network, domain, adminUser := m.WaitForInit(ctx)
+	internalIP, network, adminUser := m.WaitForInit(ctx)
 
 	if canceled {
 		wg.Wait()
@@ -152,7 +152,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 
 	// perform network initialization
-	err = networkManager.Init(network, internalIP, key.PrivateWG(), domain)
+	err = networkManager.Init(network, internalIP, key.PrivateWG(), cfg.InternalDomain)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	dnsStopper := dns.StartServer(internalIP.String(), DNSPort, cfg.ExternalDNS, domain, appManager)
+	dnsStopper := dns.StartServer(internalIP.String(), DNSPort, cfg.ExternalDNS, cfg.InternalDomain, appManager)
 	stoppers["dns"] = dnsStopper
 
 	iwsStopper, err := httpAPI.StartInternalWebServer(cfg.InitMode, internalIP.String())

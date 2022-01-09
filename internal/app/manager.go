@@ -315,7 +315,7 @@ func (am *Manager) GetServices() ([]util.Service, error) {
 		for _, rsc := range rscs {
 			dnsrsc := rsc.GetValue().(dnsResource)
 			if rsc.GetAppID() == app.ID && dnsrsc.GetName() == app.Name {
-				service.Domain = dnsrsc.GetName() + "." + am.m.GetDomain()
+				service.Domain = dnsrsc.GetName()
 				service.IP = dnsrsc.GetValue()
 				break
 			}

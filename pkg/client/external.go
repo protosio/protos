@@ -73,7 +73,6 @@ func (ec *externalClient) InitInstance(name string, network string, domain strin
 		Password:        ec.password,
 		ConfirmPassword: ec.password,
 		Name:            name,
-		Domain:          domain,
 		Network:         network,
 		Devices:         devices,
 	})

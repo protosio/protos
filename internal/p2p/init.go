@@ -17,7 +17,6 @@ const initHandler = "init"
 
 // MetaConfigurator allows for the configuration of the meta package
 type MetaConfigurator interface {
-	SetDomain(domainName string)
 	SetNetwork(network net.IPNet) net.IP
 	SetAdminUser(username string)
 	SetInstanceName(name string)
@@ -26,13 +25,12 @@ type MetaConfigurator interface {
 
 // UserCreator allows the creation of a new user
 type UserCreator interface {
-	CreateUser(username string, password string, name string, domain string, isadmin bool, devices []auth.UserDevice) (*auth.User, error)
+	CreateUser(username string, password string, name string, isadmin bool, devices []auth.UserDevice) (*auth.User, error)
 }
 
 type InitReq struct {
 	Username     string            `json:"username" validate:"required"`
 	Name         string            `json:"name" validate:"required"`
-	Domain       string            `json:"domain" validate:"fqdn"`
 	Network      string            `json:"network" validate:"cidrv4"` // CIDR notation
 	Password     string            `json:"password" validate:"min=10,max=100"`
 	InstanceName string            `json:"instance_name" validate:"required"`
@@ -55,13 +53,12 @@ type ClientInit struct {
 //
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *ClientInit) Init(username string, password string, name string, domain string, instanceName string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
+func (ip *ClientInit) Init(username string, password string, name string, instanceName string, network string, devices []auth.UserDevice) (net.IP, ed25519.PublicKey, error) {
 
 	req := InitReq{
 		Username:     username,
 		Password:     password,
 		Name:         name,
-		Domain:       domain,
 		Network:      network,
 		InstanceName: instanceName,
 		Devices:      devices,
@@ -118,11 +115,10 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("cannot perform initialization, network '%s' is invalid: %w", req.Network, err)
 	}
 
-	hi.metaConfigurator.SetDomain(req.Domain)
 	hi.metaConfigurator.SetInstanceName(req.InstanceName)
 	ipNet := hi.metaConfigurator.SetNetwork(*network)
 
-	user, err := hi.userCreator.CreateUser(req.Username, req.Password, req.Name, req.Domain, true, req.Devices)
+	user, err := hi.userCreator.CreateUser(req.Username, req.Password, req.Name, true, req.Devices)
 	if err != nil {
 		return nil, fmt.Errorf("cannot perform initialization, faild to create user: %w", err)
 	}

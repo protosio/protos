@@ -17,7 +17,6 @@ type ReqInit struct {
 	Name            string            `json:"name" validate:"required"`
 	Password        string            `json:"password" validate:"min=10,max=100"`
 	ConfirmPassword string            `json:"confirmpassword" validate:"eqfield=Password"`
-	Domain          string            `json:"domain" validate:"fqdn"`
 	Network         string            `json:"network" validate:"cidrv4"` // CIDR notation
 	Devices         []auth.UserDevice `json:"devices" validate:"gt=0,dive"`
 }

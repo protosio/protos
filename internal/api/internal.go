@@ -78,13 +78,13 @@ var createInternalRoutes = func(cm *capability.Manager) routes {
 			getAppResource,
 			cm.GetOrPanic("ResourceConsumer"),
 		},
-		route{
-			"getDomainInfo",
-			"GET",
-			"/info/domain",
-			getDomainInfo,
-			cm.GetOrPanic("GetInformation"),
-		},
+		// route{
+		// 	"getDomainInfo",
+		// 	"GET",
+		// 	"/info/domain",
+		// 	getDomainInfo,
+		// 	cm.GetOrPanic("GetInformation"),
+		// },
 		route{
 			"getAdminUser",
 			"GET",
@@ -269,17 +269,17 @@ func setResourceStatus(ha handlerAccess) http.Handler {
 	})
 }
 
-func getDomainInfo(ha handlerAccess) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		domain := struct {
-			Domain string `json:"domain"`
-		}{
-			Domain: ha.m.GetDomain(),
-		}
+// func getDomainInfo(ha handlerAccess) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		domain := struct {
+// 			Domain string `json:"domain"`
+// 		}{
+// 			Domain: ha.m.GetDomain(),
+// 		}
 
-		json.NewEncoder(w).Encode(domain)
-	})
-}
+// 		json.NewEncoder(w).Encode(domain)
+// 	})
+// }
 
 func getAdminUser(ha handlerAccess) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

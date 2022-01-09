@@ -34,7 +34,7 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 
 	devices := []auth.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), MachineID: machineID, Network: "10.100.0.1/24"}}
 
-	_, err = b.protosClient.UserManager.CreateUser(in.Username, in.Password, in.Name, in.Domain, true, devices)
+	_, err = b.protosClient.UserManager.CreateUser(in.Username, in.Password, in.Name, true, devices)
 	if err != nil {
 		return nil, err
 	}

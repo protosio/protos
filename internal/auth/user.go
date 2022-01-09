@@ -25,7 +25,6 @@ type UserInfo struct {
 	Username string `json:"username"`
 	Name     string `json:"name"`
 	IsAdmin  bool   `json:"isadmin"`
-	Domain   string `json:"domain"`
 }
 
 // UserDevice - represents a device that a user uses to connect to the instances. A user can have multiple devices (laptop, mobile phone etc)
@@ -47,7 +46,6 @@ type User struct {
 	Name         string       `json:"name"`
 	IsDisabled   bool         `json:"isdisabled"`
 	Capabilities []string     `json:"capabilities"`
-	Domain       string       `json:"domain"`
 	Devices      []UserDevice `json:"devices"`
 }
 
@@ -128,7 +126,6 @@ func (user *User) GetInfo() UserInfo {
 		Username: user.Username,
 		Name:     user.Name,
 		IsAdmin:  user.IsAdmin(),
-		Domain:   user.Domain,
 	}
 }
 
@@ -170,12 +167,6 @@ func (user *User) SetName(name string) error {
 	return user.Save()
 }
 
-// SetDomain enables the changing of the domain of the user
-func (user *User) SetDomain(domain string) error {
-	user.Domain = domain
-	return user.Save()
-}
-
 //
 // Public package methods
 //
@@ -203,7 +194,7 @@ func CreateUserManager(db db.DB, sm *ssh.Manager, cm *capability.Manager) *UserM
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, password string, name string, domain string, isadmin bool, devices []UserDevice) (*User, error) {
+func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool, devices []UserDevice) (*User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {
@@ -225,7 +216,6 @@ func (um *UserManager) CreateUser(username string, password string, name string,
 		IsDisabled:   false,
 		Capabilities: []string{},
 		Devices:      devices,
-		Domain:       domain,
 	}
 	if isadmin {
 		user.Capabilities = append(user.Capabilities, "UserAdmin")

@@ -24,6 +24,7 @@ type Config struct {
 	InContainer     bool
 	StaticAssets    string
 	InitMode        bool
+	InternalDomain  string
 	DevMode         bool
 	AppStoreURL     string
 	AppStoreHost    string
@@ -41,6 +42,7 @@ var config = Config{
 	InContainer:     false,
 	InitMode:        false,
 	DevMode:         false,
+	InternalDomain:  "protos.internal",
 	AppStoreURL:     "https://apps.protos.io",
 	AppStoreHost:    "apps.protos.io",
 	ExternalDNS:     "8.8.8.8:53",

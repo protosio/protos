@@ -70,10 +70,9 @@ func initHandler(ha handlerAccess) http.Handler {
 			return
 		}
 
-		ha.m.SetDomain(initform.Domain)
 		ip := ha.m.SetNetwork(*network)
 
-		user, err := ha.um.CreateUser(initform.Username, initform.Password, initform.Name, initform.Domain, true, initform.Devices)
+		user, err := ha.um.CreateUser(initform.Username, initform.Password, initform.Name, true, initform.Devices)
 		if err != nil {
 			log.Error(err)
 			rend.JSON(w, http.StatusBadRequest, httperr{Error: err.Error()})

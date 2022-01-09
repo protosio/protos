@@ -112,7 +112,7 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 
 }
 
-func networkUp(userManager *auth.UserManager) (*network.Manager, error) {
+func networkUp(userManager *auth.UserManager, internalDomain string) (*network.Manager, error) {
 	usr, err := userManager.GetAdmin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get admin while setting up network: %w", err)
@@ -141,7 +141,7 @@ func networkUp(userManager *auth.UserManager) (*network.Manager, error) {
 		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
 
-	err = networkManager.Init(*netp, internalIP, key.PrivateWG(), usr.GetInfo().Domain)
+	err = networkManager.Init(*netp, internalIP, key.PrivateWG(), internalDomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
@@ -161,7 +161,7 @@ func (pc *ProtosClient) FinishInit() error {
 	resourceManager := resource.CreateManager(pc.db)
 
 	taskManager := task.CreateManager(pc.db, pub)
-	networkManager, err := networkUp(pc.UserManager)
+	networkManager, err := networkUp(pc.UserManager, pc.cfg.InternalDomain)
 	if err != nil {
 		log.Fatalf("Failed to create network manager: %s", err.Error())
 	}
@@ -214,7 +214,7 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to configure network peers: %s", err.Error())
 	}
 
-	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", admin.GetInfo().Domain, appManager)
+	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", pc.cfg.InternalDomain, appManager)
 	pc.stoppers["dns"] = dnsStopper
 	pc.AppManager = appManager
 	pc.AppStore = appStore

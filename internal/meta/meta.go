@@ -2,7 +2,6 @@ package meta
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -31,12 +30,10 @@ type Meta struct {
 	keymngr            *ssh.Manager      `noms:"-"`
 	version            string            `noms:"-"`
 	networkSetSignal   chan net.IP       `noms:"-"`
-	domainSetSignal    chan string       `noms:"-"`
 	adminUserSetSignal chan string       `noms:"-"`
 
 	// Public members
 	ID                 string
-	Domain             string
 	InstanceName       string
 	DashboardSubdomain string
 	PublicIP           net.IP
@@ -90,7 +87,6 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, version string)
 	metaRoot.keymngr = keymngr
 	metaRoot.version = version
 	metaRoot.networkSetSignal = make(chan net.IP, 1)
-	metaRoot.domainSetSignal = make(chan string, 1)
 	metaRoot.adminUserSetSignal = make(chan string, 1)
 	err = db.SaveStruct(metaDS, metaRoot)
 	if err != nil {
@@ -138,7 +134,6 @@ func SetupForClient(rm *resource.Manager, db db.DB, keymngr *ssh.Manager, versio
 	metaRoot.keymngr = keymngr
 	metaRoot.version = version
 	metaRoot.networkSetSignal = make(chan net.IP, 1)
-	metaRoot.domainSetSignal = make(chan string, 1)
 	metaRoot.adminUserSetSignal = make(chan string, 1)
 	err = db.SaveStruct(metaDS, metaRoot)
 	if err != nil {
@@ -166,19 +161,6 @@ func findPublicIP() (string, error) {
 		return "", err
 	}
 	return gjson.GetBytes(bodyJSON, "ip").Str, nil
-}
-
-// SetDomain sets the instance domain name
-func (m *Meta) SetDomain(domainName string) {
-	log.Debugf("Setting instance domain name to '%s'", domainName)
-	m.Domain = domainName
-	m.save()
-	m.domainSetSignal <- m.Domain
-}
-
-// GetDomain returns the domain name used in this Protos instance
-func (m *Meta) GetDomain() string {
-	return m.Domain
 }
 
 // SetInstanceName sets the name of the instance
@@ -304,15 +286,6 @@ func (m *Meta) GetPrivateKey() (*ssh.Key, error) {
 // 	return errors.New("Could not clean Protos resources: MX DNS record not found")
 // }
 
-// GetDashboardDomain returns the full domain through which the dashboard can be accessed
-func (m *Meta) GetDashboardDomain() string {
-	dashboardDomain := m.DashboardSubdomain + "." + m.GetDomain()
-	if gconfig.HTTPSport != 443 {
-		dashboardDomain = fmt.Sprintf("%s:%d", dashboardDomain, gconfig.HTTPSport)
-	}
-	return dashboardDomain
-}
-
 // GetVersion returns current version
 func (m *Meta) GetVersion() string {
 	return m.version
@@ -380,20 +353,20 @@ func (m *Meta) GetVersion() string {
 // 	return resources
 // }
 
-// GetService returns the protos dashboard service
-func (m *Meta) GetService() util.Service {
-	ports := []util.Port{}
-	ports = append(ports, util.Port{Nr: gconfig.HTTPport, Type: util.TCP})
-	ports = append(ports, util.Port{Nr: gconfig.HTTPSport, Type: util.TCP})
-	protosService := util.Service{
-		Name:   "protos dashboard",
-		Domain: m.DashboardSubdomain + "." + m.GetDomain(),
-		IP:     m.GetPublicIP(),
-		Ports:  ports,
-		Status: util.StatusActive,
-	}
-	return protosService
-}
+// // GetService returns the protos dashboard service
+// func (m *Meta) GetService() util.Service {
+// 	ports := []util.Port{}
+// 	ports = append(ports, util.Port{Nr: gconfig.HTTPport, Type: util.TCP})
+// 	ports = append(ports, util.Port{Nr: gconfig.HTTPSport, Type: util.TCP})
+// 	protosService := util.Service{
+// 		Name:   "protos dashboard",
+// 		Domain: m.DashboardSubdomain + "." + m.GetDomain(),
+// 		IP:     m.GetPublicIP(),
+// 		Ports:  ports,
+// 		Status: util.StatusActive,
+// 	}
+// 	return protosService
+// }
 
 // InitMode returns the status of the init process
 func (m *Meta) InitMode() bool {
@@ -402,8 +375,8 @@ func (m *Meta) InitMode() bool {
 		GetPrivateKey() []byte
 	}
 
-	if m.PublicIP == nil || m.Domain == "" || m.AdminUser == "" {
-		log.Warnf("Instance info (public IP: '%s', domain: '%s', admin user: '%s') is not set. Running in init mode", m.PublicIP, m.Domain, m.AdminUser)
+	if m.PublicIP == nil || m.AdminUser == "" {
+		log.Warnf("Instance info (public IP: '%s', admin user: '%s') is not set. Running in init mode", m.PublicIP, m.AdminUser)
 		return true
 	}
 
@@ -411,12 +384,11 @@ func (m *Meta) InitMode() bool {
 }
 
 // WaitForInit returns when both the domain and network has been set
-func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string, string) {
-	if m.InternalIP != nil && m.Domain != "" && m.AdminUser != "" {
-		return m.InternalIP, m.Network, m.Domain, m.AdminUser
+func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string) {
+	if m.InternalIP != nil && m.AdminUser != "" {
+		return m.InternalIP, m.Network, m.AdminUser
 	}
 
-	var domain string
 	var internalIP net.IP
 	var adminUser string
 
@@ -424,7 +396,6 @@ func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string, stri
 
 	go func() {
 		log.Debug("Waiting for initialisation to complete")
-		domain = <-m.domainSetSignal
 		internalIP = <-m.networkSetSignal
 		adminUser = <-m.adminUserSetSignal
 		initialized <- true
@@ -433,10 +404,10 @@ func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string, stri
 	select {
 	case <-ctx.Done():
 		log.Debug("Init did not finish. Canceled by user")
-		return internalIP, m.Network, domain, adminUser
+		return internalIP, m.Network, adminUser
 	case <-initialized:
 		log.Debug("Meta init finished")
-		return internalIP, m.Network, domain, adminUser
+		return internalIP, m.Network, adminUser
 	}
 
 }
