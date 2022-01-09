@@ -10,8 +10,8 @@ import (
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
-	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 
@@ -48,7 +48,7 @@ type Manager struct {
 	m           *meta.Meta
 	db          db.DB
 	cm          *capability.Manager
-	platform    platform.RuntimePlatform
+	runtime     runtime.RuntimePlatform
 	wspublisher WSPublisher
 }
 
@@ -57,9 +57,9 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
+func CreateManager(rm *resource.Manager, tm *task.Manager, runtime runtime.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
 
-	if rm == nil || tm == nil || platform == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
+	if rm == nil || tm == nil || runtime == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
 	}
 
@@ -67,7 +67,7 @@ func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.Run
 	gob.Register(&App{})
 	gob.Register(&installer.InstallerMetadata{})
 
-	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, platform: platform, wspublisher: wspublisher, store: appStore, cm: cm}
+	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, runtime: runtime, wspublisher: wspublisher, store: appStore, cm: cm}
 
 	err := db.InitDataset(appDS, manager)
 	if err != nil {
@@ -85,8 +85,8 @@ func CreateManager(rm *resource.Manager, tm *task.Manager, platform platform.Run
 
 // methods to satisfy local interfaces
 
-func (am *Manager) getPlatform() platform.RuntimePlatform {
-	return am.platform
+func (am *Manager) getPlatform() runtime.RuntimePlatform {
+	return am.runtime
 }
 
 func (am *Manager) getResourceManager() *resource.Manager {

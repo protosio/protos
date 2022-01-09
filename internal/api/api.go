@@ -14,9 +14,9 @@ import (
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
-	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/provider"
 	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/pkg/types"
 
@@ -63,7 +63,7 @@ type handlerAccess struct {
 	m   *meta.Meta
 	as  *installer.AppStore
 	um  *auth.UserManager
-	rp  platform.RuntimePlatform
+	rp  runtime.RuntimePlatform
 	cm  *capability.Manager
 	cs  *sessions.CookieStore
 	api apiController
@@ -298,7 +298,7 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 }
 
 // New returns a new http API
-func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m *meta.Meta, am *app.Manager, rm *resource.Manager, tm *task.Manager, pm *provider.Manager, as *installer.AppStore, um *auth.UserManager, rp platform.RuntimePlatform, cm *capability.Manager) *HTTP {
+func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m *meta.Meta, am *app.Manager, rm *resource.Manager, tm *task.Manager, pm *provider.Manager, as *installer.AppStore, um *auth.UserManager, rp runtime.RuntimePlatform, cm *capability.Manager) *HTTP {
 	httpAPI := &HTTP{
 		devmode:          devmode,
 		staticAssetsPath: staticAssetsPath,

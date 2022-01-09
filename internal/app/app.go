@@ -8,8 +8,8 @@ import (
 
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/installer"
-	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/runtime"
 
 	"github.com/protosio/protos/internal/util"
 )
@@ -96,7 +96,7 @@ func createCapabilities(cm *capability.Manager, installerCapabilities []string) 
 }
 
 // createSandbox create the underlying container
-func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
+func (app *App) createSandbox() (runtime.PlatformRuntimeUnit, error) {
 
 	// normal app creation, using the app store
 	inst, err := app.mgr.store.GetInstaller(app.InstallerID)
@@ -147,10 +147,10 @@ func (app *App) createSandbox() (platform.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
+func (app *App) getOrcreateSandbox() (runtime.PlatformRuntimeUnit, error) {
 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
-		if util.IsErrorType(err, platform.ErrContainerNotFound) {
+		if util.IsErrorType(err, runtime.ErrContainerNotFound) {
 			cnt, err := app.createSandbox()
 			if err != nil {
 				return nil, err
@@ -162,10 +162,10 @@ func (app *App) getOrcreateSandbox() (platform.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-// func (app *App) getSandbox() (platform.PlatformRuntimeUnit, error) {
+// func (app *App) getSandbox() (runtime.PlatformRuntimeUnit, error) {
 // 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 // 	if err != nil {
-// 		if util.IsErrorType(err, platform.ErrContainerNotFound) {
+// 		if util.IsErrorType(err, runtime.ErrContainerNotFound) {
 // 			return nil, nil
 // 		}
 // 		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
@@ -199,7 +199,7 @@ func (app *App) SetDesiredStatus(status string) error {
 func (app *App) GetStatus() string {
 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
-		if !util.IsErrorType(err, platform.ErrContainerNotFound) {
+		if !util.IsErrorType(err, runtime.ErrContainerNotFound) {
 			log.Warnf("Failed to retrieve app (%s) sandbox: %s", app.ID, err.Error())
 		}
 		return statusStopped
@@ -247,7 +247,7 @@ func (app *App) Stop() error {
 
 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
-		if !util.IsErrorType(err, platform.ErrContainerNotFound) {
+		if !util.IsErrorType(err, runtime.ErrContainerNotFound) {
 			return err
 		}
 		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)

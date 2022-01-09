@@ -21,9 +21,9 @@ import (
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
-	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/provider"
 	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
@@ -92,12 +92,12 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 		log.Fatal(err)
 	}
 
-	pltfrm := platform.Create(networkManager, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg.WorkDir+"/logs")
+	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg.WorkDir+"/logs")
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm)
 	tm := task.CreateManager(dbcli, pub)
-	as := installer.CreateAppStore(pltfrm, tm, cm)
-	appManager := app.CreateManager(rm, tm, pltfrm, dbcli, m, pub, as, cm)
+	as := installer.CreateAppStore(appRuntime, tm, cm)
+	appManager := app.CreateManager(rm, tm, appRuntime, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, appManager, dbcli)
 
 	p2pManager, err := p2p.NewManager(10500, key, dbcli)
@@ -125,7 +125,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	cfg.DevMode = devmode
 	meta.PrintBanner()
 
-	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, appManager, rm, tm, pm, as, um, pltfrm, cm)
+	httpAPI := api.New(devmode, cfg.StaticAssets, pub.GetWSPublishChannel(), cfg.HTTPport, cfg.HTTPSport, m, appManager, rm, tm, pm, as, um, appRuntime, cm)
 
 	// if starting for the first time, this will block until remote init is done
 	ctx, cancel := context.WithCancel(context.Background())
@@ -169,7 +169,7 @@ func StartUp(configFile string, init bool, version *semver.Version, devmode bool
 	}
 
 	// perform runtime initialization (container runtime)
-	err = pltfrm.Init()
+	err = appRuntime.Init()
 	if err != nil {
 		log.Fatal(err)
 	}

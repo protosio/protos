@@ -22,9 +22,9 @@ import (
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
-	"github.com/protosio/protos/internal/platform"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/resource"
+	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/ssh"
 	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
@@ -166,10 +166,10 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to create network manager: %s", err.Error())
 	}
 
-	runtimePlatform := platform.Create(networkManager, pc.cfg.RuntimeEndpoint, pc.cfg.AppStoreHost, pc.cfg.InContainer, "")
+	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint, pc.cfg.AppStoreHost, pc.cfg.InContainer, "")
 	metaClient := meta.SetupForClient(resourceManager, pc.db, pc.KeyManager, pc.version)
-	appStore := installer.CreateAppStore(runtimePlatform, taskManager, pc.capabilityManager)
-	appManager := app.CreateManager(resourceManager, taskManager, runtimePlatform, pc.db, metaClient, pub, appStore, pc.capabilityManager)
+	appStore := installer.CreateAppStore(appRuntime, taskManager, pc.capabilityManager)
+	appManager := app.CreateManager(resourceManager, taskManager, appRuntime, pc.db, metaClient, pub, appStore, pc.capabilityManager)
 
 	// get device key
 	key, err := metaClient.GetPrivateKey()
