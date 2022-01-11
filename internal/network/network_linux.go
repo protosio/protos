@@ -234,7 +234,14 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 		}
 
 		newRoutes = append(newRoutes, netlink.Route{Dst: instanceNetwork, Src: m.gateway})
-		peers = append(peers, wgtypes.PeerConfig{PublicKey: publicKey, ReplaceAllowedIPs: true, AllowedIPs: []net.IPNet{*instanceNetwork}})
+		peerConf := wgtypes.PeerConfig{
+			PublicKey:         publicKey,
+			ReplaceAllowedIPs: true,
+			Endpoint:          &net.UDPAddr{IP: net.ParseIP(instance.PublicIP), Port: 10999},
+			AllowedIPs:        []net.IPNet{*instanceNetwork},
+		}
+
+		peers = append(peers, peerConf)
 	}
 
 	// build devices peer list
@@ -252,7 +259,12 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 		var publicKey wgtypes.Key
 		copy(publicKey[:], publicKeyBytes)
 
-		peers = append(peers, wgtypes.PeerConfig{PublicKey: publicKey, ReplaceAllowedIPs: true, AllowedIPs: []net.IPNet{*deviceNetwork}})
+		peerConf := wgtypes.PeerConfig{
+			PublicKey:         publicKey,
+			ReplaceAllowedIPs: true,
+			AllowedIPs:        []net.IPNet{*deviceNetwork},
+		}
+		peers = append(peers, peerConf)
 	}
 
 	// create the wireguard interface
