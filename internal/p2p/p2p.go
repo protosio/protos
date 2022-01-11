@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -254,7 +255,7 @@ func (p2p *P2P) requestHandler(id string, peerID string, request rpcPayloadReque
 	}
 
 	// execute handler method
-	data := handler.RequestStruct
+	data := reflect.New(reflect.ValueOf(handler.RequestStruct).Elem().Type()).Interface()
 	err = json.Unmarshal(request.Data, &data)
 	if err != nil {
 		response.Error = fmt.Errorf("failed to decode data struct: %s", err.Error()).Error()
@@ -454,7 +455,7 @@ func (p2p *P2P) pubsubMsgProcessor() func() error {
 					return
 				}
 
-				payload := handler.PayloadStruct
+				payload := reflect.New(reflect.ValueOf(handler.PayloadStruct).Elem().Type()).Interface()
 				err = json.Unmarshal(pubsubMsg.Payload, &payload)
 				if err != nil {
 					log.Errorf("Failed to process message from '%s': %w", peerID, err.Error())
