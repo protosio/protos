@@ -41,12 +41,12 @@ func (ps *pubSub) BroadcastHeadHandler(peerID peer.ID, data interface{}) error {
 
 	log.Debugf("Peer '%s' advertised dataset '%s' head '%s'", peerID.String(), payload.Dataset, payload.Head)
 
-	if !ps.p2p.rpcClients.Has(peerID.String()) {
+	if !ps.p2p.peers.Has(peerID.String()) {
 		rpcClient, err := ps.p2p.getClientForPeer(peerID)
 		if err != nil {
 			return fmt.Errorf("failed to retrieve p2p client for '%s': %s", peerID, err.Error())
 		}
-		ps.p2p.rpcClients.Set(peerID.String(), rpcClient)
+		ps.p2p.peers.Set(peerID.String(), &rpcPeer{client: rpcClient})
 	}
 
 	ps.dbSyncer.Sync(peerID.String(), payload.Dataset, payload.Head)

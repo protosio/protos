@@ -183,10 +183,10 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	stoppers["iws"] = iwsStopper
 
-	p2pManager.RequestHead()
-
 	log.Info("Started all servers successfully")
+	cloudManager.Refresh()
 	appManager.Refresh()
+	p2pManager.RequestHead()
 	wg.Wait()
 	log.Info("Shutdown completed")
 

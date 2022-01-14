@@ -221,7 +221,7 @@ func (pc *ProtosClient) FinishInit() error {
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-	p2pManager.RequestHead()
+	pc.db.BroadcastLocalDatasets()
 
 	return nil
 

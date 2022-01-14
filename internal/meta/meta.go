@@ -370,11 +370,6 @@ func (m *Meta) GetVersion() string {
 
 // InitMode returns the status of the init process
 func (m *Meta) InitMode() bool {
-	type certificate interface {
-		GetCertificate() []byte
-		GetPrivateKey() []byte
-	}
-
 	if m.PublicIP == nil || m.AdminUser == "" {
 		log.Warnf("Instance info (public IP: '%s', admin user: '%s') is not set. Running in init mode", m.PublicIP, m.AdminUser)
 		return true
