@@ -329,7 +329,7 @@ func devInit(instanceName string, keyFile string, ipString string) error {
 	defer cancel()
 	_, err := client.InitDevInstance(ctx, &apic.InitDevInstanceRequest{Name: instanceName, KeyFile: keyFile, Ip: ipString})
 	if err != nil {
-		return fmt.Errorf("could not get instance '%s' key: %w", instanceName, err)
+		return fmt.Errorf("could not initialize dev instance '%s' key: %w", instanceName, err)
 	}
 
 	return nil
