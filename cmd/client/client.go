@@ -83,7 +83,9 @@ func main() {
 		return nil
 	}
 
-	defer conn.Close()
+	app.After = func(c *cli.Context) error {
+		return conn.Close()
+	}
 
 	err = app.Run(os.Args)
 	if err != nil {
