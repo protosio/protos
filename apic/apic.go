@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
@@ -24,17 +26,20 @@ type Backend struct {
 	protosClient *protosc.ProtosClient
 }
 
-func StartGRPCServer(socketPath string, dataPath string, version string, protosClient *protosc.ProtosClient) (func() error, error) {
+func StartGRPCServer(dataPath string, version string, protosClient *protosc.ProtosClient) (func() error, error) {
 
-	// create protos run dir
-	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-		err := os.Mkdir(socketPath, 0755)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create protos dir '%s': %w", socketPath, err)
-		}
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve home directory: %w", err)
 	}
 
-	unixSocketFile := socketPath + "/protos.socket"
+	if dataPath == "~" {
+		dataPath = homedir
+	} else if strings.HasPrefix(dataPath, "~/") {
+		dataPath = filepath.Join(homedir, dataPath[2:])
+	}
+
+	unixSocketFile := dataPath + "/protos.socket"
 	l, err := net.Listen("unix", unixSocketFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on local socket: %w", err)

@@ -19,7 +19,6 @@ var log = util.GetLogger("protosc")
 var stoppers = map[string]func() error{}
 var logLevel string
 var dataPath string
-var unixSocketPath string
 var version *semver.Version
 
 func stopServers() {
@@ -72,12 +71,6 @@ func main() {
 			Usage:       "Path where protos data is stored",
 			Destination: &dataPath,
 		},
-		&cli.StringFlag{
-			Name:        "unix-socket-dir",
-			Value:       "/var/run/protos",
-			Usage:       "Path where GRPC API unix socket is created",
-			Destination: &unixSocketPath,
-		},
 	}
 
 	app.Action = func(c *cli.Context) error {
@@ -110,7 +103,7 @@ func onReady() {
 	}
 	stoppers["protosClient"] = protosClient.Stop
 
-	grpcStopper, err := apic.StartGRPCServer(unixSocketPath, dataPath, version.String(), protosClient)
+	grpcStopper, err := apic.StartGRPCServer(dataPath, version.String(), protosClient)
 	if err != nil {
 		log.Fatalf("Failed to start gRPC server: %s", err.Error())
 	}

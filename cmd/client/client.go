@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Masterminds/semver"
 	pbApic "github.com/protosio/protos/apic/proto"
@@ -13,6 +15,8 @@ import (
 
 var log = util.GetLogger("protos")
 var client pbApic.ProtosClientApiClient
+var loglevel string
+var unixSocket string
 
 func main() {
 
@@ -20,7 +24,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	var loglevel string
 
 	app := &cli.App{
 		Name:    "protos",
@@ -34,6 +37,12 @@ func main() {
 				Usage:       "Log level: warn, info, debug",
 				Destination: &loglevel,
 			},
+			&cli.StringFlag{
+				Name:        "unix-socket",
+				Value:       "~/.protos/protos.socket",
+				Usage:       "Path to unix socket API",
+				Destination: &unixSocket,
+			},
 		},
 		Commands: []*cli.Command{
 			cmdInit,
@@ -44,24 +53,37 @@ func main() {
 		},
 	}
 
+	var conn *grpc.ClientConn
+
 	app.Before = func(c *cli.Context) error {
 		level, err := logrus.ParseLevel(loglevel)
 		if err != nil {
 			return err
 		}
 		util.SetLogLevel(level)
+
+		homedir, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatal("Failed to retrieve home directory: %w", err)
+		}
+
+		if strings.HasPrefix(unixSocket, "~/") {
+			unixSocket = filepath.Join(homedir, unixSocket[2:])
+		}
+
+		// connecting to the GRPC API first
+		var opts []grpc.DialOption
+		opts = append(opts, grpc.WithInsecure())
+		conn, err = grpc.Dial("unix://"+unixSocket, opts...)
+		if err != nil {
+			log.Fatalf("Failed to connect to GRPC API: %s", err.Error())
+		}
+		client = pbApic.NewProtosClientApiClient(conn)
+
 		return nil
 	}
 
-	// connecting to the GRPC API first
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithInsecure())
-	conn, err := grpc.Dial("unix:///var/run/protos/protos.socket", opts...)
-	if err != nil {
-		log.Fatalf("Failed to connect to GRPC API: %s", err.Error())
-	}
 	defer conn.Close()
-	client = pbApic.NewProtosClientApiClient(conn)
 
 	err = app.Run(os.Args)
 	if err != nil {
