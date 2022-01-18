@@ -21,7 +21,7 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error) {
 	return nil, nil
 }
 
@@ -34,12 +34,12 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) 
 	return images, nil
 }
 
-func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) GetSandbox(id string) (RuntimeSandbox, error) {
 	return nil, nil
 }
 
-func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit, error) {
-	return map[string]PlatformRuntimeUnit{}, nil
+func (cdp *containerdPlatform) GetAllSandboxes() (map[string]RuntimeSandbox, error) {
+	return map[string]RuntimeSandbox{}, nil
 }
 
 func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
@@ -67,7 +67,7 @@ func (cdp *containerdPlatform) ImageExistsLocally(id string) (bool, error) {
 }
 
 //
-// struct and methods that satisfy PlatformRuntimeUnit
+// struct and methods that satisfy RuntimeSandbox
 //
 
 // containerdSandbox represents a container

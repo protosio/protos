@@ -74,7 +74,7 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	pru := &containerdSandbox{p: cdp}
 
@@ -179,7 +179,7 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) 
 	return images, nil
 }
 
-func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) GetSandbox(id string) (RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	if id == "" {
 		return nil, util.NewTypedError("Container ID can't be empty", ErrContainerNotFound)
@@ -198,10 +198,10 @@ func (cdp *containerdPlatform) GetSandbox(id string) (PlatformRuntimeUnit, error
 	return &containerdSandbox{p: cdp, task: task, cnt: cnt, containerID: id}, nil
 }
 
-func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit, error) {
+func (cdp *containerdPlatform) GetAllSandboxes() (map[string]RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
-	containers := map[string]PlatformRuntimeUnit{}
+	containers := map[string]RuntimeSandbox{}
 
 	cnts, err := cdp.client.Containers(ctx)
 	if err != nil {
@@ -247,7 +247,7 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 }
 
 //
-// struct and methods that satisfy PlatformRuntimeUnit
+// struct and methods that satisfy RuntimeSandbox
 //
 
 // containerdSandbox represents a container

@@ -20,8 +20,8 @@ const (
 	ErrContainerNotFound = 103
 )
 
-// PlatformRuntimeUnit represents the abstract concept of a running program: it can be a container, VM or process.
-type PlatformRuntimeUnit interface {
+// RuntimeSandbox represents the abstract concept of a running program: it can be a container, VM or process.
+type RuntimeSandbox interface {
 	Start() error
 	Stop() error
 	Update() error
@@ -39,11 +39,11 @@ type PlatformImage interface {
 	GetLabels() map[string]string
 }
 
-// RuntimePlatform represents the platform that manages the PlatformRuntimeUnits. For now Docker.
+// RuntimePlatform represents the platform that manages the RuntimeSandboxs. For now Docker.
 type RuntimePlatform interface {
 	Init() error
-	GetSandbox(id string) (PlatformRuntimeUnit, error)
-	GetAllSandboxes() (map[string]PlatformRuntimeUnit, error)
+	GetSandbox(id string) (RuntimeSandbox, error)
+	GetAllSandboxes() (map[string]RuntimeSandbox, error)
 	GetImage(id string) (PlatformImage, error)
 	ImageExistsLocally(id string) (bool, error)
 	GetAllImages() (map[string]PlatformImage, error)
@@ -51,7 +51,7 @@ type RuntimePlatform interface {
 	RemoveImage(id string) error
 	GetOrCreateVolume(path string) (string, error)
 	RemoveVolume(id string) error
-	NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (PlatformRuntimeUnit, error)
+	NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error)
 	GetHWStats() (HardwareStats, error)
 }
 

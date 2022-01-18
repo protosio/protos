@@ -21,7 +21,7 @@ package app
 // 	GetID() string
 // 	SetStatus(status string)
 // 	StartAsync() *task.Base
-// 	createSandbox() (platform.PlatformRuntimeUnit, error)
+// 	createSandbox() (platform.RuntimeSandbox, error)
 // }
 
 // // CreateAppTask creates an app and implements the task interface

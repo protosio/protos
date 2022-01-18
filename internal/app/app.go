@@ -96,7 +96,7 @@ func createCapabilities(cm *capability.Manager, installerCapabilities []string) 
 }
 
 // createSandbox create the underlying container
-func (app *App) createSandbox() (runtime.PlatformRuntimeUnit, error) {
+func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 
 	// normal app creation, using the app store
 	inst, err := app.mgr.store.GetInstaller(app.InstallerID)
@@ -147,7 +147,7 @@ func (app *App) createSandbox() (runtime.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-func (app *App) getOrcreateSandbox() (runtime.PlatformRuntimeUnit, error) {
+func (app *App) getOrcreateSandbox() (runtime.RuntimeSandbox, error) {
 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 	if err != nil {
 		if util.IsErrorType(err, runtime.ErrContainerNotFound) {
@@ -162,7 +162,7 @@ func (app *App) getOrcreateSandbox() (runtime.PlatformRuntimeUnit, error) {
 	return cnt, nil
 }
 
-// func (app *App) getSandbox() (runtime.PlatformRuntimeUnit, error) {
+// func (app *App) getSandbox() (runtime.RuntimeSandbox, error) {
 // 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
 // 	if err != nil {
 // 		if util.IsErrorType(err, runtime.ErrContainerNotFound) {
