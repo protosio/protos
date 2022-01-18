@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/gob"
 	"fmt"
 
@@ -16,10 +17,14 @@ import (
 )
 
 const (
-	authDS = "auth"
+	usersDS = "users"
 )
 
 var log = util.GetLogger("auth")
+
+type PeerConfigurator interface {
+	Refresh() error
+}
 
 type UserInfo struct {
 	Username string `json:"username"`
@@ -30,7 +35,7 @@ type UserInfo struct {
 // UserDevice - represents a device that a user uses to connect to the instances. A user can have multiple devices (laptop, mobile phone etc)
 type UserDevice struct {
 	Name      string `json:"name" validate:"required"`
-	PublicKey string `json:"publickey" validate:"base64"`   // ed25519 base64 encoded public key
+	PublicKey []byte `json:"publickey" validate:"base64"`   // ed25519 public key
 	Network   string `json:"network" validate:"cidrv4"`     // CIDR notation
 	MachineID string `json:"machineid" validate:"required"` // ID that uniquely identifies a machine
 }
@@ -41,7 +46,6 @@ type User struct {
 
 	// Public members
 	Username     string       `json:"username"`
-	Password     string       `json:"-"`
 	PasswordHash string       `json:"-"`
 	Name         string       `json:"name"`
 	IsDisabled   bool         `json:"isdisabled"`
@@ -66,7 +70,7 @@ func generatePasswordHash(password string) (string, error) {
 
 func getUser(username string, db db.DB) (User, error) {
 	var users map[string]User
-	err := db.GetMap(authDS, &users)
+	err := db.GetMap(usersDS, &users)
 	if err != nil {
 		return User{}, err
 	}
@@ -75,7 +79,23 @@ func getUser(username string, db db.DB) (User, error) {
 			return user, nil
 		}
 	}
-	return User{}, fmt.Errorf("Could not find user '%s'", username)
+	return User{}, fmt.Errorf("could not find user '%s'", username)
+}
+
+//
+// UserDevice methods
+//
+
+func (ud *UserDevice) GetPublicKey() []byte {
+	return ud.PublicKey
+}
+
+func (ud *UserDevice) GetPublicIP() string {
+	return ""
+}
+
+func (ud *UserDevice) GetName() string {
+	return ud.Name
 }
 
 //
@@ -87,15 +107,9 @@ func (user *User) GetUsername() string {
 	return user.Username
 }
 
-// GetPassword returns the password of the user in string format
-func (user *User) GetPassword() string {
-	return user.Password
-}
-
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
-	log.Debugf("Writing username %s to database", user.Username)
-	return user.parent.db.InsertInMap(authDS, user.Username, *user)
+	return user.parent.db.InsertInMap(usersDS, user.Username, *user)
 }
 
 // ValidateCapability implements the capability checker interface
@@ -129,6 +143,18 @@ func (user *User) GetInfo() UserInfo {
 	}
 }
 
+// AddDevice adds a device to the user
+func (user *User) AddDevice(id string, name string, publicKey []byte, network string) error {
+	device := UserDevice{
+		MachineID: id,
+		Name:      name,
+		PublicKey: publicKey,
+		Network:   network,
+	}
+	user.Devices = append(user.Devices, device)
+	return user.Save()
+}
+
 // GetDevices returns the devices that belong to a user
 func (user *User) GetDevices() []UserDevice {
 	return user.Devices
@@ -138,23 +164,31 @@ func (user *User) GetDevices() []UserDevice {
 func (user *User) GetCurrentDevice() (UserDevice, error) {
 	id, err := machineid.ProtectedID("protos")
 	if err != nil {
-		return UserDevice{}, fmt.Errorf("Failed to generate machine id: %w", err)
+		return UserDevice{}, fmt.Errorf("failed to generate machine id: %w", err)
 	}
-	for _, dev := range user.Devices {
+
+	userDevices := user.GetDevices()
+	if err != nil {
+		return UserDevice{}, err
+	}
+
+	for _, dev := range userDevices {
 		if dev.MachineID == id {
 			return dev, nil
 		}
 	}
-	return UserDevice{}, fmt.Errorf("Failed to find machine with id '%s'", id)
+	return UserDevice{}, fmt.Errorf("failed to find machine with id '%s'", id)
 }
 
 // GetKeyCurrentDevice returns the private key for the current device
 func (user *User) GetKeyCurrentDevice() (*pcrypto.Key, error) {
-	dev, err := user.GetCurrentDevice()
+	device, err := user.GetCurrentDevice()
 	if err != nil {
 		return nil, err
 	}
-	key, err := user.parent.sm.GetKeyByPub(dev.PublicKey)
+
+	encodedPublicKey := base64.StdEncoding.EncodeToString(device.PublicKey)
+	key, err := user.parent.sm.GetKeyByPub(encodedPublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +213,13 @@ type UserManager struct {
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db db.DB, sm *pcrypto.Manager, cm *capability.Manager) *UserManager {
-	if db == nil || sm == nil || cm == nil {
+func CreateUserManager(db db.DB, sm *pcrypto.Manager, cm *capability.Manager, configurator PeerConfigurator) *UserManager {
+	if db == nil || sm == nil || cm == nil || configurator == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 	gob.Register(&User{})
 
-	err := db.InitDataset(authDS, nil)
+	err := db.InitDataset(usersDS, configurator)
 	if err != nil {
 		log.Fatal("Failed to initialize auth dataset: ", err)
 	}
@@ -194,15 +228,11 @@ func CreateUserManager(db db.DB, sm *pcrypto.Manager, cm *capability.Manager) *U
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool, devices []UserDevice) (*User, error) {
+func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool) (*User, error) {
 
 	passwordHash, err := generatePasswordHash(password)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(devices) == 0 {
-		return nil, fmt.Errorf("Failed to create user '%s': 0 user devices provided", username)
 	}
 
 	// FIXME: get rid of the password somehow. Need to authenticate based on priv/pub key
@@ -210,12 +240,11 @@ func (um *UserManager) CreateUser(username string, password string, name string,
 	user := User{
 		parent:       um,
 		Username:     username,
-		Password:     password,
 		PasswordHash: passwordHash,
 		Name:         name,
 		IsDisabled:   false,
 		Capabilities: []string{},
-		Devices:      devices,
+		Devices:      []UserDevice{},
 	}
 	if isadmin {
 		user.Capabilities = append(user.Capabilities, "UserAdmin")
@@ -236,7 +265,7 @@ func (um *UserManager) ValidateAndGetUser(username string, password string) (*Us
 		return nil, errInvalid
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
 	if err != nil {
 		log.Debugf("Invalid password for user '%s'", username)
 		return nil, errInvalid
@@ -267,17 +296,17 @@ func (um *UserManager) GetUser(username string) (*User, error) {
 // GetAdmin returns the admin username. Only one admin is allowed at the moment
 func (um *UserManager) GetAdmin() (*User, error) {
 	var users map[string]User
-	err := um.db.GetMap(authDS, &users)
+	err := um.db.GetMap(usersDS, &users)
 	if err != nil {
 		return &User{}, err
 	}
 	for _, usr := range users {
 		usr.parent = um
-		if usr.IsAdmin() == true {
+		if usr.IsAdmin() {
 			return &usr, nil
 		}
 	}
-	return &User{}, fmt.Errorf("Could not find admin user")
+	return &User{}, fmt.Errorf("could not find admin user")
 }
 
 // SetParent returns sets the parent (user manager) for a given user

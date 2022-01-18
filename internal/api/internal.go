@@ -85,13 +85,13 @@ var createInternalRoutes = func(cm *capability.Manager) routes {
 		// 	getDomainInfo,
 		// 	cm.GetOrPanic("GetInformation"),
 		// },
-		route{
-			"getAdminUser",
-			"GET",
-			"/info/adminuser",
-			getAdminUser,
-			cm.GetOrPanic("GetInformation"),
-		},
+		// route{
+		// 	"getAdminUser",
+		// 	"GET",
+		// 	"/info/adminuser",
+		// 	getAdminUser,
+		// 	cm.GetOrPanic("GetInformation"),
+		// },
 		route{
 			"getAppInfo",
 			"GET",
@@ -281,30 +281,30 @@ func setResourceStatus(ha handlerAccess) http.Handler {
 // 	})
 // }
 
-func getAdminUser(ha handlerAccess) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := struct {
-			Username string `json:"username"`
-		}{}
+// func getAdminUser(ha handlerAccess) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		response := struct {
+// 			Username string `json:"username"`
+// 		}{}
 
-		username := ha.m.GetAdminUser()
-		user, err := ha.um.GetUser(username)
-		if err != nil {
-			log.Error(err)
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
-			return
-		}
+// 		username := ha.m.GetAdminUser()
+// 		user, err := ha.um.GetUser(username)
+// 		if err != nil {
+// 			log.Error(err)
+// 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: err.Error()})
+// 			return
+// 		}
 
-		if user.IsAdmin() != true {
-			log.Errorf("User %s is not admin, as recorded in meta", user.GetUsername())
-			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not find the admin user"})
-			return
-		}
-		response.Username = user.GetUsername()
+// 		if user.IsAdmin() != true {
+// 			log.Errorf("User %s is not admin, as recorded in meta", user.GetUsername())
+// 			rend.JSON(w, http.StatusInternalServerError, httperr{Error: "Could not find the admin user"})
+// 			return
+// 		}
+// 		response.Username = user.GetUsername()
 
-		rend.JSON(w, http.StatusOK, response)
-	})
-}
+// 		rend.JSON(w, http.StatusOK, response)
+// 	})
+// }
 
 //
 // Methods used by normal applications to interact with Protos

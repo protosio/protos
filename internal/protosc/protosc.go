@@ -61,6 +61,8 @@ type ProtosClient struct {
 	NetworkManager *network.Manager
 	AppStore       *installer.AppStore
 	CloudManager   *cloud.Manager
+	P2PManager     *p2p.P2P
+	Meta           *meta.Meta
 }
 
 func New(dataPath string, version string) (*ProtosClient, error) {
@@ -101,12 +103,14 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 
 	// create various managers
 	keyManager := pcrypto.CreateManager(protosClient.db)
+	metaClient := meta.Setup(protosClient.db, keyManager, version)
 	capabilityManager := capability.CreateManager()
-	userManager := auth.CreateUserManager(protosClient.db, keyManager, capabilityManager)
+	userManager := auth.CreateUserManager(protosClient.db, keyManager, capabilityManager, protosClient)
 
 	protosClient.UserManager = userManager
 	protosClient.KeyManager = keyManager
 	protosClient.capabilityManager = capabilityManager
+	protosClient.Meta = metaClient
 
 	return protosClient, nil
 
@@ -167,23 +171,23 @@ func (pc *ProtosClient) FinishInit() error {
 	}
 
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint, pc.cfg.AppStoreHost, pc.cfg.InContainer, "")
-	metaClient := meta.SetupForClient(resourceManager, pc.db, pc.KeyManager, pc.version)
 	appStore := installer.CreateAppStore(appRuntime, taskManager, pc.capabilityManager)
-	appManager := app.CreateManager(resourceManager, taskManager, appRuntime, pc.db, metaClient, pub, appStore, pc.capabilityManager)
+	appManager := app.CreateManager(resourceManager, taskManager, appRuntime, pc.db, pc.Meta, pub, appStore, pc.capabilityManager)
 
 	// get device key
-	key, err := metaClient.GetPrivateKey()
+	key, err := pc.Meta.GetPrivateKey()
 	if err != nil {
 		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
 	}
 
-	p2pManager, err := p2p.NewManager(10500, key, pc.db)
+	p2pManager, err := p2p.NewManager(key, pc.db)
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
+	pc.P2PManager = p2pManager
 	pc.db.AddPublisher(p2pManager)
 
-	p2pStopper, err := p2pManager.StartServer(metaClient, pc.UserManager, pc.db.GetChunkStore())
+	p2pStopper, err := p2pManager.StartServer(pc.Meta, pc.db.GetChunkStore())
 	if err != nil {
 		log.Fatalf("Failed to start p2p server: %s", err.Error())
 	}
@@ -199,19 +203,9 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to get current device: %s", err.Error())
 	}
 
-	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, networkManager, currentDevice.Name)
+	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, pc, currentDevice.Name)
 	if err != nil {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
-	}
-
-	instances, err := cloudManager.GetInstances()
-	if err != nil {
-		log.Fatalf("Failed to retrieve instances: %s", err.Error())
-	}
-
-	err = networkManager.ConfigurePeers(instances, admin.GetDevices())
-	if err != nil {
-		log.Fatalf("Failed to configure network peers: %s", err.Error())
 	}
 
 	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", pc.cfg.InternalDomain, appManager)
@@ -221,10 +215,53 @@ func (pc *ProtosClient) FinishInit() error {
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
+	pc.Refresh()
 	pc.db.BroadcastLocalDatasets()
 
 	return nil
 
+}
+
+func (pc *ProtosClient) Refresh() error {
+
+	if pc.CloudManager == nil || pc.UserManager == nil || pc.P2PManager == nil {
+		log.Debug("Protos client not ready yet. Skipping refresh")
+		return nil
+	}
+
+	instances, err := pc.CloudManager.GetInstances()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve instances: %w", err)
+	}
+
+	peers := []p2p.Peer{}
+	for _, instance := range instances {
+		peers = append(peers, instance)
+	}
+
+	admin, err := pc.UserManager.GetAdmin()
+	if err == nil {
+		userDevices := admin.GetDevices()
+		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
+		if err != nil {
+			return fmt.Errorf("failed to configure network peers: %w", err)
+		}
+		for _, device := range userDevices {
+			peers = append(peers, &device)
+		}
+	}
+	if err != nil {
+		if !strings.Contains(err.Error(), "could not find admin user") {
+			return fmt.Errorf("failed to retrieve admin user: %w", err)
+		}
+	}
+
+	err = pc.P2PManager.ConfigurePeers(peers)
+	if err != nil {
+		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+
+	return nil
 }
 
 func (pc *ProtosClient) IsInitialized() bool {

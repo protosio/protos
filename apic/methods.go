@@ -9,7 +9,6 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	pbApic "github.com/protosio/protos/apic/proto"
-	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
 )
@@ -22,9 +21,10 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 	if err != nil {
 		return nil, fmt.Errorf("failed to add user. Could not retrieve hostname: %w", err)
 	}
-	key, err := b.protosClient.KeyManager.GenerateKey()
+
+	key, err := b.protosClient.Meta.GetPrivateKey()
 	if err != nil {
-		return nil, fmt.Errorf("failed to add user. Could not generate key: %w", err)
+		return nil, fmt.Errorf("failed to add user. Could not retrieve key: %w", err)
 	}
 
 	machineID, err := machineid.ProtectedID("protos")
@@ -32,11 +32,14 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 		return nil, fmt.Errorf("failed to add user. Error while generating machine id: %w", err)
 	}
 
-	devices := []auth.UserDevice{{Name: host, PublicKey: key.PublicWG().String(), MachineID: machineID, Network: "10.100.0.1/24"}}
-
-	_, err = b.protosClient.UserManager.CreateUser(in.Username, in.Password, in.Name, true, devices)
+	adminUser, err := b.protosClient.UserManager.CreateUser(in.Username, in.Password, in.Name, true)
 	if err != nil {
 		return nil, err
+	}
+
+	err = adminUser.AddDevice(machineID, host, key.Public(), "10.100.0.1/24")
+	if err != nil {
+		return nil, fmt.Errorf("failed to add user. Error while creating user device: %w", err)
 	}
 
 	// saving the key to disk

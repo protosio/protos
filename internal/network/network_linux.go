@@ -1,7 +1,6 @@
 package network
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net"
 	"strings"
@@ -204,7 +203,12 @@ func (m *Manager) Down() error {
 
 func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.UserDevice) error {
 
-	log.Debug("Configuring network")
+	if m.gateway == nil || m.domain == "" || m.network.String() == "<nil>" {
+		log.Debugf("Skipping peer configuration because the network is not configured yet")
+		return nil
+	}
+
+	log.Debug("Refreshing network configuration for peers")
 	lnk, err := m.linkManager.GetLink(wireguardNetworkInterface)
 	if err != nil {
 		return fmt.Errorf("failed to configure interface '%s': %w", wireguardNetworkInterface, err)
@@ -247,7 +251,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 	// build devices peer list
 	for _, userDevice := range devices {
 		log.Debugf("Using route '%s' for device '%s(%s)'", userDevice.Network, userDevice.Name, userDevice.MachineID)
-		publicKeyBytes, err := base64.StdEncoding.DecodeString(userDevice.PublicKey)
+		publicKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(userDevice.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
 		}
@@ -256,11 +260,9 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 			return fmt.Errorf("failed to parse network for device '%s': %w", userDevice.Name, err)
 		}
 		newRoutes = append(newRoutes, netlink.Route{Dst: deviceNetwork, Src: m.gateway})
-		var publicKey wgtypes.Key
-		copy(publicKey[:], publicKeyBytes)
 
 		peerConf := wgtypes.PeerConfig{
-			PublicKey:         publicKey,
+			PublicKey:         publicKeyWG,
 			ReplaceAllowedIPs: true,
 			AllowedIPs:        []net.IPNet{*deviceNetwork},
 		}

@@ -2,8 +2,10 @@ package protosd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -81,7 +83,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	// create all the managers
 	rm := resource.CreateManager(dbcli)
 	sm := pcrypto.CreateManager(dbcli)
-	m := meta.Setup(rm, dbcli, sm, version.String())
+	m := meta.Setup(dbcli, sm, version.String())
 	key, err := m.GetPrivateKey()
 	if err != nil {
 		log.Fatal(err)
@@ -92,26 +94,31 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 		log.Fatal(err)
 	}
 
+	peerConfigurator := &PeerConfigurator{NetworkManager: networkManager}
+
 	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg.WorkDir+"/logs")
 	cm := capability.CreateManager()
-	um := auth.CreateUserManager(dbcli, sm, cm)
+	um := auth.CreateUserManager(dbcli, sm, cm, peerConfigurator)
+	peerConfigurator.UserManager = um
 	tm := task.CreateManager(dbcli, pub)
 	as := installer.CreateAppStore(appRuntime, tm, cm)
 	appManager := app.CreateManager(rm, tm, appRuntime, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, appManager, dbcli)
 
-	p2pManager, err := p2p.NewManager(10500, key, dbcli)
+	p2pManager, err := p2p.NewManager(key, dbcli)
 	if err != nil {
 		log.Fatal(err)
 	}
 	dbcli.AddPublisher(p2pManager)
+	peerConfigurator.P2PManager = p2pManager
 
-	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, networkManager, m.InstanceName)
+	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, peerConfigurator, m.InstanceName)
 	if err != nil {
 		log.Fatal(err)
 	}
+	peerConfigurator.CloudManager = cloudManager
 
-	p2pStopper, err := p2pManager.StartServer(m, um, dbcli.GetChunkStore())
+	p2pStopper, err := p2pManager.StartServer(m, dbcli.GetChunkStore())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -138,7 +145,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	stoppers["wfi"] = ctxStopper
 
-	internalIP, network, adminUser := m.WaitForInit(ctx)
+	internalIP, network := m.WaitForInit(ctx)
 
 	if canceled {
 		wg.Wait()
@@ -146,7 +153,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 		return
 	}
 
-	usr, err := um.GetUser(adminUser)
+	usr, err := um.GetAdmin()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -163,7 +170,8 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 
 	// configure network peers
-	err = networkManager.ConfigurePeers(instances, usr.GetDevices())
+	userDevices := usr.GetDevices()
+	err = networkManager.ConfigurePeers(instances, userDevices)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -184,10 +192,54 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	stoppers["iws"] = iwsStopper
 
 	log.Info("Started all servers successfully")
-	cloudManager.Refresh()
+	peerConfigurator.Refresh()
 	appManager.Refresh()
 	p2pManager.RequestHead()
 	wg.Wait()
 	log.Info("Shutdown completed")
 
+}
+
+type PeerConfigurator struct {
+	UserManager    *auth.UserManager
+	NetworkManager *network.Manager
+	CloudManager   *cloud.Manager
+	P2PManager     *p2p.P2P
+}
+
+func (pc *PeerConfigurator) Refresh() error {
+
+	instances, err := pc.CloudManager.GetInstances()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve instances: %w", err)
+	}
+
+	peers := []p2p.Peer{}
+	for _, instance := range instances {
+		peers = append(peers, instance)
+	}
+
+	admin, err := pc.UserManager.GetAdmin()
+	if err == nil {
+		userDevices := admin.GetDevices()
+		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
+		if err != nil {
+			return fmt.Errorf("failed to configure network peers: %w", err)
+		}
+		for _, device := range userDevices {
+			peers = append(peers, &device)
+		}
+	}
+	if err != nil {
+		if !strings.Contains(err.Error(), "could not find admin user") {
+			return fmt.Errorf("failed to retrieve admin user: %w", err)
+		}
+	}
+
+	err = pc.P2PManager.ConfigurePeers(peers)
+	if err != nil {
+		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+
+	return nil
 }

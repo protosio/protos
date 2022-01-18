@@ -40,7 +40,7 @@ func (sm *Manager) GetKeyByPub(pubKey string) (*Key, error) {
 	}
 
 	for _, k := range keys {
-		if k.PublicWG().String() == pubKey {
+		if k.PublicString() == pubKey {
 			k.parent = sm
 			return &k, nil
 		}

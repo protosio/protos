@@ -4,13 +4,10 @@ import (
 	"context"
 	"io/ioutil"
 	"net"
-	"net/http"
 
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
-	"github.com/protosio/protos/internal/resource"
-	"github.com/tidwall/gjson"
 
 	"github.com/protosio/protos/internal/util"
 )
@@ -25,33 +22,24 @@ var gconfig = config.Get()
 
 // Meta contains information about the Protos instance
 type Meta struct {
-	rm                 *resource.Manager `noms:"-"`
-	db                 db.DB             `noms:"-"`
-	keymngr            *pcrypto.Manager  `noms:"-"`
-	version            string            `noms:"-"`
-	networkSetSignal   chan net.IP       `noms:"-"`
-	adminUserSetSignal chan string       `noms:"-"`
+	db               db.DB            `noms:"-"`
+	keymngr          *pcrypto.Manager `noms:"-"`
+	version          string           `noms:"-"`
+	networkSetSignal chan net.IP      `noms:"-"`
 
 	// Public members
-	ID                 string
-	InstanceName       string
-	DashboardSubdomain string
-	PublicIP           net.IP
-	AdminUser          string
-	Resources          []string
-	Network            net.IPNet
-	InternalIP         net.IP
-	PrivateKeySeed     []byte
-}
-
-type dnsResource interface {
-	IsType(string) bool
-	UpdateValueAndTTL(value string, ttl int)
+	ID             string
+	InstanceName   string
+	PublicIP       net.IP
+	Resources      []string
+	Network        net.IPNet
+	InternalIP     net.IP
+	PrivateKeySeed []byte
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
-func Setup(rm *resource.Manager, db db.DB, keymngr *pcrypto.Manager, version string) *Meta {
-	if rm == nil || db == nil || keymngr == nil {
+func Setup(db db.DB, keymngr *pcrypto.Manager, version string) *Meta {
+	if db == nil || keymngr == nil {
 		log.Panic("Failed to setup meta package: none of the inputs can be nil")
 	}
 
@@ -61,12 +49,8 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *pcrypto.Manager, version str
 	if err != nil {
 		log.Debug("Creating metaroot database entry")
 		metaRoot = Meta{
-			ID:                 "metaroot",
-			DashboardSubdomain: "protos",
+			ID: "metaroot",
 		}
-	} else {
-		metaRoot.ID = "metaroot"
-		metaRoot.DashboardSubdomain = "protos"
 	}
 
 	if len(metaRoot.PrivateKeySeed) == 0 {
@@ -83,58 +67,9 @@ func Setup(rm *resource.Manager, db db.DB, keymngr *pcrypto.Manager, version str
 	}
 
 	metaRoot.db = db
-	metaRoot.rm = rm
 	metaRoot.keymngr = keymngr
 	metaRoot.version = version
 	metaRoot.networkSetSignal = make(chan net.IP, 1)
-	metaRoot.adminUserSetSignal = make(chan string, 1)
-	err = db.SaveStruct(metaDS, metaRoot)
-	if err != nil {
-		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
-	}
-	// metaRoot.setPublicIP()
-	return &metaRoot
-}
-
-// SetupForClient reads the domain and other information on first run and save this information to the database
-func SetupForClient(rm *resource.Manager, db db.DB, keymngr *pcrypto.Manager, version string) *Meta {
-	if rm == nil || db == nil {
-		log.Panic("Failed to setup meta package: none of the inputs can be nil")
-	}
-
-	metaRoot := Meta{}
-	log.Debug("Reading instance information from database")
-	err := db.GetStruct(metaDS, &metaRoot)
-	if err != nil {
-		log.Debug("Creating metaroot database entry")
-		metaRoot = Meta{
-			ID:                 "metaroot",
-			DashboardSubdomain: "protos",
-		}
-	} else {
-		metaRoot.ID = "metaroot"
-		metaRoot.DashboardSubdomain = "protos"
-	}
-
-	if len(metaRoot.PrivateKeySeed) == 0 {
-		key, err := keymngr.GenerateKey()
-		if err != nil {
-			log.Fatalf("Failed to generate instance key: ", err.Error())
-		}
-		metaRoot.PrivateKeySeed = key.Seed()
-		log.Infof("Generated instance key. Writing it to '%s'", gconfig.WorkDir+"/"+metaKeyFile)
-		err = ioutil.WriteFile(gconfig.WorkDir+"/"+metaKeyFile, []byte(key.PublicString()), 0644)
-		if err != nil {
-			log.Fatalf("Failed to write public key to disk: %s", err.Error())
-		}
-	}
-
-	metaRoot.db = db
-	metaRoot.rm = rm
-	metaRoot.keymngr = keymngr
-	metaRoot.version = version
-	metaRoot.networkSetSignal = make(chan net.IP, 1)
-	metaRoot.adminUserSetSignal = make(chan string, 1)
 	err = db.SaveStruct(metaDS, metaRoot)
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot to database: %s", err.Error())
@@ -147,20 +82,6 @@ func (m *Meta) save() {
 	if err != nil {
 		log.Fatalf("Failed to write the metaroot domain to database: %s", err.Error())
 	}
-}
-
-func findPublicIP() (string, error) {
-	log.Info("Finding the public IP of this Protos instance")
-	resp, err := http.Get("https://api.ipify.org?format=json")
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	bodyJSON, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return gjson.GetBytes(bodyJSON, "ip").Str, nil
 }
 
 // SetInstanceName sets the name of the instance
@@ -197,60 +118,10 @@ func (m *Meta) GetInternalIP() net.IP {
 	return m.InternalIP
 }
 
-// setPublicIP sets the public ip of the instance
-func (m *Meta) setPublicIP() {
-	ipstr, err := findPublicIP()
-	if err != nil {
-		log.Errorf("Could not find instance public IP: %s", err.Error())
-		if m.PublicIP != nil {
-			log.Warnf("Using stale public IP '%s'", m.PublicIP.String())
-			return
-		}
-		log.Fatal("No IP found in the database")
-	}
-	log.Debugf("Setting external instance IP address to '%s'", ipstr)
-	ip := net.ParseIP(ipstr)
-	if ip == nil {
-		log.Fatalf("Could not parse instance public ip: %s", err.Error())
-	}
-	m.PublicIP = ip
-	m.save()
-
-}
-
-// SetAdminUser takes a username that gets saved as the instance admin user
-func (m *Meta) SetAdminUser(username string) {
-	log.Debugf("Setting admin user to '%s'", username)
-	m.AdminUser = username
-	m.save()
-	m.adminUserSetSignal <- username
-}
-
-// GetAdminUser returns the username of the admin user
-func (m *Meta) GetAdminUser() string {
-	return m.AdminUser
-}
-
 // GetPublicIP returns the public IP of the Protos instance
 func (m *Meta) GetPublicIP() string {
 	return m.PublicIP.String()
 }
-
-// // GetTLSCertificate returns the TLS certificate resource owned by the instance
-// func (m *Meta) GetTLSCertificate() *resource.Resource {
-
-// 	for _, rscid := range m.Resources {
-// 		rsc, err := m.rm.Get(rscid)
-// 		if err != nil {
-// 			log.Errorf("Could not find protos resource: %s", err.Error())
-// 			continue
-// 		}
-// 		if rsc.GetType() == resource.ResourceType("certificate") {
-// 			return rsc
-// 		}
-// 	}
-// 	return nil
-// }
 
 // GetKey returns the private key of the instance, in wireguard format
 func (m *Meta) GetPrivateKey() (*pcrypto.Key, error) {
@@ -261,117 +132,15 @@ func (m *Meta) GetPrivateKey() (*pcrypto.Key, error) {
 	return key, nil
 }
 
-// // CleanProtosResources removes the MX record resource owned by the instance, created during the init process
-// func (m *Meta) CleanProtosResources() error {
-// 	log.Info("Cleaning fake DNS (MX) Protos resource")
-// 	for i, rscid := range m.Resources {
-// 		rsc, err := m.rm.Get(rscid)
-// 		if err != nil {
-// 			log.Errorf("Could not find protos resource: %s", err.Error())
-// 			continue
-// 		}
-// 		if rsc.GetType() == resource.DNS {
-// 			val := rsc.GetValue().(dnsResource)
-// 			if val.IsType("MX") {
-// 				err = m.rm.Delete(rscid)
-// 				if err != nil {
-// 					return errors.Wrap(err, "Could not clean Protos resources")
-// 				}
-// 				m.Resources = util.RemoveStringFromSlice(m.Resources, i)
-// 				m.save()
-// 				return nil
-// 			}
-// 		}
-// 	}
-// 	return errors.New("Could not clean Protos resources: MX DNS record not found")
-// }
-
 // GetVersion returns current version
 func (m *Meta) GetVersion() string {
 	return m.version
 }
 
-// // CreateProtosResources creates the DNS and TLS certificate for the Protos dashboard
-// func (m *Meta) CreateProtosResources() (map[string]*resource.Resource, error) {
-// 	resources := map[string]*resource.Resource{}
-
-// 	// creating the protos subdomain for the dashboard
-// 	dnsrsc, err := m.rm.CreateDNS("protos", "protos", "A", m.PublicIP.String(), 300)
-// 	if err != nil {
-// 		switch err := errors.Cause(err).(type) {
-// 		case resource.ErrResourceExists:
-// 			dnsrscValue, ok := dnsrsc.GetValue().(dnsResource)
-// 			if ok == false {
-// 				log.Fatal("dnsrscValue does not implement interface dnsResource")
-// 			}
-// 			dnsrscValue.UpdateValueAndTTL(m.PublicIP.String(), 300)
-// 			dnsrsc.UpdateValue(dnsrscValue.(resource.ResourceValue))
-// 		default:
-// 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
-// 		}
-// 	}
-// 	// creating the bogus MX record, which is checked by LetsEncrypt before creating a certificate
-// 	mxrsc, err := m.rm.CreateDNS("protos", "@", "MX", "protos."+m.Domain, 300)
-// 	if err != nil {
-// 		switch err := errors.Cause(err).(type) {
-// 		case resource.ErrResourceExists:
-// 		default:
-// 			return resources, errors.Wrap(err, "Could not create or update Protos DNS resource")
-// 		}
-// 	}
-// 	// creating a TLS certificate for the protos subdomain
-// 	certrsc, err := m.rm.CreateCert("protos", []string{"protos"})
-// 	if err != nil {
-// 		switch err := errors.Cause(err).(type) {
-// 		case resource.ErrResourceExists:
-// 		default:
-// 			return resources, errors.Wrap(err, "Could not create Protos certificate resource")
-// 		}
-// 	}
-// 	m.Resources = append(m.Resources, dnsrsc.GetID(), mxrsc.GetID(), certrsc.GetID())
-// 	m.save()
-
-// 	resources[dnsrsc.GetID()] = dnsrsc
-// 	resources[certrsc.GetID()] = certrsc
-// 	resources[mxrsc.GetID()] = mxrsc
-
-// 	return resources, nil
-// }
-
-// // GetProtosResources returns the resources owned by Protos
-// func (m *Meta) GetProtosResources() map[string]*resource.Resource {
-// 	resources := map[string]*resource.Resource{}
-// 	for _, rscid := range m.Resources {
-// 		rsc, err := m.rm.Get(rscid)
-// 		if err != nil {
-// 			log.Errorf("Could not find protos resource: %s", err.Error())
-// 			continue
-// 		}
-// 		resources[rscid] = rsc
-
-// 	}
-// 	return resources
-// }
-
-// // GetService returns the protos dashboard service
-// func (m *Meta) GetService() util.Service {
-// 	ports := []util.Port{}
-// 	ports = append(ports, util.Port{Nr: gconfig.HTTPport, Type: util.TCP})
-// 	ports = append(ports, util.Port{Nr: gconfig.HTTPSport, Type: util.TCP})
-// 	protosService := util.Service{
-// 		Name:   "protos dashboard",
-// 		Domain: m.DashboardSubdomain + "." + m.GetDomain(),
-// 		IP:     m.GetPublicIP(),
-// 		Ports:  ports,
-// 		Status: util.StatusActive,
-// 	}
-// 	return protosService
-// }
-
 // InitMode returns the status of the init process
 func (m *Meta) InitMode() bool {
-	if m.PublicIP == nil || m.AdminUser == "" {
-		log.Warnf("Instance info (public IP: '%s', admin user: '%s') is not set. Running in init mode", m.PublicIP, m.AdminUser)
+	if m.InternalIP == nil {
+		log.Warnf("Instance info is not set. Running in init mode")
 		return true
 	}
 
@@ -379,30 +148,28 @@ func (m *Meta) InitMode() bool {
 }
 
 // WaitForInit returns when both the domain and network has been set
-func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet, string) {
-	if m.InternalIP != nil && m.AdminUser != "" {
-		return m.InternalIP, m.Network, m.AdminUser
+func (m *Meta) WaitForInit(ctx context.Context) (net.IP, net.IPNet) {
+	if m.InternalIP != nil {
+		return m.InternalIP, m.Network
 	}
 
 	var internalIP net.IP
-	var adminUser string
 
 	initialized := make(chan bool)
 
 	go func() {
 		log.Debug("Waiting for initialisation to complete")
 		internalIP = <-m.networkSetSignal
-		adminUser = <-m.adminUserSetSignal
 		initialized <- true
 	}()
 
 	select {
 	case <-ctx.Done():
 		log.Debug("Init did not finish. Canceled by user")
-		return internalIP, m.Network, adminUser
+		return internalIP, m.Network
 	case <-initialized:
 		log.Debug("Meta init finished")
-		return internalIP, m.Network, adminUser
+		return internalIP, m.Network
 	}
 
 }

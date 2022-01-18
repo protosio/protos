@@ -22,6 +22,10 @@ import (
 
 var log = util.GetLogger("cloud")
 
+type PeerConfigurator interface {
+	Refresh() error
+}
+
 // Type represents a specific cloud (AWS, GCP, DigitalOcean etc.)
 type Type string
 
@@ -37,10 +41,6 @@ const (
 	// Local is a local VM provider
 	Local = Type("local")
 )
-
-type NetworkConfigurator interface {
-	ConfigurePeers(instances []InstanceInfo, devices []auth.UserDevice) error
-}
 
 type CloudManager interface {
 	// provider methods
@@ -64,16 +64,14 @@ type CloudManager interface {
 }
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, networkConfiguration NetworkConfigurator, selfName string) (*Manager, error) {
+func CreateManager(db db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, configurator PeerConfigurator, selfName string) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
-	fmt.Println("testing cloud manager")
+	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, configurator: configurator}
 
-	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, networkConfigurator: networkConfiguration}
-
-	err := db.InitDataset(instanceDS, manager)
+	err := db.InitDataset(instanceDS, configurator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize instance dataset: %w", err)
 	}
@@ -88,11 +86,11 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p
 
 // Manager manages cloud providers and instances
 type Manager struct {
-	db                  db.DB
-	um                  *auth.UserManager
-	sm                  *pcrypto.Manager
-	p2p                 *p2p.P2P
-	networkConfigurator NetworkConfigurator
+	db           db.DB
+	um           *auth.UserManager
+	sm           *pcrypto.Manager
+	p2p          *p2p.P2P
+	configurator PeerConfigurator
 }
 
 //
@@ -249,7 +247,9 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
 	}
-	network, err := allocateNetwork(instances, usr.GetDevices())
+
+	userDevices := usr.GetDevices()
+	network, err := allocateNetwork(instances, userDevices)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
 	}
@@ -329,11 +329,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 	instanceInfo.PublicKey = pubKey
 
-	dev, err := usr.GetCurrentDevice()
-	if err != nil {
-		return InstanceInfo{}, err
-	}
-
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to add peer: %w", err)
@@ -341,7 +336,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, pubKey, err := p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, instanceName, instanceInfo.Network, []auth.UserDevice{dev})
+	ip, err := p2pClient.Init(instanceName, instanceInfo.Network)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -391,7 +386,8 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	if err != nil {
 		return err
 	}
-	developmentNetwork, err := allocateNetwork(instances, usr.GetDevices())
+	userDevices := usr.GetDevices()
+	developmentNetwork, err := allocateNetwork(instances, userDevices)
 	if err != nil {
 		return fmt.Errorf("failed to allocate network for instance '%s': %w", "dev", err)
 	}
@@ -424,19 +420,19 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 	instanceInfo.PublicKey = pubKey
 
-	dev, err := usr.GetCurrentDevice()
-	if err != nil {
-		return err
-	}
-
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		return fmt.Errorf("failed to add peer: %w", err)
 	}
 
+	cm.db.BroadcastLocalDatasets()
+
+	fmt.Println("sleeping during init")
+	time.Sleep(30 * time.Second)
+
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, _, err = p2pClient.Init(usr.GetUsername(), usr.GetPassword(), usr.GetInfo().Name, instanceName, developmentNetwork.String(), []auth.UserDevice{dev})
+	ip, err = p2pClient.Init(instanceName, developmentNetwork.String())
 	if err != nil {
 		return fmt.Errorf("failed to init dev instance: %w", err)
 	}
@@ -732,38 +728,5 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 	if err != nil {
 		return fmt.Errorf("%s: %w", errMsg, err)
 	}
-	return nil
-}
-
-func (cm *Manager) Refresh() error {
-
-	fmt.Println("-- testing cloud manager refresh")
-
-	instances, err := cm.GetInstances()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve instances: %w", err)
-	}
-
-	admin, err := cm.um.GetAdmin()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve admin user: %w", err)
-	}
-
-	err = cm.networkConfigurator.ConfigurePeers(instances, admin.GetDevices())
-	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
-	}
-
-	peers := []p2p.Peer{}
-	for _, instance := range instances {
-		peers = append(peers, instance)
-	}
-
-	fmt.Println(peers)
-	err = cm.p2p.ConfigurePeers(peers)
-	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
-	}
-
 	return nil
 }
