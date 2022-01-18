@@ -11,6 +11,7 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
 	"github.com/pkg/errors"
@@ -74,9 +75,9 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
-	pru := &containerdSandbox{p: cdp}
+	pru := &containerdSandbox{p: cdp, containerID: appID}
 
 	repoImage := cdp.appStoreHost + "/" + imageID
 	image, err := cdp.client.GetImage(ctx, repoImage)
@@ -101,22 +102,8 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		return pru, fmt.Errorf("failed to create container '%s' for app '%s': %w", name, appID, err)
 	}
 
-	pru.containerID = appID
-	logFilePath := fmt.Sprintf("%s/%s.log", cdp.logsPath, appID)
-	pru.task, err = cnt.NewTask(ctx, cio.LogFile(logFilePath))
-	if err != nil {
-		return pru, fmt.Errorf("failed to create task '%s' for app '%s': %w", name, appID, err)
-	}
-
-	netNSpath := fmt.Sprintf("/proc/%d/ns/net", pru.task.Pid())
-
-	err = cdp.networkManager.CreateNamespacedInterface(netNSpath, ip)
-	if err != nil {
-		return pru, fmt.Errorf("failed to allocate IP for app '%s': %v", appID, err)
-	}
-
-	log.Debugf("Created task for containerd sandbox '%s', with PID '%d' and ip '%s'", appID, pru.task.Pid(), ip.String())
-
+	pru.cnt = cnt
+	log.Debugf("Created sandbox for app '%s'", appID)
 	return pru, nil
 }
 
@@ -190,12 +177,7 @@ func (cdp *containerdPlatform) GetSandbox(id string) (RuntimeSandbox, error) {
 		return nil, util.NewTypedError("Container not found", ErrContainerNotFound)
 	}
 
-	task, err := cnt.Task(ctx, nil)
-	if err != nil {
-		return nil, util.NewTypedError("Task sandbox not found", ErrContainerNotFound)
-	}
-
-	return &containerdSandbox{p: cdp, task: task, cnt: cnt, containerID: id}, nil
+	return &containerdSandbox{p: cdp, cnt: cnt, containerID: id}, nil
 }
 
 func (cdp *containerdPlatform) GetAllSandboxes() (map[string]RuntimeSandbox, error) {
@@ -209,11 +191,7 @@ func (cdp *containerdPlatform) GetAllSandboxes() (map[string]RuntimeSandbox, err
 	}
 
 	for _, cnt := range cnts {
-		task, err := cnt.Task(ctx, nil)
-		if err != nil {
-			continue
-		}
-		containers[cnt.ID()] = &containerdSandbox{p: cdp, task: task, cnt: cnt, containerID: cnt.ID()}
+		containers[cnt.ID()] = &containerdSandbox{p: cdp, cnt: cnt, containerID: cnt.ID()}
 	}
 
 	return containers, nil
@@ -252,12 +230,10 @@ func (cdp *containerdPlatform) RemoveVolume(id string) error {
 
 // containerdSandbox represents a container
 type containerdSandbox struct {
-	p    *containerdPlatform
-	task containerd.Task
-	cnt  containerd.Container
+	p   *containerdPlatform
+	cnt containerd.Container
 
 	containerID string
-	IP          string
 }
 
 // Update reads the container and updates the struct fields
@@ -266,46 +242,94 @@ func (cnt *containerdSandbox) Update() error {
 }
 
 // Start starts a containerd sandbox
-func (cnt *containerdSandbox) Start() error {
+func (cnt *containerdSandbox) Start(ip net.IP) error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
-	if err := cnt.task.Start(ctx); err != nil {
+
+	var task containerd.Task
+	var err error
+	task, err = cnt.cnt.Task(ctx, nil)
+	if err != nil {
+		if !errors.Is(err, errdefs.ErrNotFound) {
+			return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
+		}
+	} else {
+		status, err := task.Status(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
+		}
+
+		if status.Status == containerd.Running {
+			return nil
+		} else if status.Status == containerd.Stopped || status.Status == containerd.Created {
+			err = cnt.Stop()
+			if err != nil {
+				return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
+			}
+		} else {
+			return fmt.Errorf("failed to start sandbox '%s': task in invalid state '%s'", cnt.containerID, status.Status)
+		}
+
+	}
+
+	logFilePath := fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID)
+	task, err = cnt.cnt.NewTask(ctx, cio.LogFile(logFilePath))
+	if err != nil {
+		return fmt.Errorf("failed to create task for app '%s': %w", cnt.containerID, err)
+	}
+
+	netNSpath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
+	err = cnt.p.networkManager.CreateNamespacedInterface(netNSpath, ip)
+	if err != nil {
+		return fmt.Errorf("failed to create task for app '%s': %w", cnt.containerID, err)
+	}
+
+	if err := task.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
 	}
+
 	return nil
 }
 
 // Stop stops a containerd sandbox
 func (cnt *containerdSandbox) Stop() error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
-	if err := cnt.task.Kill(ctx, syscall.SIGTERM); err != nil {
-		return err
-	}
 
-	exitStatusC, err := cnt.task.Wait(ctx)
+	task, err := cnt.cnt.Task(ctx, nil)
 	if err != nil {
-		return err
+		if errors.Is(err, errdefs.ErrNotFound) {
+			// if container has no task it means it's stopped
+			return nil
+
+		}
+		return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
 	}
 
-	status := <-exitStatusC
-	code, _, err := status.Result()
+	status, err := task.Status(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
 	}
-	if code != 0 {
-		log.Warnf("App '%s' exited with code '%d'", cnt.containerID, code)
+
+	if status.Status != containerd.Stopped {
+		if err := task.Kill(ctx, syscall.SIGTERM); err != nil {
+			return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
+		}
+
+		exitStatusC, err := task.Wait(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
+		}
+
+		status := <-exitStatusC
+		code, _, err := status.Result()
+		if err != nil {
+			return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
+		}
+		if code != 0 {
+			log.Warnf("App '%s' exited with code '%d'", cnt.containerID, code)
+		}
 	}
 
-	_, err = cnt.task.Delete(ctx)
-	if err != nil {
-		return fmt.Errorf("error while stopping sandbox '%s': %w", cnt.containerID, err)
-	}
-
-	err = cnt.cnt.Delete(ctx)
-	if err != nil {
-		return fmt.Errorf("error while stopping sandbox '%s': %w", cnt.containerID, err)
-	}
-
-	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
+	_, err = task.Delete(ctx)
 	if err != nil {
 		return fmt.Errorf("error while stopping sandbox '%s': %w", cnt.containerID, err)
 	}
@@ -315,6 +339,23 @@ func (cnt *containerdSandbox) Stop() error {
 
 // Remove removes a containerd sandbox
 func (cnt *containerdSandbox) Remove() error {
+	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
+
+	err := cnt.Stop()
+	if err != nil {
+		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+	}
+
+	err = cnt.cnt.Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+	}
+
+	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
+	if err != nil {
+		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+	}
+
 	return nil
 }
 
@@ -323,15 +364,21 @@ func (cnt *containerdSandbox) GetID() string {
 	return cnt.containerID
 }
 
-// GetIP returns the IP of the container, as a string
-func (cnt *containerdSandbox) GetIP() string {
-	return cnt.IP
-}
-
 // GetStatus returns the status of the container, as a string
 func (cnt *containerdSandbox) GetStatus() string {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
-	status, err := cnt.task.Status(ctx)
+
+	task, err := cnt.cnt.Task(ctx, nil)
+	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			// if container has no task it means it's stopped
+			return string(containerd.Stopped)
+
+		}
+		return "UNKNOWN"
+	}
+
+	status, err := task.Status(ctx)
 	if err != nil {
 		return "UNKNOWN"
 	}

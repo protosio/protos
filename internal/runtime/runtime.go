@@ -22,12 +22,11 @@ const (
 
 // RuntimeSandbox represents the abstract concept of a running program: it can be a container, VM or process.
 type RuntimeSandbox interface {
-	Start() error
+	Start(ip net.IP) error
 	Stop() error
 	Update() error
 	Remove() error
 	GetID() string
-	GetIP() string
 	GetStatus() string
 	GetExitCode() int
 }
@@ -51,7 +50,7 @@ type RuntimePlatform interface {
 	RemoveImage(id string) error
 	GetOrCreateVolume(path string) (string, error)
 	RemoveVolume(id string) error
-	NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error)
+	NewSandbox(name string, appID string, imageID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error)
 	GetHWStats() (HardwareStats, error)
 }
 

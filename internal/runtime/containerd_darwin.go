@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	"net"
-
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/util"
 )
@@ -21,7 +19,7 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, ip net.IP, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error) {
 	return nil, nil
 }
 

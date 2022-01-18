@@ -259,6 +259,27 @@ func (am *Manager) Refresh() error {
 			log.Infof("App '%s' actual status: '%s'", app.Name, app.GetStatus())
 		}
 	}
+
+	allSandboxes, err := am.runtime.GetAllSandboxes()
+	if err != nil {
+		return fmt.Errorf("failure during application refresh: %w", err)
+	}
+	for id, sandbox := range allSandboxes {
+		if _, found := dbapps[id]; !found {
+			log.Infof("App '%s' not found. Stopping and removing existing sandbox", id)
+			err = sandbox.Stop()
+			if err != nil {
+				log.Errorf("Failed to remove sandbox for app '%s': %w", err)
+				continue
+			}
+			err = sandbox.Remove()
+			if err != nil {
+				log.Errorf("Failed to remove sandbox for app '%s': %w", err)
+				continue
+			}
+		}
+	}
+
 	return nil
 }
 

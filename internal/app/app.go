@@ -140,7 +140,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 	}
 
 	log.Infof("Creating sandbox for app '%s'[%s]", app.Name, app.ID)
-	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, metadata.PlatformID, metadata.PersistancePath, app.IP, app.PublicPorts, app.InstallerParams)
+	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, metadata.PlatformID, metadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
 	}
@@ -234,7 +234,7 @@ func (app *App) Start() error {
 		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
 	}
 
-	err = cnt.Start()
+	err = cnt.Start(app.IP)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
 	}
