@@ -12,16 +12,6 @@ import (
 var log = util.GetLogger("platform")
 
 const (
-	// app states
-	statusRunning  = "running"
-	statusStopped  = "stopped"
-	statusCreating = "creating"
-	statusFailed   = "failed"
-	statusUnknown  = "unknown"
-
-	dockerRuntime     = "docker"
-	containerdRuntime = "containerd"
-
 	// ErrImageNotFound means the requested docker image is not found locally
 	ErrImageNotFound = 101
 	// ErrNetworkNotFound means the requested docker network is not found locally

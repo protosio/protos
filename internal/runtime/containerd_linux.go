@@ -81,7 +81,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	repoImage := cdp.appStoreHost + "/" + imageID
 	image, err := cdp.client.GetImage(ctx, repoImage)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd", imageID)
+		return nil, fmt.Errorf("could not retrieve image '%s' from containerd: %w", imageID, err)
 	}
 
 	opts := []oci.SpecOpts{
@@ -98,14 +98,14 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		containerd.WithContainerLabels(map[string]string{"platform": protosNamespace, "appID": appID, "appName": name}),
 	)
 	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create container '%s' for app '%s'", name, appID)
+		return pru, fmt.Errorf("failed to create container '%s' for app '%s': %w", name, appID, err)
 	}
 
 	pru.containerID = appID
 	logFilePath := fmt.Sprintf("%s/%s.log", cdp.logsPath, appID)
 	pru.task, err = cnt.NewTask(ctx, cio.LogFile(logFilePath))
 	if err != nil {
-		return pru, errors.Wrapf(err, "Failed to create task '%s' for app '%s'", name, appID)
+		return pru, fmt.Errorf("failed to create task '%s' for app '%s': %w", name, appID, err)
 	}
 
 	netNSpath := fmt.Sprintf("/proc/%d/ns/net", pru.task.Pid())
@@ -129,12 +129,12 @@ func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
 		if strings.Contains(err.Error(), "not found") {
 			return nil, nil
 		}
-		return nil, errors.Wrapf(err, "Failed to retrieve image '%s' from containerd", id)
+		return nil, fmt.Errorf("failed to retrieve image '%s' from containerd: %w", id, err)
 	}
 
 	_, normalizedID, err := normalizeRepoDigest([]string{id})
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve image '%s' from containerd. Failed to normalize digest", id)
+		return nil, fmt.Errorf("could not retrieve image '%s' from containerd. Failed to normalize digest: %w", id, err)
 	}
 
 	pi := &platformImage{
@@ -219,29 +219,6 @@ func (cdp *containerdPlatform) GetAllSandboxes() (map[string]PlatformRuntimeUnit
 	return containers, nil
 }
 
-func (cdp *containerdPlatform) getAllNetworkNamespaces() ([]string, error) {
-	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
-
-	namespaces := []string{}
-
-	cnts, err := cdp.client.Containers(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve IPs: %w", err)
-	}
-
-	for _, cnt := range cnts {
-		task, err := cnt.Task(ctx, nil)
-		if err != nil {
-			continue
-		}
-		netNSPath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
-		namespaces = append(namespaces, netNSPath)
-
-	}
-
-	return namespaces, nil
-}
-
 func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
 	return getHWStatus()
 }
@@ -252,7 +229,7 @@ func (cdp *containerdPlatform) PullImage(id string, name string, version string)
 	repoImage := cdp.appStoreHost + "/" + id
 	_, err := cdp.client.Pull(ctx, repoImage, containerd.WithPullUnpack)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to pull image '%s' from app store", id)
+		return fmt.Errorf("failed to pull image '%s' from app store: %w", id, err)
 	}
 	return nil
 }
@@ -292,7 +269,7 @@ func (cnt *containerdSandbox) Update() error {
 func (cnt *containerdSandbox) Start() error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	if err := cnt.task.Start(ctx); err != nil {
-		return errors.Wrapf(err, "Failed to start sandbox '%s'", cnt.containerID)
+		return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
 	}
 	return nil
 }
@@ -312,7 +289,7 @@ func (cnt *containerdSandbox) Stop() error {
 	status := <-exitStatusC
 	code, _, err := status.Result()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to stop sandbox '%s'", cnt.containerID)
+		return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
 	}
 	if code != 0 {
 		log.Warnf("App '%s' exited with code '%d'", cnt.containerID, code)
@@ -320,17 +297,17 @@ func (cnt *containerdSandbox) Stop() error {
 
 	_, err = cnt.task.Delete(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "Error while stopping sandbox '%s'", cnt.containerID)
+		return fmt.Errorf("error while stopping sandbox '%s': %w", cnt.containerID, err)
 	}
 
 	err = cnt.cnt.Delete(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "Error while stopping sandbox '%s'", cnt.containerID)
+		return fmt.Errorf("error while stopping sandbox '%s': %w", cnt.containerID, err)
 	}
 
 	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
 	if err != nil {
-		return errors.Wrapf(err, "Error while stopping sandbox '%s'", cnt.containerID)
+		return fmt.Errorf("error while stopping sandbox '%s': %w", cnt.containerID, err)
 	}
 
 	return nil
