@@ -427,9 +427,6 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	cm.db.BroadcastLocalDatasets()
 
-	fmt.Println("sleeping during init")
-	time.Sleep(30 * time.Second)
-
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
 	ip, err = p2pClient.Init(instanceName, developmentNetwork.String())
