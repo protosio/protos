@@ -51,7 +51,7 @@ func (m *Manager) Down() error {
 
 func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.UserDevice) error {
 
-	log.Debug("Configuring network")
+	log.Debug("Configuring network peers")
 	peerConfigs := []string{}
 
 	for _, instance := range instances {

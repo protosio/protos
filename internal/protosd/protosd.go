@@ -153,25 +153,8 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 		return
 	}
 
-	usr, err := um.GetAdmin()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// perform network initialization
 	err = networkManager.Init(network, internalIP, key.PrivateWG(), cfg.InternalDomain)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	instances, err := cloudManager.GetInstances()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// configure network peers
-	userDevices := usr.GetDevices()
-	err = networkManager.ConfigurePeers(instances, userDevices)
 	if err != nil {
 		log.Fatal(err)
 	}
