@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -12,8 +13,10 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/platforms"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/util"
@@ -113,10 +116,23 @@ func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
 	repoImage := cdp.appStoreHost + "/" + id
 	image, err := cdp.client.GetImage(ctx, repoImage)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("failed to retrieve image '%s' from containerd: %w", id, err)
+	}
+
+	cs := cdp.client.ContentStore()
+	architectures, err := images.Platforms(ctx, cs, image.Target())
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve supported platforms for image '%s': %w", id, err)
+	}
+	archFound := false
+	for _, architecture := range architectures {
+		if architecture.Architecture == runtime.GOARCH {
+			archFound = true
+			break
+		}
+	}
+	if !archFound {
+		return nil, fmt.Errorf("image '%s' with arch '%s' not found", id, runtime.GOARCH)
 	}
 
 	_, normalizedID, err := normalizeRepoDigest([]string{id})
@@ -135,12 +151,12 @@ func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
 }
 
 func (cdp *containerdPlatform) ImageExistsLocally(id string) (bool, error) {
-	img, err := cdp.GetImage(id)
+	_, err := cdp.GetImage(id)
 	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to check local image for installer %s: %w", id, err)
-	}
-	if img == nil {
-		return false, nil
 	}
 
 	return true, nil
@@ -205,10 +221,28 @@ func (cdp *containerdPlatform) PullImage(id string, name string, version string)
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
 	repoImage := cdp.appStoreHost + "/" + id
-	_, err := cdp.client.Pull(ctx, repoImage, containerd.WithPullUnpack)
+	image, err := cdp.client.Pull(ctx, repoImage, containerd.WithPullUnpack, containerd.WithPlatform(platforms.DefaultString()))
 	if err != nil {
 		return fmt.Errorf("failed to pull image '%s' from app store: %w", id, err)
 	}
+
+	cs := cdp.client.ContentStore()
+	architectures, err := images.Platforms(ctx, cs, image.Target())
+	if err != nil {
+		return fmt.Errorf("could not retrieve supported platforms for image '%s': %w", id, err)
+	}
+
+	archFound := false
+	for _, architecture := range architectures {
+		if architecture.Architecture == runtime.GOARCH {
+			archFound = true
+			break
+		}
+	}
+	if !archFound {
+		return fmt.Errorf("could not find '%s' arch for image '%s'", runtime.GOARCH, id)
+	}
+
 	return nil
 }
 

@@ -151,18 +151,6 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 	}
 
 	app.Capabilities = createCapabilities(am.cm, installerMetadata.Capabilities)
-	publicDNSCapability, err := am.cm.GetByName("PublicDNS")
-	if err != nil {
-		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
-	}
-	if app.ValidateCapability(publicDNSCapability) == nil {
-		rsc, err := am.rm.CreateDNS(app.ID, app.Name, "A", am.m.GetPublicIP(), 300)
-		if err != nil {
-			return app, err
-		}
-		app.Resources = append(app.Resources, rsc.GetID())
-	}
-
 	err = am.saveApp(app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
