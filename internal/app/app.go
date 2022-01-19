@@ -139,7 +139,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 		log.Debugf("Container image for installer %s(%s) found locally", app.InstallerID, version)
 	}
 
-	log.Infof("Creating sandbox for app '%s'[%s]", app.Name, app.ID)
+	log.Infof("Creating sandbox for app '%s'[%s] at '%s'", app.Name, app.ID, app.IP.String())
 	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, metadata.PlatformID, metadata.PersistancePath, app.PublicPorts, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
@@ -257,11 +257,6 @@ func (app *App) Stop() error {
 	err = cnt.Stop()
 	if err != nil {
 		return errors.Wrapf(err, "Failed to stop application '%s'(%s)", app.Name, app.ID)
-	}
-
-	err = cnt.Remove()
-	if err != nil {
-		return errors.Wrapf(err, "Failed to remove application '%s'(%s)", app.Name, app.ID)
 	}
 
 	return nil
