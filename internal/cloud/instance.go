@@ -64,6 +64,7 @@ type InstanceInfo struct {
 	Network       string
 	ProtosVersion string
 	Status        string
+	Architecture  string
 	Volumes       []VolumeInfo
 }
 

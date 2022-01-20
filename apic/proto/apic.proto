@@ -176,6 +176,7 @@ message CloudInstance {
   string public_key_wireguard = 10;
   string protos_version = 11;
   string status = 12;
+  string architecture = 13;
 }
 
 message GetInstancesRequest {}

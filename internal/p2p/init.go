@@ -3,6 +3,7 @@ package p2p
 import (
 	"fmt"
 	"net"
+	"runtime"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -24,7 +25,8 @@ type InitReq struct {
 }
 
 type InitResp struct {
-	InstanceIP string `json:"instanceip" validate:"ipv4"` // internal IP of the instance
+	InstanceIP   string `json:"instanceip" validate:"ipv4"` // internal IP of the instance
+	Architecture string `json:"architecture" validate:"required"`
 }
 
 // ClientInit is a client to a remote init server
@@ -38,7 +40,7 @@ type ClientInit struct {
 //
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *ClientInit) Init(instanceName string, network string) (net.IP, error) {
+func (ip *ClientInit) Init(instanceName string, network string) (net.IP, string, error) {
 
 	req := InitReq{
 		Network:      network,
@@ -50,16 +52,16 @@ func (ip *ClientInit) Init(instanceName string, network string) (net.IP, error) 
 	// send the request
 	err := ip.p2p.sendRequest(ip.peerID, initHandler, req, respData)
 	if err != nil {
-		return nil, fmt.Errorf("init request to '%s' failed: %s", ip.peerID.String(), err.Error())
+		return nil, "", fmt.Errorf("init request to '%s' failed: %s", ip.peerID.String(), err.Error())
 	}
 
 	// prepare IP and public key of instance
 	ipAddr := net.ParseIP(respData.InstanceIP)
 	if ipAddr == nil {
-		return nil, fmt.Errorf("failed to parse IP: %w", err)
+		return nil, "", fmt.Errorf("failed to parse IP: %w", err)
 	}
 
-	return ipAddr, nil
+	return ipAddr, respData.Architecture, nil
 }
 
 //
@@ -94,7 +96,8 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 	ipNet := hi.metaConfigurator.SetNetwork(*network)
 
 	initResp := InitResp{
-		InstanceIP: ipNet.String(),
+		InstanceIP:   ipNet.String(),
+		Architecture: runtime.GOARCH,
 	}
 
 	return initResp, nil

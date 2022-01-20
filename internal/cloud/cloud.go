@@ -336,13 +336,14 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, err := p2pClient.Init(instanceName, instanceInfo.Network)
+	ip, architecture, err := p2pClient.Init(instanceName, instanceInfo.Network)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
+	instanceInfo.Architecture = architecture
 	instanceInfo.PublicKey = pubKey
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
@@ -429,12 +430,13 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, err = p2pClient.Init(instanceName, developmentNetwork.String())
+	ip, architecture, err := p2pClient.Init(instanceName, developmentNetwork.String())
 	if err != nil {
 		return fmt.Errorf("failed to init dev instance: %w", err)
 	}
 
 	instanceInfo.InternalIP = ip.String()
+	instanceInfo.Architecture = architecture
 	instanceInfo.PublicKey = pubKey
 	instanceInfo.Network = developmentNetwork.String()
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
