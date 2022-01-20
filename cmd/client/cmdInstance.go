@@ -242,6 +242,7 @@ func infoInstance(instanceName string) error {
 	fmt.Printf("Network: %s\n", instance.Network)
 	fmt.Printf("Cloud type: %s\n", instance.CloudType)
 	fmt.Printf("Cloud name: %s\n", instance.CloudName)
+	fmt.Printf("Architecture: %s\n", instance.Architecture)
 	fmt.Printf("Location: %s\n", instance.Location)
 	fmt.Printf("Protosd version: %s\n", instance.ProtosVersion)
 	fmt.Printf("Status: %s\n", instance.Status)
