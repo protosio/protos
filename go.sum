@@ -1302,8 +1302,6 @@ github.com/rakyll/statik v0.1.7/go.mod h1:AlZONWzMtEnMs7W4e/1LURLiI49pIMmp6V9Ung
 github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
 github.com/regclient/regclient v0.0.0-20220118013252-92a844f8817f h1:4nbkcd3OqKAz6VPB7eGajZdlrlI8wNZFM8iRIUcbIPk=
 github.com/regclient/regclient v0.0.0-20220118013252-92a844f8817f/go.mod h1:uviZf62lnwDrfpXANLOPhVqkm9TAmxkXayrHTbAGvh4=
-github.com/regclient/regclient v0.3.10 h1:EIGcS6j37/qEoiIyDRZoF1mE77YFvlos38b9aHn0t4I=
-github.com/regclient/regclient v0.3.10/go.mod h1:uviZf62lnwDrfpXANLOPhVqkm9TAmxkXayrHTbAGvh4=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
