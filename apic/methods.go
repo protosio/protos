@@ -70,6 +70,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 			DesiredStatus: app.DesiredStatus,
 			InstanceName:  app.InstanceName,
 			Ip:            app.IP.String(),
+			Installer:     app.InstallerRef,
 		}
 		resp.Apps = append(resp.Apps, &respApp)
 	}
@@ -77,7 +78,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 	return &resp, nil
 }
 
-func (b *Backend) RunApp(ctx context.Context, in *pbApic.RunAppRequest) (*pbApic.RunAppResponse, error) {
+func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*pbApic.CreateAppResponse, error) {
 
 	log.Debugf("Running app '%s' based on installer '%s', on instance '%s'", in.Name, in.InstallerId, in.InstanceId)
 	installer, err := b.protosClient.AppStore.GetInstaller(in.InstallerId)
@@ -100,7 +101,7 @@ func (b *Backend) RunApp(ctx context.Context, in *pbApic.RunAppRequest) (*pbApic
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
-	return &pbApic.RunAppResponse{Id: app.ID}, nil
+	return &pbApic.CreateAppResponse{Id: app.ID}, nil
 }
 
 func (b *Backend) StartApp(ctx context.Context, in *pbApic.StartAppRequest) (*pbApic.StartAppResponse, error) {

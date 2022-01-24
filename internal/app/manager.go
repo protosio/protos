@@ -139,7 +139,7 @@ func (am *Manager) Create(installer *installer.Installer, name string, instanceN
 		InstanceName:  instanceName,
 		Tasks:         []string{},
 		IP:            appIP,
-		DesiredStatus: statusRunning,
+		DesiredStatus: statusStopped,
 	}
 
 	err = validateInstallerParams(installerParams, installer.GetParams())

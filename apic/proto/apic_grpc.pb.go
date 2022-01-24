@@ -25,7 +25,7 @@ type ProtosClientApiClient interface {
 	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	// App methods
 	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
-	RunApp(ctx context.Context, in *RunAppRequest, opts ...grpc.CallOption) (*RunAppResponse, error)
+	CreateApp(ctx context.Context, in *CreateAppRequest, opts ...grpc.CallOption) (*CreateAppResponse, error)
 	StartApp(ctx context.Context, in *StartAppRequest, opts ...grpc.CallOption) (*StartAppResponse, error)
 	StopApp(ctx context.Context, in *StopAppRequest, opts ...grpc.CallOption) (*StopAppResponse, error)
 	RemoveApp(ctx context.Context, in *RemoveAppRequest, opts ...grpc.CallOption) (*RemoveAppResponse, error)
@@ -81,9 +81,9 @@ func (c *protosClientApiClient) GetApps(ctx context.Context, in *GetAppsRequest,
 	return out, nil
 }
 
-func (c *protosClientApiClient) RunApp(ctx context.Context, in *RunAppRequest, opts ...grpc.CallOption) (*RunAppResponse, error) {
-	out := new(RunAppResponse)
-	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/RunApp", in, out, opts...)
+func (c *protosClientApiClient) CreateApp(ctx context.Context, in *CreateAppRequest, opts ...grpc.CallOption) (*CreateAppResponse, error) {
+	out := new(CreateAppResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/CreateApp", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ type ProtosClientApiServer interface {
 	Init(context.Context, *InitRequest) (*InitResponse, error)
 	// App methods
 	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
-	RunApp(context.Context, *RunAppRequest) (*RunAppResponse, error)
+	CreateApp(context.Context, *CreateAppRequest) (*CreateAppResponse, error)
 	StartApp(context.Context, *StartAppRequest) (*StartAppResponse, error)
 	StopApp(context.Context, *StopAppRequest) (*StopAppResponse, error)
 	RemoveApp(context.Context, *RemoveAppRequest) (*RemoveAppResponse, error)
@@ -345,8 +345,8 @@ func (UnimplementedProtosClientApiServer) Init(context.Context, *InitRequest) (*
 func (UnimplementedProtosClientApiServer) GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
 }
-func (UnimplementedProtosClientApiServer) RunApp(context.Context, *RunAppRequest) (*RunAppResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RunApp not implemented")
+func (UnimplementedProtosClientApiServer) CreateApp(context.Context, *CreateAppRequest) (*CreateAppResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateApp not implemented")
 }
 func (UnimplementedProtosClientApiServer) StartApp(context.Context, *StartAppRequest) (*StartAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartApp not implemented")
@@ -466,20 +466,20 @@ func _ProtosClientApi_GetApps_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProtosClientApi_RunApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RunAppRequest)
+func _ProtosClientApi_CreateApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAppRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProtosClientApiServer).RunApp(ctx, in)
+		return srv.(ProtosClientApiServer).CreateApp(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/apic.ProtosClientApi/RunApp",
+		FullMethod: "/apic.ProtosClientApi/CreateApp",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).RunApp(ctx, req.(*RunAppRequest))
+		return srv.(ProtosClientApiServer).CreateApp(ctx, req.(*CreateAppRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -914,8 +914,8 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_GetApps_Handler,
 		},
 		{
-			MethodName: "RunApp",
-			Handler:    _ProtosClientApi_RunApp_Handler,
+			MethodName: "CreateApp",
+			Handler:    _ProtosClientApi_CreateApp_Handler,
 		},
 		{
 			MethodName: "StartApp",

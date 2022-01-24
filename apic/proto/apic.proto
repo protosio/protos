@@ -10,7 +10,7 @@ service ProtosClientApi {
 
   // App methods
   rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
-  rpc RunApp(RunAppRequest) returns (RunAppResponse);
+  rpc CreateApp(CreateAppRequest) returns (CreateAppResponse);
   rpc StartApp(StartAppRequest) returns (StartAppResponse);
   rpc StopApp(StopAppRequest) returns (StopAppResponse);
   rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse);
@@ -69,17 +69,18 @@ message App {
   string desired_status = 4;
   string instance_name = 5;
   string ip = 6;
+  string installer = 7;
 }
 
 message GetAppsRequest {}
 message GetAppsResponse { repeated App apps = 1; }
 
-message RunAppRequest {
+message CreateAppRequest {
   string name = 1;
   string installer_id = 2;
   string instance_id = 3;
 }
-message RunAppResponse { string id = 1; }
+message CreateAppResponse { string id = 1; }
 
 message StartAppRequest { string name = 1; }
 message StartAppResponse {}

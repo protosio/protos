@@ -24,9 +24,9 @@ var cmdApp *cli.Command = &cli.Command{
 			},
 		},
 		{
-			Name:      "run",
+			Name:      "create",
 			ArgsUsage: "<name> <installer> <instance-id>",
-			Usage:     "Run an application",
+			Usage:     "Create an application",
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
@@ -46,7 +46,7 @@ var cmdApp *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				return runApp(name, installerID, instanceID)
+				return createApp(name, installerID, instanceID)
 			},
 		},
 		{
@@ -133,20 +133,20 @@ func listApps() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t", "Name", "ID", "Version", "Status", "Instance", "IP")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", "----", "--", "-------", "------", "--------", "--")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t", "Name", "ID", "Installer", "Desired state", "Instance", "IP")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", "----", "--", "---------", "-------------", "--------", "--")
 	for _, appi := range resp.Apps {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", appi.Name, appi.Id, appi.Version, appi.DesiredStatus, appi.InstanceName, appi.Ip)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", appi.Name, appi.Id, appi.Installer, appi.DesiredStatus, appi.InstanceName, appi.Ip)
 	}
 	fmt.Fprint(w, "\n")
 
 	return nil
 }
 
-func runApp(name string, installerID string, instanceID string) error {
+func createApp(name string, installerID string, instanceID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := client.RunApp(ctx, &pbApic.RunAppRequest{Name: name, InstallerId: installerID, InstanceId: instanceID})
+	_, err := client.CreateApp(ctx, &pbApic.CreateAppRequest{Name: name, InstallerId: installerID, InstanceId: instanceID})
 	if err != nil {
 		return fmt.Errorf("failed to run app '%s': %w", name, err)
 	}
