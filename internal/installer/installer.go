@@ -1,17 +1,16 @@
 package installer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
-	"sort"
-	"strconv"
-	"strings"
 
-	"github.com/Masterminds/semver"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/task"
+	"github.com/regclient/regclient"
+	regmanifest "github.com/regclient/regclient/types/manifest"
+	"github.com/regclient/regclient/types/ref"
 
 	"github.com/protosio/protos/internal/config"
 
@@ -24,14 +23,9 @@ var gconfig = config.Get()
 var log = util.GetLogger("installer")
 
 type ImageManager interface {
-	PullImage(id string, name string, version string) error
+	PullImage(imageRef string) error
 	ImageExistsLocally(id string) (bool, error)
 	RemoveImage(id string) error
-}
-
-type installerParent interface {
-	getPlatform() ImageManager
-	getTaskManager() *task.Manager
 }
 
 // InstallerMetadata holds metadata for the installer
@@ -49,24 +43,22 @@ type InstallerMetadata struct {
 
 type localInstaller struct {
 	Installer
-	Versions map[string]struct {
+	Metadata struct {
 		InstallerMetadata
 		Capabilities []map[string]string `json:"capabilities"`
 	} `json:"versions"`
 }
 
 func (li localInstaller) convert(as *AppStore) *Installer {
-	li.Installer.Versions = map[string]InstallerMetadata{}
-	for version, metadata := range li.Versions {
-		for _, cap := range metadata.Capabilities {
-			if capName, ok := cap["Name"]; ok {
-				if _, err := as.cm.GetByName(capName); err == nil {
-					metadata.InstallerMetadata.Capabilities = append(metadata.InstallerMetadata.Capabilities, capName)
-				}
+	li.Installer.Metadata = &InstallerMetadata{}
+	for _, cap := range li.Metadata.Capabilities {
+		if capName, ok := cap["Name"]; ok {
+			if _, err := as.cm.GetByName(capName); err == nil {
+				li.Metadata.InstallerMetadata.Capabilities = append(li.Metadata.InstallerMetadata.Capabilities, capName)
 			}
 		}
-		li.Installer.Versions[version] = metadata.InstallerMetadata
 	}
+	li.Installer.Metadata = &li.Metadata.InstallerMetadata
 	li.Installer.parent = as
 	return &li.Installer
 }
@@ -83,11 +75,15 @@ func (li localInstallers) convert(as *AppStore) map[string]*Installer {
 
 // Installer represents an application installer
 type Installer struct {
-	Name      string                       `json:"name"`
-	ID        string                       `json:"id"`
-	Thumbnail string                       `json:"thumbnail,omitempty"`
-	Versions  map[string]InstallerMetadata `json:"versions"`
-	parent    installerParent
+	parent   *AppStore
+	manifest regmanifest.Manifest
+	ref      ref.Ref
+
+	Name          string             `json:"name"`
+	ID            string             `json:"id"`
+	Version       string             `json:"version"`
+	Metadata      *InstallerMetadata `json:"metadata"`
+	Architectures []string           `json:"architectures"`
 }
 
 // AppStore manages and downloads application installers
@@ -99,135 +95,142 @@ type AppStore struct {
 
 // CreateAppStore creates and returns an app store instance
 func CreateAppStore(rp ImageManager, tm *task.Manager, cm *capability.Manager) *AppStore {
-	if rp == nil || tm == nil || cm == nil {
+	if tm == nil || cm == nil {
 		log.Panic("Failed to create AppStore: none of the inputs can be nil")
 	}
 
 	return &AppStore{rp: rp, tm: tm, cm: cm}
 }
 
-func validateInstallerCapabilities(cm *capability.Manager, capstring string) []string {
-	caps := []string{}
-	for _, capname := range strings.Split(capstring, ",") {
-		_, err := cm.GetByName(capname)
-		if err != nil {
-			log.Error(err)
-		} else {
-			caps = append(caps, capname)
-		}
-	}
-	return caps
-}
+// func validateInstallerCapabilities(cm *capability.Manager, capstring string) []string {
+// 	caps := []string{}
+// 	for _, capname := range strings.Split(capstring, ",") {
+// 		_, err := cm.GetByName(capname)
+// 		if err != nil {
+// 			log.Error(err)
+// 		} else {
+// 			caps = append(caps, capname)
+// 		}
+// 	}
+// 	return caps
+// }
 
-func parsePublicPorts(publicports string) []util.Port {
-	ports := []util.Port{}
-	for _, portstr := range strings.Split(publicports, ",") {
-		portParts := strings.Split(portstr, "/")
-		if len(portParts) != 2 {
-			log.Errorf("Error parsing installer port string %s", portstr)
-			continue
-		}
-		portNr, err := strconv.Atoi(portParts[0])
-		if err != nil {
-			log.Errorf("Error parsing installer port string %s", portstr)
-			continue
-		}
-		if portNr < 1 || portNr > 0xffff {
-			log.Errorf("Installer port is out of range %s (valid range is 1-65535)", portstr)
-			continue
-		}
-		port := util.Port{Nr: portNr}
-		if strings.ToUpper(portParts[1]) == string(util.TCP) {
-			port.Type = util.TCP
-		} else if strings.ToUpper(portParts[1]) == string(util.UDP) {
-			port.Type = util.UDP
-		} else {
-			log.Errorf("Invalid protocol(%s) for port(%s)", portParts[1], portParts[0])
-			continue
-		}
-		ports = append(ports, port)
-	}
-	return ports
-}
+// func parsePublicPorts(publicports string) []util.Port {
+// 	ports := []util.Port{}
+// 	for _, portstr := range strings.Split(publicports, ",") {
+// 		portParts := strings.Split(portstr, "/")
+// 		if len(portParts) != 2 {
+// 			log.Errorf("Error parsing installer port string %s", portstr)
+// 			continue
+// 		}
+// 		portNr, err := strconv.Atoi(portParts[0])
+// 		if err != nil {
+// 			log.Errorf("Error parsing installer port string %s", portstr)
+// 			continue
+// 		}
+// 		if portNr < 1 || portNr > 0xffff {
+// 			log.Errorf("Installer port is out of range %s (valid range is 1-65535)", portstr)
+// 			continue
+// 		}
+// 		port := util.Port{Nr: portNr}
+// 		if strings.ToUpper(portParts[1]) == string(util.TCP) {
+// 			port.Type = util.TCP
+// 		} else if strings.ToUpper(portParts[1]) == string(util.UDP) {
+// 			port.Type = util.UDP
+// 		} else {
+// 			log.Errorf("Invalid protocol(%s) for port(%s)", portParts[1], portParts[0])
+// 			continue
+// 		}
+// 		ports = append(ports, port)
+// 	}
+// 	return ports
+// }
 
-// parseMetadata parses the image metadata from the image labels
-func parseMetadata(cm *capability.Manager, labels map[string]string) (InstallerMetadata, error) {
-	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
-	metadata := InstallerMetadata{}
-	for label, value := range labels {
-		labelParts := r.FindStringSubmatch(label)
-		if len(labelParts) == 3 {
-			switch labelParts[2] {
-			case "capabilities":
-				metadata.Capabilities = validateInstallerCapabilities(cm, value)
-			case "params":
-				metadata.Params = strings.Split(value, ",")
-			case "provides":
-				metadata.Provides = strings.Split(value, ",")
-			case "requires":
-				metadata.Requires = strings.Split(value, ",")
-			case "publicports":
-				metadata.PublicPorts = parsePublicPorts(value)
-			case "description":
-				metadata.Description = value
-			}
-		}
+// // parseMetadata parses the image metadata from the image labels
+// func parseMetadata(cm *capability.Manager, labels map[string]string) (InstallerMetadata, error) {
+// 	r := regexp.MustCompile("(^protos.installer.metadata.)(\\w+)")
+// 	metadata := InstallerMetadata{}
+// 	for label, value := range labels {
+// 		labelParts := r.FindStringSubmatch(label)
+// 		if len(labelParts) == 3 {
+// 			switch labelParts[2] {
+// 			case "capabilities":
+// 				metadata.Capabilities = validateInstallerCapabilities(cm, value)
+// 			case "params":
+// 				metadata.Params = strings.Split(value, ",")
+// 			case "provides":
+// 				metadata.Provides = strings.Split(value, ",")
+// 			case "requires":
+// 				metadata.Requires = strings.Split(value, ",")
+// 			case "publicports":
+// 				metadata.PublicPorts = parsePublicPorts(value)
+// 			case "description":
+// 				metadata.Description = value
+// 			}
+// 		}
 
-	}
-	if metadata.Description == "" {
-		return metadata, errors.New("installer metadata field 'description' is mandatory")
-	}
-	return metadata, nil
-}
+// 	}
+// 	if metadata.Description == "" {
+// 		return metadata, errors.New("installer metadata field 'description' is mandatory")
+// 	}
+// 	return metadata, nil
+// }
 
 //
 // Installer methods
 //
 
 // GetName returns the name of the installer
-func (inst Installer) GetName() string {
+func (inst *Installer) GetName() string {
 	return inst.Name
 }
 
 // GetMetadata returns the metadata for a specific installer version
-func (inst Installer) GetMetadata(version string) (InstallerMetadata, error) {
-	var metadata InstallerMetadata
-	var found bool
-
-	if metadata, found = inst.Versions[version]; found == false {
-		return metadata, fmt.Errorf("Could not find version '%s' for installer with id '%s'", version, inst.ID)
+func (inst *Installer) GetMetadata() (InstallerMetadata, error) {
+	if inst.Metadata != nil {
+		return *inst.Metadata, nil
 	}
-	return metadata, nil
+	return InstallerMetadata{}, fmt.Errorf("installer '%s' has no metadata", inst.ref.CommonName())
 }
 
 // Download downloads an installer from the application store
-func (inst Installer) Download(dt DownloadTask) error {
-	metadata, err := inst.GetMetadata(dt.Version)
+func (inst *Installer) Pull() error {
+
+	available, err := inst.IsPlatformImageAvailable()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
+		return fmt.Errorf("could not pull installer '%s': %w", inst.ref.CommonName(), err)
+	}
+	if !available {
+		log.Debugf("Downloading installer '%s'", inst.ref.CommonName())
+		err = inst.parent.getPlatform().PullImage(inst.ref.CommonName())
+		if err != nil {
+			return fmt.Errorf("failed to download installer '%s': %w", inst.ref.CommonName(), err)
+		}
+	} else {
+		log.Debugf("Installer '%s' found locally", inst.ref.CommonName())
 	}
 
-	log.Infof("Downloading image '%s' for installer '%s'(%s) version '%s'", metadata.PlatformID, inst.Name, inst.ID, dt.Version)
-	err = inst.parent.getPlatform().PullImage(metadata.PlatformID, inst.Name, dt.Version)
+	return nil
+}
+
+// Download downloads an installer from the application store
+func (inst *Installer) Download(dt DownloadTask) error {
+	log.Infof("Downloading installer '%s'", inst.ref.CommonName())
+	err := inst.parent.getPlatform().PullImage(inst.ref.CommonName())
 	if err != nil {
-		return errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, dt.Version)
+		return errors.Wrapf(err, "Failed to download installer '%s'", inst.ref.CommonName())
 	}
 	return nil
 }
 
 // DownloadAsync triggers an async installer download, returns a generic task
-func (inst Installer) DownloadAsync(version string, appID string) *task.Base {
-	return inst.parent.getTaskManager().New("Download application installer", &DownloadTask{Inst: inst, Version: version, AppID: appID})
+func (inst *Installer) DownloadAsync(version string, appID string) *task.Base {
+	return inst.parent.getTaskManager().New("Download application installer", &DownloadTask{Inst: *inst, Version: version, AppID: appID})
 }
 
 // IsPlatformImageAvailable checks if the associated docker image for an installer is available locally
-func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
-	metadata, err := inst.GetMetadata(version)
-	if err != nil {
-		return false, errors.Wrapf(err, "Failed to check local image metadata for installer %s(%s)", inst.Name, inst.ID)
-	}
-
-	exists, err := inst.parent.getPlatform().ImageExistsLocally(metadata.PlatformID)
+func (inst *Installer) IsPlatformImageAvailable() (bool, error) {
+	exists, err := inst.parent.getPlatform().ImageExistsLocally(inst.ref.CommonName())
 	if err != nil {
 		return false, errors.Wrapf(err, "Failed to check local image for installer %s(%s)", inst.Name, inst.ID)
 	}
@@ -238,31 +241,56 @@ func (inst Installer) IsPlatformImageAvailable(version string) (bool, error) {
 func (inst *Installer) Remove() error {
 	log.Info("Removing installer ", inst.Name, "[", inst.ID, "]")
 
-	for _, metadata := range inst.Versions {
-		err := inst.parent.getPlatform().RemoveImage(metadata.PlatformID)
-		if err != nil {
-			return errors.Wrapf(err, "Failed to remove install %s(%s)", inst.Name, inst.ID)
-		}
+	err := inst.parent.getPlatform().RemoveImage(inst.ref.CommonName())
+	if err != nil {
+		return errors.Wrapf(err, "Failed to remove install %s(%s)", inst.Name, inst.ID)
 	}
+
 	return nil
 }
 
-// GetLastVersion returns the last version available for the installer
-func (inst Installer) GetLastVersion() string {
-	vs := []*semver.Version{}
-	for k := range inst.Versions {
-		v, err := semver.NewVersion(k)
-		if err != nil {
-			log.Errorf("Error parsing version '%s' for installer '%s' : %s", k, inst.ID, err)
-			continue
+func (inst *Installer) GetDescription() string {
+	if inst.Metadata != nil {
+		return inst.Metadata.Description
+	}
+	return "n/a"
+}
+
+func (inst *Installer) GetRequires() []string {
+	if inst.Metadata != nil {
+		return inst.Metadata.Requires
+	}
+	return []string{}
+}
+
+func (inst *Installer) GetProvides() []string {
+	if inst.Metadata != nil {
+		return inst.Metadata.Provides
+	}
+	return []string{}
+}
+
+func (inst *Installer) GetParams() []string {
+	if inst.Metadata != nil {
+		return inst.Metadata.Params
+	}
+	return []string{}
+}
+
+func (inst *Installer) GetCapabilities() []string {
+	if inst.Metadata != nil {
+		return inst.Metadata.Capabilities
+	}
+	return []string{}
+}
+
+func (inst *Installer) SupportsArchitecture(architecture string) bool {
+	for _, arch := range inst.Architectures {
+		if arch == architecture {
+			return true
 		}
-		vs = append(vs, v)
 	}
-	sort.Sort(semver.Collection(vs))
-	if len(vs) == 0 {
-		log.Panicf("Installer '%s' should have at least 1 version. None found.", inst.ID)
-	}
-	return vs[len(vs)-1].String()
+	return false
 }
 
 //
@@ -305,27 +333,62 @@ func (as *AppStore) GetInstallers() (map[string]*Installer, error) {
 }
 
 // GetInstaller returns a single installer based on its id
-func (as *AppStore) GetInstaller(id string) (*Installer, error) {
-	localInstaller := localInstaller{}
-	client := getHTTPClient()
-	url := fmt.Sprintf("%s/api/v1/installers/%s", gconfig.AppStoreURL, id)
-	log.Debugf("Querying app store at '%s'", url)
-	resp, err := client.Get(url)
+func (as *AppStore) GetInstaller(imageRef string) (*Installer, error) {
+	installer := &Installer{parent: as}
+	var err error
+
+	rc := regclient.New()
+	installer.ref, err = ref.New(imageRef)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
+		return nil, fmt.Errorf("could not parse ref for image '%s': %w", imageRef, err)
 	}
 
-	if err := util.HTTPBadResponse(resp); err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
+	if installer.ref.Tag == "latest" {
+		return nil, fmt.Errorf("use of version 'latest' not allowed")
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&localInstaller)
-	defer resp.Body.Close()
+	manifest, err := rc.ManifestGet(context.Background(), installer.ref)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve installer '%s' from app store. Decoding error", id)
+		return nil, fmt.Errorf("could not retrieve manifest for image '%s': %w", imageRef, err)
 	}
 
-	return localInstaller.convert(as), nil
+	installer.ID = manifest.GetDigest().String()
+	installer.manifest = manifest
+	installer.Name = installer.ref.CommonName()
+	installer.Version = installer.ref.Tag
+
+	if manifest.IsList() {
+		platforms, err := manifest.GetPlatformList()
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve platforms for image '%s': %w", imageRef, err)
+		}
+
+		for _, platform := range platforms {
+			installer.Architectures = append(installer.Architectures, platform.Architecture)
+		}
+	} else {
+		installer.Architectures = append(installer.Architectures, "amd64")
+	}
+
+	// client := getHTTPClient()
+	// url := fmt.Sprintf("%s/api/v1/installers/%s", gconfig.AppStoreURL, id)
+	// log.Debugf("Querying app store at '%s'", url)
+	// resp, err := client.Get(url)
+	// if err != nil {
+	// 	return nil, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
+	// }
+
+	// if err := util.HTTPBadResponse(resp); err != nil {
+	// 	return nil, errors.Wrapf(err, "Could not retrieve installer '%s' from app store", id)
+	// }
+
+	// err = json.NewDecoder(resp.Body).Decode(&localInstaller)
+	// defer resp.Body.Close()
+	// if err != nil {
+	// 	return nil, errors.Wrapf(err, "Could not retrieve installer '%s' from app store. Decoding error", id)
+	// }
+
+	return installer, nil
 }
 
 // Search takes a map of search terms and performs a search on the app store

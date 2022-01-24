@@ -30,7 +30,6 @@ var pltfrm *containerdPlatform
 
 type containerdPlatform struct {
 	endpoint       string
-	appStoreHost   string
 	logsPath       string
 	initSignal     chan net.IP
 	networkManager *network.Manager
@@ -38,11 +37,10 @@ type containerdPlatform struct {
 	initLock       *sync.RWMutex
 }
 
-func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUnixSocket string, appStoreHost string, inContainer bool, logsPath string) *containerdPlatform {
+func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUnixSocket string, inContainer bool, logsPath string) *containerdPlatform {
 	if pltfrm == nil {
 		pltfrm = &containerdPlatform{
 			endpoint:       runtimeUnixSocket,
-			appStoreHost:   appStoreHost,
 			logsPath:       logsPath,
 			initSignal:     make(chan net.IP, 1),
 			initLock:       &sync.RWMutex{},
@@ -78,14 +76,13 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef string, volumeMountPath string, installerParams map[string]string) (RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	pru := &containerdSandbox{p: cdp, containerID: appID}
 
-	repoImage := cdp.appStoreHost + "/" + imageID
-	image, err := cdp.client.GetImage(ctx, repoImage)
+	image, err := cdp.client.GetImage(ctx, imageRef)
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve image '%s' from containerd: %w", imageID, err)
+		return nil, fmt.Errorf("could not retrieve image '%s' from containerd: %w", imageRef, err)
 	}
 
 	opts := []oci.SpecOpts{
@@ -93,7 +90,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 		oci.WithEnv([]string{fmt.Sprintf("APPID=%s", appID)}),
 	}
 
-	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageID)
+	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageRef)
 	cnt, err := cdp.client.NewContainer(
 		ctx,
 		appID,
@@ -110,19 +107,18 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageID str
 	return pru, nil
 }
 
-func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
+func (cdp *containerdPlatform) GetImage(imageRef string) (PlatformImage, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
-	repoImage := cdp.appStoreHost + "/" + id
-	image, err := cdp.client.GetImage(ctx, repoImage)
+	image, err := cdp.client.GetImage(ctx, imageRef)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve image '%s' from containerd: %w", id, err)
+		return nil, fmt.Errorf("failed to retrieve image '%s' from containerd: %w", imageRef, err)
 	}
 
 	cs := cdp.client.ContentStore()
 	architectures, err := images.Platforms(ctx, cs, image.Target())
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve supported platforms for image '%s': %w", id, err)
+		return nil, fmt.Errorf("could not retrieve supported platforms for image '%s': %w", imageRef, err)
 	}
 	archFound := false
 	for _, architecture := range architectures {
@@ -132,18 +128,11 @@ func (cdp *containerdPlatform) GetImage(id string) (PlatformImage, error) {
 		}
 	}
 	if !archFound {
-		return nil, fmt.Errorf("image '%s' with arch '%s' not found", id, runtime.GOARCH)
-	}
-
-	_, normalizedID, err := normalizeRepoDigest([]string{id})
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve image '%s' from containerd. Failed to normalize digest: %w", id, err)
+		return nil, fmt.Errorf("image '%s' with arch '%s' not found", imageRef, runtime.GOARCH)
 	}
 
 	pi := &platformImage{
-		id:      id,
-		localID: normalizedID,
-		// repoTags: imageResponse.Metadata().Labels,
+		id:     imageRef,
 		labels: image.Labels(),
 	}
 
@@ -217,19 +206,18 @@ func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
 	return getHWStatus()
 }
 
-func (cdp *containerdPlatform) PullImage(id string, name string, version string) error {
+func (cdp *containerdPlatform) PullImage(imageRef string) error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
-	repoImage := cdp.appStoreHost + "/" + id
-	image, err := cdp.client.Pull(ctx, repoImage, containerd.WithPullUnpack, containerd.WithPlatform(platforms.DefaultString()))
+	image, err := cdp.client.Pull(ctx, imageRef, containerd.WithPullUnpack, containerd.WithPlatform(platforms.DefaultString()))
 	if err != nil {
-		return fmt.Errorf("failed to pull image '%s' from app store: %w", id, err)
+		return fmt.Errorf("failed to pull image '%s' from app store: %w", imageRef, err)
 	}
 
 	cs := cdp.client.ContentStore()
 	architectures, err := images.Platforms(ctx, cs, image.Target())
 	if err != nil {
-		return fmt.Errorf("could not retrieve supported platforms for image '%s': %w", id, err)
+		return fmt.Errorf("could not retrieve supported platforms for image '%s': %w", imageRef, err)
 	}
 
 	archFound := false
@@ -240,7 +228,7 @@ func (cdp *containerdPlatform) PullImage(id string, name string, version string)
 		}
 	}
 	if !archFound {
-		return fmt.Errorf("could not find '%s' arch for image '%s'", runtime.GOARCH, id)
+		return fmt.Errorf("could not find '%s' arch for image '%s'", runtime.GOARCH, imageRef)
 	}
 
 	return nil

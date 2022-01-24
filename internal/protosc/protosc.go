@@ -170,9 +170,9 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to create network manager: %s", err.Error())
 	}
 
-	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint, pc.cfg.AppStoreHost, pc.cfg.InContainer, "")
+	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint, pc.cfg.InContainer, "")
 	appStore := installer.CreateAppStore(appRuntime, taskManager, pc.capabilityManager)
-	appManager := app.CreateManager(resourceManager, taskManager, appRuntime, pc.db, pc.Meta, pub, appStore, pc.capabilityManager)
+	appManager := app.CreateManager(app.TypeProtosc, resourceManager, taskManager, appRuntime, pc.db, pc.Meta, pub, appStore, pc.capabilityManager)
 
 	// get device key
 	key, err := pc.Meta.GetPrivateKey()

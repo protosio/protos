@@ -96,13 +96,13 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 
 	peerConfigurator := &PeerConfigurator{NetworkManager: networkManager}
 
-	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint, cfg.AppStoreHost, cfg.InContainer, cfg.WorkDir+"/logs")
+	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint, cfg.InContainer, cfg.WorkDir+"/logs")
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm, peerConfigurator)
 	peerConfigurator.UserManager = um
 	tm := task.CreateManager(dbcli, pub)
 	as := installer.CreateAppStore(appRuntime, tm, cm)
-	appManager := app.CreateManager(rm, tm, appRuntime, dbcli, m, pub, as, cm)
+	appManager := app.CreateManager(app.TypeProtosd, rm, tm, appRuntime, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, appManager, dbcli)
 
 	p2pManager, err := p2p.NewManager(key, dbcli)

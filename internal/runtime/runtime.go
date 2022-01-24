@@ -2,9 +2,7 @@ package runtime
 
 import (
 	"net"
-	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/util"
 )
@@ -46,28 +44,28 @@ type RuntimePlatform interface {
 	GetImage(id string) (PlatformImage, error)
 	ImageExistsLocally(id string) (bool, error)
 	GetAllImages() (map[string]PlatformImage, error)
-	PullImage(id string, name string, version string) error
+	PullImage(imageRef string) error
 	RemoveImage(id string) error
 	GetOrCreateVolume(path string) (string, error)
 	RemoveVolume(id string) error
-	NewSandbox(name string, appID string, imageID string, volumeMountPath string, publicPorts []util.Port, installerParams map[string]string) (RuntimeSandbox, error)
+	NewSandbox(name string, appID string, imageID string, volumeMountPath string, installerParams map[string]string) (RuntimeSandbox, error)
 	GetHWStats() (HardwareStats, error)
 }
 
-func normalizeRepoDigest(repoDigests []string) (string, string, error) {
-	if len(repoDigests) == 0 {
-		return "<none>", "<none>", errors.New("image has no repo digests")
-	}
-	repoDigestPair := strings.Split(repoDigests[0], "@")
-	if len(repoDigestPair) != 2 {
-		return "errorName", "errorRepoDigest", errors.Errorf("image repo digest has an invalid format: '%s'", repoDigests[0])
-	}
-	return repoDigestPair[0], repoDigestPair[1], nil
-}
+// func normalizeRepoDigest(repoDigests []string) (string, string, error) {
+// 	if len(repoDigests) == 0 {
+// 		return "<none>", "<none>", errors.New("image has no repo digests")
+// 	}
+// 	repoDigestPair := strings.Split(repoDigests[0], "@")
+// 	if len(repoDigestPair) != 2 {
+// 		return "errorName", "errorRepoDigest", errors.Errorf("image repo digest has an invalid format: '%s'", repoDigests[0])
+// 	}
+// 	return repoDigestPair[0], repoDigestPair[1], nil
+// }
 
 // Create initializes the run time platform
-func Create(networkManager *network.Manager, runtimeUnixSocket string, appStoreHost string, inContainer bool, logsPath string) RuntimePlatform {
-	return createContainerdRuntimePlatform(networkManager, runtimeUnixSocket, appStoreHost, inContainer, logsPath)
+func Create(networkManager *network.Manager, runtimeUnixSocket string, inContainer bool, logsPath string) RuntimePlatform {
+	return createContainerdRuntimePlatform(networkManager, runtimeUnixSocket, inContainer, logsPath)
 }
 
 type platformImage struct {

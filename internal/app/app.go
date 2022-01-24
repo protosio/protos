@@ -1,13 +1,13 @@
 package app
 
 import (
+	"fmt"
 	"net"
 	"sync"
 
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
 
@@ -50,20 +50,18 @@ type App struct {
 	mgr    *Manager      `noms:"-"`
 
 	// Public members
-	Name              string                      `json:"name"`
-	ID                string                      `json:"id"`
-	InstallerID       string                      `json:"installer-id"`
-	InstallerVersion  string                      `json:"installer-version"`
-	InstallerMetadata installer.InstallerMetadata `json:"installer-metadata"`
-	InstanceName      string                      `json:"instance-id"`
-	DesiredStatus     string                      `json:"desired-status"`
-	Actions           []string                    `json:"actions"`
-	IP                net.IP                      `json:"ip"`
-	PublicPorts       []util.Port                 `json:"publicports"`
-	InstallerParams   map[string]string           `json:"installer-params"`
-	Capabilities      []string                    `json:"capabilities"`
-	Resources         []string                    `json:"resources"`
-	Tasks             []string                    `json:"tasks"`
+	Name            string            `json:"name"`
+	ID              string            `json:"id"`
+	InstallerRef    string            `json:"installer-ref"`
+	Version         string            `json:"version"`
+	InstanceName    string            `json:"instance-id"`
+	DesiredStatus   string            `json:"desired-status"`
+	Actions         []string          `json:"actions"`
+	IP              net.IP            `json:"ip"`
+	InstallerParams map[string]string `json:"installer-params"`
+	Capabilities    []string          `json:"capabilities"`
+	Resources       []string          `json:"resources"`
+	Tasks           []string          `json:"tasks"`
 }
 
 //
@@ -99,48 +97,34 @@ func createCapabilities(cm *capability.Manager, installerCapabilities []string) 
 func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 
 	// normal app creation, using the app store
-	inst, err := app.mgr.store.GetInstaller(app.InstallerID)
+	inst, err := app.mgr.store.GetInstaller(app.InstallerRef)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
 	}
 
-	var version string
-	if app.InstallerVersion == "" {
-		version = inst.GetLastVersion()
-		log.Infof("Creating application using latest version (%s) of installer '%s'", version, app.InstallerID)
+	persistancePath := ""
+	metadata, err := inst.GetMetadata()
+	if err != nil {
+		log.Debugf("Installer '%s' does not have metadata", inst.Name)
 	} else {
-		version = app.InstallerVersion
-	}
-
-	metadata, err := inst.GetMetadata(version)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
+		persistancePath = metadata.PersistancePath
 	}
 
 	// var err error
-	if metadata.PersistancePath != "" {
-		_, err = app.mgr.getPlatform().GetOrCreateVolume(metadata.PersistancePath)
+	if persistancePath != "" {
+		_, err = app.mgr.getPlatform().GetOrCreateVolume(persistancePath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to create volume for app '%s'", app.ID)
 		}
 	}
 
-	available, err := inst.IsPlatformImageAvailable(version)
+	err = inst.Pull()
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
-	}
-	if !available {
-		log.Infof("Downloading image '%s' for installer '%s'(%s) version '%s'", metadata.PlatformID, inst.Name, inst.ID, version)
-		err = app.mgr.getPlatform().PullImage(metadata.PlatformID, inst.Name, version)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Failed to download installer '%s' version '%s'", inst.ID, version)
-		}
-	} else {
-		log.Debugf("Container image for installer %s(%s) found locally", app.InstallerID, version)
+		return nil, fmt.Errorf("failed to pull image for app '%s': %w", app.ID, err)
 	}
 
 	log.Infof("Creating sandbox for app '%s'[%s] at '%s'", app.Name, app.ID, app.IP.String())
-	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, metadata.PlatformID, metadata.PersistancePath, app.PublicPorts, app.InstallerParams)
+	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, inst.Name, persistancePath, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
 	}
@@ -210,7 +194,7 @@ func (app *App) GetStatus() string {
 
 // GetVersion returns the version of an application
 func (app *App) GetVersion() string {
-	return app.InstallerVersion
+	return app.Version
 }
 
 // AddTask adds a task owned by the applications
@@ -389,10 +373,10 @@ func (app *App) ValidateCapability(cap *capability.Capability) error {
 	return errors.Errorf("Method capability '%s' not satisfied by application '%s'", cap.GetName(), app.ID)
 }
 
-// Provides returns true if the application is a provider for a specific type of resource
-func (app *App) Provides(rscType string) bool {
-	if prov, _ := util.StringInSlice(rscType, app.InstallerMetadata.Provides); prov {
-		return true
-	}
-	return false
-}
+// // Provides returns true if the application is a provider for a specific type of resource
+// func (app *App) Provides(rscType string) bool {
+// 	if prov, _ := util.StringInSlice(rscType, app.InstallerMetadata.Provides); prov {
+// 		return true
+// 	}
+// 	return false
+// }

@@ -25,7 +25,7 @@ var cmdApp *cli.Command = &cli.Command{
 		},
 		{
 			Name:      "run",
-			ArgsUsage: "<name> <installer-id> <instance-id>",
+			ArgsUsage: "<name> <installer> <instance-id>",
 			Usage:     "Run an application",
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)

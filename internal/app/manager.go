@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/gob"
 	"fmt"
 	"net"
 	"sync"
@@ -20,7 +19,9 @@ import (
 )
 
 const (
-	appDS = "app"
+	appDS       = "app"
+	TypeProtosc = "protosc"
+	TypeProtosd = "protosd"
 )
 
 // WSPublisher returns a channel that can be used to publish WS messages to the frontend
@@ -32,16 +33,17 @@ type appStore interface {
 	GetInstaller(id string) (*installer.Installer, error)
 }
 
-// dnsResource is only used locally to retrieve the Name of a DNS record
-type dnsResource interface {
-	GetName() string
-	GetValue() string
-	Update(value resource.ResourceValue)
-	Sanitize() resource.ResourceValue
-}
+// // dnsResource is only used locally to retrieve the Name of a DNS record
+// type dnsResource interface {
+// 	GetName() string
+// 	GetValue() string
+// 	Update(value resource.ResourceValue)
+// 	Sanitize() resource.ResourceValue
+// }
 
 // Manager keeps track of all the apps
 type Manager struct {
+	ptype       string
 	store       appStore
 	rm          *resource.Manager
 	tm          *task.Manager
@@ -57,17 +59,15 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(rm *resource.Manager, tm *task.Manager, runtime runtime.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
+func CreateManager(ptype string, rm *resource.Manager, tm *task.Manager, runtime runtime.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
 
-	if rm == nil || tm == nil || runtime == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
+	if rm == nil || tm == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
 	}
 
 	log.Debug("Retrieving applications from DB")
-	gob.Register(&App{})
-	gob.Register(&installer.InstallerMetadata{})
 
-	manager := &Manager{rm: rm, tm: tm, db: db, m: meta, runtime: runtime, wspublisher: wspublisher, store: appStore, cm: cm}
+	manager := &Manager{ptype: ptype, rm: rm, tm: tm, db: db, m: meta, runtime: runtime, wspublisher: wspublisher, store: appStore, cm: cm}
 
 	err := db.InitDataset(appDS, manager)
 	if err != nil {
@@ -102,20 +102,15 @@ func (am *Manager) getCapabilityManager() *capability.Manager {
 //
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installerID string, installerVersion string, name string, instanceName string, instanceNetwork string, installerParams map[string]string, installerMetadata installer.InstallerMetadata) (*App, error) {
+func (am *Manager) Create(installer *installer.Installer, name string, instanceName string, instanceNetwork string, installerParams map[string]string) (*App, error) {
 
 	var app *App
-	if name == "" || installerID == "" || installerVersion == "" || instanceName == "" {
+	if name == "" || instanceName == "" {
 		return app, fmt.Errorf("application name, installer ID, installer version or instance ID cannot be empty")
 	}
 
-	err := validateInstallerParams(installerParams, installerMetadata.Params)
-	if err != nil {
-		return app, err
-	}
-
 	apps := map[string]App{}
-	err = am.db.GetMap(appDS, &apps)
+	err := am.db.GetMap(appDS, &apps)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
 	}
@@ -132,25 +127,27 @@ func (am *Manager) Create(installerID string, installerVersion string, name stri
 	}
 
 	guid := xid.New()
-	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installerID)
+	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installer.Name)
 	app = &App{
 		access: &sync.Mutex{},
 		mgr:    am,
 
-		Name:              name,
-		ID:                guid.String(),
-		InstallerID:       installerID,
-		InstallerVersion:  installerVersion,
-		InstanceName:      instanceName,
-		PublicPorts:       installerMetadata.PublicPorts,
-		InstallerParams:   installerParams,
-		InstallerMetadata: installerMetadata,
-		Tasks:             []string{},
-		IP:                appIP,
-		DesiredStatus:     statusRunning,
+		Name:          name,
+		ID:            guid.String(),
+		InstallerRef:  installer.Name,
+		Version:       installer.Version,
+		InstanceName:  instanceName,
+		Tasks:         []string{},
+		IP:            appIP,
+		DesiredStatus: statusRunning,
 	}
 
-	app.Capabilities = createCapabilities(am.cm, installerMetadata.Capabilities)
+	err = validateInstallerParams(installerParams, installer.GetParams())
+	if err != nil {
+		return app, err
+	}
+	app.InstallerParams = installerParams
+	app.Capabilities = createCapabilities(am.cm, installer.GetCapabilities())
 	err = am.saveApp(app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
@@ -215,6 +212,10 @@ func (am *Manager) GetAll() (map[string]App, error) {
 
 // Refresh checks the db for new apps and deploys them if they belong to the current instance
 func (am *Manager) Refresh() error {
+	if am.ptype == TypeProtosc {
+		return nil
+	}
+
 	log.Debug("Syncing apps")
 	dbapps := map[string]App{}
 	err := am.db.GetMap(appDS, &dbapps)
@@ -293,46 +294,46 @@ func (am *Manager) Stop(name string) error {
 	return nil
 }
 
-// GetServices returns a list of services performed by apps
-func (am *Manager) GetServices() ([]util.Service, error) {
-	services := []util.Service{}
-	apps, err := am.GetAll()
-	if err != nil {
-		return services, errors.Wrap(err, "Could not retrieve services")
-	}
+// // GetServices returns a list of services performed by apps
+// func (am *Manager) GetServices() ([]util.Service, error) {
+// 	services := []util.Service{}
+// 	apps, err := am.GetAll()
+// 	if err != nil {
+// 		return services, errors.Wrap(err, "Could not retrieve services")
+// 	}
 
-	resourceFilter := func(rsc *resource.Resource) bool {
-		return rsc.GetType() == resource.DNS
-	}
-	rscs := am.rm.Select(resourceFilter)
+// 	resourceFilter := func(rsc *resource.Resource) bool {
+// 		return rsc.GetType() == resource.DNS
+// 	}
+// 	rscs := am.rm.Select(resourceFilter)
 
-	for _, app := range apps {
-		if len(app.PublicPorts) == 0 {
-			continue
-		}
-		service := util.Service{
-			Name:  app.Name,
-			Ports: app.PublicPorts,
-		}
+// 	for _, app := range apps {
+// 		if len(app.PublicPorts) == 0 {
+// 			continue
+// 		}
+// 		service := util.Service{
+// 			Name:  app.Name,
+// 			Ports: app.PublicPorts,
+// 		}
 
-		if app.DesiredStatus == statusRunning {
-			service.Status = util.StatusActive
-		} else {
-			service.Status = util.StatusInactive
-		}
+// 		if app.DesiredStatus == statusRunning {
+// 			service.Status = util.StatusActive
+// 		} else {
+// 			service.Status = util.StatusInactive
+// 		}
 
-		for _, rsc := range rscs {
-			dnsrsc := rsc.GetValue().(dnsResource)
-			if rsc.GetAppID() == app.ID && dnsrsc.GetName() == app.Name {
-				service.Domain = dnsrsc.GetName()
-				service.IP = dnsrsc.GetValue()
-				break
-			}
-		}
-		services = append(services, service)
-	}
-	return services, nil
-}
+// 		for _, rsc := range rscs {
+// 			dnsrsc := rsc.GetValue().(dnsResource)
+// 			if rsc.GetAppID() == app.ID && dnsrsc.GetName() == app.Name {
+// 				service.Domain = dnsrsc.GetName()
+// 				service.IP = dnsrsc.GetValue()
+// 				break
+// 			}
+// 		}
+// 		services = append(services, service)
+// 	}
+// 	return services, nil
+// }
 
 // Remove removes an application based on the provided id
 func (am *Manager) Remove(name string) error {
@@ -370,19 +371,19 @@ func (am *Manager) saveApp(app *App) error {
 // Dev related methods
 //
 
-// CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
-func (am *Manager) CreateDevApp(appName string, installerMetadata installer.InstallerMetadata, installerParams map[string]string) (*App, error) {
+// // CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
+// func (am *Manager) CreateDevApp(appName string, installerMetadata *installer.InstallerMetadata, installerParams map[string]string) (*App, error) {
 
-	// app creation (dev purposes)
-	log.Info("Creating application using local installer (DEV)")
+// 	// app creation (dev purposes)
+// 	log.Info("Creating application using local installer (DEV)")
 
-	newApp, err := am.Create("dev", "0.0.0-dev", appName, "", "", installerParams, installerMetadata)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Could not create application %s", appName)
-	}
+// 	newApp, err := am.Create("dev", "0.0.0-dev", appName, "", "", installerParams, installerMetadata)
+// 	if err != nil {
+// 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
+// 	}
 
-	return newApp, nil
-}
+// 	return newApp, nil
+// }
 
 //
 // helper methods

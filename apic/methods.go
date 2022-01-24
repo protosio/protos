@@ -66,7 +66,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 		respApp := pbApic.App{
 			Id:            app.ID,
 			Name:          app.Name,
-			Version:       app.InstallerVersion,
+			Version:       app.Version,
 			DesiredStatus: app.DesiredStatus,
 			InstanceName:  app.InstanceName,
 			Ip:            app.IP.String(),
@@ -85,18 +85,17 @@ func (b *Backend) RunApp(ctx context.Context, in *pbApic.RunAppRequest) (*pbApic
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
-	instMetadata, err := installer.GetMetadata(installer.GetLastVersion())
-	if err != nil {
-		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
-	}
-
 	instance, err := b.protosClient.CloudManager.GetInstance(in.InstanceId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
+	if !installer.SupportsArchitecture(instance.Architecture) {
+		return nil, fmt.Errorf("failed to run app %s: installer '%s' does support architecture of target instance '%s'(%s)", in.Name, in.InstallerId, instance.Name, instance.Architecture)
+	}
+
 	// FIXME: read the installer params from the command line
-	app, err := b.protosClient.AppManager.Create(in.InstallerId, installer.GetLastVersion(), in.Name, in.InstanceId, instance.Network, map[string]string{}, instMetadata)
+	app, err := b.protosClient.AppManager.Create(installer, in.Name, in.InstanceId, instance.Network, map[string]string{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
@@ -147,15 +146,11 @@ func (b *Backend) GetInstallers(ctx context.Context, in *pbApic.GetInstallersReq
 
 	resp := pbApic.GetInstallersResponse{}
 	for _, installer := range installers {
-		installerMetadata, err := installer.GetMetadata(installer.GetLastVersion())
-		if err != nil {
-			return nil, fmt.Errorf("failed to get metadata for installer '%s': %w", installer.ID, err)
-		}
 		respInstaller := pbApic.Installer{
 			Id:          installer.ID,
 			Name:        installer.Name,
-			Version:     installer.GetLastVersion(),
-			Description: installerMetadata.Description,
+			Version:     installer.Version,
+			Description: installer.GetDescription(),
 		}
 		resp.Installers = append(resp.Installers, &respInstaller)
 	}
@@ -170,20 +165,15 @@ func (b *Backend) GetInstaller(ctx context.Context, in *pbApic.GetInstallerReque
 		return nil, err
 	}
 
-	installerMetadata, err := installer.GetMetadata(installer.GetLastVersion())
-	if err != nil {
-		return nil, err
-	}
-
 	resp := pbApic.GetInstallerResponse{
 		Installer: &pbApic.Installer{
 			Id:                installer.ID,
 			Name:              installer.Name,
-			Version:           installer.GetLastVersion(),
-			Description:       installerMetadata.Description,
-			RequiresResources: installerMetadata.Requires,
-			ProvidesResources: installerMetadata.Provides,
-			Capabilities:      installerMetadata.Capabilities,
+			Version:           installer.Version,
+			Description:       installer.GetDescription(),
+			RequiresResources: installer.GetRequires(),
+			ProvidesResources: installer.GetProvides(),
+			Capabilities:      installer.GetCapabilities(),
 		},
 	}
 
@@ -351,6 +341,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
 			PublicKeyWireguard: wgPublicKey.String(),
 			ProtosVersion:      instance.ProtosVersion,
+			Architecture:       instance.Architecture,
 		}
 		resp.Instances = append(resp.Instances, &respInstance)
 	}
@@ -384,6 +375,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			PublicKeyWireguard: wgPublicKey.String(),
 			ProtosVersion:      instance.ProtosVersion,
 			Status:             instance.Status,
+			Architecture:       instance.Architecture,
 		},
 	}
 
