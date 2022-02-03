@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -39,24 +40,17 @@ func (ps *pubSub) BroadcastHeadHandler(peerID peer.ID, data interface{}) error {
 		return fmt.Errorf("unknown data struct for broadcast head message")
 	}
 
-	log.Debugf("Peer '%s' advertised dataset '%s' head '%s'", peerID.String(), payload.Dataset, payload.Head)
+	time.Sleep(500 * time.Millisecond)
 
 	rpcpeerI, found := ps.p2p.peers.Get(peerID.String())
 	if !found {
-		rpcClient, err := ps.p2p.getClientForPeer(peerID)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve p2p client for '%s': %s", peerID, err.Error())
-		}
-		ps.p2p.peers.Set(peerID.String(), &rpcPeer{client: rpcClient})
-	} else if rpcpeer := rpcpeerI.(*rpcPeer); rpcpeer.client == nil {
-		rpcClient, err := ps.p2p.getClientForPeer(peerID)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve p2p client for '%s': %s", peerID, err.Error())
-		}
-		rpcpeer.client = rpcClient
+		return fmt.Errorf("failed to find local peer '%s'. Discarding message", peerID.String())
 	}
+	rpcpeer := rpcpeerI.(*rpcPeer)
 
+	log.Debugf("Peer '%s'(%s) advertised dataset '%s' head '%s'", rpcpeer.machine.GetName(), peerID.String(), payload.Dataset, payload.Head)
 	ps.dbSyncer.Sync(peerID.String(), payload.Dataset, payload.Head)
+
 	return nil
 }
 

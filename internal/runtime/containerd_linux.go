@@ -365,17 +365,17 @@ func (cnt *containerdSandbox) Remove() error {
 
 	err := cnt.Stop()
 	if err != nil {
-		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+		return fmt.Errorf("error while removing sandbox '%s': %v", cnt.containerID, err)
 	}
 
 	err = cnt.cnt.Delete(ctx)
 	if err != nil {
-		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+		return fmt.Errorf("error while removing sandbox '%s': %v", cnt.containerID, err)
 	}
 
 	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
 	if err != nil {
-		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+		return fmt.Errorf("error while removing sandbox '%s': %v", cnt.containerID, err)
 	}
 
 	return nil

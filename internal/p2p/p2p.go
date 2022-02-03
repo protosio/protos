@@ -48,15 +48,15 @@ type DBSyncer interface {
 	BroadcastLocalDatasets()
 }
 
-type Peer interface {
+type Machine interface {
 	GetPublicKey() []byte
 	GetPublicIP() string
 	GetName() string
 }
 
 type rpcPeer struct {
-	peer   Peer
-	client *Client
+	machine Machine
+	client  *Client
 }
 
 type emptyReq struct{}
@@ -126,6 +126,7 @@ type P2P struct {
 	subscription   *pubsub.Subscription
 	topic          *pubsub.Topic
 	dbSyncer       DBSyncer
+	initMode       bool
 }
 
 func (p2p *P2P) getRPCHandler(msgType string) (*rpcHandler, error) {
@@ -169,7 +170,6 @@ func (p2p *P2P) rpcMsgReader(s network.Stream, writeQueue chan rpcMsg, stopSigna
 				return
 			}
 			s.Reset()
-			log.Debugf("Connection to '%s' has been closed. Stopping RPC msg reader", s.Conn().RemotePeer().String())
 			stopSignal <- struct{}{}
 			return
 		}
@@ -232,7 +232,6 @@ func (p2p *P2P) rpcMsgWriter(s network.Stream, writeQueue chan rpcMsg, stopSigna
 				continue
 			}
 		case <-stopSignal:
-			log.Debugf("Connection to '%s' has been closed. Stopping RPC msg writer", s.Conn().RemotePeer().String())
 			return
 		}
 
@@ -519,8 +518,8 @@ func (p2p *P2P) PubKeyToPeerID(pubKey []byte) (string, error) {
 }
 
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(p Peer) (*Client, error) {
-	pk, err := crypto.UnmarshalEd25519PublicKey(p.GetPublicKey())
+func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
+	pk, err := crypto.UnmarshalEd25519PublicKey(machine.GetPublicKey())
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall public key: %w", err)
 	}
@@ -529,7 +528,7 @@ func (p2p *P2P) AddPeer(p Peer) (*Client, error) {
 		return nil, fmt.Errorf("failed to create peer ID from public key: %w", err)
 	}
 
-	destinationString := fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", p.GetPublicIP(), p2pPort, peerID.String())
+	destinationString := fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", machine.GetPublicIP(), p2pPort, peerID.String())
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create multi address: %w", err)
@@ -539,51 +538,42 @@ func (p2p *P2P) AddPeer(p Peer) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract info from address: %w", err)
 	}
+	rpcpeer := &rpcPeer{machine: machine}
+	p2p.peers.Set(peerID.String(), rpcpeer)
 
-	log.Debugf("Adding peer id '%s' at ip '%s'", peerInfo.ID.String(), p.GetPublicIP())
+	log.Debugf("Adding peer id '%s'(%s) at ip '%s'", machine.GetName(), peerInfo.ID.String(), machine.GetPublicIP())
 
-	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, 10*time.Second)
-	s, err := p2p.host.NewStream(context.Background(), peerID, protocol.ID(protosRPCProtocol))
+	err = p2p.host.Connect(context.Background(), *peerInfo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stream with peer '%s': %w", peerID.String(), err)
+		log.Errorf("Failed to connect to peer '%s': %s", peerID.String(), err.Error())
 	}
-	p2p.newRPCStreamHandler(s)
 
-	client, err := p2p.getClientForPeer(peerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve client: %w", err)
+	var client *Client
+	tries := 0
+	for {
+		client, err = p2p.getClientForPeer(peerID)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(200 * time.Millisecond)
+		if tries == 19 {
+			return nil, fmt.Errorf("time out. Could not find client for new peer '%s'(%s)", rpcpeer.machine.GetName(), peerID.String())
+		}
+		tries++
 	}
-	rpcpeer := rpcPeer{peer: p, client: client}
-	p2p.peers.Set(peerID.String(), &rpcpeer)
 
 	return client, nil
 }
 
-// // RemovePeer removes a peer from the p2p manager
-// func (p2p *P2P) RemovePeer(pubKey []byte) error {
-// 	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to remove peer: %w", err)
-// 	}
-// 	peerID, err := peer.IDFromPublicKey(pk)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to remove peer: %w", err)
-// 	}
-
-// 	log.Debugf("Removing peer id '%s'", peerID.String())
-// 	p2p.rpcClients.Remove(peerID.String())
-
-// 	return nil
-// }
-
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) ConfigurePeers(peers []Peer) error {
-	currentPeers := map[string]struct{}{}
+func (p2p *P2P) ConfigurePeers(machines []Machine) error {
+	currentPeers := map[string]peer.ID{}
 	log.Debugf("Configuring p2p peers")
 
 	// add new peers
-	for _, p := range peers {
-		pk, err := crypto.UnmarshalEd25519PublicKey(p.GetPublicKey())
+	for _, machine := range machines {
+		pk, err := crypto.UnmarshalEd25519PublicKey(machine.GetPublicKey())
 		if err != nil {
 			log.Errorf("Failed to configure peer: %s", err.Error())
 			continue
@@ -598,62 +588,51 @@ func (p2p *P2P) ConfigurePeers(peers []Peer) error {
 		}
 		rpcpeerI, found := p2p.peers.Get(peerID.String())
 		if !found {
-			log.Debugf("Adding new peer '%s'(%s) at '%s'", peerID.String(), p.GetName(), p.GetPublicIP())
+			log.Debugf("Adding new peer '%s'(%s) at '%s'", machine.GetName(), peerID.String(), machine.GetPublicIP())
 			destinationString := ""
-			if p.GetPublicIP() != "" {
-				destinationString = fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", p.GetPublicIP(), p2pPort, peerID.String())
+			if machine.GetPublicIP() != "" {
+				destinationString = fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", machine.GetPublicIP(), p2pPort, peerID.String())
 			} else {
 				destinationString = fmt.Sprintf("/p2p/%s", peerID.String())
 			}
 			maddr, err := multiaddr.NewMultiaddr(destinationString)
 			if err != nil {
-				log.Errorf("Failed to create multiaddress for peer '%s': %s", err.Error(), peerID.String())
+				log.Errorf("Failed to create multiaddress for peer '%s': %s", peerID.String(), err.Error())
 				continue
 			}
 
 			peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
 			if err != nil {
-				log.Errorf("Failed parse peer info from multiaddress for peer '%s': %s", err.Error(), peerID.String())
+				log.Errorf("Failed parse peer info from multiaddress for peer '%s': %s", peerID.String(), err.Error())
 				continue
 			}
 
-			p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, 10*time.Second)
-
-			rpcpeer := &rpcPeer{peer: p}
-			if p.GetPublicIP() != "" {
-				s, err := p2p.host.NewStream(context.Background(), peerID, protocol.ID(protosRPCProtocol))
-				if err != nil {
-					log.Errorf("Failed to create new stream for peer '%s': %s", err.Error(), peerID.String())
-					continue
-				}
-
-				p2p.newRPCStreamHandler(s)
-				rpcClient, err := p2p.getClientForPeer(peerID)
-				if err != nil {
-					log.Errorf("Failed to create client for peer '%s': %s", err.Error(), peerID.String())
-					continue
-				}
-				rpcpeer.client = rpcClient
-			}
+			rpcpeer := &rpcPeer{machine: machine}
 			p2p.peers.Set(peerID.String(), rpcpeer)
-		} else if rpcpeer := rpcpeerI.(*rpcPeer); rpcpeer.peer == nil {
+			if machine.GetPublicIP() != "" {
+				err = p2p.host.Connect(context.Background(), *peerInfo)
+				if err != nil {
+					log.Errorf("Failed to connect to peer '%s': %s", peerID.String(), err.Error())
+				}
+			}
+		} else if rpcpeer := rpcpeerI.(*rpcPeer); rpcpeer.machine == nil {
 			fmt.Println("setting instance for known peer")
-			rpcpeer.peer = p
+			rpcpeer.machine = machine
 		}
-		currentPeers[peerID.String()] = struct{}{}
+		currentPeers[peerID.String()] = peerID
 	}
 
 	// delete old peers
 	for rpcpeerItem := range p2p.peers.IterBuffered() {
 		rpcpeer := rpcpeerItem.Val.(*rpcPeer)
-		if _, found := currentPeers[rpcpeerItem.Key]; !found {
+		if peerID, found := currentPeers[rpcpeerItem.Key]; !found {
 			name := "unknown"
-			if rpcpeer.peer != nil {
-				name = rpcpeer.peer.GetName()
+			if rpcpeer.machine != nil {
+				name = rpcpeer.machine.GetName()
 			}
 			log.Debugf("Removing old peer '%s'(%s)", rpcpeerItem.Key, name)
 			p2p.peers.Remove(rpcpeerItem.Key)
-			err := p2p.host.Network().ClosePeer(rpcpeer.client.peer)
+			err := p2p.host.Network().ClosePeer(peerID)
 			if err != nil {
 				log.Debugf("Failed to disconnect from old peer '%s'(%s)", rpcpeerItem.Key, name)
 			}
@@ -664,8 +643,8 @@ func (p2p *P2P) ConfigurePeers(peers []Peer) error {
 }
 
 func (p2p *P2P) GetCSClient(peerID string) (db.ChunkStoreClient, error) {
-	clientI, found := p2p.peers.Get(peerID)
-	rpcpeer := clientI.(*rpcPeer)
+	rpcpeerI, found := p2p.peers.Get(peerID)
+	rpcpeer := rpcpeerI.(*rpcPeer)
 	if found {
 		return rpcpeer.client, nil
 	}
@@ -702,6 +681,149 @@ func (p2p *P2P) getClientForPeer(pID peer.ID) (client *Client, err error) {
 	return client, err
 }
 
+func (p2p *P2P) peerDiscoveryProcessor() func() error {
+	ticker := time.NewTicker(10 * time.Second)
+	stopSignal := make(chan struct{})
+	go func() {
+		log.Info("Starting peer discovery processor")
+		for {
+			select {
+			case <-ticker.C:
+				for rpcpeerItem := range p2p.peers.IterBuffered() {
+					rpcpeer := rpcpeerItem.Val.(*rpcPeer)
+					if rpcpeer.client == nil && rpcpeer.machine.GetPublicIP() != "" {
+						pk, err := crypto.UnmarshalEd25519PublicKey(rpcpeer.machine.GetPublicKey())
+						if err != nil {
+							log.Errorf("Failed to configure peer: %s", err.Error())
+							continue
+						}
+
+						peerID, err := peer.IDFromPublicKey(pk)
+						if err != nil {
+							log.Errorf("Failed to configure peer: %s", err.Error())
+							continue
+						}
+
+						destinationString := fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", rpcpeer.machine.GetPublicIP(), p2pPort, peerID.String())
+						maddr, err := multiaddr.NewMultiaddr(destinationString)
+						if err != nil {
+							log.Errorf("Failed to create multiaddress for peer '%s': %s", peerID.String(), err.Error())
+							continue
+						}
+
+						peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
+						if err != nil {
+							log.Errorf("Failed parse peer info from multiaddress for peer '%s': %s", peerID.String(), err.Error())
+							continue
+						}
+
+						err = p2p.host.Connect(context.Background(), *peerInfo)
+						if err != nil {
+							continue
+						}
+					}
+				}
+			case <-stopSignal:
+				log.Debugf("Stopping peer discovery processor")
+			}
+		}
+	}()
+	stopper := func() error {
+		stopSignal <- struct{}{}
+		return nil
+	}
+	return stopper
+}
+
+func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
+	go func() {
+		if conn.Stat().Transient {
+			return
+		}
+
+		var rpcpeer *rpcPeer
+		if p2p.initMode {
+			rpcpeer = &rpcPeer{machine: &initMachine{}}
+		} else {
+			rpcpeerI, found := p2p.peers.Get(conn.RemotePeer().String())
+			if !found {
+				log.Errorf("Peer '%s' not found locally while creating client", conn.RemotePeer().String())
+				conn.Close()
+				return
+			}
+			rpcpeer = rpcpeerI.(*rpcPeer)
+		}
+
+		log.Debugf("New connection with peer '%s'(%s). Creating client", rpcpeer.machine.GetName(), conn.RemotePeer().String())
+		if conn.Stat().Direction == network.DirOutbound {
+			s, err := p2p.host.NewStream(context.Background(), conn.RemotePeer(), protocol.ID(protosRPCProtocol))
+			if err != nil {
+				log.Errorf("Could not create stream to new peer '%s'(%s): %s", rpcpeer.machine.GetName(), conn.RemotePeer().String(), err.Error())
+				conn.Close()
+				return
+			}
+			p2p.newRPCStreamHandler(s)
+		}
+
+		tries := 0
+		for {
+			streams := conn.GetStreams()
+			if len(streams) != 0 {
+				break
+			}
+
+			time.Sleep(500 * time.Millisecond)
+			if tries == 19 {
+				log.Errorf("Time out. Could not find stream for new peer '%s'(%s)", rpcpeer.machine.GetName(), conn.RemotePeer().String())
+				conn.Close()
+				return
+			}
+			tries++
+		}
+
+		tries = 0
+		for {
+			_, found := p2p.peerWriters.Get(conn.RemotePeer().String())
+			if found {
+				break
+			}
+
+			time.Sleep(500 * time.Millisecond)
+			if tries == 19 {
+				log.Errorf("Time out. Could not find writer for new peer '%s'(%s)", rpcpeer.machine.GetName(), conn.RemotePeer().String())
+				conn.Close()
+				return
+			}
+			tries++
+		}
+
+		rpcClient, err := p2p.getClientForPeer(conn.RemotePeer())
+		if err != nil {
+			log.Errorf("Failed to create client for new peer '%s'(%s): %s", rpcpeer.machine.GetName(), conn.RemotePeer().String(), err.Error())
+			conn.Close()
+			return
+		}
+		rpcpeer.client = rpcClient
+	}()
+}
+
+func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) {
+	if conn.Stat().Transient {
+		return
+	}
+
+	p2p.host.Peerstore().ClearAddrs(conn.RemotePeer())
+	rpcpeerI, found := p2p.peers.Get(conn.RemotePeer().String())
+	if !found {
+		log.Errorf("Peer '%s' not found locally while cleaning up client", conn.RemotePeer().String())
+		return
+	}
+	rpcpeer := rpcpeerI.(*rpcPeer)
+
+	log.Debugf("Connection with peer '%s'(%s) closed. Removing client", rpcpeer.machine.GetName(), conn.RemotePeer().String())
+	rpcpeer.client = nil
+}
+
 // StartServer starts listening for p2p connections
 func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkStore) (func() error, error) {
 	log.Info("Starting p2p server")
@@ -735,10 +857,12 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 	}
 
 	pubsubStopper := p2p.pubsubMsgProcessor()
+	peerDiscoveryStopper := p2p.peerDiscoveryProcessor()
 
 	stopper := func() error {
 		log.Debug("Stopping p2p server")
 		pubsubStopper()
+		peerDiscoveryStopper()
 		return p2p.host.Close()
 	}
 	return stopper, nil
@@ -746,7 +870,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(key *pcrypto.Key, dbSyncer DBSyncer) (*P2P, error) {
+func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, initMode bool) (*P2P, error) {
 	p2p := &P2P{
 		rpcHandlers:    map[string]*rpcHandler{},
 		pubsubHandlers: map[pubsubMsgType]*pubsubHandler{},
@@ -754,6 +878,7 @@ func NewManager(key *pcrypto.Key, dbSyncer DBSyncer) (*P2P, error) {
 		peerWriters:    cmap.New(),
 		peers:          cmap.New(),
 		dbSyncer:       dbSyncer,
+		initMode:       initMode,
 	}
 
 	p2p.ClientPubSub = &ClientPubSub{p2p: p2p}
@@ -783,6 +908,12 @@ func NewManager(key *pcrypto.Key, dbSyncer DBSyncer) (*P2P, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup PubSub channel: %w", err)
 	}
+
+	nb := network.NotifyBundle{
+		ConnectedF:    p2p.newConnectionHandler,
+		DisconnectedF: p2p.closeConnectionHandler,
+	}
+	p2p.host.Network().Notify(&nb)
 
 	p2p.topic, err = pubSub.Join(protosUpdatesTopic)
 	if err != nil {

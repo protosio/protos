@@ -105,7 +105,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	appManager := app.CreateManager(app.TypeProtosd, rm, tm, appRuntime, dbcli, m, pub, as, cm)
 	pm := provider.CreateManager(rm, appManager, dbcli)
 
-	p2pManager, err := p2p.NewManager(key, dbcli)
+	p2pManager, err := p2p.NewManager(key, dbcli, m.InitMode())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func (pc *PeerConfigurator) Refresh() error {
 		return fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 
-	peers := []p2p.Peer{}
+	peers := []p2p.Machine{}
 	for _, instance := range instances {
 		peers = append(peers, instance)
 	}

@@ -19,6 +19,18 @@ type MetaConfigurator interface {
 	GetPrivateKey() (*pcrypto.Key, error)
 }
 
+type initMachine struct{}
+
+func (im *initMachine) GetPublicKey() []byte {
+	return []byte{}
+}
+func (im *initMachine) GetPublicIP() string {
+	return ""
+}
+func (im *initMachine) GetName() string {
+	return "initMachine"
+}
+
 type InitReq struct {
 	Network      string `json:"network" validate:"cidrv4"` // CIDR notation
 	InstanceName string `json:"instance_name" validate:"required"`
@@ -94,6 +106,7 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 
 	hi.metaConfigurator.SetInstanceName(req.InstanceName)
 	ipNet := hi.metaConfigurator.SetNetwork(*network)
+	hi.p2p.initMode = false
 
 	initResp := InitResp{
 		InstanceIP:   ipNet.String(),

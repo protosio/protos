@@ -180,7 +180,7 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
 	}
 
-	p2pManager, err := p2p.NewManager(key, pc.db)
+	p2pManager, err := p2p.NewManager(key, pc.db, false)
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
@@ -216,7 +216,6 @@ func (pc *ProtosClient) FinishInit() error {
 	pc.NetworkManager = networkManager
 
 	pc.Refresh()
-	pc.db.BroadcastLocalDatasets()
 
 	return nil
 
@@ -234,7 +233,7 @@ func (pc *ProtosClient) Refresh() error {
 		return fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 
-	peers := []p2p.Peer{}
+	peers := []p2p.Machine{}
 	for _, instance := range instances {
 		peers = append(peers, instance)
 	}
