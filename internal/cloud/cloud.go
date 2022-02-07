@@ -73,12 +73,12 @@ func CreateManager(db db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p
 
 	err := db.InitDataset(instanceDS, configurator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize instance dataset: %w", err)
+		return nil, fmt.Errorf("failed to initialize instance dataset: %v", err)
 	}
 
 	err = db.InitDataset(cloudDS, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cloud dataset: %w", err)
+		return nil, fmt.Errorf("failed to initialize cloud dataset: %v", err)
 	}
 
 	return manager, nil
@@ -178,11 +178,11 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// init cloud
 	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
+		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %v", cloudName, err)
 	}
 	err = provider.Init()
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to init cloud provider '%s'(%s) API: %w", cloudName, provider.TypeStr(), err)
+		return InstanceInfo{}, fmt.Errorf("failed to init cloud provider '%s'(%s) API: %v", cloudName, provider.TypeStr(), err)
 	}
 
 	// validate machine type
@@ -198,7 +198,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	imageID := ""
 	images, err := provider.GetImages()
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %v", err)
 	}
 	for id, img := range images {
 		if img.Location == cloudLocation && img.Name == release.Version {
@@ -214,7 +214,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 			log.Infof("Protos image version '%s' not in your infra cloud account. Adding it.", release.Version)
 			imageID, err = provider.AddImage(image.URL, image.Digest, release.Version, cloudLocation)
 			if err != nil {
-				return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
+				return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %v", err)
 			}
 		} else {
 			return InstanceInfo{}, errors.Errorf("could not find a Protos version '%s' release for cloud '%s'", release.Version, provider.TypeStr())
@@ -225,33 +225,38 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	log.Info("Generating SSH key for the new VM instance")
 	instanceSSHKey, err := cm.sm.GenerateKey()
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %v", err)
 	}
 
 	// deploy a protos instance
 	log.Infof("Deploying instance '%s' of type '%s', using Protos version '%s' (image id '%s')", instanceName, machineType, release.Version, imageID)
 	vmID, err := provider.NewInstance(instanceName, imageID, instanceSSHKey.AuthorizedKey(), machineType, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %v", err)
 	}
 	log.Infof("Instance with ID '%s' deployed", vmID)
 
 	// get instance info
 	instanceInfo, err := provider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to get Protos instance info: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to get Protos instance info: %v", err)
 	}
 
 	// allocate network
 	instances, err := cm.GetInstances()
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
+		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %v", instanceInfo.Name, err)
 	}
 
 	userDevices := usr.GetDevices()
 	network, err := allocateNetwork(instances, userDevices)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
+		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %v", instanceInfo.Name, err)
+	}
+
+	thisDevice, err := usr.GetCurrentDevice()
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to get current device : %v", err)
 	}
 
 	// save instance information
@@ -260,46 +265,46 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.Network = network.String()
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %v", instanceName, err)
 	}
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
 	volumeID, err := provider.NewVolume(instanceName, 30000, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to create data volume: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to create data volume: %v", err)
 	}
 
 	// attach volume to instance
 	err = provider.AttachVolume(volumeID, vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to attach volume to instance '%s': %w", instanceName, err)
+		return InstanceInfo{}, fmt.Errorf("failed to attach volume to instance '%s': %v", instanceName, err)
 	}
 
 	// start protos instance
 	log.Infof("Starting instance '%s'", instanceName)
 	err = provider.StartInstance(vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to start instance: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to start instance: %v", err)
 	}
 
 	// get instance info again
 	instanceUpdate, err := provider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to get instance info: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to get instance info: %v", err)
 	}
 	instanceInfo.PublicIP = instanceUpdate.PublicIP
 	instanceInfo.Volumes = instanceUpdate.Volumes
 	// second save of the instance information
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %v", instanceName, err)
 	}
 
 	// wait for port 22 to be open
 	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %v", err)
 	}
 
 	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
@@ -325,29 +330,33 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	var pubKey ed25519.PublicKey
 	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to decode public key: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to decode public key: %v", err)
 	}
 	instanceInfo.PublicKey = pubKey
 
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to add peer: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to add peer: %v", err)
 	}
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, architecture, err := p2pClient.Init(instanceName, instanceInfo.Network)
+	ip, architecture, err := p2pClient.Init(instanceName, instanceInfo.Network, thisDevice.GetName(), thisDevice.GetPublicKey())
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %v", err)
 	}
 
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.Architecture = architecture
 	instanceInfo.PublicKey = pubKey
+
+	// send all the datasets over so the peer has the chance to register this device as a peer
+	p2pClient.SendDatasetsHeads(cm.db.GetAllDatasetsHeads())
+
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %v", instanceName, err)
 	}
 
 	log.Infof("Instance '%s' at '%s' is ready", instanceName, instanceInfo.PublicIP)
@@ -390,25 +399,30 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	userDevices := usr.GetDevices()
 	developmentNetwork, err := allocateNetwork(instances, userDevices)
 	if err != nil {
-		return fmt.Errorf("failed to allocate network for instance '%s': %w", "dev", err)
+		return fmt.Errorf("failed to allocate network for instance '%s': %v", "dev", err)
+	}
+
+	thisDevice, err := usr.GetCurrentDevice()
+	if err != nil {
+		return fmt.Errorf("failed to get current device : %v", err)
 	}
 
 	// wait for port 22 to be open
 	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
 	if err != nil {
-		return fmt.Errorf("failure while waiting for port: %w", err)
+		return fmt.Errorf("failure while waiting for port: %v", err)
 	}
 
 	// connect via SSH
 	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", sshAuth, 10)
 	if err != nil {
-		return fmt.Errorf("failed to connect to dev instance over SSH: %w", err)
+		return fmt.Errorf("failed to connect to dev instance over SSH: %v", err)
 	}
 
 	// retrieve instance public key via SSH
 	pubKeyStr, err := pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve public key from dev instance: %w", err)
+		return fmt.Errorf("failed to retrieve public key from dev instance: %v", err)
 	}
 
 	// close SSH connection
@@ -417,31 +431,33 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	var pubKey ed25519.PublicKey
 	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
 	if err != nil {
-		return fmt.Errorf("failed to decode public key: %w", err)
+		return fmt.Errorf("failed to decode public key: %v", err)
 	}
 	instanceInfo.PublicKey = pubKey
 
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
-		return fmt.Errorf("failed to add peer: %w", err)
+		return fmt.Errorf("failed to add peer: %v", err)
 	}
-
-	cm.db.BroadcastLocalDatasets()
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, architecture, err := p2pClient.Init(instanceName, developmentNetwork.String())
+	ip, architecture, err := p2pClient.Init(instanceName, developmentNetwork.String(), thisDevice.GetName(), thisDevice.GetPublicKey())
 	if err != nil {
-		return fmt.Errorf("failed to init dev instance: %w", err)
+		return fmt.Errorf("failed to init dev instance: %v", err)
 	}
 
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.Architecture = architecture
 	instanceInfo.PublicKey = pubKey
 	instanceInfo.Network = developmentNetwork.String()
+
+	// send all the datasets over so the peer has the chance to register this device as a peer
+	p2pClient.SendDatasetsHeads(cm.db.GetAllDatasetsHeads())
+
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
-		return fmt.Errorf("failed to save dev instance '%s': %w", instanceName, err)
+		return fmt.Errorf("failed to save dev instance '%s': %v", instanceName, err)
 	}
 
 	log.Infof("Dev instance '%s' at '%s' is ready", instanceName, ipString)
@@ -453,19 +469,19 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 func (cm *Manager) DeleteInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
-		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
+		return fmt.Errorf("could not retrieve instance '%s': %v", name, err)
 	}
 
 	// if local only, ignore any cloud resources
 	if instance.CloudType != string(Local) {
 		provider, err := cm.GetProvider(instance.CloudName)
 		if err != nil {
-			return fmt.Errorf("could not retrieve cloud '%s': %w", name, err)
+			return fmt.Errorf("could not retrieve cloud '%s': %v", name, err)
 		}
 
 		err = provider.Init()
 		if err != nil {
-			return fmt.Errorf("could not init cloud '%s': %w", name, err)
+			return fmt.Errorf("could not init cloud '%s': %v", name, err)
 		}
 
 		found := true
@@ -474,7 +490,7 @@ func (cm *Manager) DeleteInstance(name string) error {
 			if strings.Contains(err.Error(), "not found") {
 				found = false
 			} else {
-				return fmt.Errorf("failed to get details for instance '%s': %w", name, err)
+				return fmt.Errorf("failed to get details for instance '%s': %v", name, err)
 			}
 		}
 
@@ -484,13 +500,13 @@ func (cm *Manager) DeleteInstance(name string) error {
 				log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
 				err = provider.StopInstance(instance.VMID, instance.Location)
 				if err != nil {
-					return fmt.Errorf("could not stop instance '%s': %w", name, err)
+					return fmt.Errorf("could not stop instance '%s': %v", name, err)
 				}
 			}
 			log.Infof("Deleting instance '%s' (%s)", instance.Name, instance.VMID)
 			err = provider.DeleteInstance(instance.VMID, instance.Location)
 			if err != nil {
-				return fmt.Errorf("could not delete instance '%s': %w", name, err)
+				return fmt.Errorf("could not delete instance '%s': %v", name, err)
 			}
 			for _, vol := range vmInfo.Volumes {
 				log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, name)
@@ -514,28 +530,28 @@ func (cm *Manager) DeleteInstance(name string) error {
 func (cm *Manager) StartInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
-		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
+		return fmt.Errorf("could not retrieve instance '%s': %v", name, err)
 	}
 	provider, err := cm.GetProvider(instance.CloudName)
 	if err != nil {
-		return fmt.Errorf("could not retrieve cloud '%s': %w", name, err)
+		return fmt.Errorf("could not retrieve cloud '%s': %v", name, err)
 	}
 
 	err = provider.Init()
 	if err != nil {
-		return fmt.Errorf("could not init cloud '%s': %w", name, err)
+		return fmt.Errorf("could not init cloud '%s': %v", name, err)
 	}
 
 	log.Infof("Starting instance '%s' (%s)", instance.Name, instance.VMID)
 	err = provider.StartInstance(instance.VMID, instance.Location)
 	if err != nil {
-		return fmt.Errorf("could not start instance '%s': %w", name, err)
+		return fmt.Errorf("could not start instance '%s': %v", name, err)
 	}
 
 	// IP can change if an instance is stopped and started so a refresh is required
 	info, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
 	if err != nil {
-		return fmt.Errorf("could not retrieve instance info for '%s': %w", name, err)
+		return fmt.Errorf("could not retrieve instance info for '%s': %v", name, err)
 	}
 
 	instance.PublicIP = info.PublicIP
@@ -543,7 +559,7 @@ func (cm *Manager) StartInstance(name string) error {
 
 	err = cm.db.InsertInMap(instanceDS, instance.Name, instance)
 	if err != nil {
-		return fmt.Errorf("failed to save instance '%s': %w", name, err)
+		return fmt.Errorf("failed to save instance '%s': %v", name, err)
 	}
 
 	return nil
@@ -553,22 +569,22 @@ func (cm *Manager) StartInstance(name string) error {
 func (cm *Manager) StopInstance(name string) error {
 	instance, err := cm.GetInstance(name)
 	if err != nil {
-		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
+		return fmt.Errorf("could not retrieve instance '%s': %v", name, err)
 	}
 	provider, err := cm.GetProvider(instance.CloudName)
 	if err != nil {
-		return fmt.Errorf("could not retrieve cloud '%s': %w", name, err)
+		return fmt.Errorf("could not retrieve cloud '%s': %v", name, err)
 	}
 
 	err = provider.Init()
 	if err != nil {
-		return fmt.Errorf("could not init cloud '%s': %w", name, err)
+		return fmt.Errorf("could not init cloud '%s': %v", name, err)
 	}
 
 	log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.VMID)
 	err = provider.StopInstance(instance.VMID, instance.Location)
 	if err != nil {
-		return fmt.Errorf("could not stop instance '%s': %w", name, err)
+		return fmt.Errorf("could not stop instance '%s': %v", name, err)
 	}
 	return nil
 }
@@ -577,21 +593,21 @@ func (cm *Manager) StopInstance(name string) error {
 func (cm *Manager) TunnelInstance(name string) error {
 	instanceInfo, err := cm.GetInstance(name)
 	if err != nil {
-		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
+		return fmt.Errorf("could not retrieve instance '%s': %v", name, err)
 	}
 	if len(instanceInfo.SSHKeySeed) == 0 {
 		return errors.Errorf("Instance '%s' is missing its SSH key", name)
 	}
 	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
 	if err != nil {
-		return fmt.Errorf("instance '%s' has an invalid SSH key: %w", name, err)
+		return fmt.Errorf("instance '%s' has an invalid SSH key: %v", name, err)
 	}
 
 	log.Infof("creating SSH tunnel to instance '%s', using ip '%s'", instanceInfo.Name, instanceInfo.PublicIP)
 	tunnel := pcrypto.NewTunnel(instanceInfo.PublicIP+":22", "root", key.SSHAuth(), "localhost:8080")
 	localPort, err := tunnel.Start()
 	if err != nil {
-		return fmt.Errorf("error while creating the SSH tunnel: %w", err)
+		return fmt.Errorf("error while creating the SSH tunnel: %v", err)
 	}
 
 	quit := make(chan interface{}, 1)
@@ -607,7 +623,7 @@ func (cm *Manager) TunnelInstance(name string) error {
 	log.Info("CTRL+C received. Terminating the SSH tunnel")
 	err = tunnel.Close()
 	if err != nil {
-		return fmt.Errorf("error while terminating the SSH tunnel: %w", err)
+		return fmt.Errorf("error while terminating the SSH tunnel: %v", err)
 	}
 	log.Info("SSH tunnel terminated successfully")
 	return nil
@@ -692,7 +708,7 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 	// check local image file
 	finfo, err := os.Stat(imagePath)
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return fmt.Errorf("%s: %v", errMsg, err)
 	}
 	if finfo.IsDir() {
 		return fmt.Errorf("%s: Path '%s' is a directory", errMsg, imagePath)
@@ -703,18 +719,18 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 
 	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return fmt.Errorf("%s: %v", errMsg, err)
 	}
 
 	err = provider.Init()
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return fmt.Errorf("%s: %v", errMsg, err)
 	}
 
 	// find image
 	images, err := provider.GetImages()
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return fmt.Errorf("%s: %v", errMsg, err)
 	}
 	for _, img := range images {
 		if img.Location == cloudLocation && img.Name == imageName {
@@ -725,7 +741,7 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 	// upload image
 	_, err = provider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return fmt.Errorf("%s: %v", errMsg, err)
 	}
 	return nil
 }

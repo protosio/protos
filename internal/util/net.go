@@ -35,13 +35,13 @@ func GetLocalIPs() ([]string, error) {
 	ips := []string{}
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return ips, fmt.Errorf("Failed to retrieve the local network interfaces: %s", err.Error())
+		return ips, fmt.Errorf("failed to retrieve the local network interfaces: %s", err.Error())
 	}
 
 	for _, i := range ifaces {
 		addrs, err := i.Addrs()
 		if err != nil {
-			return ips, fmt.Errorf("Failed to retrieve IPs for %s: %s", i.Name, err.Error())
+			return ips, fmt.Errorf("failed to retrieve IPs for %s: %s", i.Name, err.Error())
 		}
 		for _, addr := range addrs {
 			var ip net.IP

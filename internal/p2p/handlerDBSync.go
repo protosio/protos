@@ -19,6 +19,7 @@ import (
 	"github.com/attic-labs/noms/go/types"
 	"github.com/attic-labs/noms/go/util/verbose"
 	"github.com/golang/snappy"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 const (
@@ -76,7 +77,7 @@ type HandlersChunkStore struct {
 	p2p *P2P
 }
 
-func (p2pcs *HandlersChunkStore) getRoot(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) getRoot(peer peer.ID, data interface{}) (interface{}, error) {
 	resp := getRootResp{
 		Root:        p2pcs.cs.Root().String(),
 		NomsVersion: p2pcs.cs.Version(),
@@ -85,7 +86,7 @@ func (p2pcs *HandlersChunkStore) getRoot(data interface{}) (interface{}, error) 
 	return resp, nil
 }
 
-func (p2pcs *HandlersChunkStore) setRoot(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) setRoot(peer peer.ID, data interface{}) (interface{}, error) {
 	req, ok := data.(*setRootReq)
 	if !ok {
 		return getRootResp{}, fmt.Errorf("unknown data struct for setRoot request")
@@ -156,7 +157,7 @@ func deserializeHash(reader io.Reader) hash.Hash {
 	return h
 }
 
-func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) getRefs(peer peer.ID, data interface{}) (interface{}, error) {
 	req, ok := data.(*getRefsReq)
 	if !ok {
 		return getRefsResp{}, fmt.Errorf("unknown data struct for getRefs request")
@@ -210,7 +211,7 @@ func (p2pcs *HandlersChunkStore) getRefs(data interface{}) (interface{}, error) 
 
 }
 
-func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) hasRefs(peer peer.ID, data interface{}) (interface{}, error) {
 
 	req, ok := data.(*hasRefsReq)
 	if !ok {
@@ -242,7 +243,7 @@ func (p2pcs *HandlersChunkStore) hasRefs(data interface{}) (interface{}, error) 
 	return hasRefsResp{Hashes: encodedBody}, nil
 }
 
-func (p2pcs *HandlersChunkStore) writeValue(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) writeValue(peer peer.ID, data interface{}) (interface{}, error) {
 	req, ok := data.(*writeValueReq)
 	if !ok {
 		return emptyResp{}, fmt.Errorf("unknown data struct for writeValue request")
@@ -325,7 +326,7 @@ func (p2pcs *HandlersChunkStore) writeValue(data interface{}) (interface{}, erro
 	return emptyResp{}, nil
 }
 
-func (p2pcs *HandlersChunkStore) getStatsSummary(data interface{}) (interface{}, error) {
+func (p2pcs *HandlersChunkStore) getStatsSummary(peer peer.ID, data interface{}) (interface{}, error) {
 	resp := getStatsSummaryHandlerResp{}
 	resp.Stats = p2pcs.cs.StatsSummary()
 	return resp, nil

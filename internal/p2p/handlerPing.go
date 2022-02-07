@@ -15,7 +15,7 @@ type PingReq struct {
 type PingResp struct {
 }
 
-// ClientInit is a client to a remote init server
+// ClientPing is a client to a remote ping server
 type ClientPing struct {
 	p2p    *P2P
 	peerID peer.ID
@@ -47,7 +47,7 @@ func (cp *ClientPing) Ping() (time.Duration, error) {
 type HandlersPing struct {
 }
 
-// PerformInit does the actual initialisation on the remote side
-func (hi *HandlersPing) PerformPing(data interface{}) (interface{}, error) {
+// HandlerPing responds to a ping request on the server side
+func (hi *HandlersPing) HandlerPing(peer peer.ID, data interface{}) (interface{}, error) {
 	return PingResp{}, nil
 }

@@ -145,6 +145,12 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	stoppers["wfi"] = ctxStopper
 
+	// perform runtime initialization (container runtime)
+	err = appRuntime.Init()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	internalIP, network := m.WaitForInit(ctx)
 
 	if canceled {
@@ -155,12 +161,6 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 
 	// perform network initialization
 	err = networkManager.Init(network, internalIP, key.PrivateWG(), cfg.InternalDomain)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// perform runtime initialization (container runtime)
-	err = appRuntime.Init()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	log.Info("Started all servers successfully")
 	peerConfigurator.Refresh()
 	appManager.Refresh()
-	p2pManager.RequestHead()
+	p2pManager.BroadcastRequestHead()
 	wg.Wait()
 	log.Info("Shutdown completed")
 

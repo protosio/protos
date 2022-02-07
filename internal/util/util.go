@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bufio"
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
@@ -104,7 +105,7 @@ func WaitForPort(host string, port string, maxTries int) error {
 		time.Sleep(3 * time.Second)
 		tries++
 		if tries == maxTries {
-			return fmt.Errorf("Failed to connect to '%s:%s' after %d tries", host, port, maxTries)
+			return fmt.Errorf("failed to connect to '%s:%s' after %d tries", host, port, maxTries)
 		}
 	}
 }
@@ -123,7 +124,30 @@ func WaitForHTTP(url string, maxTries int) error {
 		time.Sleep(3 * time.Second)
 		tries++
 		if tries == maxTries {
-			return fmt.Errorf("Failed to do HTTP req to '%s' after %d tries", url, maxTries)
+			return fmt.Errorf("failed to do HTTP req to '%s' after %d tries", url, maxTries)
 		}
 	}
+}
+
+func DelimReader(r io.Reader, delim byte) <-chan []byte {
+	ch := make(chan []byte)
+
+	go func() {
+		buf := bufio.NewReader(r)
+
+		for {
+			bytes, err := buf.ReadBytes('\n')
+			if len(bytes) != 0 {
+				ch <- bytes
+			}
+
+			if err != nil {
+				break
+			}
+		}
+
+		close(ch)
+	}()
+
+	return ch
 }

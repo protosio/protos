@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"runtime"
@@ -10,7 +11,10 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 )
 
-const initHandler = "init"
+const (
+	initHandler     = "init"
+	initMachineName = "initMachine"
+)
 
 // MetaConfigurator allows for the configuration of the meta package
 type MetaConfigurator interface {
@@ -19,21 +23,27 @@ type MetaConfigurator interface {
 	GetPrivateKey() (*pcrypto.Key, error)
 }
 
-type initMachine struct{}
+type initMachine struct {
+	name      string
+	publicIP  string
+	publicKey []byte
+}
 
 func (im *initMachine) GetPublicKey() []byte {
-	return []byte{}
+	return im.publicKey
 }
 func (im *initMachine) GetPublicIP() string {
-	return ""
+	return im.publicIP
 }
 func (im *initMachine) GetName() string {
-	return "initMachine"
+	return im.name
 }
 
 type InitReq struct {
-	Network      string `json:"network" validate:"cidrv4"` // CIDR notation
-	InstanceName string `json:"instance_name" validate:"required"`
+	OriginDevice          string `json:"origin_device" validate:"required"`
+	OriginDevicePublicKey string `json:"origin_device_public_key" validate:"required"`
+	Network               string `json:"network" validate:"cidrv4"` // CIDR notation
+	InstanceName          string `json:"instance_name" validate:"required"`
 }
 
 type InitResp struct {
@@ -52,11 +62,14 @@ type ClientInit struct {
 //
 
 // Init is a remote call to peer, which triggers an init on the remote machine
-func (ip *ClientInit) Init(instanceName string, network string) (net.IP, string, error) {
+func (ip *ClientInit) Init(instanceName string, network string, deviceName string, devicePublicKey []byte) (net.IP, string, error) {
 
+	encodedPubKey := base64.StdEncoding.EncodeToString(devicePublicKey)
 	req := InitReq{
-		Network:      network,
-		InstanceName: instanceName,
+		OriginDevice:          deviceName,
+		OriginDevicePublicKey: encodedPubKey,
+		Network:               network,
+		InstanceName:          instanceName,
 	}
 
 	respData := &InitResp{}
@@ -85,8 +98,8 @@ type HandlersInit struct {
 	p2p              *P2P
 }
 
-// PerformInit does the actual initialisation on the remote side
-func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
+// HandlerInit does the initialisation on the server side
+func (hi *HandlersInit) HandlerInit(peer peer.ID, data interface{}) (interface{}, error) {
 
 	req, ok := data.(*InitReq)
 	if !ok {
@@ -104,9 +117,24 @@ func (hi *HandlersInit) PerformInit(data interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("cannot perform initialization, network '%s' is invalid: %w", req.Network, err)
 	}
 
+	pubKey, err := base64.StdEncoding.DecodeString(req.OriginDevicePublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %v", err)
+	}
+
+	im := &initMachine{
+		name:      initMachineName,
+		publicKey: pubKey,
+	}
+
+	hi.p2p.initMode = false
+	_, err = hi.p2p.AddPeer(im)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add init device as rpc client: %v", err)
+	}
+
 	hi.metaConfigurator.SetInstanceName(req.InstanceName)
 	ipNet := hi.metaConfigurator.SetNetwork(*network)
-	hi.p2p.initMode = false
 
 	initResp := InitResp{
 		InstanceIP:   ipNet.String(),

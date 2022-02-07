@@ -50,6 +50,7 @@ type DB interface {
 	Sync(peerID string, dataset string, head string)
 	AddPublisher(publisher Publisher)
 	BroadcastLocalDatasets()
+	GetAllDatasetsHeads() map[string]string
 	Close() error
 }
 
@@ -157,11 +158,20 @@ func (db *dbNoms) GetChunkStore() chunks.ChunkStore {
 	return db.cs
 }
 
+func (db *dbNoms) GetAllDatasetsHeads() map[string]string {
+	heads := map[string]string{}
+	for dsShared := range db.sharedDatasets.IterBuffered() {
+		ds := db.dbn.GetDataset(dsShared.Key)
+		heads[dsShared.Key] = ds.Head().Hash().String()
+	}
+	return heads
+}
+
 // Sync syncs (pull) from a specific peer
 func (db *dbNoms) Sync(peerID string, dataset string, head string) {
 	csClient, err := db.publisher.GetCSClient(peerID)
 	if err != nil {
-		log.Errorf("Failed to sync db head '%s': could not get CS for peer '%s': %s", head, peerID, err.Error())
+		log.Errorf("Failed to sync dataset '%s' from head '%s': %s", dataset, head, err.Error())
 		return
 	}
 
