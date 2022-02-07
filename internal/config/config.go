@@ -27,6 +27,7 @@ type Config struct {
 	InternalDomain  string
 	DevMode         bool
 	AppStoreURL     string
+	AppStoreName    string
 	AppStoreHost    string
 	ProcsQuit       sync.Map
 	ExternalDNS     string // format: <ip>:<port>
@@ -44,6 +45,7 @@ var config = Config{
 	DevMode:         false,
 	InternalDomain:  "protos.internal",
 	AppStoreURL:     "https://apps.protos.io",
+	AppStoreName:    "protos.io",
 	AppStoreHost:    "apps.protos.io",
 	ExternalDNS:     "8.8.8.8:53",
 	ProcsQuit:       sync.Map{},

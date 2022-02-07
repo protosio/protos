@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/task"
 	"github.com/regclient/regclient"
+	regconfig "github.com/regclient/regclient/config"
 	regmanifest "github.com/regclient/regclient/types/manifest"
 	"github.com/regclient/regclient/types/ref"
 
@@ -337,10 +339,15 @@ func (as *AppStore) GetInstaller(imageRef string) (*Installer, error) {
 	installer := &Installer{parent: as}
 	var err error
 
-	rc := regclient.New()
+	rc := regclient.New(regclient.WithConfigHost(regconfig.Host{Name: gconfig.AppStoreName, Hostname: gconfig.AppStoreHost, TLS: regconfig.TLSEnabled}))
 	installer.ref, err = ref.New(imageRef)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse ref for image '%s': %w", imageRef, err)
+	}
+
+	// we replace the default registry in case it wasn't explicitly set by the user
+	if installer.ref.Registry == "docker.io" && !strings.Contains(imageRef, "docker.io") {
+		installer.ref.Registry = gconfig.AppStoreName
 	}
 
 	if installer.ref.Tag == "latest" {
