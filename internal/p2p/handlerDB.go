@@ -24,8 +24,8 @@ type ClientPubSub struct {
 }
 
 func (ps *ClientPubSub) BroadcastRequestHead() error {
-	payload := emptyReq{}
-	return ps.p2p.BroadcastMsg(pubsubRequestHead, payload)
+	log.Debug("Requesting dataset heads from all peers")
+	return ps.p2p.BroadcastMsg(pubsubRequestHead, emptyReq{})
 }
 
 func (ps *ClientPubSub) BroadcastHead(dataset string, head string) error {

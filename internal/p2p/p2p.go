@@ -565,22 +565,8 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 		log.Errorf("Failed to connect to peer '%s': %s", peerID.String(), err.Error())
 	}
 
-	// var client *Client
-	// tries := 0
-	// for {
-	// 	client, err = p2p.createClientForPeer(peerID)
-	// 	if err == nil {
-	// 		break
-	// 	}
-
-	// 	time.Sleep(200 * time.Millisecond)
-	// 	if tries == 19 {
-	// 		return nil, fmt.Errorf("time out. Could not find client for new peer '%s'(%s)", rpcpeer.machine.GetName(), peerID.String())
-	// 	}
-	// 	tries++
-	// }
 	client, err := p2p.createClientForPeer(peerID)
-	if err == nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to add peer '%s': %v", peerID.String(), err)
 	}
 	rpcpeer.client = client
@@ -659,11 +645,12 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 				continue
 			}
 			log.Debugf("Removing old peer '%s'(%s)", name, rpcpeerItem.Key)
-			p2p.peers.Remove(rpcpeerItem.Key)
+			// FIXME: disconnect doesnt work when calling ClosePeer
 			err := p2p.host.Network().ClosePeer(peerID)
 			if err != nil {
 				log.Debugf("Failed to disconnect from old peer '%s'(%s)", rpcpeerItem.Key, name)
 			}
+			p2p.peers.Remove(rpcpeerItem.Key)
 		}
 	}
 
@@ -734,7 +721,7 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 	cls := NewRemoteChunkStore(p2p, peerID)
 	client.ChunkStore = cls
 
-	return client, err
+	return client, nil
 }
 
 func (p2p *P2P) peerDiscoveryProcessor() func() error {
@@ -956,6 +943,11 @@ func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, initMode bool) (*P2P, error
 		return nil, err
 	}
 
+	con, err := connmgr.NewConnManager(100, 400)
+	if err != nil {
+		return nil, err
+	}
+
 	host, err := libp2p.New(
 		libp2p.Identity(prvKey),
 		libp2p.ListenAddrStrings(
@@ -964,7 +956,7 @@ func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, initMode bool) (*P2P, error
 		),
 		libp2p.Security(noise.ID, noise.New),
 		libp2p.DefaultTransports,
-		libp2p.ConnectionManager(connmgr.NewConnManager(100, 400, time.Minute)),
+		libp2p.ConnectionManager(con),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup p2p host: %v", err)

@@ -336,7 +336,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to add peer: %v", err)
+		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %v", err)
 	}
 
 	// do the initialization
@@ -350,9 +350,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.Architecture = architecture
 	instanceInfo.PublicKey = pubKey
-
-	// send all the datasets over so the peer has the chance to register this device as a peer
-	p2pClient.SendDatasetsHeads(cm.db.GetAllDatasetsHeads())
 
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
@@ -437,7 +434,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
-		return fmt.Errorf("failed to add peer: %v", err)
+		return fmt.Errorf("failed to initialize instance: %v", err)
 	}
 
 	// do the initialization
@@ -451,9 +448,6 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	instanceInfo.Architecture = architecture
 	instanceInfo.PublicKey = pubKey
 	instanceInfo.Network = developmentNetwork.String()
-
-	// send all the datasets over so the peer has the chance to register this device as a peer
-	p2pClient.SendDatasetsHeads(cm.db.GetAllDatasetsHeads())
 
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
