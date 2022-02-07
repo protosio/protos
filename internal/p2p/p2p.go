@@ -581,19 +581,23 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 
 	// add new peers
 	for _, machine := range machines {
+
 		pk, err := crypto.UnmarshalEd25519PublicKey(machine.GetPublicKey())
 		if err != nil {
 			log.Errorf("Failed to configure peer: %s", err.Error())
 			continue
 		}
+
 		peerID, err := peer.IDFromPublicKey(pk)
 		if err != nil {
 			log.Errorf("Failed to configure peer: %s", err.Error())
 			continue
 		}
+
 		if p2p.host.ID().String() == peerID.String() {
 			continue
 		}
+
 		rpcpeerI, found := p2p.peers.Get(peerID.String())
 		if !found {
 			log.Debugf("Adding new peer '%s'(%s) at '%s'", machine.GetName(), peerID.String(), machine.GetPublicIP())
@@ -636,7 +640,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	// delete old peers
 	for rpcpeerItem := range p2p.peers.IterBuffered() {
 		rpcpeer := rpcpeerItem.Val.(*rpcPeer)
-		if peerID, found := currentPeers[rpcpeerItem.Key]; !found {
+		if _, found := currentPeers[rpcpeerItem.Key]; !found {
 			name := "unknown"
 			if rpcpeer.machine != nil {
 				name = rpcpeer.machine.GetName()
@@ -645,12 +649,11 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 				continue
 			}
 			log.Debugf("Removing old peer '%s'(%s)", name, rpcpeerItem.Key)
-			// FIXME: disconnect doesnt work when calling ClosePeer
-			err := p2p.host.Network().ClosePeer(peerID)
+			p2p.peers.Remove(rpcpeerItem.Key)
+			err := p2p.host.Network().ClosePeer(rpcpeer.client.peer)
 			if err != nil {
 				log.Debugf("Failed to disconnect from old peer '%s'(%s)", rpcpeerItem.Key, name)
 			}
-			p2p.peers.Remove(rpcpeerItem.Key)
 		}
 	}
 
@@ -859,9 +862,7 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 
 	p2p.host.Peerstore().ClearAddrs(conn.RemotePeer())
 	rpcpeerI, found := p2p.peers.Get(conn.RemotePeer().String())
-	if !found {
-		log.Errorf("Peer '%s' not found locally while cleaning up client", conn.RemotePeer().String())
-	} else {
+	if found {
 		rpcpeer := rpcpeerI.(*rpcPeer)
 		rpcpeer.client = nil
 	}
