@@ -3,6 +3,7 @@ image: protosd
 network: true
 arches:
   - amd64
+  - arm64
 config:
   binds:
   - /etc/resolv.conf:/etc/resolv.conf
