@@ -581,6 +581,9 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 
 	// add new peers
 	for _, machine := range machines {
+		if len(machine.GetPublicKey()) == 0 {
+			continue
+		}
 
 		pk, err := crypto.UnmarshalEd25519PublicKey(machine.GetPublicKey())
 		if err != nil {
