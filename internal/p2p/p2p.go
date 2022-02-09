@@ -650,9 +650,11 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 			}
 			log.Debugf("Removing old peer '%s'(%s)", name, rpcpeerItem.Key)
 			p2p.peers.Remove(rpcpeerItem.Key)
-			err := p2p.host.Network().ClosePeer(rpcpeer.client.peer)
-			if err != nil {
-				log.Debugf("Failed to disconnect from old peer '%s'(%s)", rpcpeerItem.Key, name)
+			if rpcpeer.client != nil {
+				err := p2p.host.Network().ClosePeer(rpcpeer.client.peer)
+				if err != nil {
+					log.Debugf("Failed to disconnect from old peer '%s'(%s)", rpcpeerItem.Key, name)
+				}
 			}
 		}
 	}
