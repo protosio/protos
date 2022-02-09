@@ -263,10 +263,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.SSHKeySeed = instanceSSHKey.Seed()
 	instanceInfo.ProtosVersion = release.Version
 	instanceInfo.Network = network.String()
-	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %v", instanceName, err)
-	}
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
@@ -295,11 +291,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 	instanceInfo.PublicIP = instanceUpdate.PublicIP
 	instanceInfo.Volumes = instanceUpdate.Volumes
-	// second save of the instance information
-	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %v", instanceName, err)
-	}
 
 	// wait for port 22 to be open
 	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
