@@ -8,13 +8,9 @@ config:
   binds:
   - /etc/resolv.conf:/etc/resolv.conf
   - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
-  - /dev:/dev
+  - /run/containerd/containerd.sock:/run/containerd/containerd.sock
   - /tmp:/tmp
   mounts:
-  - type: bind
-    source: /var/protos-containerd
-    destination: /var/protos-containerd
-    options: ["rw","rbind","rshared","nosuid","noexec","nodev","relatime"]
   - type: bind
     source: /var/protos
     destination: /var/protos

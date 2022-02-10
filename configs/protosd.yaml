@@ -1,1 +1,1 @@
-runtimeendpoint: /var/protos-containerd/run/sock/containerd.sock
+runtimeendpoint: /run/containerd/containerd.sock

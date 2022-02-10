@@ -39,7 +39,7 @@ var config = Config{
 	HTTPport:        8080,
 	HTTPSport:       8443,
 	Runtime:         "containerd",
-	RuntimeEndpoint: "/var/protos-containerd/run/sock/containerd.sock",
+	RuntimeEndpoint: "/run/containerd/containerd.sock",
 	InContainer:     false,
 	InitMode:        false,
 	DevMode:         false,
