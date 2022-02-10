@@ -621,7 +621,7 @@ func (cm *Manager) LogsInstance(name string) (string, error) {
 		return "", err
 	}
 	if len(instanceInfo.SSHKeySeed) == 0 {
-		return "", err
+		return "", fmt.Errorf("cannot find SSH key for instance '%s'", name)
 	}
 	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
 	if err != nil {
