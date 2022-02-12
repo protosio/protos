@@ -294,47 +294,6 @@ func (am *Manager) Stop(name string) error {
 	return nil
 }
 
-// // GetServices returns a list of services performed by apps
-// func (am *Manager) GetServices() ([]util.Service, error) {
-// 	services := []util.Service{}
-// 	apps, err := am.GetAll()
-// 	if err != nil {
-// 		return services, errors.Wrap(err, "Could not retrieve services")
-// 	}
-
-// 	resourceFilter := func(rsc *resource.Resource) bool {
-// 		return rsc.GetType() == resource.DNS
-// 	}
-// 	rscs := am.rm.Select(resourceFilter)
-
-// 	for _, app := range apps {
-// 		if len(app.PublicPorts) == 0 {
-// 			continue
-// 		}
-// 		service := util.Service{
-// 			Name:  app.Name,
-// 			Ports: app.PublicPorts,
-// 		}
-
-// 		if app.DesiredStatus == statusRunning {
-// 			service.Status = util.StatusActive
-// 		} else {
-// 			service.Status = util.StatusInactive
-// 		}
-
-// 		for _, rsc := range rscs {
-// 			dnsrsc := rsc.GetValue().(dnsResource)
-// 			if rsc.GetAppID() == app.ID && dnsrsc.GetName() == app.Name {
-// 				service.Domain = dnsrsc.GetName()
-// 				service.IP = dnsrsc.GetValue()
-// 				break
-// 			}
-// 		}
-// 		services = append(services, service)
-// 	}
-// 	return services, nil
-// }
-
 // Remove removes an application based on the provided id
 func (am *Manager) Remove(name string) error {
 	app, err := am.Get(name)
@@ -354,6 +313,26 @@ func (am *Manager) Remove(name string) error {
 	return nil
 }
 
+// GetLogs retrieves the logs for a specific app
+func (am *Manager) GetLogs(name string) ([]byte, error) {
+	app, err := am.Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
+	}
+
+	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
+	}
+
+	logs, err := cnt.GetLogs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
+	}
+
+	return logs, nil
+}
+
 func (am *Manager) saveApp(app *App) error {
 	app.access.Lock()
 	papp := *app
@@ -366,28 +345,6 @@ func (am *Manager) saveApp(app *App) error {
 	}
 	return nil
 }
-
-//
-// Dev related methods
-//
-
-// // CreateDevApp creates an application (DEV mode). It only creates the database entry and leaves the rest to the user
-// func (am *Manager) CreateDevApp(appName string, installerMetadata *installer.InstallerMetadata, installerParams map[string]string) (*App, error) {
-
-// 	// app creation (dev purposes)
-// 	log.Info("Creating application using local installer (DEV)")
-
-// 	newApp, err := am.Create("dev", "0.0.0-dev", appName, "", "", installerParams, installerMetadata)
-// 	if err != nil {
-// 		return nil, errors.Wrapf(err, "Could not create application %s", appName)
-// 	}
-
-// 	return newApp, nil
-// }
-
-//
-// helper methods
-//
 
 func allocateIP(apps map[string]App, networkStr string) (net.IP, error) {
 

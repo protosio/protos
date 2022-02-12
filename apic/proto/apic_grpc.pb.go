@@ -29,6 +29,7 @@ type ProtosClientApiClient interface {
 	StartApp(ctx context.Context, in *StartAppRequest, opts ...grpc.CallOption) (*StartAppResponse, error)
 	StopApp(ctx context.Context, in *StopAppRequest, opts ...grpc.CallOption) (*StopAppResponse, error)
 	RemoveApp(ctx context.Context, in *RemoveAppRequest, opts ...grpc.CallOption) (*RemoveAppResponse, error)
+	GetAppLogs(ctx context.Context, in *GetAppLogsRequest, opts ...grpc.CallOption) (*GetAppLogsResponse, error)
 	// App store methods
 	GetInstallers(ctx context.Context, in *GetInstallersRequest, opts ...grpc.CallOption) (*GetInstallersResponse, error)
 	GetInstaller(ctx context.Context, in *GetInstallerRequest, opts ...grpc.CallOption) (*GetInstallerResponse, error)
@@ -111,6 +112,15 @@ func (c *protosClientApiClient) StopApp(ctx context.Context, in *StopAppRequest,
 func (c *protosClientApiClient) RemoveApp(ctx context.Context, in *RemoveAppRequest, opts ...grpc.CallOption) (*RemoveAppResponse, error) {
 	out := new(RemoveAppResponse)
 	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/RemoveApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetAppLogs(ctx context.Context, in *GetAppLogsRequest, opts ...grpc.CallOption) (*GetAppLogsResponse, error) {
+	out := new(GetAppLogsResponse)
+	err := c.cc.Invoke(ctx, "/apic.ProtosClientApi/GetAppLogs", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -308,6 +318,7 @@ type ProtosClientApiServer interface {
 	StartApp(context.Context, *StartAppRequest) (*StartAppResponse, error)
 	StopApp(context.Context, *StopAppRequest) (*StopAppResponse, error)
 	RemoveApp(context.Context, *RemoveAppRequest) (*RemoveAppResponse, error)
+	GetAppLogs(context.Context, *GetAppLogsRequest) (*GetAppLogsResponse, error)
 	// App store methods
 	GetInstallers(context.Context, *GetInstallersRequest) (*GetInstallersResponse, error)
 	GetInstaller(context.Context, *GetInstallerRequest) (*GetInstallerResponse, error)
@@ -356,6 +367,9 @@ func (UnimplementedProtosClientApiServer) StopApp(context.Context, *StopAppReque
 }
 func (UnimplementedProtosClientApiServer) RemoveApp(context.Context, *RemoveAppRequest) (*RemoveAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveApp not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetAppLogs(context.Context, *GetAppLogsRequest) (*GetAppLogsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAppLogs not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetInstallers(context.Context, *GetInstallersRequest) (*GetInstallersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstallers not implemented")
@@ -534,6 +548,24 @@ func _ProtosClientApi_RemoveApp_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProtosClientApiServer).RemoveApp(ctx, req.(*RemoveAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetAppLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAppLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetAppLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/apic.ProtosClientApi/GetAppLogs",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetAppLogs(ctx, req.(*GetAppLogsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -928,6 +960,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveApp",
 			Handler:    _ProtosClientApi_RemoveApp_Handler,
+		},
+		{
+			MethodName: "GetAppLogs",
+			Handler:    _ProtosClientApi_GetAppLogs_Handler,
 		},
 		{
 			MethodName: "GetInstallers",

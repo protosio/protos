@@ -14,6 +14,7 @@ service ProtosClientApi {
   rpc StartApp(StartAppRequest) returns (StartAppResponse);
   rpc StopApp(StopAppRequest) returns (StopAppResponse);
   rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse);
+  rpc GetAppLogs(GetAppLogsRequest) returns (GetAppLogsResponse);
 
   // App store methods
   rpc GetInstallers(GetInstallersRequest) returns (GetInstallersResponse);
@@ -90,6 +91,9 @@ message StopAppResponse {}
 
 message RemoveAppRequest { string name = 1; }
 message RemoveAppResponse {}
+
+message GetAppLogsRequest { string name = 1; }
+message GetAppLogsResponse { bytes logs = 1; }
 
 //
 // App store

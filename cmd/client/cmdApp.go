@@ -92,6 +92,20 @@ var cmdApp *cli.Command = &cli.Command{
 			},
 		},
 		{
+			Name:      "logs",
+			ArgsUsage: "<name>",
+			Usage:     "Get logs for an application",
+			Action: func(c *cli.Context) error {
+				name := c.Args().Get(0)
+				if name == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				return getAppLogs(name)
+			},
+		},
+		{
 			Name:  "store",
 			Usage: "Subcommands to interact with the app store",
 			Subcommands: []*cli.Command{
@@ -180,6 +194,17 @@ func removeApp(name string) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove app '%s': %w", name, err)
 	}
+	return nil
+}
+
+func getAppLogs(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	resp, err := client.GetAppLogs(ctx, &pbApic.GetAppLogsRequest{Name: name})
+	if err != nil {
+		return fmt.Errorf("failed to retrieve logs for app '%s': %w", name, err)
+	}
+	fmt.Println(string(resp.Logs))
 	return nil
 }
 

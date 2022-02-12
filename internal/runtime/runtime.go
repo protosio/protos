@@ -26,6 +26,7 @@ type RuntimeSandbox interface {
 	Remove() error
 	GetID() string
 	GetStatus() string
+	GetLogs() ([]byte, error)
 	GetExitCode() int
 }
 
@@ -51,17 +52,6 @@ type RuntimePlatform interface {
 	NewSandbox(name string, appID string, imageID string, volumeMountPath string, installerParams map[string]string) (RuntimeSandbox, error)
 	GetHWStats() (HardwareStats, error)
 }
-
-// func normalizeRepoDigest(repoDigests []string) (string, string, error) {
-// 	if len(repoDigests) == 0 {
-// 		return "<none>", "<none>", errors.New("image has no repo digests")
-// 	}
-// 	repoDigestPair := strings.Split(repoDigests[0], "@")
-// 	if len(repoDigestPair) != 2 {
-// 		return "errorName", "errorRepoDigest", errors.Errorf("image repo digest has an invalid format: '%s'", repoDigests[0])
-// 	}
-// 	return repoDigestPair[0], repoDigestPair[1], nil
-// }
 
 // Create initializes the run time platform
 func Create(networkManager *network.Manager, runtimeUnixSocket string, inContainer bool, logsPath string) RuntimePlatform {

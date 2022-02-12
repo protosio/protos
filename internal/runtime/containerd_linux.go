@@ -309,6 +309,8 @@ func (cnt *containerdSandbox) Start(ip net.IP) error {
 		return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
 	}
 
+	task.IO()
+
 	return nil
 }
 
@@ -406,6 +408,16 @@ func (cnt *containerdSandbox) GetStatus() string {
 	}
 
 	return string(status.Status)
+}
+
+// GetLogs returns the logs of the container
+func (cnt *containerdSandbox) GetLogs() ([]byte, error) {
+	logFilePath := fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID)
+	logs, err := os.ReadFile(logFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read logs for sandbox '%s': %v", cnt.containerID, logs)
+	}
+	return logs, nil
 }
 
 // GetExitCode returns the exit code of the container, as an int
