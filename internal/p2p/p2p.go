@@ -45,7 +45,10 @@ const (
 type DBSyncer interface {
 	Sync(peerID string, dataset string, head string)
 	GetAllDatasetsHeads() map[string]string
-	// BroadcastLocalDatasets()
+}
+
+type AppManager interface {
+	GetLogs(name string) ([]byte, error)
 }
 
 type Machine interface {
@@ -122,6 +125,7 @@ func (c *Client) GetCS() chunks.ChunkStore {
 
 type P2P struct {
 	*ClientPubSub
+	*ClientAppManager
 
 	host             host.Host
 	rpcHandlers      map[string]*rpcHandler
@@ -132,6 +136,7 @@ type P2P struct {
 	subscription     *pubsub.Subscription
 	topic            *pubsub.Topic
 	dbSyncer         DBSyncer
+	appManager       AppManager
 	initMode         bool
 }
 
@@ -931,7 +936,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, initMode bool) (*P2P, error) {
+func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, appManager AppManager, initMode bool) (*P2P, error) {
 	p2p := &P2P{
 		rpcHandlers:      map[string]*rpcHandler{},
 		pubsubHandlers:   map[pubsubMsgType]*pubsubHandler{},
@@ -939,6 +944,7 @@ func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, initMode bool) (*P2P, error
 		rpcMsgProcessors: cmap.New(),
 		peers:            cmap.New(),
 		dbSyncer:         dbSyncer,
+		appManager:       appManager,
 		initMode:         initMode,
 	}
 

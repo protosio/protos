@@ -112,7 +112,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 
 	// var err error
 	if persistancePath != "" {
-		_, err = app.mgr.getPlatform().GetOrCreateVolume(persistancePath)
+		_, err = app.mgr.runtime.GetOrCreateVolume(persistancePath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to create volume for app '%s'", app.ID)
 		}
@@ -124,7 +124,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 	}
 
 	log.Infof("Creating sandbox for app '%s'[%s] at '%s'", app.Name, app.ID, app.IP.String())
-	cnt, err := app.mgr.getPlatform().NewSandbox(app.Name, app.ID, inst.Name, persistancePath, app.InstallerParams)
+	cnt, err := app.mgr.runtime.NewSandbox(app.Name, app.ID, inst.Name, persistancePath, app.InstallerParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
 	}
@@ -132,7 +132,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 }
 
 func (app *App) getOrcreateSandbox() (runtime.RuntimeSandbox, error) {
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
+	cnt, err := app.mgr.runtime.GetSandbox(app.ID)
 	if err != nil {
 		if util.IsErrorType(err, runtime.ErrContainerNotFound) {
 			cnt, err := app.createSandbox()
@@ -181,7 +181,7 @@ func (app *App) SetDesiredStatus(status string) error {
 
 // GetStatus returns the status of an application
 func (app *App) GetStatus() string {
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
+	cnt, err := app.mgr.runtime.GetSandbox(app.ID)
 	if err != nil {
 		if !util.IsErrorType(err, runtime.ErrContainerNotFound) {
 			log.Warnf("Failed to retrieve app (%s) sandbox: %s", app.ID, err.Error())
@@ -229,7 +229,7 @@ func (app *App) Start() error {
 func (app *App) Stop() error {
 	log.Infof("Stopping application '%s'[%s]", app.Name, app.ID)
 
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
+	cnt, err := app.mgr.runtime.GetSandbox(app.ID)
 	if err != nil {
 		if !util.IsErrorType(err, runtime.ErrContainerNotFound) {
 			return err

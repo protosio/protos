@@ -180,7 +180,7 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
 	}
 
-	p2pManager, err := p2p.NewManager(key, pc.db, false)
+	p2pManager, err := p2p.NewManager(key, pc.db, appManager, false)
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}

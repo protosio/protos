@@ -85,10 +85,6 @@ func CreateManager(ptype string, rm *resource.Manager, tm *task.Manager, runtime
 
 // methods to satisfy local interfaces
 
-func (am *Manager) getPlatform() runtime.RuntimePlatform {
-	return am.runtime
-}
-
 func (am *Manager) getResourceManager() *resource.Manager {
 	return am.rm
 }
@@ -320,7 +316,7 @@ func (am *Manager) GetLogs(name string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
 	}
 
-	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
+	cnt, err := am.runtime.GetSandbox(app.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
 	}

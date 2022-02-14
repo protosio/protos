@@ -135,8 +135,8 @@ func (b *Backend) RemoveApp(ctx context.Context, in *pbApic.RemoveAppRequest) (*
 }
 
 func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) (*pbApic.GetAppLogsResponse, error) {
-	log.Debugf("Removing app '%s'", in.Name)
-	logs, err := b.protosClient.AppManager.GetLogs(in.Name)
+	log.Debugf("Retrieveing logs for app '%s'", in.Name)
+	logs, err := b.protosClient.P2PManager.GetAppLogs(in.Name)
 	if err != nil {
 		return nil, err
 	}
