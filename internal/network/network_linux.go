@@ -271,7 +271,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 
 	// create the wireguard interface
 	wgcfg := wgtypes.Config{
-		ReplacePeers: true,
+		ReplacePeers: false,
 		ListenPort:   &wgPort,
 		Peers:        peers,
 		PrivateKey:   &m.privateKey,
