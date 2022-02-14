@@ -101,7 +101,7 @@ func ConvertPublicEd25519ToCurve25519(ed25519Key []byte) (wgtypes.Key, error) {
 	var pubkey wgtypes.Key
 	edPoint, err := new(edwards25519.Point).SetBytes(ed25519Key)
 	if err != nil {
-		return pubkey, fmt.Errorf("failed to convert public Ed25519 key to WG public key: %v", err)
+		return pubkey, fmt.Errorf("failed to convert public Ed25519 key to WG public key: %w", err)
 	}
 
 	copy(pubkey[:], edPoint.BytesMontgomery())

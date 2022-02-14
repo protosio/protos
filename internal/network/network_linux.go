@@ -78,12 +78,12 @@ func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
 
 	err := netlink.LinkAdd(brInterface)
 	if err != nil && err != syscall.EEXIST {
-		return nil, fmt.Errorf("failed to create bridge interface '%q': %v", name, err)
+		return nil, fmt.Errorf("failed to create bridge interface '%q': %w", name, err)
 	}
 
 	l, err := netlink.LinkByName(name)
 	if err != nil {
-		return nil, fmt.Errorf("could not find newly created bridge interface '%q': %v", name, err)
+		return nil, fmt.Errorf("could not find newly created bridge interface '%q': %w", name, err)
 	}
 	brInterface, ok := l.(*netlink.Bridge)
 	if !ok {
@@ -92,7 +92,7 @@ func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
 
 	_, err = sysctl.Sysctl(fmt.Sprintf("net.ipv6.conf.%s.accept_ra", name), "0")
 	if err != nil {
-		return nil, fmt.Errorf("failed to disable ipv6 router ads on bridge interface '%s': %v", name, err)
+		return nil, fmt.Errorf("failed to disable ipv6 router ads on bridge interface '%s': %w", name, err)
 	}
 
 	if err := netlink.LinkSetUp(brInterface); err != nil {
@@ -161,7 +161,7 @@ func (m *Manager) Up() error {
 
 	// create the wireguard interface
 	cfg := wgtypes.Config{
-		ReplacePeers: true,
+		ReplacePeers: false,
 		ListenPort:   &wgPort,
 		PrivateKey:   &m.privateKey,
 	}
@@ -315,7 +315,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 func (m *Manager) CreateNamespacedInterface(netNSpath string, IP net.IP) error {
 	netns, err := ns.GetNS(netNSpath)
 	if err != nil {
-		return fmt.Errorf("failed to open netns '%s': %v", netNSpath, err)
+		return fmt.Errorf("failed to open netns '%s': %w", netNSpath, err)
 	}
 	defer netns.Close()
 
@@ -335,16 +335,16 @@ func (m *Manager) CreateNamespacedInterface(netNSpath string, IP net.IP) error {
 
 		link, err := netlink.LinkByName(name)
 		if err != nil {
-			return fmt.Errorf("failed to find interface %q: %v", name, err)
+			return fmt.Errorf("failed to find interface %q: %w", name, err)
 		}
 
 		if err := netlink.LinkSetUp(link); err != nil {
-			return fmt.Errorf("failed to bring interface %q UP: %v", name, err)
+			return fmt.Errorf("failed to bring interface %q UP: %w", name, err)
 		}
 
 		addr := &netlink.Addr{IPNet: &net.IPNet{Mask: m.network.Mask, IP: IP}, Label: ""}
 		if err = netlink.AddrAdd(link, addr); err != nil {
-			return fmt.Errorf("failed to configure IP address '%s' on interface: %v", IP.String(), err)
+			return fmt.Errorf("failed to configure IP address '%s' on interface: %w", IP.String(), err)
 		}
 
 		_, networkALL, _ := net.ParseCIDR("0.0.0.0/0")
@@ -355,23 +355,23 @@ func (m *Manager) CreateNamespacedInterface(netNSpath string, IP net.IP) error {
 		}
 		err = netlink.RouteAdd(&route)
 		if err != nil {
-			return fmt.Errorf("failed to add route on interface: %v", err)
+			return fmt.Errorf("failed to add route on interface: %w", err)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create veth pair: %v", err)
+		return fmt.Errorf("failed to create veth pair: %w", err)
 	}
 
 	hostVeth, err := netlink.LinkByName(hostIface.Name)
 	if err != nil {
-		return fmt.Errorf("failed to find host interface '%s': %v", hostIface.Name, err)
+		return fmt.Errorf("failed to find host interface '%s': %w", hostIface.Name, err)
 	}
 	hostIface.Mac = hostVeth.Attrs().HardwareAddr.String()
 
 	if err := netlink.LinkSetMaster(hostVeth, netBridge); err != nil {
-		return fmt.Errorf("failed to connect %q to bridge %v: %v", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
+		return fmt.Errorf("failed to connect %q to bridge %v: %w", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
 	}
 	return nil
 }

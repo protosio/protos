@@ -313,17 +313,17 @@ func (am *Manager) Remove(name string) error {
 func (am *Manager) GetLogs(name string) ([]byte, error) {
 	app, err := am.Get(name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
+		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %w", name, err)
 	}
 
 	cnt, err := am.runtime.GetSandbox(app.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
+		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %w", name, err)
 	}
 
 	logs, err := cnt.GetLogs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %v", name, err)
+		return nil, fmt.Errorf("failed to retrieve logs for application '%s': %w", name, err)
 	}
 
 	return logs, nil

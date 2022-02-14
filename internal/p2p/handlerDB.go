@@ -69,13 +69,13 @@ func (ps *pubSub) BroadcastRequestHeadHandler(peerID peer.ID, data interface{}) 
 	log.Debugf("Peer '%s' requested head advertisement", peerID.String())
 	rpcPeer, err := ps.p2p.getRPCPeer(peerID)
 	if err != nil {
-		return fmt.Errorf("discarding message from '%s': %v", peerID.String(), err)
+		return fmt.Errorf("discarding message from '%s': %w", peerID.String(), err)
 	}
 
 	heads := ps.dbSyncer.GetAllDatasetsHeads()
 	err = rpcPeer.client.SendDatasetsHeads(heads)
 	if err != nil {
-		return fmt.Errorf("error sending datasets heads to '%s': %v", peerID.String(), err)
+		return fmt.Errorf("error sending datasets heads to '%s': %w", peerID.String(), err)
 	}
 
 	return nil

@@ -36,7 +36,7 @@ func (sm *Manager) GetKeyByPub(pubKey string) (*Key, error) {
 	var keys map[string]Key
 	err := sm.db.GetMap(sshDS, &keys)
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve keys: %v", err)
+		return nil, fmt.Errorf("could not retrieve keys: %w", err)
 	}
 
 	for _, k := range keys {

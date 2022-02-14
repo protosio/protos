@@ -42,12 +42,12 @@ func (cam *ClientAppManager) GetAppLogs(name string) ([]byte, error) {
 	// send the request
 	err := cam.p2p.sendRequest(cam.peerID, getAppLogsHandler, req, respData)
 	if err != nil {
-		return nil, fmt.Errorf("get app logs request to '%s' failed: %v", cam.peerID.String(), err)
+		return nil, fmt.Errorf("get app logs request to '%s' failed: %w", cam.peerID.String(), err)
 	}
 
 	logs, err := base64.StdEncoding.DecodeString(respData.Logs)
 	if err != nil {
-		return nil, fmt.Errorf("get app logs request to '%s' failed: %v", cam.peerID.String(), err)
+		return nil, fmt.Errorf("get app logs request to '%s' failed: %w", cam.peerID.String(), err)
 	}
 
 	return logs, nil
@@ -72,12 +72,12 @@ func (h *HandlersAppManager) HandlerGetAppLogs(peer peer.ID, data interface{}) (
 	validate := validator.New()
 	err := validate.Struct(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate get app logs request: %v", err)
+		return nil, fmt.Errorf("failed to validate get app logs request: %w", err)
 	}
 
 	logs, err := h.p2p.appManager.GetLogs(req.AppName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve logs for app '%s': %v", req.AppName, err)
+		return nil, fmt.Errorf("failed to retrieve logs for app '%s': %w", req.AppName, err)
 	}
 
 	encodedLogs := base64.StdEncoding.EncodeToString(logs)

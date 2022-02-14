@@ -119,7 +119,7 @@ func (hi *HandlersInit) HandlerInit(peer peer.ID, data interface{}) (interface{}
 
 	pubKey, err := base64.StdEncoding.DecodeString(req.OriginDevicePublicKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %v", err)
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
 	im := &initMachine{
@@ -130,7 +130,7 @@ func (hi *HandlersInit) HandlerInit(peer peer.ID, data interface{}) (interface{}
 	hi.p2p.initMode = false
 	_, err = hi.p2p.AddPeer(im)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add init device as rpc client: %v", err)
+		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
 
 	hi.metaConfigurator.SetInstanceName(req.InstanceName)

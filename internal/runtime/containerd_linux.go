@@ -367,17 +367,17 @@ func (cnt *containerdSandbox) Remove() error {
 
 	err := cnt.Stop()
 	if err != nil {
-		return fmt.Errorf("error while removing sandbox '%s': %v", cnt.containerID, err)
+		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
 	}
 
 	err = cnt.cnt.Delete(ctx)
 	if err != nil {
-		return fmt.Errorf("error while removing sandbox '%s': %v", cnt.containerID, err)
+		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
 	}
 
 	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
 	if err != nil {
-		return fmt.Errorf("error while removing sandbox '%s': %v", cnt.containerID, err)
+		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
 	}
 
 	return nil
@@ -415,7 +415,7 @@ func (cnt *containerdSandbox) GetLogs() ([]byte, error) {
 	logFilePath := fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID)
 	logs, err := os.ReadFile(logFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read logs for sandbox '%s': %v", cnt.containerID, logs)
+		return nil, fmt.Errorf("failed to read logs for sandbox '%s': %w", cnt.containerID, err)
 	}
 	return logs, nil
 }

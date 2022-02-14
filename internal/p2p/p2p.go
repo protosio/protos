@@ -426,7 +426,7 @@ func (p2p *P2P) sendRequest(peerID peer.ID, msgType string, requestData interfac
 	case resp := <-reqTracker.resp:
 		err := json.Unmarshal(resp, responseData)
 		if err != nil {
-			return fmt.Errorf("failed to decode response payload: %v", err)
+			return fmt.Errorf("failed to decode response payload: %w", err)
 		}
 		return nil
 	case err := <-reqTracker.err:
@@ -525,11 +525,11 @@ func (p2p *P2P) BroadcastMsg(msgType pubsubMsgType, data interface{}) error {
 func (p2p *P2P) PubKeyToPeerID(pubKey []byte) (string, error) {
 	pk, err := crypto.UnmarshalEd25519PublicKey(pubKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to unmarshall public key: %v", err)
+		return "", fmt.Errorf("failed to unmarshall public key: %w", err)
 	}
 	peerID, err := peer.IDFromPublicKey(pk)
 	if err != nil {
-		return "", fmt.Errorf("failed to create peer ID from public key: %v", err)
+		return "", fmt.Errorf("failed to create peer ID from public key: %w", err)
 	}
 	return peerID.String(), nil
 }
@@ -538,11 +538,11 @@ func (p2p *P2P) PubKeyToPeerID(pubKey []byte) (string, error) {
 func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 	pk, err := crypto.UnmarshalEd25519PublicKey(machine.GetPublicKey())
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall public key: %v", err)
+		return nil, fmt.Errorf("failed to unmarshall public key: %w", err)
 	}
 	peerID, err := peer.IDFromPublicKey(pk)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create peer ID from public key: %v", err)
+		return nil, fmt.Errorf("failed to create peer ID from public key: %w", err)
 	}
 
 	destinationString := ""
@@ -553,12 +553,12 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 	}
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create multi address: %v", err)
+		return nil, fmt.Errorf("failed to create multi address: %w", err)
 	}
 
 	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract info from address: %v", err)
+		return nil, fmt.Errorf("failed to extract info from address: %w", err)
 	}
 	rpcpeer := &rpcPeer{machine: machine}
 	p2p.peers.Set(peerID.String(), rpcpeer)
@@ -572,7 +572,7 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 
 	client, err := p2p.createClientForPeer(peerID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add peer '%s': %v", peerID.String(), err)
+		return nil, fmt.Errorf("failed to add peer '%s': %w", peerID.String(), err)
 	}
 	rpcpeer.client = client
 
@@ -712,7 +712,7 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 	err = nil
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("exception whie building p2p client: %v", r)
+			err = fmt.Errorf("exception whie building p2p client: %w", r)
 			if strings.Contains(err.Error(), "timeout waiting for request") {
 				err = fmt.Errorf("timeout waiting for p2p client")
 			}
@@ -934,7 +934,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 
 	err := p2p.host.Network().Listen()
 	if err != nil {
-		return func() error { return nil }, fmt.Errorf("failed to listen: %v", err)
+		return func() error { return nil }, fmt.Errorf("failed to listen: %w", err)
 	}
 
 	pubsubStopper := p2p.pubsubMsgProcessor()
@@ -986,14 +986,14 @@ func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, appManager AppManager, init
 		libp2p.ConnectionManager(con),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup p2p host: %v", err)
+		return nil, fmt.Errorf("failed to setup p2p host: %w", err)
 	}
 
 	p2p.host = host
 	p2p.host.SetStreamHandler(protocol.ID(protosRPCProtocol), p2p.newRPCStreamHandler)
 	pubSub, err := pubsub.NewFloodSub(context.Background(), host)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup PubSub channel: %v", err)
+		return nil, fmt.Errorf("failed to setup PubSub channel: %w", err)
 	}
 
 	nb := network.NotifyBundle{
@@ -1004,12 +1004,12 @@ func NewManager(key *pcrypto.Key, dbSyncer DBSyncer, appManager AppManager, init
 
 	p2p.topic, err = pubSub.Join(protosUpdatesTopic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to join PubSub topic '%s': %v", protosUpdatesTopic, err)
+		return nil, fmt.Errorf("failed to join PubSub topic '%s': %w", protosUpdatesTopic, err)
 	}
 
 	p2p.subscription, err = p2p.topic.Subscribe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to PubSub topic '%s': %v", protosUpdatesTopic, err)
+		return nil, fmt.Errorf("failed to subscribe to PubSub topic '%s': %w", protosUpdatesTopic, err)
 	}
 
 	log.Debugf("Using host with ID '%s'", host.ID().String())
