@@ -683,17 +683,15 @@ func (p2p *P2P) GetCSClient(peerID string) (db.ChunkStoreClient, error) {
 	return rpcpeer.client, nil
 }
 
-func (p2p *P2P) GetClient(peerID string) (*Client, error) {
-	rpcpeerI, found := p2p.peers.Get(peerID)
-	if !found {
-		return nil, fmt.Errorf("could not find peer '%s'", peerID)
-	}
-	rpcpeer := rpcpeerI.(*rpcPeer)
-	if rpcpeer.client == nil {
-		return nil, fmt.Errorf("could not find RPC client for peer '%s'", peerID)
+func (p2p *P2P) GetClient(name string) (*Client, error) {
+	for peerItem := range p2p.peers.IterBuffered() {
+		rpcpeer := peerItem.Val.(*rpcPeer)
+		if rpcpeer.machine != nil && rpcpeer.client != nil && rpcpeer.machine.GetName() == name {
+			return rpcpeer.client, nil
+		}
 	}
 
-	return rpcpeer.client, nil
+	return nil, fmt.Errorf("could not find RPC client for instance '%s'", name)
 }
 
 // getRPCPeer returns the rpc client for a peer
