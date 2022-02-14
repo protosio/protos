@@ -115,6 +115,7 @@ type Client struct {
 	chunks.ChunkStore
 	*ClientPing
 	*ClientDB
+	*ClientAppManager
 
 	peer peer.ID
 }
@@ -125,7 +126,6 @@ func (c *Client) GetCS() chunks.ChunkStore {
 
 type P2P struct {
 	*ClientPubSub
-	*ClientAppManager
 
 	host             host.Host
 	rpcHandlers      map[string]*rpcHandler
@@ -683,6 +683,19 @@ func (p2p *P2P) GetCSClient(peerID string) (db.ChunkStoreClient, error) {
 	return rpcpeer.client, nil
 }
 
+func (p2p *P2P) GetClient(peerID string) (*Client, error) {
+	rpcpeerI, found := p2p.peers.Get(peerID)
+	if !found {
+		return nil, fmt.Errorf("could not find peer '%s'", peerID)
+	}
+	rpcpeer := rpcpeerI.(*rpcPeer)
+	if rpcpeer.client == nil {
+		return nil, fmt.Errorf("could not find RPC client for peer '%s'", peerID)
+	}
+
+	return rpcpeer.client, nil
+}
+
 // getRPCPeer returns the rpc client for a peer
 func (p2p *P2P) getRPCPeer(peerID peer.ID) (*rpcPeer, error) {
 	rpcpeerI, found := p2p.peers.Get(peerID.String())
@@ -709,10 +722,11 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 	}()
 
 	client = &Client{
-		ClientInit: &ClientInit{p2p: p2p, peerID: peerID},
-		ClientPing: &ClientPing{p2p: p2p, peerID: peerID},
-		ClientDB:   &ClientDB{p2p: p2p, peerID: peerID},
-		peer:       peerID,
+		ClientInit:       &ClientInit{p2p: p2p, peerID: peerID},
+		ClientPing:       &ClientPing{p2p: p2p, peerID: peerID},
+		ClientDB:         &ClientDB{p2p: p2p, peerID: peerID},
+		ClientAppManager: &ClientAppManager{p2p: p2p, peerID: peerID},
+		peer:             peerID,
 	}
 
 	tries := 0
@@ -895,6 +909,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator}
 	p2pDB := &HandlersDB{dbSyncer: p2p.dbSyncer}
 	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs}
+	p2pAppManager := &HandlersAppManager{p2p: p2p}
 
 	p2pPubSub := &pubSub{p2p: p2p, dbSyncer: p2p.dbSyncer}
 
@@ -903,6 +918,8 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 	p2p.addRPCHandler(pingHandler, &rpcHandler{Func: p2pPing.HandlerPing, RequestStruct: &PingReq{}})
 	// init handler
 	p2p.addRPCHandler(initHandler, &rpcHandler{Func: p2pInit.HandlerInit, RequestStruct: &InitReq{}})
+	// app manager handler
+	p2p.addRPCHandler(getAppLogsHandler, &rpcHandler{Func: p2pAppManager.HandlerGetAppLogs, RequestStruct: &GetAppLogsReq{}})
 	// db handlers
 	p2p.addRPCHandler(sendDatasetsHeadsHandler, &rpcHandler{Func: p2pDB.SendDatasetsHeadsHandler, RequestStruct: &SendDatasetsHeadsReq{}})
 	// db sync handlers

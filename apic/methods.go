@@ -136,9 +136,20 @@ func (b *Backend) RemoveApp(ctx context.Context, in *pbApic.RemoveAppRequest) (*
 
 func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) (*pbApic.GetAppLogsResponse, error) {
 	log.Debugf("Retrieveing logs for app '%s'", in.Name)
-	logs, err := b.protosClient.P2PManager.GetAppLogs(in.Name)
+
+	app, err := b.protosClient.AppManager.Get(in.Name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
+	}
+
+	client, err := b.protosClient.P2PManager.GetClient(app.InstanceName)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
+	}
+
+	logs, err := client.GetAppLogs(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
 	}
 
 	return &pbApic.GetAppLogsResponse{Logs: logs}, nil
