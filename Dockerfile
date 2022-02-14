@@ -2,7 +2,7 @@ FROM golang:1.17.3-alpine3.14 AS build
 
 WORKDIR /go/src/github.com
 ENV GOPATH=/go PATH=$PATH:/go/bin
-ADD ./src /go/src/github.com/protos
+ADD . /go/src/github.com/protos
 WORKDIR /go/src/github.com/protos
 RUN apk --update add git
 RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -ldflags '-w -extldflags "-static"' -o bin/protosd cmd/protosd/protosd.go
