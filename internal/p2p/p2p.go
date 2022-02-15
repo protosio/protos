@@ -712,7 +712,7 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 	err = nil
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("exception whie building p2p client: %w", r)
+			err = fmt.Errorf("exception whie building p2p client: %v", r)
 			if strings.Contains(err.Error(), "timeout waiting for request") {
 				err = fmt.Errorf("timeout waiting for p2p client")
 			}
