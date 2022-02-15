@@ -116,10 +116,6 @@ func (sw *scaleway) Init() error {
 	sw.instanceAPI = instance.NewAPI(sw.client)
 	sw.accountAPI = account.NewAPI(sw.client)
 	sw.marketplaceAPI = marketplace.NewAPI(sw.client)
-	_, err = sw.accountAPI.ListSSHKeys(&account.ListSSHKeysRequest{})
-	if err != nil {
-		return errors.Wrap(err, "Failed to init Scaleway client")
-	}
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -41,27 +42,6 @@ const (
 	// Local is a local VM provider
 	Local = Type("local")
 )
-
-type CloudManager interface {
-	// provider methods
-	SupportedProviders() []string
-	GetProvider(name string) (CloudProvider, error)
-	GetProviders() ([]CloudProvider, error)
-	NewProvider(cloudName string, cloud string) (CloudProvider, error)
-	DeleteProvider(name string) error
-	UploadLocalImage(imagePath string, imageName string, cloudName string, cloudLocation string, timeout time.Duration) error
-
-	// instance methods
-	DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error)
-	GetInstance(name string) (InstanceInfo, error)
-	GetInstances() ([]InstanceInfo, error)
-	DeleteInstance(name string) error
-	StartInstance(name string) error
-	StopInstance(name string) error
-	TunnelInstance(name string) error
-	LogsInstance(name string) (string, error)
-	InitDevInstance(instanceName string, cloudName string, locationName string, keyFile string, ipString string) error
-}
 
 // CreateManager creates and returns a cloud manager
 func CreateManager(db db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, configurator PeerConfigurator, selfName string) (*Manager, error) {
@@ -667,7 +647,7 @@ func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 				}
 				instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
 				if err != nil {
-					log.Warn(err.Error())
+					log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 					instance.Status = "n/a"
 				} else {
 					instance.Status = instanceInfo.Status
@@ -681,6 +661,7 @@ func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 
 // GetInstances returns all the instances from the db
 func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
+
 	instanceMap := map[string]InstanceInfo{}
 	var instances []InstanceInfo
 	err := cm.db.GetMap(instanceDS, &instanceMap)
@@ -689,7 +670,57 @@ func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
 	}
 	for _, instance := range instanceMap {
 		instances = append(instances, instance)
+
 	}
+	return instances, nil
+}
+
+func (cm *Manager) retrieveInstanceStatus(wg *sync.WaitGroup, instance *InstanceInfo) {
+	defer wg.Done()
+
+	if instance.CloudName != Local.String() {
+		provider, err := cm.GetProvider(instance.CloudName)
+		if err != nil {
+			instance.Status = "n/a"
+			log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			return
+		}
+		err = provider.Init()
+		if err != nil {
+			instance.Status = "n/a"
+			log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			return
+		}
+		instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
+		if err != nil {
+			instance.Status = "n/a"
+			log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			return
+
+		}
+
+		instance.Status = instanceInfo.Status
+	} else {
+		instance.Status = "n/a"
+	}
+}
+
+// GetInstances returns all the instances from the db
+func (cm *Manager) GetInstancesWithUpdatedStatus() ([]*InstanceInfo, error) {
+	instanceMap := map[string]InstanceInfo{}
+	var instances []*InstanceInfo
+	err := cm.db.GetMap(instanceDS, &instanceMap)
+	if err != nil {
+		return instances, err
+	}
+	var wg sync.WaitGroup
+	for _, instance := range instanceMap {
+		inst := instance
+		instances = append(instances, &inst)
+		wg.Add(1)
+		go cm.retrieveInstanceStatus(&wg, &inst)
+	}
+	wg.Wait()
 	return instances, nil
 }
 

@@ -63,7 +63,7 @@ type InstanceInfo struct {
 	Location      string
 	Network       string
 	ProtosVersion string
-	Status        string
+	Status        string `noms:"-"`
 	Architecture  string
 	Volumes       []VolumeInfo
 }

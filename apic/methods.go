@@ -338,7 +338,7 @@ func (b *Backend) RemoveCloudProvider(ctx context.Context, in *pbApic.RemoveClou
 
 func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesRequest) (*pbApic.GetInstancesResponse, error) {
 	log.Debugf("Retrieving instances")
-	instances, err := b.protosClient.CloudManager.GetInstances()
+	instances, err := b.protosClient.CloudManager.GetInstancesWithUpdatedStatus()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
@@ -364,6 +364,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			PublicKeyWireguard: wgPublicKey.String(),
 			ProtosVersion:      instance.ProtosVersion,
 			Architecture:       instance.Architecture,
+			Status:             instance.Status,
 		}
 		resp.Instances = append(resp.Instances, &respInstance)
 	}

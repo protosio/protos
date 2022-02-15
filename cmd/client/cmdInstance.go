@@ -218,7 +218,7 @@ func listInstances() error {
 	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "Name", "Public IP", "Net", "Cloud", "VM ID", "Location", "Status")
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "----", "---------", "---", "-----", "-----", "--------", "------")
 	for _, instance := range resp.Instances {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", instance.Name, instance.PublicIp, instance.Network, instance.CloudName, instance.VmId, instance.Location, "n/a")
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", instance.Name, instance.PublicIp, instance.Network, instance.CloudName, instance.VmId, instance.Location, instance.Status)
 	}
 	fmt.Fprint(w, "\n")
 	return nil
