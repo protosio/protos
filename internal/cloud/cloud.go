@@ -337,10 +337,16 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
+	instanceUpdate, err = provider.GetInstanceInfo(vmID, cloudLocation)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to get instance info: %w", err)
+	}
+
 	// final save instance info
 	instanceInfo.InternalIP = ip.String()
 	instanceInfo.Architecture = architecture
 	instanceInfo.PublicKey = pubKey
+	instanceInfo.Status = instanceUpdate.Status
 
 	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
 	if err != nil {
