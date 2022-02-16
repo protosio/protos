@@ -18,7 +18,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "protosd"
 	app.Authors = []*cli.Author{{Name: "Alex Giurgiu", Email: "alex@giurgiu.io"}}
-	version, err := semver.NewVersion("0.1.0-dev.4")
+	version, err := semver.NewVersion("0.1.0-dev.23")
 	if err != nil {
 		panic(err)
 	}

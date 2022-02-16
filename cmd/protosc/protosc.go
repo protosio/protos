@@ -46,7 +46,7 @@ func handleQuitSignals(osSigs chan os.Signal, traySig chan struct{}) {
 func main() {
 
 	var err error
-	version, err = semver.NewVersion("0.1.0-dev.4")
+	version, err = semver.NewVersion("0.1.0-dev.23")
 	if err != nil {
 		panic(err)
 	}
