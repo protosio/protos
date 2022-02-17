@@ -384,6 +384,21 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		log.Error(err.Error())
 	}
 
+	var status string
+	client, err := b.protosClient.P2PManager.GetClient(instance.Name)
+	if err != nil {
+		log.Error(err.Error())
+		status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
+	} else {
+		_, err = client.Ping()
+		if err != nil {
+			log.Error(err.Error())
+			status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
+		} else {
+			status = fmt.Sprintf("%s (%s)", instance.Status, "reachable")
+		}
+	}
+
 	resp := pbApic.GetInstanceResponse{
 		Instance: &pbApic.CloudInstance{
 			Name:               instance.Name,
@@ -397,7 +412,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
 			PublicKeyWireguard: wgPublicKey.String(),
 			ProtosVersion:      instance.ProtosVersion,
-			Status:             instance.Status,
+			Status:             status,
 			Architecture:       instance.Architecture,
 		},
 	}
