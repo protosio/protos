@@ -518,12 +518,25 @@ func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyR
 
 func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLogsRequest) (*pbApic.GetInstanceLogsResponse, error) {
 	log.Debugf("Retrieving logs for instance '%s'", in.Name)
-	logs, err := b.protosClient.CloudManager.LogsInstance(in.Name)
+
+	client, err := b.protosClient.P2PManager.GetClient(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
 	}
 
-	return &pbApic.GetInstanceLogsResponse{Logs: logs}, nil
+	logs, err := client.GetInstanceLogs()
+	if err == nil {
+		return &pbApic.GetInstanceLogsResponse{Logs: string(logs)}, nil
+	}
+
+	log.Warnf("Failed to retrieve logs for instance '%s' via RPC, falling back on SSH: %s", in.Name, err.Error())
+
+	logsSSH, err := b.protosClient.CloudManager.LogsRemoteInstance(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve instance '%s' logs via SSH: %w", in.Name, err)
+	}
+
+	return &pbApic.GetInstanceLogsResponse{Logs: logsSSH}, nil
 }
 
 func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {

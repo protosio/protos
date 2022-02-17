@@ -600,8 +600,8 @@ func (cm *Manager) TunnelInstance(name string) error {
 	return nil
 }
 
-// LogsInstance retrieves the Protos logs from an instance
-func (cm *Manager) LogsInstance(name string) (string, error) {
+// LogsRemoteInstance retrieves the Protos logs from an instance, via SSH
+func (cm *Manager) LogsRemoteInstance(name string) (string, error) {
 	instanceInfo, err := cm.GetInstance(name)
 	if err != nil {
 		return "", err

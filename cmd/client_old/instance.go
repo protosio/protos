@@ -327,7 +327,7 @@ package main
 // }
 
 // func getLogs(instanceName string, follow bool) error {
-// 	logs, err := envi.CLM.LogsInstance(instanceName)
+// 	logs, err := envi.CLM.LogsRemoteInstance(instanceName)
 // 	if err != nil {
 // 		return fmt.Errorf("Failed to retrieve logs for instance '%s': %w", instanceName, err)
 // 	}

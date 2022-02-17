@@ -140,7 +140,7 @@ type requestTracker struct {
 type Client struct {
 	*ClientInit
 	chunks.ChunkStore
-	*ClientPing
+	*ClientInstance
 	*ClientDB
 	*ClientAppManager
 
@@ -759,7 +759,7 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 
 	client = &Client{
 		ClientInit:       &ClientInit{p2p: p2p, peerID: peerID},
-		ClientPing:       &ClientPing{p2p: p2p, peerID: peerID},
+		ClientInstance:   &ClientInstance{p2p: p2p, peerID: peerID},
 		ClientDB:         &ClientDB{p2p: p2p, peerID: peerID},
 		ClientAppManager: &ClientAppManager{p2p: p2p, peerID: peerID},
 		peer:             peerID,
@@ -950,7 +950,7 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkStore) (func() error, error) {
 	log.Info("Starting p2p server")
 
-	p2pPing := &HandlersPing{}
+	p2pInstance := &HandlersInstance{}
 	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator}
 	p2pDB := &HandlersDB{dbSyncer: p2p.dbSyncer}
 	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs}
@@ -959,8 +959,9 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 	p2pPubSub := &pubSub{p2p: p2p, dbSyncer: p2p.dbSyncer}
 
 	// register RPC handler methods which should be accessible from the client
-	// ping handler
-	p2p.addRPCHandler(pingHandler, &rpcHandler{Func: p2pPing.HandlerPing, RequestStruct: &PingReq{}})
+	// instance handlers
+	p2p.addRPCHandler(instancePingHandler, &rpcHandler{Func: p2pInstance.HandlerPing, RequestStruct: &PingReq{}})
+	p2p.addRPCHandler(getInstanceLogsHandler, &rpcHandler{Func: p2pInstance.HandlerGetInstanceLogs, RequestStruct: &GetInstanceLogsReq{}})
 	// init handler
 	p2p.addRPCHandler(initHandler, &rpcHandler{Func: p2pInit.HandlerInit, RequestStruct: &InitReq{}})
 	// app manager handler

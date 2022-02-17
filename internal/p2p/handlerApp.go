@@ -15,7 +15,6 @@ const (
 type GetAppLogsReq struct {
 	AppName string `json:"app_name" validate:"required"`
 }
-
 type GetAppLogsResp struct {
 	Logs string `json:"logs" validate:"required"`
 }
@@ -30,7 +29,7 @@ type ClientAppManager struct {
 // client methods
 //
 
-// Init is a remote call to peer, which triggers an init on the remote machine
+// GetAppLogs retrieves logs fir a specific app
 func (cam *ClientAppManager) GetAppLogs(name string) ([]byte, error) {
 
 	req := GetAppLogsReq{
@@ -61,7 +60,7 @@ type HandlersAppManager struct {
 	p2p *P2P
 }
 
-// HandlerInit does the initialisation on the server side
+// HandlerInit reetrieves logs for a specific app
 func (h *HandlersAppManager) HandlerGetAppLogs(peer peer.ID, data interface{}) (interface{}, error) {
 
 	req, ok := data.(*GetAppLogsReq)
