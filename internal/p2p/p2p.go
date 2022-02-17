@@ -614,6 +614,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	// add new peers
 	for _, machine := range machines {
 		if len(machine.GetPublicKey()) == 0 {
+			log.Infof("Skipping device '%s' with no public key")
 			continue
 		}
 
@@ -929,7 +930,6 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 
 	log.Debugf("Removing client. Connection closed with peer '%s'.", conn.RemotePeer().String())
 
-	p2p.host.Peerstore().ClearAddrs(conn.RemotePeer())
 	rpcpeerI, found := p2p.peers.Get(conn.RemotePeer().String())
 	if found {
 		rpcpeer := rpcpeerI.(*rpcPeer)

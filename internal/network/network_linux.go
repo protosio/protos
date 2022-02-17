@@ -250,7 +250,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 
 	// build devices peer list
 	for _, userDevice := range devices {
-		log.Debugf("Using route '%s' for device '%s(%s)'", userDevice.Network, userDevice.Name, userDevice.MachineID)
+		log.Debugf("Using route '%s' for device '%s'(%s)", userDevice.Network, userDevice.Name, userDevice.GetPublicKey())
 		publicKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(userDevice.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
