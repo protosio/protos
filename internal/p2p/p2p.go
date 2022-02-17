@@ -629,6 +629,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 			continue
 		}
 
+		// if peer is the same as host, skip, since we don't want to connect to ourselves
 		if p2p.host.ID().String() == peerID.String() {
 			continue
 		}
