@@ -843,8 +843,9 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 		}
 
 		var rpcpeer *rpcPeer
-		machine := &initMachine{name: initMachineName}
+		var machine Machine
 		if p2p.initMode {
+			machine = &initMachine{name: initMachineName}
 			rpcpeer = &rpcPeer{machine: machine}
 		} else {
 			rpcpeerI, found := p2p.peers.Get(conn.RemotePeer().String())
@@ -854,6 +855,12 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 				return
 			}
 			rpcpeer = rpcpeerI.(*rpcPeer)
+			lmachine := rpcpeer.GetMachine()
+			if lmachine != nil {
+				machine = lmachine
+			} else {
+				machine = &initMachine{name: "unknown"}
+			}
 		}
 
 		log.Debugf("New connection with peer '%s'(%s). Creating client", machine.GetName(), conn.RemotePeer().String())
