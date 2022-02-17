@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 	"sync"
@@ -593,7 +594,7 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 
 	err = p2p.host.Connect(context.Background(), *peerInfo)
 	if err != nil {
-		log.Errorf("Failed to connect to peer '%s': %s", peerID.String(), err.Error())
+		log.Errorf("Failed to connect to peer '%s'(%s): %s", machine.GetName(), peerID.String(), err.Error())
 	}
 
 	client, err := p2p.createClientForPeer(peerID)
@@ -643,23 +644,27 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 			}
 			maddr, err := multiaddr.NewMultiaddr(destinationString)
 			if err != nil {
-				log.Errorf("Failed to create multiaddress for peer '%s': %s", peerID.String(), err.Error())
+				log.Errorf("Failed to create multiaddress for peer '%s'(%s): %s", machine.GetName(), peerID.String(), err.Error())
 				continue
 			}
 
 			peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
 			if err != nil {
-				log.Errorf("Failed parse peer info from multiaddress for peer '%s': %s", peerID.String(), err.Error())
+				log.Errorf("Failed parse peer info from multiaddress for peer '%s'(%s): %s", machine.GetName(), peerID.String(), err.Error())
 				continue
 			}
 
 			rpcpeer := &rpcPeer{machine: machine}
 			p2p.peers.Set(peerID.String(), rpcpeer)
-			if machine.GetPublicIP() != "" {
+
+			parsedIP := net.ParseIP(machine.GetPublicIP())
+			if parsedIP != nil {
 				err = p2p.host.Connect(context.Background(), *peerInfo)
 				if err != nil {
-					log.Errorf("Failed to connect to peer '%s': %s", peerID.String(), err.Error())
+					log.Errorf("Failed to connect to peer '%s'(%s): %s", machine.GetName(), peerID.String(), err.Error())
 				}
+			} else {
+				log.Infof("Delaying connection to instance '%s'(%s) without IP", machine.GetName(), peerID.String())
 			}
 		} else if rpcpeer := rpcpeerI.(*rpcPeer); rpcpeer.GetMachine() == nil {
 			log.Infof("Replacing machine info for peer '%s'", machine.GetName())

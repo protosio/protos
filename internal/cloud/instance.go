@@ -56,7 +56,7 @@ type InstanceInfo struct {
 	Name          string
 	SSHKeySeed    []byte // private SSH key stored only on the client
 	PublicKey     []byte // ed25519 public key
-	PublicIP      string
+	PublicIP      string // this can be a public or private IP, depending on where the device is located
 	InternalIP    string
 	CloudType     string
 	CloudName     string
