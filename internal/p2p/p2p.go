@@ -138,7 +138,6 @@ type requestTracker struct {
 
 // Client is a remote p2p client
 type Client struct {
-	*ClientInit
 	chunks.ChunkStore
 	*ClientInstance
 	*ClientDB
@@ -758,7 +757,6 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 	}()
 
 	client = &Client{
-		ClientInit:       &ClientInit{p2p: p2p, peerID: peerID},
 		ClientInstance:   &ClientInstance{p2p: p2p, peerID: peerID},
 		ClientDB:         &ClientDB{p2p: p2p, peerID: peerID},
 		ClientAppManager: &ClientAppManager{p2p: p2p, peerID: peerID},
@@ -950,20 +948,18 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkStore) (func() error, error) {
 	log.Info("Starting p2p server")
 
-	p2pInstance := &HandlersInstance{}
-	p2pInit := &HandlersInit{p2p: p2p, metaConfigurator: metaConfigurator}
+	p2pInstance := &HandlersInstance{p2p: p2p, metaConfigurator: metaConfigurator}
 	p2pDB := &HandlersDB{dbSyncer: p2p.dbSyncer}
 	p2pChunkStore := &HandlersChunkStore{p2p: p2p, cs: cs}
 	p2pAppManager := &HandlersAppManager{p2p: p2p}
-
 	p2pPubSub := &pubSub{p2p: p2p, dbSyncer: p2p.dbSyncer}
 
 	// register RPC handler methods which should be accessible from the client
 	// instance handlers
+	p2p.addRPCHandler(instanceInitHandler, &rpcHandler{Func: p2pInstance.HandlerInit, RequestStruct: &InitReq{}})
 	p2p.addRPCHandler(instancePingHandler, &rpcHandler{Func: p2pInstance.HandlerPing, RequestStruct: &PingReq{}})
-	p2p.addRPCHandler(getInstanceLogsHandler, &rpcHandler{Func: p2pInstance.HandlerGetInstanceLogs, RequestStruct: &GetInstanceLogsReq{}})
-	// init handler
-	p2p.addRPCHandler(initHandler, &rpcHandler{Func: p2pInit.HandlerInit, RequestStruct: &InitReq{}})
+	p2p.addRPCHandler(instanceGetLogsHandler, &rpcHandler{Func: p2pInstance.HandlerGetInstanceLogs, RequestStruct: &GetInstanceLogsReq{}})
+	p2p.addRPCHandler(instanceGetPeersHandler, &rpcHandler{Func: p2pInstance.HandlerGetInstancePeers, RequestStruct: &GetInstancePeersReq{}})
 	// app manager handler
 	p2p.addRPCHandler(getAppLogsHandler, &rpcHandler{Func: p2pAppManager.HandlerGetAppLogs, RequestStruct: &GetAppLogsReq{}})
 	// db handlers

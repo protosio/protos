@@ -182,6 +182,7 @@ message CloudInstance {
   string protos_version = 11;
   string status = 12;
   string architecture = 13;
+  map<string, string> peers = 14;
 }
 
 message GetInstancesRequest {}

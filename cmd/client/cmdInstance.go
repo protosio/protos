@@ -246,6 +246,10 @@ func infoInstance(instanceName string) error {
 	fmt.Printf("Location: %s\n", instance.Location)
 	fmt.Printf("Protosd version: %s\n", instance.ProtosVersion)
 	fmt.Printf("Status: %s\n", instance.Status)
+	fmt.Println("Peers:")
+	for name, status := range instance.Peers {
+		fmt.Printf(" | %s - %s\n", name, status)
+	}
 	return nil
 }
 

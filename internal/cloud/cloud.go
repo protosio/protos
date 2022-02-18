@@ -652,6 +652,8 @@ func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
 				} else {
 					instance.Status = instanceInfo.Status
 				}
+			} else {
+				instance.Status = "n/a"
 			}
 			return instance, nil
 		}

@@ -1716,19 +1716,20 @@ type CloudInstance struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name               string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	PublicIp           string `protobuf:"bytes,2,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
-	InternalIp         string `protobuf:"bytes,3,opt,name=internal_ip,json=internalIp,proto3" json:"internal_ip,omitempty"`
-	Network            string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
-	CloudName          string `protobuf:"bytes,5,opt,name=cloud_name,json=cloudName,proto3" json:"cloud_name,omitempty"`
-	CloudType          string `protobuf:"bytes,6,opt,name=cloud_type,json=cloudType,proto3" json:"cloud_type,omitempty"`
-	VmId               string `protobuf:"bytes,7,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
-	Location           string `protobuf:"bytes,8,opt,name=location,proto3" json:"location,omitempty"`
-	PublicKey          string `protobuf:"bytes,9,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	PublicKeyWireguard string `protobuf:"bytes,10,opt,name=public_key_wireguard,json=publicKeyWireguard,proto3" json:"public_key_wireguard,omitempty"`
-	ProtosVersion      string `protobuf:"bytes,11,opt,name=protos_version,json=protosVersion,proto3" json:"protos_version,omitempty"`
-	Status             string `protobuf:"bytes,12,opt,name=status,proto3" json:"status,omitempty"`
-	Architecture       string `protobuf:"bytes,13,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	Name               string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	PublicIp           string            `protobuf:"bytes,2,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
+	InternalIp         string            `protobuf:"bytes,3,opt,name=internal_ip,json=internalIp,proto3" json:"internal_ip,omitempty"`
+	Network            string            `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
+	CloudName          string            `protobuf:"bytes,5,opt,name=cloud_name,json=cloudName,proto3" json:"cloud_name,omitempty"`
+	CloudType          string            `protobuf:"bytes,6,opt,name=cloud_type,json=cloudType,proto3" json:"cloud_type,omitempty"`
+	VmId               string            `protobuf:"bytes,7,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
+	Location           string            `protobuf:"bytes,8,opt,name=location,proto3" json:"location,omitempty"`
+	PublicKey          string            `protobuf:"bytes,9,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	PublicKeyWireguard string            `protobuf:"bytes,10,opt,name=public_key_wireguard,json=publicKeyWireguard,proto3" json:"public_key_wireguard,omitempty"`
+	ProtosVersion      string            `protobuf:"bytes,11,opt,name=protos_version,json=protosVersion,proto3" json:"protos_version,omitempty"`
+	Status             string            `protobuf:"bytes,12,opt,name=status,proto3" json:"status,omitempty"`
+	Architecture       string            `protobuf:"bytes,13,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	Peers              map[string]string `protobuf:"bytes,14,rep,name=peers,proto3" json:"peers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *CloudInstance) Reset() {
@@ -1852,6 +1853,13 @@ func (x *CloudInstance) GetArchitecture() string {
 		return x.Architecture
 	}
 	return ""
+}
+
+func (x *CloudInstance) GetPeers() map[string]string {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
 }
 
 type GetInstancesRequest struct {
@@ -3486,7 +3494,7 @@ var file_apic_proto_rawDesc = []byte{
 	0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e,
 	0x61, 0x6d, 0x65, 0x22, 0x1d, 0x0a, 0x1b, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x43, 0x6c, 0x6f,
 	0x75, 0x64, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x22, 0x9e, 0x03, 0x0a, 0x0d, 0x43, 0x6c, 0x6f, 0x75, 0x64, 0x49, 0x6e, 0x73, 0x74,
+	0x73, 0x65, 0x22, 0x8e, 0x04, 0x0a, 0x0d, 0x43, 0x6c, 0x6f, 0x75, 0x64, 0x49, 0x6e, 0x73, 0x74,
 	0x61, 0x6e, 0x63, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01,
 	0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x70, 0x75, 0x62, 0x6c,
 	0x69, 0x63, 0x5f, 0x69, 0x70, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x70, 0x75, 0x62,
@@ -3512,7 +3520,14 @@ var file_apic_proto_rawDesc = []byte{
 	0x73, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12,
 	0x22, 0x0a, 0x0c, 0x61, 0x72, 0x63, 0x68, 0x69, 0x74, 0x65, 0x63, 0x74, 0x75, 0x72, 0x65, 0x18,
 	0x0d, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x61, 0x72, 0x63, 0x68, 0x69, 0x74, 0x65, 0x63, 0x74,
-	0x75, 0x72, 0x65, 0x22, 0x15, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e,
+	0x75, 0x72, 0x65, 0x12, 0x34, 0x0a, 0x05, 0x70, 0x65, 0x65, 0x72, 0x73, 0x18, 0x0e, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x2e, 0x43, 0x6c, 0x6f, 0x75, 0x64, 0x49,
+	0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x2e, 0x50, 0x65, 0x65, 0x72, 0x73, 0x45, 0x6e, 0x74,
+	0x72, 0x79, 0x52, 0x05, 0x70, 0x65, 0x65, 0x72, 0x73, 0x1a, 0x38, 0x0a, 0x0a, 0x50, 0x65, 0x65,
+	0x72, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a,
+	0x02, 0x38, 0x01, 0x22, 0x15, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e,
 	0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x49, 0x0a, 0x14, 0x47, 0x65,
 	0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
 	0x73, 0x65, 0x12, 0x31, 0x0a, 0x09, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73, 0x18,
@@ -3796,7 +3811,7 @@ func file_apic_proto_rawDescGZIP() []byte {
 	return file_apic_proto_rawDescData
 }
 
-var file_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 67)
+var file_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
 var file_apic_proto_goTypes = []interface{}{
 	(*InitRequest)(nil),                        // 0: apic.InitRequest
 	(*InitResponse)(nil),                       // 1: apic.InitResponse
@@ -3863,8 +3878,9 @@ var file_apic_proto_goTypes = []interface{}{
 	(*RemoveCloudImageResponse)(nil),           // 62: apic.RemoveCloudImageResponse
 	nil,                                        // 63: apic.CloudProvider.SupportedMachinesEntry
 	nil,                                        // 64: apic.AddCloudProviderRequest.CredentialsEntry
-	nil,                                        // 65: apic.Release.CloudImagesEntry
-	nil,                                        // 66: apic.GetCloudImagesResponse.CloudImagesEntry
+	nil,                                        // 65: apic.CloudInstance.PeersEntry
+	nil,                                        // 66: apic.Release.CloudImagesEntry
+	nil,                                        // 67: apic.GetCloudImagesResponse.CloudImagesEntry
 }
 var file_apic_proto_depIdxs = []int32{
 	2,  // 0: apic.GetAppsResponse.apps:type_name -> apic.App
@@ -3876,74 +3892,75 @@ var file_apic_proto_depIdxs = []int32{
 	22, // 6: apic.GetCloudProvidersResponse.cloud_providers:type_name -> apic.CloudProvider
 	22, // 7: apic.GetCloudProviderResponse.cloud_provider:type_name -> apic.CloudProvider
 	64, // 8: apic.AddCloudProviderRequest.credentials:type_name -> apic.AddCloudProviderRequest.CredentialsEntry
-	33, // 9: apic.GetInstancesResponse.instances:type_name -> apic.CloudInstance
-	33, // 10: apic.GetInstanceResponse.instance:type_name -> apic.CloudInstance
-	33, // 11: apic.DeployInstanceResponse.instance:type_name -> apic.CloudInstance
-	65, // 12: apic.Release.cloud_images:type_name -> apic.Release.CloudImagesEntry
-	54, // 13: apic.GetProtosdReleasesResponse.releases:type_name -> apic.Release
-	66, // 14: apic.GetCloudImagesResponse.cloud_images:type_name -> apic.GetCloudImagesResponse.CloudImagesEntry
-	20, // 15: apic.CloudProvider.SupportedMachinesEntry.value:type_name -> apic.CloudMachineSpec
-	52, // 16: apic.Release.CloudImagesEntry.value:type_name -> apic.CloudImage
-	53, // 17: apic.GetCloudImagesResponse.CloudImagesEntry.value:type_name -> apic.CloudSpecificImage
-	0,  // 18: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
-	3,  // 19: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
-	5,  // 20: apic.ProtosClientApi.CreateApp:input_type -> apic.CreateAppRequest
-	7,  // 21: apic.ProtosClientApi.StartApp:input_type -> apic.StartAppRequest
-	9,  // 22: apic.ProtosClientApi.StopApp:input_type -> apic.StopAppRequest
-	11, // 23: apic.ProtosClientApi.RemoveApp:input_type -> apic.RemoveAppRequest
-	13, // 24: apic.ProtosClientApi.GetAppLogs:input_type -> apic.GetAppLogsRequest
-	16, // 25: apic.ProtosClientApi.GetInstallers:input_type -> apic.GetInstallersRequest
-	18, // 26: apic.ProtosClientApi.GetInstaller:input_type -> apic.GetInstallerRequest
-	23, // 27: apic.ProtosClientApi.GetSupportedCloudProviders:input_type -> apic.GetSupportedCloudProvidersRequest
-	25, // 28: apic.ProtosClientApi.GetCloudProviders:input_type -> apic.GetCloudProvidersRequest
-	27, // 29: apic.ProtosClientApi.GetCloudProvider:input_type -> apic.GetCloudProviderRequest
-	29, // 30: apic.ProtosClientApi.AddCloudProvider:input_type -> apic.AddCloudProviderRequest
-	31, // 31: apic.ProtosClientApi.RemoveCloudProvider:input_type -> apic.RemoveCloudProviderRequest
-	34, // 32: apic.ProtosClientApi.GetInstances:input_type -> apic.GetInstancesRequest
-	36, // 33: apic.ProtosClientApi.GetInstance:input_type -> apic.GetInstanceRequest
-	38, // 34: apic.ProtosClientApi.DeployInstance:input_type -> apic.DeployInstanceRequest
-	40, // 35: apic.ProtosClientApi.RemoveInstance:input_type -> apic.RemoveInstanceRequest
-	42, // 36: apic.ProtosClientApi.StartInstance:input_type -> apic.StartInstanceRequest
-	44, // 37: apic.ProtosClientApi.StopInstance:input_type -> apic.StopInstanceRequest
-	46, // 38: apic.ProtosClientApi.GetInstanceKey:input_type -> apic.GetInstanceKeyRequest
-	48, // 39: apic.ProtosClientApi.GetInstanceLogs:input_type -> apic.GetInstanceLogsRequest
-	50, // 40: apic.ProtosClientApi.InitDevInstance:input_type -> apic.InitDevInstanceRequest
-	55, // 41: apic.ProtosClientApi.GetProtosdReleases:input_type -> apic.GetProtosdReleasesRequest
-	57, // 42: apic.ProtosClientApi.GetCloudImages:input_type -> apic.GetCloudImagesRequest
-	59, // 43: apic.ProtosClientApi.UploadCloudImage:input_type -> apic.UploadCloudImageRequest
-	61, // 44: apic.ProtosClientApi.RemoveCloudImage:input_type -> apic.RemoveCloudImageRequest
-	1,  // 45: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
-	4,  // 46: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
-	6,  // 47: apic.ProtosClientApi.CreateApp:output_type -> apic.CreateAppResponse
-	8,  // 48: apic.ProtosClientApi.StartApp:output_type -> apic.StartAppResponse
-	10, // 49: apic.ProtosClientApi.StopApp:output_type -> apic.StopAppResponse
-	12, // 50: apic.ProtosClientApi.RemoveApp:output_type -> apic.RemoveAppResponse
-	14, // 51: apic.ProtosClientApi.GetAppLogs:output_type -> apic.GetAppLogsResponse
-	17, // 52: apic.ProtosClientApi.GetInstallers:output_type -> apic.GetInstallersResponse
-	19, // 53: apic.ProtosClientApi.GetInstaller:output_type -> apic.GetInstallerResponse
-	24, // 54: apic.ProtosClientApi.GetSupportedCloudProviders:output_type -> apic.GetSupportedCloudProvidersResponse
-	26, // 55: apic.ProtosClientApi.GetCloudProviders:output_type -> apic.GetCloudProvidersResponse
-	28, // 56: apic.ProtosClientApi.GetCloudProvider:output_type -> apic.GetCloudProviderResponse
-	30, // 57: apic.ProtosClientApi.AddCloudProvider:output_type -> apic.AddCloudProviderResponse
-	32, // 58: apic.ProtosClientApi.RemoveCloudProvider:output_type -> apic.RemoveCloudProviderResponse
-	35, // 59: apic.ProtosClientApi.GetInstances:output_type -> apic.GetInstancesResponse
-	37, // 60: apic.ProtosClientApi.GetInstance:output_type -> apic.GetInstanceResponse
-	39, // 61: apic.ProtosClientApi.DeployInstance:output_type -> apic.DeployInstanceResponse
-	41, // 62: apic.ProtosClientApi.RemoveInstance:output_type -> apic.RemoveInstanceResponse
-	43, // 63: apic.ProtosClientApi.StartInstance:output_type -> apic.StartInstanceResponse
-	45, // 64: apic.ProtosClientApi.StopInstance:output_type -> apic.StopInstanceResponse
-	47, // 65: apic.ProtosClientApi.GetInstanceKey:output_type -> apic.GetInstanceKeyResponse
-	49, // 66: apic.ProtosClientApi.GetInstanceLogs:output_type -> apic.GetInstanceLogsResponse
-	51, // 67: apic.ProtosClientApi.InitDevInstance:output_type -> apic.InitDevInstanceResponse
-	56, // 68: apic.ProtosClientApi.GetProtosdReleases:output_type -> apic.GetProtosdReleasesResponse
-	58, // 69: apic.ProtosClientApi.GetCloudImages:output_type -> apic.GetCloudImagesResponse
-	60, // 70: apic.ProtosClientApi.UploadCloudImage:output_type -> apic.UploadCloudImageResponse
-	62, // 71: apic.ProtosClientApi.RemoveCloudImage:output_type -> apic.RemoveCloudImageResponse
-	45, // [45:72] is the sub-list for method output_type
-	18, // [18:45] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	65, // 9: apic.CloudInstance.peers:type_name -> apic.CloudInstance.PeersEntry
+	33, // 10: apic.GetInstancesResponse.instances:type_name -> apic.CloudInstance
+	33, // 11: apic.GetInstanceResponse.instance:type_name -> apic.CloudInstance
+	33, // 12: apic.DeployInstanceResponse.instance:type_name -> apic.CloudInstance
+	66, // 13: apic.Release.cloud_images:type_name -> apic.Release.CloudImagesEntry
+	54, // 14: apic.GetProtosdReleasesResponse.releases:type_name -> apic.Release
+	67, // 15: apic.GetCloudImagesResponse.cloud_images:type_name -> apic.GetCloudImagesResponse.CloudImagesEntry
+	20, // 16: apic.CloudProvider.SupportedMachinesEntry.value:type_name -> apic.CloudMachineSpec
+	52, // 17: apic.Release.CloudImagesEntry.value:type_name -> apic.CloudImage
+	53, // 18: apic.GetCloudImagesResponse.CloudImagesEntry.value:type_name -> apic.CloudSpecificImage
+	0,  // 19: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
+	3,  // 20: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
+	5,  // 21: apic.ProtosClientApi.CreateApp:input_type -> apic.CreateAppRequest
+	7,  // 22: apic.ProtosClientApi.StartApp:input_type -> apic.StartAppRequest
+	9,  // 23: apic.ProtosClientApi.StopApp:input_type -> apic.StopAppRequest
+	11, // 24: apic.ProtosClientApi.RemoveApp:input_type -> apic.RemoveAppRequest
+	13, // 25: apic.ProtosClientApi.GetAppLogs:input_type -> apic.GetAppLogsRequest
+	16, // 26: apic.ProtosClientApi.GetInstallers:input_type -> apic.GetInstallersRequest
+	18, // 27: apic.ProtosClientApi.GetInstaller:input_type -> apic.GetInstallerRequest
+	23, // 28: apic.ProtosClientApi.GetSupportedCloudProviders:input_type -> apic.GetSupportedCloudProvidersRequest
+	25, // 29: apic.ProtosClientApi.GetCloudProviders:input_type -> apic.GetCloudProvidersRequest
+	27, // 30: apic.ProtosClientApi.GetCloudProvider:input_type -> apic.GetCloudProviderRequest
+	29, // 31: apic.ProtosClientApi.AddCloudProvider:input_type -> apic.AddCloudProviderRequest
+	31, // 32: apic.ProtosClientApi.RemoveCloudProvider:input_type -> apic.RemoveCloudProviderRequest
+	34, // 33: apic.ProtosClientApi.GetInstances:input_type -> apic.GetInstancesRequest
+	36, // 34: apic.ProtosClientApi.GetInstance:input_type -> apic.GetInstanceRequest
+	38, // 35: apic.ProtosClientApi.DeployInstance:input_type -> apic.DeployInstanceRequest
+	40, // 36: apic.ProtosClientApi.RemoveInstance:input_type -> apic.RemoveInstanceRequest
+	42, // 37: apic.ProtosClientApi.StartInstance:input_type -> apic.StartInstanceRequest
+	44, // 38: apic.ProtosClientApi.StopInstance:input_type -> apic.StopInstanceRequest
+	46, // 39: apic.ProtosClientApi.GetInstanceKey:input_type -> apic.GetInstanceKeyRequest
+	48, // 40: apic.ProtosClientApi.GetInstanceLogs:input_type -> apic.GetInstanceLogsRequest
+	50, // 41: apic.ProtosClientApi.InitDevInstance:input_type -> apic.InitDevInstanceRequest
+	55, // 42: apic.ProtosClientApi.GetProtosdReleases:input_type -> apic.GetProtosdReleasesRequest
+	57, // 43: apic.ProtosClientApi.GetCloudImages:input_type -> apic.GetCloudImagesRequest
+	59, // 44: apic.ProtosClientApi.UploadCloudImage:input_type -> apic.UploadCloudImageRequest
+	61, // 45: apic.ProtosClientApi.RemoveCloudImage:input_type -> apic.RemoveCloudImageRequest
+	1,  // 46: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
+	4,  // 47: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
+	6,  // 48: apic.ProtosClientApi.CreateApp:output_type -> apic.CreateAppResponse
+	8,  // 49: apic.ProtosClientApi.StartApp:output_type -> apic.StartAppResponse
+	10, // 50: apic.ProtosClientApi.StopApp:output_type -> apic.StopAppResponse
+	12, // 51: apic.ProtosClientApi.RemoveApp:output_type -> apic.RemoveAppResponse
+	14, // 52: apic.ProtosClientApi.GetAppLogs:output_type -> apic.GetAppLogsResponse
+	17, // 53: apic.ProtosClientApi.GetInstallers:output_type -> apic.GetInstallersResponse
+	19, // 54: apic.ProtosClientApi.GetInstaller:output_type -> apic.GetInstallerResponse
+	24, // 55: apic.ProtosClientApi.GetSupportedCloudProviders:output_type -> apic.GetSupportedCloudProvidersResponse
+	26, // 56: apic.ProtosClientApi.GetCloudProviders:output_type -> apic.GetCloudProvidersResponse
+	28, // 57: apic.ProtosClientApi.GetCloudProvider:output_type -> apic.GetCloudProviderResponse
+	30, // 58: apic.ProtosClientApi.AddCloudProvider:output_type -> apic.AddCloudProviderResponse
+	32, // 59: apic.ProtosClientApi.RemoveCloudProvider:output_type -> apic.RemoveCloudProviderResponse
+	35, // 60: apic.ProtosClientApi.GetInstances:output_type -> apic.GetInstancesResponse
+	37, // 61: apic.ProtosClientApi.GetInstance:output_type -> apic.GetInstanceResponse
+	39, // 62: apic.ProtosClientApi.DeployInstance:output_type -> apic.DeployInstanceResponse
+	41, // 63: apic.ProtosClientApi.RemoveInstance:output_type -> apic.RemoveInstanceResponse
+	43, // 64: apic.ProtosClientApi.StartInstance:output_type -> apic.StartInstanceResponse
+	45, // 65: apic.ProtosClientApi.StopInstance:output_type -> apic.StopInstanceResponse
+	47, // 66: apic.ProtosClientApi.GetInstanceKey:output_type -> apic.GetInstanceKeyResponse
+	49, // 67: apic.ProtosClientApi.GetInstanceLogs:output_type -> apic.GetInstanceLogsResponse
+	51, // 68: apic.ProtosClientApi.InitDevInstance:output_type -> apic.InitDevInstanceResponse
+	56, // 69: apic.ProtosClientApi.GetProtosdReleases:output_type -> apic.GetProtosdReleasesResponse
+	58, // 70: apic.ProtosClientApi.GetCloudImages:output_type -> apic.GetCloudImagesResponse
+	60, // 71: apic.ProtosClientApi.UploadCloudImage:output_type -> apic.UploadCloudImageResponse
+	62, // 72: apic.ProtosClientApi.RemoveCloudImage:output_type -> apic.RemoveCloudImageResponse
+	46, // [46:73] is the sub-list for method output_type
+	19, // [19:46] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_apic_proto_init() }
@@ -4715,7 +4732,7 @@ func file_apic_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_apic_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   67,
+			NumMessages:   68,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

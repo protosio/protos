@@ -385,12 +385,13 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 	}
 
 	var status string
+	peers := map[string]string{}
 	client, err := b.protosClient.P2PManager.GetClient(instance.Name)
 	if err != nil {
 		log.Error(err.Error())
 		status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
 	} else {
-		_, err = client.Ping()
+		peers, err = client.GetInstancePeers()
 		if err != nil {
 			log.Error(err.Error())
 			status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
@@ -414,6 +415,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			ProtosVersion:      instance.ProtosVersion,
 			Status:             status,
 			Architecture:       instance.Architecture,
+			Peers:              peers,
 		},
 	}
 
