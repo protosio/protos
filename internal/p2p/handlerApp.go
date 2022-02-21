@@ -9,14 +9,22 @@ import (
 )
 
 const (
-	getAppLogsHandler = "app"
+	handlerAppGetLogs   = "getapplogs"
+	handlerAppGetStatus = "getappstatus"
 )
 
-type GetAppLogsReq struct {
+type AppGetLogsReq struct {
 	AppName string `json:"app_name" validate:"required"`
 }
-type GetAppLogsResp struct {
+type AppGetLogsResp struct {
 	Logs string `json:"logs" validate:"required"`
+}
+
+type AppGetStatusReq struct {
+	AppName string `json:"app_name" validate:"required"`
+}
+type AppGetStatusResp struct {
+	Status string `json:"status" validate:"required"`
 }
 
 // ClientInit is a client to a remote init server
@@ -30,26 +38,44 @@ type ClientAppManager struct {
 //
 
 // GetAppLogs retrieves logs fir a specific app
-func (cam *ClientAppManager) GetAppLogs(name string) ([]byte, error) {
+func (c *ClientAppManager) GetAppLogs(name string) ([]byte, error) {
 
-	req := GetAppLogsReq{
+	req := AppGetLogsReq{
 		AppName: name,
 	}
 
-	respData := &GetAppLogsResp{}
+	respData := &AppGetLogsResp{}
 
 	// send the request
-	err := cam.p2p.sendRequest(cam.peerID, getAppLogsHandler, req, respData)
+	err := c.p2p.sendRequest(c.peerID, handlerAppGetLogs, req, respData)
 	if err != nil {
-		return nil, fmt.Errorf("get app logs request to '%s' failed: %w", cam.peerID.String(), err)
+		return nil, fmt.Errorf("get app logs request to '%s' failed: %w", c.peerID.String(), err)
 	}
 
 	logs, err := base64.StdEncoding.DecodeString(respData.Logs)
 	if err != nil {
-		return nil, fmt.Errorf("get app logs request to '%s' failed: %w", cam.peerID.String(), err)
+		return nil, fmt.Errorf("get app logs request to '%s' failed: %w", c.peerID.String(), err)
 	}
 
 	return logs, nil
+}
+
+// GetAppLogs retrieves logs fir a specific app
+func (c *ClientAppManager) GetAppStatus(name string) (string, error) {
+
+	req := AppGetStatusReq{
+		AppName: name,
+	}
+
+	respData := &AppGetStatusResp{}
+
+	// send the request
+	err := c.p2p.sendRequest(c.peerID, handlerAppGetStatus, req, respData)
+	if err != nil {
+		return "", fmt.Errorf("get app status request to '%s' failed: %w", c.peerID.String(), err)
+	}
+
+	return respData.Status, nil
 }
 
 //
@@ -63,9 +89,9 @@ type HandlersAppManager struct {
 // HandlerInit reetrieves logs for a specific app
 func (h *HandlersAppManager) HandlerGetAppLogs(peer peer.ID, data interface{}) (interface{}, error) {
 
-	req, ok := data.(*GetAppLogsReq)
+	req, ok := data.(*AppGetLogsReq)
 	if !ok {
-		return GetAppLogsResp{}, fmt.Errorf("unknown data struct for get app logs request")
+		return AppGetLogsResp{}, fmt.Errorf("unknown data struct for get app logs request")
 	}
 
 	validate := validator.New()
@@ -80,9 +106,35 @@ func (h *HandlersAppManager) HandlerGetAppLogs(peer peer.ID, data interface{}) (
 	}
 
 	encodedLogs := base64.StdEncoding.EncodeToString(logs)
-	initResp := GetAppLogsResp{
+	initResp := AppGetLogsResp{
 		Logs: encodedLogs,
 	}
 
 	return initResp, nil
+}
+
+// HandlerInit reetrieves logs for a specific app
+func (h *HandlersAppManager) HandlerAppGetStatus(peer peer.ID, data interface{}) (interface{}, error) {
+
+	req, ok := data.(*AppGetStatusReq)
+	if !ok {
+		return AppGetStatusResp{}, fmt.Errorf("unknown data struct for get app status request")
+	}
+
+	validate := validator.New()
+	err := validate.Struct(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate get app status request: %w", err)
+	}
+
+	status, err := h.p2p.appManager.GetStatus(req.AppName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve status for app '%s': %w", req.AppName, err)
+	}
+
+	resp := AppGetStatusResp{
+		Status: status,
+	}
+
+	return resp, nil
 }

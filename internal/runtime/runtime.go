@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"net"
 
 	"github.com/protosio/protos/internal/network"
@@ -8,6 +9,7 @@ import (
 )
 
 var log = util.GetLogger("platform")
+var ErrSandboxNotFound = errors.New("sandbox not found")
 
 const (
 	// ErrImageNotFound means the requested docker image is not found locally

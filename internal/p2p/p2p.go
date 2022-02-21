@@ -51,6 +51,7 @@ type DBSyncer interface {
 
 type AppManager interface {
 	GetLogs(name string) ([]byte, error)
+	GetStatus(name string) (string, error)
 }
 
 type Machine interface {
@@ -961,7 +962,8 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator, cs chunks.ChunkSt
 	p2p.addRPCHandler(instanceGetLogsHandler, &rpcHandler{Func: p2pInstance.HandlerGetInstanceLogs, RequestStruct: &GetInstanceLogsReq{}})
 	p2p.addRPCHandler(instanceGetPeersHandler, &rpcHandler{Func: p2pInstance.HandlerGetInstancePeers, RequestStruct: &GetInstancePeersReq{}})
 	// app manager handler
-	p2p.addRPCHandler(getAppLogsHandler, &rpcHandler{Func: p2pAppManager.HandlerGetAppLogs, RequestStruct: &GetAppLogsReq{}})
+	p2p.addRPCHandler(handlerAppGetLogs, &rpcHandler{Func: p2pAppManager.HandlerGetAppLogs, RequestStruct: &AppGetLogsReq{}})
+	p2p.addRPCHandler(handlerAppGetStatus, &rpcHandler{Func: p2pAppManager.HandlerAppGetStatus, RequestStruct: &AppGetStatusReq{}})
 	// db handlers
 	p2p.addRPCHandler(sendDatasetsHeadsHandler, &rpcHandler{Func: p2pDB.SendDatasetsHeadsHandler, RequestStruct: &SendDatasetsHeadsReq{}})
 	// db sync handlers

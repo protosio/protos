@@ -147,10 +147,10 @@ func listApps() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t", "Name", "ID", "Installer", "Desired state", "Instance", "IP")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t", "Name", "ID", "Installer", "Status (desired)", "Instance", "IP")
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", "----", "--", "---------", "-------------", "--------", "--")
 	for _, appi := range resp.Apps {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", appi.Name, appi.Id, appi.Installer, appi.DesiredStatus, appi.InstanceName, appi.Ip)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", appi.Name, appi.Id, appi.Installer, appi.Status, appi.InstanceName, appi.Ip)
 	}
 	fmt.Fprint(w, "\n")
 

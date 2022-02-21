@@ -329,6 +329,16 @@ func (am *Manager) GetLogs(name string) ([]byte, error) {
 	return logs, nil
 }
 
+// GetLogs retrieves the logs for a specific app
+func (am *Manager) GetStatus(name string) (string, error) {
+	app, err := am.Get(name)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve status for application '%s': %w", name, err)
+	}
+
+	return app.GetStatus(), nil
+}
+
 func (am *Manager) saveApp(app *App) error {
 	app.access.Lock()
 	papp := *app

@@ -19,7 +19,6 @@ import (
 	"github.com/containerd/containerd/platforms"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/network"
-	"github.com/protosio/protos/internal/util"
 )
 
 const (
@@ -174,12 +173,12 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) 
 func (cdp *containerdPlatform) GetSandbox(id string) (RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	if id == "" {
-		return nil, util.NewTypedError("Container ID can't be empty", ErrContainerNotFound)
+		return nil, ErrSandboxNotFound
 	}
 
 	cnt, err := cdp.client.LoadContainer(ctx, id)
 	if err != nil {
-		return nil, util.NewTypedError("Container not found", ErrContainerNotFound)
+		return nil, ErrSandboxNotFound
 	}
 
 	return &containerdSandbox{p: cdp, cnt: cnt, containerID: id}, nil

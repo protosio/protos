@@ -185,7 +185,7 @@ func (h *HandlersInstance) HandlerGetInstanceLogs(peer peer.ID, data interface{}
 	}
 
 	encodedLogs := base64.StdEncoding.EncodeToString(logs)
-	initResp := GetAppLogsResp{
+	initResp := AppGetLogsResp{
 		Logs: encodedLogs,
 	}
 

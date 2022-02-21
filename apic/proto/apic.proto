@@ -67,7 +67,7 @@ message App {
   string id = 1;
   string name = 2;
   string version = 3;
-  string desired_status = 4;
+  string status = 4;
   string instance_name = 5;
   string ip = 6;
   string installer = 7;

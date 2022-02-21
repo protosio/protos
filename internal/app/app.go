@@ -134,7 +134,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 func (app *App) getOrcreateSandbox() (runtime.RuntimeSandbox, error) {
 	cnt, err := app.mgr.runtime.GetSandbox(app.ID)
 	if err != nil {
-		if util.IsErrorType(err, runtime.ErrContainerNotFound) {
+		if errors.Is(err, runtime.ErrSandboxNotFound) {
 			cnt, err := app.createSandbox()
 			if err != nil {
 				return nil, err
@@ -145,17 +145,6 @@ func (app *App) getOrcreateSandbox() (runtime.RuntimeSandbox, error) {
 	}
 	return cnt, nil
 }
-
-// func (app *App) getSandbox() (runtime.RuntimeSandbox, error) {
-// 	cnt, err := app.mgr.getPlatform().GetSandbox(app.ID)
-// 	if err != nil {
-// 		if util.IsErrorType(err, runtime.ErrContainerNotFound) {
-// 			return nil, nil
-// 		}
-// 		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
-// 	}
-// 	return cnt, nil
-// }
 
 //
 // Methods for application instance
@@ -183,7 +172,7 @@ func (app *App) SetDesiredStatus(status string) error {
 func (app *App) GetStatus() string {
 	cnt, err := app.mgr.runtime.GetSandbox(app.ID)
 	if err != nil {
-		if !util.IsErrorType(err, runtime.ErrContainerNotFound) {
+		if !errors.Is(err, runtime.ErrSandboxNotFound) {
 			log.Warnf("Failed to retrieve app (%s) sandbox: %s", app.ID, err.Error())
 		}
 		return statusStopped
