@@ -99,7 +99,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 	// normal app creation, using the app store
 	inst, err := app.mgr.store.GetInstaller(app.InstallerRef)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not create application '%s'", app.Name)
+		return nil, fmt.Errorf("could not create application '%s': %w", app.Name, err)
 	}
 
 	persistancePath := ""
@@ -114,7 +114,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 	if persistancePath != "" {
 		_, err = app.mgr.runtime.GetOrCreateVolume(persistancePath)
 		if err != nil {
-			return nil, errors.Wrapf(err, "Failed to create volume for app '%s'", app.ID)
+			return nil, fmt.Errorf("failed to create volume for app '%s': %w", app.ID, err)
 		}
 	}
 
@@ -126,7 +126,7 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 	log.Infof("Creating sandbox for app '%s'[%s] at '%s'", app.Name, app.ID, app.IP.String())
 	cnt, err := app.mgr.runtime.NewSandbox(app.Name, app.ID, inst.Name, persistancePath, app.InstallerParams)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to create sandbox for app '%s'", app.ID)
+		return nil, fmt.Errorf("failed to create sandbox for app '%s': %w", app.ID, err)
 	}
 	return cnt, nil
 }
@@ -141,7 +141,7 @@ func (app *App) getOrcreateSandbox() (runtime.RuntimeSandbox, error) {
 			}
 			return cnt, nil
 		}
-		return nil, errors.Wrapf(err, "Failed to retrieve container for app '%s'", app.ID)
+		return nil, fmt.Errorf("failed to retrieve container for app '%s': %w", app.ID, err)
 	}
 	return cnt, nil
 }
@@ -194,7 +194,7 @@ func (app *App) AddTask(id string) {
 	log.Debugf("Added task '%s' to app '%s'", id, app.ID)
 	err := app.mgr.saveApp(app)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "Failed to add task for app '%s'", app.ID))
+		log.Panicf("Failed to add task for app '%s': %s", app.ID, err.Error())
 	}
 }
 
@@ -204,12 +204,12 @@ func (app *App) Start() error {
 
 	cnt, err := app.getOrcreateSandbox()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
+		return fmt.Errorf("failed to start application '%s': %w", app.ID, err)
 	}
 
 	err = cnt.Start(app.IP)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to start application '%s'", app.ID)
+		return fmt.Errorf("failed to start application '%s': %w", app.ID, err)
 	}
 	return nil
 }
@@ -229,7 +229,7 @@ func (app *App) Stop() error {
 
 	err = cnt.Stop()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to stop application '%s'(%s)", app.Name, app.ID)
+		return fmt.Errorf("failed to stop application '%s'(%s): %w", app.Name, app.ID, err)
 	}
 
 	return nil
@@ -274,7 +274,7 @@ func (app *App) SendMsg(msg interface{}) error {
 	id := app.ID
 	app.access.Unlock()
 	if msgq == nil {
-		return errors.Errorf("Application '%s' does not have a WS connection open", id)
+		return fmt.Errorf("application '%s' does not have a WS connection open", id)
 	}
 	msgq.Send <- msg
 	return nil
@@ -291,13 +291,13 @@ func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
 	rsc, err := app.mgr.getResourceManager().CreateFromJSON(appJSON, app.ID)
 	if err != nil {
 		app.access.Unlock()
-		return nil, errors.Wrapf(err, "Failed to create resource for app '%s'", app.ID)
+		return nil, fmt.Errorf("failed to create resource for app '%s': %w", app.ID, err)
 	}
 	app.Resources = append(app.Resources, rsc.GetID())
 	app.access.Unlock()
 	err = app.mgr.saveApp(app)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to create resource for app '%s'", app.ID)
+		return nil, fmt.Errorf("failed to create resource for app '%s': %w", app.ID, err)
 	}
 
 	return rsc, nil
@@ -308,20 +308,20 @@ func (app *App) DeleteResource(resourceID string) error {
 	if v, index := util.StringInSlice(resourceID, app.Resources); v {
 		err := app.mgr.getResourceManager().Delete(resourceID)
 		if err != nil {
-			return errors.Wrap(err, "Failed to delete resource for app "+app.ID)
+			return fmt.Errorf("failed to delete resource for app '%s': %w", app.ID, err)
 		}
 		app.access.Lock()
 		app.Resources = util.RemoveStringFromSlice(app.Resources, index)
 		app.access.Unlock()
 		err = app.mgr.saveApp(app)
 		if err != nil {
-			return errors.Wrapf(err, "Failed to delete resource for app '%s'", app.ID)
+			return fmt.Errorf("failed to delete resource for app '%s': %w", app.ID, err)
 		}
 
 		return nil
 	}
 
-	return errors.Errorf("Resource '%s' not owned by application '%s'", resourceID, app.ID)
+	return fmt.Errorf("resource '%s' not owned by application '%s'", resourceID, app.ID)
 }
 
 // GetResources retrieves all the resources that belong to an application
@@ -331,7 +331,7 @@ func (app *App) GetResources() map[string]*resource.Resource {
 	for _, rscid := range app.Resources {
 		rsc, err := rm.Get(rscid)
 		if err != nil {
-			log.Error(errors.Wrapf(err, "Failed to get resource for app '%s'", app.ID))
+			log.Error("Failed to get resource for app '%s': %s", app.ID, err.Error())
 			continue
 		}
 		resources[rscid] = rsc
@@ -344,12 +344,12 @@ func (app *App) GetResource(resourceID string) (*resource.Resource, error) {
 	if found, _ := util.StringInSlice(resourceID, app.Resources); found {
 		rsc, err := app.mgr.getResourceManager().Get(resourceID)
 		if err != nil {
-			return nil, errors.Wrapf(err, "Failed to get resource %s for app %s", resourceID, app.ID)
+			return nil, fmt.Errorf("failed to get resource %s for app %s: %w", resourceID, app.ID, err)
 		}
 		return rsc, nil
 
 	}
-	return nil, errors.Errorf("Resource '%s' not owned by application '%s'", resourceID, app.ID)
+	return nil, fmt.Errorf("resource '%s' not owned by application '%s'", resourceID, app.ID)
 }
 
 // ValidateCapability implements the capability checker interface
@@ -359,13 +359,5 @@ func (app *App) ValidateCapability(cap *capability.Capability) error {
 			return nil
 		}
 	}
-	return errors.Errorf("Method capability '%s' not satisfied by application '%s'", cap.GetName(), app.ID)
+	return fmt.Errorf("method capability '%s' not satisfied by application '%s'", cap.GetName(), app.ID)
 }
-
-// // Provides returns true if the application is a provider for a specific type of resource
-// func (app *App) Provides(rscType string) bool {
-// 	if prov, _ := util.StringInSlice(rscType, app.InstallerMetadata.Provides); prov {
-// 		return true
-// 	}
-// 	return false
-// }
