@@ -6,7 +6,12 @@ package apic;
 option go_package = "github.com/protosio/protos/internal/apic;proto";
 
 service ProtosClientApi {
+  // Init
   rpc Init(InitRequest) returns (InitResponse);
+
+  // User
+  rpc GetUserDevices(GetUserDevicesRequest) returns (GetUserDevicesResponse);
+  rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse);
 
   // App methods
   rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
@@ -53,12 +58,36 @@ service ProtosClientApi {
       returns (RemoveCloudImageResponse);
 }
 
+//
+// Init
+//
 message InitRequest {
   string username = 1;
   string password = 2;
   string name = 3;
 }
 message InitResponse {}
+
+//
+// User
+//
+message UserDevice {
+  string name = 1;
+  string network = 2;
+  string machine_id = 3;
+  string public_key = 4;
+  string public_key_wireguard = 5;
+}
+
+message GetUserDevicesRequest {}
+message GetUserDevicesResponse { repeated UserDevice devices = 1; }
+
+message GetUserInfoRequest {}
+message GetUserInfoResponse {
+  string username = 1;
+	string name = 2;
+	bool is_admin = 3;
+}
 
 //
 // App

@@ -13,6 +13,10 @@ import (
 	"github.com/protosio/protos/internal/release"
 )
 
+//
+// Initialization
+//
+
 func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.InitResponse, error) {
 
 	log.Debugf("Performing initialization")
@@ -47,6 +51,57 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 	b.protosClient.SetInitialized()
 
 	return &pbApic.InitResponse{}, nil
+}
+
+//
+// User
+//
+
+func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesRequest) (*pbApic.GetUserDevicesResponse, error) {
+	log.Debugf("Retrieving user devices")
+	adminUser, err := b.protosClient.UserManager.GetAdmin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
+	}
+
+	resp := pbApic.GetUserDevicesResponse{}
+
+	for _, device := range adminUser.Devices {
+		wgPubKey := "n/a"
+		wgPublicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(device.PublicKey)
+		if err != nil {
+			log.Error(err.Error())
+		} else {
+			wgPubKey = wgPublicKey.String()
+		}
+
+		respDevice := pbApic.UserDevice{
+			Name:               device.Name,
+			MachineId:          device.MachineID,
+			Network:            device.Network,
+			PublicKey:          base64.StdEncoding.EncodeToString(device.PublicKey),
+			PublicKeyWireguard: wgPubKey,
+		}
+		resp.Devices = append(resp.Devices, &respDevice)
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) GetUserInfo(ctx context.Context, in *pbApic.GetUserInfoRequest) (*pbApic.GetUserInfoResponse, error) {
+	log.Debugf("Retrieving user info")
+	adminUser, err := b.protosClient.UserManager.GetAdmin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
+	}
+
+	resp := pbApic.GetUserInfoResponse{
+		Username: adminUser.Username,
+		Name:     adminUser.Name,
+		IsAdmin:  adminUser.IsAdmin(),
+	}
+
+	return &resp, nil
 }
 
 //
