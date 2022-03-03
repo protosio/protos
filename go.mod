@@ -14,7 +14,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.1.0
 	github.com/cheggaaa/pb/v3 v3.0.8
 	github.com/cnf/structhash v0.0.0-20201013183111-a92e111048cd
-	github.com/containerd/containerd v1.5.8
+	github.com/containerd/containerd v1.5.10
 	github.com/containernetworking/cni v0.8.1
 	github.com/containernetworking/plugins v0.9.1
 	github.com/denisbrodbeck/machineid v1.0.1
