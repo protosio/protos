@@ -63,6 +63,14 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	// Load config and print banner
 	cfg := config.Load(configFile, version)
 
+	// create workdir
+	if _, err := os.Stat(cfg.WorkDir); os.IsNotExist(err) {
+		err := os.Mkdir(cfg.WorkDir, 0755)
+		if err != nil {
+			log.Fatalf("Failed to create Protos directory '%s': %w", cfg.WorkDir, err)
+		}
+	}
+
 	// Handle OS signals
 	var wg sync.WaitGroup
 	wg.Add(1)

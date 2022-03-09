@@ -35,7 +35,7 @@ type Config struct {
 }
 
 var config = Config{
-	WorkDir:         "/var/protos",
+	WorkDir:         "/var/lib/protos",
 	HTTPport:        8080,
 	HTTPSport:       8443,
 	Runtime:         "containerd",
