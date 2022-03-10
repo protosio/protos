@@ -118,15 +118,18 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 
 	resp := pbApic.GetAppsResponse{}
 	for _, app := range apps {
+		var status string
 		client, err := b.protosClient.P2PManager.GetClient(app.InstanceName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve status for app '%s': %w", app.Name, err)
-		}
-
-		// FIXME: run this in parallel for all apps
-		status, err := client.GetAppStatus(app.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve status for app '%s': %w", app.Name, err)
+			log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
+			status = "n/a"
+		} else {
+			// FIXME: run this in parallel for all apps
+			status, err = client.GetAppStatus(app.Name)
+			if err != nil {
+				log.Errorf("Failed to retrieve status for app '%s': %w", app.Name, err.Error())
+				status = "n/a"
+			}
 		}
 
 		respApp := pbApic.App{
