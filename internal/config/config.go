@@ -21,7 +21,6 @@ type Config struct {
 	HTTPSport       int
 	Runtime         string
 	RuntimeEndpoint string
-	InContainer     bool
 	StaticAssets    string
 	InitMode        bool
 	InternalDomain  string
@@ -40,7 +39,6 @@ var config = Config{
 	HTTPSport:       8443,
 	Runtime:         "containerd",
 	RuntimeEndpoint: "/run/containerd/containerd.sock",
-	InContainer:     false,
 	InitMode:        false,
 	DevMode:         false,
 	InternalDomain:  "protos.internal",

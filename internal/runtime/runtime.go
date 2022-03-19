@@ -56,8 +56,8 @@ type RuntimePlatform interface {
 }
 
 // Create initializes the run time platform
-func Create(networkManager *network.Manager, runtimeUnixSocket string, inContainer bool) RuntimePlatform {
-	return createContainerdRuntimePlatform(networkManager, runtimeUnixSocket, inContainer)
+func Create(networkManager *network.Manager, runtimeUnixSocket string) RuntimePlatform {
+	return createContainerdRuntimePlatform(networkManager, runtimeUnixSocket)
 }
 
 type platformImage struct {
