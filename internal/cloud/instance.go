@@ -22,7 +22,7 @@ const (
 	ServerStateOther    = "other"
 	ServerStateChanging = "changing"
 
-	protosPublicKey = "/var/protos/protos_key.pub"
+	protosPublicKey = "/var/lib/protos/protos_key.pub"
 )
 
 // VolumeInfo holds information about a data volume
