@@ -104,7 +104,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 
 	peerConfigurator := &PeerConfigurator{NetworkManager: networkManager}
 
-	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint, cfg.InContainer, cfg.WorkDir+"/logs")
+	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint, cfg.InContainer)
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm, peerConfigurator)
 	peerConfigurator.UserManager = um
