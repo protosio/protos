@@ -62,6 +62,7 @@ type App struct {
 	Capabilities    []string          `json:"capabilities"`
 	Resources       []string          `json:"resources"`
 	Tasks           []string          `json:"tasks"`
+	Persistence     bool              `json:"persistence"`
 }
 
 //
@@ -102,29 +103,13 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 		return nil, fmt.Errorf("could not create application '%s': %w", app.Name, err)
 	}
 
-	persistancePath := ""
-	metadata, err := inst.GetMetadata()
-	if err != nil {
-		log.Debugf("Installer '%s' does not have metadata", inst.Name)
-	} else {
-		persistancePath = metadata.PersistancePath
-	}
-
-	// var err error
-	if persistancePath != "" {
-		_, err = app.mgr.runtime.GetOrCreateVolume(persistancePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create volume for app '%s': %w", app.ID, err)
-		}
-	}
-
 	err = inst.Pull()
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull image for app '%s': %w", app.ID, err)
 	}
 
 	log.Infof("Creating sandbox for app '%s'[%s] at '%s'", app.Name, app.ID, app.IP.String())
-	cnt, err := app.mgr.runtime.NewSandbox(app.Name, app.ID, inst.Name, persistancePath, app.InstallerParams)
+	cnt, err := app.mgr.runtime.NewSandbox(app.Name, app.ID, inst.Name, app.Persistence, app.InstallerParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sandbox for app '%s': %w", app.ID, err)
 	}

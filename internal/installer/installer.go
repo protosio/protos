@@ -39,7 +39,7 @@ type InstallerMetadata struct {
 	Description     string      `json:"description"`
 	PlatformID      string      `json:"platformid"`
 	PlatformType    string      `json:"platformtype"`
-	PersistancePath string      `json:"persistancepath"`
+	PersistencePath string      `json:"persistencepath"`
 	Capabilities    []string    `json:"capabilities"`
 }
 

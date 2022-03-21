@@ -17,7 +17,10 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/platforms"
+	"github.com/dennwc/btrfs"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/network"
 )
 
@@ -30,17 +33,22 @@ var pltfrm *containerdPlatform
 type containerdPlatform struct {
 	endpoint       string
 	logsPath       string
+	volumesPath    string
 	initSignal     chan net.IP
 	networkManager *network.Manager
 	client         *containerd.Client
 	initLock       *sync.RWMutex
 }
 
-func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUnixSocket string, inContainer bool, logsPath string) *containerdPlatform {
+func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUnixSocket string) *containerdPlatform {
+
+	cfg := config.Get()
+
 	if pltfrm == nil {
 		pltfrm = &containerdPlatform{
 			endpoint:       runtimeUnixSocket,
-			logsPath:       logsPath,
+			logsPath:       cfg.WorkDir + "/logs",
+			volumesPath:    cfg.WorkDir + "/volumes",
 			initSignal:     make(chan net.IP, 1),
 			initLock:       &sync.RWMutex{},
 			networkManager: networkManager,
@@ -56,6 +64,13 @@ func (cdp *containerdPlatform) Init() error {
 		err := os.Mkdir(cdp.logsPath, os.ModeDir)
 		if err != nil {
 			return fmt.Errorf("failed to initialize platform. Failed to create logs directory: %s", err.Error())
+		}
+	}
+
+	if _, err := os.Stat(cdp.volumesPath); os.IsNotExist(err) {
+		err := os.Mkdir(cdp.volumesPath, os.ModeDir)
+		if err != nil {
+			return fmt.Errorf("failed to initialize platform. Failed to create volumes directory: %s", err.Error())
 		}
 	}
 
@@ -75,7 +90,7 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef string, volumeMountPath string, installerParams map[string]string) (RuntimeSandbox, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef string, persistence bool, installerParams map[string]string) (RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	pru := &containerdSandbox{p: cdp, containerID: appID}
 
@@ -89,11 +104,31 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef st
 		oci.WithEnv([]string{fmt.Sprintf("APPID=%s", appID)}),
 	}
 
+	if persistence {
+		err = cdp.getOrCreateVolume(appID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create volume for sandbox '%s': %w", appID, err)
+		}
+
+		volumePath := cdp.volumesPath + "/" + appID
+		mounts := []specs.Mount{{
+			Type:        "none",
+			Destination: "/data",
+			Source:      volumePath,
+			Options:     []string{"rbind"},
+		}}
+
+		opts = append(opts, oci.WithMounts(mounts))
+	}
+
 	log.Debugf("Creating containerd sandbox '%s' from image '%s'", name, imageRef)
 	cnt, err := cdp.client.NewContainer(
 		ctx,
 		appID,
-		containerd.WithNewSnapshot(appID+"-snapshot", image),
+		containerd.WithImage(image),
+		containerd.WithImageStopSignal(image, "SIGTERM"),
+		containerd.WithSnapshotter("btrfs"),
+		containerd.WithNewSnapshot(appID, image),
 		containerd.WithNewSpec(opts...),
 		containerd.WithContainerLabels(map[string]string{"platform": protosNamespace, "appID": appID, "appName": name}),
 	)
@@ -208,7 +243,7 @@ func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
 func (cdp *containerdPlatform) PullImage(imageRef string) error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
-	image, err := cdp.client.Pull(ctx, imageRef, containerd.WithPullUnpack, containerd.WithPlatform(platforms.DefaultString()))
+	image, err := cdp.client.Pull(ctx, imageRef, containerd.WithPullUnpack, containerd.WithPlatform(platforms.DefaultString()), containerd.WithPullSnapshotter("btrfs"))
 	if err != nil {
 		return fmt.Errorf("failed to pull image '%s' from app store: %w", imageRef, err)
 	}
@@ -237,11 +272,43 @@ func (cdp *containerdPlatform) RemoveImage(id string) error {
 	return nil
 }
 
-func (cdp *containerdPlatform) GetOrCreateVolume(path string) (string, error) {
-	return "", nil
+//
+// Volumes methods
+//
+
+func (cdp *containerdPlatform) getOrCreateVolume(id string) error {
+	volumePath := cdp.volumesPath + "/" + id
+
+	info, err := os.Stat(volumePath)
+	if err == nil {
+		if info.IsDir() {
+			isSubVolume, err := btrfs.IsSubVolume(volumePath)
+			if err != nil {
+				return fmt.Errorf("could not check data volume for sandbox '%s': %w", id, err)
+			}
+			if isSubVolume {
+				return nil
+			} else {
+				return fmt.Errorf("can't create volume for sandbox '%s'(%s): directory exists but is not a btrfs subvolume", id, volumePath)
+			}
+		} else {
+			return fmt.Errorf("can't create volume for sandbox '%s'(%s): path exists but is not a directory", id, volumePath)
+		}
+	}
+
+	if os.IsNotExist(err) {
+		err = btrfs.CreateSubVolume(volumePath)
+		if err != nil {
+			return fmt.Errorf("could not create data volume for sandbox '%s'(%s): %w", id, volumePath, err)
+		}
+	} else {
+		return fmt.Errorf("error while creating data volume for sandbox '%s'(%s): %w", id, volumePath, err)
+	}
+
+	return nil
 }
 
-func (cdp *containerdPlatform) RemoveVolume(id string) error {
+func (cdp *containerdPlatform) removeVolume(id string) error {
 	return nil
 }
 
@@ -376,7 +443,7 @@ func (cnt *containerdSandbox) Remove() error {
 
 	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
 	if err != nil {
-		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+		log.Warn("Failed to delete log file for sandbox '%s': %w", cnt.containerID, err)
 	}
 
 	return nil

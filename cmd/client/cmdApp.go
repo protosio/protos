@@ -27,6 +27,13 @@ var cmdApp *cli.Command = &cli.Command{
 			Name:      "create",
 			ArgsUsage: "<name> <installer> <instance-id>",
 			Usage:     "Create an application",
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:    "state",
+					Aliases: []string{"s"},
+					Usage:   "add persistent state to app",
+				},
+			},
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
@@ -46,7 +53,7 @@ var cmdApp *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				return createApp(name, installerID, instanceID)
+				return createApp(name, installerID, instanceID, c.Bool("state"))
 			},
 		},
 		{
@@ -157,10 +164,10 @@ func listApps() error {
 	return nil
 }
 
-func createApp(name string, installerID string, instanceID string) error {
+func createApp(name string, installerID string, instanceID string, persistence bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := client.CreateApp(ctx, &pbApic.CreateAppRequest{Name: name, InstallerId: installerID, InstanceId: instanceID})
+	_, err := client.CreateApp(ctx, &pbApic.CreateAppRequest{Name: name, InstallerId: installerID, InstanceId: instanceID, Persistence: persistence})
 	if err != nil {
 		return fmt.Errorf("failed to run app '%s': %w", name, err)
 	}

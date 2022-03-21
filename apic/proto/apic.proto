@@ -100,6 +100,8 @@ message App {
   string instance_name = 5;
   string ip = 6;
   string installer = 7;
+  bool persistence = 8;
+
 }
 
 message GetAppsRequest {}
@@ -109,6 +111,7 @@ message CreateAppRequest {
   string name = 1;
   string installer_id = 2;
   string instance_id = 3;
+  bool persistence = 4;
 }
 message CreateAppResponse { string id = 1; }
 

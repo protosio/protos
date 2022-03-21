@@ -98,7 +98,7 @@ func (am *Manager) getCapabilityManager() *capability.Manager {
 //
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installer *installer.Installer, name string, instanceName string, instanceNetwork string, installerParams map[string]string) (*App, error) {
+func (am *Manager) Create(installer *installer.Installer, name string, instanceName string, instanceNetwork string, persistence bool, installerParams map[string]string) (*App, error) {
 
 	var app *App
 	if name == "" || instanceName == "" {
@@ -136,6 +136,7 @@ func (am *Manager) Create(installer *installer.Installer, name string, instanceN
 		Tasks:         []string{},
 		IP:            appIP,
 		DesiredStatus: statusStopped,
+		Persistence:   persistence,
 	}
 
 	err = validateInstallerParams(installerParams, installer.GetParams())
@@ -254,12 +255,12 @@ func (am *Manager) Refresh() error {
 			log.Infof("App '%s' not found. Stopping and removing existing sandbox", id)
 			err = sandbox.Stop()
 			if err != nil {
-				log.Errorf("Failed to remove sandbox for app '%s': %w", err)
+				log.Errorf("Failed to remove sandbox for app '%s': %w", id, err)
 				continue
 			}
 			err = sandbox.Remove()
 			if err != nil {
-				log.Errorf("Failed to remove sandbox for app '%s': %w", err)
+				log.Errorf("Failed to remove sandbox for app '%s': %w", id, err)
 				continue
 			}
 		}

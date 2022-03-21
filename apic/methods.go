@@ -165,7 +165,7 @@ func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*
 	}
 
 	// FIXME: read the installer params from the command line
-	app, err := b.protosClient.AppManager.Create(installer, in.Name, in.InstanceId, instance.Network, map[string]string{})
+	app, err := b.protosClient.AppManager.Create(installer, in.Name, in.InstanceId, instance.Network, in.Persistence, map[string]string{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
