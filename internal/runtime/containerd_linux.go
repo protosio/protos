@@ -308,7 +308,34 @@ func (cdp *containerdPlatform) getOrCreateVolume(id string) error {
 	return nil
 }
 
+func (cdp *containerdPlatform) volumeExists(id string) bool {
+	volumePath := cdp.volumesPath + "/" + id
+	info, err := os.Stat(volumePath)
+	if err != nil {
+		return false
+	}
+
+	if !info.IsDir() {
+		return false
+	}
+
+	isSubVolume, err := btrfs.IsSubVolume(volumePath)
+	if err != nil {
+		return false
+	}
+	if !isSubVolume {
+		return false
+	}
+
+	return true
+}
+
 func (cdp *containerdPlatform) removeVolume(id string) error {
+	volumePath := cdp.volumesPath + "/" + id
+	err := btrfs.DeleteSubVolume(volumePath)
+	if err != nil {
+		return fmt.Errorf("could not delete data volume for sandbox '%s'(%s): %w", id, volumePath, err)
+	}
 	return nil
 }
 
@@ -439,6 +466,13 @@ func (cnt *containerdSandbox) Remove() error {
 	err = cnt.cnt.Delete(ctx)
 	if err != nil {
 		return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+	}
+
+	if cnt.p.volumeExists(cnt.containerID) {
+		err = cnt.p.removeVolume(cnt.containerID)
+		if err != nil {
+			return fmt.Errorf("error while removing sandbox '%s': %w", cnt.containerID, err)
+		}
 	}
 
 	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
