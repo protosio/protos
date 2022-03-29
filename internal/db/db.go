@@ -75,7 +75,7 @@ func Open(protosDir string, protosDB string) (DB, error) {
 		}
 	}
 
-	cs := nbs.NewLocalStore(dbpath, clienttest.DefaultMemTableSize)
+	cs := nbs.NewLocalStore(dbpath, uint64(clienttest.DefaultMemTableSize))
 	dbn := datas.NewDatabase(cs)
 	db := &dbNoms{
 		dbn:            dbn,

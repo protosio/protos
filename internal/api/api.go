@@ -237,14 +237,12 @@ type HTTP struct {
 	localWebServerQuit    chan bool
 	internalWebServerQuit chan bool
 	externalWebServerQuit chan bool
-	wsManagerQuit         chan bool
 	router                *routerSwapper
 	root                  *negroni.Negroni
 	ha                    handlerAccess
 	devmode               bool
 	httpPort              int
 	httpsPort             int
-	wsfrontend            chan interface{}
 }
 
 func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath string) *mux.Router {
@@ -265,7 +263,6 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 	// internal routes
 	internalRouter := mux.NewRouter().PathPrefix(types.APIInternalPath).Subrouter().StrictSlash(true)
 	addRoutesToRouter(httpAPI.ha, internalRouter, createInternalRoutes(httpAPI.ha.cm))
-	addRoutesToRouter(httpAPI.ha, internalRouter, internalWSRoutes)
 	rtr.PathPrefix(types.APIInternalPath).Handler(negroni.New(
 		InternalRequestValidator(httpAPI.ha, internalRouter),
 		negroni.Wrap(internalRouter),
@@ -298,14 +295,12 @@ func createRouter(httpAPI *HTTP, devmode bool, initmode bool, staticAssetsPath s
 }
 
 // New returns a new http API
-func New(devmode bool, staticAssetsPath string, wsfrontend chan interface{}, httpPort int, httpsPort int, m *meta.Meta, am *app.Manager, rm *resource.Manager, tm *task.Manager, pm *provider.Manager, as *installer.AppStore, um *auth.UserManager, rp runtime.RuntimePlatform, cm *capability.Manager) *HTTP {
+func New(devmode bool, staticAssetsPath string, httpPort int, httpsPort int, m *meta.Meta, am *app.Manager, rm *resource.Manager, tm *task.Manager, pm *provider.Manager, as *installer.AppStore, um *auth.UserManager, rp runtime.RuntimePlatform, cm *capability.Manager) *HTTP {
 	httpAPI := &HTTP{
 		devmode:          devmode,
 		staticAssetsPath: staticAssetsPath,
-		wsfrontend:       wsfrontend,
 		httpPort:         httpPort,
 		httpsPort:        httpsPort,
-		wsManagerQuit:    make(chan bool, 1),
 	}
 	httpAPI.ha = handlerAccess{
 		pm:  pm,
@@ -443,21 +438,5 @@ func (api *HTTP) DisableInitRoutes() error {
 func (api *HTTP) StopExternalWebServer() error {
 	log.Debug("Shutting down external web server")
 	api.externalWebServerQuit <- true
-	return nil
-}
-
-// StartWSManager starts the websocket server
-func (api *HTTP) StartWSManager() (func() error, error) {
-	go WSManager(api.ha.am, api.wsManagerQuit, api.wsfrontend)
-
-	stopper := func() error {
-		return api.StopWSManager()
-	}
-	return stopper, nil
-}
-
-// StopWSManager stops the websocket server
-func (api *HTTP) StopWSManager() error {
-	api.wsManagerQuit <- true
 	return nil
 }

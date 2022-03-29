@@ -707,3 +707,81 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 	}
 	return &pbApic.RemoveCloudImageResponse{}, nil
 }
+
+//
+// Backup methods
+//
+
+func (b *Backend) GetBackupProviders(ctx context.Context, in *pbApic.GetBackupProvidersRequest) (*pbApic.GetBackupProvidersResponse, error) {
+	providers, err := b.protosClient.BackupManager.GetProviders()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve backups: %s", err)
+	}
+
+	response := &pbApic.GetBackupProvidersResponse{}
+	for _, provider := range providers {
+		response.BackupProviders = append(response.BackupProviders, &pbApic.BackupProvider{
+			Name: provider.Name,
+			Type: provider.Type,
+		})
+	}
+
+	return response, nil
+}
+
+func (b *Backend) GetBackupProviderInfo(ctx context.Context, in *pbApic.GetBackupProviderInfoRequest) (*pbApic.GetBackupProviderInfoResponse, error) {
+	provider, err := b.protosClient.BackupManager.GetProviderInfo(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve provider info: %s", err)
+	}
+
+	response := &pbApic.GetBackupProviderInfoResponse{BackupProvider: &pbApic.BackupProvider{
+		Name: provider.Name,
+		Type: provider.Type,
+	}}
+
+	return response, nil
+}
+
+func (b *Backend) GetBackups(ctx context.Context, in *pbApic.GetBackupsRequest) (*pbApic.GetBackupsResponse, error) {
+	backups, err := b.protosClient.BackupManager.GetBackups()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve backups: %s", err)
+	}
+
+	response := &pbApic.GetBackupsResponse{}
+	for _, backup := range backups {
+		response.Backups = append(response.Backups, &pbApic.Backup{
+			Name:     backup.Name,
+			App:      backup.App,
+			Provider: backup.Provider,
+		})
+	}
+
+	return response, nil
+}
+
+func (b *Backend) GetBackupInfo(ctx context.Context, in *pbApic.GetBackupInfoRequest) (*pbApic.GetBackupInfoResponse, error) {
+	backup, err := b.protosClient.BackupManager.GetBackupInfo(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve backups: %s", err)
+	}
+
+	response := &pbApic.GetBackupInfoResponse{
+		Backup: &pbApic.Backup{
+			Name:     backup.Name,
+			App:      backup.App,
+			Provider: backup.Provider,
+		},
+	}
+
+	return response, nil
+}
+
+func (b *Backend) CreateBackup(ctx context.Context, in *pbApic.CreateBackupRequest) (*pbApic.CreateBackupResponse, error) {
+	return nil, nil
+}
+
+func (b *Backend) RemoveBackup(ctx context.Context, in *pbApic.RemoveBackupRequest) (*pbApic.RemoveBackupResponse, error) {
+	return nil, nil
+}

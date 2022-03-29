@@ -96,15 +96,14 @@ func getLastNTasks(n int, tsks *linkedhashmap.Map) linkedhashmap.Map {
 
 // Manager keeps track of all the tasks
 type Manager struct {
-	tasks     taskContainer
-	db        db.DB
-	publisher WSPublisher
+	tasks taskContainer
+	db    db.DB
 }
 
 // CreateManager creates and returns a TaskManager
-func CreateManager(db db.DB, publisher WSPublisher) *Manager {
+func CreateManager(db db.DB) *Manager {
 
-	if db == nil || publisher == nil {
+	if db == nil {
 		log.Panic("Failed to create task manager: none of the inputs can be nil")
 	}
 
@@ -122,7 +121,7 @@ func CreateManager(db db.DB, publisher WSPublisher) *Manager {
 	}
 
 	ltasks := linkedhashmap.New()
-	manager := &Manager{db: db, publisher: publisher, tasks: taskContainer{access: &sync.Mutex{}, all: ltasks}}
+	manager := &Manager{db: db, tasks: taskContainer{access: &sync.Mutex{}, all: ltasks}}
 	for _, task := range dbtasks {
 		ltask := task
 		ltask.access = &sync.Mutex{}
@@ -206,5 +205,4 @@ func (tm *Manager) saveTask(btsk *Base) {
 	if err != nil {
 		log.Panic(errors.Wrapf(err, "Could not save task %s to database", ltask.ID))
 	}
-	tm.publisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeTask, PayloadValue: ltask}
 }

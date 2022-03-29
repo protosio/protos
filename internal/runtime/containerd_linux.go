@@ -339,6 +339,16 @@ func (cdp *containerdPlatform) removeVolume(id string) error {
 	return nil
 }
 
+func (cdp *containerdPlatform) createVolumeSnapshot(sourceVolumeID string, name string) error {
+	volumePath := cdp.volumesPath + "/" + sourceVolumeID
+	snapshotPath := cdp.volumesPath + "/" + name
+	err := btrfs.SnapshotSubVolume(volumePath, snapshotPath, false)
+	if err != nil {
+		return fmt.Errorf("could not create snapshot for volume '%s'(%s): %w", sourceVolumeID, volumePath, err)
+	}
+	return nil
+}
+
 //
 // struct and methods that satisfy RuntimeSandbox
 //

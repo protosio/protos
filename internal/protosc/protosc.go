@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/backup"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
@@ -62,6 +63,7 @@ type ProtosClient struct {
 	AppStore       *installer.AppStore
 	CloudManager   *cloud.Manager
 	P2PManager     *p2p.P2P
+	BackupManager  *backup.BackupManager
 	Meta           *meta.Meta
 }
 
@@ -106,10 +108,12 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	metaClient := meta.Setup(protosClient.db, keyManager, version)
 	capabilityManager := capability.CreateManager()
 	userManager := auth.CreateUserManager(protosClient.db, keyManager, capabilityManager, protosClient)
+	backupManager := backup.CreateManager(protosClient.db)
 
 	protosClient.UserManager = userManager
 	protosClient.KeyManager = keyManager
 	protosClient.capabilityManager = capabilityManager
+	protosClient.BackupManager = backupManager
 	protosClient.Meta = metaClient
 
 	return protosClient, nil
@@ -159,12 +163,9 @@ func networkUp(userManager *auth.UserManager, internalDomain string) (*network.M
 
 func (pc *ProtosClient) FinishInit() error {
 
-	// create publisher
-	pub := &publisher{pubchan: make(chan interface{}, 100)}
-
 	resourceManager := resource.CreateManager(pc.db)
 
-	taskManager := task.CreateManager(pc.db, pub)
+	taskManager := task.CreateManager(pc.db)
 	networkManager, err := networkUp(pc.UserManager, pc.cfg.InternalDomain)
 	if err != nil {
 		log.Fatalf("Failed to create network manager: %s", err.Error())
@@ -172,7 +173,7 @@ func (pc *ProtosClient) FinishInit() error {
 
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint)
 	appStore := installer.CreateAppStore(appRuntime, taskManager, pc.capabilityManager)
-	appManager := app.CreateManager(app.TypeProtosc, resourceManager, taskManager, appRuntime, pc.db, pc.Meta, pub, appStore, pc.capabilityManager)
+	appManager := app.CreateManager(app.TypeProtosc, resourceManager, taskManager, appRuntime, pc.db, pc.Meta, appStore, pc.capabilityManager)
 
 	// get device key
 	key, err := pc.Meta.GetPrivateKey()

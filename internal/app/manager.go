@@ -12,7 +12,6 @@ import (
 	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/task"
-	"github.com/protosio/protos/internal/util"
 
 	"github.com/pkg/errors"
 	"github.com/rs/xid"
@@ -43,15 +42,14 @@ type appStore interface {
 
 // Manager keeps track of all the apps
 type Manager struct {
-	ptype       string
-	store       appStore
-	rm          *resource.Manager
-	tm          *task.Manager
-	m           *meta.Meta
-	db          db.DB
-	cm          *capability.Manager
-	runtime     runtime.RuntimePlatform
-	wspublisher WSPublisher
+	ptype   string
+	store   appStore
+	rm      *resource.Manager
+	tm      *task.Manager
+	m       *meta.Meta
+	db      db.DB
+	cm      *capability.Manager
+	runtime runtime.RuntimePlatform
 }
 
 //
@@ -59,15 +57,15 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(ptype string, rm *resource.Manager, tm *task.Manager, runtime runtime.RuntimePlatform, db db.DB, meta *meta.Meta, wspublisher WSPublisher, appStore appStore, cm *capability.Manager) *Manager {
+func CreateManager(ptype string, rm *resource.Manager, tm *task.Manager, runtime runtime.RuntimePlatform, db db.DB, meta *meta.Meta, appStore appStore, cm *capability.Manager) *Manager {
 
-	if rm == nil || tm == nil || db == nil || meta == nil || wspublisher == nil || appStore == nil || cm == nil {
+	if rm == nil || tm == nil || db == nil || meta == nil || appStore == nil || cm == nil {
 		log.Panic("Failed to create app manager: none of the inputs can be nil")
 	}
 
 	log.Debug("Retrieving applications from DB")
 
-	manager := &Manager{ptype: ptype, rm: rm, tm: tm, db: db, m: meta, runtime: runtime, wspublisher: wspublisher, store: appStore, cm: cm}
+	manager := &Manager{ptype: ptype, rm: rm, tm: tm, db: db, m: meta, runtime: runtime, store: appStore, cm: cm}
 
 	err := db.InitDataset(appDS, manager)
 	if err != nil {
@@ -341,12 +339,7 @@ func (am *Manager) GetStatus(name string) (string, error) {
 }
 
 func (am *Manager) saveApp(app *App) error {
-	app.access.Lock()
-	papp := *app
-	app.access.Unlock()
-	papp.access = nil
-	am.wspublisher.GetWSPublishChannel() <- util.WSMessage{MsgType: util.WSMsgTypeUpdate, PayloadType: util.WSPayloadTypeApp, PayloadValue: papp}
-	err := am.db.InsertInMap(appDS, papp.ID, papp)
+	err := am.db.InsertInMap(appDS, app.ID, app)
 	if err != nil {
 		return errors.Wrap(err, "Could not save app to database")
 	}

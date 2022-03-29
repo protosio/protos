@@ -56,6 +56,14 @@ service ProtosClientApi {
       returns (UploadCloudImageResponse);
   rpc RemoveCloudImage(RemoveCloudImageRequest)
       returns (RemoveCloudImageResponse);
+
+  // Backup methods
+  rpc GetBackupProviders(GetBackupProvidersRequest) returns (GetBackupProvidersResponse);
+  rpc GetBackupProviderInfo(GetBackupProviderInfoRequest) returns (GetBackupProviderInfoResponse);
+  rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse);
+  rpc GetBackupInfo(GetBackupInfoRequest) returns (GetBackupInfoResponse);
+  rpc CreateBackup(CreateBackupRequest) returns (CreateBackupResponse);
+  rpc RemoveBackup(RemoveBackupRequest) returns (RemoveBackupResponse);
 }
 
 //
@@ -305,3 +313,42 @@ message RemoveCloudImageRequest {
   string cloud_location = 4;
 }
 message RemoveCloudImageResponse {}
+
+//
+// Backup methods
+//
+
+message Backup {
+  string name = 1;
+  string app = 2;
+  string provider = 3;
+}
+
+message BackupProvider {
+  string name = 1;
+  string type = 2;
+}
+
+message GetBackupProvidersRequest {}
+message GetBackupProvidersResponse { repeated BackupProvider backup_providers = 1; }
+
+message GetBackupProviderInfoRequest { string name = 1; }
+message GetBackupProviderInfoResponse { BackupProvider backup_provider = 1; }
+
+message GetBackupsRequest {}
+message GetBackupsResponse { repeated Backup backups = 1; }
+
+message GetBackupInfoRequest { string name = 1; }
+message GetBackupInfoResponse { Backup backup = 1; }
+
+message CreateBackupRequest {
+  string name = 1;
+  string app = 2;
+  string provider = 3;
+}
+message CreateBackupResponse {}
+
+message RemoveBackupRequest {
+  string name = 1;
+}
+message RemoveBackupResponse {}
