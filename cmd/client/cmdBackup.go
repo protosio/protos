@@ -124,6 +124,7 @@ func infoBackupProviders(name string) error {
 	w.Init(os.Stdout, 0, 0, 2, ' ', 0)
 	defer w.Flush()
 	fmt.Fprintf(w, "%s\t%s\t", "Name:", response.BackupProvider.Name)
+	fmt.Fprintf(w, "\n%s\t%s\t", "Cloud:", response.BackupProvider.Cloud)
 	fmt.Fprintf(w, "\n%s\t%s\t", "Type:", response.BackupProvider.Type)
 	fmt.Fprint(w, "\n")
 

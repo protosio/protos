@@ -54,7 +54,11 @@ func (b *BackupManager) GetProviders() (map[string]BackupProvider, error) {
 }
 
 func (b *BackupManager) GetProviderInfo(name string) (BackupProvider, error) {
-	return BackupProvider{}, nil
+	cloudProvider, err := b.cloudManager.GetProvider(name)
+	if err != nil {
+		return BackupProvider{}, fmt.Errorf("could not retrieve backup provider '%s': %w", name, err)
+	}
+	return BackupProvider{Name: cloudProvider.NameStr(), Cloud: cloudProvider.TypeStr(), Type: "S3"}, nil
 }
 
 func (b *BackupManager) GetBackupInfo(name string) (Backup, error) {
