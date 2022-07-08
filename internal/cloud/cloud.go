@@ -35,8 +35,6 @@ func (ct Type) String() string {
 }
 
 const (
-	// DigitalOcean cloud provider
-	DigitalOcean = Type("digitalocean")
 	// Scaleway cloud provider
 	Scaleway = Type("scaleway")
 	// Local is a local VM provider

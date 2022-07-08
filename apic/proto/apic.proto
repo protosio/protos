@@ -326,7 +326,8 @@ message Backup {
 
 message BackupProvider {
   string name = 1;
-  string type = 2;
+  string cloud = 2;
+  string type = 3;
 }
 
 message GetBackupProvidersRequest {}

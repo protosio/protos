@@ -108,12 +108,10 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	metaClient := meta.Setup(protosClient.db, keyManager, version)
 	capabilityManager := capability.CreateManager()
 	userManager := auth.CreateUserManager(protosClient.db, keyManager, capabilityManager, protosClient)
-	backupManager := backup.CreateManager(protosClient.db)
 
 	protosClient.UserManager = userManager
 	protosClient.KeyManager = keyManager
 	protosClient.capabilityManager = capabilityManager
-	protosClient.BackupManager = backupManager
 	protosClient.Meta = metaClient
 
 	return protosClient, nil
@@ -209,12 +207,15 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
 
+	backupManager := backup.CreateManager(pc.db, cloudManager)
+
 	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", pc.cfg.InternalDomain, appManager)
 	pc.stoppers["dns"] = dnsStopper
 	pc.AppManager = appManager
 	pc.AppStore = appStore
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
+	pc.BackupManager = backupManager
 
 	pc.Refresh()
 

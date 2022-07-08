@@ -721,8 +721,9 @@ func (b *Backend) GetBackupProviders(ctx context.Context, in *pbApic.GetBackupPr
 	response := &pbApic.GetBackupProvidersResponse{}
 	for _, provider := range providers {
 		response.BackupProviders = append(response.BackupProviders, &pbApic.BackupProvider{
-			Name: provider.Name,
-			Type: provider.Type,
+			Name:  provider.Name,
+			Cloud: provider.Cloud,
+			Type:  provider.Type,
 		})
 	}
 
@@ -736,8 +737,9 @@ func (b *Backend) GetBackupProviderInfo(ctx context.Context, in *pbApic.GetBacku
 	}
 
 	response := &pbApic.GetBackupProviderInfoResponse{BackupProvider: &pbApic.BackupProvider{
-		Name: provider.Name,
-		Type: provider.Type,
+		Name:  provider.Name,
+		Cloud: provider.Cloud,
+		Type:  provider.Type,
 	}}
 
 	return response, nil

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/db"
 )
 
@@ -18,26 +19,37 @@ type Backup struct {
 }
 
 type BackupProvider struct {
-	Name string
-	Type string
+	Name  string
+	Cloud string
+	Type  string
 }
 
 type BackupManager struct {
-	db db.DB
+	db           db.DB
+	cloudManager *cloud.Manager
 }
 
-func CreateManager(db db.DB) *BackupManager {
+func CreateManager(db db.DB, cloudManager *cloud.Manager) *BackupManager {
 
 	err := db.InitDataset(backupDS, nil)
 	if err != nil {
 		log.Fatal("Failed to initialize backup dataset: ", err)
 	}
 
-	return &BackupManager{db: db}
+	return &BackupManager{db: db, cloudManager: cloudManager}
 }
 
 func (b *BackupManager) GetProviders() (map[string]BackupProvider, error) {
 	backupProviders := map[string]BackupProvider{}
+	cloudProviders, err := b.cloudManager.GetProviders()
+	if err != nil {
+		return backupProviders, fmt.Errorf("could not retrieve backup providers: %w", err)
+	}
+
+	for _, cloud := range cloudProviders {
+		backupProviders[cloud.NameStr()] = BackupProvider{Name: cloud.NameStr(), Cloud: cloud.TypeStr(), Type: "S3"}
+	}
+
 	return backupProviders, nil
 }
 

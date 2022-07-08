@@ -16,8 +16,8 @@ var cmdBackup *cli.Command = &cli.Command{
 	Usage: "Manage backups",
 	Subcommands: []*cli.Command{
 		{
-			Name:  "backends",
-			Usage: "Subcommands to interact with the backup backends",
+			Name:  "providers",
+			Usage: "Subcommands to interact with the backup providers",
 			Subcommands: []*cli.Command{
 				{
 					Name:  "ls",
@@ -103,10 +103,10 @@ func listBackupProviders() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t", "Name", "Type")
-	fmt.Fprintf(w, "\n %s\t%s", "----", "----")
+	fmt.Fprintf(w, " %s\t%s\t%s\t", "Name", "Cloud", "Type")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t", "----", "-----", "----")
 	for _, backupProvider := range response.BackupProviders {
-		fmt.Fprintf(w, "\n %s\t%s\t", backupProvider.Name, backupProvider.Type)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t", backupProvider.Name, backupProvider.Cloud, backupProvider.Type)
 	}
 	fmt.Fprint(w, "\n")
 	return nil
