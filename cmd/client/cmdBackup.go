@@ -63,15 +63,17 @@ var cmdBackup *cli.Command = &cli.Command{
 		},
 		{
 			Name:      "create",
-			ArgsUsage: "<name>",
+			ArgsUsage: "<name> <app> <provider>",
 			Usage:     "Create a backup",
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
-				if name == "" {
+				app := c.Args().Get(1)
+				provider := c.Args().Get(2)
+				if name == "" || app == "" || provider == "" {
 					cli.ShowSubcommandHelp(c)
 					os.Exit(1)
 				}
-				return createBackup(name)
+				return createBackup(name, app, provider)
 			},
 		},
 		{
@@ -142,10 +144,10 @@ func listBackups() error {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 0, 2, ' ', 0)
 	defer w.Flush()
-	fmt.Fprintf(w, " %s\t%s\t%s\t", "Name", "App", "Provider")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t", "----", "---", "--------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Name", "App", "Provider", "Status")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "----", "---", "--------", "------")
 	for _, backup := range backups.Backups {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t", backup.Name, backup.App, backup.Provider)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", backup.Name, backup.App, backup.Provider, backup.Status)
 	}
 	fmt.Fprint(w, "\n")
 	return nil
@@ -170,10 +172,22 @@ func infoBackup(name string) error {
 	return nil
 }
 
-func createBackup(name string) error {
+func createBackup(name string, app string, provider string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := client.CreateBackup(ctx, &pbApic.CreateBackupRequest{Name: name, App: app, Provider: provider})
+	if err != nil {
+		return fmt.Errorf("failed to create backup: %w", err)
+	}
 	return nil
 }
 
 func rmBackup(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := client.RemoveBackup(ctx, &pbApic.RemoveBackupRequest{Name: name})
+	if err != nil {
+		return fmt.Errorf("failed to remove backup: %w", err)
+	}
 	return nil
 }

@@ -339,7 +339,7 @@ func (am *Manager) GetStatus(name string) (string, error) {
 }
 
 func (am *Manager) saveApp(app *App) error {
-	err := am.db.InsertInMap(appDS, app.ID, app)
+	err := am.db.InsertInMap(appDS, app.ID, *app)
 	if err != nil {
 		return errors.Wrap(err, "Could not save app to database")
 	}

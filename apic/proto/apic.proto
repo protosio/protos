@@ -322,6 +322,7 @@ message Backup {
   string name = 1;
   string app = 2;
   string provider = 3;
+  string status = 4;
 }
 
 message BackupProvider {

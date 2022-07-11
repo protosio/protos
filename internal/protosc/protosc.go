@@ -207,7 +207,7 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
 
-	backupManager := backup.CreateManager(pc.db, cloudManager)
+	backupManager := backup.CreateManager(pc.db, cloudManager, appManager)
 
 	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", pc.cfg.InternalDomain, appManager)
 	pc.stoppers["dns"] = dnsStopper

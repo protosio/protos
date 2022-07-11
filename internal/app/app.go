@@ -45,9 +45,8 @@ type Config struct {
 
 // App represents the application state
 type App struct {
-	access *sync.Mutex   `noms:"-"`
-	msgq   *WSConnection `noms:"-"`
-	mgr    *Manager      `noms:"-"`
+	access *sync.Mutex `noms:"-"`
+	mgr    *Manager    `noms:"-"`
 
 	// Public members
 	Name            string            `json:"name"`
@@ -223,46 +222,6 @@ func (app *App) Stop() error {
 // GetIP returns the ip address of the app
 func (app *App) GetIP() net.IP {
 	return app.IP
-}
-
-//
-// WS connection related methods
-//
-
-// SetMsgQ sets the channel that can be used to send WS messages to the app
-func (app *App) SetMsgQ(msgq *WSConnection) {
-	app.access.Lock()
-	app.msgq = msgq
-	id := app.ID
-	app.access.Unlock()
-	log.Debugf("New WS connection available for app '%s'", id)
-}
-
-// CloseMsgQ closes and removes the WS connection to the application
-func (app *App) CloseMsgQ() {
-	app.access.Lock()
-	msgq := app.msgq
-	app.msgq = nil
-	id := app.ID
-	app.access.Unlock()
-	if msgq == nil {
-		return
-	}
-	log.Debugf("Closing WS connection for app '%s'", id)
-	msgq.Close <- true
-}
-
-// SendMsg sends a message to the app via the active WS connection. Returns error if no WS connection is active
-func (app *App) SendMsg(msg interface{}) error {
-	app.access.Lock()
-	msgq := app.msgq
-	id := app.ID
-	app.access.Unlock()
-	if msgq == nil {
-		return fmt.Errorf("application '%s' does not have a WS connection open", id)
-	}
-	msgq.Send <- msg
-	return nil
 }
 
 //

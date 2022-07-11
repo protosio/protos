@@ -757,6 +757,7 @@ func (b *Backend) GetBackups(ctx context.Context, in *pbApic.GetBackupsRequest) 
 			Name:     backup.Name,
 			App:      backup.App,
 			Provider: backup.Provider,
+			Status:   backup.Status,
 		})
 	}
 
@@ -781,9 +782,17 @@ func (b *Backend) GetBackupInfo(ctx context.Context, in *pbApic.GetBackupInfoReq
 }
 
 func (b *Backend) CreateBackup(ctx context.Context, in *pbApic.CreateBackupRequest) (*pbApic.CreateBackupResponse, error) {
-	return nil, nil
+	err := b.protosClient.BackupManager.CreateBackup(in.Name, in.App, in.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create backup: %s", err)
+	}
+	return &pbApic.CreateBackupResponse{}, nil
 }
 
 func (b *Backend) RemoveBackup(ctx context.Context, in *pbApic.RemoveBackupRequest) (*pbApic.RemoveBackupResponse, error) {
-	return nil, nil
+	err := b.protosClient.BackupManager.RemoveBackup(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to remove backup: %s", err)
+	}
+	return &pbApic.RemoveBackupResponse{}, nil
 }
