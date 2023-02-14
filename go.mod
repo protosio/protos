@@ -73,7 +73,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/attic-labs/graphql v0.0.0-20190507195614-b6552d20145f // indirect
 	github.com/attic-labs/kingpin v2.2.7-0.20180312050558-442efcfac769+incompatible // indirect
-	github.com/aws/aws-sdk-go v1.27.0 // indirect
+	github.com/aws/aws-sdk-go v1.34.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
@@ -130,7 +130,7 @@ require (
 	github.com/ipfs/go-log/v2 v2.5.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
-	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
+	github.com/jmespath/go-jmespath v0.3.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/jsimonetti/rtnetlink v0.0.0-20200505065535-3ee32e7e21a4 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
