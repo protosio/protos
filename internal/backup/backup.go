@@ -97,8 +97,6 @@ func (b *BackupManager) CreateBackup(name string, app string, provider string) e
 		return fmt.Errorf("could not create backup: backup provider '%s' does not exist", provider)
 	}
 
-	backups := b.GetBackups()
-
 	_, err = b.appManager.Get(app)
 	if err != nil {
 		return fmt.Errorf("could not create backup: failed to retrieve app '%s': %w", app, err)

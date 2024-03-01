@@ -1,6 +1,6 @@
 module github.com/protosio/protos
 
-go 1.17
+go 1.21
 
 replace github.com/foxcpp/wirebox => github.com/nustiueudinastea/wirebox v0.0.0-20210704185238-0b9d8e702026
 
