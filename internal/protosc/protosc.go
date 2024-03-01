@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
@@ -207,7 +208,7 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
 
-	backupManager := backup.CreateManager(pc.db, cloudManager, appManager)
+	backupManager := backup.CreateManager(pc.db, cloudManager, appManager, currentDevice.Name)
 
 	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", pc.cfg.InternalDomain, appManager)
 	pc.stoppers["dns"] = dnsStopper
@@ -260,6 +261,13 @@ func (pc *ProtosClient) Refresh() error {
 	err = pc.P2PManager.ConfigurePeers(peers)
 	if err != nil {
 		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+
+	time.Sleep(10 * time.Second)
+
+	err = pc.P2PManager.BroadcastRequestHead()
+	if err != nil {
+		return fmt.Errorf("failed to request db heads from peers: %w", err)
 	}
 
 	return nil

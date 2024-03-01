@@ -23,22 +23,9 @@ const (
 	TypeProtosd = "protosd"
 )
 
-// WSPublisher returns a channel that can be used to publish WS messages to the frontend
-type WSPublisher interface {
-	GetWSPublishChannel() chan interface{}
-}
-
 type appStore interface {
 	GetInstaller(id string) (*installer.Installer, error)
 }
-
-// // dnsResource is only used locally to retrieve the Name of a DNS record
-// type dnsResource interface {
-// 	GetName() string
-// 	GetValue() string
-// 	Update(value resource.ResourceValue)
-// 	Sanitize() resource.ResourceValue
-// }
 
 // Manager keeps track of all the apps
 type Manager struct {
@@ -203,6 +190,24 @@ func (am *Manager) GetAll() (map[string]App, error) {
 	}
 
 	return apps, nil
+}
+
+// GetAll returns a copy of all the applications
+func (am *Manager) GetByIntance(instance string) (map[string]App, error) {
+	apps := map[string]App{}
+	err := am.db.GetMap(appDS, &apps)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not retrieve applications")
+	}
+
+	instanceApps := map[string]App{}
+	for _, app := range apps {
+		if app.InstanceName == instance {
+			instanceApps[app.Name] = app
+		}
+	}
+
+	return instanceApps, nil
 }
 
 // Refresh checks the db for new apps and deploys them if they belong to the current instance

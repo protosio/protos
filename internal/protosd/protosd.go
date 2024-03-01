@@ -14,6 +14,7 @@ import (
 	"github.com/protosio/protos/internal/api"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
+	"github.com/protosio/protos/internal/backup"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
@@ -114,6 +115,8 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	peerConfigurator.CloudManager = cloudManager
 
+	backupManager := backup.CreateManager(dbcli, cloudManager, appManager, m.InstanceName)
+
 	p2pStopper, err := p2pManager.StartServer(m, dbcli.GetChunkStore())
 	if err != nil {
 		log.Fatal(err)
@@ -173,6 +176,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	log.Info("Started all servers successfully")
 	peerConfigurator.Refresh()
 	appManager.Refresh()
+	backupManager.Refresh()
 	p2pManager.BroadcastRequestHead()
 	wg.Wait()
 	log.Info("Shutdown completed")

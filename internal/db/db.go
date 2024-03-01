@@ -169,6 +169,12 @@ func (db *dbNoms) GetAllDatasetsHeads() map[string]string {
 
 // Sync syncs (pull) from a specific peer
 func (db *dbNoms) Sync(peerID string, dataset string, head string) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Exception whie syncing dataset '%s' from '%s': %v", dataset, peerID, r)
+		}
+	}()
+
 	csClient, err := db.publisher.GetCSClient(peerID)
 	if err != nil {
 		log.Errorf("Failed to sync dataset '%s' from head '%s': %s", dataset, head, err.Error())

@@ -29,12 +29,6 @@ const (
 	statusWillDelete = "willdelete"
 )
 
-// WSConnection is a websocket connection via which messages can be sent to the app, if the connection is active
-type WSConnection struct {
-	Send  chan interface{}
-	Close chan bool
-}
-
 // Config the application config
 type Config struct {
 	Description string

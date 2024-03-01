@@ -2,21 +2,22 @@ package backup
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/util"
 )
 
 const (
 	backupDS                      = "backup"
 	backupStatusRequested         = "requested"
-	backupStatusInProgress        = "inProgress"
 	backupStatusCompleted         = "completed"
-	backupStatusRequestedDeletion = "requestedDeletion"
+	backupStatusRequestedDeletion = "reqdel"
 	backupStatusDeleted           = "deleted"
 )
+
+var log = util.GetLogger("backup")
 
 type Backup struct {
 	Name     string
@@ -35,16 +36,19 @@ type BackupManager struct {
 	db           db.DB
 	cloudManager *cloud.Manager
 	appManager   *app.Manager
+	instanceName string
 }
 
-func CreateManager(db db.DB, cloudManager *cloud.Manager, appManager *app.Manager) *BackupManager {
+func CreateManager(db db.DB, cloudManager *cloud.Manager, appManager *app.Manager, instanceName string) *BackupManager {
 
-	err := db.InitDataset(backupDS, nil)
+	manager := &BackupManager{db: db, cloudManager: cloudManager, appManager: appManager, instanceName: instanceName}
+
+	err := db.InitDataset(backupDS, manager)
 	if err != nil {
 		log.Fatal("Failed to initialize backup dataset: ", err)
 	}
 
-	return &BackupManager{db: db, cloudManager: cloudManager, appManager: appManager}
+	return manager
 }
 
 func (b *BackupManager) GetProviders() (map[string]BackupProvider, error) {
@@ -93,6 +97,8 @@ func (b *BackupManager) CreateBackup(name string, app string, provider string) e
 		return fmt.Errorf("could not create backup: backup provider '%s' does not exist", provider)
 	}
 
+	backups := b.GetBackups()
+
 	_, err = b.appManager.Get(app)
 	if err != nil {
 		return fmt.Errorf("could not create backup: failed to retrieve app '%s': %w", app, err)
@@ -125,4 +131,32 @@ func (b *BackupManager) RemoveBackup(name string) error {
 	}
 
 	return fmt.Errorf("could not remove backup: could not find backup '%s'", name)
+}
+
+func (b *BackupManager) Refresh() error {
+	log.Debug("Syncing backups")
+	backups := map[string]Backup{}
+	err := b.db.GetMap(backupDS, &backups)
+	if err != nil {
+		return fmt.Errorf("could not sync backups: %w", err)
+	}
+
+	ownApps, err := b.appManager.GetByIntance(b.instanceName)
+	if err != nil {
+		return fmt.Errorf("could not sync backups: %w", err)
+	}
+
+	for _, backup := range backups {
+		if _, ok := ownApps[backup.App]; ok {
+			if backup.Status == backupStatusRequested || backup.Status == backupStatusRequestedDeletion {
+				backup.Status = backupStatusDeleted
+				err = b.db.InsertInMap(backupDS, backup.Name, backup)
+				if err != nil {
+					return fmt.Errorf("could not sync backup '%s': %w", backup.Name, err)
+				}
+			}
+		}
+	}
+
+	return nil
 }
