@@ -29,9 +29,6 @@ require (
 	github.com/icholy/killable v0.0.0-20210528204105-9380afb9946d
 	github.com/jinzhu/copier v0.4.0
 	github.com/libp2p/go-libp2p v0.33.0
-	github.com/libp2p/go-libp2p-connmgr v0.4.0
-	github.com/libp2p/go-libp2p-core v0.20.1
-	github.com/libp2p/go-libp2p-noise v0.5.0
 	github.com/libp2p/go-libp2p-pubsub v0.10.0
 	github.com/miekg/dns v1.1.58
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a

@@ -18,7 +18,7 @@ import (
 	"github.com/attic-labs/noms/go/nbs"
 	"github.com/attic-labs/noms/go/util/verbose"
 	"github.com/golang/snappy"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
