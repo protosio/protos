@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -134,7 +135,7 @@ func (sw *scaleway) SupportedMachines(location string) (map[string]MachineSpec, 
 				Baremetal:            instance.Baremetal,
 				Bandwidth:            uint32(*instance.Network.SumInternetBandwidth),
 				IncludedDataTransfer: 0,
-				PriceMonthly:         instance.MonthlyPrice,
+				PriceMonthly:         instance.HourlyPrice * 24 * 30,
 			}
 		}
 	}
@@ -432,7 +433,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 
 	log.Info("Creating snapshot from volume")
 	snapshotResp, err := sw.instanceAPI.CreateSnapshot(&instance.CreateSnapshotRequest{
-		VolumeID: vol.ID,
+		VolumeID: &vol.ID,
 		Name:     "protos-snapshot-" + version,
 		Zone:     scw.Zone(location),
 	})
@@ -547,10 +548,11 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	remoteImage := "/tmp/" + protosImage
 
 	bar := pb.Full.Start(0)
-	err = client.CopyPassThru(fdUpload, remoteImage, "0655", fInfo.Size(), func(r io.Reader, total int64) io.Reader {
+	passThru := func(r io.Reader, total int64) io.Reader {
 		bar.SetTotal(total)
 		return bar.NewProxyReader(r)
-	})
+	}
+	err = client.CopyPassThru(context.TODO(), fdUpload, remoteImage, "0655", fInfo.Size(), passThru)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}
@@ -619,7 +621,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 
 	log.Info("Creating snapshot from volume")
 	snapshotResp, err := sw.instanceAPI.CreateSnapshot(&instance.CreateSnapshotRequest{
-		VolumeID: vol.ID,
+		VolumeID: &vol.ID,
 		Name:     "protos-snapshot-" + imageName,
 		Zone:     scw.Zone(location),
 	})
@@ -778,23 +780,22 @@ func (sw *scaleway) createImageUploadVM(imageID string, location string) (*insta
 	//
 	// create server
 	//
-
+	trueBool := true
 	sizeOSDisk := scw.Size(uint64(19)) * scw.GB
 	volumeMap := make(map[string]*instance.VolumeServerTemplate, 1)
 	osVolumeTemplate := &instance.VolumeServerTemplate{
 		VolumeType: instance.VolumeVolumeTypeLSSD,
-		Size:       sizeOSDisk,
-		Boot:       true,
+		Size:       &sizeOSDisk,
+		Boot:       &trueBool,
 	}
 	volumeMap["0"] = osVolumeTemplate
 
-	ipreq := true
 	bootType := instance.BootTypeLocal
 	req := &instance.CreateServerRequest{
 		Name:              "protos-image-uploader",
 		Zone:              scw.Zone(location),
 		CommercialType:    "DEV1-S",
-		DynamicIPRequired: &ipreq,
+		DynamicIPRequired: &trueBool,
 		EnableIPv6:        false,
 		BootType:          &bootType,
 		Image:             imageID,

@@ -7,12 +7,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/containernetworking/cni/pkg/types/current"
+	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
-	"github.com/foxcpp/wirebox"
-	"github.com/foxcpp/wirebox/linkmgr"
+	"github.com/nustiueudinastea/wirebox"
+	"github.com/nustiueudinastea/wirebox/linkmgr"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -319,12 +319,12 @@ func (m *Manager) CreateNamespacedInterface(netNSpath string, IP net.IP) error {
 	}
 	defer netns.Close()
 
-	contIface := &current.Interface{}
-	hostIface := &current.Interface{}
+	contIface := &cnitypes.Interface{}
+	hostIface := &cnitypes.Interface{}
 	err = netns.Do(func(hostNS ns.NetNS) error {
 		// create the veth pair in the container and move host end into host netns
 		name := "prts0"
-		hostVeth, containerVeth, err := ip.SetupVeth(name, netBridge.MTU, hostNS)
+		hostVeth, containerVeth, err := ip.SetupVeth(name, netBridge.MTU, "", hostNS)
 		if err != nil {
 			return err
 		}

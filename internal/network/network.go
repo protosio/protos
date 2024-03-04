@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/foxcpp/wirebox/linkmgr"
+	"github.com/nustiueudinastea/wirebox/linkmgr"
 	"github.com/protosio/protos/internal/util"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
