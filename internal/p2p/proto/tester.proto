@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+option go_package = "./proto";
+
+package proto;
+
+service Tester {
+  rpc ExecSQL(ExecSQLRequest) returns (ExecSQLResponse) {}
+  rpc GetAllCommits(GetAllCommitsRequest) returns (GetAllCommitsResponse) {}
+  rpc GetHead(GetHeadRequest) returns (GetHeadResponse) {}
+}
+
+message ExecSQLRequest {
+  string statement = 1;
+  string msg = 2;
+}
+message ExecSQLResponse {
+  string commit = 1;
+  string result = 2;
+  string err = 3;
+}
+
+message GetAllCommitsRequest {}
+message GetAllCommitsResponse {
+  repeated string commits = 1;
+}
+
+message GetHeadRequest {}
+message GetHeadResponse {
+  string commit = 1;
+}

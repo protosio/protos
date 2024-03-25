@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option go_package = "./proto";
+
+package proto;
+
+service Instance {
+    rpc Init(InitRequest) returns (InitResponse) {}
+    rpc GetPeers(GetPeersRequest) returns (GetPeersResponse) {}
+    rpc GetLogs(GetLogsRequest) returns (GetLogsResponse) {}
+}
+
+message InitRequest {
+    string origin_device = 1;
+    string origin_device_public_key = 2;
+    string network = 3;
+    string instance_name = 4;
+}
+message InitResponse {
+    string instance_ip = 1;
+    string architecture = 2;
+}
+
+message GetPeersRequest {}
+message GetPeersResponse {
+    map<string, string> peers = 1;
+}
+
+message GetLogsRequest {}
+message GetLogsResponse {
+    string logs = 1;
+}

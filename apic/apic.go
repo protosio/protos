@@ -67,7 +67,7 @@ func StartGRPCServer(dataPath string, version string, protosClient *protosc.Prot
 	log.Info("Starting gRPC server at unix://", unixSocketFile)
 	go func() {
 		if err := srv.Serve(l); err != nil {
-			log.Fatalf("Failed to serve gRPC service: %w", err)
+			log.Fatalf("Failed to serve gRPC service: %s", err.Error())
 		}
 	}()
 

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option go_package = "./proto";
+
+package proto;
+
+service Apps {
+    rpc GetAppLogs(GetAppLogsRequest) returns (GetAppLogsResponse) {}
+    rpc GetAppStatus(GetAppStatusRequest) returns (GetAppStatusResponse) {}
+}
+
+message GetAppLogsRequest {
+    string app_name = 1;
+}
+message GetAppLogsResponse {
+    string logs = 1;
+}
+
+message GetAppStatusRequest {
+    string app_name = 1;
+}
+message GetAppStatusResponse {
+    string status = 1;
+}

@@ -11,24 +11,18 @@ import (
 
 	"github.com/Masterminds/semver"
 
-	"github.com/protosio/protos/internal/api"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
-	"github.com/protosio/protos/internal/backup"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
-	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
-	"github.com/protosio/protos/internal/provider"
-	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
-	"github.com/protosio/protos/internal/task"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -59,7 +53,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	if _, err := os.Stat(cfg.WorkDir); os.IsNotExist(err) {
 		err := os.Mkdir(cfg.WorkDir, 0755)
 		if err != nil {
-			log.Fatalf("Failed to create Protos directory '%s': %w", cfg.WorkDir, err)
+			log.Fatalf("Failed to create Protos directory '%s': %s", cfg.WorkDir, err.Error())
 		}
 	}
 
@@ -70,21 +64,22 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go catchSignals(sigs, &wg)
 
+	// retrieve local key
+	lkey, err := pcrypto.GetLocalKey(cfg.WorkDir)
+	if err != nil {
+		log.Fatal(fmt.Errorf("failed to get local key: %w", err))
+	}
+
 	// open databse
-	dbcli, err := db.Open(cfg.WorkDir, "db")
+	dbcli, err := db.Open(cfg.WorkDir, "db", lkey)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer dbcli.Close()
 
 	// create all the managers
-	rm := resource.CreateManager(dbcli)
 	sm := pcrypto.CreateManager(dbcli)
 	m := meta.Setup(dbcli, sm, version.String())
-	key, err := m.GetPrivateKey()
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	networkManager, err := network.NewManager()
 	if err != nil {
@@ -97,16 +92,12 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	cm := capability.CreateManager()
 	um := auth.CreateUserManager(dbcli, sm, cm, peerConfigurator)
 	peerConfigurator.UserManager = um
-	tm := task.CreateManager(dbcli)
-	as := installer.CreateAppStore(appRuntime, tm, cm)
-	appManager := app.CreateManager(app.TypeProtosd, rm, tm, appRuntime, dbcli, m, as, cm)
-	pm := provider.CreateManager(rm, appManager, dbcli)
+	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli, m, cm)
 
-	p2pManager, err := p2p.NewManager(key, dbcli, appManager, m.InitMode())
+	p2pManager, err := p2p.NewManager(lkey, appManager, m.InitMode(), dbcli)
 	if err != nil {
 		log.Fatal(err)
 	}
-	dbcli.AddPublisher(p2pManager)
 	peerConfigurator.P2PManager = p2pManager
 
 	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, peerConfigurator, m.InstanceName)
@@ -115,9 +106,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	peerConfigurator.CloudManager = cloudManager
 
-	backupManager := backup.CreateManager(dbcli, cloudManager, appManager, m.InstanceName)
-
-	p2pStopper, err := p2pManager.StartServer(m, dbcli.GetChunkStore())
+	p2pStopper, err := p2pManager.StartServer(m)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,8 +119,6 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	cfg.DevMode = devmode
 	meta.PrintBanner()
-
-	httpAPI := api.New(devmode, cfg.StaticAssets, cfg.HTTPport, cfg.HTTPSport, m, appManager, rm, tm, pm, as, um, appRuntime, cm)
 
 	// if starting for the first time, this will block until remote init is done
 	ctx, cancel := context.WithCancel(context.Background())
@@ -159,7 +146,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 
 	// perform network initialization
-	err = networkManager.Init(network, internalIP, key.PrivateWG(), cfg.InternalDomain)
+	err = networkManager.Init(network, internalIP, lkey.PrivateWG(), cfg.InternalDomain)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -167,17 +154,9 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	dnsStopper := dns.StartServer(internalIP.String(), DNSPort, cfg.ExternalDNS, cfg.InternalDomain, appManager)
 	stoppers["dns"] = dnsStopper
 
-	iwsStopper, err := httpAPI.StartInternalWebServer(cfg.InitMode, internalIP.String())
-	if err != nil {
-		log.Fatal(err)
-	}
-	stoppers["iws"] = iwsStopper
-
 	log.Info("Started all servers successfully")
 	peerConfigurator.Refresh()
 	appManager.Refresh()
-	backupManager.Refresh()
-	p2pManager.BroadcastRequestHead()
 	wg.Wait()
 	log.Info("Shutdown completed")
 

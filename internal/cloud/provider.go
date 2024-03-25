@@ -3,8 +3,53 @@ package cloud
 import (
 	"time"
 
+	"github.com/bokwoon95/sq"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/db"
 )
+
+func createCloudProviderInsertMapper(provider ProviderInfo) func() (sq.Table, func(*sq.Column)) {
+	return func() (sq.Table, func(*sq.Column)) {
+		c := sq.New[db.CLOUD_PROVIDER]("")
+		return c, func(col *sq.Column) {
+			col.SetString(c.NAME, provider.Name)
+			col.SetString(c.TYPE, provider.Type.String())
+			col.SetJSON(c.AUTH, provider.Auth)
+		}
+	}
+}
+
+func createCloudProviderUpdateMapper(provider ProviderInfo) func() (sq.Table, func(*sq.Column), []sq.Predicate) {
+	return func() (sq.Table, func(*sq.Column), []sq.Predicate) {
+		c := sq.New[db.CLOUD_PROVIDER]("")
+		predicates := []sq.Predicate{c.NAME.EqString(provider.Name)}
+		return c, func(col *sq.Column) {
+			col.SetString(c.TYPE, provider.Type.String())
+			col.SetJSON(c.AUTH, provider.Auth)
+		}, predicates
+	}
+}
+
+func createCloudProviderQueryMapper(c db.CLOUD_PROVIDER, predicates []sq.Predicate) func() (sq.Table, func(row *sq.Row) ProviderInfo, []sq.Predicate) {
+	return func() (sq.Table, func(row *sq.Row) ProviderInfo, []sq.Predicate) {
+		mapper := func(row *sq.Row) ProviderInfo {
+			pi := ProviderInfo{
+				Name: row.StringField(c.NAME),
+				Type: Type(row.StringField(c.TYPE)),
+			}
+			row.JSONField(&pi.Auth, c.AUTH)
+			return pi
+		}
+		return c, mapper, predicates
+	}
+}
+
+func createCloudProviderDeleteByNameQuery(name string) func() (sq.Table, []sq.Predicate) {
+	return func() (sq.Table, []sq.Predicate) {
+		c := sq.New[db.CLOUD_PROVIDER]("")
+		return c, []sq.Predicate{c.NAME.EqString(name)}
+	}
+}
 
 type CloudProviderBase interface {
 	Save() error     // saves the instance of the cloud provider (name and credentials) in the db
@@ -48,8 +93,8 @@ type CloudProvider interface {
 
 // ProviderInfo stores information about a cloud provider
 type ProviderInfo struct {
-	CloudProviderImplementation `noms:"-"`
-	cm                          *Manager `noms:"-"`
+	CloudProviderImplementation
+	cm *Manager
 
 	Name string
 	Type Type
@@ -58,7 +103,8 @@ type ProviderInfo struct {
 
 // Save saves the provider information to disk
 func (pi ProviderInfo) Save() error {
-	err := pi.cm.db.InsertInMap(cloudDS, pi.Name, pi)
+
+	err := db.Update(pi.cm.db, createCloudProviderUpdateMapper(pi))
 	if err != nil {
 		return errors.Wrap(err, "Failed to save cloud provider info")
 	}

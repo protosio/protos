@@ -5,13 +5,11 @@ import (
 	"net"
 	"sync"
 
+	"github.com/bokwoon95/sq"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/db"
-	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
-	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
-	"github.com/protosio/protos/internal/task"
 
 	"github.com/pkg/errors"
 	"github.com/rs/xid"
@@ -23,18 +21,11 @@ const (
 	TypeProtosd = "protosd"
 )
 
-type appStore interface {
-	GetInstaller(id string) (*installer.Installer, error)
-}
-
 // Manager keeps track of all the apps
 type Manager struct {
 	ptype   string
-	store   appStore
-	rm      *resource.Manager
-	tm      *task.Manager
 	m       *meta.Meta
-	db      db.DB
+	db      *db.DB
 	cm      *capability.Manager
 	runtime runtime.RuntimePlatform
 }
@@ -44,38 +35,11 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(ptype string, rm *resource.Manager, tm *task.Manager, runtime runtime.RuntimePlatform, db db.DB, meta *meta.Meta, appStore appStore, cm *capability.Manager) *Manager {
+func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB, meta *meta.Meta, cm *capability.Manager) *Manager {
 
-	if rm == nil || tm == nil || db == nil || meta == nil || appStore == nil || cm == nil {
-		log.Panic("Failed to create app manager: none of the inputs can be nil")
-	}
-
-	log.Debug("Retrieving applications from DB")
-
-	manager := &Manager{ptype: ptype, rm: rm, tm: tm, db: db, m: meta, runtime: runtime, store: appStore, cm: cm}
-
-	err := db.InitDataset(appDS, manager)
-	if err != nil {
-		log.Fatal("Failed to initialize app dataset: ", err)
-	}
-
-	dbapps := map[string]App{}
-	err = db.GetMap(appDS, &dbapps)
-	if err != nil {
-		log.Fatal("Could not retrieve applications from database: ", err)
-	}
+	manager := &Manager{ptype: ptype, db: db, m: meta, runtime: runtime, cm: cm}
 
 	return manager
-}
-
-// methods to satisfy local interfaces
-
-func (am *Manager) getResourceManager() *resource.Manager {
-	return am.rm
-}
-
-func (am *Manager) getCapabilityManager() *capability.Manager {
-	return am.cm
 }
 
 //
@@ -83,23 +47,16 @@ func (am *Manager) getCapabilityManager() *capability.Manager {
 //
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installer *installer.Installer, name string, instanceName string, instanceNetwork string, persistence bool, installerParams map[string]string) (*App, error) {
+func (am *Manager) Create(installer string, name string, instanceName string, instanceNetwork string, persistence bool, installerParams map[string]string) (*App, error) {
 
 	var app *App
 	if name == "" || instanceName == "" {
 		return app, fmt.Errorf("application name, installer ID, installer version or instance ID cannot be empty")
 	}
 
-	apps := map[string]App{}
-	err := am.db.GetMap(appDS, &apps)
+	apps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(sq.New[db.APP](""), nil))
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
-	}
-
-	for _, app := range apps {
-		if app.Name == name {
-			return nil, fmt.Errorf("could not create application '%s': another application exists with the same name", name)
-		}
+		return nil, fmt.Errorf("could not create application '%s': %w", name, err)
 	}
 
 	appIP, err := allocateIP(apps, instanceNetwork)
@@ -108,29 +65,21 @@ func (am *Manager) Create(installer *installer.Installer, name string, instanceN
 	}
 
 	guid := xid.New()
-	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installer.Name)
+	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installer)
 	app = &App{
 		access: &sync.Mutex{},
 		mgr:    am,
 
 		Name:          name,
 		ID:            guid.String(),
-		InstallerRef:  installer.Name,
-		Version:       installer.Version,
+		InstallerRef:  installer,
 		InstanceName:  instanceName,
-		Tasks:         []string{},
 		IP:            appIP,
 		DesiredStatus: statusStopped,
 		Persistence:   persistence,
 	}
 
-	err = validateInstallerParams(installerParams, installer.GetParams())
-	if err != nil {
-		return app, err
-	}
-	app.InstallerParams = installerParams
-	app.Capabilities = createCapabilities(am.cm, installer.GetCapabilities())
-	err = am.saveApp(app)
+	err = db.Insert(am.db, createAppInsertMapper(*app))
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
 	}
@@ -144,70 +93,46 @@ func (am *Manager) Create(installer *installer.Installer, name string, instanceN
 //
 
 // GetByID returns an application based on its id
-func (am *Manager) GetByID(id string) (*App, error) {
-	apps := map[string]App{}
-	err := am.db.GetMap(appDS, &apps)
+func (am *Manager) GetByID(id string) (App, error) {
+	appModel := sq.New[db.APP]("")
+	app, err := db.SelectOne(am.db, createInstanceQueryMapper(appModel, []sq.Predicate{appModel.ID.EqString(id)}))
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve application '%s'", id)
+		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 
-	for _, app := range apps {
-		if app.ID == id {
-			app.mgr = am
-			app.access = &sync.Mutex{}
-			return &app, nil
-		}
-	}
-
-	return nil, errors.Wrapf(err, "Could not find application '%s'", id)
+	return App{}, errors.Wrapf(err, "Could not find application '%s'", id)
 }
 
 // Get returns a copy of an application based on its name
-func (am *Manager) Get(name string) (*App, error) {
-	apps := map[string]App{}
-	err := am.db.GetMap(appDS, &apps)
+func (am *Manager) Get(name string) (App, error) {
+	appModel := sq.New[db.APP]("")
+	app, err := db.SelectOne(am.db, createInstanceQueryMapper(appModel, []sq.Predicate{appModel.ID.EqString(name)}))
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve application '%s'", name)
+		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 
-	for _, app := range apps {
-		if app.Name == name {
-			app.mgr = am
-			app.access = &sync.Mutex{}
-			return &app, nil
-		}
-	}
-
-	return nil, fmt.Errorf("could not find application '%s'", name)
+	return App{}, fmt.Errorf("could not find application '%s'", name)
 }
 
 // GetAll returns a copy of all the applications
-func (am *Manager) GetAll() (map[string]App, error) {
-	apps := map[string]App{}
-	err := am.db.GetMap(appDS, &apps)
+func (am *Manager) GetAll() ([]App, error) {
+	apps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(sq.New[db.APP](""), nil))
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve applications")
+		return nil, fmt.Errorf("could not get all applications: %w", err)
 	}
 
 	return apps, nil
 }
 
 // GetAll returns a copy of all the applications
-func (am *Manager) GetByIntance(instance string) (map[string]App, error) {
-	apps := map[string]App{}
-	err := am.db.GetMap(appDS, &apps)
+func (am *Manager) GetByIntance(instance string) ([]App, error) {
+	appModel := sq.New[db.APP]("")
+	apps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(appModel, []sq.Predicate{appModel.INSTANCE_NAME.EqString(instance)}))
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not retrieve applications")
+		return nil, fmt.Errorf("could not get all applications: %w", err)
 	}
 
-	instanceApps := map[string]App{}
-	for _, app := range apps {
-		if app.InstanceName == instance {
-			instanceApps[app.Name] = app
-		}
-	}
-
-	return instanceApps, nil
+	return apps, nil
 }
 
 // Refresh checks the db for new apps and deploys them if they belong to the current instance
@@ -217,13 +142,14 @@ func (am *Manager) Refresh() error {
 	}
 
 	log.Debug("Syncing apps")
-	dbapps := map[string]App{}
-	err := am.db.GetMap(appDS, &dbapps)
+	dbapps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(sq.New[db.APP](""), nil))
 	if err != nil {
-		return fmt.Errorf("could not retrieve applications from database: %w", err)
+		return fmt.Errorf("failure during application refresh: %w", err)
 	}
 
+	appsMap := map[string]App{}
 	for _, app := range dbapps {
+		appsMap[app.ID] = app
 		if app.InstanceName == am.m.GetInstanceName() {
 			app.mgr = am
 			app.access = &sync.Mutex{}
@@ -254,16 +180,16 @@ func (am *Manager) Refresh() error {
 		return fmt.Errorf("failure during application refresh: %w", err)
 	}
 	for id, sandbox := range allSandboxes {
-		if _, found := dbapps[id]; !found {
+		if _, found := appsMap[id]; !found {
 			log.Infof("App '%s' not found. Stopping and removing existing sandbox", id)
 			err = sandbox.Stop()
 			if err != nil {
-				log.Errorf("Failed to remove sandbox for app '%s': %w", id, err)
+				log.Errorf("Failed to remove sandbox for app '%s': %s", id, err.Error())
 				continue
 			}
 			err = sandbox.Remove()
 			if err != nil {
-				log.Errorf("Failed to remove sandbox for app '%s': %w", id, err)
+				log.Errorf("Failed to remove sandbox for app '%s': %s", id, err.Error())
 				continue
 			}
 		}
@@ -279,7 +205,12 @@ func (am *Manager) Start(name string) error {
 		return err
 	}
 
-	app.SetDesiredStatus(statusRunning)
+	app.DesiredStatus = statusRunning
+	err = db.Update(am.db, createAppUpdateMapper(app))
+	if err != nil {
+		return fmt.Errorf("failed to set desired application status to '%s'(%s): %v", statusRunning, app.Name, err)
+	}
+
 	return nil
 }
 
@@ -290,7 +221,11 @@ func (am *Manager) Stop(name string) error {
 		return err
 	}
 
-	app.SetDesiredStatus(statusStopped)
+	app.DesiredStatus = statusStopped
+	err = db.Update(am.db, createAppUpdateMapper(app))
+	if err != nil {
+		return fmt.Errorf("failed to set desired application status to '%s'(%s): %v", statusStopped, app.Name, err)
+	}
 	return nil
 }
 
@@ -305,7 +240,7 @@ func (am *Manager) Remove(name string) error {
 		return fmt.Errorf("application '%s' should be stopped before being removed", name)
 	}
 
-	err = am.db.RemoveFromMap(appDS, app.ID)
+	err = db.Delete(am.db, createAppDeleteByNameQuery(name))
 	if err != nil {
 		return errors.Wrapf(err, "Failed to remove application %s", name)
 	}
@@ -343,15 +278,7 @@ func (am *Manager) GetStatus(name string) (string, error) {
 	return app.GetStatus(), nil
 }
 
-func (am *Manager) saveApp(app *App) error {
-	err := am.db.InsertInMap(appDS, app.ID, *app)
-	if err != nil {
-		return errors.Wrap(err, "Could not save app to database")
-	}
-	return nil
-}
-
-func allocateIP(apps map[string]App, networkStr string) (net.IP, error) {
+func allocateIP(apps []App, networkStr string) (net.IP, error) {
 
 	_, network, err := net.ParseCIDR(networkStr)
 	if err != nil {

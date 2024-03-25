@@ -9,26 +9,23 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
-	"github.com/protosio/protos/internal/backup"
 	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
-	"github.com/protosio/protos/internal/installer"
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
-	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
-	"github.com/protosio/protos/internal/task"
+
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -51,20 +48,19 @@ func (pub *publisher) GetWSPublishChannel() chan interface{} {
 
 type ProtosClient struct {
 	stoppers          map[string]func() error
-	db                db.DB
+	db                *db.DB
 	cfg               *config.Config
 	version           string
 	wg                sync.WaitGroup
 	capabilityManager *capability.Manager
+	localKey          *pcrypto.Key
 
 	UserManager    *auth.UserManager
 	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
 	NetworkManager *network.Manager
-	AppStore       *installer.AppStore
 	CloudManager   *cloud.Manager
 	P2PManager     *p2p.P2P
-	BackupManager  *backup.BackupManager
 	Meta           *meta.Meta
 }
 
@@ -97,9 +93,16 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 		}
 	}
 
+	// get local key
+	lkey, err := pcrypto.GetLocalKey(dataPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get local key: %w", err)
+	}
+	protosClient.localKey = lkey
+
 	// open db
 	protosDB := "protos.db"
-	protosClient.db, err = db.Open(dataPath, protosDB)
+	protosClient.db, err = db.Open(dataPath, protosDB, lkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db during configuration: %w", err)
 	}
@@ -116,7 +119,6 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	protosClient.Meta = metaClient
 
 	return protosClient, nil
-
 }
 
 func networkUp(userManager *auth.UserManager, internalDomain string) (*network.Manager, error) {
@@ -160,34 +162,52 @@ func networkUp(userManager *auth.UserManager, internalDomain string) (*network.M
 // public methods
 //
 
+func (pc *ProtosClient) Init(username string, name string, organization string) error {
+	log.Debugf("Performing initialization")
+
+	host, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to init. Could not retrieve hostname: %w", err)
+	}
+
+	machineID, err := machineid.ProtectedID("protos")
+	if err != nil {
+		return fmt.Errorf("failed to add user. Error while generating machine id: %w", err)
+	}
+
+	adminUser, err := pc.UserManager.CreateUser(username, name, true)
+	if err != nil {
+		return err
+	}
+
+	err = adminUser.AddDevice(machineID, host, pc.localKey.PublicString(), "10.100.0.1/24")
+	if err != nil {
+		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
+	}
+
+	// saving the key to disk
+	pc.SetInitialized()
+
+	return nil
+}
+
 func (pc *ProtosClient) FinishInit() error {
 
-	resourceManager := resource.CreateManager(pc.db)
-
-	taskManager := task.CreateManager(pc.db)
 	networkManager, err := networkUp(pc.UserManager, pc.cfg.InternalDomain)
 	if err != nil {
 		log.Fatalf("Failed to create network manager: %s", err.Error())
 	}
 
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint)
-	appStore := installer.CreateAppStore(appRuntime, taskManager, pc.capabilityManager)
-	appManager := app.CreateManager(app.TypeProtosc, resourceManager, taskManager, appRuntime, pc.db, pc.Meta, appStore, pc.capabilityManager)
+	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.db, pc.Meta, pc.capabilityManager)
 
-	// get device key
-	key, err := pc.Meta.GetPrivateKey()
-	if err != nil {
-		log.Fatalf("Failed to retrieve key during configuration: %s", err.Error())
-	}
-
-	p2pManager, err := p2p.NewManager(key, pc.db, appManager, false)
+	p2pManager, err := p2p.NewManager(pc.localKey, appManager, false, pc.db)
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
 	pc.P2PManager = p2pManager
-	pc.db.AddPublisher(p2pManager)
 
-	p2pStopper, err := p2pManager.StartServer(pc.Meta, pc.db.GetChunkStore())
+	p2pStopper, err := p2pManager.StartServer(pc.Meta)
 	if err != nil {
 		log.Fatalf("Failed to start p2p server: %s", err.Error())
 	}
@@ -208,15 +228,11 @@ func (pc *ProtosClient) FinishInit() error {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
 
-	backupManager := backup.CreateManager(pc.db, cloudManager, appManager, currentDevice.Name)
-
 	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", pc.cfg.InternalDomain, appManager)
 	pc.stoppers["dns"] = dnsStopper
 	pc.AppManager = appManager
-	pc.AppStore = appStore
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
-	pc.BackupManager = backupManager
 
 	pc.Refresh()
 
@@ -261,13 +277,6 @@ func (pc *ProtosClient) Refresh() error {
 	err = pc.P2PManager.ConfigurePeers(peers)
 	if err != nil {
 		return fmt.Errorf("failed to configure network peers: %w", err)
-	}
-
-	time.Sleep(10 * time.Second)
-
-	err = pc.P2PManager.BroadcastRequestHead()
-	if err != nil {
-		return fmt.Errorf("failed to request db heads from peers: %w", err)
 	}
 
 	return nil

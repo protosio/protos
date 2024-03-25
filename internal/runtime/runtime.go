@@ -49,7 +49,7 @@ type RuntimePlatform interface {
 	GetAllImages() (map[string]PlatformImage, error)
 	PullImage(imageRef string) error
 	RemoveImage(id string) error
-	NewSandbox(name string, appID string, imageID string, persistence bool, installerParams map[string]string) (RuntimeSandbox, error)
+	NewSandbox(name string, appID string, imageID string, persistence bool) (RuntimeSandbox, error)
 	GetHWStats() (HardwareStats, error)
 }
 

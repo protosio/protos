@@ -41,36 +41,20 @@ func protosUserinit() error {
 		return err
 	}
 
-	password := ""
-	passwordconfirm := " "
-
-	for password != passwordconfirm {
-		passwordQuestion := []*survey.Question{{
-			Name:     "password",
-			Prompt:   &survey.Password{Message: "Password used to authenticate on the Protos instance and apps that you deploy on it.\nPASSWORD: "},
-			Validate: survey.Required,
-		}}
-		err = survey.Ask(passwordQuestion, &password)
-		if err != nil {
-			return err
-		}
-		passwordConfirmQuestion := []*survey.Question{{
-			Name:     "passwordconfirm",
-			Prompt:   &survey.Password{Message: "CONFIRM PASSWORD: "},
-			Validate: survey.Required,
-		}}
-		err = survey.Ask(passwordConfirmQuestion, &passwordconfirm)
-		if err != nil {
-			return err
-		}
-		if password != passwordconfirm {
-			log.Error("Passwords don't match")
-		}
+	organizationQuestion := []*survey.Question{{
+		Name:     "organization",
+		Prompt:   &survey.Input{Message: "Organization name.\nORGANIZATION: "},
+		Validate: survey.Required,
+	}}
+	var organization string
+	err = survey.Ask(organizationQuestion, &organization)
+	if err != nil {
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err = client.Init(ctx, &apic.InitRequest{Username: username, Password: password, Name: name})
+	_, err = client.Init(ctx, &apic.InitRequest{Username: username, Name: name, Organization: organization})
 	if err != nil {
 		return err
 	}

@@ -7,8 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/protosio/protos/internal/capability"
-	"github.com/protosio/protos/internal/resource"
 	"github.com/protosio/protos/internal/runtime"
 
 	"github.com/protosio/protos/internal/util"
@@ -39,70 +37,27 @@ type Config struct {
 
 // App represents the application state
 type App struct {
-	access *sync.Mutex `noms:"-"`
-	mgr    *Manager    `noms:"-"`
+	access *sync.Mutex
+	mgr    *Manager
 
 	// Public members
-	Name            string            `json:"name"`
-	ID              string            `json:"id"`
-	InstallerRef    string            `json:"installer-ref"`
-	Version         string            `json:"version"`
-	InstanceName    string            `json:"instance-id"`
-	DesiredStatus   string            `json:"desired-status"`
-	Actions         []string          `json:"actions"`
-	IP              net.IP            `json:"ip"`
-	InstallerParams map[string]string `json:"installer-params"`
-	Capabilities    []string          `json:"capabilities"`
-	Resources       []string          `json:"resources"`
-	Tasks           []string          `json:"tasks"`
-	Persistence     bool              `json:"persistence"`
+	Name          string `json:"name"`
+	ID            string `json:"id"`
+	InstallerRef  string `json:"installer-ref"`
+	InstanceName  string `json:"instance-id"`
+	DesiredStatus string `json:"desired-status"`
+	IP            net.IP `json:"ip"`
+	Persistence   bool   `json:"persistence"`
 }
 
 //
 // Utilities
 //
 
-// validateInstallerParams makes sure that the params passed at app creation match what is requested by the installer
-func validateInstallerParams(paramsProvided map[string]string, paramsExpected []string) error {
-	for _, param := range paramsExpected {
-		if val, ok := paramsProvided[param]; ok && val != "" {
-			continue
-		} else {
-			return errors.New("Installer parameter " + param + " should not be empty")
-		}
-	}
-	return nil
-}
-
-func createCapabilities(cm *capability.Manager, installerCapabilities []string) []string {
-	caps := []string{}
-	for _, cap := range installerCapabilities {
-		cap, err := cm.GetByName(cap)
-		if err != nil {
-			log.Error(err)
-		} else {
-			caps = append(caps, cap.GetName())
-		}
-	}
-	return caps
-}
-
 // createSandbox create the underlying container
 func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
-
-	// normal app creation, using the app store
-	inst, err := app.mgr.store.GetInstaller(app.InstallerRef)
-	if err != nil {
-		return nil, fmt.Errorf("could not create application '%s': %w", app.Name, err)
-	}
-
-	err = inst.Pull()
-	if err != nil {
-		return nil, fmt.Errorf("failed to pull image for app '%s': %w", app.ID, err)
-	}
-
 	log.Infof("Creating sandbox for app '%s'[%s] at '%s'", app.Name, app.ID, app.IP.String())
-	cnt, err := app.mgr.runtime.NewSandbox(app.Name, app.ID, inst.Name, app.Persistence, app.InstallerParams)
+	cnt, err := app.mgr.runtime.NewSandbox(app.Name, app.ID, app.InstallerRef, app.Persistence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sandbox for app '%s': %w", app.ID, err)
 	}
@@ -138,14 +93,6 @@ func (app *App) GetName() string {
 	return app.Name
 }
 
-// SetDesiredStatus sets the status of an application
-func (app *App) SetDesiredStatus(status string) error {
-	app.access.Lock()
-	app.DesiredStatus = status
-	app.access.Unlock()
-	return app.mgr.saveApp(app)
-}
-
 // GetStatus returns the status of an application
 func (app *App) GetStatus() string {
 	cnt, err := app.mgr.runtime.GetSandbox(app.ID)
@@ -161,19 +108,7 @@ func (app *App) GetStatus() string {
 
 // GetVersion returns the version of an application
 func (app *App) GetVersion() string {
-	return app.Version
-}
-
-// AddTask adds a task owned by the applications
-func (app *App) AddTask(id string) {
-	app.access.Lock()
-	app.Tasks = append(app.Tasks, id)
-	app.access.Unlock()
-	log.Debugf("Added task '%s' to app '%s'", id, app.ID)
-	err := app.mgr.saveApp(app)
-	if err != nil {
-		log.Panicf("Failed to add task for app '%s': %s", app.ID, err.Error())
-	}
+	return app.InstallerRef
 }
 
 // Start starts an application
@@ -216,86 +151,4 @@ func (app *App) Stop() error {
 // GetIP returns the ip address of the app
 func (app *App) GetIP() net.IP {
 	return app.IP
-}
-
-//
-// Resource related methods
-//
-
-//CreateResource adds a resource to the internal resources map.
-func (app *App) CreateResource(appJSON []byte) (*resource.Resource, error) {
-
-	app.access.Lock()
-	rsc, err := app.mgr.getResourceManager().CreateFromJSON(appJSON, app.ID)
-	if err != nil {
-		app.access.Unlock()
-		return nil, fmt.Errorf("failed to create resource for app '%s': %w", app.ID, err)
-	}
-	app.Resources = append(app.Resources, rsc.GetID())
-	app.access.Unlock()
-	err = app.mgr.saveApp(app)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource for app '%s': %w", app.ID, err)
-	}
-
-	return rsc, nil
-}
-
-//DeleteResource deletes a resource
-func (app *App) DeleteResource(resourceID string) error {
-	if v, index := util.StringInSlice(resourceID, app.Resources); v {
-		err := app.mgr.getResourceManager().Delete(resourceID)
-		if err != nil {
-			return fmt.Errorf("failed to delete resource for app '%s': %w", app.ID, err)
-		}
-		app.access.Lock()
-		app.Resources = util.RemoveStringFromSlice(app.Resources, index)
-		app.access.Unlock()
-		err = app.mgr.saveApp(app)
-		if err != nil {
-			return fmt.Errorf("failed to delete resource for app '%s': %w", app.ID, err)
-		}
-
-		return nil
-	}
-
-	return fmt.Errorf("resource '%s' not owned by application '%s'", resourceID, app.ID)
-}
-
-// GetResources retrieves all the resources that belong to an application
-func (app *App) GetResources() map[string]*resource.Resource {
-	resources := make(map[string]*resource.Resource)
-	rm := app.mgr.getResourceManager()
-	for _, rscid := range app.Resources {
-		rsc, err := rm.Get(rscid)
-		if err != nil {
-			log.Error("Failed to get resource for app '%s': %s", app.ID, err.Error())
-			continue
-		}
-		resources[rscid] = rsc
-	}
-	return resources
-}
-
-// GetResource returns resource with provided ID, if it belongs to this app
-func (app *App) GetResource(resourceID string) (*resource.Resource, error) {
-	if found, _ := util.StringInSlice(resourceID, app.Resources); found {
-		rsc, err := app.mgr.getResourceManager().Get(resourceID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get resource %s for app %s: %w", resourceID, app.ID, err)
-		}
-		return rsc, nil
-
-	}
-	return nil, fmt.Errorf("resource '%s' not owned by application '%s'", resourceID, app.ID)
-}
-
-// ValidateCapability implements the capability checker interface
-func (app *App) ValidateCapability(cap *capability.Capability) error {
-	for _, capName := range app.Capabilities {
-		if app.mgr.getCapabilityManager().Validate(cap, capName) {
-			return nil
-		}
-	}
-	return fmt.Errorf("method capability '%s' not satisfied by application '%s'", cap.GetName(), app.ID)
 }

@@ -21,10 +21,6 @@ service ProtosClientApi {
   rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse);
   rpc GetAppLogs(GetAppLogsRequest) returns (GetAppLogsResponse);
 
-  // App store methods
-  rpc GetInstallers(GetInstallersRequest) returns (GetInstallersResponse);
-  rpc GetInstaller(GetInstallerRequest) returns (GetInstallerResponse);
-
   // Cloud provider methods
   rpc GetSupportedCloudProviders(GetSupportedCloudProvidersRequest)
       returns (GetSupportedCloudProvidersResponse);
@@ -71,8 +67,8 @@ service ProtosClientApi {
 //
 message InitRequest {
   string username = 1;
-  string password = 2;
-  string name = 3;
+  string name = 2;
+  string organization = 3;
 }
 message InitResponse {}
 

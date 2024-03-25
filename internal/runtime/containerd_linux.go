@@ -90,7 +90,7 @@ func (cdp *containerdPlatform) Init() error {
 	return nil
 }
 
-func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef string, persistence bool, installerParams map[string]string) (RuntimeSandbox, error) {
+func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef string, persistence bool) (RuntimeSandbox, error) {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 	pru := &containerdSandbox{p: cdp, containerID: appID}
 

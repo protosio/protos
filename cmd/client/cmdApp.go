@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -112,32 +111,6 @@ var cmdApp *cli.Command = &cli.Command{
 				return getAppLogs(name)
 			},
 		},
-		{
-			Name:  "store",
-			Usage: "Subcommands to interact with the app store",
-			Subcommands: []*cli.Command{
-				{
-					Name:  "ls",
-					Usage: "List all applications in the store",
-					Action: func(c *cli.Context) error {
-						return listAppStoreApps()
-					},
-				},
-				{
-					Name:      "info",
-					ArgsUsage: "<id>",
-					Usage:     "Display extended information about an app from the store",
-					Action: func(c *cli.Context) error {
-						id := c.Args().Get(0)
-						if id == "" {
-							cli.ShowSubcommandHelp(c)
-							os.Exit(1)
-						}
-						return infoAppStoreApp(id)
-					},
-				},
-			},
-		},
 	},
 }
 
@@ -212,52 +185,5 @@ func getAppLogs(name string) error {
 		return fmt.Errorf("failed to retrieve logs for app '%s': %w", name, err)
 	}
 	fmt.Println(string(resp.Logs))
-	return nil
-}
-
-func listAppStoreApps() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	resp, err := client.GetInstallers(ctx, &pbApic.GetInstallersRequest{})
-	if err != nil {
-		return fmt.Errorf("failed to retrieve installers: %w", err)
-	}
-
-	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 0, 0, 2, ' ', 0)
-
-	defer w.Flush()
-
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Name", "ID", "Version", "Description")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "----", "--", "-------", "-----------")
-	for _, installer := range resp.Installers {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", installer.Name, installer.Id, installer.Version, installer.Description)
-	}
-	fmt.Fprint(w, "\n")
-	return nil
-}
-
-func infoAppStoreApp(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	resp, err := client.GetInstaller(ctx, &pbApic.GetInstallerRequest{Id: id})
-	if err != nil {
-		return fmt.Errorf("failed to retrieve installers: %w", err)
-	}
-
-	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 0, 0, 2, ' ', 0)
-
-	defer w.Flush()
-
-	fmt.Fprintf(w, "%s\t%s\t", "Name:", resp.Installer.Name)
-	fmt.Fprintf(w, "\n%s\t%s\t", "ID:", id)
-	fmt.Fprintf(w, "\n%s\t%s\t", "Description:", resp.Installer.Description)
-	fmt.Fprintf(w, "\n%s\t%s\t", "Version: ", resp.Installer.Version)
-	fmt.Fprintf(w, "\n%s\t%s\t", "Requires resources: ", strings.Join(resp.Installer.RequiresResources, ","))
-	fmt.Fprintf(w, "\n%s\t%s\t", "Provides resources: ", strings.Join(resp.Installer.ProvidesResources, ","))
-	fmt.Fprintf(w, "\n%s\t%s\t", "Capabilities: ", strings.Join(resp.Installer.Capabilities, ","))
-	fmt.Fprint(w, "\n")
-
 	return nil
 }

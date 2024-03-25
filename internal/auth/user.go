@@ -1,10 +1,10 @@
 package auth
 
 import (
-	"encoding/base64"
 	"encoding/gob"
 	"fmt"
 
+	"github.com/bokwoon95/sq"
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/capability"
@@ -13,11 +13,6 @@ import (
 	"github.com/protosio/protos/internal/util"
 
 	"github.com/denisbrodbeck/machineid"
-	"golang.org/x/crypto/bcrypt"
-)
-
-const (
-	usersDS = "users"
 )
 
 var log = util.GetLogger("auth")
@@ -35,58 +30,37 @@ type UserInfo struct {
 // UserDevice - represents a device that a user uses to connect to the instances. A user can have multiple devices (laptop, mobile phone etc)
 type UserDevice struct {
 	Name      string `json:"name" validate:"required"`
-	PublicKey []byte `json:"publickey" validate:"base64"`   // ed25519 public key
+	PublicKey string `json:"publickey" validate:"base64"`   // ed25519 public key
 	Network   string `json:"network" validate:"cidrv4"`     // CIDR notation
 	MachineID string `json:"machineid" validate:"required"` // ID that uniquely identifies a machine
 }
 
 // User represents a Protos user
 type User struct {
-	parent *UserManager `noms:"-"`
+	parent *UserManager
 
 	// Public members
-	Username     string       `json:"username"`
-	PasswordHash string       `json:"-"`
-	Name         string       `json:"name"`
-	IsDisabled   bool         `json:"isdisabled"`
-	Capabilities []string     `json:"capabilities"`
-	Devices      []UserDevice `json:"devices"`
+	Username   string       `json:"username"`
+	Name       string       `json:"name"`
+	IsDisabled bool         `json:"isdisabled"`
+	Devices    []UserDevice `json:"devices"`
 }
 
-// generatePasswordHash takes a string representing the raw password, and generates a hash
-func generatePasswordHash(password string) (string, error) {
-
-	if len([]rune(password)) < 10 {
-		return "", errors.New("Minimum password length is 10 characters")
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+func getUser(username string, dbi *db.DB) (User, error) {
+	userModel := sq.New[db.USER]("")
+	user, err := db.SelectOne(dbi, createUserQueryMapper(userModel, []sq.Predicate{userModel.USERNAME.EqString(username)}))
 	if err != nil {
-		return "", err
+		return user, fmt.Errorf("failed to retrieve user: %w", err)
 	}
 
-	return string(hashedPassword), nil
-}
-
-func getUser(username string, db db.DB) (User, error) {
-	var users map[string]User
-	err := db.GetMap(usersDS, &users)
-	if err != nil {
-		return User{}, err
-	}
-	for _, user := range users {
-		if user.Username == username {
-			return user, nil
-		}
-	}
-	return User{}, fmt.Errorf("could not find user '%s'", username)
+	return user, nil
 }
 
 //
 // UserDevice methods
 //
 
-func (ud *UserDevice) GetPublicKey() []byte {
+func (ud *UserDevice) GetPublicKey() string {
 	return ud.PublicKey
 }
 
@@ -109,28 +83,16 @@ func (user *User) GetUsername() string {
 
 // Save saves the User struct to the database. The username is used as an unique key
 func (user *User) Save() error {
-	return user.parent.db.InsertInMap(usersDS, user.Username, *user)
-}
-
-// ValidateCapability implements the capability checker interface
-func (user *User) ValidateCapability(cap *capability.Capability) error {
-	for _, usercap := range user.Capabilities {
-		if user.parent.cm.Validate(cap, usercap) {
-			return nil
-		}
+	err := db.Insert(user.parent.db, createUserInsertMapper(*user))
+	if err != nil {
+		return errors.Wrapf(err, "Could not insert user '%s'", user.Username)
 	}
-	return errors.Errorf("Method capability '%s' not satisfied by user '%s'", cap.GetName(), user.Username)
+
+	return nil
 }
 
 // IsAdmin checks if a user is an admin or not
 func (user *User) IsAdmin() bool {
-	userAdminCap, err := user.parent.cm.GetByName("UserAdmin")
-	if err != nil {
-		return false
-	}
-	if user.ValidateCapability(userAdminCap) != nil {
-		return false
-	}
 	return true
 }
 
@@ -144,7 +106,7 @@ func (user *User) GetInfo() UserInfo {
 }
 
 // AddDevice adds a device to the user
-func (user *User) AddDevice(id string, name string, publicKey []byte, network string) error {
+func (user *User) AddDevice(id string, name string, publicKey string, network string) error {
 	device := UserDevice{
 		MachineID: id,
 		Name:      name,
@@ -167,12 +129,7 @@ func (user *User) GetCurrentDevice() (UserDevice, error) {
 		return UserDevice{}, fmt.Errorf("failed to generate machine id: %w", err)
 	}
 
-	userDevices := user.GetDevices()
-	if err != nil {
-		return UserDevice{}, err
-	}
-
-	for _, dev := range userDevices {
+	for _, dev := range user.Devices {
 		if dev.MachineID == id {
 			return dev, nil
 		}
@@ -181,16 +138,15 @@ func (user *User) GetCurrentDevice() (UserDevice, error) {
 }
 
 // GetKeyCurrentDevice returns the private key for the current device
-func (user *User) GetKeyCurrentDevice() (*pcrypto.Key, error) {
+func (user *User) GetKeyCurrentDevice() (pcrypto.Key, error) {
 	device, err := user.GetCurrentDevice()
 	if err != nil {
-		return nil, err
+		return pcrypto.Key{}, err
 	}
 
-	encodedPublicKey := base64.StdEncoding.EncodeToString(device.PublicKey)
-	key, err := user.parent.sm.GetKeyByPub(encodedPublicKey)
+	key, err := user.parent.sm.GetKeyByPub(device.PublicKey)
 	if err != nil {
-		return nil, err
+		return pcrypto.Key{}, err
 	}
 	return key, nil
 }
@@ -207,78 +163,33 @@ func (user *User) SetName(name string) error {
 
 // UserManager implements the core.UserManager interface, which manages users
 type UserManager struct {
-	db db.DB
+	db *db.DB
 	cm *capability.Manager
 	sm *pcrypto.Manager
 }
 
 // CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db db.DB, sm *pcrypto.Manager, cm *capability.Manager, configurator PeerConfigurator) *UserManager {
+func CreateUserManager(db *db.DB, sm *pcrypto.Manager, cm *capability.Manager, configurator PeerConfigurator) *UserManager {
 	if db == nil || sm == nil || cm == nil || configurator == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 	gob.Register(&User{})
 
-	err := db.InitDataset(usersDS, configurator)
-	if err != nil {
-		log.Fatal("Failed to initialize auth dataset: ", err)
-	}
-
 	return &UserManager{db: db, sm: sm, cm: cm}
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, password string, name string, isadmin bool) (*User, error) {
+func (um *UserManager) CreateUser(username string, name string, isadmin bool) (*User, error) {
 
-	passwordHash, err := generatePasswordHash(password)
-	if err != nil {
-		return nil, err
-	}
-
-	// FIXME: get rid of the password somehow. Need to authenticate based on priv/pub key
-	// the current setup is dangerous because the password will be synced to instances
 	user := User{
-		parent:       um,
-		Username:     username,
-		PasswordHash: passwordHash,
-		Name:         name,
-		IsDisabled:   false,
-		Capabilities: []string{},
-		Devices:      []UserDevice{},
-	}
-	if isadmin {
-		user.Capabilities = append(user.Capabilities, "UserAdmin")
+		parent:     um,
+		Username:   username,
+		Name:       name,
+		IsDisabled: false,
+		Devices:    []UserDevice{},
 	}
 
 	return &user, user.Save()
-}
-
-// ValidateAndGetUser takes a username and password and returns the full User struct if credentials are valid
-func (um *UserManager) ValidateAndGetUser(username string, password string) (*User, error) {
-	log.Debugf("Searching for username %s", username)
-
-	errInvalid := errors.New("Invalid credentials")
-
-	user, err := getUser(username, um.db)
-	if err != nil {
-		log.Debugf("Can't find user '%s' (%s)", username, err)
-		return nil, errInvalid
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
-	if err != nil {
-		log.Debugf("Invalid password for user '%s'", username)
-		return nil, errInvalid
-	}
-
-	if user.IsDisabled {
-		log.Debugf("User '%s' is disabled", username)
-		return nil, errInvalid
-	}
-
-	log.Debugf("User '%s' logged in successfuly", username)
-	user.parent = um
-	return &user, nil
 }
 
 // GetUser returns a user based on the username
@@ -294,19 +205,16 @@ func (um *UserManager) GetUser(username string) (*User, error) {
 }
 
 // GetAdmin returns the admin username. Only one admin is allowed at the moment
-func (um *UserManager) GetAdmin() (*User, error) {
-	var users map[string]User
-	err := um.db.GetMap(usersDS, &users)
+func (um *UserManager) GetAdmin() (User, error) {
+	users, err := db.SelectMultiple(um.db, createUserQueryMapper(sq.New[db.USER](""), nil))
 	if err != nil {
-		return &User{}, err
+		return User{}, fmt.Errorf("could not retrieve users: %w", err)
 	}
-	for _, usr := range users {
-		usr.parent = um
-		if usr.IsAdmin() {
-			return &usr, nil
-		}
+	if len(users) == 0 {
+		return User{}, fmt.Errorf("could not find admin user")
 	}
-	return &User{}, fmt.Errorf("could not find admin user")
+
+	return users[0], nil
 }
 
 // SetParent returns sets the parent (user manager) for a given user

@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/denisbrodbeck/machineid"
 	pbApic "github.com/protosio/protos/apic/proto"
+	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
 )
@@ -19,37 +18,10 @@ import (
 
 func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.InitResponse, error) {
 
-	log.Debugf("Performing initialization")
-
-	host, err := os.Hostname()
+	err := b.protosClient.Init(in.Username, in.Name, in.Organization)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add user. Could not retrieve hostname: %w", err)
+		return nil, fmt.Errorf("failed to do local init: %w", err)
 	}
-
-	key, err := b.protosClient.Meta.GetPrivateKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to add user. Could not retrieve key: %w", err)
-	}
-
-	machineID, err := machineid.ProtectedID("protos")
-	if err != nil {
-		return nil, fmt.Errorf("failed to add user. Error while generating machine id: %w", err)
-	}
-
-	adminUser, err := b.protosClient.UserManager.CreateUser(in.Username, in.Password, in.Name, true)
-	if err != nil {
-		return nil, err
-	}
-
-	err = adminUser.AddDevice(machineID, host, key.Public(), "10.100.0.1/24")
-	if err != nil {
-		return nil, fmt.Errorf("failed to add user. Error while creating user device: %w", err)
-	}
-
-	// saving the key to disk
-	key.Save()
-	b.protosClient.SetInitialized()
-
 	return &pbApic.InitResponse{}, nil
 }
 
@@ -79,7 +51,7 @@ func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesR
 			Name:               device.Name,
 			MachineId:          device.MachineID,
 			Network:            device.Network,
-			PublicKey:          base64.StdEncoding.EncodeToString(device.PublicKey),
+			PublicKey:          device.PublicKey,
 			PublicKeyWireguard: wgPubKey,
 		}
 		resp.Devices = append(resp.Devices, &respDevice)
@@ -125,17 +97,18 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 			status = "n/a"
 		} else {
 			// FIXME: run this in parallel for all apps
-			status, err = client.GetAppStatus(app.Name)
+			resp, err := client.GetAppStatus(context.TODO(), &p2pproto.GetAppStatusRequest{AppName: app.Name})
 			if err != nil {
-				log.Errorf("Failed to retrieve status for app '%s': %w", app.Name, err.Error())
+				log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
 				status = "n/a"
 			}
+			status = resp.Status
 		}
 
 		respApp := pbApic.App{
 			Id:           app.ID,
 			Name:         app.Name,
-			Version:      app.Version,
+			Version:      app.GetVersion(),
 			Status:       fmt.Sprintf("%s (%s)", status, app.DesiredStatus),
 			InstanceName: app.InstanceName,
 			Ip:           app.IP.String(),
@@ -150,22 +123,13 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*pbApic.CreateAppResponse, error) {
 
 	log.Debugf("Running app '%s' based on installer '%s', on instance '%s'", in.Name, in.InstallerId, in.InstanceId)
-	installer, err := b.protosClient.AppStore.GetInstaller(in.InstallerId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
-	}
-
 	instance, err := b.protosClient.CloudManager.GetInstance(in.InstanceId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
-	if !installer.SupportsArchitecture(instance.Architecture) {
-		return nil, fmt.Errorf("failed to run app %s: installer '%s' does support architecture of target instance '%s'(%s)", in.Name, in.InstallerId, instance.Name, instance.Architecture)
-	}
-
 	// FIXME: read the installer params from the command line
-	app, err := b.protosClient.AppManager.Create(installer, in.Name, in.InstanceId, instance.Network, in.Persistence, map[string]string{})
+	app, err := b.protosClient.AppManager.Create(in.InstallerId, in.Name, in.InstanceId, instance.Network, in.Persistence, map[string]string{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
@@ -216,59 +180,17 @@ func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) 
 		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
 	}
 
-	logs, err := client.GetAppLogs(in.Name)
+	resp, err := client.GetAppLogs(context.TODO(), &p2pproto.GetAppLogsRequest{AppName: app.Name})
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
 	}
 
-	return &pbApic.GetAppLogsResponse{Logs: logs}, nil
-}
-
-//
-// App store methods
-//
-
-func (b *Backend) GetInstallers(ctx context.Context, in *pbApic.GetInstallersRequest) (*pbApic.GetInstallersResponse, error) {
-	log.Debugf("Retrieving installers from app store")
-	installers, err := b.protosClient.AppStore.GetInstallers()
+	base64Logs, err := base64.StdEncoding.DecodeString(resp.Logs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
 	}
 
-	resp := pbApic.GetInstallersResponse{}
-	for _, installer := range installers {
-		respInstaller := pbApic.Installer{
-			Id:          installer.ID,
-			Name:        installer.Name,
-			Version:     installer.Version,
-			Description: installer.GetDescription(),
-		}
-		resp.Installers = append(resp.Installers, &respInstaller)
-	}
-
-	return &resp, nil
-}
-
-func (b *Backend) GetInstaller(ctx context.Context, in *pbApic.GetInstallerRequest) (*pbApic.GetInstallerResponse, error) {
-	log.Debugf("Retrieving installer '%s' from app store", in.Id)
-	installer, err := b.protosClient.AppStore.GetInstaller(in.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := pbApic.GetInstallerResponse{
-		Installer: &pbApic.Installer{
-			Id:                installer.ID,
-			Name:              installer.Name,
-			Version:           installer.Version,
-			Description:       installer.GetDescription(),
-			RequiresResources: installer.GetRequires(),
-			ProvidesResources: installer.GetProvides(),
-			Capabilities:      installer.GetCapabilities(),
-		},
-	}
-
-	return &resp, nil
+	return &pbApic.GetAppLogsResponse{Logs: []byte(base64Logs)}, nil
 }
 
 //
@@ -429,7 +351,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			CloudType:          instance.CloudType,
 			VmId:               instance.VMID,
 			Location:           instance.Location,
-			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
+			PublicKey:          instance.PublicKey,
 			PublicKeyWireguard: wgPublicKey.String(),
 			ProtosVersion:      instance.ProtosVersion,
 			Architecture:       instance.Architecture,
@@ -460,12 +382,15 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		log.Error(err.Error())
 		status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
 	} else {
-		peers, err = client.GetInstancePeers()
+		resp, err := client.GetPeers(context.TODO(), &p2pproto.GetPeersRequest{})
 		if err != nil {
 			log.Error(err.Error())
 			status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
 		} else {
 			status = fmt.Sprintf("%s (%s)", instance.Status, "reachable")
+		}
+		for name, peer := range resp.Peers {
+			peers[name] = peer
 		}
 	}
 
@@ -479,7 +404,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			CloudType:          instance.CloudType,
 			VmId:               instance.VMID,
 			Location:           instance.Location,
-			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
+			PublicKey:          instance.PublicKey,
 			PublicKeyWireguard: wgPublicKey.String(),
 			ProtosVersion:      instance.ProtosVersion,
 			Status:             status,
@@ -533,7 +458,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 			CloudType:          instance.CloudType,
 			VmId:               instance.VMID,
 			Location:           instance.Location,
-			PublicKey:          base64.StdEncoding.EncodeToString(instance.PublicKey),
+			PublicKey:          instance.PublicKey,
 			PublicKeyWireguard: wgPublicKey.String(),
 			ProtosVersion:      instance.ProtosVersion,
 			Status:             instance.Status,
@@ -595,19 +520,16 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
 	}
 
-	logs, err := client.GetInstanceLogs()
-	if err == nil {
-		return &pbApic.GetInstanceLogsResponse{Logs: string(logs)}, nil
-	}
-
-	log.Warnf("Failed to retrieve logs for instance '%s' via RPC, falling back on SSH: %s", in.Name, err.Error())
-
-	logsSSH, err := b.protosClient.CloudManager.LogsRemoteInstance(in.Name)
+	logs, err := client.GetLogs(context.TODO(), &p2pproto.GetLogsRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve instance '%s' logs via SSH: %w", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
+	}
+	base64Logs, err := base64.StdEncoding.DecodeString(logs.Logs)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
 	}
 
-	return &pbApic.GetInstanceLogsResponse{Logs: logsSSH}, nil
+	return &pbApic.GetInstanceLogsResponse{Logs: string(base64Logs)}, nil
 }
 
 func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {
@@ -706,93 +628,4 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}
 	return &pbApic.RemoveCloudImageResponse{}, nil
-}
-
-//
-// Backup methods
-//
-
-func (b *Backend) GetBackupProviders(ctx context.Context, in *pbApic.GetBackupProvidersRequest) (*pbApic.GetBackupProvidersResponse, error) {
-	providers, err := b.protosClient.BackupManager.GetProviders()
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve backups: %s", err)
-	}
-
-	response := &pbApic.GetBackupProvidersResponse{}
-	for _, provider := range providers {
-		response.BackupProviders = append(response.BackupProviders, &pbApic.BackupProvider{
-			Name:  provider.Name,
-			Cloud: provider.Cloud,
-			Type:  provider.Type,
-		})
-	}
-
-	return response, nil
-}
-
-func (b *Backend) GetBackupProviderInfo(ctx context.Context, in *pbApic.GetBackupProviderInfoRequest) (*pbApic.GetBackupProviderInfoResponse, error) {
-	provider, err := b.protosClient.BackupManager.GetProviderInfo(in.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve provider info: %s", err)
-	}
-
-	response := &pbApic.GetBackupProviderInfoResponse{BackupProvider: &pbApic.BackupProvider{
-		Name:  provider.Name,
-		Cloud: provider.Cloud,
-		Type:  provider.Type,
-	}}
-
-	return response, nil
-}
-
-func (b *Backend) GetBackups(ctx context.Context, in *pbApic.GetBackupsRequest) (*pbApic.GetBackupsResponse, error) {
-	backups, err := b.protosClient.BackupManager.GetBackups()
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve backups: %s", err)
-	}
-
-	response := &pbApic.GetBackupsResponse{}
-	for _, backup := range backups {
-		response.Backups = append(response.Backups, &pbApic.Backup{
-			Name:     backup.Name,
-			App:      backup.App,
-			Provider: backup.Provider,
-			Status:   backup.Status,
-		})
-	}
-
-	return response, nil
-}
-
-func (b *Backend) GetBackupInfo(ctx context.Context, in *pbApic.GetBackupInfoRequest) (*pbApic.GetBackupInfoResponse, error) {
-	backup, err := b.protosClient.BackupManager.GetBackupInfo(in.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve backups: %s", err)
-	}
-
-	response := &pbApic.GetBackupInfoResponse{
-		Backup: &pbApic.Backup{
-			Name:     backup.Name,
-			App:      backup.App,
-			Provider: backup.Provider,
-		},
-	}
-
-	return response, nil
-}
-
-func (b *Backend) CreateBackup(ctx context.Context, in *pbApic.CreateBackupRequest) (*pbApic.CreateBackupResponse, error) {
-	err := b.protosClient.BackupManager.CreateBackup(in.Name, in.App, in.Provider)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create backup: %s", err)
-	}
-	return &pbApic.CreateBackupResponse{}, nil
-}
-
-func (b *Backend) RemoveBackup(ctx context.Context, in *pbApic.RemoveBackupRequest) (*pbApic.RemoveBackupResponse, error) {
-	err := b.protosClient.BackupManager.RemoveBackup(in.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to remove backup: %s", err)
-	}
-	return &pbApic.RemoveBackupResponse{}, nil
 }

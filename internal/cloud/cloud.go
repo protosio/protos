@@ -1,7 +1,7 @@
 package cloud
 
 import (
-	"crypto/ed25519"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -12,10 +12,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bokwoon95/sq"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/p2p"
+	"github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/util"
@@ -42,29 +44,19 @@ const (
 )
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, configurator PeerConfigurator, selfName string) (*Manager, error) {
+func CreateManager(db *db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, configurator PeerConfigurator, selfName string) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
 	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, configurator: configurator}
 
-	err := db.InitDataset(instanceDS, configurator)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize instance dataset: %w", err)
-	}
-
-	err = db.InitDataset(cloudDS, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cloud dataset: %w", err)
-	}
-
 	return manager, nil
 }
 
 // Manager manages cloud providers and instances
 type Manager struct {
-	db           db.DB
+	db           *db.DB
 	um           *auth.UserManager
 	sm           *pcrypto.Manager
 	p2p          *p2p.P2P
@@ -89,18 +81,16 @@ func (cm *Manager) SupportedProviders() []string {
 
 // GetProvider returns a cloud provider instance from the db
 func (cm *Manager) GetProvider(name string) (CloudProvider, error) {
-	clouds := map[string]ProviderInfo{}
-	err := cm.db.GetMap(cloudDS, &clouds)
+	cpModel := sq.New[db.CLOUD_PROVIDER]("")
+	cpi, err := db.SelectOne(cm.db, createCloudProviderQueryMapper(cpModel, []sq.Predicate{cpModel.NAME.EqString(name)}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve cloud provider '%s': %w", name, err)
 	}
-	for _, cld := range clouds {
-		if cld.Name == name {
-			cld.cm = cm
-			return cld.getCloudProvider()
-		}
+	cp, err := cpi.getCloudProvider()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve cloud provider '%s': %w", name, err)
 	}
-	return nil, fmt.Errorf("could not find cloud provider '%s'", name)
+	return cp, fmt.Errorf("could not find cloud provider '%s'", name)
 }
 
 // DeleteProvider deletes a cloud provider from the db
@@ -115,20 +105,20 @@ func (cm *Manager) DeleteProvider(name string) error {
 		panic("Failed type assertion in delete provider")
 	}
 
-	err = cm.db.RemoveFromMap(cloudDS, providerInfo.Name)
+	err = db.Delete(cm.db, createInstanceDeleteByNameQuery(providerInfo.Name))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete instance '%s': %w", name, err)
 	}
+
 	return nil
 }
 
 // GetProviders returns all the cloud providers from the db
 func (cm *Manager) GetProviders() ([]CloudProvider, error) {
 	cloudProviders := []CloudProvider{}
-	clouds := map[string]ProviderInfo{}
-	err := cm.db.GetMap(cloudDS, &clouds)
+	clouds, err := db.SelectMultiple(cm.db, createCloudProviderQueryMapper(sq.New[db.CLOUD_PROVIDER](""), nil))
 	if err != nil {
-		return cloudProviders, fmt.Errorf("failed to retrieve cloud provides")
+		return cloudProviders, fmt.Errorf("failed to retrieve cloud providers: %w", err)
 	}
 
 	for _, cloud := range clouds {
@@ -238,7 +228,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// save instance information
-	instanceInfo.SSHKeySeed = instanceSSHKey.Seed()
+	instanceInfo.SSHKeySeed = base64.StdEncoding.EncodeToString(instanceSSHKey.Seed())
 	instanceInfo.ProtosVersion = release.Version
 	instanceInfo.Network = network.String()
 
@@ -276,32 +266,20 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
 	}
 
-	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
-	if err != nil {
-		return InstanceInfo{}, err
-	}
-
 	// connect via SSH
-	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", key.SSHAuth(), 10)
+	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", instanceSSHKey.SSHAuth(), 10)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
 
 	// retrieve instance public key via SSH
-	pubKeyStr, err := pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
+	instanceInfo.PublicKey, err = pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
 
 	// close SSH connection
 	sshCon.Close()
-
-	var pubKey ed25519.PublicKey
-	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to decode public key: %w", err)
-	}
-	instanceInfo.PublicKey = pubKey
 
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
@@ -310,7 +288,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, architecture, err := p2pClient.Init(instanceName, instanceInfo.Network, thisDevice.GetName(), thisDevice.GetPublicKey())
+	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), Network: instanceInfo.Network, InstanceName: instanceName})
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -321,12 +299,11 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// final save instance info
-	instanceInfo.InternalIP = ip.String()
-	instanceInfo.Architecture = architecture
-	instanceInfo.PublicKey = pubKey
+	instanceInfo.InternalIP = resp.InstanceIp
+	instanceInfo.Architecture = resp.Architecture
 	instanceInfo.Status = instanceUpdate.Status
 
-	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
+	err = db.Insert(cm.db, createInstanceInsertMapper(instanceInfo))
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
@@ -392,20 +369,13 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 
 	// retrieve instance public key via SSH
-	pubKeyStr, err := pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
+	instanceInfo.PublicKey, err = pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve public key from dev instance: %w", err)
 	}
 
 	// close SSH connection
 	sshCon.Close()
-
-	var pubKey ed25519.PublicKey
-	pubKey, err = base64.StdEncoding.DecodeString(pubKeyStr)
-	if err != nil {
-		return fmt.Errorf("failed to decode public key: %w", err)
-	}
-	instanceInfo.PublicKey = pubKey
 
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
@@ -414,17 +384,16 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	ip, architecture, err := p2pClient.Init(instanceName, developmentNetwork.String(), thisDevice.GetName(), thisDevice.GetPublicKey())
+	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), Network: developmentNetwork.String(), InstanceName: instanceName})
 	if err != nil {
 		return fmt.Errorf("failed to init dev instance: %w", err)
 	}
 
 	instanceInfo.InternalIP = ip.String()
-	instanceInfo.Architecture = architecture
-	instanceInfo.PublicKey = pubKey
+	instanceInfo.Architecture = resp.Architecture
 	instanceInfo.Network = developmentNetwork.String()
 
-	err = cm.db.InsertInMap(instanceDS, instanceInfo.Name, instanceInfo)
+	err = db.Insert(cm.db, createInstanceInsertMapper(instanceInfo))
 	if err != nil {
 		return fmt.Errorf("failed to save dev instance '%s': %w", instanceName, err)
 	}
@@ -487,12 +456,12 @@ func (cm *Manager) DeleteInstance(name string) error {
 		}
 	}
 
-	// err = cm.p2p.RemovePeer(instance.PublicKey)
-	// if err != nil {
-	// 	log.Warnf("Failed to remove peer for instance '%s': %s", instance.Name, err.Error())
-	// }
+	err = db.Delete(cm.db, createInstanceDeleteByNameQuery(instance.Name))
+	if err != nil {
+		return fmt.Errorf("failed to delete instance '%s': %w", name, err)
+	}
 
-	return cm.db.RemoveFromMap(instanceDS, instance.Name)
+	return nil
 }
 
 // StartInstance starts an instance
@@ -526,7 +495,7 @@ func (cm *Manager) StartInstance(name string) error {
 	instance.PublicIP = info.PublicIP
 	instance.Volumes = info.Volumes
 
-	err = cm.db.InsertInMap(instanceDS, instance.Name, instance)
+	err = db.Update(cm.db, createInstanceUpdateMapper(instance))
 	if err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", name, err)
 	}
@@ -564,9 +533,7 @@ func (cm *Manager) TunnelInstance(name string) error {
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", name, err)
 	}
-	if len(instanceInfo.SSHKeySeed) == 0 {
-		return errors.Errorf("Instance '%s' is missing its SSH key", name)
-	}
+
 	key, err := cm.sm.NewKeyFromSeed(instanceInfo.SSHKeySeed)
 	if err != nil {
 		return fmt.Errorf("instance '%s' has an invalid SSH key: %w", name, err)
@@ -625,53 +592,43 @@ func (cm *Manager) LogsRemoteInstance(name string) (string, error) {
 
 // GetInstance retrieves an instance from the db and returns it
 func (cm *Manager) GetInstance(name string) (InstanceInfo, error) {
-	instances := map[string]InstanceInfo{}
-	err := cm.db.GetMap(instanceDS, &instances)
+
+	instanceModel := sq.New[db.INSTANCE]("")
+	instance, err := db.SelectOne(cm.db, createInstanceQueryMapper(instanceModel, []sq.Predicate{instanceModel.NAME.EqString(name)}))
 	if err != nil {
-		return InstanceInfo{}, err
+		return instance, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 
-	for _, instance := range instances {
-		if instance.Name == name {
-			// if not local, we update the instance status
-			if instance.CloudName != Local.String() {
-				provider, err := cm.GetProvider(instance.CloudName)
-				if err != nil {
-					return InstanceInfo{}, err
-				}
-				err = provider.Init()
-				if err != nil {
-					return InstanceInfo{}, err
-				}
-				instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
-				if err != nil {
-					log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
-					instance.Status = "n/a"
-				} else {
-					instance.Status = instanceInfo.Status
-				}
-			} else {
-				instance.Status = "n/a"
-			}
-			return instance, nil
+	// if not local, we update the instance status
+	if instance.CloudName != Local.String() {
+		provider, err := cm.GetProvider(instance.CloudName)
+		if err != nil {
+			return InstanceInfo{}, err
 		}
+		err = provider.Init()
+		if err != nil {
+			return InstanceInfo{}, err
+		}
+		instanceInfo, err := provider.GetInstanceInfo(instance.VMID, instance.Location)
+		if err != nil {
+			log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			instance.Status = "n/a"
+		} else {
+			instance.Status = instanceInfo.Status
+		}
+	} else {
+		instance.Status = "n/a"
 	}
-	return InstanceInfo{}, fmt.Errorf("could not find instance '%s'", name)
+	return instance, nil
 }
 
 // GetInstances returns all the instances from the db
 func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
-
-	instanceMap := map[string]InstanceInfo{}
-	var instances []InstanceInfo
-	err := cm.db.GetMap(instanceDS, &instanceMap)
+	instances, err := db.SelectMultiple(cm.db, createInstanceQueryMapper(sq.New[db.INSTANCE](""), nil))
 	if err != nil {
-		return instances, err
+		return instances, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
-	for _, instance := range instanceMap {
-		instances = append(instances, instance)
 
-	}
 	return instances, nil
 }
 
@@ -706,19 +663,16 @@ func (cm *Manager) retrieveInstanceStatus(wg *sync.WaitGroup, instance *Instance
 }
 
 // GetInstances returns all the instances from the db
-func (cm *Manager) GetInstancesWithUpdatedStatus() ([]*InstanceInfo, error) {
-	instanceMap := map[string]InstanceInfo{}
-	var instances []*InstanceInfo
-	err := cm.db.GetMap(instanceDS, &instanceMap)
+func (cm *Manager) GetInstancesWithUpdatedStatus() ([]InstanceInfo, error) {
+	instances, err := db.SelectMultiple(cm.db, createInstanceQueryMapper(sq.New[db.INSTANCE](""), nil))
 	if err != nil {
-		return instances, err
+		return instances, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
+
 	var wg sync.WaitGroup
-	for _, instance := range instanceMap {
-		inst := instance
-		instances = append(instances, &inst)
+	for _, instance := range instances {
 		wg.Add(1)
-		go cm.retrieveInstanceStatus(&wg, &inst)
+		go cm.retrieveInstanceStatus(&wg, &instance)
 	}
 	wg.Wait()
 	return instances, nil
