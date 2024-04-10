@@ -1,9 +1,13 @@
 package db
 
 import (
+	"context"
+	"embed"
 	"fmt"
+	"io/fs"
 
 	"github.com/bokwoon95/sq"
+	"github.com/bokwoon95/sqddl/ddl"
 	"github.com/nustiueudinastea/doltswarm"
 	"github.com/protosio/protos/internal/util"
 )
@@ -11,17 +15,56 @@ import (
 var logger = util.GetLogger("db")
 var Instance *doltswarm.DB
 
+//go:embed migrations/*.sql
+var rootDir embed.FS
+
 func Open(workDir string, dbName string, signer doltswarm.Signer) (*DB, error) {
 	dbi, err := doltswarm.Open(workDir, dbName, logger, signer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db: %v", err)
 	}
 
-	return &DB{dbi}, nil
+	return &DB{DB: dbi, name: dbName}, nil
 }
 
 type DB struct {
 	*doltswarm.DB
+	name string
+}
+
+func (db *DB) Init() error {
+
+	err := db.InitLocal()
+	if err != nil {
+		return fmt.Errorf("failed to init local: %v", err)
+	}
+
+	migrationsDir, err := fs.Sub(rootDir, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to get migrations dir: %v", err)
+	}
+
+	_, err = db.GetSqlDB().ExecContext(context.TODO(), fmt.Sprintf("USE %s;", db.name))
+	if err != nil {
+		return fmt.Errorf("failed to use db: %w", err)
+	}
+
+	migrateCmd := &ddl.MigrateCmd{
+		Dialect: "mysql",
+		DB:      db.GetSqlDB(),
+		DirFS:   migrationsDir,
+	}
+	err = migrateCmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to run migrations: %v", err)
+	}
+
+	_, err = db.Commit("test")
+	if err != nil {
+		return fmt.Errorf("failed to commit: %v", err)
+	}
+
+	return nil
 }
 
 // Insert inserts a new entry in the database using the sq query builder
@@ -62,14 +105,24 @@ func SelectOne[T any](db *DB, mc func() (sq.Table, func(row *sq.Row) T, []sq.Pre
 
 func SelectMultiple[T any](db *DB, mc func() (sq.Table, func(row *sq.Row) T, []sq.Predicate)) ([]T, error) {
 	t, mapper, predicates := mc()
-	res, err := sq.FetchAll(db, sq.
-		From(t).
-		Where(predicates...).
-		SetDialect(sq.DialectMySQL),
-		mapper,
-	)
+	var res []T
+	var err error
+	if len(predicates) == 0 {
+		res, err = sq.FetchAll(db, sq.
+			From(t).
+			SetDialect(sq.DialectMySQL),
+			mapper,
+		)
+	} else {
+		res, err = sq.FetchAll(db, sq.
+			From(t).
+			Where(predicates...).
+			SetDialect(sq.DialectMySQL),
+			mapper,
+		)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to select all: %v", err)
+		return nil, fmt.Errorf("failed to select multiple: %v", err)
 	}
 	return res, nil
 }

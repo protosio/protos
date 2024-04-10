@@ -90,8 +90,8 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 
 	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint)
 	cm := capability.CreateManager()
-	um := auth.CreateUserManager(dbcli, sm, cm, peerConfigurator)
-	peerConfigurator.UserManager = um
+	um := auth.CreateAuthManager(dbcli, sm, cm, peerConfigurator)
+	peerConfigurator.AuthManager = um
 	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli, m, cm)
 
 	p2pManager, err := p2p.NewManager(lkey, appManager, m.InitMode(), dbcli)
@@ -163,7 +163,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 }
 
 type PeerConfigurator struct {
-	UserManager    *auth.UserManager
+	AuthManager    *auth.AuthManager
 	NetworkManager *network.Manager
 	CloudManager   *cloud.Manager
 	P2PManager     *p2p.P2P
@@ -181,7 +181,7 @@ func (pc *PeerConfigurator) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	admin, err := pc.UserManager.GetAdmin()
+	admin, err := pc.AuthManager.GetAdmin()
 	if err == nil {
 		userDevices := admin.GetDevices()
 		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)

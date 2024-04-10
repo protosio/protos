@@ -44,7 +44,7 @@ const (
 )
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db *db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, configurator PeerConfigurator, selfName string) (*Manager, error) {
+func CreateManager(db *db.DB, um *auth.AuthManager, sm *pcrypto.Manager, p2p *p2p.P2P, configurator PeerConfigurator, selfName string) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
@@ -57,7 +57,7 @@ func CreateManager(db *db.DB, um *auth.UserManager, sm *pcrypto.Manager, p2p *p2
 // Manager manages cloud providers and instances
 type Manager struct {
 	db           *db.DB
-	um           *auth.UserManager
+	um           *auth.AuthManager
 	sm           *pcrypto.Manager
 	p2p          *p2p.P2P
 	configurator PeerConfigurator
@@ -222,7 +222,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
 	}
 
-	thisDevice, err := usr.GetCurrentDevice()
+	thisDevice, err := cm.um.GetCurrentDevice()
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to get current device : %w", err)
 	}
@@ -351,7 +351,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 		return fmt.Errorf("failed to allocate network for instance '%s': %w", "dev", err)
 	}
 
-	thisDevice, err := usr.GetCurrentDevice()
+	thisDevice, err := cm.um.GetCurrentDevice()
 	if err != nil {
 		return fmt.Errorf("failed to get current device : %w", err)
 	}

@@ -26,6 +26,14 @@ type Backend struct {
 	protosClient *protosc.ProtosClient
 }
 
+func errorLoggingUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	resp, err := handler(ctx, req)
+	if err != nil {
+		log.Errorf("method %s: %v", info.FullMethod, err)
+	}
+	return resp, err
+}
+
 func StartGRPCServer(dataPath string, version string, protosClient *protosc.ProtosClient) (func() error, error) {
 
 	homedir, err := os.UserHomeDir()
@@ -56,9 +64,12 @@ func StartGRPCServer(dataPath string, version string, protosClient *protosc.Prot
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
 			grpc_recovery.StreamServerInterceptor(recoveryOpt),
 		)),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			grpc_recovery.UnaryServerInterceptor(recoveryOpt),
-		)),
+		grpc.UnaryInterceptor(
+			grpc_middleware.ChainUnaryServer(
+				grpc.UnaryServerInterceptor(errorLoggingUnaryInterceptor),
+				grpc_recovery.UnaryServerInterceptor(recoveryOpt),
+			),
+		),
 	)
 	pbApic.RegisterProtosClientApiServer(srv, &Backend{
 		protosClient: protosClient,

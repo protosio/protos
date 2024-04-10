@@ -383,6 +383,7 @@ func NewManager(key *pcrypto.Key, appManager AppManager, initMode bool, external
 		appManager:  appManager,
 		newPeerChan: make(chan peer.AddrInfo),
 		initMode:    initMode,
+		grpcServer:  grpc.NewServer(p2pgrpc.WithP2PCredentials()),
 
 		externalDB: externalDB,
 	}

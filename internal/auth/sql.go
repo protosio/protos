@@ -16,7 +16,6 @@ func createUserInsertMapper(user User) func() (sq.Table, func(*sq.Column)) {
 			col.SetString(u.USERNAME, user.Name)
 			col.SetString(u.NAME, user.Name)
 			col.SetBool(u.IS_DISABLED, user.IsDisabled)
-			col.SetArray(u.DEVICES, user.Devices)
 		}
 	}
 }
@@ -29,7 +28,6 @@ func createUserUpdateMapper(user User) func() (sq.Table, func(*sq.Column), []sq.
 			col.SetString(u.USERNAME, user.Name)
 			col.SetString(u.NAME, user.Name)
 			col.SetBool(u.IS_DISABLED, user.IsDisabled)
-			col.SetArray(u.DEVICES, user.Devices)
 		}, predicates
 	}
 }
@@ -59,7 +57,7 @@ func createUserDeleteByNameQuery(username string) func() (sq.Table, []sq.Predica
 // UserDevice
 //
 
-func createUserDeviceInsertMapper(device UserDevice) func() (sq.Table, func(*sq.Column)) {
+func createUserDeviceInsertMapper(device UserDevice, userID string) func() (sq.Table, func(*sq.Column)) {
 	return func() (sq.Table, func(*sq.Column)) {
 		d := sq.New[db.USER_DEVICE]("")
 		return d, func(col *sq.Column) {
@@ -67,6 +65,7 @@ func createUserDeviceInsertMapper(device UserDevice) func() (sq.Table, func(*sq.
 			col.SetString(d.PUBLIC_KEY, device.PublicKey)
 			col.SetString(d.NETWORK, device.Network)
 			col.SetString(d.NAME, device.Name)
+			col.SetString(d.USER_ID, userID)
 		}
 	}
 }

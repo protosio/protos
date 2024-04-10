@@ -35,16 +35,8 @@ const (
 	releasesURL     = "https://releases.protos.io/releases.json"
 	localDNSPort    = 10053
 	localDNSAddress = "127.0.0.1"
+	dbName          = "protos"
 )
-
-type publisher struct {
-	pubchan chan interface{}
-}
-
-// GetWSPublishChannel returns the channel that can be used to publish messages to the available websockets
-func (pub *publisher) GetWSPublishChannel() chan interface{} {
-	return pub.pubchan
-}
 
 type ProtosClient struct {
 	stoppers          map[string]func() error
@@ -55,7 +47,7 @@ type ProtosClient struct {
 	capabilityManager *capability.Manager
 	localKey          *pcrypto.Key
 
-	UserManager    *auth.UserManager
+	AuthManager    *auth.AuthManager
 	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
 	NetworkManager *network.Manager
@@ -101,8 +93,7 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	protosClient.localKey = lkey
 
 	// open db
-	protosDB := "protos.db"
-	protosClient.db, err = db.Open(dataPath, protosDB, lkey)
+	protosClient.db, err = db.Open(dataPath, dbName, lkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db during configuration: %w", err)
 	}
@@ -111,9 +102,9 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	keyManager := pcrypto.CreateManager(protosClient.db)
 	metaClient := meta.Setup(protosClient.db, keyManager, version)
 	capabilityManager := capability.CreateManager()
-	userManager := auth.CreateUserManager(protosClient.db, keyManager, capabilityManager, protosClient)
+	AuthManager := auth.CreateAuthManager(protosClient.db, keyManager, capabilityManager, protosClient)
 
-	protosClient.UserManager = userManager
+	protosClient.AuthManager = AuthManager
 	protosClient.KeyManager = keyManager
 	protosClient.capabilityManager = capabilityManager
 	protosClient.Meta = metaClient
@@ -121,18 +112,13 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	return protosClient, nil
 }
 
-func networkUp(userManager *auth.UserManager, internalDomain string) (*network.Manager, error) {
-	usr, err := userManager.GetAdmin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get admin while setting up network: %w", err)
-	}
-
-	dev, err := usr.GetCurrentDevice()
+func networkUp(authMgr *auth.AuthManager, internalDomain string) (*network.Manager, error) {
+	currentDevice, err := authMgr.GetCurrentDevice()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current device while setting up network: %w", err)
 	}
 
-	ip, netp, err := net.ParseCIDR(dev.Network)
+	ip, netp, err := net.ParseCIDR(currentDevice.Network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CIDR while setting up network: %w", err)
 	}
@@ -140,7 +126,7 @@ func networkUp(userManager *auth.UserManager, internalDomain string) (*network.M
 	internalIP := netp.IP.Mask(netp.Mask)
 	internalIP[3]++
 
-	key, err := usr.GetKeyCurrentDevice()
+	key, err := pcrypto.GetLocalKey(config.Get().WorkDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device key while setting up network: %w", err)
 	}
@@ -170,17 +156,22 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 		return fmt.Errorf("failed to init. Could not retrieve hostname: %w", err)
 	}
 
+	err = pc.db.Init()
+	if err != nil {
+		return fmt.Errorf("failed to init. Error while initializing db: %w", err)
+	}
+
+	adminUser, err := pc.AuthManager.CreateUser(username, name, true)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
 	machineID, err := machineid.ProtectedID("protos")
 	if err != nil {
 		return fmt.Errorf("failed to add user. Error while generating machine id: %w", err)
 	}
 
-	adminUser, err := pc.UserManager.CreateUser(username, name, true)
-	if err != nil {
-		return err
-	}
-
-	err = adminUser.AddDevice(machineID, host, pc.localKey.PublicString(), "10.100.0.1/24")
+	err = pc.AuthManager.AddDevice(adminUser.Username, machineID, host, pc.localKey.PublicString(), "10.100.0.1/24")
 	if err != nil {
 		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
 	}
@@ -193,7 +184,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 
 func (pc *ProtosClient) FinishInit() error {
 
-	networkManager, err := networkUp(pc.UserManager, pc.cfg.InternalDomain)
+	networkManager, err := networkUp(pc.AuthManager, pc.cfg.InternalDomain)
 	if err != nil {
 		log.Fatalf("Failed to create network manager: %s", err.Error())
 	}
@@ -213,17 +204,12 @@ func (pc *ProtosClient) FinishInit() error {
 	}
 	pc.stoppers["p2p"] = p2pStopper
 
-	admin, err := pc.UserManager.GetAdmin()
-	if err != nil {
-		log.Fatalf("Failed to retrieve admin user: %s", err.Error())
-	}
-
-	currentDevice, err := admin.GetCurrentDevice()
+	currentDevice, err := pc.AuthManager.GetCurrentDevice()
 	if err != nil {
 		log.Fatalf("Failed to get current device: %s", err.Error())
 	}
 
-	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, pc, currentDevice.Name)
+	cloudManager, err := cloud.CreateManager(pc.db, pc.AuthManager, pc.KeyManager, p2pManager, pc, currentDevice.Name)
 	if err != nil {
 		log.Fatalf("Failed to create cloud manager: %s", err.Error())
 	}
@@ -242,7 +228,7 @@ func (pc *ProtosClient) FinishInit() error {
 
 func (pc *ProtosClient) Refresh() error {
 
-	if pc.CloudManager == nil || pc.UserManager == nil || pc.P2PManager == nil {
+	if pc.CloudManager == nil || pc.AuthManager == nil || pc.P2PManager == nil {
 		log.Debug("Protos client not ready yet. Skipping refresh")
 		return nil
 	}
@@ -257,7 +243,7 @@ func (pc *ProtosClient) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	admin, err := pc.UserManager.GetAdmin()
+	admin, err := pc.AuthManager.GetAdmin()
 	if err == nil {
 		userDevices := admin.GetDevices()
 		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
@@ -283,7 +269,7 @@ func (pc *ProtosClient) Refresh() error {
 }
 
 func (pc *ProtosClient) IsInitialized() bool {
-	_, err := pc.UserManager.GetAdmin()
+	_, err := pc.AuthManager.GetAdmin()
 	if err != nil {
 		pc.wg.Add(1)
 		return false

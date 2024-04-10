@@ -31,7 +31,7 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 
 func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesRequest) (*pbApic.GetUserDevicesResponse, error) {
 	log.Debugf("Retrieving user devices")
-	adminUser, err := b.protosClient.UserManager.GetAdmin()
+	adminUser, err := b.protosClient.AuthManager.GetAdmin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
 	}
@@ -62,7 +62,7 @@ func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesR
 
 func (b *Backend) GetUserInfo(ctx context.Context, in *pbApic.GetUserInfoRequest) (*pbApic.GetUserInfoResponse, error) {
 	log.Debugf("Retrieving user info")
-	adminUser, err := b.protosClient.UserManager.GetAdmin()
+	adminUser, err := b.protosClient.AuthManager.GetAdmin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
 	}

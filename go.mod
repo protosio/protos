@@ -1,9 +1,11 @@
 module github.com/protosio/protos
 
-go 1.21
+go 1.22
+
+toolchain go1.22.0
 
 replace (
-	github.com/attic-labs/noms => github.com/nustiueudinastea/noms v0.0.0-20210816111259-270d721a0c2b
+	github.com/bokwoon95/sqddl => /Users/al3x/code/protos/code/sqddl
 	github.com/dolthub/dolt/go => /Users/al3x/code/protos/code/dolt/go
 	github.com/dolthub/driver => /Users/al3x/code/protos/code/doltsqldriver
 	github.com/nustiueudinastea/doltswarm => /Users/al3x/code/protos/code/doltswarm
@@ -16,6 +18,7 @@ require (
 	github.com/attic-labs/noms v0.0.0-20200410174738-39057233bfdd
 	github.com/birros/go-libp2p-grpc v0.0.0-20230821125933-c6820d0675b4
 	github.com/bokwoon95/sq v0.4.4
+	github.com/bokwoon95/sqddl v0.4.12
 	github.com/bramvdbogaerde/go-scp v1.3.0
 	github.com/cheggaaa/pb/v3 v3.1.5
 	github.com/containerd/containerd v1.7.13
@@ -96,11 +99,11 @@ require (
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/fslock v0.0.3 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20230524105445-af7e7991c97e // indirect
-	github.com/dolthub/go-mysql-server v0.18.1-0.20240229000135-9b7e161e5e39 // indirect
+	github.com/dolthub/go-mysql-server v0.18.1-0.20240402212936-10d3bfe2a2d5 // indirect
 	github.com/dolthub/jsonpath v0.0.2-0.20240227200619-19675ab05c71 // indirect
 	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/dolthub/swiss v0.2.1 // indirect
-	github.com/dolthub/vitess v0.0.0-20240228234620-13c0f62e6b4a // indirect
+	github.com/dolthub/vitess v0.0.0-20240329223145-3e53a7bee1da // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/fatih/color v1.16.0 // indirect
@@ -125,7 +128,6 @@ require (
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
-	github.com/gocraft/dbr/v2 v2.7.6 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -262,6 +264,7 @@ require (
 	google.golang.org/genproto v0.0.0-20240228224816-df926f6c8641 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240213162025-012b6fc9bca9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240228224816-df926f6c8641 // indirect
+	gopkg.in/errgo.v2 v2.1.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

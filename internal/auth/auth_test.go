@@ -20,7 +20,7 @@ package auth
 // 	cmMock := mock.NewMockCapabilityManager(ctrl)
 // 	smMock := mock.NewMockSSHManager(ctrl)
 // 	adminCapMock := mock.NewMockCapability(ctrl)
-// 	um := CreateUserManager(dbMock, smMock, cmMock)
+// 	um := CreateAuthManager(dbMock, smMock, cmMock)
 
 // 	user := &User{
 // 		Username:     "testuser",
@@ -104,7 +104,7 @@ package auth
 
 // }
 
-// func TestUserManager(t *testing.T) {
+// func TestAuthManager(t *testing.T) {
 
 // 	ctrl := gomock.NewController(t)
 // 	defer ctrl.Finish()
@@ -118,13 +118,13 @@ package auth
 // 		defer func() {
 // 			r := recover()
 // 			if r == nil {
-// 				t.Errorf("A nil input in the CreateUserManager call should lead to a panic")
+// 				t.Errorf("A nil input in the CreateAuthManager call should lead to a panic")
 // 			}
 // 		}()
-// 		CreateUserManager(dbMock, nil, nil)
+// 		CreateAuthManager(dbMock, nil, nil)
 // 	}()
 
-// 	um := CreateUserManager(dbMock, smMock, cmMock)
+// 	um := CreateAuthManager(dbMock, smMock, cmMock)
 
 // 	//
 // 	// CreateUser

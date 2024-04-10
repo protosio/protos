@@ -37,8 +37,6 @@ type UserDevice struct {
 
 // User represents a Protos user
 type User struct {
-	parent *UserManager
-
 	// Public members
 	Username   string       `json:"username"`
 	Name       string       `json:"name"`
@@ -81,16 +79,6 @@ func (user *User) GetUsername() string {
 	return user.Username
 }
 
-// Save saves the User struct to the database. The username is used as an unique key
-func (user *User) Save() error {
-	err := db.Insert(user.parent.db, createUserInsertMapper(*user))
-	if err != nil {
-		return errors.Wrapf(err, "Could not insert user '%s'", user.Username)
-	}
-
-	return nil
-}
-
 // IsAdmin checks if a user is an admin or not
 func (user *User) IsAdmin() bool {
 	return true
@@ -105,108 +93,64 @@ func (user *User) GetInfo() UserInfo {
 	}
 }
 
-// AddDevice adds a device to the user
-func (user *User) AddDevice(id string, name string, publicKey string, network string) error {
-	device := UserDevice{
-		MachineID: id,
-		Name:      name,
-		PublicKey: publicKey,
-		Network:   network,
-	}
-	user.Devices = append(user.Devices, device)
-	return user.Save()
-}
-
 // GetDevices returns the devices that belong to a user
 func (user *User) GetDevices() []UserDevice {
 	return user.Devices
-}
-
-// GetCurrentDevice returns the device that Protos is running on currently
-func (user *User) GetCurrentDevice() (UserDevice, error) {
-	id, err := machineid.ProtectedID("protos")
-	if err != nil {
-		return UserDevice{}, fmt.Errorf("failed to generate machine id: %w", err)
-	}
-
-	for _, dev := range user.Devices {
-		if dev.MachineID == id {
-			return dev, nil
-		}
-	}
-	return UserDevice{}, fmt.Errorf("failed to find machine with id '%s'", id)
-}
-
-// GetKeyCurrentDevice returns the private key for the current device
-func (user *User) GetKeyCurrentDevice() (pcrypto.Key, error) {
-	device, err := user.GetCurrentDevice()
-	if err != nil {
-		return pcrypto.Key{}, err
-	}
-
-	key, err := user.parent.sm.GetKeyByPub(device.PublicKey)
-	if err != nil {
-		return pcrypto.Key{}, err
-	}
-	return key, nil
-}
-
-// SetName enables the changing of the name of the user
-func (user *User) SetName(name string) error {
-	user.Name = name
-	return user.Save()
 }
 
 //
 // Public package methods
 //
 
-// UserManager implements the core.UserManager interface, which manages users
-type UserManager struct {
+// AuthManager implements the core.AuthManager interface, which manages users
+type AuthManager struct {
 	db *db.DB
 	cm *capability.Manager
 	sm *pcrypto.Manager
 }
 
-// CreateUserManager return a UserManager instance, which implements the core.UserManager interface
-func CreateUserManager(db *db.DB, sm *pcrypto.Manager, cm *capability.Manager, configurator PeerConfigurator) *UserManager {
+// CreateAuthManager return a AuthManager instance, which implements the core.AuthManager interface
+func CreateAuthManager(db *db.DB, sm *pcrypto.Manager, cm *capability.Manager, configurator PeerConfigurator) *AuthManager {
 	if db == nil || sm == nil || cm == nil || configurator == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 	gob.Register(&User{})
 
-	return &UserManager{db: db, sm: sm, cm: cm}
+	return &AuthManager{db: db, sm: sm, cm: cm}
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, name string, isadmin bool) (*User, error) {
+func (um *AuthManager) CreateUser(username string, name string, isadmin bool) (User, error) {
 
 	user := User{
-		parent:     um,
 		Username:   username,
 		Name:       name,
 		IsDisabled: false,
 		Devices:    []UserDevice{},
 	}
 
-	return &user, user.Save()
+	err := db.Insert(um.db, createUserInsertMapper(user))
+	if err != nil {
+		return user, errors.Wrapf(err, "Could not insert user '%s'", user.Username)
+	}
+
+	return user, nil
 }
 
 // GetUser returns a user based on the username
-func (um *UserManager) GetUser(username string) (*User, error) {
+func (um *AuthManager) GetUser(username string) (*User, error) {
 	errInvalid := errors.New("Invalid username")
 	user, err := getUser(username, um.db)
 	if err != nil {
 		log.Debugf("Can't find user '%s' (%s)", username, err)
 		return nil, errInvalid
 	}
-	user.parent = um
 	return &user, nil
 }
 
 // GetAdmin returns the admin username. Only one admin is allowed at the moment
-func (um *UserManager) GetAdmin() (User, error) {
-	users, err := db.SelectMultiple(um.db, createUserQueryMapper(sq.New[db.USER](""), nil))
+func (um *AuthManager) GetAdmin() (User, error) {
+	users, err := db.SelectMultiple(um.db, createUserQueryMapper(sq.New[db.USER](""), []sq.Predicate{}))
 	if err != nil {
 		return User{}, fmt.Errorf("could not retrieve users: %w", err)
 	}
@@ -217,8 +161,35 @@ func (um *UserManager) GetAdmin() (User, error) {
 	return users[0], nil
 }
 
-// SetParent returns sets the parent (user manager) for a given user
-func (um *UserManager) SetParent(user *User) (*User, error) {
-	user.parent = um
-	return user, nil
+// AddDevice adds a device to the user
+func (um *AuthManager) AddDevice(userID string, id string, name string, publicKey string, network string) error {
+	ud := UserDevice{
+		Name:      name,
+		PublicKey: publicKey,
+		Network:   network,
+		MachineID: id,
+	}
+
+	err := db.Insert(um.db, createUserDeviceInsertMapper(ud, userID))
+	if err != nil {
+		return errors.Wrapf(err, "Could not insert user device '%s'", name)
+	}
+
+	return nil
+}
+
+// GetCurrentDevice returns the device that Protos is running on currently
+func (um *AuthManager) GetCurrentDevice() (UserDevice, error) {
+	id, err := machineid.ProtectedID("protos")
+	if err != nil {
+		return UserDevice{}, fmt.Errorf("failed to generate machine id: %w", err)
+	}
+
+	udModel := sq.New[db.USER_DEVICE]("")
+	ud, err := db.SelectOne(um.db, createUserDeviceQueryMapper(udModel, []sq.Predicate{udModel.ID.EqString(id)}))
+	if err != nil {
+		return UserDevice{}, fmt.Errorf("failed to retrieve device: %w", err)
+	}
+
+	return ud, nil
 }
