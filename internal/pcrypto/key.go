@@ -23,6 +23,7 @@ import (
 
 const (
 	privateKeyFileName = "protos.key"
+	publicKeyFileName  = "protos.pub"
 )
 
 func createKeyQueryMapper(s db.SSH_KEY, predicates []sq.Predicate) func() (sq.Table, func(row *sq.Row) Key, []sq.Predicate) {
@@ -184,12 +185,12 @@ func (k Key) GetID() string {
 
 func GetLocalKey(workdir string) (*Key, error) {
 	key := &Key{}
-	keyFilePath := workdir + "/" + privateKeyFileName
+	privateKeyFilePath := workdir + "/" + privateKeyFileName
 
 	// Check if the key file exists
-	if _, err := os.Stat(keyFilePath); err == nil {
+	if _, err := os.Stat(privateKeyFilePath); err == nil {
 		// Key file exists, read the file
-		keyData, err := os.ReadFile(keyFilePath)
+		keyData, err := os.ReadFile(privateKeyFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -213,14 +214,30 @@ func GetLocalKey(workdir string) (*Key, error) {
 		key.Pub = publicKey
 
 		// Convert privateKey to PEM block
-		block := &pem.Block{
+		privateBlock := &pem.Block{
 			Type:  "PRIVATE KEY",
 			Bytes: privateKey,
 		}
-		pemData := pem.EncodeToMemory(block)
+		privatePemData := pem.EncodeToMemory(privateBlock)
+		// Write the private PEM block to file
+		err = os.WriteFile(privateKeyFilePath, privatePemData, 0600)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-		// Write the PEM block to file
-		err = os.WriteFile(keyFilePath, pemData, 0600)
+	// write the public key to a file if it does not exist
+	publicKeyFilePath := workdir + "/" + publicKeyFileName
+	if _, err := os.Stat(publicKeyFilePath); err != nil {
+		fmt.Println("test")
+		// Convert privateKey to PEM block
+		publicBlock := &pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: key.Pub,
+		}
+		publicPemData := pem.EncodeToMemory(publicBlock)
+		// Write the public PEM block to file
+		err = os.WriteFile(publicKeyFilePath, publicPemData, 0600)
 		if err != nil {
 			return nil, err
 		}

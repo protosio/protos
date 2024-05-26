@@ -76,6 +76,20 @@ func (b *Backend) GetUserInfo(ctx context.Context, in *pbApic.GetUserInfoRequest
 	return &resp, nil
 }
 
+func (b *Backend) GetLocalSSHKey(ctx context.Context, in *pbApic.GetLocalSSHKeyRequest) (*pbApic.GetLocalSSHKeyResponse, error) {
+	log.Debugf("Retrieving user info")
+	key, err := b.protosClient.KeyManager.GetLocalKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve local key: %w", err)
+	}
+
+	resp := pbApic.GetLocalSSHKeyResponse{
+		Key: key.AuthorizedKey(),
+	}
+
+	return &resp, nil
+}
+
 //
 // App methods
 //

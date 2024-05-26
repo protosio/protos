@@ -22,6 +22,7 @@ const (
 	ProtosClientApi_Init_FullMethodName                       = "/apic.ProtosClientApi/Init"
 	ProtosClientApi_GetUserDevices_FullMethodName             = "/apic.ProtosClientApi/GetUserDevices"
 	ProtosClientApi_GetUserInfo_FullMethodName                = "/apic.ProtosClientApi/GetUserInfo"
+	ProtosClientApi_GetLocalSSHKey_FullMethodName             = "/apic.ProtosClientApi/GetLocalSSHKey"
 	ProtosClientApi_GetApps_FullMethodName                    = "/apic.ProtosClientApi/GetApps"
 	ProtosClientApi_CreateApp_FullMethodName                  = "/apic.ProtosClientApi/CreateApp"
 	ProtosClientApi_StartApp_FullMethodName                   = "/apic.ProtosClientApi/StartApp"
@@ -63,6 +64,7 @@ type ProtosClientApiClient interface {
 	// User
 	GetUserDevices(ctx context.Context, in *GetUserDevicesRequest, opts ...grpc.CallOption) (*GetUserDevicesResponse, error)
 	GetUserInfo(ctx context.Context, in *GetUserInfoRequest, opts ...grpc.CallOption) (*GetUserInfoResponse, error)
+	GetLocalSSHKey(ctx context.Context, in *GetLocalSSHKeyRequest, opts ...grpc.CallOption) (*GetLocalSSHKeyResponse, error)
 	// App methods
 	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
 	CreateApp(ctx context.Context, in *CreateAppRequest, opts ...grpc.CallOption) (*CreateAppResponse, error)
@@ -129,6 +131,15 @@ func (c *protosClientApiClient) GetUserDevices(ctx context.Context, in *GetUserD
 func (c *protosClientApiClient) GetUserInfo(ctx context.Context, in *GetUserInfoRequest, opts ...grpc.CallOption) (*GetUserInfoResponse, error) {
 	out := new(GetUserInfoResponse)
 	err := c.cc.Invoke(ctx, ProtosClientApi_GetUserInfo_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetLocalSSHKey(ctx context.Context, in *GetLocalSSHKeyRequest, opts ...grpc.CallOption) (*GetLocalSSHKeyResponse, error) {
+	out := new(GetLocalSSHKeyResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetLocalSSHKey_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -414,6 +425,7 @@ type ProtosClientApiServer interface {
 	// User
 	GetUserDevices(context.Context, *GetUserDevicesRequest) (*GetUserDevicesResponse, error)
 	GetUserInfo(context.Context, *GetUserInfoRequest) (*GetUserInfoResponse, error)
+	GetLocalSSHKey(context.Context, *GetLocalSSHKeyRequest) (*GetLocalSSHKeyResponse, error)
 	// App methods
 	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
 	CreateApp(context.Context, *CreateAppRequest) (*CreateAppResponse, error)
@@ -463,6 +475,9 @@ func (UnimplementedProtosClientApiServer) GetUserDevices(context.Context, *GetUs
 }
 func (UnimplementedProtosClientApiServer) GetUserInfo(context.Context, *GetUserInfoRequest) (*GetUserInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserInfo not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetLocalSSHKey(context.Context, *GetLocalSSHKeyRequest) (*GetLocalSSHKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLocalSSHKey not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
@@ -616,6 +631,24 @@ func _ProtosClientApi_GetUserInfo_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProtosClientApiServer).GetUserInfo(ctx, req.(*GetUserInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetLocalSSHKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLocalSSHKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetLocalSSHKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetLocalSSHKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetLocalSSHKey(ctx, req.(*GetLocalSSHKeyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1178,6 +1211,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserInfo",
 			Handler:    _ProtosClientApi_GetUserInfo_Handler,
+		},
+		{
+			MethodName: "GetLocalSSHKey",
+			Handler:    _ProtosClientApi_GetLocalSSHKey_Handler,
 		},
 		{
 			MethodName: "GetApps",

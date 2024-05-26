@@ -17,17 +17,13 @@ import (
 type Config struct {
 	WorkDir         string
 	AppsPath        string
-	HTTPport        int
-	HTTPSport       int
+	P2PPort         int
 	Runtime         string
 	RuntimeEndpoint string
 	StaticAssets    string
 	InitMode        bool
 	InternalDomain  string
 	DevMode         bool
-	AppStoreURL     string
-	AppStoreName    string
-	AppStoreHost    string
 	ProcsQuit       sync.Map
 	ExternalDNS     string // format: <ip>:<port>
 	Version         *semver.Version
@@ -35,16 +31,12 @@ type Config struct {
 
 var config = Config{
 	WorkDir:         "/var/lib/protos",
-	HTTPport:        8080,
-	HTTPSport:       8443,
+	P2PPort:         10500,
 	Runtime:         "containerd",
 	RuntimeEndpoint: "/run/containerd/containerd.sock",
 	InitMode:        false,
 	DevMode:         false,
 	InternalDomain:  "protos.internal",
-	AppStoreURL:     "https://apps.protos.io",
-	AppStoreName:    "protos.io",
-	AppStoreHost:    "apps.protos.io",
 	ExternalDNS:     "8.8.8.8:53",
 	ProcsQuit:       sync.Map{},
 }

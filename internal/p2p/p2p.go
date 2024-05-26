@@ -27,11 +27,10 @@ import (
 var log = util.GetLogger("p2p")
 
 const (
-	protosRPCProtocol              = "/protos/rpc/0.0.1"
-	protosUpdatesTopic             = "/protos/updates/0.0.1"
-	destinationStringTemplate      = "/ip4/%s/udp/%d/quic-v1/%s"
-	p2pPort                   uint = 10500
-	initMachineName                = "initMachine"
+	protosRPCProtocol         = "/protos/rpc/0.0.1"
+	protosUpdatesTopic        = "/protos/updates/0.0.1"
+	destinationStringTemplate = "/ip4/%s/udp/%d/quic-v1/%s"
+	initMachineName           = "initMachine"
 )
 
 type AppManager interface {
@@ -241,7 +240,7 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 	if !found {
 		destinationString := ""
 		if machine.GetPublicIP() != "" {
-			destinationString = fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), p2pPort, peerID.String())
+			destinationString = fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), 10500, peerID.String())
 		} else {
 			destinationString = fmt.Sprintf("/p2p/%s", peerID.String())
 		}
@@ -377,7 +376,7 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator) (func() error, er
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(key *pcrypto.Key, appManager AppManager, initMode bool, externalDB ExternalDB) (*P2P, error) {
+func NewManager(key *pcrypto.Key, appManager AppManager, initMode bool, externalDB ExternalDB, p2pPort int) (*P2P, error) {
 	p2p := &P2P{
 		peers:       util.NewMap[string, *rpcPeer](),
 		appManager:  appManager,

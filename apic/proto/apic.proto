@@ -12,6 +12,7 @@ service ProtosClientApi {
   // User
   rpc GetUserDevices(GetUserDevicesRequest) returns (GetUserDevicesResponse);
   rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse);
+  rpc GetLocalSSHKey(GetLocalSSHKeyRequest) returns (GetLocalSSHKeyResponse);
 
   // App methods
   rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
@@ -92,6 +93,9 @@ message GetUserInfoResponse {
 	string name = 2;
 	bool is_admin = 3;
 }
+
+message GetLocalSSHKeyRequest {}
+message GetLocalSSHKeyResponse { string key = 1; }
 
 //
 // App

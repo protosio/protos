@@ -5,10 +5,10 @@ go 1.22
 toolchain go1.22.0
 
 replace (
-	github.com/bokwoon95/sqddl => /Users/al3x/code/protos/code/sqddl
-	github.com/dolthub/dolt/go => /Users/al3x/code/protos/code/dolt/go
-	github.com/dolthub/driver => /Users/al3x/code/protos/code/doltsqldriver
-	github.com/nustiueudinastea/doltswarm => /Users/al3x/code/protos/code/doltswarm
+	github.com/bokwoon95/sqddl => ../sqddl
+	github.com/dolthub/dolt/go => ../dolt/go
+	github.com/dolthub/driver => ../doltsqldriver
+	github.com/nustiueudinastea/doltswarm => ../doltswarm
 )
 
 require (
@@ -35,7 +35,7 @@ require (
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 	github.com/multiformats/go-multiaddr v0.12.2
 	github.com/nustiueudinastea/doltswarm v0.0.0-20240301154013-4cdab47f27e1
-	github.com/nustiueudinastea/wirebox v0.0.0-20240304124714-2578386a6068
+	github.com/nustiueudinastea/wirebox v0.0.0-20240524130926-46ea410b49cf
 	github.com/opencontainers/runtime-spec v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/rakyll/statik v0.1.7
@@ -46,8 +46,8 @@ require (
 	github.com/urfave/cli/v2 v2.27.1
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/vjeantet/jodaTime v1.0.0
-	golang.org/x/crypto v0.21.0
-	golang.org/x/net v0.22.0
+	golang.org/x/crypto v0.23.0
+	golang.org/x/net v0.25.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
 	google.golang.org/grpc v1.62.0
 	google.golang.org/protobuf v1.33.0
@@ -153,7 +153,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
-	github.com/jsimonetti/rtnetlink v1.4.1 // indirect
+	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/juju/gnuflag v1.0.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kch42/buzhash v0.0.0-20160816060738-9bdec3dec7c6 // indirect
@@ -177,7 +177,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mdlayher/genetlink v1.3.2 // indirect
 	github.com/mdlayher/netlink v1.7.2 // indirect
-	github.com/mdlayher/socket v0.5.0 // indirect
+	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
@@ -251,10 +251,10 @@ require (
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
-	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/term v0.20.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect

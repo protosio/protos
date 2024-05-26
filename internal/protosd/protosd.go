@@ -94,7 +94,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	peerConfigurator.AuthManager = um
 	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli, m, cm)
 
-	p2pManager, err := p2p.NewManager(lkey, appManager, m.InitMode(), dbcli)
+	p2pManager, err := p2p.NewManager(lkey, appManager, m.InitMode(), dbcli, cfg.P2PPort)
 	if err != nil {
 		log.Fatal(err)
 	}

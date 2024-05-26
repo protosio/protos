@@ -29,6 +29,13 @@ var cmdInfo *cli.Command = &cli.Command{
 				return userInfo()
 			},
 		},
+		{
+			Name:  "sshkey",
+			Usage: "Display local SSH key",
+			Action: func(c *cli.Context) error {
+				return sshKeyInfo()
+			},
+		},
 	},
 }
 
@@ -66,6 +73,19 @@ func userInfo() error {
 	fmt.Printf("Name: %s\n", resp.Name)
 	fmt.Printf("Username: %s\n", resp.Username)
 	fmt.Printf("Is admin: %t\n", resp.IsAdmin)
+
+	return nil
+}
+
+func sshKeyInfo() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resp, err := client.GetLocalSSHKey(ctx, &pbApic.GetLocalSSHKeyRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to list user devices: %w", err)
+	}
+
+	fmt.Printf("Public SSH key: %s\n", resp.Key)
 
 	return nil
 }

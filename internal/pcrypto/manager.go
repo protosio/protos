@@ -9,6 +9,7 @@ import (
 
 	"github.com/bokwoon95/sq"
 	"github.com/pkg/errors"
+	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"golang.org/x/crypto/ssh"
 )
@@ -75,6 +76,11 @@ func (sm *Manager) NewKeyFromSeed(seedStr string) (*Key, error) {
 	copy(publicKey, key.Priv[32:])
 	key.Pub = publicKey
 	return key, nil
+}
+
+// GetLocalKey returns the local key
+func (sm *Manager) GetLocalKey() (*Key, error) {
+	return GetLocalKey(config.Get().WorkDir)
 }
 
 // CreateManager returns a Manager, which implements the core.ProviderManager interface

@@ -192,7 +192,7 @@ func (pc *ProtosClient) FinishInit() error {
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint)
 	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.db, pc.Meta, pc.capabilityManager)
 
-	p2pManager, err := p2p.NewManager(pc.localKey, appManager, false, pc.db)
+	p2pManager, err := p2p.NewManager(pc.localKey, appManager, false, pc.db, pc.cfg.P2PPort)
 	if err != nil {
 		log.Fatalf("Failed to create p2p manager: %s", err.Error())
 	}
