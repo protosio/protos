@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	metaDS      = "meta"
-	metaKeyFile = "protos_key.pub"
+	metaDS = "meta"
 )
 
 var log = util.GetLogger("meta")
