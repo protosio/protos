@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"sync"
 	"syscall"
@@ -281,7 +282,12 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// close SSH connection
 	sshCon.Close()
 
-	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
+	pubKey, err := pcrypto.CreatePublicKeyFromBase64(instanceInfo.PublicKey)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
+	}
+
+	p2pClient, err := cm.p2p.AddPeer(pubKey.PeerID(), instanceInfo)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -314,7 +320,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 }
 
 // InitDevInstance initializes an existing instance, without deploying one. Used for development purposes
-func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locationName string, keyFile string, ipString string) error {
+func (cm *Manager) InitInstance(instanceName string, cloudName string, locationName string, ipString string) error {
 	instanceInfo := InstanceInfo{
 		VMID:          instanceName,
 		PublicIP:      ipString,
@@ -331,7 +337,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 
 	// we use a local key because we don't have a dedicated SSH key for the dev instance
-	sshAuth, err := cm.sm.NewAuthFromKeyFile(keyFile)
+	localKey, err := cm.sm.GetLocalKey()
 	if err != nil {
 		return err
 	}
@@ -363,21 +369,26 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	}
 
 	// connect via SSH
-	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", sshAuth, 10)
+	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", localKey.SSHAuth(), 10)
 	if err != nil {
 		return fmt.Errorf("failed to connect to dev instance over SSH: %w", err)
 	}
 
 	// retrieve instance public key via SSH
-	instanceInfo.PublicKey, err = pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", protosPublicKey), sshCon)
+	publicKeyPEM, err := pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", path.Join("/var/lib/protos/", pcrypto.PublicKeyFileName)), sshCon)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve public key from dev instance: %w", err)
+		return fmt.Errorf("failed to retrieve public key from instance: %w", err)
 	}
+	publicKey, err := pcrypto.CreatePublicKeyFromPEM(publicKeyPEM)
+	if err != nil {
+		return fmt.Errorf("failed to decode public key from instance: %w", err)
+	}
+	instanceInfo.PublicKey = publicKey.PublicKey()
 
 	// close SSH connection
 	sshCon.Close()
 
-	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
+	p2pClient, err := cm.p2p.AddPeer(publicKey.PeerID(), instanceInfo)
 	if err != nil {
 		return fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -386,7 +397,7 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 	log.Infof("Initializing instance '%s'", instanceName)
 	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), Network: developmentNetwork.String(), InstanceName: instanceName})
 	if err != nil {
-		return fmt.Errorf("failed to init dev instance: %w", err)
+		return fmt.Errorf("failed to init instance: %w", err)
 	}
 
 	instanceInfo.InternalIP = ip.String()
@@ -395,10 +406,10 @@ func (cm *Manager) InitDevInstance(instanceName string, cloudName string, locati
 
 	err = db.Insert(cm.db, createInstanceInsertMapper(instanceInfo))
 	if err != nil {
-		return fmt.Errorf("failed to save dev instance '%s': %w", instanceName, err)
+		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
 
-	log.Infof("Dev instance '%s' at '%s' is ready", instanceName, ipString)
+	log.Infof("Instance '%s'(%s) initialized", instanceName, ipString)
 
 	return nil
 }

@@ -99,7 +99,7 @@ func onReady() {
 
 	protosClient, err := protosc.New(dataPath, version.String())
 	if err != nil {
-		log.Fatalf("Failed to create Protos client: %w", err)
+		log.Fatalf("Failed to create Protos client: %s", err.Error())
 	}
 	stoppers["protosClient"] = protosClient.Stop
 

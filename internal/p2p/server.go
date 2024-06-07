@@ -13,6 +13,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/nustiueudinastea/doltswarm"
 	"github.com/protosio/protos/internal/p2p/proto"
+	"github.com/protosio/protos/internal/pcrypto"
 	"google.golang.org/grpc"
 )
 
@@ -114,19 +115,12 @@ func (s *Server) GetLogs(context.Context, *proto.GetLogsRequest) (*proto.GetLogs
 func (s *Server) GetPeers(context.Context, *proto.GetPeersRequest) (*proto.GetPeersResponse, error) {
 
 	peers := map[string]string{}
-
-	for id, rpcpeer := range s.p2p.peers.Snapshot() {
-		client := rpcpeer.GetClient()
-		machine := rpcpeer.GetMachine()
-		peerName := fmt.Sprintf("unknown(%s)", id)
+	for id, client := range s.p2p.clients.Snapshot() {
 		peerStatus := "disconnected"
-		if machine != nil {
-			peerName = fmt.Sprintf("%s(%s)", machine.GetName(), id)
-		}
 		if client != nil {
 			peerStatus = "connected"
 		}
-		peers[peerName] = peerStatus
+		peers[id] = peerStatus
 	}
 
 	return &proto.GetPeersResponse{Peers: peers}, nil
@@ -147,12 +141,17 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 	}
 
 	im := &initMachine{
-		name:      initMachineName,
+		name:      "init",
 		publicKey: req.OriginDevicePublicKey,
 	}
 
+	pubKey, err := pcrypto.CreatePublicKeyFromBase64(req.OriginDevicePublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("cannot perform initialization: %w", err)
+	}
+
 	s.p2p.initMode = false
-	_, err = s.p2p.AddPeer(im)
+	_, err = s.p2p.AddPeer(pubKey.PeerID(), im)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}

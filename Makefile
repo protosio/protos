@@ -1,0 +1,3 @@
+
+generate:
+	buf generate

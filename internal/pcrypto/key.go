@@ -6,8 +6,10 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
+	"path"
 
 	"filippo.io/edwards25519"
 	"github.com/bokwoon95/sq"
@@ -23,7 +25,7 @@ import (
 
 const (
 	privateKeyFileName = "protos.key"
-	publicKeyFileName  = "protos.pub"
+	PublicKeyFileName  = "protos.pub"
 )
 
 func createKeyQueryMapper(s db.SSH_KEY, predicates []sq.Predicate) func() (sq.Table, func(row *sq.Row) Key, []sq.Predicate) {
@@ -48,8 +50,9 @@ func createKeyQueryMapper(s db.SSH_KEY, predicates []sq.Predicate) func() (sq.Ta
 
 // Key is an SSH key
 type Key struct {
-	Priv ed25519.PrivateKey
-	Pub  ed25519.PublicKey
+	Priv   ed25519.PrivateKey
+	Pub    ed25519.PublicKey
+	peerID peer.ID
 }
 
 func (k Key) Public() []byte {
@@ -58,6 +61,10 @@ func (k Key) Public() []byte {
 
 func (k Key) PublicString() string {
 	return base64.StdEncoding.EncodeToString(k.Pub)
+}
+
+func (k Key) PeerID() string {
+	return k.peerID.String()
 }
 
 func (k Key) Private() []byte {
@@ -185,7 +192,7 @@ func (k Key) GetID() string {
 
 func GetLocalKey(workdir string) (*Key, error) {
 	key := &Key{}
-	privateKeyFilePath := workdir + "/" + privateKeyFileName
+	privateKeyFilePath := path.Join(workdir, privateKeyFileName)
 
 	// Check if the key file exists
 	if _, err := os.Stat(privateKeyFilePath); err == nil {
@@ -227,9 +234,8 @@ func GetLocalKey(workdir string) (*Key, error) {
 	}
 
 	// write the public key to a file if it does not exist
-	publicKeyFilePath := workdir + "/" + publicKeyFileName
+	publicKeyFilePath := path.Join(workdir, PublicKeyFileName)
 	if _, err := os.Stat(publicKeyFilePath); err != nil {
-		fmt.Println("test")
 		// Convert privateKey to PEM block
 		publicBlock := &pem.Block{
 			Type:  "PUBLIC KEY",
@@ -243,7 +249,55 @@ func GetLocalKey(workdir string) (*Key, error) {
 		}
 	}
 
+	peerID, err := createPeerIDFromKey(key.Pub)
+	if err != nil {
+		return key, err
+	}
+	key.peerID = peerID
+
 	return key, nil
+}
+
+func createPeerIDFromKey(pubKeyBytes []byte) (peer.ID, error) {
+	pk, err := crypto.UnmarshalEd25519PublicKey(pubKeyBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshall Ed25519 public key: %w", err)
+	}
+
+	peerID, err := peer.IDFromPublicKey(pk)
+	if err != nil {
+		return "", fmt.Errorf("failed to create peer ID from public key: %w", err)
+	}
+
+	return peerID, nil
+}
+
+func CreatePublicKeyFromPEM(pemString string) (Key, error) {
+	block, _ := pem.Decode([]byte(pemString))
+	if block == nil || block.Type != "PUBLIC KEY" {
+		return Key{}, errors.New("failed to decode public key")
+	}
+
+	peerID, err := createPeerIDFromKey(block.Bytes)
+	if err != nil {
+		return Key{}, err
+	}
+
+	return Key{Pub: block.Bytes, peerID: peerID}, nil
+}
+
+func CreatePublicKeyFromBase64(base64String string) (Key, error) {
+	pubKey, err := base64.StdEncoding.DecodeString(base64String)
+	if err != nil {
+		return Key{}, fmt.Errorf("failed to decode base64 public key: %w", err)
+	}
+
+	peerID, err := createPeerIDFromKey(pubKey)
+	if err != nil {
+		return Key{}, err
+	}
+
+	return Key{Pub: pubKey, peerID: peerID}, nil
 }
 
 func ConvertPublicEd25519ToCurve25519(ed25519Key string) (wgtypes.Key, error) {

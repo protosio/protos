@@ -42,7 +42,7 @@ const (
 	ProtosClientApi_StopInstance_FullMethodName               = "/apic.ProtosClientApi/StopInstance"
 	ProtosClientApi_GetInstanceKey_FullMethodName             = "/apic.ProtosClientApi/GetInstanceKey"
 	ProtosClientApi_GetInstanceLogs_FullMethodName            = "/apic.ProtosClientApi/GetInstanceLogs"
-	ProtosClientApi_InitDevInstance_FullMethodName            = "/apic.ProtosClientApi/InitDevInstance"
+	ProtosClientApi_InitInstance_FullMethodName               = "/apic.ProtosClientApi/InitInstance"
 	ProtosClientApi_GetProtosdReleases_FullMethodName         = "/apic.ProtosClientApi/GetProtosdReleases"
 	ProtosClientApi_GetCloudImages_FullMethodName             = "/apic.ProtosClientApi/GetCloudImages"
 	ProtosClientApi_UploadCloudImage_FullMethodName           = "/apic.ProtosClientApi/UploadCloudImage"
@@ -87,7 +87,7 @@ type ProtosClientApiClient interface {
 	StopInstance(ctx context.Context, in *StopInstanceRequest, opts ...grpc.CallOption) (*StopInstanceResponse, error)
 	GetInstanceKey(ctx context.Context, in *GetInstanceKeyRequest, opts ...grpc.CallOption) (*GetInstanceKeyResponse, error)
 	GetInstanceLogs(ctx context.Context, in *GetInstanceLogsRequest, opts ...grpc.CallOption) (*GetInstanceLogsResponse, error)
-	InitDevInstance(ctx context.Context, in *InitDevInstanceRequest, opts ...grpc.CallOption) (*InitDevInstanceResponse, error)
+	InitInstance(ctx context.Context, in *InitInstanceRequest, opts ...grpc.CallOption) (*InitInstanceResponse, error)
 	// Releases methods
 	GetProtosdReleases(ctx context.Context, in *GetProtosdReleasesRequest, opts ...grpc.CallOption) (*GetProtosdReleasesResponse, error)
 	GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error)
@@ -317,9 +317,9 @@ func (c *protosClientApiClient) GetInstanceLogs(ctx context.Context, in *GetInst
 	return out, nil
 }
 
-func (c *protosClientApiClient) InitDevInstance(ctx context.Context, in *InitDevInstanceRequest, opts ...grpc.CallOption) (*InitDevInstanceResponse, error) {
-	out := new(InitDevInstanceResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_InitDevInstance_FullMethodName, in, out, opts...)
+func (c *protosClientApiClient) InitInstance(ctx context.Context, in *InitInstanceRequest, opts ...grpc.CallOption) (*InitInstanceResponse, error) {
+	out := new(InitInstanceResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_InitInstance_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -448,7 +448,7 @@ type ProtosClientApiServer interface {
 	StopInstance(context.Context, *StopInstanceRequest) (*StopInstanceResponse, error)
 	GetInstanceKey(context.Context, *GetInstanceKeyRequest) (*GetInstanceKeyResponse, error)
 	GetInstanceLogs(context.Context, *GetInstanceLogsRequest) (*GetInstanceLogsResponse, error)
-	InitDevInstance(context.Context, *InitDevInstanceRequest) (*InitDevInstanceResponse, error)
+	InitInstance(context.Context, *InitInstanceRequest) (*InitInstanceResponse, error)
 	// Releases methods
 	GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error)
 	GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error)
@@ -536,8 +536,8 @@ func (UnimplementedProtosClientApiServer) GetInstanceKey(context.Context, *GetIn
 func (UnimplementedProtosClientApiServer) GetInstanceLogs(context.Context, *GetInstanceLogsRequest) (*GetInstanceLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstanceLogs not implemented")
 }
-func (UnimplementedProtosClientApiServer) InitDevInstance(context.Context, *InitDevInstanceRequest) (*InitDevInstanceResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method InitDevInstance not implemented")
+func (UnimplementedProtosClientApiServer) InitInstance(context.Context, *InitInstanceRequest) (*InitInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitInstance not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProtosdReleases not implemented")
@@ -995,20 +995,20 @@ func _ProtosClientApi_GetInstanceLogs_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProtosClientApi_InitDevInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(InitDevInstanceRequest)
+func _ProtosClientApi_InitInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitInstanceRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProtosClientApiServer).InitDevInstance(ctx, in)
+		return srv.(ProtosClientApiServer).InitInstance(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ProtosClientApi_InitDevInstance_FullMethodName,
+		FullMethod: ProtosClientApi_InitInstance_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).InitDevInstance(ctx, req.(*InitDevInstanceRequest))
+		return srv.(ProtosClientApiServer).InitInstance(ctx, req.(*InitInstanceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1293,8 +1293,8 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_GetInstanceLogs_Handler,
 		},
 		{
-			MethodName: "InitDevInstance",
-			Handler:    _ProtosClientApi_InitDevInstance_Handler,
+			MethodName: "InitInstance",
+			Handler:    _ProtosClientApi_InitInstance_Handler,
 		},
 		{
 			MethodName: "GetProtosdReleases",

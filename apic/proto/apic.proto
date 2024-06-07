@@ -43,7 +43,7 @@ service ProtosClientApi {
   rpc StopInstance(StopInstanceRequest) returns (StopInstanceResponse);
   rpc GetInstanceKey(GetInstanceKeyRequest) returns (GetInstanceKeyResponse);
   rpc GetInstanceLogs(GetInstanceLogsRequest) returns (GetInstanceLogsResponse);
-  rpc InitDevInstance(InitDevInstanceRequest) returns (InitDevInstanceResponse);
+  rpc InitInstance(InitInstanceRequest) returns (InitInstanceResponse);
 
   // Releases methods
   rpc GetProtosdReleases(GetProtosdReleasesRequest)
@@ -89,13 +89,16 @@ message GetUserDevicesResponse { repeated UserDevice devices = 1; }
 
 message GetUserInfoRequest {}
 message GetUserInfoResponse {
-  string username = 1;
+    string username = 1;
 	string name = 2;
 	bool is_admin = 3;
 }
 
 message GetLocalSSHKeyRequest {}
-message GetLocalSSHKeyResponse { string key = 1; }
+message GetLocalSSHKeyResponse {
+    string public = 1;
+    string private = 2;
+}
 
 //
 // App
@@ -259,12 +262,11 @@ message GetInstanceKeyResponse { string key = 1; }
 message GetInstanceLogsRequest { string name = 1; }
 message GetInstanceLogsResponse { string logs = 1; }
 
-message InitDevInstanceRequest {
+message InitInstanceRequest {
   string name = 1;
-  string key_file = 2;
-  string ip = 3;
+  string ip = 2;
 }
-message InitDevInstanceResponse {}
+message InitInstanceResponse {}
 
 //
 // Releases methods

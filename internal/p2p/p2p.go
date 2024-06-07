@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"sync"
 	"time"
 
 	p2pgrpc "github.com/birros/go-libp2p-grpc"
@@ -17,6 +16,7 @@ import (
 	noise "github.com/libp2p/go-libp2p/p2p/security/noise"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/protosio/protos/internal/config"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
@@ -29,8 +29,7 @@ var log = util.GetLogger("p2p")
 const (
 	protosRPCProtocol         = "/protos/rpc/0.0.1"
 	protosUpdatesTopic        = "/protos/updates/0.0.1"
-	destinationStringTemplate = "/ip4/%s/udp/%d/quic-v1/%s"
-	initMachineName           = "initMachine"
+	destinationStringTemplate = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
 )
 
 type AppManager interface {
@@ -44,49 +43,18 @@ type Machine interface {
 	GetName() string
 }
 
-type rpcPeer struct {
-	mu      sync.Mutex
-	machine Machine
-	client  *Client
-}
-
-func (peer *rpcPeer) GetClient() *Client {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
-	return peer.client
-}
-
-func (peer *rpcPeer) SetClient(client *Client) {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
-	peer.client = client
-}
-
-func (peer *rpcPeer) GetMachine() Machine {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
-	return peer.machine
-}
-
-func (peer *rpcPeer) SetMachine(machine Machine) {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
-	peer.machine = machine
-}
-
 // Client is a remote p2p client
 type Client struct {
 	p2pproto.PingerClient
 	p2pproto.TesterClient
 	p2pproto.AppsClient
 	p2pproto.InstanceClient
-
-	peer peer.ID
 }
 
 type P2P struct {
 	host        host.Host
-	peers       *util.Map[string, *rpcPeer]
+	machines    *util.Map[string, Machine]
+	clients     *util.Map[string, *Client]
 	appManager  AppManager
 	grpcServer  *grpc.Server
 	newPeerChan chan peer.AddrInfo
@@ -113,37 +81,25 @@ func (p2p *P2P) PubKeyToPeerID(pubKey []byte) (string, error) {
 }
 
 func (p2p *P2P) GetClient(name string) (*Client, error) {
-	for _, rpcpeer := range p2p.peers.Snapshot() {
-		client := rpcpeer.GetClient()
-		machine := rpcpeer.GetMachine()
-		if machine != nil && client != nil && machine.GetName() == name {
-			return client, nil
-		}
+	client, found := p2p.clients.Get(name)
+	if !found {
+		return nil, fmt.Errorf("could not find RPC client for instance '%s'", name)
 	}
 
-	return nil, fmt.Errorf("could not find RPC client for instance '%s'", name)
-}
-
-// getRPCPeer returns the rpc client for a peer
-func (p2p *P2P) getRPCPeer(peerID peer.ID) (*rpcPeer, error) {
-	rpcpeer, found := p2p.peers.Get(peerID.String())
-	if found {
-		return rpcpeer, nil
-	}
-	return nil, fmt.Errorf("could not find RPC peer '%s'", peerID.String())
+	return client, nil
 }
 
 // createClientForPeer returns the remote client that can reach all remote handlers
-func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) {
+func (p2p *P2P) createClientForPeer(id string) (client *Client, err error) {
 
 	// grpc conn
 	conn, err := grpc.Dial(
-		peerID.String(),
+		id,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		p2pgrpc.WithP2PDialer(p2p.host, protosRPCProtocol),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to grpc dial peer '%s': %w", peerID.String(), err)
+		return nil, fmt.Errorf("failed to grpc dial peer '%s': %w", id, err)
 	}
 
 	client = &Client{
@@ -151,7 +107,6 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 		TesterClient:   p2pproto.NewTesterClient(conn),
 		AppsClient:     p2pproto.NewAppsClient(conn),
 		InstanceClient: p2pproto.NewInstanceClient(conn),
-		peer:           peerID,
 	}
 
 	tries := 0
@@ -181,39 +136,62 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 
 // ConfigurePeers configures all the peers passed as arguemnt
 func (p2p *P2P) ConfigurePeers(machines []Machine) error {
-	currentPeers := map[string]peer.ID{}
+	currentMachines := map[string]Machine{}
+	currentPeerIDs := map[string]peer.ID{}
 	log.Debugf("Configuring p2p peers")
 
-	// add new peers
+	// create a map of the current machines and their IDs
 	for _, machine := range machines {
-		client, err := p2p.AddPeer(machine)
+		pubKeyBytes, err := base64.StdEncoding.DecodeString(machine.GetPublicKey())
 		if err != nil {
-			log.Errorf("Failed to add peer '%s': %s", machine.GetName(), err.Error())
-			continue
+			return fmt.Errorf("failed to decode public key: %w", err)
 		}
-		currentPeers[client.peer.String()] = client.peer
+
+		pk, err := crypto.UnmarshalEd25519PublicKey(pubKeyBytes)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshall public key: %w", err)
+		}
+		peerID, err := peer.IDFromPublicKey(pk)
+		if err != nil {
+			return fmt.Errorf("failed to create peer ID from public key: %w", err)
+		}
+
+		currentMachines[peerID.String()] = machine
+		currentPeerIDs[peerID.String()] = peerID
 	}
 
-	// delete old peers
-	for id, rpcpeer := range p2p.peers.Snapshot() {
-		if _, found := currentPeers[id]; !found {
-			name := "unknown"
-			machine := rpcpeer.GetMachine()
-			if machine != nil {
-				name = machine.GetName()
+	//
+	// delete all machines that are not in the current list
+	//
+	for id := range p2p.machines.Snapshot() {
+		if _, found := currentMachines[id]; !found {
+			p2p.machines.Delete(id)
+		}
+	}
+	for id, machine := range currentMachines {
+		p2p.machines.Set(id, machine)
+	}
+
+	//
+	// disconnect and delete all clients that are not in the current list
+	//
+	for id := range p2p.clients.Snapshot() {
+		if machine, found := currentMachines[id]; !found {
+			err := p2p.host.Network().ClosePeer(currentPeerIDs[id])
+			if err != nil {
+				log.Debugf("Failed to disconnect from old peer '%s'(%s)", id, machine.GetName())
 			}
-			if name == initMachineName {
-				continue
-			}
-			log.Debugf("Removing old peer '%s'(%s)", name, id)
-			p2p.peers.Delete(id)
-			client := rpcpeer.GetClient()
-			if client != nil {
-				err := p2p.host.Network().ClosePeer(client.peer)
-				if err != nil {
-					log.Debugf("Failed to disconnect from old peer '%s'(%s)", id, name)
-				}
-			}
+			p2p.clients.Delete(id)
+		}
+	}
+
+	//
+	// add all new machines and clients
+	//
+	for id, machine := range currentMachines {
+		_, err := p2p.AddPeer(id, machine)
+		if err != nil {
+			log.Debugf("Failed to add peer '%s'(%s): %s", id, machine.GetName(), err.Error())
 		}
 	}
 
@@ -221,64 +199,47 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 }
 
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
-	pubKeyBytes, err := base64.StdEncoding.DecodeString(machine.GetPublicKey())
+func (p2p *P2P) AddPeer(id string, machine Machine) (*Client, error) {
+
+	p2p.machines.Set(id, machine)
+
+	client, found := p2p.clients.Get(id)
+	if found {
+		return client, nil
+	}
+
+	destinationString := ""
+	if machine.GetPublicIP() != "" {
+		destinationString = fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, id)
+	} else {
+		destinationString = fmt.Sprintf("/p2p/%s", id)
+	}
+	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
+		return nil, fmt.Errorf("failed to create multi address: %w", err)
 	}
 
-	pk, err := crypto.UnmarshalEd25519PublicKey(pubKeyBytes)
+	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall public key: %w", err)
+		return nil, fmt.Errorf("failed to extract info from address: %w", err)
 	}
-	peerID, err := peer.IDFromPublicKey(pk)
+
+	log.Debugf("Adding peer id '%s'(%s) at ip '%s'", machine.GetName(), peerInfo.ID.String(), machine.GetPublicIP())
+
+	err = p2p.host.Connect(context.Background(), *peerInfo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create peer ID from public key: %w", err)
+		log.Errorf("Failed to connect to peer '%s'(%s): %s", machine.GetName(), id, err.Error())
+
 	}
 
-	rpcpeer, found := p2p.peers.Get(peerID.String())
-	if !found {
-		destinationString := ""
-		if machine.GetPublicIP() != "" {
-			destinationString = fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), 10500, peerID.String())
-		} else {
-			destinationString = fmt.Sprintf("/p2p/%s", peerID.String())
-		}
-		maddr, err := multiaddr.NewMultiaddr(destinationString)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create multi address: %w", err)
-		}
-
-		peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract info from address: %w", err)
-		}
-		rpcpeer := &rpcPeer{machine: machine}
-		p2p.peers.Set(peerID.String(), rpcpeer)
-
-		log.Debugf("Adding peer id '%s'(%s) at ip '%s'", machine.GetName(), peerInfo.ID.String(), machine.GetPublicIP())
-
-		err = p2p.host.Connect(context.Background(), *peerInfo)
-		if err != nil {
-			log.Errorf("Failed to connect to peer '%s'(%s): %s", machine.GetName(), peerID.String(), err.Error())
-
-		}
-
-		client, err := p2p.createClientForPeer(peerID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add peer '%s': %w", peerID.String(), err)
-		}
-		rpcpeer.SetClient(client)
-	} else if rpcpeer.GetMachine() != nil {
-		if rpcpeer.GetMachine().GetName() == initMachineName {
-			log.Infof("Replacing machine info for peer '%s' that triggerd initialisation", machine.GetName())
-		} else {
-			log.Infof("Replacing machine info for peer '%s'", machine.GetName())
-		}
-		rpcpeer.SetMachine(machine)
+	client, err = p2p.createClientForPeer(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add peer '%s' (%s): %w", id, machine.GetName(), err)
 	}
 
-	return rpcpeer.GetClient(), nil
+	p2p.clients.Set(id, client)
+
+	return client, nil
 }
 
 func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
@@ -287,35 +248,20 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 			return
 		}
 
-		var rpcpeer *rpcPeer
-		var machine Machine
-		if p2p.initMode {
-			machine = &initMachine{name: initMachineName}
-			rpcpeer = &rpcPeer{machine: machine}
-		} else {
-			rpcpeer, found := p2p.peers.Get(conn.RemotePeer().String())
-			if !found {
-				log.Errorf("Peer '%s' not recognized while creating client", conn.RemotePeer().String())
-				conn.Close()
-				return
-			}
-			lmachine := rpcpeer.GetMachine()
-			if lmachine != nil {
-				machine = lmachine
-			} else {
-				machine = &initMachine{name: "unknown"}
-			}
+		machineName := "unknown"
+		machine, found := p2p.machines.Get(conn.RemotePeer().String())
+		if found {
+			machineName = machine.GetName()
 		}
-		rpcpeer.SetMachine(machine)
 
-		log.Debugf("New connection with peer '%s'(%s). Creating client", machine.GetName(), conn.RemotePeer().String())
-		rpcClient, err := p2p.createClientForPeer(conn.RemotePeer())
+		log.Debugf("New connection with peer '%s'(%s). Creating client", machineName, conn.RemotePeer().String())
+		client, err := p2p.createClientForPeer(conn.RemotePeer().String())
 		if err != nil {
-			log.Errorf("Failed to create client for new peer '%s'(%s): %s", machine.GetName(), conn.RemotePeer().String(), err.Error())
+			log.Errorf("Failed to create client for new peer '%s'(%s): %s", machineName, conn.RemotePeer().String(), err.Error())
 			conn.Close()
 			return
 		}
-		rpcpeer.SetClient(rpcClient)
+		p2p.clients.Set(conn.RemotePeer().String(), client)
 	}()
 }
 
@@ -328,7 +274,7 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 	if err := conn.Close(); err != nil {
 		log.Errorf("Error while disconnecting from peer '%s': %v", conn.RemotePeer().String(), err)
 	}
-	p2p.peers.Delete(conn.RemotePeer().String())
+	p2p.clients.Delete(conn.RemotePeer().String())
 	if p2p.externalDB != nil {
 		if err := p2p.externalDB.RemovePeer(conn.RemotePeer().String()); err != nil {
 			log.Errorf("Failed to remove DB peer for '%s': %v", conn.RemotePeer().String(), err)
@@ -378,7 +324,8 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator) (func() error, er
 // NewManager creates and returns a new p2p manager
 func NewManager(key *pcrypto.Key, appManager AppManager, initMode bool, externalDB ExternalDB, p2pPort int) (*P2P, error) {
 	p2p := &P2P{
-		peers:       util.NewMap[string, *rpcPeer](),
+		clients:     util.NewMap[string, *Client](),
+		machines:    util.NewMap[string, Machine](),
 		appManager:  appManager,
 		newPeerChan: make(chan peer.AddrInfo),
 		initMode:    initMode,

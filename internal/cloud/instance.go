@@ -24,7 +24,7 @@ const (
 	ServerStateOther    = "other"
 	ServerStateChanging = "changing"
 
-	protosPublicKey = "/var/lib/protos/protos_key.pub"
+	protosPublicKey = "/var/lib/protos/protos.pub"
 )
 
 func createInstanceInsertMapper(instance InstanceInfo) func() (sq.Table, func(*sq.Column)) {

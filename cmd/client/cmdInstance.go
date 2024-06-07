@@ -147,9 +147,9 @@ var cmdInstance *cli.Command = &cli.Command{
 			},
 		},
 		{
-			Name:      "devinit",
-			ArgsUsage: "<instance name> <key> <ip>",
-			Usage:     "Initiate a development instance",
+			Name:      "init",
+			ArgsUsage: "<instance name> <ip>",
+			Usage:     "Initiate an instance",
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
@@ -157,18 +157,12 @@ var cmdInstance *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				key := c.Args().Get(1)
-				if key == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
-				}
-
-				ip := c.Args().Get(2)
+				ip := c.Args().Get(1)
 				if ip == "" {
 					cli.ShowSubcommandHelp(c)
 					os.Exit(1)
 				}
-				return devInit(name, key, ip)
+				return instanceInit(name, ip)
 			},
 		},
 		{
@@ -329,13 +323,13 @@ func getInstanceLogs(instanceName string, follow bool) error {
 	return nil
 }
 
-func devInit(instanceName string, keyFile string, ipString string) error {
+func instanceInit(instanceName string, ipString string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := client.InitDevInstance(ctx, &apic.InitDevInstanceRequest{Name: instanceName, KeyFile: keyFile, Ip: ipString})
+	_, err := client.InitInstance(ctx, &apic.InitInstanceRequest{Name: instanceName, Ip: ipString})
 	if err != nil {
-		return fmt.Errorf("could not initialize dev instance '%s' key: %w", instanceName, err)
+		return fmt.Errorf("could not initialize instance '%s' key: %w", instanceName, err)
 	}
 
 	return nil

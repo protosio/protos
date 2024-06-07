@@ -32,8 +32,21 @@ var cmdInfo *cli.Command = &cli.Command{
 		{
 			Name:  "sshkey",
 			Usage: "Display local SSH key",
-			Action: func(c *cli.Context) error {
-				return sshKeyInfo()
+			Subcommands: []*cli.Command{
+				{
+					Name:  "public",
+					Usage: "Display public SSH key",
+					Action: func(c *cli.Context) error {
+						return publishSSHKey()
+					},
+				},
+				{
+					Name:  "private",
+					Usage: "Display private SSH key",
+					Action: func(c *cli.Context) error {
+						return privateSSHKey()
+					},
+				},
 			},
 		},
 	},
@@ -77,15 +90,28 @@ func userInfo() error {
 	return nil
 }
 
-func sshKeyInfo() error {
+func publishSSHKey() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := client.GetLocalSSHKey(ctx, &pbApic.GetLocalSSHKeyRequest{})
 	if err != nil {
-		return fmt.Errorf("failed to list user devices: %w", err)
+		return fmt.Errorf("failed to get local SSH key: %w", err)
 	}
 
-	fmt.Printf("Public SSH key: %s\n", resp.Key)
+	fmt.Println(resp.Public)
+
+	return nil
+}
+
+func privateSSHKey() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resp, err := client.GetLocalSSHKey(ctx, &pbApic.GetLocalSSHKeyRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to get local SSH key: %w", err)
+	}
+
+	fmt.Println(resp.Private)
 
 	return nil
 }

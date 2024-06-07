@@ -84,7 +84,8 @@ func (b *Backend) GetLocalSSHKey(ctx context.Context, in *pbApic.GetLocalSSHKeyR
 	}
 
 	resp := pbApic.GetLocalSSHKeyResponse{
-		Key: key.AuthorizedKey(),
+		Public:  key.AuthorizedKey(),
+		Private: key.EncodePrivateKeytoPEM(),
 	}
 
 	return &resp, nil
@@ -546,14 +547,14 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 	return &pbApic.GetInstanceLogsResponse{Logs: string(base64Logs)}, nil
 }
 
-func (b *Backend) InitDevInstance(ctx context.Context, in *pbApic.InitDevInstanceRequest) (*pbApic.InitDevInstanceResponse, error) {
+func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceRequest) (*pbApic.InitInstanceResponse, error) {
 	log.Debugf("Initializing dev instance '%s' at '%s'", in.Name, in.Ip)
 
-	err := b.protosClient.CloudManager.InitDevInstance(in.Name, "local", "local", in.KeyFile, in.Ip)
+	err := b.protosClient.CloudManager.InitInstance(in.Name, "local", "local", in.Ip)
 	if err != nil {
-		return nil, fmt.Errorf("could not initialize dev instance '%s': %w", in.Name, err)
+		return nil, fmt.Errorf("could not initialize instance '%s': %w", in.Name, err)
 	}
-	return &pbApic.InitDevInstanceResponse{}, nil
+	return &pbApic.InitInstanceResponse{}, nil
 }
 
 //
