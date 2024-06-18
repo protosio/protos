@@ -3,36 +3,40 @@ package network
 import (
 	"fmt"
 	"net"
+	"net/netip"
 
-	"github.com/nustiueudinastea/wirebox/linkmgr"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"github.com/protosio/protos/internal/wireguard"
 )
 
 // var wgPort int = 10999
 var log = util.GetLogger("network")
 
 func NewManager() (*Manager, error) {
-	linkManager, err := linkmgr.NewManager()
+	linkManager, err := wireguard.NewManager()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize network: %w", err)
 	}
-	return &Manager{linkManager: linkManager}, nil
+
+	dnsManager, err := NewDNSManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize network: %w", err)
+	}
+
+	return &Manager{linkManager: linkManager, dnsManager: dnsManager}, nil
 }
 
 type Manager struct {
-	privateKey  wgtypes.Key
-	network     net.IPNet
-	gateway     net.IP
+	key         *pcrypto.Key
 	domain      string
-	linkManager linkmgr.Manager
+	linkManager wireguard.Manager
+	dnsManager  *DNSManager
 }
 
-func (m *Manager) Init(network net.IPNet, gateway net.IP, privateKey wgtypes.Key, domain string) error {
-	m.network = network
-	m.privateKey = privateKey
+func (m *Manager) Init(key *pcrypto.Key, domain string) error {
+	m.key = key
 	m.domain = domain
-	m.gateway = gateway
 	err := m.Up()
 	if err != nil {
 		return err
@@ -40,6 +44,15 @@ func (m *Manager) Init(network net.IPNet, gateway net.IP, privateKey wgtypes.Key
 	return nil
 }
 
-func (m *Manager) GetInternalIP() net.IP {
-	return m.gateway
+func createIPv6Net(addr netip.Addr) *net.IPNet {
+	if !addr.Is6() {
+		return nil
+	}
+
+	ip := net.IP(addr.AsSlice())
+	mask := net.CIDRMask(128, 128)
+	return &net.IPNet{
+		IP:   ip,
+		Mask: mask,
+	}
 }

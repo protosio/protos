@@ -75,7 +75,7 @@ func StartGRPCServer(dataPath string, version string, protosClient *protosc.Prot
 		protosClient: protosClient,
 	})
 
-	log.Info("Starting gRPC server at unix://", unixSocketFile)
+	log.Info("starting gRPC server at unix://", unixSocketFile)
 	go func() {
 		if err := srv.Serve(l); err != nil {
 			log.Fatalf("Failed to serve gRPC service: %s", err.Error())
@@ -83,11 +83,13 @@ func StartGRPCServer(dataPath string, version string, protosClient *protosc.Prot
 	}()
 
 	stopper := func() error {
-		log.Info("Stopping gRPC server")
+		log.Info("stopping gRPC server")
 		srv.GracefulStop()
-		err = protosClient.NetworkManager.Down()
-		if err != nil {
-			log.Error(err)
+		if protosClient.NetworkManager != nil {
+			err = protosClient.NetworkManager.Down()
+			if err != nil {
+				log.Error(err)
+			}
 		}
 		return nil
 	}

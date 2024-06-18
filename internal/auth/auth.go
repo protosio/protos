@@ -7,7 +7,6 @@ import (
 	"github.com/bokwoon95/sq"
 	"github.com/pkg/errors"
 
-	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
@@ -105,18 +104,17 @@ func (user *User) GetDevices() []UserDevice {
 // AuthManager implements the core.AuthManager interface, which manages users
 type AuthManager struct {
 	db *db.DB
-	cm *capability.Manager
 	sm *pcrypto.Manager
 }
 
 // CreateAuthManager return a AuthManager instance, which implements the core.AuthManager interface
-func CreateAuthManager(db *db.DB, sm *pcrypto.Manager, cm *capability.Manager, configurator PeerConfigurator) *AuthManager {
-	if db == nil || sm == nil || cm == nil || configurator == nil {
+func CreateAuthManager(db *db.DB, sm *pcrypto.Manager, configurator PeerConfigurator) *AuthManager {
+	if db == nil || sm == nil || configurator == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 	gob.Register(&User{})
 
-	return &AuthManager{db: db, sm: sm, cm: cm}
+	return &AuthManager{db: db, sm: sm}
 }
 
 // CreateUser creates and returns a user

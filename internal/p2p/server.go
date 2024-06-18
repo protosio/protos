@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"runtime"
 
@@ -26,11 +25,13 @@ type ExternalDB interface {
 	GetAllCommits() ([]doltswarm.Commit, error)
 	ExecAndCommit(query string, commitMsg string) (string, error)
 	GetLastCommit(branch string) (doltswarm.Commit, error)
+	InitFromPeer(peerID string) error
+	AddGRPCServer(server *grpc.Server)
+	EnableGRPCServers() error
 }
 
 // MetaConfigurator allows for the configuration of the meta package
 type MetaConfigurator interface {
-	SetNetwork(network net.IPNet) net.IP
 	SetInstanceName(name string)
 }
 
@@ -135,11 +136,6 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("failed to validate init request: %w", err)
 	}
 
-	_, network, err := net.ParseCIDR(req.Network)
-	if err != nil {
-		return nil, fmt.Errorf("cannot perform initialization, network '%s' is invalid: %w", req.Network, err)
-	}
-
 	im := &initMachine{
 		name:      "init",
 		publicKey: req.OriginDevicePublicKey,
@@ -150,16 +146,21 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("cannot perform initialization: %w", err)
 	}
 
-	s.p2p.initMode = false
-	_, err = s.p2p.AddPeer(pubKey.PeerID(), im)
+	_, err = s.p2p.AddPeer(pubKey.PeerID(), im, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
 
 	s.metaConfigurator.SetInstanceName(req.InstanceName)
-	ipNet := s.metaConfigurator.SetNetwork(*network)
 
-	return &proto.InitResponse{InstanceIp: ipNet.String(), Architecture: runtime.GOARCH}, nil
+	err = s.DB.InitFromPeer(pubKey.PeerID())
+	if err != nil {
+		err = fmt.Errorf("failed to initialize database from peer '%s': %w", pubKey.PeerID(), err)
+		log.Error(err.Error())
+		return nil, err
+	}
+
+	return &proto.InitResponse{Architecture: runtime.GOARCH}, nil
 }
 
 func (s *Server) GetAppLogs(ctx context.Context, req *proto.GetAppLogsRequest) (*proto.GetAppLogsResponse, error) {

@@ -78,10 +78,9 @@ message InitResponse {}
 //
 message UserDevice {
   string name = 1;
-  string network = 2;
-  string machine_id = 3;
-  string public_key = 4;
-  string public_key_wireguard = 5;
+  string machine_id = 2;
+  string public_key = 3;
+  string public_key_wireguard = 4;
 }
 
 message GetUserDevicesRequest {}
@@ -215,17 +214,16 @@ message CloudInstance {
   string name = 1;
   string public_ip = 2;
   string internal_ip = 3;
-  string network = 4;
-  string cloud_name = 5;
-  string cloud_type = 6;
-  string vm_id = 7;
-  string location = 8;
-  string public_key = 9;
-  string public_key_wireguard = 10;
-  string protos_version = 11;
-  string status = 12;
-  string architecture = 13;
-  map<string, string> peers = 14;
+  string cloud_name = 4;
+  string cloud_type = 5;
+  string vm_id = 6;
+  string location = 7;
+  string public_key = 8;
+  string public_key_wireguard = 9;
+  string protos_version = 10;
+  string status = 11;
+  string architecture = 12;
+  map<string, string> peers = 13;
 }
 
 message GetInstancesRequest {}

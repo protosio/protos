@@ -65,10 +65,10 @@ func listDevices() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Name", "Network", "WG Public Key", "ID")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "----", "-------", "-------------", "--")
+	fmt.Fprintf(w, " %s\t%s\t%s\t", "Name", "WG Public Key", "ID")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t", "----", "-------------", "--")
 	for _, device := range resp.Devices {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", device.Name, device.Network, device.PublicKey, device.PublicKeyWireguard)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t", device.Name, device.PublicKey, device.PublicKeyWireguard)
 	}
 	fmt.Fprint(w, "\n")
 

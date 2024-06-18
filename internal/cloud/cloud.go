@@ -139,11 +139,6 @@ func (cm *Manager) GetProviders() ([]CloudProvider, error) {
 
 // DeployInstance deploys an instance on the provided cloud
 func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error) {
-	usr, err := cm.um.GetAdmin()
-	if err != nil {
-		return InstanceInfo{}, err
-	}
-
 	// init cloud
 	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
@@ -211,18 +206,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to get Protos instance info: %w", err)
 	}
 
-	// allocate network
-	instances, err := cm.GetInstances()
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
-	}
-
-	userDevices := usr.GetDevices()
-	network, err := allocateNetwork(instances, userDevices)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to allocate network for instance '%s': %w", instanceInfo.Name, err)
-	}
-
 	thisDevice, err := cm.um.GetCurrentDevice()
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to get current device : %w", err)
@@ -231,7 +214,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// save instance information
 	instanceInfo.SSHKeySeed = base64.StdEncoding.EncodeToString(instanceSSHKey.Seed())
 	instanceInfo.ProtosVersion = release.Version
-	instanceInfo.Network = network.String()
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
@@ -287,14 +269,14 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
 	}
 
-	p2pClient, err := cm.p2p.AddPeer(pubKey.PeerID(), instanceInfo)
+	p2pClient, err := cm.p2p.AddPeer(pubKey.PeerID(), instanceInfo, true)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), Network: instanceInfo.Network, InstanceName: instanceName})
+	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), InstanceName: instanceName})
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -305,7 +287,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// final save instance info
-	instanceInfo.InternalIP = resp.InstanceIp
 	instanceInfo.Architecture = resp.Architecture
 	instanceInfo.Status = instanceUpdate.Status
 
@@ -342,21 +323,6 @@ func (cm *Manager) InitInstance(instanceName string, cloudName string, locationN
 		return err
 	}
 
-	// allocate network for dev instance
-	instances, err := cm.GetInstances()
-	if err != nil {
-		return err
-	}
-	usr, err := cm.um.GetAdmin()
-	if err != nil {
-		return err
-	}
-	userDevices := usr.GetDevices()
-	developmentNetwork, err := allocateNetwork(instances, userDevices)
-	if err != nil {
-		return fmt.Errorf("failed to allocate network for instance '%s': %w", "dev", err)
-	}
-
 	thisDevice, err := cm.um.GetCurrentDevice()
 	if err != nil {
 		return fmt.Errorf("failed to get current device : %w", err)
@@ -388,21 +354,19 @@ func (cm *Manager) InitInstance(instanceName string, cloudName string, locationN
 	// close SSH connection
 	sshCon.Close()
 
-	p2pClient, err := cm.p2p.AddPeer(publicKey.PeerID(), instanceInfo)
+	p2pClient, err := cm.p2p.AddPeer(publicKey.PeerID(), instanceInfo, true)
 	if err != nil {
 		return fmt.Errorf("failed to initialize instance: %w", err)
 	}
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), Network: developmentNetwork.String(), InstanceName: instanceName})
+	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), InstanceName: instanceName})
 	if err != nil {
 		return fmt.Errorf("failed to init instance: %w", err)
 	}
 
-	instanceInfo.InternalIP = ip.String()
 	instanceInfo.Architecture = resp.Architecture
-	instanceInfo.Network = developmentNetwork.String()
 
 	err = db.Insert(cm.db, createInstanceInsertMapper(instanceInfo))
 	if err != nil {

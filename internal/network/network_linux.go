@@ -4,26 +4,23 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"syscall"
 	"time"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
-	"github.com/nustiueudinastea/wirebox"
-	"github.com/nustiueudinastea/wirebox/linkmgr"
 	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
-	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/wireguard"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 const (
-	wireguardNetworkInterface = "protosWG"
-	bridgeNetworkInterface    = "protosBR"
-	wgProtosBinary            = "wg-protos"
+	wireguardNetworkInterfaceName = "protosWG"
+	bridgeNetworkInterface        = "protosBR"
+	wgProtosBinary                = "wg-protos"
 )
 
 var wgPort int = 10999
@@ -66,65 +63,65 @@ func diffRoutes(a []netlink.Route, b []netlink.Route) ([]netlink.Route, []netlin
 	return extraA, extraB
 }
 
-func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
+// func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
 
-	log.Debugf("Setting up bridge interface '%s'", bridgeNetworkInterface)
-	brInterface := &netlink.Bridge{
-		LinkAttrs: netlink.LinkAttrs{
-			Name:   name,
-			TxQLen: -1,
-		},
-	}
+// 	log.Debugf("Setting up bridge interface '%s'", bridgeNetworkInterface)
+// 	brInterface := &netlink.Bridge{
+// 		LinkAttrs: netlink.LinkAttrs{
+// 			Name:   name,
+// 			TxQLen: -1,
+// 		},
+// 	}
 
-	err := netlink.LinkAdd(brInterface)
-	if err != nil && err != syscall.EEXIST {
-		return nil, fmt.Errorf("failed to create bridge interface '%q': %w", name, err)
-	}
+// 	err := netlink.LinkAdd(brInterface)
+// 	if err != nil && err != syscall.EEXIST {
+// 		return nil, fmt.Errorf("failed to create bridge interface '%q': %w", name, err)
+// 	}
 
-	l, err := netlink.LinkByName(name)
-	if err != nil {
-		return nil, fmt.Errorf("could not find newly created bridge interface '%q': %w", name, err)
-	}
-	brInterface, ok := l.(*netlink.Bridge)
-	if !ok {
-		return nil, fmt.Errorf("interface '%q' found but is not a bridge", name)
-	}
+// 	l, err := netlink.LinkByName(name)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("could not find newly created bridge interface '%q': %w", name, err)
+// 	}
+// 	brInterface, ok := l.(*netlink.Bridge)
+// 	if !ok {
+// 		return nil, fmt.Errorf("interface '%q' found but is not a bridge", name)
+// 	}
 
-	_, err = sysctl.Sysctl(fmt.Sprintf("net.ipv6.conf.%s.accept_ra", name), "0")
-	if err != nil {
-		return nil, fmt.Errorf("failed to disable ipv6 router ads on bridge interface '%s': %w", name, err)
-	}
+// 	_, err = sysctl.Sysctl(fmt.Sprintf("net.ipv6.conf.%s.accept_ra", name), "0")
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to disable ipv6 router ads on bridge interface '%s': %w", name, err)
+// 	}
 
-	if err := netlink.LinkSetUp(brInterface); err != nil {
-		return nil, err
-	}
+// 	if err := netlink.LinkSetUp(brInterface); err != nil {
+// 		return nil, err
+// 	}
 
-	newRoutes := []netlink.Route{{Dst: &network, LinkIndex: l.Attrs().Index}}
-	existingRoutes, err := netlink.RouteList(l, netlink.FAMILY_V4)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve routes: %w", err)
-	}
-	delRoutes, addRoutes := diffRoutes(existingRoutes, newRoutes)
+// 	newRoutes := []netlink.Route{{Dst: &network, LinkIndex: l.Attrs().Index}}
+// 	existingRoutes, err := netlink.RouteList(l, netlink.FAMILY_V4)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to retrieve routes: %w", err)
+// 	}
+// 	delRoutes, addRoutes := diffRoutes(existingRoutes, newRoutes)
 
-	// add the new routes to the bridge interface
-	for _, route := range addRoutes {
-		route.LinkIndex = l.Attrs().Index
-		err = netlink.RouteAdd(&route)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add route: %w", err)
-		}
-	}
+// 	// add the new routes to the bridge interface
+// 	for _, route := range addRoutes {
+// 		route.LinkIndex = l.Attrs().Index
+// 		err = netlink.RouteAdd(&route)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("failed to add route: %w", err)
+// 		}
+// 	}
 
-	// delete old routes from the bridge interface
-	for _, route := range delRoutes {
-		err = netlink.RouteDel(&route)
-		if err != nil {
-			return nil, fmt.Errorf("failed to delete route: %w", err)
-		}
-	}
+// 	// delete old routes from the bridge interface
+// 	for _, route := range delRoutes {
+// 		err = netlink.RouteDel(&route)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("failed to delete route: %w", err)
+// 		}
+// 	}
 
-	return brInterface, nil
-}
+// 	return brInterface, nil
+// }
 
 //
 // public methods
@@ -132,7 +129,7 @@ func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
 
 // initNetwork initializes the protos network
 func (m *Manager) Up() error {
-	manager, err := linkmgr.NewManager()
+	manager, err := wireguard.NewManager()
 	if err != nil {
 		return fmt.Errorf("failed to initialize network: %w", err)
 	}
@@ -142,47 +139,50 @@ func (m *Manager) Up() error {
 		return fmt.Errorf("failed to set IP forwarding while initializing network: %w", err)
 	}
 
-	// configure the bridge interface
-	netBridge, err = configureBridge(bridgeNetworkInterface, m.network)
-	if err != nil {
-		return fmt.Errorf("failed to create bridge interface during network initialization: %w", err)
-	}
+	network := createIPv6Net(m.key.IPv6Address())
+
+	// // configure the bridge interface
+	// netBridge, err = configureBridge(bridgeNetworkInterface, *network)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to create bridge interface during network initialization: %w", err)
+	// }
 
 	// the instance gateway IP is also used for WG
-	linkAddrs := []linkmgr.Address{
+	linkAddrs := []wireguard.Address{
 		{
 			IPNet: net.IPNet{
-				IP:   m.gateway,
-				Mask: m.network.Mask,
+				IP:   network.IP,
+				Mask: network.Mask,
 			},
-			Scope: linkmgr.ScopeLink,
+			Scope: wireguard.ScopeGlobal,
 		},
 	}
 
+	wgKey := m.key.PrivateWG()
 	// create the wireguard interface
 	cfg := wgtypes.Config{
 		ReplacePeers: false,
 		ListenPort:   &wgPort,
-		PrivateKey:   &m.privateKey,
+		PrivateKey:   &wgKey,
 	}
 
-	_, _, err = wirebox.CreateWG(manager, wireguardNetworkInterface, cfg, linkAddrs)
+	_, _, err = wireguard.CreateWG(manager, wireguardNetworkInterfaceName, cfg, linkAddrs)
 	if err != nil {
 		return fmt.Errorf("failed to create WireGuard interface during network initialization: %w", err)
 	}
 
 	// cheating by sleeping 2 seconds
-	log.Debugf("Waiting for link '%s' to come up", wireguardNetworkInterface)
+	log.Debugf("Waiting for link '%s' to come up", wireguardNetworkInterfaceName)
 	time.Sleep(2 * time.Second)
 
 	return nil
 }
 
 func (m *Manager) Down() error {
-	err := m.linkManager.DelLink(wireguardNetworkInterface)
+	err := m.linkManager.DelLink(wireguardNetworkInterfaceName)
 	if err != nil {
 		if !strings.Contains(err.Error(), "no such network interface") {
-			return fmt.Errorf("failed to delete interface '%s': %w", wireguardNetworkInterface, err)
+			return fmt.Errorf("failed to delete interface '%s': %w", wireguardNetworkInterfaceName, err)
 		}
 	}
 
@@ -203,15 +203,15 @@ func (m *Manager) Down() error {
 
 func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.UserDevice) error {
 
-	if m.gateway == nil || m.domain == "" || m.network.String() == "<nil>" {
+	if m.domain == "" {
 		log.Debugf("Skipping peer configuration because the network is not configured yet")
 		return nil
 	}
 
 	log.Debug("Refreshing network configuration for peers")
-	lnk, err := m.linkManager.GetLink(wireguardNetworkInterface)
+	lnk, err := m.linkManager.GetLink(wireguardNetworkInterfaceName)
 	if err != nil {
-		return fmt.Errorf("failed to configure interface '%s': %w", wireguardNetworkInterface, err)
+		return fmt.Errorf("failed to configure interface '%s': %w", wireguardNetworkInterfaceName, err)
 	}
 
 	// create the peer and routes lists. At the moment these are all the devices that a user has
@@ -223,65 +223,63 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.
 
 	// build instances peer list
 	for _, instance := range instances {
-		if len(instance.PublicKey) == 0 || m.network.String() == instance.Network {
+		if len(instance.PublicKey) == 0 {
 			continue
 		}
 
-		publicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
-		if err != nil {
-			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
-		}
+		// publicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		// if err != nil {
+		// 	return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+		// }
 
-		_, instanceNetwork, err := net.ParseCIDR(instance.Network)
-		if err != nil {
-			return fmt.Errorf("failed to parse network for instance '%s': %w", instance.Name, err)
-		}
+		// network := createIPv6Net(m.key.IPv6Address())
 
-		newRoutes = append(newRoutes, netlink.Route{Dst: instanceNetwork, Src: m.gateway})
-		peerConf := wgtypes.PeerConfig{
-			PublicKey:         publicKey,
-			ReplaceAllowedIPs: true,
-			Endpoint:          &net.UDPAddr{IP: net.ParseIP(instance.PublicIP), Port: 10999},
-			AllowedIPs:        []net.IPNet{*instanceNetwork},
-		}
+		// newRoutes = append(newRoutes, netlink.Route{Dst: instanceNetwork, Src: m.gateway})
+		// peerConf := wgtypes.PeerConfig{
+		// 	PublicKey:         publicKey,
+		// 	ReplaceAllowedIPs: true,
+		// 	Endpoint:          &net.UDPAddr{IP: net.ParseIP(instance.PublicIP), Port: 10999},
+		// 	AllowedIPs:        []net.IPNet{*instanceNetwork},
+		// }
 
-		peers = append(peers, peerConf)
+		// peers = append(peers, peerConf)
 	}
 
-	// build devices peer list
-	for _, userDevice := range devices {
-		log.Debugf("Using route '%s' for device '%s'(%s)", userDevice.Network, userDevice.Name, userDevice.GetPublicKey())
-		publicKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(userDevice.PublicKey)
-		if err != nil {
-			return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
-		}
-		_, deviceNetwork, err := net.ParseCIDR(userDevice.Network)
-		if err != nil {
-			return fmt.Errorf("failed to parse network for device '%s': %w", userDevice.Name, err)
-		}
-		newRoutes = append(newRoutes, netlink.Route{Dst: deviceNetwork, Src: m.gateway})
+	// // build devices peer list
+	// for _, userDevice := range devices {
+	// 	log.Debugf("Using route '%s' for device '%s'(%s)", userDevice.Network, userDevice.Name, userDevice.GetPublicKey())
+	// 	publicKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(userDevice.PublicKey)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
+	// 	}
+	// 	_, deviceNetwork, err := net.ParseCIDR(userDevice.Network)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to parse network for device '%s': %w", userDevice.Name, err)
+	// 	}
+	// 	newRoutes = append(newRoutes, netlink.Route{Dst: deviceNetwork, Src: m.gateway})
 
-		peerConf := wgtypes.PeerConfig{
-			PublicKey:         publicKeyWG,
-			ReplaceAllowedIPs: true,
-			AllowedIPs:        []net.IPNet{*deviceNetwork},
-		}
-		peers = append(peers, peerConf)
-	}
+	// 	peerConf := wgtypes.PeerConfig{
+	// 		PublicKey:         publicKeyWG,
+	// 		ReplaceAllowedIPs: true,
+	// 		AllowedIPs:        []net.IPNet{*deviceNetwork},
+	// 	}
+	// 	peers = append(peers, peerConf)
+	// }
 
+	wgKey := m.key.PrivateWG()
 	// create the wireguard interface
 	wgcfg := wgtypes.Config{
 		ReplacePeers: false,
 		ListenPort:   &wgPort,
 		Peers:        peers,
-		PrivateKey:   &m.privateKey,
+		PrivateKey:   &wgKey,
 	}
 	err = lnk.ConfigureWG(wgcfg)
 	if err != nil {
-		return fmt.Errorf("failed to configure interface '%s': %w", wireguardNetworkInterface, err)
+		return fmt.Errorf("failed to configure interface '%s': %w", wireguardNetworkInterfaceName, err)
 	}
 
-	netlinkWG, err := netlink.LinkByName(wireguardNetworkInterface)
+	netlinkWG, err := netlink.LinkByName(wireguardNetworkInterfaceName)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve interface: %w", err)
 	}
@@ -342,7 +340,9 @@ func (m *Manager) CreateNamespacedInterface(netNSpath string, IP net.IP) error {
 			return fmt.Errorf("failed to bring interface %q UP: %w", name, err)
 		}
 
-		addr := &netlink.Addr{IPNet: &net.IPNet{Mask: m.network.Mask, IP: IP}, Label: ""}
+		network := createIPv6Net(m.key.IPv6Address())
+
+		addr := &netlink.Addr{IPNet: &net.IPNet{Mask: network.Mask, IP: IP}, Label: ""}
 		if err = netlink.AddrAdd(link, addr); err != nil {
 			return fmt.Errorf("failed to configure IP address '%s' on interface: %w", IP.String(), err)
 		}
@@ -350,8 +350,8 @@ func (m *Manager) CreateNamespacedInterface(netNSpath string, IP net.IP) error {
 		_, networkALL, _ := net.ParseCIDR("0.0.0.0/0")
 		route := netlink.Route{
 			LinkIndex: link.Attrs().Index,
-			Gw:        m.gateway,
-			Dst:       networkALL,
+			// Gw:        m.gateway,
+			Dst: networkALL,
 		}
 		err = netlink.RouteAdd(&route)
 		if err != nil {

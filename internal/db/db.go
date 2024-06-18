@@ -12,14 +12,13 @@ import (
 	"github.com/protosio/protos/internal/util"
 )
 
-var logger = util.GetLogger("db")
 var Instance *doltswarm.DB
 
 //go:embed migrations/*.sql
 var rootDir embed.FS
 
 func Open(workDir string, dbName string, signer doltswarm.Signer) (*DB, error) {
-	dbi, err := doltswarm.Open(workDir, dbName, logger, signer)
+	dbi, err := doltswarm.Open(workDir, dbName, util.GetLogger("swarm"), signer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db: %v", err)
 	}

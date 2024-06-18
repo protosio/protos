@@ -1,7 +1,6 @@
 package protosd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
-	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -89,12 +87,11 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	peerConfigurator := &PeerConfigurator{NetworkManager: networkManager}
 
 	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint)
-	cm := capability.CreateManager()
-	um := auth.CreateAuthManager(dbcli, sm, cm, peerConfigurator)
+	um := auth.CreateAuthManager(dbcli, sm, peerConfigurator)
 	peerConfigurator.AuthManager = um
-	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli, m, cm)
+	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli, m)
 
-	p2pManager, err := p2p.NewManager(lkey, appManager, m.InitMode(), dbcli, cfg.P2PPort)
+	p2pManager, err := p2p.NewManager(lkey, appManager, dbcli, cfg.P2PPort)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -113,19 +110,14 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	stoppers["p2p"] = p2pStopper
 
 	// check init and dev mode
-	cfg.InitMode = m.InitMode()
-	if cfg.InitMode {
-		log.Info("Starting up in init mode")
+	if !dbcli.Initialized() {
+		log.Info("DB not initialized. Waiting for remote init")
 	}
-	cfg.DevMode = devmode
-	meta.PrintBanner()
 
-	// if starting for the first time, this will block until remote init is done
-	ctx, cancel := context.WithCancel(context.Background())
+	meta.PrintBanner()
 
 	canceled := false
 	ctxStopper := func() error {
-		cancel()
 		canceled = true
 		return nil
 	}
@@ -137,8 +129,6 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 		log.Fatal(err)
 	}
 
-	internalIP, network := m.WaitForInit(ctx)
-
 	if canceled {
 		wg.Wait()
 		log.Info("Shutdown completed")
@@ -146,12 +136,12 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 
 	// perform network initialization
-	err = networkManager.Init(network, internalIP, lkey.PrivateWG(), cfg.InternalDomain)
+	err = networkManager.Init(lkey, cfg.InternalDomain)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	dnsStopper := dns.StartServer(internalIP.String(), DNSPort, cfg.ExternalDNS, cfg.InternalDomain, appManager)
+	dnsStopper := dns.StartServer(lkey, DNSPort, cfg.ExternalDNS, cfg.InternalDomain, appManager)
 	stoppers["dns"] = dnsStopper
 
 	log.Info("Started all servers successfully")

@@ -16,10 +16,10 @@ const banner = `                 ###########
    ####                               ####      PID:        %d
    #######################################      P2P port:   %d
        ###                         ###          Data dir:   %s
-       ###############################          Init mode:  %t
-       ###############################          Dev mode:   %t
+       ###############################
+       ###############################          https://protos.io
             ///   ///   ///  ////
-            ///   ///   ///  ////               https://protos.io
+            ///   ///   ///  ////
             ///   ///   ///  ////
             ///   ///   ///  ////
             ///   ///   ///  ////
@@ -40,7 +40,5 @@ func PrintBanner() {
 		gconfig.Version.String(),
 		pid,
 		gconfig.P2PPort,
-		gconfig.WorkDir,
-		gconfig.InitMode,
-		gconfig.DevMode))
+		gconfig.WorkDir))
 }

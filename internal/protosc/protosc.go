@@ -14,7 +14,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/auth"
-	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -39,13 +38,12 @@ const (
 )
 
 type ProtosClient struct {
-	stoppers          map[string]func() error
-	db                *db.DB
-	cfg               *config.Config
-	version           string
-	wg                sync.WaitGroup
-	capabilityManager *capability.Manager
-	localKey          *pcrypto.Key
+	stoppers map[string]func() error
+	db       *db.DB
+	cfg      *config.Config
+	version  string
+	wg       sync.WaitGroup
+	localKey *pcrypto.Key
 
 	AuthManager    *auth.AuthManager
 	KeyManager     *pcrypto.Manager
@@ -101,12 +99,10 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	// create various managers
 	keyManager := pcrypto.CreateManager(protosClient.db)
 	metaClient := meta.Setup(protosClient.db, keyManager, version)
-	capabilityManager := capability.CreateManager()
-	AuthManager := auth.CreateAuthManager(protosClient.db, keyManager, capabilityManager, protosClient)
+	AuthManager := auth.CreateAuthManager(protosClient.db, keyManager, protosClient)
 
 	protosClient.AuthManager = AuthManager
 	protosClient.KeyManager = keyManager
-	protosClient.capabilityManager = capabilityManager
 	protosClient.Meta = metaClient
 
 	return protosClient, nil
@@ -136,7 +132,7 @@ func networkUp(authMgr *auth.AuthManager, internalDomain string) (*network.Manag
 		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
 
-	err = networkManager.Init(*netp, internalIP, key.PrivateWG(), internalDomain)
+	err = networkManager.Init(key, internalDomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
@@ -186,41 +182,44 @@ func (pc *ProtosClient) FinishInit() error {
 
 	networkManager, err := networkUp(pc.AuthManager, pc.cfg.InternalDomain)
 	if err != nil {
-		log.Fatalf("Failed to create network manager: %s", err.Error())
+		return fmt.Errorf("failed to create network manager: %s", err.Error())
 	}
 
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint)
-	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.db, pc.Meta, pc.capabilityManager)
+	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.db, pc.Meta)
 
-	p2pManager, err := p2p.NewManager(pc.localKey, appManager, false, pc.db, pc.cfg.P2PPort)
+	p2pManager, err := p2p.NewManager(pc.localKey, appManager, pc.db, pc.cfg.P2PPort)
 	if err != nil {
-		log.Fatalf("Failed to create p2p manager: %s", err.Error())
+		return fmt.Errorf("failed to create p2p manager: %s", err.Error())
 	}
 	pc.P2PManager = p2pManager
 
 	p2pStopper, err := p2pManager.StartServer(pc.Meta)
 	if err != nil {
-		log.Fatalf("Failed to start p2p server: %s", err.Error())
+		return fmt.Errorf("failed to start p2p server: %s", err.Error())
 	}
 	pc.stoppers["p2p"] = p2pStopper
 
 	currentDevice, err := pc.AuthManager.GetCurrentDevice()
 	if err != nil {
-		log.Fatalf("Failed to get current device: %s", err.Error())
+		return fmt.Errorf("failed to get current device: %s", err.Error())
 	}
 
 	cloudManager, err := cloud.CreateManager(pc.db, pc.AuthManager, pc.KeyManager, p2pManager, pc, currentDevice.Name)
 	if err != nil {
-		log.Fatalf("Failed to create cloud manager: %s", err.Error())
+		return fmt.Errorf("failed to create cloud manager: %s", err.Error())
 	}
 
-	dnsStopper := dns.StartServer(localDNSAddress, localDNSPort, "", pc.cfg.InternalDomain, appManager)
+	dnsStopper := dns.StartServer(pc.localKey, localDNSPort, "", pc.cfg.InternalDomain, appManager)
 	pc.stoppers["dns"] = dnsStopper
 	pc.AppManager = appManager
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-	pc.Refresh()
+	err = pc.Refresh()
+	if err != nil {
+		return fmt.Errorf("failed to refresh state: %s", err.Error())
+	}
 
 	return nil
 

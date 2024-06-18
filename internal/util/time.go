@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/attic-labs/noms/go/marshal"
-	"github.com/attic-labs/noms/go/types"
-	"github.com/attic-labs/noms/go/util/datetime"
 	"github.com/vjeantet/jodaTime"
 )
 
@@ -34,23 +31,5 @@ func (pt *ProtosTime) GobDecode(buf []byte) error {
 		return err
 	}
 	*pt = ProtosTime(t)
-	return nil
-}
-
-// MarshalNoms encodes the resource into a noms value type
-func (pt *ProtosTime) MarshalNoms(vrw types.ValueReadWriter) (val types.Value, err error) {
-	dt := datetime.DateTime{time.Time(*pt)}
-	return marshal.Marshal(vrw, dt)
-}
-
-// UnmarshalNoms decodes the resource value from a noms value type
-func (pt *ProtosTime) UnmarshalNoms(v types.Value) error {
-	var dt datetime.DateTime
-	err := marshal.Unmarshal(v, &dt)
-	if err != nil {
-		return err
-	}
-	nt := ProtosTime(dt.Time)
-	pt = &nt
 	return nil
 }

@@ -4,11 +4,9 @@ CREATE TABLE instances (
     ,ssh_key_seed VARCHAR(255) NOT NULL
     ,public_key VARCHAR(255) NOT NULL
     ,public_ip VARCHAR(255) NOT NULL
-    ,internal_ip VARCHAR(255) NOT NULL
     ,cloud_type VARCHAR(255) NOT NULL
     ,cloud_name VARCHAR(255) NOT NULL
     ,location VARCHAR(255) NOT NULL
-    ,network VARCHAR(255) NOT NULL
     ,protos_version VARCHAR(255) NOT NULL
     ,architecture VARCHAR(255) NOT NULL
 

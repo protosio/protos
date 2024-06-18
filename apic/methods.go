@@ -50,7 +50,6 @@ func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesR
 		respDevice := pbApic.UserDevice{
 			Name:               device.Name,
 			MachineId:          device.MachineID,
-			Network:            device.Network,
 			PublicKey:          device.PublicKey,
 			PublicKeyWireguard: wgPubKey,
 		}
@@ -138,13 +137,13 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*pbApic.CreateAppResponse, error) {
 
 	log.Debugf("Running app '%s' based on installer '%s', on instance '%s'", in.Name, in.InstallerId, in.InstanceId)
-	instance, err := b.protosClient.CloudManager.GetInstance(in.InstanceId)
+	_, err := b.protosClient.CloudManager.GetInstance(in.InstanceId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
 	// FIXME: read the installer params from the command line
-	app, err := b.protosClient.AppManager.Create(in.InstallerId, in.Name, in.InstanceId, instance.Network, in.Persistence, map[string]string{})
+	app, err := b.protosClient.AppManager.Create(in.InstallerId, in.Name, in.InstanceId, in.Persistence, map[string]string{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
@@ -357,11 +356,15 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			log.Error(err.Error())
 		}
 
+		pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
+		if err != nil {
+			log.Error(err.Error())
+		}
+
 		respInstance := pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
-			InternalIp:         instance.InternalIP,
-			Network:            instance.Network,
+			InternalIp:         pubKey.IPv6Address().StringExpanded(),
 			CloudName:          instance.CloudName,
 			CloudType:          instance.CloudType,
 			VmId:               instance.VMID,
@@ -390,6 +393,11 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		log.Error(err.Error())
 	}
 
+	pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
+	if err != nil {
+		log.Error(err.Error())
+	}
+
 	var status string
 	peers := map[string]string{}
 	client, err := b.protosClient.P2PManager.GetClient(instance.Name)
@@ -413,8 +421,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		Instance: &pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
-			InternalIp:         instance.InternalIP,
-			Network:            instance.Network,
+			InternalIp:         pubKey.IPv6Address().StringExpanded(),
 			CloudName:          instance.CloudName,
 			CloudType:          instance.CloudType,
 			VmId:               instance.VMID,
@@ -463,12 +470,16 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}
 
+	pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
+	if err != nil {
+		log.Error(err.Error())
+	}
+
 	resp := pbApic.DeployInstanceResponse{
 		Instance: &pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
-			InternalIp:         instance.InternalIP,
-			Network:            instance.Network,
+			InternalIp:         pubKey.IPv6Address().StringExpanded(),
 			CloudName:          instance.CloudName,
 			CloudType:          instance.CloudType,
 			VmId:               instance.VMID,

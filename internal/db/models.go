@@ -9,11 +9,9 @@ type INSTANCE struct {
 	SSH_KEY_SEED   sq.StringField `ddl:"notnull"` // private SSH key stored only on the client
 	PUBLIC_KEY     sq.StringField `ddl:"notnull"` // ed25519 public key
 	PUBLIC_IP      sq.StringField `ddl:"notnull"` // this can be a public or private IP, depending on where the device is located
-	INTERNAL_IP    sq.StringField `ddl:"notnull"` // this is the wireguard IP
 	CLOUD_TYPE     sq.StringField `ddl:"notnull"`
 	CLOUD_NAME     sq.StringField `ddl:"notnull"`
 	LOCATION       sq.StringField `ddl:"notnull"`
-	NETWORK        sq.StringField `ddl:"notnull"`
 	PROTOS_VERSION sq.StringField `ddl:"notnull"`
 	ARCHITECTURE   sq.StringField `ddl:"notnull"`
 }

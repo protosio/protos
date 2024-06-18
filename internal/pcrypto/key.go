@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"path"
 
@@ -69,6 +70,56 @@ func (k Key) PeerID() string {
 
 func (k Key) Private() []byte {
 	return k.Priv
+}
+
+// This code has been straight up copied from yggdrasil's key to address implementation.
+// Temporary until I can figure out if I keep it or not
+// FIXME: I need to figure out if I keep this or not
+func (k Key) IPv6Address() netip.Addr {
+	// 128 bit address
+	// Begins with prefix
+	// Next bit is a 0
+	// Next 7 bits, interpreted as a uint, are # of leading 1s in the NodeID
+	// Leading 1s and first leading 0 of the NodeID are truncated off
+	// The rest is appended to the IPv6 address (truncated to 128 bits total)
+	if len(k.Pub) != ed25519.PublicKeySize {
+		// FIXME: for now I want a panic
+		panic("invalid public key size")
+	}
+	var buf [ed25519.PublicKeySize]byte
+	copy(buf[:], k.Pub)
+	for idx := range buf {
+		buf[idx] = ^buf[idx]
+	}
+	var addr [16]byte
+	var temp = make([]byte, 0, 32)
+	done := false
+	ones := byte(0)
+	bits := byte(0)
+	nBits := 0
+	for idx := 0; idx < 8*len(buf); idx++ {
+		bit := (buf[idx/8] & (0x80 >> byte(idx%8))) >> byte(7-(idx%8))
+		if !done && bit != 0 {
+			ones++
+			continue
+		}
+		if !done && bit == 0 {
+			done = true
+			continue // FIXME? this assumes that ones <= 127, probably only worth changing by using a variable length uint64, but that would require changes to the addressing scheme, and I'm not sure ones > 127 is realistic
+		}
+		bits = (bits << 1) | bit
+		nBits++
+		if nBits == 8 {
+			nBits = 0
+			temp = append(temp, bits)
+		}
+	}
+	prefix := [...]byte{0x02}
+	copy(addr[:], prefix[:])
+	addr[len(prefix)] = ones
+	copy(addr[len(prefix)+1:], temp)
+
+	return netip.AddrFrom16(addr)
 }
 
 func (k Key) PrivateWG() wgtypes.Key {

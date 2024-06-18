@@ -21,9 +21,7 @@ type Config struct {
 	Runtime         string
 	RuntimeEndpoint string
 	StaticAssets    string
-	InitMode        bool
 	InternalDomain  string
-	DevMode         bool
 	ProcsQuit       sync.Map
 	ExternalDNS     string // format: <ip>:<port>
 	Version         *semver.Version
@@ -34,8 +32,6 @@ var config = Config{
 	P2PPort:         10500,
 	Runtime:         "containerd",
 	RuntimeEndpoint: "/run/containerd/containerd.sock",
-	InitMode:        false,
-	DevMode:         false,
 	InternalDomain:  "protos.internal",
 	ExternalDNS:     "8.8.8.8:53",
 	ProcsQuit:       sync.Map{},

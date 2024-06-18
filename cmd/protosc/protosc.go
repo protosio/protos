@@ -30,15 +30,17 @@ func stopServers() {
 	}
 }
 
-func handleQuitSignals(osSigs chan os.Signal, traySig chan struct{}) {
+func handleQuitSignals(osSigs chan os.Signal, traySig chan struct{}, errorSig chan struct{}) {
 	select {
 	case osSig := <-osSigs:
-		log.Infof("Received OS signal %s. Terminating", osSig.String())
+		log.Infof("received OS signal %s. Terminating", osSig.String())
 	case <-traySig:
-		log.Info("Received tray quit signal. Terminating")
+		log.Info("received tray quit signal. Terminating")
+	case <-errorSig:
+		log.Error("received error signal. Terminating")
 	}
 
-	log.Info("Shutting down Protos client")
+	log.Info("shutting down Protos client")
 	stopServers()
 	systray.Quit()
 }
@@ -74,7 +76,7 @@ func main() {
 	}
 
 	app.Action = func(c *cli.Context) error {
-		log.Info("Starting Protos client")
+		log.Info("starting Protos client")
 		systray.Run(onReady, onExit)
 		return nil
 	}
@@ -97,15 +99,25 @@ func onReady() {
 	systray.SetTooltip("Protos")
 	mQuitOrig := systray.AddMenuItem("Quit", "Quit")
 
+	// Handle OS signals and tray icon quit signal
+	osSigs := make(chan os.Signal, 1)
+	errorSig := make(chan struct{}, 1)
+	signal.Notify(osSigs, syscall.SIGINT, syscall.SIGTERM)
+	go handleQuitSignals(osSigs, mQuitOrig.ClickedCh, errorSig)
+
 	protosClient, err := protosc.New(dataPath, version.String())
 	if err != nil {
-		log.Fatalf("Failed to create Protos client: %s", err.Error())
+		log.Errorf("failed to create Protos client: %s", err.Error())
+		errorSig <- struct{}{}
+		return
 	}
 	stoppers["protosClient"] = protosClient.Stop
 
 	grpcStopper, err := apic.StartGRPCServer(dataPath, version.String(), protosClient)
 	if err != nil {
-		log.Fatalf("Failed to start gRPC server: %s", err.Error())
+		log.Errorf("failed to start gRPC server: %s", err.Error())
+		errorSig <- struct{}{}
+		return
 	}
 	stoppers["grpc"] = grpcStopper
 
@@ -115,15 +127,12 @@ func onReady() {
 
 	err = protosClient.FinishInit()
 	if err != nil {
-		log.Fatalf("Failed to finish initialization: %s", err.Error())
+		log.Errorf("failed to finish initialization: %s", err.Error())
+		errorSig <- struct{}{}
+		return
 	}
-
-	// Handle OS signals and tray icon quit signal
-	osSigs := make(chan os.Signal, 1)
-	signal.Notify(osSigs, syscall.SIGINT, syscall.SIGTERM)
-	go handleQuitSignals(osSigs, mQuitOrig.ClickedCh)
 }
 
 func onExit() {
-	log.Info("Shutdown complete")
+	log.Info("shutdown complete")
 }

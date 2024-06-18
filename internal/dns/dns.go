@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/internal/app"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -83,21 +84,21 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 var srv *dns.Server
 
 // StartServer starts a DNS server used for resolving internal Protos addresses
-func StartServer(internalIP string, port int, dnsServer string, domain string, appManager *app.Manager) func() error {
-	log.Infof("Starting DNS server. Listening internally on '%s:%d' for domain '%s'", internalIP, port, domain)
+func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, appManager *app.Manager) func() error {
+	log.Infof("Starting DNS server. Listening internally on '%s:%d' for domain '%s'", key.IPv6Address().String(), port, domain)
 	if dnsServer != "" {
 		log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
 	}
 
 	// adding the IP address used for the internal protos domain
 	// ToDo: improve this
-	domainsMap["protos."+domain+"."] = internalIP
+	domainsMap["protos."+domain+"."] = key.IPv6Address().String()
 
-	srv = &dns.Server{Addr: internalIP + ":" + strconv.Itoa(port), Net: "udp"}
-	srv.Handler = &handler{listenAddr: internalIP, dnsServer: dnsServer, appManager: appManager}
+	srv = &dns.Server{Addr: net.JoinHostPort(key.IPv6Address().String(), strconv.Itoa(port)), Net: "udp"}
+	srv.Handler = &handler{listenAddr: key.IPv6Address().String(), dnsServer: dnsServer, appManager: appManager}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			log.Fatalf("Failed to set udp listener %s\n", err.Error())
+			log.Fatalf("Failed to start DNS UDP listener %s\n", err.Error())
 		}
 	}()
 

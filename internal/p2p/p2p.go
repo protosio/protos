@@ -49,6 +49,8 @@ type Client struct {
 	p2pproto.TesterClient
 	p2pproto.AppsClient
 	p2pproto.InstanceClient
+
+	grpcConnection *grpc.ClientConn
 }
 
 type P2P struct {
@@ -58,13 +60,8 @@ type P2P struct {
 	appManager  AppManager
 	grpcServer  *grpc.Server
 	newPeerChan chan peer.AddrInfo
-	initMode    bool
 
 	externalDB ExternalDB
-}
-
-func (p2p *P2P) GetGRPCServer() *grpc.Server {
-	return p2p.grpcServer
 }
 
 // GetPeerID adds a peer to the p2p manager
@@ -126,6 +123,7 @@ func (p2p *P2P) createClientForPeer(id string) (client *Client, err error) {
 			break
 		}
 	}
+	client.grpcConnection = conn
 
 	return client, nil
 }
@@ -189,7 +187,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	// add all new machines and clients
 	//
 	for id, machine := range currentMachines {
-		_, err := p2p.AddPeer(id, machine)
+		_, err := p2p.AddPeer(id, machine, false)
 		if err != nil {
 			log.Debugf("Failed to add peer '%s'(%s): %s", id, machine.GetName(), err.Error())
 		}
@@ -199,7 +197,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 }
 
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(id string, machine Machine) (*Client, error) {
+func (p2p *P2P) AddPeer(id string, machine Machine, init bool) (*Client, error) {
 
 	p2p.machines.Set(id, machine)
 
@@ -238,6 +236,11 @@ func (p2p *P2P) AddPeer(id string, machine Machine) (*Client, error) {
 	}
 
 	p2p.clients.Set(id, client)
+	if !init {
+		if err := p2p.externalDB.AddPeer(id, client.grpcConnection); err != nil {
+			return nil, fmt.Errorf("failed to add peer '%s' (%s) to external DB: %w", id, machine.GetName(), err)
+		}
+	}
 
 	return client, nil
 }
@@ -262,6 +265,11 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 			return
 		}
 		p2p.clients.Set(conn.RemotePeer().String(), client)
+		if err := p2p.externalDB.AddPeer(conn.RemotePeer().String(), client.grpcConnection); err != nil {
+			log.Errorf("failed to add peer '%s' (%s) to external DB: %s", conn.RemotePeer().String(), machine.GetName(), err.Error())
+			conn.Close()
+			return
+		}
 	}()
 }
 
@@ -322,13 +330,12 @@ func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator) (func() error, er
 }
 
 // NewManager creates and returns a new p2p manager
-func NewManager(key *pcrypto.Key, appManager AppManager, initMode bool, externalDB ExternalDB, p2pPort int) (*P2P, error) {
+func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, p2pPort int) (*P2P, error) {
 	p2p := &P2P{
 		clients:     util.NewMap[string, *Client](),
 		machines:    util.NewMap[string, Machine](),
 		appManager:  appManager,
 		newPeerChan: make(chan peer.AddrInfo),
-		initMode:    initMode,
 		grpcServer:  grpc.NewServer(p2pgrpc.WithP2PCredentials()),
 
 		externalDB: externalDB,
@@ -364,6 +371,11 @@ func NewManager(key *pcrypto.Key, appManager AppManager, initMode bool, external
 	}
 	p2p.host.Network().Notify(&nb)
 
-	log.Debugf("Using host with ID '%s'", host.ID().String())
+	log.Infof("using host with ID '%s'", host.ID().String())
+
+	// grpc server needs to be added before opening the DB
+	p2p.externalDB.AddGRPCServer(p2p.grpcServer)
+	p2p.externalDB.EnableGRPCServers()
+
 	return p2p, nil
 }

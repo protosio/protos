@@ -209,10 +209,10 @@ func listInstances() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "Name", "Public IP", "Net", "Cloud", "VM ID", "Location", "Status")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "----", "---------", "---", "-----", "-----", "--------", "------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t", "Name", "Public IP", "Cloud", "VM ID", "Location", "Status")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", "----", "---------", "-----", "-----", "--------", "------")
 	for _, instance := range resp.Instances {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", instance.Name, instance.PublicIp, instance.Network, instance.CloudName, instance.VmId, instance.Location, instance.Status)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", instance.Name, instance.PublicIp, instance.CloudName, instance.VmId, instance.Location, instance.Status)
 	}
 	fmt.Fprint(w, "\n")
 	return nil
@@ -233,7 +233,6 @@ func infoInstance(instanceName string) error {
 	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKeyWireguard)
 	fmt.Printf("Public IP: %s\n", instance.PublicIp)
 	fmt.Printf("Internal IP: %s\n", instance.InternalIp)
-	fmt.Printf("Network: %s\n", instance.Network)
 	fmt.Printf("Cloud type: %s\n", instance.CloudType)
 	fmt.Printf("Cloud name: %s\n", instance.CloudName)
 	fmt.Printf("Architecture: %s\n", instance.Architecture)
@@ -261,7 +260,6 @@ func deployInstance(instanceName string, cloudName string, cloudLocation string,
 	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKeyWireguard)
 	fmt.Printf("Public IP: %s\n", instance.PublicIp)
 	fmt.Printf("Internal IP: %s\n", instance.InternalIp)
-	fmt.Printf("Network: %s\n", instance.Network)
 	fmt.Printf("Cloud type: %s\n", instance.CloudType)
 	fmt.Printf("Cloud name: %s\n", instance.CloudName)
 	fmt.Printf("Architecture: %s\n", instance.Architecture)

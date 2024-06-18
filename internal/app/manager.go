@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/bokwoon95/sq"
-	"github.com/protosio/protos/internal/capability"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/runtime"
@@ -26,7 +25,6 @@ type Manager struct {
 	ptype   string
 	m       *meta.Meta
 	db      *db.DB
-	cm      *capability.Manager
 	runtime runtime.RuntimePlatform
 }
 
@@ -35,9 +33,9 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB, meta *meta.Meta, cm *capability.Manager) *Manager {
+func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB, meta *meta.Meta) *Manager {
 
-	manager := &Manager{ptype: ptype, db: db, m: meta, runtime: runtime, cm: cm}
+	manager := &Manager{ptype: ptype, db: db, m: meta, runtime: runtime}
 
 	return manager
 }
@@ -47,23 +45,14 @@ func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB, met
 //
 
 // Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installer string, name string, instanceName string, instanceNetwork string, persistence bool, installerParams map[string]string) (*App, error) {
+func (am *Manager) Create(installer string, name string, instanceName string, persistence bool, installerParams map[string]string) (*App, error) {
 
 	var app *App
 	if name == "" || instanceName == "" {
 		return app, fmt.Errorf("application name, installer ID, installer version or instance ID cannot be empty")
 	}
 
-	apps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(sq.New[db.APP](""), nil))
-	if err != nil {
-		return nil, fmt.Errorf("could not create application '%s': %w", name, err)
-	}
-
-	appIP, err := allocateIP(apps, instanceNetwork)
-	if err != nil {
-		return nil, fmt.Errorf("could not create application '%s': %w", name, err)
-	}
-
+	// FIXME: here a key needs to be generated for the app, so that we can also derive the IP from it
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installer)
 	app = &App{
@@ -74,12 +63,11 @@ func (am *Manager) Create(installer string, name string, instanceName string, in
 		ID:            guid.String(),
 		InstallerRef:  installer,
 		InstanceName:  instanceName,
-		IP:            appIP,
 		DesiredStatus: statusStopped,
 		Persistence:   persistence,
 	}
 
-	err = db.Insert(am.db, createAppInsertMapper(*app))
+	err := db.Insert(am.db, createAppInsertMapper(*app))
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
 	}
