@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bokwoon95/sq"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -31,17 +30,6 @@ func (sm *Manager) GenerateKey() (*Key, error) {
 	if err != nil {
 		return key, errors.Wrap(err, "Failed to generate SSH key")
 	}
-	return key, nil
-}
-
-// GetKeyByPub returns a key that has the provided pubkey (base64 encoded)
-func (sm *Manager) GetKeyByPub(pubKey string) (Key, error) {
-	keyModel := sq.New[db.SSH_KEY]("")
-	key, err := db.SelectOne(sm.db, createKeyQueryMapper(keyModel, []sq.Predicate{keyModel.PUBLIC.EqString(pubKey)}))
-	if err != nil {
-		return key, fmt.Errorf("failed to retrieve key: %w", err)
-	}
-
 	return key, nil
 }
 

@@ -67,71 +67,35 @@ func (db *DB) Init() error {
 }
 
 // Insert inserts a new entry in the database using the sq query builder
-func Insert(db *DB, mc func() (sq.Table, func(*sq.Column))) error {
-	t, mapper := mc()
-	_, err := sq.Exec(db, sq.
-		InsertInto(t).
-		ColumnValues(mapper).
-		SetDialect(sq.DialectMySQL),
-	)
+func Insert(db *DB, mc InsertMapper) error {
+	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
 	return err
 }
 
-func Update(db *DB, mc func() (sq.Table, func(*sq.Column), []sq.Predicate)) error {
-	t, mapper, predicates := mc()
-	_, err := sq.Exec(db, sq.
-		Update(t).
-		SetFunc(mapper).
-		Where(predicates...).
-		SetDialect(sq.DialectMySQL),
-	)
+func Update(db *DB, mc UpdateMapper) error {
+	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
 	return err
 }
 
-func SelectOne[T any](db *DB, mc func() (sq.Table, func(row *sq.Row) T, []sq.Predicate)) (T, error) {
-	t, mapper, predicates := mc()
-	res, err := sq.FetchOne(db, sq.
-		From(t).
-		Where(predicates...).
-		SetDialect(sq.DialectMySQL),
-		mapper,
-	)
+func SelectOne[T any](db *DB, mc QueryMapper[T]) (T, error) {
+	query, mapper := mc()
+	res, err := sq.FetchOne(db, query.SetDialect(sq.DialectMySQL), mapper)
 	if err != nil {
 		return res, fmt.Errorf("failed to select one: %v", err)
 	}
 	return res, nil
 }
 
-func SelectMultiple[T any](db *DB, mc func() (sq.Table, func(row *sq.Row) T, []sq.Predicate)) ([]T, error) {
-	t, mapper, predicates := mc()
-	var res []T
-	var err error
-	if len(predicates) == 0 {
-		res, err = sq.FetchAll(db, sq.
-			From(t).
-			SetDialect(sq.DialectMySQL),
-			mapper,
-		)
-	} else {
-		res, err = sq.FetchAll(db, sq.
-			From(t).
-			Where(predicates...).
-			SetDialect(sq.DialectMySQL),
-			mapper,
-		)
-	}
+func SelectMultiple[T any](db *DB, mc QueryMapper[T]) ([]T, error) {
+	query, mapper := mc()
+	res, err := sq.FetchAll(db, query.SetDialect(sq.DialectMySQL), mapper)
 	if err != nil {
 		return nil, fmt.Errorf("failed to select multiple: %v", err)
 	}
 	return res, nil
 }
 
-func Delete(db *DB, mc func() (sq.Table, []sq.Predicate)) error {
-	t, predicates := mc()
-	_, err := sq.Exec(db, sq.
-		DeleteFrom(t).
-		Where(predicates...).
-		SetDialect(sq.DialectMySQL),
-	)
+func Delete(db *DB, mc DeleteMapper) error {
+	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
 	return err
 }

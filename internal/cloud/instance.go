@@ -6,9 +6,6 @@ import (
 	"net"
 	"os"
 	"text/tabwriter"
-
-	"github.com/bokwoon95/sq"
-	"github.com/protosio/protos/internal/db"
 )
 
 const (
@@ -17,71 +14,13 @@ const (
 	ServerStateOther    = "other"
 	ServerStateChanging = "changing"
 
+	KindLocalVM = "local_vm"
+	KindCloudVM = "cloud_vm"
+	// Scaleway cloud provider
+	Scaleway = Type("scaleway")
+
 	protosPublicKey = "/var/lib/protos/protos.pub"
 )
-
-func createInstanceInsertMapper(instance InstanceInfo) func() (sq.Table, func(*sq.Column)) {
-	return func() (sq.Table, func(*sq.Column)) {
-		i := sq.New[db.INSTANCE]("")
-		return i, func(col *sq.Column) {
-			col.SetString(i.VM_ID, instance.VMID)
-			col.SetString(i.NAME, instance.Name)
-			col.SetString(i.SSH_KEY_SEED, instance.SSHKeySeed)
-			col.SetString(i.PUBLIC_KEY, instance.PublicKey)
-			col.SetString(i.PUBLIC_IP, instance.PublicIP)
-			col.SetString(i.CLOUD_TYPE, instance.CloudType)
-			col.SetString(i.CLOUD_NAME, instance.CloudName)
-			col.SetString(i.LOCATION, instance.Location)
-			col.SetString(i.PROTOS_VERSION, instance.ProtosVersion)
-			col.SetString(i.ARCHITECTURE, instance.Architecture)
-		}
-	}
-}
-
-func createInstanceUpdateMapper(instance InstanceInfo) func() (sq.Table, func(*sq.Column), []sq.Predicate) {
-	return func() (sq.Table, func(*sq.Column), []sq.Predicate) {
-		i := sq.New[db.INSTANCE]("")
-		predicates := []sq.Predicate{i.VM_ID.EqString(instance.VMID)}
-		return i, func(col *sq.Column) {
-			col.SetString(i.NAME, instance.Name)
-			col.SetString(i.SSH_KEY_SEED, instance.SSHKeySeed)
-			col.SetString(i.PUBLIC_KEY, instance.PublicKey)
-			col.SetString(i.PUBLIC_IP, instance.PublicIP)
-			col.SetString(i.CLOUD_TYPE, instance.CloudType)
-			col.SetString(i.CLOUD_NAME, instance.CloudName)
-			col.SetString(i.LOCATION, instance.Location)
-			col.SetString(i.PROTOS_VERSION, instance.ProtosVersion)
-			col.SetString(i.ARCHITECTURE, instance.Architecture)
-		}, predicates
-	}
-}
-
-func createInstanceQueryMapper(i db.INSTANCE, predicates []sq.Predicate) func() (sq.Table, func(row *sq.Row) InstanceInfo, []sq.Predicate) {
-	return func() (sq.Table, func(row *sq.Row) InstanceInfo, []sq.Predicate) {
-		mapper := func(row *sq.Row) InstanceInfo {
-			return InstanceInfo{
-				VMID:          row.StringField(i.VM_ID),
-				Name:          row.StringField(i.NAME),
-				SSHKeySeed:    row.StringField(i.SSH_KEY_SEED),
-				PublicKey:     row.StringField(i.PUBLIC_KEY),
-				PublicIP:      row.StringField(i.PUBLIC_IP),
-				CloudType:     row.StringField(i.CLOUD_TYPE),
-				CloudName:     row.StringField(i.CLOUD_NAME),
-				Location:      row.StringField(i.LOCATION),
-				ProtosVersion: row.StringField(i.PROTOS_VERSION),
-				Architecture:  row.StringField(i.ARCHITECTURE),
-			}
-		}
-		return i, mapper, predicates
-	}
-}
-
-func createInstanceDeleteByNameQuery(name string) func() (sq.Table, []sq.Predicate) {
-	return func() (sq.Table, []sq.Predicate) {
-		i := sq.New[db.INSTANCE]("")
-		return i, []sq.Predicate{i.NAME.EqString(name)}
-	}
-}
 
 // VolumeInfo holds information about a data volume
 type VolumeInfo struct {
@@ -110,18 +49,16 @@ type MachineSpec struct {
 
 // InstanceInfo holds information about a cloud instance
 type InstanceInfo struct {
-	VMID          string
-	Name          string
-	SSHKeySeed    string // private SSH key stored only on the client
-	PublicKey     string // ed25519 public key
-	PublicIP      string // this can be a public or private IP, depending on where the device is located
-	CloudType     string
-	CloudName     string
-	Location      string
-	ProtosVersion string
-	Status        string
-	Architecture  string
-	Volumes       []VolumeInfo
+	ID           string
+	Name         string
+	PublicKey    string // ed25519 public key
+	PublicIP     string // this can be a public or private IP, depending on where the device is located
+	Kind         string // type of instance: local_vm, cloud_vm
+	KindID       string // ID of the cloud provider or device ID for local VM
+	Location     string
+	Status       string
+	Architecture string
+	Volumes      []VolumeInfo
 }
 
 func (i InstanceInfo) GetPublicKey() string {

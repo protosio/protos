@@ -13,12 +13,10 @@ import (
 	"path"
 
 	"filippo.io/edwards25519"
-	"github.com/bokwoon95/sq"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/martinlindhe/base36"
 	"github.com/mikesmitty/edkey"
-	"github.com/protosio/protos/internal/db"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ssh"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -28,26 +26,6 @@ const (
 	privateKeyFileName = "protos.key"
 	PublicKeyFileName  = "protos.pub"
 )
-
-func createKeyQueryMapper(s db.SSH_KEY, predicates []sq.Predicate) func() (sq.Table, func(row *sq.Row) Key, []sq.Predicate) {
-	return func() (sq.Table, func(row *sq.Row) Key, []sq.Predicate) {
-		mapper := func(row *sq.Row) Key {
-			priv, err := base64.StdEncoding.DecodeString(row.StringField(s.PRIVATE))
-			if err != nil {
-				log.Errorf("failed to decode private key: %v", err)
-			}
-			pub, err := base64.StdEncoding.DecodeString(row.StringField(s.PUBLIC))
-			if err != nil {
-				log.Errorf("failed to decode public key: %v", err)
-			}
-			return Key{
-				Priv: priv,
-				Pub:  pub,
-			}
-		}
-		return s, mapper, predicates
-	}
-}
 
 // Key is an SSH key
 type Key struct {

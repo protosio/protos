@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 
-	"github.com/protosio/protos/internal/auth"
+	auth "github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/pkg/types"
 	"golang.org/x/net/publicsuffix"
 )

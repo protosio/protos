@@ -1,11 +1,11 @@
-DROP TABLE IF EXISTS instances;
+DROP TABLE IF EXISTS machines;
+
+DROP TABLE IF EXISTS cloud_machines_metadata;
 
 DROP TABLE IF EXISTS cloud_providers;
-
-DROP TABLE IF EXISTS ssh_keys;
 
 DROP TABLE IF EXISTS apps;
 
 DROP TABLE IF EXISTS users;
 
-DROP TABLE IF EXISTS user_devices;
+DROP TABLE IF EXISTS user_devices_metadata;

@@ -40,7 +40,7 @@ type scaleway struct {
 	pi *ProviderInfo
 
 	// ProviderInfo
-	name           string
+	id             string
 	credentials    *scalewayCredentials
 	client         *scw.Client
 	instanceAPI    *instance.API
@@ -49,7 +49,7 @@ type scaleway struct {
 }
 
 func newScalewayClient(pi *ProviderInfo, cm *Manager) *scaleway {
-	return &scaleway{name: pi.Name, pi: pi, cm: cm}
+	return &scaleway{id: pi.ID, pi: pi, cm: cm}
 }
 
 func transformStatus(status instance.ServerState) string {
@@ -274,7 +274,7 @@ func (sw *scaleway) GetInstanceInfo(id string, location string) (InstanceInfo, e
 	if err != nil {
 		return InstanceInfo{}, errors.Wrapf(err, "Failed to retrieve Scaleway instance (%s) information", id)
 	}
-	info := InstanceInfo{VMID: id, Name: resp.Server.Name, CloudName: sw.name, CloudType: Scaleway.String(), Location: string(scw.Zone(location)), Status: transformStatus(resp.Server.State)}
+	info := InstanceInfo{ID: id, Name: resp.Server.Name, Kind: KindCloudVM, Location: string(scw.Zone(location)), Status: transformStatus(resp.Server.State)}
 	if resp.Server.PublicIP != nil {
 		info.PublicIP = resp.Server.PublicIP.Address.String()
 	}

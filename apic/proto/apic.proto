@@ -77,8 +77,8 @@ message InitResponse {}
 // User
 //
 message UserDevice {
-  string name = 1;
-  string machine_id = 2;
+  string id = 1;
+  string name = 2;
   string public_key = 3;
   string public_key_wireguard = 4;
 }

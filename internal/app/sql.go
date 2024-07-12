@@ -1,63 +1,69 @@
 package app
 
 import (
-	"net"
-
 	"github.com/bokwoon95/sq"
 	"github.com/protosio/protos/internal/db"
 )
 
-func createAppInsertMapper(app App) func() (sq.Table, func(*sq.Column)) {
-	return func() (sq.Table, func(*sq.Column)) {
+func createAppInsertMapper(app App) db.InsertMapper {
+	return func() sq.InsertQuery {
 		a := sq.New[db.APP]("")
-		return a, func(col *sq.Column) {
+		mapper := func(col *sq.Column) {
 			col.SetString(a.NAME, app.Name)
 			col.SetString(a.ID, app.ID)
 			col.SetString(a.INSTALLER_REF, app.InstallerRef)
-			col.SetString(a.INSTANCE_NAME, app.InstanceName)
+			col.SetString(a.INSTANCE_ID, app.InstanceID)
 			col.SetString(a.DESIRED_STATUS, app.DesiredStatus)
-			col.SetString(a.IP, app.IP.String())
 			col.SetBool(a.PERSISTENCE, app.Persistence)
 		}
+		return sq.InsertInto(a).ColumnValues(mapper)
 	}
 }
 
-func createAppUpdateMapper(app App) func() (sq.Table, func(*sq.Column), []sq.Predicate) {
-	return func() (sq.Table, func(*sq.Column), []sq.Predicate) {
+func createAppUpdateMapper(app App) db.UpdateMapper {
+	return func() sq.UpdateQuery {
 		a := sq.New[db.APP]("")
-		predicates := []sq.Predicate{a.ID.EqString(app.ID)}
-		return a, func(col *sq.Column) {
+		mapper := func(col *sq.Column) {
 			col.SetString(a.NAME, app.Name)
 			col.SetString(a.INSTALLER_REF, app.InstallerRef)
-			col.SetString(a.INSTANCE_NAME, app.InstanceName)
+			col.SetString(a.INSTANCE_ID, app.InstanceID)
 			col.SetString(a.DESIRED_STATUS, app.DesiredStatus)
-			col.SetString(a.IP, app.IP.String())
 			col.SetBool(a.PERSISTENCE, app.Persistence)
-		}, predicates
+		}
+		return sq.Update(a).SetFunc(mapper).Where(a.ID.EqString(app.ID))
 	}
 }
 
-func createInstanceQueryMapper(a db.APP, predicates []sq.Predicate) func() (sq.Table, func(row *sq.Row) App, []sq.Predicate) {
-	return func() (sq.Table, func(row *sq.Row) App, []sq.Predicate) {
-		mapper := func(row *sq.Row) App {
+func createAppQueryMapper(predicates []sq.Predicate) db.QueryMapper[App] {
+	a := sq.New[db.APP]("")
+	var query sq.SelectQuery
+	if len(predicates) == 0 {
+		query = sq.
+			From(a).
+			Where(predicates...)
+	} else {
+		query = sq.
+			From(a)
+	}
 
+	return func() (sq.SelectQuery, func(row *sq.Row) App) {
+		mapper := func(row *sq.Row) App {
 			return App{
 				Name:          row.StringField(a.NAME),
 				ID:            row.StringField(a.ID),
 				InstallerRef:  row.StringField(a.INSTALLER_REF),
-				InstanceName:  row.StringField(a.INSTANCE_NAME),
+				InstanceID:    row.StringField(a.ID),
 				DesiredStatus: row.StringField(a.DESIRED_STATUS),
-				IP:            net.ParseIP(row.StringField(a.IP)),
 				Persistence:   row.BoolField(a.PERSISTENCE),
 			}
 		}
-		return a, mapper, predicates
+		return query, mapper
 	}
 }
 
-func createAppDeleteByNameQuery(name string) func() (sq.Table, []sq.Predicate) {
-	return func() (sq.Table, []sq.Predicate) {
+func createAppDeleteByNameQuery(id string) db.DeleteMapper {
+	return func() sq.DeleteQuery {
 		a := sq.New[db.APP]("")
-		return a, []sq.Predicate{a.NAME.EqString(name)}
+		return sq.DeleteFrom(a).Where(a.ID.EqString(id))
 	}
 }

@@ -3,7 +3,6 @@ package protosc
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
-	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -24,6 +22,7 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/runtime"
+	"github.com/protosio/protos/internal/user"
 
 	"github.com/protosio/protos/internal/util"
 )
@@ -45,7 +44,7 @@ type ProtosClient struct {
 	wg       sync.WaitGroup
 	localKey *pcrypto.Key
 
-	AuthManager    *auth.AuthManager
+	UserManager    *user.UserManager
 	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
 	NetworkManager *network.Manager
@@ -99,29 +98,16 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	// create various managers
 	keyManager := pcrypto.CreateManager(protosClient.db)
 	metaClient := meta.Setup(protosClient.db, keyManager, version)
-	AuthManager := auth.CreateAuthManager(protosClient.db, keyManager, protosClient)
+	UserManager := user.CreateManager(protosClient.db, keyManager, protosClient)
 
-	protosClient.AuthManager = AuthManager
+	protosClient.UserManager = UserManager
 	protosClient.KeyManager = keyManager
 	protosClient.Meta = metaClient
 
 	return protosClient, nil
 }
 
-func networkUp(authMgr *auth.AuthManager, internalDomain string) (*network.Manager, error) {
-	currentDevice, err := authMgr.GetCurrentDevice()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current device while setting up network: %w", err)
-	}
-
-	ip, netp, err := net.ParseCIDR(currentDevice.Network)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse CIDR while setting up network: %w", err)
-	}
-	netp.IP = ip
-	internalIP := netp.IP.Mask(netp.Mask)
-	internalIP[3]++
-
+func networkUp(internalDomain string) (*network.Manager, error) {
 	key, err := pcrypto.GetLocalKey(config.Get().WorkDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device key while setting up network: %w", err)
@@ -157,7 +143,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 		return fmt.Errorf("failed to init. Error while initializing db: %w", err)
 	}
 
-	adminUser, err := pc.AuthManager.CreateUser(username, name, true)
+	adminUser, err := pc.UserManager.CreateUser(username, name, true)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -167,7 +153,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 		return fmt.Errorf("failed to add user. Error while generating machine id: %w", err)
 	}
 
-	err = pc.AuthManager.AddDevice(adminUser.Username, machineID, host, pc.localKey.PublicString(), "10.100.0.1/24")
+	err = pc.UserManager.AddDevice(adminUser.Username, machineID, host, pc.localKey.PublicString(), "10.100.0.1/24")
 	if err != nil {
 		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
 	}
@@ -180,7 +166,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 
 func (pc *ProtosClient) FinishInit() error {
 
-	networkManager, err := networkUp(pc.AuthManager, pc.cfg.InternalDomain)
+	networkManager, err := networkUp(pc.cfg.InternalDomain)
 	if err != nil {
 		return fmt.Errorf("failed to create network manager: %s", err.Error())
 	}
@@ -194,18 +180,13 @@ func (pc *ProtosClient) FinishInit() error {
 	}
 	pc.P2PManager = p2pManager
 
-	p2pStopper, err := p2pManager.StartServer(pc.Meta)
+	p2pStopper, err := p2pManager.StartServer()
 	if err != nil {
 		return fmt.Errorf("failed to start p2p server: %s", err.Error())
 	}
 	pc.stoppers["p2p"] = p2pStopper
 
-	currentDevice, err := pc.AuthManager.GetCurrentDevice()
-	if err != nil {
-		return fmt.Errorf("failed to get current device: %s", err.Error())
-	}
-
-	cloudManager, err := cloud.CreateManager(pc.db, pc.AuthManager, pc.KeyManager, p2pManager, pc, currentDevice.Name)
+	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, pc)
 	if err != nil {
 		return fmt.Errorf("failed to create cloud manager: %s", err.Error())
 	}
@@ -227,7 +208,7 @@ func (pc *ProtosClient) FinishInit() error {
 
 func (pc *ProtosClient) Refresh() error {
 
-	if pc.CloudManager == nil || pc.AuthManager == nil || pc.P2PManager == nil {
+	if pc.CloudManager == nil || pc.UserManager == nil || pc.P2PManager == nil {
 		log.Debug("Protos client not ready yet. Skipping refresh")
 		return nil
 	}
@@ -242,7 +223,7 @@ func (pc *ProtosClient) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	admin, err := pc.AuthManager.GetAdmin()
+	admin, err := pc.UserManager.GetAdmin()
 	if err == nil {
 		userDevices := admin.GetDevices()
 		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
@@ -268,7 +249,7 @@ func (pc *ProtosClient) Refresh() error {
 }
 
 func (pc *ProtosClient) IsInitialized() bool {
-	_, err := pc.AuthManager.GetAdmin()
+	_, err := pc.UserManager.GetAdmin()
 	if err != nil {
 		pc.wg.Add(1)
 		return false

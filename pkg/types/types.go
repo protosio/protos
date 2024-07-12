@@ -1,6 +1,6 @@
 package types
 
-import "github.com/protosio/protos/internal/auth"
+import auth "github.com/protosio/protos/internal/user"
 
 // APIAuthPath is the url prefix for the auth api
 const APIAuthPath string = "/api/v1/auth"

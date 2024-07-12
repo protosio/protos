@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
+	"github.com/protosio/protos/internal/cloud"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
@@ -31,14 +32,14 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 
 func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesRequest) (*pbApic.GetUserDevicesResponse, error) {
 	log.Debugf("Retrieving user devices")
-	adminUser, err := b.protosClient.AuthManager.GetAdmin()
+	adminUser, err := b.protosClient.UserManager.GetAdmin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
 	}
-
+	userDevices := adminUser.GetDevices()
 	resp := pbApic.GetUserDevicesResponse{}
 
-	for _, device := range adminUser.Devices {
+	for _, device := range userDevices {
 		wgPubKey := "n/a"
 		wgPublicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(device.PublicKey)
 		if err != nil {
@@ -49,7 +50,7 @@ func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesR
 
 		respDevice := pbApic.UserDevice{
 			Name:               device.Name,
-			MachineId:          device.MachineID,
+			Id:                 device.ID,
 			PublicKey:          device.PublicKey,
 			PublicKeyWireguard: wgPubKey,
 		}
@@ -61,7 +62,7 @@ func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesR
 
 func (b *Backend) GetUserInfo(ctx context.Context, in *pbApic.GetUserInfoRequest) (*pbApic.GetUserInfoResponse, error) {
 	log.Debugf("Retrieving user info")
-	adminUser, err := b.protosClient.AuthManager.GetAdmin()
+	adminUser, err := b.protosClient.UserManager.GetAdmin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
 	}
@@ -105,7 +106,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 	resp := pbApic.GetAppsResponse{}
 	for _, app := range apps {
 		var status string
-		client, err := b.protosClient.P2PManager.GetClient(app.InstanceName)
+		client, err := b.protosClient.P2PManager.GetClient(app.InstanceID)
 		if err != nil {
 			log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
 			status = "n/a"
@@ -120,13 +121,12 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 		}
 
 		respApp := pbApic.App{
-			Id:           app.ID,
-			Name:         app.Name,
-			Version:      app.GetVersion(),
-			Status:       fmt.Sprintf("%s (%s)", status, app.DesiredStatus),
-			InstanceName: app.InstanceName,
-			Ip:           app.IP.String(),
-			Installer:    app.InstallerRef,
+			Id:        app.ID,
+			Name:      app.Name,
+			Version:   app.GetVersion(),
+			Status:    fmt.Sprintf("%s (%s)", status, app.DesiredStatus),
+			Ip:        app.IP.String(),
+			Installer: app.InstallerRef,
 		}
 		resp.Apps = append(resp.Apps, &respApp)
 	}
@@ -189,7 +189,7 @@ func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) 
 		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
 	}
 
-	client, err := b.protosClient.P2PManager.GetClient(app.InstanceName)
+	client, err := b.protosClient.P2PManager.GetClient(app.InstanceID)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
 	}
@@ -365,13 +365,10 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
 			InternalIp:         pubKey.IPv6Address().StringExpanded(),
-			CloudName:          instance.CloudName,
-			CloudType:          instance.CloudType,
-			VmId:               instance.VMID,
+			VmId:               instance.ID,
 			Location:           instance.Location,
 			PublicKey:          instance.PublicKey,
 			PublicKeyWireguard: wgPublicKey.String(),
-			ProtosVersion:      instance.ProtosVersion,
 			Architecture:       instance.Architecture,
 			Status:             instance.Status,
 		}
@@ -422,13 +419,10 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
 			InternalIp:         pubKey.IPv6Address().StringExpanded(),
-			CloudName:          instance.CloudName,
-			CloudType:          instance.CloudType,
-			VmId:               instance.VMID,
+			VmId:               instance.ID,
 			Location:           instance.Location,
 			PublicKey:          instance.PublicKey,
 			PublicKeyWireguard: wgPublicKey.String(),
-			ProtosVersion:      instance.ProtosVersion,
 			Status:             status,
 			Architecture:       instance.Architecture,
 			Peers:              peers,
@@ -480,13 +474,10 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
 			InternalIp:         pubKey.IPv6Address().StringExpanded(),
-			CloudName:          instance.CloudName,
-			CloudType:          instance.CloudType,
-			VmId:               instance.VMID,
+			VmId:               instance.ID,
 			Location:           instance.Location,
 			PublicKey:          instance.PublicKey,
 			PublicKeyWireguard: wgPublicKey.String(),
-			ProtosVersion:      instance.ProtosVersion,
 			Status:             instance.Status,
 		},
 	}
@@ -524,18 +515,7 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 
 func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyRequest) (*pbApic.GetInstanceKeyResponse, error) {
 	log.Debugf("Retrieving key for instance '%s'", in.Name)
-	instance, err := b.protosClient.CloudManager.GetInstance(in.Name)
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve instance '%s' key: %w", in.Name, err)
-	}
-	if len(instance.SSHKeySeed) == 0 {
-		return nil, fmt.Errorf("instance '%s' is missing its SSH key", in.Name)
-	}
-	key, err := b.protosClient.KeyManager.NewKeyFromSeed(instance.SSHKeySeed)
-	if err != nil {
-		return nil, fmt.Errorf("instance '%s' has an invalid SSH key: %w", in.Name, err)
-	}
-	return &pbApic.GetInstanceKeyResponse{Key: key.EncodePrivateKeytoPEM()}, nil
+	return &pbApic.GetInstanceKeyResponse{Key: ""}, nil
 }
 
 func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLogsRequest) (*pbApic.GetInstanceLogsResponse, error) {
@@ -559,9 +539,9 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 }
 
 func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceRequest) (*pbApic.InitInstanceResponse, error) {
-	log.Debugf("Initializing dev instance '%s' at '%s'", in.Name, in.Ip)
+	log.Debugf("Initializing local instance '%s' at '%s'", in.Name, in.Ip)
 
-	err := b.protosClient.CloudManager.InitInstance(in.Name, "local", "local", in.Ip)
+	err := b.protosClient.CloudManager.InitInstance(in.Name, cloud.KindLocalVM, "local-id", "local", in.Ip)
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize instance '%s': %w", in.Name, err)
 	}

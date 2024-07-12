@@ -17,8 +17,7 @@ type Meta struct {
 	version string
 
 	// Public members
-	ID           string
-	InstanceName string
+	ID string
 }
 
 // Setup reads the domain and other information on first run and save this information to the database
@@ -35,15 +34,9 @@ func Setup(db *db.DB, keymngr *pcrypto.Manager, version string) *Meta {
 	return &metaRoot
 }
 
-// SetInstanceName sets the name of the instance
-func (m *Meta) SetInstanceName(name string) {
-	log.Debugf("Setting instance name to '%s'", name)
-	m.InstanceName = name
-}
-
-// GetInstanceName retrieves the name of the instance
-func (m *Meta) GetInstanceName() string {
-	return m.InstanceName
+// GetInstanceID retrieves the name of the instance
+func (m *Meta) GetInstanceID() string {
+	return m.ID
 }
 
 // GetVersion returns current version

@@ -1,19 +1,25 @@
-CREATE TABLE instances (
-    vm_id VARCHAR(255) NOT NULL
+CREATE TABLE machines (
+    id VARCHAR(255) NOT NULL
     ,name VARCHAR(255) NOT NULL
-    ,ssh_key_seed VARCHAR(255) NOT NULL
-    ,public_key VARCHAR(255) NOT NULL
-    ,public_ip VARCHAR(255) NOT NULL
-    ,cloud_type VARCHAR(255) NOT NULL
-    ,cloud_name VARCHAR(255) NOT NULL
-    ,location VARCHAR(255) NOT NULL
-    ,protos_version VARCHAR(255) NOT NULL
-    ,architecture VARCHAR(255) NOT NULL
+    ,kind VARCHAR(255) NOT NULL
 
-    ,PRIMARY KEY (vm_id)
+    ,PRIMARY KEY (id)
 );
 
-CREATE INDEX instances_name_idx ON instances (name);
+CREATE INDEX machines_name_idx ON machines (name);
+
+CREATE TABLE cloud_machines_metadata (
+    id VARCHAR(255) NOT NULL
+    ,cloud_id VARCHAR(255) NOT NULL
+    ,public_ip VARCHAR(255) NOT NULL
+    ,location VARCHAR(255) NOT NULL
+    ,architecture VARCHAR(255) NOT NULL
+    ,public_key VARCHAR(255) NOT NULL
+
+    ,PRIMARY KEY (id)
+);
+
+CREATE INDEX cloud_machines_metadata_public_key_idx ON cloud_machines_metadata (public_key);
 
 CREATE TABLE cloud_providers (
     id VARCHAR(255) NOT NULL
@@ -26,26 +32,21 @@ CREATE TABLE cloud_providers (
 
 CREATE INDEX cloud_providers_name_idx ON cloud_providers (name);
 
-CREATE TABLE ssh_keys (
-    private VARCHAR(255) NOT NULL
-    ,public VARCHAR(255) NOT NULL
-
-    ,PRIMARY KEY (private)
-);
-
 CREATE TABLE apps (
     id VARCHAR(255) NOT NULL
     ,name VARCHAR(255) NOT NULL
     ,installer_ref VARCHAR(255) NOT NULL
-    ,instance_name VARCHAR(255) NOT NULL
+    ,instance_id VARCHAR(255) NOT NULL
     ,desired_status VARCHAR(255) NOT NULL
-    ,ip VARCHAR(255) NOT NULL
     ,persistence BOOLEAN NOT NULL
+    ,public_key VARCHAR(255) NOT NULL
 
     ,PRIMARY KEY (id)
 );
 
 CREATE INDEX apps_name_idx ON apps (name);
+
+CREATE INDEX apps_public_key_idx ON apps (public_key);
 
 CREATE TABLE users (
     username VARCHAR(255) NOT NULL
@@ -55,16 +56,15 @@ CREATE TABLE users (
     ,PRIMARY KEY (username)
 );
 
-CREATE TABLE user_devices (
+CREATE TABLE user_devices_metadata (
     id VARCHAR(255) NOT NULL
-    ,name VARCHAR(255) NOT NULL
     ,public_key VARCHAR(255) NOT NULL
-    ,network VARCHAR(255) NOT NULL
     ,user_id VARCHAR(255) NOT NULL
+    ,name VARCHAR(255) NOT NULL
 
     ,PRIMARY KEY (id)
 );
 
-CREATE INDEX user_devices_name_idx ON user_devices (name);
+CREATE INDEX user_devices_metadata_public_key_idx ON user_devices_metadata (public_key);
 
-CREATE INDEX user_devices_user_id_idx ON user_devices (user_id);
+CREATE INDEX user_devices_metadata_user_id_idx ON user_devices_metadata (user_id);

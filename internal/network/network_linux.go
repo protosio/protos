@@ -10,8 +10,8 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
-	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
+	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/wireguard"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -201,7 +201,7 @@ func (m *Manager) Down() error {
 	return nil
 }
 
-func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.UserDevice) error {
+func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []user.UserDevice) error {
 
 	if m.domain == "" {
 		log.Debugf("Skipping peer configuration because the network is not configured yet")

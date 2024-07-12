@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/wireguard"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -48,7 +48,7 @@ func (m *Manager) Down() error {
 	return nil
 }
 
-func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []auth.UserDevice) error {
+func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []user.UserDevice) error {
 
 	log.Debug("Configuring network peers")
 	peers := []wgtypes.PeerConfig{}

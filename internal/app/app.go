@@ -44,7 +44,7 @@ type App struct {
 	Name          string `json:"name"`
 	ID            string `json:"id"`
 	InstallerRef  string `json:"installer-ref"`
-	InstanceName  string `json:"instance-id"`
+	InstanceID    string `json:"instance-id"`
 	DesiredStatus string `json:"desired-status"`
 	IP            net.IP `json:"ip"`
 	Persistence   bool   `json:"persistence"`

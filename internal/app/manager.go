@@ -62,7 +62,7 @@ func (am *Manager) Create(installer string, name string, instanceName string, pe
 		Name:          name,
 		ID:            guid.String(),
 		InstallerRef:  installer,
-		InstanceName:  instanceName,
+		InstanceID:    instanceName,
 		DesiredStatus: statusStopped,
 		Persistence:   persistence,
 	}
@@ -83,7 +83,7 @@ func (am *Manager) Create(installer string, name string, instanceName string, pe
 // GetByID returns an application based on its id
 func (am *Manager) GetByID(id string) (App, error) {
 	appModel := sq.New[db.APP]("")
-	app, err := db.SelectOne(am.db, createInstanceQueryMapper(appModel, []sq.Predicate{appModel.ID.EqString(id)}))
+	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.ID.EqString(id)}))
 	if err != nil {
 		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
@@ -92,19 +92,19 @@ func (am *Manager) GetByID(id string) (App, error) {
 }
 
 // Get returns a copy of an application based on its name
-func (am *Manager) Get(name string) (App, error) {
+func (am *Manager) Get(id string) (App, error) {
 	appModel := sq.New[db.APP]("")
-	app, err := db.SelectOne(am.db, createInstanceQueryMapper(appModel, []sq.Predicate{appModel.ID.EqString(name)}))
+	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.ID.EqString(id)}))
 	if err != nil {
 		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 
-	return App{}, fmt.Errorf("could not find application '%s'", name)
+	return App{}, fmt.Errorf("could not find application '%s'", id)
 }
 
 // GetAll returns a copy of all the applications
 func (am *Manager) GetAll() ([]App, error) {
-	apps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(sq.New[db.APP](""), nil))
+	apps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))
 	if err != nil {
 		return nil, fmt.Errorf("could not get all applications: %w", err)
 	}
@@ -115,7 +115,7 @@ func (am *Manager) GetAll() ([]App, error) {
 // GetAll returns a copy of all the applications
 func (am *Manager) GetByIntance(instance string) ([]App, error) {
 	appModel := sq.New[db.APP]("")
-	apps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(appModel, []sq.Predicate{appModel.INSTANCE_NAME.EqString(instance)}))
+	apps, err := db.SelectMultiple(am.db, createAppQueryMapper([]sq.Predicate{appModel.INSTANCE_ID.EqString(instance)}))
 	if err != nil {
 		return nil, fmt.Errorf("could not get all applications: %w", err)
 	}
@@ -130,7 +130,7 @@ func (am *Manager) Refresh() error {
 	}
 
 	log.Debug("Syncing apps")
-	dbapps, err := db.SelectMultiple(am.db, createInstanceQueryMapper(sq.New[db.APP](""), nil))
+	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))
 	if err != nil {
 		return fmt.Errorf("failure during application refresh: %w", err)
 	}
@@ -138,7 +138,7 @@ func (am *Manager) Refresh() error {
 	appsMap := map[string]App{}
 	for _, app := range dbapps {
 		appsMap[app.ID] = app
-		if app.InstanceName == am.m.GetInstanceName() {
+		if app.InstanceID == am.m.GetInstanceID() {
 			app.mgr = am
 			app.access = &sync.Mutex{}
 			log.Infof("App '%s' desired status: '%s'", app.Name, app.DesiredStatus)
@@ -218,19 +218,19 @@ func (am *Manager) Stop(name string) error {
 }
 
 // Remove removes an application based on the provided id
-func (am *Manager) Remove(name string) error {
-	app, err := am.Get(name)
+func (am *Manager) Remove(id string) error {
+	app, err := am.Get(id)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to remove application %s", name)
+		return errors.Wrapf(err, "Failed to remove application %s", id)
 	}
 
 	if app.DesiredStatus != statusStopped {
-		return fmt.Errorf("application '%s' should be stopped before being removed", name)
+		return fmt.Errorf("application '%s' should be stopped before being removed", id)
 	}
 
-	err = db.Delete(am.db, createAppDeleteByNameQuery(name))
+	err = db.Delete(am.db, createAppDeleteByNameQuery(id))
 	if err != nil {
-		return errors.Wrapf(err, "Failed to remove application %s", name)
+		return errors.Wrapf(err, "Failed to remove application %s", id)
 	}
 
 	return nil

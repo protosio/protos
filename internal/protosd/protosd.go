@@ -11,7 +11,6 @@ import (
 	"github.com/Masterminds/semver"
 
 	"github.com/protosio/protos/internal/app"
-	"github.com/protosio/protos/internal/auth"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -21,6 +20,7 @@ import (
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/runtime"
+	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
 )
 
@@ -87,8 +87,8 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	peerConfigurator := &PeerConfigurator{NetworkManager: networkManager}
 
 	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint)
-	um := auth.CreateAuthManager(dbcli, sm, peerConfigurator)
-	peerConfigurator.AuthManager = um
+	um := user.CreateManager(dbcli, sm, peerConfigurator)
+	peerConfigurator.UserManager = um
 	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli, m)
 
 	p2pManager, err := p2p.NewManager(lkey, appManager, dbcli, cfg.P2PPort)
@@ -97,13 +97,13 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	peerConfigurator.P2PManager = p2pManager
 
-	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, peerConfigurator, m.InstanceName)
+	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, peerConfigurator)
 	if err != nil {
 		log.Fatal(err)
 	}
 	peerConfigurator.CloudManager = cloudManager
 
-	p2pStopper, err := p2pManager.StartServer(m)
+	p2pStopper, err := p2pManager.StartServer()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 }
 
 type PeerConfigurator struct {
-	AuthManager    *auth.AuthManager
+	UserManager    *user.UserManager
 	NetworkManager *network.Manager
 	CloudManager   *cloud.Manager
 	P2PManager     *p2p.P2P
@@ -171,7 +171,7 @@ func (pc *PeerConfigurator) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	admin, err := pc.AuthManager.GetAdmin()
+	admin, err := pc.UserManager.GetAdmin()
 	if err == nil {
 		userDevices := admin.GetDevices()
 		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)

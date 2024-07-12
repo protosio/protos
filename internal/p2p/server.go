@@ -30,11 +30,6 @@ type ExternalDB interface {
 	EnableGRPCServers() error
 }
 
-// MetaConfigurator allows for the configuration of the meta package
-type MetaConfigurator interface {
-	SetInstanceName(name string)
-}
-
 type initMachine struct {
 	name      string
 	publicIP  string
@@ -52,9 +47,8 @@ func (im *initMachine) GetName() string {
 }
 
 type Server struct {
-	DB               ExternalDB
-	p2p              *P2P
-	metaConfigurator MetaConfigurator
+	DB  ExternalDB
+	p2p *P2P
 }
 
 func (s *Server) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
@@ -150,8 +144,6 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 	if err != nil {
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
-
-	s.metaConfigurator.SetInstanceName(req.InstanceName)
 
 	err = s.DB.InitFromPeer(pubKey.PeerID())
 	if err != nil {

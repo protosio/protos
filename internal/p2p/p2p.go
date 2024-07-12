@@ -136,7 +136,7 @@ func (p2p *P2P) createClientForPeer(id string) (client *Client, err error) {
 func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	currentMachines := map[string]Machine{}
 	currentPeerIDs := map[string]peer.ID{}
-	log.Debugf("Configuring p2p peers")
+	log.Debugf("Configuring p2p peers: %v", machines)
 
 	// create a map of the current machines and their IDs
 	for _, machine := range machines {
@@ -295,11 +295,11 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 //
 
 // StartServer starts listening for p2p connections
-func (p2p *P2P) StartServer(metaConfigurator MetaConfigurator) (func() error, error) {
+func (p2p *P2P) StartServer() (func() error, error) {
 	log.Info("Starting p2p server")
 
 	// register internal grpc servers
-	srv := &Server{DB: p2p.externalDB, metaConfigurator: metaConfigurator, p2p: p2p}
+	srv := &Server{DB: p2p.externalDB, p2p: p2p}
 	p2pproto.RegisterPingerServer(p2p.grpcServer, srv)
 	p2pproto.RegisterTesterServer(p2p.grpcServer, srv)
 	p2pproto.RegisterAppsServer(p2p.grpcServer, srv)
