@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -171,21 +170,17 @@ func (pc *PeerConfigurator) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	admin, err := pc.UserManager.GetAdmin()
-	if err == nil {
-		userDevices := admin.GetDevices()
-		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
-		if err != nil {
-			return fmt.Errorf("failed to configure network peers: %w", err)
-		}
-		for _, device := range userDevices {
-			peers = append(peers, &device)
-		}
-	}
+	userDevices, err := pc.UserManager.GetAllDevices(true)
 	if err != nil {
-		if !strings.Contains(err.Error(), "could not find admin user") {
-			return fmt.Errorf("failed to retrieve admin user: %w", err)
-		}
+		return fmt.Errorf("failed to retrieve user devices: %w", err)
+	}
+
+	err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
+	if err != nil {
+		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+	for _, device := range userDevices {
+		peers = append(peers, &device)
 	}
 
 	err = pc.P2PManager.ConfigurePeers(peers)

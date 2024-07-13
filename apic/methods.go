@@ -32,11 +32,10 @@ func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.Ini
 
 func (b *Backend) GetUserDevices(ctx context.Context, in *pbApic.GetUserDevicesRequest) (*pbApic.GetUserDevicesResponse, error) {
 	log.Debugf("Retrieving user devices")
-	adminUser, err := b.protosClient.UserManager.GetAdmin()
+	userDevices, err := b.protosClient.UserManager.GetAllDevices(false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
+		return nil, fmt.Errorf("failed to retrieve user devices: %w", err)
 	}
-	userDevices := adminUser.GetDevices()
 	resp := pbApic.GetUserDevicesResponse{}
 
 	for _, device := range userDevices {

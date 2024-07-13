@@ -127,7 +127,7 @@ func onReady() {
 
 	err = protosClient.FinishInit()
 	if err != nil {
-		log.Errorf("failed to finish initialization: %s", err.Error())
+		log.Errorf("failed to finish startup: %s", err.Error())
 		errorSig <- struct{}{}
 		return
 	}

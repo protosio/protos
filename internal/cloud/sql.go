@@ -163,7 +163,7 @@ func createCloudProviderUpdateMapper(provider ProviderInfo) db.UpdateMapper {
 func createCloudProviderQueryMapper(predicates []sq.Predicate) db.QueryMapper[ProviderInfo] {
 	cp := sq.New[db.CLOUD_PROVIDER]("")
 	var query sq.SelectQuery
-	if len(predicates) == 0 {
+	if len(predicates) != 0 {
 		query = sq.
 			From(cp).
 			Where(predicates...)

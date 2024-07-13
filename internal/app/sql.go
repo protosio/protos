@@ -37,7 +37,7 @@ func createAppUpdateMapper(app App) db.UpdateMapper {
 func createAppQueryMapper(predicates []sq.Predicate) db.QueryMapper[App] {
 	a := sq.New[db.APP]("")
 	var query sq.SelectQuery
-	if len(predicates) == 0 {
+	if len(predicates) != 0 {
 		query = sq.
 			From(a).
 			Where(predicates...)

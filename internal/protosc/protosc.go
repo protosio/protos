@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/cloud"
@@ -133,7 +132,7 @@ func networkUp(internalDomain string) (*network.Manager, error) {
 func (pc *ProtosClient) Init(username string, name string, organization string) error {
 	log.Debugf("Performing initialization")
 
-	host, err := os.Hostname()
+	hostname, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("failed to init. Could not retrieve hostname: %w", err)
 	}
@@ -148,12 +147,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	machineID, err := machineid.ProtectedID("protos")
-	if err != nil {
-		return fmt.Errorf("failed to add user. Error while generating machine id: %w", err)
-	}
-
-	err = pc.UserManager.AddDevice(adminUser.Username, machineID, host, pc.localKey.PublicString(), "10.100.0.1/24")
+	err = pc.UserManager.AddDevice(adminUser.Username, hostname, pc.localKey.PublicString())
 	if err != nil {
 		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
 	}
@@ -223,21 +217,17 @@ func (pc *ProtosClient) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	admin, err := pc.UserManager.GetAdmin()
-	if err == nil {
-		userDevices := admin.GetDevices()
-		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
-		if err != nil {
-			return fmt.Errorf("failed to configure network peers: %w", err)
-		}
-		for _, device := range userDevices {
-			peers = append(peers, &device)
-		}
-	}
+	userDevices, err := pc.UserManager.GetAllDevices(true)
 	if err != nil {
-		if !strings.Contains(err.Error(), "could not find admin user") {
-			return fmt.Errorf("failed to retrieve admin user: %w", err)
-		}
+		return fmt.Errorf("failed to retrieve user devices: %w", err)
+	}
+
+	err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
+	if err != nil {
+		return fmt.Errorf("failed to configure network peers: %w", err)
+	}
+	for _, device := range userDevices {
+		peers = append(peers, &device)
 	}
 
 	err = pc.P2PManager.ConfigurePeers(peers)

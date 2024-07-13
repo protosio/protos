@@ -13,7 +13,7 @@ func createUserInsertMapper(user User) db.InsertMapper {
 	return func() sq.InsertQuery {
 		u := sq.New[db.USER]("")
 		mapper := func(col *sq.Column) {
-			col.SetString(u.USERNAME, user.Name)
+			col.SetString(u.USERNAME, user.Username)
 			col.SetString(u.NAME, user.Name)
 			col.SetBool(u.IS_DISABLED, user.IsDisabled)
 		}
@@ -36,7 +36,7 @@ func createUserUpdateMapper(user User) func() (sq.Table, func(*sq.Column), []sq.
 func createUserQueryMapper(predicates []sq.Predicate) db.QueryMapper[User] {
 	u := sq.New[db.USER]("")
 	var query sq.SelectQuery
-	if len(predicates) == 0 {
+	if len(predicates) != 0 {
 		query = sq.
 			From(u).
 			Where(predicates...)
@@ -113,10 +113,14 @@ func createUserDeviceQueryMapper(publicKey string) db.QueryMapper[UserDevice] {
 	}
 }
 
-func createUserDeviceQueryAllMapper() db.QueryMapper[UserDevice] {
+func createUserDeviceQueryAllMapper(excludePublicKey string) db.QueryMapper[UserDevice] {
 	d := sq.New[db.USER_DEVICE_METADATA]("")
 	query := sq.
 		From(d)
+
+	if excludePublicKey != "" {
+		query = query.Where(d.PUBLIC_KEY.NeString(excludePublicKey))
+	}
 
 	return func() (sq.SelectQuery, func(row *sq.Row) UserDevice) {
 		mapper := func(row *sq.Row) UserDevice {

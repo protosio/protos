@@ -23,7 +23,6 @@ require (
 	github.com/containerd/containerd v1.7.13
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.4.0
-	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dennwc/btrfs v0.0.0-20230312211831-a1f570bd01a1
 	github.com/getlantern/systray v1.2.2
 	github.com/go-playground/validator/v10 v10.18.0
@@ -86,6 +85,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
+	github.com/denisbrodbeck/machineid v1.0.1 // indirect
 	github.com/dennwc/ioctl v1.0.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect

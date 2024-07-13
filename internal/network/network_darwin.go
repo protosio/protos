@@ -83,13 +83,12 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []user.
 		peers = append(peers, peerConf)
 	}
 
-	// if len(peerConfigs) > 0 {
-	fmt.Println("PeerConfigs: %v", peers)
-	err := m.configureLink(protosNetworkInterface, m.key.PrivateWG().String(), peers, routes)
-	if err != nil {
-		return fmt.Errorf("failed to configure link: %w", err)
+	if len(peers) > 0 {
+		err := m.configureLink(protosNetworkInterface, m.key.PrivateWG().String(), peers, routes)
+		if err != nil {
+			return fmt.Errorf("failed to configure link: %w", err)
+		}
 	}
-	// }
 
 	return nil
 }

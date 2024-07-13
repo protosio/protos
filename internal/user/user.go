@@ -90,11 +90,6 @@ func (user *User) GetInfo() UserInfo {
 	}
 }
 
-// GetDevices returns the devices that belong to a user
-func (user *User) GetDevices() []UserDevice {
-	return []UserDevice{}
-}
-
 //
 // Public package methods
 //
@@ -156,22 +151,27 @@ func (um *UserManager) GetAdmin() (User, error) {
 	return users[0], nil
 }
 
-// GetAllDevices returns all devices
-func (um *UserManager) GetAllDevices() ([]UserDevice, error) {
-	userDevices := []UserDevice{}
+// GetAllDevices returns all devices (without local device)
+func (um *UserManager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, error) {
 
-	users, err := db.SelectMultiple(um.db, createUserDeviceQueryAllMapper())
-	if err != nil {
-		return userDevices, fmt.Errorf("could not retrieve users: %w", err)
+	publicKey := ""
+	if excludeLocalDevice {
+		key, err := um.sm.GetLocalKey()
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve local key: %w", err)
+		}
+		publicKey = key.PublicString()
 	}
-	if len(users) == 0 {
-		return userDevices, fmt.Errorf("could not find admin user")
+
+	userDevices, err := db.SelectMultiple(um.db, createUserDeviceQueryAllMapper(publicKey))
+	if err != nil {
+		return userDevices, fmt.Errorf("could not retrieve user devices: %w", err)
 	}
 	return userDevices, nil
 }
 
 // AddDevice adds a device to the user
-func (um *UserManager) AddDevice(userID string, id string, name string, publicKey string, network string) error {
+func (um *UserManager) AddDevice(userID string, name string, publicKey string) error {
 	ud := UserDevice{
 		ID:        xid.New().String(),
 		Name:      name,
