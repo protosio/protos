@@ -360,6 +360,14 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			log.Error(err.Error())
 		}
 
+		cloudName := "local"
+		if instance.Kind == cloud.KindCloudVM {
+			provider, err := b.protosClient.CloudManager.GetProvider(instance.KindID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve cloud provider: %w", err)
+			}
+			cloudName = provider.NameStr()
+		}
 		respInstance := pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
@@ -370,6 +378,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			PublicKeyWireguard: wgPublicKey.String(),
 			Architecture:       instance.Architecture,
 			Status:             instance.Status,
+			CloudName:          cloudName,
 		}
 		resp.Instances = append(resp.Instances, &respInstance)
 	}
@@ -545,6 +554,17 @@ func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceReque
 		return nil, fmt.Errorf("could not initialize instance '%s': %w", in.Name, err)
 	}
 	return &pbApic.InitInstanceResponse{}, nil
+}
+
+func (b *Backend) UpdateInstance(ctx context.Context, in *pbApic.UpdateInstanceRequest) (*pbApic.UpdateInstanceResponse, error) {
+	log.Debugf("Updating instance '%s' to ip '%s'", in.Id, in.Ip)
+
+	err := b.protosClient.CloudManager.UpdateInstance(in.Id, in.Ip)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update instance '%s': %w", in.Id, err)
+	}
+
+	return &pbApic.UpdateInstanceResponse{}, nil
 }
 
 //

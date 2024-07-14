@@ -204,7 +204,6 @@ func (l *linkTUN) ConfigureWG(c wgtypes.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure link '%s': %w", l.name, err)
 	}
-	// fmt.Println(l.WGConfig())
 	return nil
 }
 
@@ -223,7 +222,7 @@ func (l *linkTUN) GetRoutes() ([]Route, error) {
 }
 
 func (l *linkTUN) AddRoute(r Route) error {
-	cmd := exec.Command(routePath, "-n", "add", "-net", r.Dest.String(), "-interface", l.realInterface)
+	cmd := exec.Command(sudoPath, routePath, "-n", "add", "-inet6", r.Dest.String(), "-interface", l.realInterface)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to add route to link '%s': %s", l.name, string(output))
@@ -232,7 +231,7 @@ func (l *linkTUN) AddRoute(r Route) error {
 }
 
 func (l *linkTUN) DelRoute(r Route) error {
-	cmd := exec.Command(routePath, "-n", "delete", "-net", r.Dest.String(), "-interface", l.realInterface)
+	cmd := exec.Command(sudoPath, routePath, "-n", "delete", "-inet6", r.Dest.String(), "-interface", l.realInterface)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to add route to link '%s': %s", l.name, string(output))

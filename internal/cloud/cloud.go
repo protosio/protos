@@ -20,6 +20,7 @@ import (
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
+	"github.com/rs/xid"
 )
 
 var log = util.GetLogger("cloud")
@@ -297,7 +298,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) error {
 	instanceInfo := InstanceInfo{
-		ID:       instanceName,
+		ID:       xid.New().String(),
 		PublicIP: ipString,
 		Name:     instanceName,
 		Kind:     kind,
@@ -376,6 +377,29 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	return nil
 }
 
+// UpdateInstance updates an instance
+func (cm *Manager) UpdateInstance(id string, ip string) error {
+	instance, err := cm.GetInstance(id)
+	if err != nil {
+		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
+	}
+
+	instance.PublicIP = ip
+	im, cmm := createInstanceUpdateMapper(instance)
+	err = db.Update(cm.db, im)
+	if err != nil {
+		return fmt.Errorf("failed to save instance '%s': %w", id, err)
+	}
+
+	err = db.Update(cm.db, cmm)
+	if err != nil {
+		return fmt.Errorf("failed to save instance metadata '%s': %w", id, err)
+	}
+
+	return nil
+
+}
+
 // DeleteInstance deletes an instance
 func (cm *Manager) DeleteInstance(id string) error {
 	instance, err := cm.GetInstance(id)
@@ -384,7 +408,7 @@ func (cm *Manager) DeleteInstance(id string) error {
 	}
 
 	// if local only, ignore any cloud resources
-	if instance.Kind == KindLocalVM {
+	if instance.Kind == KindCloudVM {
 		provider, err := cm.GetProvider(instance.KindID)
 		if err != nil {
 			return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
@@ -646,13 +670,13 @@ func (cm *Manager) GetInstancesWithUpdatedStatus() ([]InstanceInfo, error) {
 		return instances, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
 
-	for _, instance := range instances {
+	for i, instance := range instances {
 		status, err := cm.retrieveInstanceStatus(instance)
 		if err != nil {
 			log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
-			instance.Status = "n/a"
+			instances[i].Status = "n/a"
 		} else {
-			instance.Status = status
+			instances[i].Status = status
 		}
 	}
 	return instances, nil

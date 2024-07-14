@@ -16,6 +16,7 @@ var cloudLocation string
 var protosVersion string
 var devImg string
 var machineType string
+var ip string
 
 var cmdInstance *cli.Command = &cli.Command{
 	Name:  "instance",
@@ -166,6 +167,27 @@ var cmdInstance *cli.Command = &cli.Command{
 			},
 		},
 		{
+			Name:      "update",
+			ArgsUsage: "<id>",
+			Usage:     "Update instance details",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "ip",
+					Required:    true,
+					Destination: &ip,
+				},
+			},
+			Action: func(c *cli.Context) error {
+				id := c.Args().Get(0)
+				if id == "" {
+					cli.ShowSubcommandHelp(c)
+					os.Exit(1)
+				}
+
+				return updateInstance(id, ip)
+			},
+		},
+		{
 			Name:      "logs",
 			ArgsUsage: "<instance name>",
 			Usage:     "Pulls and displays Protos logs for instance",
@@ -209,10 +231,10 @@ func listInstances() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t", "Name", "Public IP", "Cloud", "VM ID", "Location", "Status")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", "----", "---------", "-----", "-----", "--------", "------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "Name", "Public IP", "Internal IP", "Cloud", "VM ID", "Location", "Status")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "----", "---------", "-----------", "-----", "-----", "--------", "------")
 	for _, instance := range resp.Instances {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t", instance.Name, instance.PublicIp, instance.CloudName, instance.VmId, instance.Location, instance.Status)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", instance.Name, instance.PublicIp, instance.InternalIp, instance.CloudName, instance.VmId, instance.Location, instance.Status)
 	}
 	fmt.Fprint(w, "\n")
 	return nil
@@ -328,6 +350,18 @@ func instanceInit(instanceName string, ipString string) error {
 	_, err := client.InitInstance(ctx, &apic.InitInstanceRequest{Name: instanceName, Ip: ipString})
 	if err != nil {
 		return fmt.Errorf("could not initialize instance '%s' key: %w", instanceName, err)
+	}
+
+	return nil
+}
+
+func updateInstance(id string, ip string) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := client.UpdateInstance(ctx, &apic.UpdateInstanceRequest{Id: id, Ip: ip})
+	if err != nil {
+		return fmt.Errorf("could not update instance '%s': %w", id, err)
 	}
 
 	return nil

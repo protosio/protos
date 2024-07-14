@@ -56,31 +56,39 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []user.
 	keepAliveInterval := 25 * time.Second
 
 	for _, instance := range instances {
-		fmt.Println("Instance: %v", instance)
 		if len(instance.PublicKey) == 0 || instance.PublicIP == "" || instance.Name == "" {
+			log.Warnf("Skipping instance %s: missing public key, public IP or name", instance.ID)
 			continue
 		}
 
-		pubkey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}
 
-		// FIXME: this might need adjusting because most likely it will not work like this
-		// peerConf := fmt.Sprintf("%s:%s:%s:%s:%s", instance.Name, pubkey.String(), instance.PublicIP, pubKey.IPv6Address().String(), pubKey.IPv6Address().String())
-		// peerConfigs = append(peerConfigs, peerConf)
+		pubKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+		}
 
 		instancePublicIP := net.ParseIP(instance.PublicIP)
 		if instancePublicIP == nil {
 			return fmt.Errorf("failed to parse CIDR while configuring VPN interface '%s': bad IP %s", instance.Name, "instance.PublicIP")
 		}
 
+		instanceInternalNet := *createIPv6Net(pubKey.IPv6Address())
+
+		// create peer configs
 		peerConf := wgtypes.PeerConfig{
-			PublicKey:                   pubkey,
+			PublicKey:                   pubKeyWG,
 			PersistentKeepaliveInterval: &keepAliveInterval,
 			Endpoint:                    &net.UDPAddr{IP: instancePublicIP, Port: 10999},
+			AllowedIPs:                  []net.IPNet{instanceInternalNet},
 		}
 		peers = append(peers, peerConf)
+
+		// add routes
+		routes = append(routes, wireguard.Route{Dest: instanceInternalNet})
 	}
 
 	if len(peers) > 0 {
@@ -132,7 +140,6 @@ func (m *Manager) deleteLink(iface string) error {
 }
 
 func (m *Manager) configureLink(iface string, privateKey string, peers []wgtypes.PeerConfig, routes []wireguard.Route) error {
-
 	// remove vpn interface
 	lnk, err := m.linkManager.GetLink(iface)
 	if err != nil {
@@ -151,6 +158,7 @@ func (m *Manager) configureLink(iface string, privateKey string, peers []wgtypes
 		Peers:        peers,
 		ReplacePeers: true,
 	}
+
 	err = lnk.ConfigureWG(wgcfg)
 	if err != nil {
 		return fmt.Errorf("failed to configure VPN interface '%s': %w", iface, err)

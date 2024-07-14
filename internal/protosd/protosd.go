@@ -175,10 +175,13 @@ func (pc *PeerConfigurator) Refresh() error {
 		return fmt.Errorf("failed to retrieve user devices: %w", err)
 	}
 
+	// configure peers without user devices
 	err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
 	if err != nil {
 		return fmt.Errorf("failed to configure network peers: %w", err)
 	}
+
+	// finally add user devices to peer list
 	for _, device := range userDevices {
 		peers = append(peers, &device)
 	}

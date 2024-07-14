@@ -51,7 +51,6 @@ func main() {
 			cmdCloud,
 			cmdInstance,
 			cmdRelease,
-			cmdBackup,
 		},
 	}
 

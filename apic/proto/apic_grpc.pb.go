@@ -43,16 +43,11 @@ const (
 	ProtosClientApi_GetInstanceKey_FullMethodName             = "/apic.ProtosClientApi/GetInstanceKey"
 	ProtosClientApi_GetInstanceLogs_FullMethodName            = "/apic.ProtosClientApi/GetInstanceLogs"
 	ProtosClientApi_InitInstance_FullMethodName               = "/apic.ProtosClientApi/InitInstance"
+	ProtosClientApi_UpdateInstance_FullMethodName             = "/apic.ProtosClientApi/UpdateInstance"
 	ProtosClientApi_GetProtosdReleases_FullMethodName         = "/apic.ProtosClientApi/GetProtosdReleases"
 	ProtosClientApi_GetCloudImages_FullMethodName             = "/apic.ProtosClientApi/GetCloudImages"
 	ProtosClientApi_UploadCloudImage_FullMethodName           = "/apic.ProtosClientApi/UploadCloudImage"
 	ProtosClientApi_RemoveCloudImage_FullMethodName           = "/apic.ProtosClientApi/RemoveCloudImage"
-	ProtosClientApi_GetBackupProviders_FullMethodName         = "/apic.ProtosClientApi/GetBackupProviders"
-	ProtosClientApi_GetBackupProviderInfo_FullMethodName      = "/apic.ProtosClientApi/GetBackupProviderInfo"
-	ProtosClientApi_GetBackups_FullMethodName                 = "/apic.ProtosClientApi/GetBackups"
-	ProtosClientApi_GetBackupInfo_FullMethodName              = "/apic.ProtosClientApi/GetBackupInfo"
-	ProtosClientApi_CreateBackup_FullMethodName               = "/apic.ProtosClientApi/CreateBackup"
-	ProtosClientApi_RemoveBackup_FullMethodName               = "/apic.ProtosClientApi/RemoveBackup"
 )
 
 // ProtosClientApiClient is the client API for ProtosClientApi service.
@@ -88,18 +83,12 @@ type ProtosClientApiClient interface {
 	GetInstanceKey(ctx context.Context, in *GetInstanceKeyRequest, opts ...grpc.CallOption) (*GetInstanceKeyResponse, error)
 	GetInstanceLogs(ctx context.Context, in *GetInstanceLogsRequest, opts ...grpc.CallOption) (*GetInstanceLogsResponse, error)
 	InitInstance(ctx context.Context, in *InitInstanceRequest, opts ...grpc.CallOption) (*InitInstanceResponse, error)
+	UpdateInstance(ctx context.Context, in *UpdateInstanceRequest, opts ...grpc.CallOption) (*UpdateInstanceResponse, error)
 	// Releases methods
 	GetProtosdReleases(ctx context.Context, in *GetProtosdReleasesRequest, opts ...grpc.CallOption) (*GetProtosdReleasesResponse, error)
 	GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error)
 	UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error)
-	// Backup methods
-	GetBackupProviders(ctx context.Context, in *GetBackupProvidersRequest, opts ...grpc.CallOption) (*GetBackupProvidersResponse, error)
-	GetBackupProviderInfo(ctx context.Context, in *GetBackupProviderInfoRequest, opts ...grpc.CallOption) (*GetBackupProviderInfoResponse, error)
-	GetBackups(ctx context.Context, in *GetBackupsRequest, opts ...grpc.CallOption) (*GetBackupsResponse, error)
-	GetBackupInfo(ctx context.Context, in *GetBackupInfoRequest, opts ...grpc.CallOption) (*GetBackupInfoResponse, error)
-	CreateBackup(ctx context.Context, in *CreateBackupRequest, opts ...grpc.CallOption) (*CreateBackupResponse, error)
-	RemoveBackup(ctx context.Context, in *RemoveBackupRequest, opts ...grpc.CallOption) (*RemoveBackupResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -326,6 +315,15 @@ func (c *protosClientApiClient) InitInstance(ctx context.Context, in *InitInstan
 	return out, nil
 }
 
+func (c *protosClientApiClient) UpdateInstance(ctx context.Context, in *UpdateInstanceRequest, opts ...grpc.CallOption) (*UpdateInstanceResponse, error) {
+	out := new(UpdateInstanceResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_UpdateInstance_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) GetProtosdReleases(ctx context.Context, in *GetProtosdReleasesRequest, opts ...grpc.CallOption) (*GetProtosdReleasesResponse, error) {
 	out := new(GetProtosdReleasesResponse)
 	err := c.cc.Invoke(ctx, ProtosClientApi_GetProtosdReleases_FullMethodName, in, out, opts...)
@@ -356,60 +354,6 @@ func (c *protosClientApiClient) UploadCloudImage(ctx context.Context, in *Upload
 func (c *protosClientApiClient) RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error) {
 	out := new(RemoveCloudImageResponse)
 	err := c.cc.Invoke(ctx, ProtosClientApi_RemoveCloudImage_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) GetBackupProviders(ctx context.Context, in *GetBackupProvidersRequest, opts ...grpc.CallOption) (*GetBackupProvidersResponse, error) {
-	out := new(GetBackupProvidersResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetBackupProviders_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) GetBackupProviderInfo(ctx context.Context, in *GetBackupProviderInfoRequest, opts ...grpc.CallOption) (*GetBackupProviderInfoResponse, error) {
-	out := new(GetBackupProviderInfoResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetBackupProviderInfo_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) GetBackups(ctx context.Context, in *GetBackupsRequest, opts ...grpc.CallOption) (*GetBackupsResponse, error) {
-	out := new(GetBackupsResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetBackups_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) GetBackupInfo(ctx context.Context, in *GetBackupInfoRequest, opts ...grpc.CallOption) (*GetBackupInfoResponse, error) {
-	out := new(GetBackupInfoResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetBackupInfo_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) CreateBackup(ctx context.Context, in *CreateBackupRequest, opts ...grpc.CallOption) (*CreateBackupResponse, error) {
-	out := new(CreateBackupResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_CreateBackup_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) RemoveBackup(ctx context.Context, in *RemoveBackupRequest, opts ...grpc.CallOption) (*RemoveBackupResponse, error) {
-	out := new(RemoveBackupResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_RemoveBackup_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -449,18 +393,12 @@ type ProtosClientApiServer interface {
 	GetInstanceKey(context.Context, *GetInstanceKeyRequest) (*GetInstanceKeyResponse, error)
 	GetInstanceLogs(context.Context, *GetInstanceLogsRequest) (*GetInstanceLogsResponse, error)
 	InitInstance(context.Context, *InitInstanceRequest) (*InitInstanceResponse, error)
+	UpdateInstance(context.Context, *UpdateInstanceRequest) (*UpdateInstanceResponse, error)
 	// Releases methods
 	GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error)
 	GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error)
 	UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error)
-	// Backup methods
-	GetBackupProviders(context.Context, *GetBackupProvidersRequest) (*GetBackupProvidersResponse, error)
-	GetBackupProviderInfo(context.Context, *GetBackupProviderInfoRequest) (*GetBackupProviderInfoResponse, error)
-	GetBackups(context.Context, *GetBackupsRequest) (*GetBackupsResponse, error)
-	GetBackupInfo(context.Context, *GetBackupInfoRequest) (*GetBackupInfoResponse, error)
-	CreateBackup(context.Context, *CreateBackupRequest) (*CreateBackupResponse, error)
-	RemoveBackup(context.Context, *RemoveBackupRequest) (*RemoveBackupResponse, error)
 }
 
 // UnimplementedProtosClientApiServer should be embedded to have forward compatible implementations.
@@ -539,6 +477,9 @@ func (UnimplementedProtosClientApiServer) GetInstanceLogs(context.Context, *GetI
 func (UnimplementedProtosClientApiServer) InitInstance(context.Context, *InitInstanceRequest) (*InitInstanceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitInstance not implemented")
 }
+func (UnimplementedProtosClientApiServer) UpdateInstance(context.Context, *UpdateInstanceRequest) (*UpdateInstanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateInstance not implemented")
+}
 func (UnimplementedProtosClientApiServer) GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProtosdReleases not implemented")
 }
@@ -550,24 +491,6 @@ func (UnimplementedProtosClientApiServer) UploadCloudImage(context.Context, *Upl
 }
 func (UnimplementedProtosClientApiServer) RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveCloudImage not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetBackupProviders(context.Context, *GetBackupProvidersRequest) (*GetBackupProvidersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBackupProviders not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetBackupProviderInfo(context.Context, *GetBackupProviderInfoRequest) (*GetBackupProviderInfoResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBackupProviderInfo not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetBackups(context.Context, *GetBackupsRequest) (*GetBackupsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBackups not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetBackupInfo(context.Context, *GetBackupInfoRequest) (*GetBackupInfoResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBackupInfo not implemented")
-}
-func (UnimplementedProtosClientApiServer) CreateBackup(context.Context, *CreateBackupRequest) (*CreateBackupResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateBackup not implemented")
-}
-func (UnimplementedProtosClientApiServer) RemoveBackup(context.Context, *RemoveBackupRequest) (*RemoveBackupResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemoveBackup not implemented")
 }
 
 // UnsafeProtosClientApiServer may be embedded to opt out of forward compatibility for this service.
@@ -1013,6 +936,24 @@ func _ProtosClientApi_InitInstance_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_UpdateInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateInstanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).UpdateInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_UpdateInstance_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).UpdateInstance(ctx, req.(*UpdateInstanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_GetProtosdReleases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetProtosdReleasesRequest)
 	if err := dec(in); err != nil {
@@ -1081,114 +1022,6 @@ func _ProtosClientApi_RemoveCloudImage_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProtosClientApiServer).RemoveCloudImage(ctx, req.(*RemoveCloudImageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_GetBackupProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetBackupProvidersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetBackupProviders(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetBackupProviders_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetBackupProviders(ctx, req.(*GetBackupProvidersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_GetBackupProviderInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetBackupProviderInfoRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetBackupProviderInfo(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetBackupProviderInfo_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetBackupProviderInfo(ctx, req.(*GetBackupProviderInfoRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_GetBackups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetBackupsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetBackups(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetBackups_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetBackups(ctx, req.(*GetBackupsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_GetBackupInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetBackupInfoRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetBackupInfo(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetBackupInfo_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetBackupInfo(ctx, req.(*GetBackupInfoRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_CreateBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateBackupRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).CreateBackup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_CreateBackup_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).CreateBackup(ctx, req.(*CreateBackupRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_RemoveBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveBackupRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).RemoveBackup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_RemoveBackup_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).RemoveBackup(ctx, req.(*RemoveBackupRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1297,6 +1130,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_InitInstance_Handler,
 		},
 		{
+			MethodName: "UpdateInstance",
+			Handler:    _ProtosClientApi_UpdateInstance_Handler,
+		},
+		{
 			MethodName: "GetProtosdReleases",
 			Handler:    _ProtosClientApi_GetProtosdReleases_Handler,
 		},
@@ -1311,30 +1148,6 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveCloudImage",
 			Handler:    _ProtosClientApi_RemoveCloudImage_Handler,
-		},
-		{
-			MethodName: "GetBackupProviders",
-			Handler:    _ProtosClientApi_GetBackupProviders_Handler,
-		},
-		{
-			MethodName: "GetBackupProviderInfo",
-			Handler:    _ProtosClientApi_GetBackupProviderInfo_Handler,
-		},
-		{
-			MethodName: "GetBackups",
-			Handler:    _ProtosClientApi_GetBackups_Handler,
-		},
-		{
-			MethodName: "GetBackupInfo",
-			Handler:    _ProtosClientApi_GetBackupInfo_Handler,
-		},
-		{
-			MethodName: "CreateBackup",
-			Handler:    _ProtosClientApi_CreateBackup_Handler,
-		},
-		{
-			MethodName: "RemoveBackup",
-			Handler:    _ProtosClientApi_RemoveBackup_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

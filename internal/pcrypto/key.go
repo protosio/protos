@@ -329,9 +329,9 @@ func CreatePublicKeyFromBase64(base64String string) (Key, error) {
 	return Key{Pub: pubKey, peerID: peerID}, nil
 }
 
-func ConvertPublicEd25519ToCurve25519(ed25519Key string) (wgtypes.Key, error) {
+func ConvertPublicEd25519ToCurve25519(base64String string) (wgtypes.Key, error) {
 
-	pubKey, err := base64.StdEncoding.DecodeString(ed25519Key)
+	pubKey, err := base64.StdEncoding.DecodeString(base64String)
 	if err != nil {
 		return wgtypes.Key{}, fmt.Errorf("failed to decode base64 public key: %w", err)
 	}

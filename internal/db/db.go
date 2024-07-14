@@ -69,11 +69,13 @@ func (db *DB) Init() error {
 // Insert inserts a new entry in the database using the sq query builder
 func Insert(db *DB, mc InsertMapper) error {
 	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
+	db.Commit("insert")
 	return err
 }
 
 func Update(db *DB, mc UpdateMapper) error {
 	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
+	db.Commit("update")
 	return err
 }
 
@@ -97,5 +99,6 @@ func SelectMultiple[T any](db *DB, mc QueryMapper[T]) ([]T, error) {
 
 func Delete(db *DB, mc DeleteMapper) error {
 	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
+	db.Commit("delete")
 	return err
 }

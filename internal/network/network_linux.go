@@ -11,6 +11,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	"github.com/protosio/protos/internal/cloud"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/wireguard"
 	"github.com/vishvananda/netlink"
@@ -227,44 +228,61 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []user.
 			continue
 		}
 
-		// publicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
-		// if err != nil {
-		// 	return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
-		// }
+		pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+		}
 
-		// network := createIPv6Net(m.key.IPv6Address())
+		pubKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+		}
+
+		instancePublicIP := net.ParseIP(instance.PublicIP)
+		if instancePublicIP == nil {
+			return fmt.Errorf("failed to parse CIDR while configuring VPN interface '%s': bad IP %s", instance.Name, "instance.PublicIP")
+		}
+
+		instanceInternalNet := *createIPv6Net(pubKey.IPv6Address())
 
 		// newRoutes = append(newRoutes, netlink.Route{Dst: instanceNetwork, Src: m.gateway})
-		// peerConf := wgtypes.PeerConfig{
-		// 	PublicKey:         publicKey,
-		// 	ReplaceAllowedIPs: true,
-		// 	Endpoint:          &net.UDPAddr{IP: net.ParseIP(instance.PublicIP), Port: 10999},
-		// 	AllowedIPs:        []net.IPNet{*instanceNetwork},
-		// }
+		peerConf := wgtypes.PeerConfig{
+			PublicKey:         pubKeyWG,
+			ReplaceAllowedIPs: true,
+			Endpoint:          &net.UDPAddr{IP: net.ParseIP(instance.PublicIP), Port: 10999},
+			AllowedIPs:        []net.IPNet{instanceInternalNet},
+		}
 
-		// peers = append(peers, peerConf)
+		peers = append(peers, peerConf)
+
+		// add routes
+		newRoutes = append(newRoutes, netlink.Route{Dst: &instanceInternalNet, LinkIndex: lnk.Index()})
 	}
 
-	// // build devices peer list
-	// for _, userDevice := range devices {
-	// 	log.Debugf("Using route '%s' for device '%s'(%s)", userDevice.Network, userDevice.Name, userDevice.GetPublicKey())
-	// 	publicKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(userDevice.PublicKey)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
-	// 	}
-	// 	_, deviceNetwork, err := net.ParseCIDR(userDevice.Network)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to parse network for device '%s': %w", userDevice.Name, err)
-	// 	}
-	// 	newRoutes = append(newRoutes, netlink.Route{Dst: deviceNetwork, Src: m.gateway})
+	// build devices peer list
+	for _, userDevice := range devices {
+		pubKey, err := pcrypto.CreatePublicKeyFromBase64(userDevice.PublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
+		}
 
-	// 	peerConf := wgtypes.PeerConfig{
-	// 		PublicKey:         publicKeyWG,
-	// 		ReplaceAllowedIPs: true,
-	// 		AllowedIPs:        []net.IPNet{*deviceNetwork},
-	// 	}
-	// 	peers = append(peers, peerConf)
-	// }
+		publicKeyWG, err := pcrypto.ConvertPublicEd25519ToCurve25519(userDevice.PublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
+		}
+
+		instanceInternalNet := *createIPv6Net(pubKey.IPv6Address())
+
+		peerConf := wgtypes.PeerConfig{
+			PublicKey:         publicKeyWG,
+			ReplaceAllowedIPs: true,
+			AllowedIPs:        []net.IPNet{instanceInternalNet},
+		}
+		peers = append(peers, peerConf)
+
+		// add routes
+		newRoutes = append(newRoutes, netlink.Route{Dst: &instanceInternalNet, LinkIndex: lnk.Index()})
+	}
 
 	wgKey := m.key.PrivateWG()
 	// create the wireguard interface
@@ -284,7 +302,7 @@ func (m *Manager) ConfigurePeers(instances []cloud.InstanceInfo, devices []user.
 		return fmt.Errorf("failed to retrieve interface: %w", err)
 	}
 
-	existingRoutes, err := netlink.RouteList(netlinkWG, netlink.FAMILY_V4)
+	existingRoutes, err := netlink.RouteList(netlinkWG, netlink.FAMILY_V6)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve routes: %w", err)
 	}

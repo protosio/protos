@@ -22,7 +22,6 @@ import (
 var log = util.GetLogger("grpcAPI")
 
 type Backend struct {
-	pbApic.UnimplementedProtosClientApiServer
 	protosClient *protosc.ProtosClient
 }
 
