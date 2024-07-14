@@ -64,66 +64,6 @@ func diffRoutes(a []netlink.Route, b []netlink.Route) ([]netlink.Route, []netlin
 	return extraA, extraB
 }
 
-// func configureBridge(name string, network net.IPNet) (*netlink.Bridge, error) {
-
-// 	log.Debugf("Setting up bridge interface '%s'", bridgeNetworkInterface)
-// 	brInterface := &netlink.Bridge{
-// 		LinkAttrs: netlink.LinkAttrs{
-// 			Name:   name,
-// 			TxQLen: -1,
-// 		},
-// 	}
-
-// 	err := netlink.LinkAdd(brInterface)
-// 	if err != nil && err != syscall.EEXIST {
-// 		return nil, fmt.Errorf("failed to create bridge interface '%q': %w", name, err)
-// 	}
-
-// 	l, err := netlink.LinkByName(name)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("could not find newly created bridge interface '%q': %w", name, err)
-// 	}
-// 	brInterface, ok := l.(*netlink.Bridge)
-// 	if !ok {
-// 		return nil, fmt.Errorf("interface '%q' found but is not a bridge", name)
-// 	}
-
-// 	_, err = sysctl.Sysctl(fmt.Sprintf("net.ipv6.conf.%s.accept_ra", name), "0")
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to disable ipv6 router ads on bridge interface '%s': %w", name, err)
-// 	}
-
-// 	if err := netlink.LinkSetUp(brInterface); err != nil {
-// 		return nil, err
-// 	}
-
-// 	newRoutes := []netlink.Route{{Dst: &network, LinkIndex: l.Attrs().Index}}
-// 	existingRoutes, err := netlink.RouteList(l, netlink.FAMILY_V4)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to retrieve routes: %w", err)
-// 	}
-// 	delRoutes, addRoutes := diffRoutes(existingRoutes, newRoutes)
-
-// 	// add the new routes to the bridge interface
-// 	for _, route := range addRoutes {
-// 		route.LinkIndex = l.Attrs().Index
-// 		err = netlink.RouteAdd(&route)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("failed to add route: %w", err)
-// 		}
-// 	}
-
-// 	// delete old routes from the bridge interface
-// 	for _, route := range delRoutes {
-// 		err = netlink.RouteDel(&route)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("failed to delete route: %w", err)
-// 		}
-// 	}
-
-// 	return brInterface, nil
-// }
-
 //
 // public methods
 //
@@ -141,12 +81,6 @@ func (m *Manager) Up() error {
 	}
 
 	network := createIPv6Net(m.key.IPv6Address())
-
-	// // configure the bridge interface
-	// netBridge, err = configureBridge(bridgeNetworkInterface, *network)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to create bridge interface during network initialization: %w", err)
-	// }
 
 	// the instance gateway IP is also used for WG
 	linkAddrs := []wireguard.Address{
