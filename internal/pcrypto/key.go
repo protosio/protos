@@ -175,21 +175,13 @@ func (k Key) Verify(commit string, signature string, publicKey string) error {
 		return fmt.Errorf("failed to decode public key: %w", err)
 	}
 
-	// Unmarshal the public key bytes into a public key object
-	pubKey, err := crypto.UnmarshalPublicKey(pubKeyBytes)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal public key: %w", err)
-	}
+	pubKey := ed25519.PublicKey(pubKeyBytes)
 
 	// Decode the base64-encoded signature string to bytes
 	signatureBytes := base36.DecodeToBytes(signature)
 
 	// Verify the signature using the public key
-	verified, err := pubKey.Verify([]byte(commit), signatureBytes)
-	if err != nil {
-		return fmt.Errorf("failed to verify signature: %w", err)
-	}
-
+	verified := ed25519.Verify(pubKey, []byte(commit), signatureBytes)
 	if !verified {
 		return fmt.Errorf("verification failed for public key %s commit %s signature %s ", publicKey, commit, signature)
 	}
