@@ -136,7 +136,7 @@ func (p2p *P2P) createClientForPeer(id string) (client *Client, err error) {
 func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	currentMachines := map[string]Machine{}
 	currentPeerIDs := map[string]peer.ID{}
-	log.Debugf("Configuring p2p peers: %v", machines)
+	log.Debugf("configuring p2p peers: %v", machines)
 
 	// create a map of the current machines and their IDs
 	for _, machine := range machines {
@@ -177,7 +177,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 		if machine, found := currentMachines[id]; !found {
 			err := p2p.host.Network().ClosePeer(currentPeerIDs[id])
 			if err != nil {
-				log.Debugf("Failed to disconnect from old peer '%s'(%s)", id, machine.GetName())
+				log.Debugf("failed to disconnect from old peer '%s'(%s)", id, machine.GetName())
 			}
 			p2p.clients.Delete(id)
 		}
@@ -189,7 +189,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	for id, machine := range currentMachines {
 		_, err := p2p.AddPeer(id, machine, false)
 		if err != nil {
-			log.Debugf("Failed to add peer '%s'(%s): %s", id, machine.GetName(), err.Error())
+			log.Errorf("failed to add peer '%s'(%s): %s", id, machine.GetName(), err.Error())
 		}
 	}
 
@@ -206,12 +206,11 @@ func (p2p *P2P) AddPeer(id string, machine Machine, init bool) (*Client, error) 
 		return client, nil
 	}
 
-	destinationString := ""
-	if machine.GetPublicIP() != "" {
-		destinationString = fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, id)
-	} else {
-		destinationString = fmt.Sprintf("/p2p/%s", id)
+	if machine.GetPublicIP() == "" {
+		return nil, nil
 	}
+
+	destinationString := fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, id)
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create multi address: %w", err)
@@ -222,24 +221,12 @@ func (p2p *P2P) AddPeer(id string, machine Machine, init bool) (*Client, error) 
 		return nil, fmt.Errorf("failed to extract info from address: %w", err)
 	}
 
-	log.Debugf("Adding peer id '%s'(%s) at ip '%s'", machine.GetName(), peerInfo.ID.String(), machine.GetPublicIP())
+	log.Debugf("adding peer id '%s'(%s) at ip '%s'", machine.GetName(), peerInfo.ID.String(), machine.GetPublicIP())
 
 	err = p2p.host.Connect(context.Background(), *peerInfo)
 	if err != nil {
-		log.Errorf("Failed to connect to peer '%s'(%s): %s", machine.GetName(), id, err.Error())
+		log.Errorf("failed to connect to peer '%s'(%s): %s", machine.GetName(), id, err.Error())
 
-	}
-
-	client, err = p2p.createClientForPeer(id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to add peer '%s' (%s): %w", id, machine.GetName(), err)
-	}
-
-	p2p.clients.Set(id, client)
-	if !init {
-		if err := p2p.externalDB.AddPeer(id, client.grpcConnection); err != nil {
-			return nil, fmt.Errorf("failed to add peer '%s' (%s) to external DB: %w", id, machine.GetName(), err)
-		}
 	}
 
 	return client, nil
@@ -257,10 +244,10 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 			machineName = machine.GetName()
 		}
 
-		log.Debugf("New connection with peer '%s'(%s). Creating client", machineName, conn.RemotePeer().String())
+		log.Debugf("new connection with peer '%s'(%s). Creating client", machineName, conn.RemotePeer().String())
 		client, err := p2p.createClientForPeer(conn.RemotePeer().String())
 		if err != nil {
-			log.Errorf("Failed to create client for new peer '%s'(%s): %s", machineName, conn.RemotePeer().String(), err.Error())
+			log.Errorf("failed to create client for new peer '%s'(%s): %s", machineName, conn.RemotePeer().String(), err.Error())
 			conn.Close()
 			return
 		}
@@ -278,14 +265,14 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 //
 
 func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) {
-	log.Infof("Disconnected from %s", conn.RemotePeer().String())
+	log.Infof("disconnected from %s", conn.RemotePeer().String())
 	if err := conn.Close(); err != nil {
-		log.Errorf("Error while disconnecting from peer '%s': %v", conn.RemotePeer().String(), err)
+		log.Errorf("error while disconnecting from peer '%s': %v", conn.RemotePeer().String(), err)
 	}
 	p2p.clients.Delete(conn.RemotePeer().String())
 	if p2p.externalDB != nil {
 		if err := p2p.externalDB.RemovePeer(conn.RemotePeer().String()); err != nil {
-			log.Errorf("Failed to remove DB peer for '%s': %v", conn.RemotePeer().String(), err)
+			log.Errorf("failed to remove DB peer for '%s': %v", conn.RemotePeer().String(), err)
 		}
 	}
 }
@@ -296,7 +283,7 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 
 // StartServer starts listening for p2p connections
 func (p2p *P2P) StartServer() (func() error, error) {
-	log.Info("Starting p2p server")
+	log.Info("starting p2p server")
 
 	// register internal grpc servers
 	srv := &Server{DB: p2p.externalDB, p2p: p2p}

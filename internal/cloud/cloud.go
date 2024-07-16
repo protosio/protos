@@ -261,6 +261,9 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
+	if p2pClient == nil {
+		return InstanceInfo{}, errors.New("failed to initialize instance: p2p client is nil")
+	}
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
@@ -350,6 +353,9 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	p2pClient, err := cm.p2p.AddPeer(publicKey.PeerID(), instanceInfo, true)
 	if err != nil {
 		return fmt.Errorf("failed to initialize instance: %w", err)
+	}
+	if p2pClient == nil {
+		return errors.New("failed to initialize instance: p2p client is nil")
 	}
 
 	// do the initialization
