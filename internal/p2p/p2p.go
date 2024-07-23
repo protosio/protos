@@ -239,7 +239,7 @@ func (p2p *P2P) AddPeer(id string, machine Machine, init bool) (*Client, error) 
 		tries++
 	}
 
-	return nil, fmt.Errorf("failed to retrieve client for peer '%s'(%s): %s", machine.GetName(), id, err.Error())
+	return nil, fmt.Errorf("failed to retrieve client for peer '%s'(%s): client not found", machine.GetName(), id)
 }
 
 func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
