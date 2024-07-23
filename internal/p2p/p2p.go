@@ -225,11 +225,21 @@ func (p2p *P2P) AddPeer(id string, machine Machine, init bool) (*Client, error) 
 
 	err = p2p.host.Connect(context.Background(), *peerInfo)
 	if err != nil {
-		log.Errorf("failed to connect to peer '%s'(%s): %s", machine.GetName(), id, err.Error())
-
+		return nil, fmt.Errorf("failed to connect to peer '%s'(%s): %s", machine.GetName(), id, err.Error())
 	}
 
-	return client, nil
+	// wait for the client to be created by the connection handler
+	tries := 0
+	for tries < 5 {
+		time.Sleep(1 * time.Second)
+		client, found := p2p.clients.Get(id)
+		if found {
+			return client, nil
+		}
+		tries++
+	}
+
+	return nil, fmt.Errorf("failed to retrieve client for peer '%s'(%s): %s", machine.GetName(), id, err.Error())
 }
 
 func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
