@@ -231,10 +231,10 @@ func listInstances() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "Name", "Public IP", "Internal IP", "Cloud", "VM ID", "Location", "Status")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "----", "---------", "-----------", "-----", "-----", "--------", "------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "ID", "Name", "Public IP", "Internal IP", "Cloud", "Location", "Status")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "----", "----", "---------", "-----------", "-----", "--------", "------")
 	for _, instance := range resp.Instances {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", instance.Name, instance.PublicIp, instance.InternalIp, instance.CloudName, instance.VmId, instance.Location, instance.Status)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", instance.VmId, instance.Name, instance.PublicIp, instance.InternalIp, instance.CloudName, instance.Location, instance.Status)
 	}
 	fmt.Fprint(w, "\n")
 	return nil
