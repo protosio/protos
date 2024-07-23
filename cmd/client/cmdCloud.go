@@ -189,11 +189,5 @@ func infoCloudProvider(name string) error {
 		fmt.Fprintf(w, "    %s\t -  Nr of CPUs: %d,\t Memory: %d MiB,\t Storage: %d GB\t\n", instanceID, instanceSpec.Cores, instanceSpec.Memory, instanceSpec.DefaultStorage)
 	}
 	w.Flush()
-
-	if err != nil {
-		fmt.Printf("Status: NOT OK (%s)\n", err.Error())
-	} else {
-		fmt.Printf("Status: OK - API reachable\n")
-	}
 	return nil
 }

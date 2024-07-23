@@ -25,10 +25,6 @@ import (
 
 var log = util.GetLogger("cloud")
 
-type PeerConfigurator interface {
-	Refresh() error
-}
-
 // Type represents a specific cloud (AWS, GCP, DigitalOcean etc.)
 type Type string
 
@@ -37,23 +33,22 @@ func (ct Type) String() string {
 }
 
 // CreateManager creates and returns a cloud manager
-func CreateManager(db *db.DB, um *user.UserManager, sm *pcrypto.Manager, p2p *p2p.P2P, configurator PeerConfigurator) (*Manager, error) {
+func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2P) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
-	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, configurator: configurator}
+	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p}
 
 	return manager, nil
 }
 
 // Manager manages cloud providers and instances
 type Manager struct {
-	db           *db.DB
-	um           *user.UserManager
-	sm           *pcrypto.Manager
-	p2p          *p2p.P2P
-	configurator PeerConfigurator
+	db  *db.DB
+	um  *user.Manager
+	sm  *pcrypto.Manager
+	p2p *p2p.P2P
 }
 
 //

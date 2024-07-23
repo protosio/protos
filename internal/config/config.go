@@ -1,10 +1,9 @@
 package config
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
@@ -22,19 +21,8 @@ type Config struct {
 	RuntimeEndpoint string
 	StaticAssets    string
 	InternalDomain  string
-	ProcsQuit       sync.Map
 	ExternalDNS     string // format: <ip>:<port>
 	Version         *semver.Version
-}
-
-var config = Config{
-	WorkDir:         "/var/lib/protos",
-	P2PPort:         10500,
-	Runtime:         "containerd",
-	RuntimeEndpoint: "/run/containerd/containerd.sock",
-	InternalDomain:  "protos.internal",
-	ExternalDNS:     "8.8.8.8:53",
-	ProcsQuit:       sync.Map{},
 }
 
 // Gconfig maintains a global view of the application configuration parameters.
@@ -42,10 +30,10 @@ var config = Config{
 var log = util.GetLogger("config")
 
 // Load reads the configuration from a file and maps it to the config struct
-func Load(configFile string, version *semver.Version) *Config {
+func Load(configFile string, version *semver.Version) Config {
 	log.Info("Reading main config [", configFile, "]")
 	filename, _ := filepath.Abs(configFile)
-	yamlFile, err := ioutil.ReadFile(filename)
+	yamlFile, err := os.ReadFile(filename)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such file or directory") {
 			log.Info("No config file found, using default config values")
@@ -59,10 +47,20 @@ func Load(configFile string, version *semver.Version) *Config {
 		log.Fatal(err)
 	}
 	config.Version = version
-	return &config
+	return *config
 }
 
 // Get returns a pointer to the global config structure
+func New(workdir string, version *semver.Version) Config {
+	if workdir != "" {
+		config.WorkDir = workdir
+	}
+
+	config.Version = version
+
+	return *config
+}
+
 func Get() *Config {
-	return &config
+	return config
 }

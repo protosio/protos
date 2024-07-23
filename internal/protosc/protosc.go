@@ -15,15 +15,15 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
-	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/user"
-
 	"github.com/protosio/protos/internal/util"
+
+	"github.com/Masterminds/semver"
 )
 
 var log = util.GetLogger("protosc")
@@ -38,28 +38,20 @@ const (
 type ProtosClient struct {
 	stoppers map[string]func() error
 	db       *db.DB
-	cfg      *config.Config
+	cfg      config.Config
 	version  string
 	wg       sync.WaitGroup
 	localKey *pcrypto.Key
 
-	UserManager    *user.UserManager
+	Manager        *user.Manager
 	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
 	NetworkManager *network.Manager
 	CloudManager   *cloud.Manager
 	P2PManager     *p2p.P2P
-	Meta           *meta.Meta
 }
 
-func New(dataPath string, version string) (*ProtosClient, error) {
-
-	protosClient := &ProtosClient{
-		stoppers: map[string]func() error{},
-		version:  version,
-		wg:       sync.WaitGroup{},
-		cfg:      config.Get(),
-	}
+func New(dataPath string, version *semver.Version) (*ProtosClient, error) {
 
 	homedir, err := os.UserHomeDir()
 	if err != nil {
@@ -71,7 +63,13 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 	} else if strings.HasPrefix(dataPath, "~/") {
 		dataPath = filepath.Join(homedir, dataPath[2:])
 	}
-	protosClient.cfg.WorkDir = dataPath
+
+	protosClient := &ProtosClient{
+		stoppers: map[string]func() error{},
+		version:  version.String(),
+		wg:       sync.WaitGroup{},
+		cfg:      config.New(dataPath, version),
+	}
 
 	// create protos dir
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
@@ -96,12 +94,10 @@ func New(dataPath string, version string) (*ProtosClient, error) {
 
 	// create various managers
 	keyManager := pcrypto.CreateManager(protosClient.db)
-	metaClient := meta.Setup(protosClient.db, keyManager, version)
-	UserManager := user.CreateManager(protosClient.db, keyManager, protosClient)
+	Manager := user.CreateManager(protosClient.db, keyManager)
 
-	protosClient.UserManager = UserManager
+	protosClient.Manager = Manager
 	protosClient.KeyManager = keyManager
-	protosClient.Meta = metaClient
 
 	return protosClient, nil
 }
@@ -142,12 +138,12 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 		return fmt.Errorf("failed to init. Error while initializing db: %w", err)
 	}
 
-	adminUser, err := pc.UserManager.CreateUser(username, name, true)
+	adminUser, err := pc.Manager.CreateUser(username, name, true)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	err = pc.UserManager.AddDevice(adminUser.Username, hostname, pc.localKey.PublicString())
+	err = pc.Manager.AddDevice(adminUser.Username, hostname, pc.localKey.PublicString())
 	if err != nil {
 		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
 	}
@@ -158,7 +154,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 	return nil
 }
 
-func (pc *ProtosClient) FinishInit() error {
+func (pc *ProtosClient) StartUp() error {
 
 	networkManager, err := networkUp(pc.cfg.InternalDomain)
 	if err != nil {
@@ -166,7 +162,7 @@ func (pc *ProtosClient) FinishInit() error {
 	}
 
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint)
-	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.db, pc.Meta)
+	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.db)
 
 	p2pManager, err := p2p.NewManager(pc.localKey, appManager, pc.db, pc.cfg.P2PPort)
 	if err != nil {
@@ -180,7 +176,7 @@ func (pc *ProtosClient) FinishInit() error {
 	}
 	pc.stoppers["p2p"] = p2pStopper
 
-	cloudManager, err := cloud.CreateManager(pc.db, pc.UserManager, pc.KeyManager, p2pManager, pc)
+	cloudManager, err := cloud.CreateManager(pc.db, pc.Manager, pc.KeyManager, p2pManager)
 	if err != nil {
 		return fmt.Errorf("failed to create cloud manager: %s", err.Error())
 	}
@@ -191,25 +187,30 @@ func (pc *ProtosClient) FinishInit() error {
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-	err = pc.Refresh()
-	if err != nil {
-		return fmt.Errorf("failed to refresh state: %s", err.Error())
+	pc.db.RegisterNotifier(db.CLOUD_MACHINE_METADATA{}, pc)
+	pc.db.RegisterNotifier(db.MACHINE{}, pc)
+	pc.db.RegisterNotifier(db.USER{}, pc)
+	pc.db.RegisterNotifier(db.USER_DEVICE_METADATA{}, pc)
+
+	if pc.db.Initialized() {
+		pc.Notify()
 	}
 
 	return nil
 
 }
 
-func (pc *ProtosClient) Refresh() error {
+func (pc *ProtosClient) Notify() {
 
-	if pc.CloudManager == nil || pc.UserManager == nil || pc.P2PManager == nil {
+	if pc.CloudManager == nil || pc.Manager == nil || pc.P2PManager == nil {
 		log.Debug("Protos client not ready yet. Skipping refresh")
-		return nil
+		return
 	}
 
 	instances, err := pc.CloudManager.GetInstances()
 	if err != nil {
-		return fmt.Errorf("failed to retrieve instances: %w", err)
+		log.Errorf("failed to get instances: %s", err.Error())
+		return
 	}
 
 	peers := []p2p.Machine{}
@@ -217,14 +218,16 @@ func (pc *ProtosClient) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	userDevices, err := pc.UserManager.GetAllDevices(true)
+	userDevices, err := pc.Manager.GetAllDevices(true)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve user devices: %w", err)
+		log.Errorf("failed to get user devices: %s", err.Error())
+		return
 	}
 
 	err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
 	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
+		log.Errorf("failed to configure network peers: %s", err.Error())
+		return
 	}
 	for _, device := range userDevices {
 		peers = append(peers, &device)
@@ -232,14 +235,13 @@ func (pc *ProtosClient) Refresh() error {
 
 	err = pc.P2PManager.ConfigurePeers(peers)
 	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
+		log.Errorf("failed to configure p2p peers: %s", err.Error())
+		return
 	}
-
-	return nil
 }
 
 func (pc *ProtosClient) IsInitialized() bool {
-	_, err := pc.UserManager.GetAdmin()
+	_, err := pc.Manager.GetAdmin()
 	if err != nil {
 		pc.wg.Add(1)
 		return false

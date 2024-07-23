@@ -58,7 +58,7 @@ func (db *DB) Init() error {
 		return fmt.Errorf("failed to run migrations: %v", err)
 	}
 
-	_, err = db.Commit("test")
+	_, err = db.Commit("init commit")
 	if err != nil {
 		return fmt.Errorf("failed to commit: %v", err)
 	}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/bokwoon95/sq"
 	"github.com/protosio/protos/internal/db"
-	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/runtime"
 
 	"github.com/pkg/errors"
@@ -23,7 +22,6 @@ const (
 // Manager keeps track of all the apps
 type Manager struct {
 	ptype   string
-	m       *meta.Meta
 	db      *db.DB
 	runtime runtime.RuntimePlatform
 }
@@ -33,9 +31,9 @@ type Manager struct {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB, meta *meta.Meta) *Manager {
+func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB) *Manager {
 
-	manager := &Manager{ptype: ptype, db: db, m: meta, runtime: runtime}
+	manager := &Manager{ptype: ptype, db: db, runtime: runtime}
 
 	return manager
 }
@@ -124,48 +122,50 @@ func (am *Manager) GetByIntance(instance string) ([]App, error) {
 }
 
 // Refresh checks the db for new apps and deploys them if they belong to the current instance
-func (am *Manager) Refresh() error {
+func (am *Manager) Notify() {
 	if am.ptype == TypeProtosc {
-		return nil
+		return
 	}
 
 	log.Debug("Syncing apps")
-	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))
+	// TODO: fix the query
+	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper([]sq.Predicate{sq.New[db.APP]("").INSTANCE_ID.EqString("n/a")}))
 	if err != nil {
-		return fmt.Errorf("failure during application refresh: %w", err)
+		log.Errorf("Failed to get apps from db: %s", err.Error())
+		return
 	}
 
 	appsMap := map[string]App{}
 	for _, app := range dbapps {
 		appsMap[app.ID] = app
-		if app.InstanceID == am.m.GetInstanceID() {
-			app.mgr = am
-			app.access = &sync.Mutex{}
-			log.Infof("App '%s' desired status: '%s'", app.Name, app.DesiredStatus)
-			if app.DesiredStatus == statusRunning {
-				if app.GetStatus() != statusRunning {
-					err := app.Start()
-					if err != nil {
-						log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
-						continue
-					}
-				}
-			} else if app.DesiredStatus == statusStopped {
-				if app.GetStatus() != statusStopped {
-					err := app.Stop()
-					if err != nil {
-						log.Errorf("Failed to stop app '%s': '%s'", app.Name, err.Error())
-						continue
-					}
+
+		app.mgr = am
+		app.access = &sync.Mutex{}
+		log.Infof("App '%s' desired status: '%s'", app.Name, app.DesiredStatus)
+		if app.DesiredStatus == statusRunning {
+			if app.GetStatus() != statusRunning {
+				err := app.Start()
+				if err != nil {
+					log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
+					continue
 				}
 			}
-			log.Infof("App '%s' actual status: '%s'", app.Name, app.GetStatus())
+		} else if app.DesiredStatus == statusStopped {
+			if app.GetStatus() != statusStopped {
+				err := app.Stop()
+				if err != nil {
+					log.Errorf("Failed to stop app '%s': '%s'", app.Name, err.Error())
+					continue
+				}
+			}
 		}
+		log.Infof("App '%s' actual status: '%s'", app.Name, app.GetStatus())
 	}
 
 	allSandboxes, err := am.runtime.GetAllSandboxes()
 	if err != nil {
-		return fmt.Errorf("failure during application refresh: %w", err)
+		log.Errorf("Failed to get all sandboxes: %s", err.Error())
+		return
 	}
 	for id, sandbox := range allSandboxes {
 		if _, found := appsMap[id]; !found {
@@ -182,8 +182,6 @@ func (am *Manager) Refresh() error {
 			}
 		}
 	}
-
-	return nil
 }
 
 // Start sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance

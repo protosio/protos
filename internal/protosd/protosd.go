@@ -10,11 +10,11 @@ import (
 	"github.com/Masterminds/semver"
 
 	"github.com/protosio/protos/internal/app"
+	"github.com/protosio/protos/internal/banner"
 	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
-	"github.com/protosio/protos/internal/meta"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -76,31 +76,25 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 
 	// create all the managers
 	sm := pcrypto.CreateManager(dbcli)
-	m := meta.Setup(dbcli, sm, version.String())
 
 	networkManager, err := network.NewManager()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	peerConfigurator := &PeerConfigurator{NetworkManager: networkManager}
-
 	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint)
-	um := user.CreateManager(dbcli, sm, peerConfigurator)
-	peerConfigurator.UserManager = um
-	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli, m)
+	userManager := user.CreateManager(dbcli, sm)
+	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli)
 
 	p2pManager, err := p2p.NewManager(lkey, appManager, dbcli, cfg.P2PPort)
 	if err != nil {
 		log.Fatal(err)
 	}
-	peerConfigurator.P2PManager = p2pManager
 
-	cloudManager, err := cloud.CreateManager(dbcli, um, sm, p2pManager, peerConfigurator)
+	cloudManager, err := cloud.CreateManager(dbcli, userManager, sm, p2pManager)
 	if err != nil {
 		log.Fatal(err)
 	}
-	peerConfigurator.CloudManager = cloudManager
 
 	p2pStopper, err := p2pManager.StartServer()
 	if err != nil {
@@ -108,12 +102,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 	stoppers["p2p"] = p2pStopper
 
-	// check init and dev mode
-	if !dbcli.Initialized() {
-		log.Info("DB not initialized. Waiting for remote init")
-	}
-
-	meta.PrintBanner()
+	banner.PrintBanner(cfg)
 
 	canceled := false
 	ctxStopper := func() error {
@@ -143,26 +132,39 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	dnsStopper := dns.StartServer(lkey, DNSPort, cfg.ExternalDNS, cfg.InternalDomain, appManager)
 	stoppers["dns"] = dnsStopper
 
+	dbNotifier := &DBNotifier{cm: cloudManager, um: userManager, nm: networkManager, p2pm: p2pManager}
+	dbcli.RegisterNotifier(db.CLOUD_MACHINE_METADATA{}, dbNotifier)
+	dbcli.RegisterNotifier(db.MACHINE{}, dbNotifier)
+	dbcli.RegisterNotifier(db.USER{}, dbNotifier)
+	dbcli.RegisterNotifier(db.USER_DEVICE_METADATA{}, dbNotifier)
+	dbcli.RegisterNotifier(db.APP{}, appManager)
+
 	log.Info("Started all servers successfully")
-	peerConfigurator.Refresh()
-	appManager.Refresh()
+
+	if dbcli.Initialized() {
+		dbNotifier.Notify()
+	} else {
+		log.Info("DB not initialized. Waiting for remote init")
+	}
+
 	wg.Wait()
 	log.Info("Shutdown completed")
 
 }
 
-type PeerConfigurator struct {
-	UserManager    *user.UserManager
-	NetworkManager *network.Manager
-	CloudManager   *cloud.Manager
-	P2PManager     *p2p.P2P
+type DBNotifier struct {
+	cm   *cloud.Manager
+	um   *user.Manager
+	nm   *network.Manager
+	p2pm *p2p.P2P
 }
 
-func (pc *PeerConfigurator) Refresh() error {
+func (dbn *DBNotifier) Notify() {
 
-	instances, err := pc.CloudManager.GetInstances()
+	instances, err := dbn.cm.GetInstances()
 	if err != nil {
-		return fmt.Errorf("failed to retrieve instances: %w", err)
+		log.Error(fmt.Errorf("failed to retrieve instances: %w", err))
+		return
 	}
 
 	peers := []p2p.Machine{}
@@ -170,15 +172,17 @@ func (pc *PeerConfigurator) Refresh() error {
 		peers = append(peers, instance)
 	}
 
-	userDevices, err := pc.UserManager.GetAllDevices(true)
+	userDevices, err := dbn.um.GetAllDevices(true)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve user devices: %w", err)
+		log.Error(fmt.Errorf("failed to retrieve user devices: %w", err))
+		return
 	}
 
 	// configure peers without user devices
-	err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
+	err = dbn.nm.ConfigurePeers(instances, userDevices)
 	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
+		log.Error(fmt.Errorf("failed to configure network peers: %w", err))
+		return
 	}
 
 	// finally add user devices to peer list
@@ -186,10 +190,9 @@ func (pc *PeerConfigurator) Refresh() error {
 		peers = append(peers, &device)
 	}
 
-	err = pc.P2PManager.ConfigurePeers(peers)
+	err = dbn.p2pm.ConfigurePeers(peers)
 	if err != nil {
-		return fmt.Errorf("failed to configure network peers: %w", err)
+		log.Error(fmt.Errorf("failed to configure p2p peers: %w", err))
+		return
 	}
-
-	return nil
 }

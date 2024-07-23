@@ -105,7 +105,7 @@ func onReady() {
 	signal.Notify(osSigs, syscall.SIGINT, syscall.SIGTERM)
 	go handleQuitSignals(osSigs, mQuitOrig.ClickedCh, errorSig)
 
-	protosClient, err := protosc.New(dataPath, version.String())
+	protosClient, err := protosc.New(dataPath, version)
 	if err != nil {
 		log.Errorf("failed to create Protos client: %s", err.Error())
 		errorSig <- struct{}{}
@@ -125,7 +125,7 @@ func onReady() {
 		protosClient.WaitForInitialization()
 	}
 
-	err = protosClient.FinishInit()
+	err = protosClient.StartUp()
 	if err != nil {
 		log.Errorf("failed to finish startup: %s", err.Error())
 		errorSig <- struct{}{}

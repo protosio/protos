@@ -15,10 +15,6 @@ import (
 
 var log = util.GetLogger("auth")
 
-type PeerConfigurator interface {
-	Refresh() error
-}
-
 type UserInfo struct {
 	Username string `json:"username"`
 	Name     string `json:"name"`
@@ -94,24 +90,24 @@ func (user *User) GetInfo() UserInfo {
 // Public package methods
 //
 
-// UserManager implements the core.UserManager interface, which manages users
-type UserManager struct {
+// Manager implements the core.Manager interface, which manages users
+type Manager struct {
 	db *db.DB
 	sm *pcrypto.Manager
 }
 
-// CreateManager return a UserManager instance, which implements the core.UserManager interface
-func CreateManager(db *db.DB, sm *pcrypto.Manager, configurator PeerConfigurator) *UserManager {
-	if db == nil || sm == nil || configurator == nil {
+// CreateManager return a Manager instance, which implements the core.Manager interface
+func CreateManager(db *db.DB, sm *pcrypto.Manager) *Manager {
+	if db == nil || sm == nil {
 		log.Panic("Failed to create user manager: none of the inputs can be nil")
 	}
 	gob.Register(&User{})
 
-	return &UserManager{db: db, sm: sm}
+	return &Manager{db: db, sm: sm}
 }
 
 // CreateUser creates and returns a user
-func (um *UserManager) CreateUser(username string, name string, isadmin bool) (User, error) {
+func (um *Manager) CreateUser(username string, name string, isadmin bool) (User, error) {
 
 	user := User{
 		Username:   username,
@@ -128,7 +124,7 @@ func (um *UserManager) CreateUser(username string, name string, isadmin bool) (U
 }
 
 // GetUser returns a user based on the username
-func (um *UserManager) GetUser(username string) (*User, error) {
+func (um *Manager) GetUser(username string) (*User, error) {
 	errInvalid := errors.New("Invalid username")
 	user, err := getUser(username, um.db)
 	if err != nil {
@@ -139,7 +135,7 @@ func (um *UserManager) GetUser(username string) (*User, error) {
 }
 
 // GetAdmin returns the admin username. Only one admin is allowed at the moment
-func (um *UserManager) GetAdmin() (User, error) {
+func (um *Manager) GetAdmin() (User, error) {
 	users, err := db.SelectMultiple(um.db, createUserQueryMapper([]sq.Predicate{}))
 	if err != nil {
 		return User{}, fmt.Errorf("could not retrieve users: %w", err)
@@ -152,7 +148,7 @@ func (um *UserManager) GetAdmin() (User, error) {
 }
 
 // GetAllDevices returns all devices (without local device)
-func (um *UserManager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, error) {
+func (um *Manager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, error) {
 
 	publicKey := ""
 	if excludeLocalDevice {
@@ -171,7 +167,7 @@ func (um *UserManager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, err
 }
 
 // AddDevice adds a device to the user
-func (um *UserManager) AddDevice(userID string, name string, publicKey string) error {
+func (um *Manager) AddDevice(userID string, name string, publicKey string) error {
 	ud := UserDevice{
 		ID:        xid.New().String(),
 		Name:      name,
@@ -188,7 +184,7 @@ func (um *UserManager) AddDevice(userID string, name string, publicKey string) e
 }
 
 // GetCurrentDevice returns the device that Protos is running on currently
-func (um *UserManager) GetCurrentDevice() (UserDevice, error) {
+func (um *Manager) GetCurrentDevice() (UserDevice, error) {
 	key, err := um.sm.GetLocalKey()
 	if err != nil {
 		return UserDevice{}, fmt.Errorf("could not retrieve local key: %w", err)

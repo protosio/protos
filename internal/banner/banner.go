@@ -1,8 +1,10 @@
-package meta
+package banner
 
 import (
 	"fmt"
 	"os"
+
+	"github.com/protosio/protos/internal/config"
 )
 
 const banner = `                 ###########
@@ -33,12 +35,12 @@ const banner = `                 ###########
                   ///   ///`
 
 // PrintBanner prints the Protos ascii banner
-func PrintBanner() {
+func PrintBanner(conf config.Config) {
 	pid := os.Getpid()
 	fmt.Fprintln(os.Stderr, fmt.Sprintf(
 		banner,
-		gconfig.Version.String(),
+		conf.Version.String(),
 		pid,
-		gconfig.P2PPort,
-		gconfig.WorkDir))
+		conf.P2PPort,
+		conf.WorkDir))
 }

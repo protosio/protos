@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var log = util.GetLogger("protos")
@@ -74,7 +75,7 @@ func main() {
 
 		// connecting to the GRPC API first
 		var opts []grpc.DialOption
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		conn, err = grpc.Dial("unix://"+unixSocket, opts...)
 		if err != nil {
 			log.Fatalf("Failed to connect to GRPC API: %s", err.Error())

@@ -206,9 +206,7 @@ var cmdInstance *cli.Command = &cli.Command{
 					os.Exit(1)
 				}
 
-				follow := c.Bool("f")
-
-				return getInstanceLogs(name, follow)
+				return getInstanceLogs(name)
 			},
 		},
 	},
@@ -332,7 +330,7 @@ func getInstanceKey(instanceName string) error {
 	return nil
 }
 
-func getInstanceLogs(instanceName string, follow bool) error {
+func getInstanceLogs(instanceName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := client.GetInstanceLogs(ctx, &apic.GetInstanceLogsRequest{Name: instanceName})
