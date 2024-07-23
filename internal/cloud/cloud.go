@@ -632,8 +632,18 @@ func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 }
 
 // GetInstances returns all the instances from the db
-func (cm *Manager) GetInstances() ([]InstanceInfo, error) {
-	instances, err := db.SelectMultiple(cm.db, createInstanceQueryAllMapper())
+func (cm *Manager) GetInstances(excludeLocalInstance bool) ([]InstanceInfo, error) {
+
+	publicKey := ""
+	if excludeLocalInstance {
+		key, err := cm.sm.GetLocalKey()
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve local key: %w", err)
+		}
+		publicKey = key.PublicString()
+	}
+
+	instances, err := db.SelectMultiple(cm.db, createInstanceQueryAllMapper(publicKey))
 	if err != nil {
 		return instances, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
@@ -666,7 +676,7 @@ func (cm *Manager) retrieveInstanceStatus(instance InstanceInfo) (string, error)
 
 // GetInstances returns all the instances from the db
 func (cm *Manager) GetInstancesWithUpdatedStatus() ([]InstanceInfo, error) {
-	instances, err := db.SelectMultiple(cm.db, createInstanceQueryAllMapper())
+	instances, err := db.SelectMultiple(cm.db, createInstanceQueryAllMapper(""))
 	if err != nil {
 		return instances, fmt.Errorf("failed to retrieve instances: %w", err)
 	}

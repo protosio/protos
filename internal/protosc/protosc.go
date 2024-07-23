@@ -207,7 +207,7 @@ func (pc *ProtosClient) Notify() {
 		return
 	}
 
-	instances, err := pc.CloudManager.GetInstances()
+	instances, err := pc.CloudManager.GetInstances(false)
 	if err != nil {
 		log.Errorf("failed to get instances: %s", err.Error())
 		return

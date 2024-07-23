@@ -161,7 +161,7 @@ type DBNotifier struct {
 
 func (dbn *DBNotifier) Notify() {
 
-	instances, err := dbn.cm.GetInstances()
+	instances, err := dbn.cm.GetInstances(true)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to retrieve instances: %w", err))
 		return
@@ -172,7 +172,7 @@ func (dbn *DBNotifier) Notify() {
 		peers = append(peers, instance)
 	}
 
-	userDevices, err := dbn.um.GetAllDevices(true)
+	userDevices, err := dbn.um.GetAllDevices(false)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to retrieve user devices: %w", err))
 		return

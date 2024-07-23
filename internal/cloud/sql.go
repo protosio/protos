@@ -92,13 +92,17 @@ func createInstanceQueryMapper(id string) db.QueryMapper[InstanceInfo] {
 	}
 }
 
-func createInstanceQueryAllMapper() db.QueryMapper[InstanceInfo] {
+func createInstanceQueryAllMapper(excludePublicKey string) db.QueryMapper[InstanceInfo] {
 	m := sq.New[db.MACHINE]("")
 	cmm := sq.New[db.CLOUD_MACHINE_METADATA]("")
 
 	query := sq.
 		From(m).
 		Join(cmm, cmm.ID.Eq(m.ID))
+
+	if excludePublicKey != "" {
+		query = query.Where(cmm.PUBLIC_KEY.NeString(excludePublicKey))
+	}
 
 	return func() (sq.SelectQuery, func(row *sq.Row) InstanceInfo) {
 		mapper := func(row *sq.Row) InstanceInfo {
