@@ -18,23 +18,23 @@ var cmdDvc *cli.Command = &cli.Command{
 	Subcommands: []*cli.Command{
 		{
 			Name:      "log",
-			Usage:     "Retrieve commits",
-			ArgsUsage: "[remote]",
+			Usage:     "Retrieve local or instance commits",
+			ArgsUsage: "[instance]",
 			Action: func(c *cli.Context) error {
-				remote := c.Args().Get(0)
-				return getCommits(remote)
+				instance := c.Args().Get(0)
+				return getCommits(instance)
 			},
 		},
 	},
 }
 
-func getCommits(remote string) error {
+func getCommits(instanceID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var commits []*pbApic.Commit
 
-	if remote == "" {
+	if instanceID == "" {
 		// Retrieve local commits from the database
 		resp, err := client.GetLocalCommits(ctx, &pbApic.GetLocalCommitsRequest{})
 		if err != nil {
@@ -44,9 +44,9 @@ func getCommits(remote string) error {
 		commits = resp.Commits
 	} else {
 		// Retrieve commits from a remote machine
-		resp, err := client.GetRemoteCommits(ctx, &pbApic.GetRemoteCommitsRequest{Remote: remote})
+		resp, err := client.GetRemoteCommits(ctx, &pbApic.GetRemoteCommitsRequest{Remote: instanceID})
 		if err != nil {
-			return fmt.Errorf("failed to retrieve commits from remote '%s': %w", remote, err)
+			return fmt.Errorf("failed to retrieve commits from instance '%s': %w", instanceID, err)
 		}
 
 		commits = resp.Commits

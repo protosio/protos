@@ -680,7 +680,8 @@ func (b *Backend) GetLocalCommits(ctx context.Context, in *pbApic.GetLocalCommit
 }
 
 func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteCommitsRequest) (*pbApic.GetRemoteCommitsResponse, error) {
-	log.Debugf("Retrieving commits from remote '%s'", in.Remote)
+	log.Debugf("Retrieving commits from instance '%s'", in.Remote)
+
 	client, err := b.protosClient.P2PManager.GetClient(in.Remote)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve commits from remote '%s': %w", in.Remote, err)
