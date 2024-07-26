@@ -46,7 +46,7 @@ type Machine interface {
 // Client is a remote p2p client
 type Client struct {
 	p2pproto.PingerClient
-	p2pproto.TesterClient
+	p2pproto.PeerDBClient
 	p2pproto.AppsClient
 	p2pproto.InstanceClient
 
@@ -101,7 +101,7 @@ func (p2p *P2P) createClientForPeer(id string) (client *Client, err error) {
 
 	client = &Client{
 		PingerClient:   p2pproto.NewPingerClient(conn),
-		TesterClient:   p2pproto.NewTesterClient(conn),
+		PeerDBClient:   p2pproto.NewPeerDBClient(conn),
 		AppsClient:     p2pproto.NewAppsClient(conn),
 		InstanceClient: p2pproto.NewInstanceClient(conn),
 	}
@@ -298,7 +298,7 @@ func (p2p *P2P) StartServer() (func() error, error) {
 	// register internal grpc servers
 	srv := &Server{DB: p2p.externalDB, p2p: p2p}
 	p2pproto.RegisterPingerServer(p2p.grpcServer, srv)
-	p2pproto.RegisterTesterServer(p2p.grpcServer, srv)
+	p2pproto.RegisterPeerDBServer(p2p.grpcServer, srv)
 	p2pproto.RegisterAppsServer(p2p.grpcServer, srv)
 	p2pproto.RegisterInstanceServer(p2p.grpcServer, srv)
 

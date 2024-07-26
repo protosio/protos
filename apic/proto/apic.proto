@@ -54,6 +54,10 @@ service ProtosClientApi {
       returns (UploadCloudImageResponse);
   rpc RemoveCloudImage(RemoveCloudImageRequest)
       returns (RemoveCloudImageResponse);
+
+  // DVC methods
+  rpc GetLocalCommits(GetLocalCommitsRequest) returns (GetLocalCommitsResponse);
+  rpc GetRemoteCommits(GetRemoteCommitsRequest) returns (GetRemoteCommitsResponse);
 }
 
 //
@@ -312,3 +316,25 @@ message RemoveCloudImageRequest {
   string cloud_location = 4;
 }
 message RemoveCloudImageResponse {}
+
+//
+// DVC
+//
+
+message Commit {
+  string hash = 1;
+  string committer = 2;
+  string message = 3;
+}
+
+message GetLocalCommitsRequest {}
+message GetLocalCommitsResponse {
+  repeated Commit commits = 1;
+}
+
+message GetRemoteCommitsRequest {
+  string remote = 1;
+}
+message GetRemoteCommitsResponse {
+  repeated Commit commits = 1;
+}

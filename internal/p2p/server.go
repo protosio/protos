@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -17,13 +18,13 @@ import (
 )
 
 var _ proto.PingerServer = (*Server)(nil)
-var _ proto.TesterServer = (*Server)(nil)
+var _ proto.PeerDBServer = (*Server)(nil)
 
 type ExternalDB interface {
 	AddPeer(peerID string, conn *grpc.ClientConn) error
 	RemovePeer(peerID string) error
 	GetAllCommits() ([]doltswarm.Commit, error)
-	ExecAndCommit(query string, commitMsg string) (string, error)
+	ExecAndCommit(execFunc doltswarm.ExecFunc, commitMsg string) (string, error)
 	GetLastCommit(branch string) (doltswarm.Commit, error)
 	InitFromPeer(peerID string) error
 	AddGRPCServer(server *grpc.Server)
@@ -64,7 +65,15 @@ func (s *Server) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingR
 }
 
 func (s *Server) ExecSQL(ctx context.Context, req *proto.ExecSQLRequest) (*proto.ExecSQLResponse, error) {
-	commit, err := s.DB.ExecAndCommit(req.Statement, req.Msg)
+	execFunc := func(tx *sql.Tx) error {
+		_, err := tx.Exec(req.Statement)
+		if err != nil {
+			return fmt.Errorf("failed to exec sql statement: %v", err)
+		}
+		return nil
+	}
+
+	commit, err := s.DB.ExecAndCommit(execFunc, req.Msg)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +88,12 @@ func (s *Server) GetAllCommits(context.Context, *proto.GetAllCommitsRequest) (*p
 
 	res := &proto.GetAllCommitsResponse{}
 	for _, commit := range commits {
-		res.Commits = append(res.Commits, commit.Hash)
+		respCommit := proto.Commit{
+			Hash:      commit.Hash,
+			Committer: commit.Committer,
+			Message:   commit.Message,
+		}
+		res.Commits = append(res.Commits, &respCommit)
 	}
 
 	return res, nil

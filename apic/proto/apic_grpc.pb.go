@@ -48,6 +48,8 @@ const (
 	ProtosClientApi_GetCloudImages_FullMethodName             = "/apic.ProtosClientApi/GetCloudImages"
 	ProtosClientApi_UploadCloudImage_FullMethodName           = "/apic.ProtosClientApi/UploadCloudImage"
 	ProtosClientApi_RemoveCloudImage_FullMethodName           = "/apic.ProtosClientApi/RemoveCloudImage"
+	ProtosClientApi_GetLocalCommits_FullMethodName            = "/apic.ProtosClientApi/GetLocalCommits"
+	ProtosClientApi_GetRemoteCommits_FullMethodName           = "/apic.ProtosClientApi/GetRemoteCommits"
 )
 
 // ProtosClientApiClient is the client API for ProtosClientApi service.
@@ -89,6 +91,9 @@ type ProtosClientApiClient interface {
 	GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error)
 	UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error)
+	// DVC methods
+	GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error)
+	GetRemoteCommits(ctx context.Context, in *GetRemoteCommitsRequest, opts ...grpc.CallOption) (*GetRemoteCommitsResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -360,6 +365,24 @@ func (c *protosClientApiClient) RemoveCloudImage(ctx context.Context, in *Remove
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error) {
+	out := new(GetLocalCommitsResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetLocalCommits_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetRemoteCommits(ctx context.Context, in *GetRemoteCommitsRequest, opts ...grpc.CallOption) (*GetRemoteCommitsResponse, error) {
+	out := new(GetRemoteCommitsResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetRemoteCommits_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProtosClientApiServer is the server API for ProtosClientApi service.
 // All implementations should embed UnimplementedProtosClientApiServer
 // for forward compatibility
@@ -399,6 +422,9 @@ type ProtosClientApiServer interface {
 	GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error)
 	UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error)
+	// DVC methods
+	GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error)
+	GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error)
 }
 
 // UnimplementedProtosClientApiServer should be embedded to have forward compatible implementations.
@@ -491,6 +517,12 @@ func (UnimplementedProtosClientApiServer) UploadCloudImage(context.Context, *Upl
 }
 func (UnimplementedProtosClientApiServer) RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveCloudImage not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLocalCommits not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRemoteCommits not implemented")
 }
 
 // UnsafeProtosClientApiServer may be embedded to opt out of forward compatibility for this service.
@@ -1026,6 +1058,42 @@ func _ProtosClientApi_RemoveCloudImage_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetLocalCommits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLocalCommitsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetLocalCommits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetLocalCommits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetLocalCommits(ctx, req.(*GetLocalCommitsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetRemoteCommits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRemoteCommitsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetRemoteCommits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetRemoteCommits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetRemoteCommits(ctx, req.(*GetRemoteCommitsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProtosClientApi_ServiceDesc is the grpc.ServiceDesc for ProtosClientApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1148,6 +1216,14 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveCloudImage",
 			Handler:    _ProtosClientApi_RemoveCloudImage_Handler,
+		},
+		{
+			MethodName: "GetLocalCommits",
+			Handler:    _ProtosClientApi_GetLocalCommits_Handler,
+		},
+		{
+			MethodName: "GetRemoteCommits",
+			Handler:    _ProtosClientApi_GetRemoteCommits_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

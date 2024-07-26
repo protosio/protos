@@ -52,6 +52,7 @@ func main() {
 			cmdCloud,
 			cmdInstance,
 			cmdRelease,
+			cmdDvc,
 		},
 	}
 

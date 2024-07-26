@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -66,18 +67,9 @@ func (db *DB) Init() error {
 	return nil
 }
 
-// Insert inserts a new entry in the database using the sq query builder
-func Insert(db *DB, mc InsertMapper) error {
-	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
-	db.Commit("insert")
-	return err
-}
-
-func Update(db *DB, mc UpdateMapper) error {
-	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
-	db.Commit("update")
-	return err
-}
+//
+// Read operations
+//
 
 func SelectOne[T any](db *DB, mc QueryMapper[T]) (T, error) {
 	query, mapper := mc()
@@ -97,8 +89,63 @@ func SelectMultiple[T any](db *DB, mc QueryMapper[T]) ([]T, error) {
 	return res, nil
 }
 
-func Delete(db *DB, mc DeleteMapper) error {
-	_, err := sq.Exec(db, mc().SetDialect(sq.DialectMySQL))
-	db.Commit("delete")
-	return err
+//
+// Edit operations
+//
+
+// Insert inserts a new entry in the database using the sq query builder
+func Insert(db *DB, mappers ...InsertMapper) error {
+	execFunc := func(tx *sql.Tx) error {
+		for _, mapper := range mappers {
+			_, err := sq.Exec(tx, mapper().SetDialect(sq.DialectMySQL))
+			if err != nil {
+				return fmt.Errorf("failed to insert: %v", err)
+			}
+		}
+		return nil
+	}
+
+	_, err := db.ExecAndCommit(execFunc, "insert")
+	if err != nil {
+		return fmt.Errorf("failed to inser: %v", err)
+	}
+
+	return nil
+}
+
+func Update(db *DB, mappers ...UpdateMapper) error {
+	execFunc := func(tx *sql.Tx) error {
+		for _, mapper := range mappers {
+			_, err := sq.Exec(tx, mapper().SetDialect(sq.DialectMySQL))
+			if err != nil {
+				return fmt.Errorf("failed to update: %v", err)
+			}
+		}
+		return nil
+	}
+	_, err := db.ExecAndCommit(execFunc, "update")
+	if err != nil {
+		return fmt.Errorf("failed to update: %v", err)
+	}
+
+	return nil
+}
+
+func Delete(db *DB, mappers ...DeleteMapper) error {
+	execFunc := func(tx *sql.Tx) error {
+		for _, mapper := range mappers {
+			_, err := sq.Exec(tx, mapper().SetDialect(sq.DialectMySQL))
+			if err != nil {
+				return fmt.Errorf("failed to delete: %v", err)
+			}
+		}
+		return nil
+	}
+
+	_, err := db.ExecAndCommit(execFunc, "delete")
+	if err != nil {
+		return fmt.Errorf("failed to delete: %v", err)
+	}
+
+	return nil
 }

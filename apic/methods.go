@@ -654,3 +654,52 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 	}
 	return &pbApic.RemoveCloudImageResponse{}, nil
 }
+
+//
+// DVC methods
+//
+
+func (b *Backend) GetLocalCommits(ctx context.Context, in *pbApic.GetLocalCommitsRequest) (*pbApic.GetLocalCommitsResponse, error) {
+	log.Debug("Retrieving local commits")
+	commits, err := b.protosClient.DB.GetAllCommits()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve local commits: %w", err)
+	}
+
+	resp := pbApic.GetLocalCommitsResponse{}
+	for _, commit := range commits {
+		respCommit := pbApic.Commit{
+			Hash:      commit.Hash,
+			Committer: commit.Committer,
+			Message:   commit.Message,
+		}
+		resp.Commits = append(resp.Commits, &respCommit)
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteCommitsRequest) (*pbApic.GetRemoteCommitsResponse, error) {
+	log.Debugf("Retrieving commits from remote '%s'", in.Remote)
+	client, err := b.protosClient.P2PManager.GetClient(in.Remote)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve commits from remote '%s': %w", in.Remote, err)
+	}
+
+	respRemote, err := client.GetAllCommits(ctx, &p2pproto.GetAllCommitsRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve commits from remote '%s': %w", in.Remote, err)
+	}
+
+	resp := pbApic.GetRemoteCommitsResponse{}
+	for _, commit := range respRemote.Commits {
+		respCommit := pbApic.Commit{
+			Hash:      commit.Hash,
+			Committer: commit.Committer,
+			Message:   commit.Message,
+		}
+		resp.Commits = append(resp.Commits, &respCommit)
+	}
+
+	return &resp, nil
+}

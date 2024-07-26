@@ -387,14 +387,9 @@ func (cm *Manager) UpdateInstance(id string, ip string) error {
 
 	instance.PublicIP = ip
 	im, cmm := createInstanceUpdateMapper(instance)
-	err = db.Update(cm.db, im)
+	err = db.Update(cm.db, im, cmm)
 	if err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", id, err)
-	}
-
-	err = db.Update(cm.db, cmm)
-	if err != nil {
-		return fmt.Errorf("failed to save instance metadata '%s': %w", id, err)
 	}
 
 	return nil

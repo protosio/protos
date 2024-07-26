@@ -4,7 +4,7 @@ option go_package = "./proto";
 
 package proto;
 
-service Tester {
+service PeerDB {
   rpc ExecSQL(ExecSQLRequest) returns (ExecSQLResponse) {}
   rpc GetAllCommits(GetAllCommitsRequest) returns (GetAllCommitsResponse) {}
   rpc GetHead(GetHeadRequest) returns (GetHeadResponse) {}
@@ -20,9 +20,15 @@ message ExecSQLResponse {
   string err = 3;
 }
 
+message Commit {
+  string hash = 1;
+  string committer = 2;
+  string message = 3;
+}
+
 message GetAllCommitsRequest {}
 message GetAllCommitsResponse {
-  repeated string commits = 1;
+  repeated Commit commits = 1;
 }
 
 message GetHeadRequest {}

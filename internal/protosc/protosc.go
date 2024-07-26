@@ -37,12 +37,12 @@ const (
 
 type ProtosClient struct {
 	stoppers map[string]func() error
-	db       *db.DB
 	cfg      config.Config
 	version  string
 	wg       sync.WaitGroup
 	localKey *pcrypto.Key
 
+	DB             *db.DB
 	Manager        *user.Manager
 	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
@@ -87,14 +87,14 @@ func New(dataPath string, version *semver.Version) (*ProtosClient, error) {
 	protosClient.localKey = lkey
 
 	// open db
-	protosClient.db, err = db.Open(dataPath, dbName, lkey)
+	protosClient.DB, err = db.Open(dataPath, dbName, lkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db during configuration: %w", err)
 	}
 
 	// create various managers
-	keyManager := pcrypto.CreateManager(protosClient.db)
-	Manager := user.CreateManager(protosClient.db, keyManager)
+	keyManager := pcrypto.CreateManager(protosClient.DB)
+	Manager := user.CreateManager(protosClient.DB, keyManager)
 
 	protosClient.Manager = Manager
 	protosClient.KeyManager = keyManager
@@ -133,7 +133,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 		return fmt.Errorf("failed to init. Could not retrieve hostname: %w", err)
 	}
 
-	err = pc.db.Init()
+	err = pc.DB.Init()
 	if err != nil {
 		return fmt.Errorf("failed to init. Error while initializing db: %w", err)
 	}
@@ -162,9 +162,9 @@ func (pc *ProtosClient) StartUp() error {
 	}
 
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint)
-	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.db)
+	appManager := app.CreateManager(app.TypeProtosc, appRuntime, pc.DB)
 
-	p2pManager, err := p2p.NewManager(pc.localKey, appManager, pc.db, pc.cfg.P2PPort)
+	p2pManager, err := p2p.NewManager(pc.localKey, appManager, pc.DB, pc.cfg.P2PPort)
 	if err != nil {
 		return fmt.Errorf("failed to create p2p manager: %s", err.Error())
 	}
@@ -176,7 +176,7 @@ func (pc *ProtosClient) StartUp() error {
 	}
 	pc.stoppers["p2p"] = p2pStopper
 
-	cloudManager, err := cloud.CreateManager(pc.db, pc.Manager, pc.KeyManager, p2pManager)
+	cloudManager, err := cloud.CreateManager(pc.DB, pc.Manager, pc.KeyManager, p2pManager)
 	if err != nil {
 		return fmt.Errorf("failed to create cloud manager: %s", err.Error())
 	}
@@ -187,12 +187,12 @@ func (pc *ProtosClient) StartUp() error {
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-	pc.db.RegisterNotifier(db.CLOUD_MACHINE_METADATA{}, pc)
-	pc.db.RegisterNotifier(db.MACHINE{}, pc)
-	pc.db.RegisterNotifier(db.USER{}, pc)
-	pc.db.RegisterNotifier(db.USER_DEVICE_METADATA{}, pc)
+	pc.DB.RegisterNotifier(db.CLOUD_MACHINE_METADATA{}, pc)
+	pc.DB.RegisterNotifier(db.MACHINE{}, pc)
+	pc.DB.RegisterNotifier(db.USER{}, pc)
+	pc.DB.RegisterNotifier(db.USER_DEVICE_METADATA{}, pc)
 
-	if pc.db.Initialized() {
+	if pc.DB.Initialized() {
 		pc.Notify()
 	}
 
