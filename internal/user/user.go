@@ -51,6 +51,10 @@ func getUser(username string, dbi *db.DB) (User, error) {
 // UserDevice methods
 //
 
+func (ud *UserDevice) GetID() string {
+	return ud.ID
+}
+
 func (ud *UserDevice) GetPublicKey() string {
 	return ud.PublicKey
 }

@@ -61,6 +61,10 @@ type InstanceInfo struct {
 	Volumes      []VolumeInfo
 }
 
+func (i InstanceInfo) GetID() string {
+	return i.ID
+}
+
 func (i InstanceInfo) GetPublicKey() string {
 	return i.PublicKey
 }

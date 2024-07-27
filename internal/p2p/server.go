@@ -29,14 +29,18 @@ type ExternalDB interface {
 	InitFromPeer(peerID string) error
 	AddGRPCServer(server *grpc.Server)
 	EnableGRPCServers() error
+	Initialized() bool
 }
 
 type initMachine struct {
-	name      string
+	id        string
 	publicIP  string
 	publicKey string
 }
 
+func (im *initMachine) GetID() string {
+	return im.id
+}
 func (im *initMachine) GetPublicKey() string {
 	return im.publicKey
 }
@@ -44,7 +48,7 @@ func (im *initMachine) GetPublicIP() string {
 	return im.publicIP
 }
 func (im *initMachine) GetName() string {
-	return im.name
+	return im.id
 }
 
 type Server struct {
@@ -145,7 +149,7 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 	}
 
 	im := &initMachine{
-		name:      "init",
+		id:        "init",
 		publicKey: req.OriginDevicePublicKey,
 	}
 
@@ -154,14 +158,14 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("cannot perform initialization: %w", err)
 	}
 
-	_, err = s.p2p.AddPeer(pubKey.PeerID(), im, false)
+	_, err = s.p2p.AddPeer(im, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
 
-	err = s.DB.InitFromPeer(pubKey.PeerID())
+	err = s.DB.InitFromPeer(im.GetID())
 	if err != nil {
-		err = fmt.Errorf("failed to initialize database from peer '%s': %w", pubKey.PeerID(), err)
+		err = fmt.Errorf("failed to initialize database from peer %s(%s): %w", im.GetID(), pubKey.PeerID(), err)
 		log.Error(err.Error())
 		return nil, err
 	}

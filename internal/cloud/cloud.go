@@ -247,12 +247,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// close SSH connection
 	sshCon.Close()
 
-	pubKey, err := pcrypto.CreatePublicKeyFromBase64(instanceInfo.PublicKey)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
-	}
-
-	p2pClient, err := cm.p2p.AddPeer(pubKey.PeerID(), instanceInfo, true)
+	p2pClient, err := cm.p2p.AddPeer(instanceInfo, true)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -345,7 +340,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	// close SSH connection
 	sshCon.Close()
 
-	p2pClient, err := cm.p2p.AddPeer(publicKey.PeerID(), instanceInfo, true)
+	p2pClient, err := cm.p2p.AddPeer(instanceInfo, true)
 	if err != nil {
 		return fmt.Errorf("failed to initialize instance: %w", err)
 	}
