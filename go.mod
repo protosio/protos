@@ -86,18 +86,18 @@ require (
 	github.com/dennwc/ioctl v1.0.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dolthub/dolt/go v0.40.5-0.20240702155756-bcf4dd5f5cc1 // indirect
+	github.com/dolthub/dolt/go v0.40.5-0.20240806200513-594fd2d2d772 // indirect
 	github.com/dolthub/dolt/go/gen/proto/dolt/services/eventsapi v0.0.0-20240212175631-02e9f99a3a9b // indirect
 	github.com/dolthub/driver v0.0.0-00010101000000-000000000000 // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/fslock v0.0.3 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20230524105445-af7e7991c97e // indirect
-	github.com/dolthub/go-mysql-server v0.18.2-0.20240726192758-72470d302577 // indirect
+	github.com/dolthub/go-mysql-server v0.18.2-0.20240816012140-7e424502207b // indirect
 	github.com/dolthub/gozstd v0.0.0-20240423170813-23a2903bca63 // indirect
 	github.com/dolthub/jsonpath v0.0.2-0.20240227200619-19675ab05c71 // indirect
 	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/dolthub/swiss v0.2.1 // indirect
-	github.com/dolthub/vitess v0.0.0-20240711213744-4232e1c4edae // indirect
+	github.com/dolthub/vitess v0.0.0-20240807181005-71d735078e24 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/fatih/color v1.16.0 // indirect

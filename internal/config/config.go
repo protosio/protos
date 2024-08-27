@@ -12,6 +12,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	ReleasesURL  = "https://releases.protos.io/releases.json"
+	LocalDNSPort = 10053
+	DBName       = "protos"
+)
+
 // Config is the main configuration struct
 type Config struct {
 	WorkDir         string

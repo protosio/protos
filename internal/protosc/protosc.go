@@ -28,13 +28,6 @@ import (
 
 var log = util.GetLogger("protosc")
 
-const (
-	releasesURL     = "https://releases.protos.io/releases.json"
-	localDNSPort    = 10053
-	localDNSAddress = "127.0.0.1"
-	dbName          = "protos"
-)
-
 type ProtosClient struct {
 	stoppers map[string]func() error
 	cfg      config.Config
@@ -87,7 +80,7 @@ func New(dataPath string, version *semver.Version) (*ProtosClient, error) {
 	protosClient.localKey = lkey
 
 	// open db
-	protosClient.DB, err = db.Open(dataPath, dbName, lkey)
+	protosClient.DB, err = db.Open(dataPath, config.DBName, lkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db during configuration: %w", err)
 	}
@@ -181,7 +174,7 @@ func (pc *ProtosClient) StartUp() error {
 		return fmt.Errorf("failed to create cloud manager: %s", err.Error())
 	}
 
-	dnsStopper := dns.StartServer(pc.localKey, localDNSPort, "", pc.cfg.InternalDomain, appManager)
+	dnsStopper := dns.StartServer(pc.localKey, config.LocalDNSPort, "", pc.cfg.InternalDomain, appManager)
 	pc.stoppers["dns"] = dnsStopper
 	pc.AppManager = appManager
 	pc.CloudManager = cloudManager
@@ -260,9 +253,9 @@ func (pc *ProtosClient) WaitForInitialization() {
 
 func (pc *ProtosClient) GetProtosAvailableReleases() (release.Releases, error) {
 	var releases release.Releases
-	resp, err := http.Get(releasesURL)
+	resp, err := http.Get(config.ReleasesURL)
 	if err != nil {
-		return releases, errors.Wrapf(err, "Failed to retrieve releases from '%s'", releasesURL)
+		return releases, errors.Wrapf(err, "Failed to retrieve releases from '%s'", config.ReleasesURL)
 	}
 	defer resp.Body.Close()
 
@@ -272,7 +265,7 @@ func (pc *ProtosClient) GetProtosAvailableReleases() (release.Releases, error) {
 	}
 
 	if len(releases.Releases) == 0 {
-		return releases, errors.Errorf("Something went wrong. Parsed 0 releases from '%s'", releasesURL)
+		return releases, errors.Errorf("Something went wrong. Parsed 0 releases from '%s'", config.ReleasesURL)
 	}
 
 	return releases, nil

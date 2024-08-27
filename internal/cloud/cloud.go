@@ -247,7 +247,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// close SSH connection
 	sshCon.Close()
 
-	p2pClient, err := cm.p2p.AddPeer(instanceInfo, true)
+	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -260,6 +260,12 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), InstanceName: instanceName})
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
+	}
+
+	// removing peer after initialization is done, so that the target peer has time to re-create the grpc server
+	err = cm.p2p.RemovePeer(instanceInfo)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to remove peer: %w", err)
 	}
 
 	instanceUpdate, err = provider.GetInstanceInfo(vmID, cloudLocation)
@@ -340,7 +346,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	// close SSH connection
 	sshCon.Close()
 
-	p2pClient, err := cm.p2p.AddPeer(instanceInfo, true)
+	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		return fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -356,6 +362,12 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	}
 
 	instanceInfo.Architecture = resp.Architecture
+
+	// removing peer after initialization is done, so that the target peer has time to re-create the grpc server
+	err = cm.p2p.RemovePeer(instanceInfo)
+	if err != nil {
+		return fmt.Errorf("failed to remove peer: %w", err)
+	}
 
 	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
 	err = db.Insert(cm.db, machineMapper)
@@ -444,16 +456,15 @@ func (cm *Manager) DeleteInstance(id string) error {
 		}
 	}
 
-	im, cmmd := createInstanceDeleteMapper(instance.ID)
-
-	err = db.Delete(cm.db, im)
+	err = cm.p2p.RemovePeer(instance)
 	if err != nil {
-		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
+		return fmt.Errorf("failed to remove peer: %w", err)
 	}
 
-	err = db.Delete(cm.db, cmmd)
+	im, cmmd := createInstanceDeleteMapper(instance.ID)
+	err = db.Delete(cm.db, im, cmmd)
 	if err != nil {
-		return fmt.Errorf("failed to delete instance metadata '%s': %w", id, err)
+		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
 	}
 
 	return nil

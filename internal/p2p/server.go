@@ -19,6 +19,8 @@ import (
 
 var _ proto.PingerServer = (*Server)(nil)
 var _ proto.PeerDBServer = (*Server)(nil)
+var _ proto.AppsServer = (*Server)(nil)
+var _ proto.InstanceServer = (*Server)(nil)
 
 type ExternalDB interface {
 	AddPeer(peerID string, conn *grpc.ClientConn) error
@@ -27,8 +29,7 @@ type ExternalDB interface {
 	ExecAndCommit(execFunc doltswarm.ExecFunc, commitMsg string) (string, error)
 	GetLastCommit(branch string) (doltswarm.Commit, error)
 	InitFromPeer(peerID string) error
-	AddGRPCServer(server *grpc.Server)
-	EnableGRPCServers() error
+	EnableGRPCServers(server *grpc.Server) error
 	Initialized() bool
 }
 
@@ -148,7 +149,7 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("failed to validate init request: %w", err)
 	}
 
-	im := &initMachine{
+	im := initMachine{
 		id:        "init",
 		publicKey: req.OriginDevicePublicKey,
 	}
@@ -158,7 +159,7 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("cannot perform initialization: %w", err)
 	}
 
-	_, err = s.p2p.AddPeer(im, false)
+	_, err = s.p2p.AddPeer(&im)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
@@ -169,6 +170,10 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		log.Error(err.Error())
 		return nil, err
 	}
+
+	// notify server restarted
+	s.p2p.restartServerSignal <- im
+	close(s.p2p.restartServerSignal)
 
 	return &proto.InitResponse{Architecture: runtime.GOARCH}, nil
 }

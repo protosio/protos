@@ -21,7 +21,6 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var log = util.GetLogger("p2p")
@@ -55,15 +54,18 @@ type Client struct {
 }
 
 type P2P struct {
-	host               host.Host
-	machines           *util.Map[string, Machine]
-	clients            *util.Map[string, *Client]
-	machinePeerMapping *util.Map[string, string]
-	appManager         AppManager
-	grpcServer         *grpc.Server
-	newPeerChan        chan peer.AddrInfo
-
+	host       host.Host
+	appManager AppManager
+	grpcServer *grpc.Server
 	externalDB ExternalDB
+
+	restartServerSignal chan initMachine
+	newPeerChan         chan peer.AddrInfo
+
+	// the index is the peer ID
+	machines *util.Map[string, Machine]
+	// the index is the machine ID
+	clients *util.Map[string, *Client]
 }
 
 // GetPeerID adds a peer to the p2p manager
@@ -77,6 +79,7 @@ func (p2p *P2P) pubKeyToPeerID(pubKey string) (peer.ID, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshall public key: %w", err)
 	}
+
 	peerID, err := peer.IDFromPublicKey(pk)
 	if err != nil {
 		return "", fmt.Errorf("failed to create peer ID from public key: %w", err)
@@ -93,48 +96,6 @@ func (p2p *P2P) GetClient(id string) (*Client, error) {
 	return client, nil
 }
 
-// createClientForPeer returns the remote client that can reach all remote handlers
-func (p2p *P2P) createClientForPeer(peerID string) (client *Client, err error) {
-
-	// grpc conn
-	conn, err := grpc.Dial(
-		peerID,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		p2pgrpc.WithP2PDialer(p2p.host, protosRPCProtocol),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to grpc dial peer '%s': %w", peerID, err)
-	}
-
-	client = &Client{
-		PingerClient:   p2pproto.NewPingerClient(conn),
-		PeerDBClient:   p2pproto.NewPeerDBClient(conn),
-		AppsClient:     p2pproto.NewAppsClient(conn),
-		InstanceClient: p2pproto.NewInstanceClient(conn),
-	}
-
-	tries := 0
-	for {
-		_, err = client.Ping(context.TODO(), &p2pproto.PingRequest{
-			Ping: "pong",
-		})
-		if err != nil {
-			if tries < 19 {
-				time.Sleep(200 * time.Millisecond)
-				tries++
-				continue
-			} else {
-				return nil, err
-			}
-		} else {
-			break
-		}
-	}
-	client.grpcConnection = conn
-
-	return client, nil
-}
-
 //
 // Methods for handling new peers
 //
@@ -143,6 +104,7 @@ func (p2p *P2P) createClientForPeer(peerID string) (client *Client, err error) {
 func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	currentMachines := map[string]Machine{}
 	currentPeerIDs := map[string]peer.ID{}
+
 	log.Debugf("configuring p2p peers: %v", machines)
 
 	// create a map of the current machines and their IDs
@@ -152,45 +114,38 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 			return fmt.Errorf("failed to get peer ID from public key: %w", err)
 		}
 
-		currentMachines[machine.GetID()] = machine
+		currentMachines[peerID.String()] = machine
 		currentPeerIDs[machine.GetID()] = peerID
 	}
 
 	//
 	// delete all machines that are not in the current list
 	//
-	for id := range p2p.machines.Snapshot() {
-		if _, found := currentMachines[id]; !found {
-			p2p.machines.Delete(id)
+	for peerID := range p2p.machines.Snapshot() {
+		if _, found := currentMachines[peerID]; !found {
+			p2p.machines.Delete(peerID)
 		}
-	}
-	for id, machine := range currentMachines {
-		p2p.machines.Set(id, machine)
 	}
 
 	//
 	// disconnect and delete all clients that are not in the current list
 	//
-	for id := range p2p.clients.Snapshot() {
-		if machine, found := currentMachines[id]; !found {
-			peerID, found := currentPeerIDs[id]
-			if !found {
-				continue
-			}
-
+	for machineID := range p2p.clients.Snapshot() {
+		peerID, found := currentPeerIDs[machineID]
+		if !found {
 			err := p2p.host.Network().ClosePeer(peerID)
 			if err != nil {
-				log.Debugf("failed to disconnect from old peer '%s'(%s)", id, machine.GetName())
+				log.Debugf("failed to remove peer %s(%s)", machineID, peerID.String())
 			}
-			p2p.clients.Delete(id)
+			p2p.clients.Delete(machineID)
 		}
 	}
 
 	//
-	// add all new machines and clients
+	// add peers (this adds machines, clients and peer mappings)
 	//
 	for id, machine := range currentMachines {
-		_, err := p2p.AddPeer(machine, false)
+		_, err := p2p.AddPeer(machine)
 		if err != nil {
 			log.Errorf("failed to add peer '%s': %s", id, err.Error())
 		}
@@ -200,15 +155,14 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 }
 
 // AddPeer adds a peer to the p2p manager
-func (p2p *P2P) AddPeer(machine Machine, init bool) (*Client, error) {
-
-	p2p.machines.Set(machine.GetID(), machine)
+func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 
 	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert public key to peer ID: %w", err)
 	}
-	p2p.machinePeerMapping.Set(peerID.String(), machine.GetID())
+
+	p2p.machines.Set(peerID.String(), machine)
 
 	client, found := p2p.clients.Get(machine.GetID())
 	if found {
@@ -219,7 +173,7 @@ func (p2p *P2P) AddPeer(machine Machine, init bool) (*Client, error) {
 		return nil, nil
 	}
 
-	destinationString := fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, peerID)
+	destinationString := fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, peerID.String())
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create multi address: %w", err)
@@ -230,11 +184,11 @@ func (p2p *P2P) AddPeer(machine Machine, init bool) (*Client, error) {
 		return nil, fmt.Errorf("failed to extract info from address: %w", err)
 	}
 
-	log.Debugf("adding peer id '%s'(%s) at ip '%s'", machine.GetID(), peerID, machine.GetPublicIP())
+	log.Debugf("adding peer id %s (%s) at ip %s", machine.GetID(), peerID.String(), machine.GetPublicIP())
 
 	err = p2p.host.Connect(context.Background(), *peerInfo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to peer '%s'(%s): %s", machine.GetID(), machine.GetID(), err.Error())
+		return nil, fmt.Errorf("failed to connect to peer %s (%s): %s", machine.GetID(), machine.GetID(), err.Error())
 	}
 
 	// wait for the client to be created by the connection handler
@@ -248,16 +202,31 @@ func (p2p *P2P) AddPeer(machine Machine, init bool) (*Client, error) {
 		tries++
 	}
 
-	return nil, fmt.Errorf("failed to retrieve client for peer '%s'(%s): client not found", machine.GetID(), machine.GetID())
+	return nil, fmt.Errorf("failed to retrieve client for peer %s (%s): client not found", machine.GetID(), peerID.String())
+}
+
+func (p2p *P2P) RemovePeer(machine Machine) error {
+	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
+	if err != nil {
+		return fmt.Errorf("failed to convert public key to peer ID: %w", err)
+	}
+
+	err = p2p.host.Network().ClosePeer(peerID)
+	if err != nil {
+		return fmt.Errorf("failed to remove peer %s(%s)", machine.GetID(), peerID.String())
+	}
+
+	p2p.machines.Delete(peerID.String())
+	p2p.clients.Delete(machine.GetID())
+
+	return nil
 }
 
 //
 // Methods for creating and starting the p2p server
 //
 
-// StartServer starts listening for p2p connections
-func (p2p *P2P) StartServer() (func() error, error) {
-	log.Info("starting p2p server")
+func (p2p *P2P) startGRPCServer() error {
 
 	// register internal grpc servers
 	srv := &Server{DB: p2p.externalDB, p2p: p2p}
@@ -265,6 +234,13 @@ func (p2p *P2P) StartServer() (func() error, error) {
 	p2pproto.RegisterPeerDBServer(p2p.grpcServer, srv)
 	p2pproto.RegisterAppsServer(p2p.grpcServer, srv)
 	p2pproto.RegisterInstanceServer(p2p.grpcServer, srv)
+
+	if p2p.externalDB.Initialized() {
+		err := p2p.externalDB.EnableGRPCServers(p2p.grpcServer)
+		if err != nil {
+			return fmt.Errorf("failed to enable grpc servers: %w", err)
+		}
+	}
 
 	// serve grpc server over libp2p host
 	grpcListener := p2pgrpc.NewListener(context.Background(), p2p.host, protosRPCProtocol)
@@ -276,31 +252,69 @@ func (p2p *P2P) StartServer() (func() error, error) {
 		}
 	}()
 
-	err := p2p.host.Network().Listen()
+	return nil
+}
+
+// StartServer starts listening for p2p connections
+func (p2p *P2P) StartServer() (func() error, error) {
+	log.Info("starting p2p server")
+
+	err := p2p.startGRPCServer()
+	if err != nil {
+		return func() error { return nil }, fmt.Errorf("failed to prepare grpc server: %w", err)
+	}
+
+	err = p2p.host.Network().Listen()
 	if err != nil {
 		return func() error { return nil }, fmt.Errorf("failed to listen: %w", err)
 	}
 
 	stopper := func() error {
 		log.Debug("Stopping p2p server")
-		p2p.grpcServer.GracefulStop()
 		return p2p.host.Close()
 	}
 	return stopper, nil
 
 }
 
+func (p2p *P2P) restartServerAfterInit() {
+	go func() {
+		im, ok := <-p2p.restartServerSignal
+		if !ok {
+			return
+		}
+
+		log.Info("removing init peer")
+		err := p2p.RemovePeer(&im)
+		if err != nil {
+			log.Error("failed to remove init peer: ", err)
+		}
+
+		log.Info("restarting grpc server")
+
+		p2p.grpcServer.GracefulStop()
+		p2p.grpcServer = grpc.NewServer(p2pgrpc.WithP2PCredentials())
+
+		err = p2p.startGRPCServer()
+		if err != nil {
+			log.Error("failed to prepare grpc server: ", err)
+			return
+		}
+	}()
+}
+
 // NewManager creates and returns a new p2p manager
 func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, p2pPort int) (*P2P, error) {
 	p2p := &P2P{
-		clients:            util.NewMap[string, *Client](),
-		machines:           util.NewMap[string, Machine](),
-		machinePeerMapping: util.NewMap[string, string](),
-		appManager:         appManager,
-		newPeerChan:        make(chan peer.AddrInfo),
-		grpcServer:         grpc.NewServer(p2pgrpc.WithP2PCredentials()),
-
+		appManager: appManager,
+		grpcServer: grpc.NewServer(p2pgrpc.WithP2PCredentials()),
 		externalDB: externalDB,
+
+		restartServerSignal: make(chan initMachine),
+		newPeerChan:         make(chan peer.AddrInfo),
+
+		clients:  util.NewMap[string, *Client](),
+		machines: util.NewMap[string, Machine](),
 	}
 
 	prvKey, err := crypto.UnmarshalEd25519PrivateKey(key.Private())
@@ -334,10 +348,9 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 	p2p.host.Network().Notify(&nb)
 
 	log.Infof("using host with ID '%s'", host.ID().String())
-
-	// grpc server needs to be added before opening the DB
-	p2p.externalDB.AddGRPCServer(p2p.grpcServer)
-	p2p.externalDB.EnableGRPCServers()
+	if !p2p.externalDB.Initialized() {
+		p2p.restartServerAfterInit()
+	}
 
 	return p2p, nil
 }

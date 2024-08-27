@@ -24,6 +24,7 @@ const (
 	ifconfigPath           = "/sbin/ifconfig"
 	routePath              = "/sbin/route"
 	rmPath                 = "/bin/rm"
+	mkdirPath              = "/bin/mkdir"
 )
 
 type LinkError struct {
@@ -34,10 +35,12 @@ type LinkError struct {
 func prepareWGDir() error {
 	_, err := os.Stat(wgRunPath)
 	if os.IsNotExist(err) {
-		err := os.Mkdir(wgRunPath, 0755)
+		cmd := exec.Command(sudoPath, mkdirPath, wgRunPath)
+		_, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("link mngr: %w", err)
+			return fmt.Errorf("link mngr: failed to create wg dir: %w", err)
 		}
+		return nil
 	} else if err != nil {
 		return fmt.Errorf("link mngr: %w", err)
 	}

@@ -68,7 +68,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	}
 
 	// open databse
-	dbcli, err := db.Open(cfg.WorkDir, "db", lkey)
+	dbcli, err := db.Open(cfg.WorkDir, config.DBName, lkey)
 	if err != nil {
 		log.Fatal(err)
 	}
