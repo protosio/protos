@@ -92,8 +92,7 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 }
 
 func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) {
-
-	fmt.Println("disconnecting from peer", conn.RemotePeer().String())
+	log.Debug("disconnecting from peer ", conn.RemotePeer().String())
 	defer func() {
 		if err := conn.Close(); err != nil {
 			log.Errorf("error while disconnecting from peer '%s': %v", conn.RemotePeer().String(), err)
@@ -102,16 +101,16 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 
 	machine, found := p2p.machines.Get(conn.RemotePeer().String())
 	if !found {
-		log.Debugf("disconnecting from unknown peer %s", conn.RemotePeer().String())
+		log.Debugf("disconnected from unknown peer %s", conn.RemotePeer().String())
 		return
 	}
 
-	log.Debugf("disconnecting from peer %s(%s)", machine.GetID(), conn.RemotePeer().String())
+	log.Debugf("disconnected from peer %s(%s)", machine.GetID(), conn.RemotePeer().String())
+	p2p.machines.Delete(conn.RemotePeer().String())
 	p2p.clients.Delete(machine.GetID())
 	if p2p.externalDB != nil {
 		if err := p2p.externalDB.RemovePeer(machine.GetID()); err != nil {
 			log.Errorf("failed to remove DB peer for %s(%s): %v", machine.GetID(), conn.RemotePeer().String(), err)
 		}
 	}
-
 }

@@ -206,6 +206,7 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 }
 
 func (p2p *P2P) RemovePeer(machine Machine) error {
+	log.Debugf("removing peer '%s'", machine.GetID())
 	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
 	if err != nil {
 		return fmt.Errorf("failed to convert public key to peer ID: %w", err)
@@ -215,9 +216,6 @@ func (p2p *P2P) RemovePeer(machine Machine) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove peer %s(%s)", machine.GetID(), peerID.String())
 	}
-
-	p2p.machines.Delete(peerID.String())
-	p2p.clients.Delete(machine.GetID())
 
 	return nil
 }
@@ -284,17 +282,15 @@ func (p2p *P2P) restartServerAfterInit() {
 			return
 		}
 
-		log.Info("removing init peer")
-		err := p2p.RemovePeer(&im)
-		if err != nil {
-			log.Error("failed to remove init peer: ", err)
-		}
-
 		log.Info("restarting grpc server")
 
 		p2p.grpcServer.GracefulStop()
 		p2p.grpcServer = grpc.NewServer(p2pgrpc.WithP2PCredentials())
 
+		err := p2p.RemovePeer(&im)
+		if err != nil {
+			log.Error("failed to remove init peer: ", err)
+		}
 		err = p2p.startGRPCServer()
 		if err != nil {
 			log.Error("failed to prepare grpc server: ", err)
