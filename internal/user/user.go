@@ -6,7 +6,6 @@ import (
 
 	"github.com/bokwoon95/sq"
 	"github.com/pkg/errors"
-	"github.com/rs/xid"
 
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -171,11 +170,11 @@ func (um *Manager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, error) 
 }
 
 // AddDevice adds a device to the user
-func (um *Manager) AddDevice(userID string, name string, publicKey string) error {
+func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error {
 	ud := UserDevice{
-		ID:        xid.New().String(),
+		ID:        key.GetID(),
 		Name:      name,
-		PublicKey: publicKey,
+		PublicKey: key.PublicString(),
 		UserID:    userID,
 	}
 

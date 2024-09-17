@@ -63,11 +63,7 @@ func (sm *Manager) NewKeyFromSeed(seedStr string) (*Key, error) {
 	publicKey := make([]byte, ed25519.PublicKeySize)
 	copy(publicKey, key.Priv[32:])
 	key.Pub = publicKey
-	peerID, err := createPeerIDFromKey(key.Pub)
-	if err != nil {
-		return key, fmt.Errorf("can't create key from seed: %w", err)
-	}
-	key.peerID = peerID
+
 	return key, nil
 }
 

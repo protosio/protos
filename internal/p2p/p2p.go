@@ -64,7 +64,7 @@ type P2P struct {
 
 	// the index is the peer ID
 	machines *util.Map[string, Machine]
-	// the index is the machine ID
+	// the index is the peer ID
 	clients *util.Map[string, *Client]
 }
 
@@ -157,12 +157,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 // AddPeer adds a peer to the p2p manager
 func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 
-	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert public key to peer ID: %w", err)
-	}
-
-	p2p.machines.Set(peerID.String(), machine)
+	p2p.machines.Set(machine.GetID(), machine)
 
 	client, found := p2p.clients.Get(machine.GetID())
 	if found {
@@ -173,7 +168,7 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 		return nil, nil
 	}
 
-	destinationString := fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, peerID.String())
+	destinationString := fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, machine.GetID())
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create multi address: %w", err)
@@ -184,11 +179,11 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 		return nil, fmt.Errorf("failed to extract info from address: %w", err)
 	}
 
-	log.Debugf("adding peer id %s (%s) at ip %s", machine.GetID(), peerID.String(), machine.GetPublicIP())
+	log.Debugf("adding peer id %s at ip %s", machine.GetID(), machine.GetPublicIP())
 
 	err = p2p.host.Connect(context.Background(), *peerInfo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to peer %s (%s): %s", machine.GetID(), machine.GetID(), err.Error())
+		return nil, fmt.Errorf("failed to connect to peer %s: %s", machine.GetID(), err.Error())
 	}
 
 	// wait for the client to be created by the connection handler
@@ -202,7 +197,7 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 		tries++
 	}
 
-	return nil, fmt.Errorf("failed to retrieve client for peer %s (%s): client not found", machine.GetID(), peerID.String())
+	return nil, fmt.Errorf("failed to retrieve client for peer %s: client not found", machine.GetID())
 }
 
 func (p2p *P2P) RemovePeer(machine Machine) error {
@@ -214,8 +209,10 @@ func (p2p *P2P) RemovePeer(machine Machine) error {
 
 	err = p2p.host.Network().ClosePeer(peerID)
 	if err != nil {
-		return fmt.Errorf("failed to remove peer %s(%s)", machine.GetID(), peerID.String())
+		return fmt.Errorf("failed to remove peer %s", machine.GetID())
 	}
+
+	p2p.machines.Delete(peerID.String())
 
 	return nil
 }
@@ -291,6 +288,7 @@ func (p2p *P2P) restartServerAfterInit() {
 		if err != nil {
 			log.Error("failed to remove init peer: ", err)
 		}
+
 		err = p2p.startGRPCServer()
 		if err != nil {
 			log.Error("failed to prepare grpc server: ", err)

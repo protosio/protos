@@ -136,7 +136,7 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	err = pc.Manager.AddDevice(adminUser.Username, hostname, pc.localKey.PublicString())
+	err = pc.Manager.AddDevice(adminUser.Username, hostname, pc.localKey)
 	if err != nil {
 		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
 	}

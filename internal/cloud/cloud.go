@@ -20,7 +20,6 @@ import (
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
-	"github.com/rs/xid"
 )
 
 var log = util.GetLogger("cloud")
@@ -297,7 +296,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) error {
 	instanceInfo := InstanceInfo{
-		ID:       xid.New().String(),
 		PublicIP: ipString,
 		Name:     instanceName,
 		Kind:     kind,
@@ -342,6 +340,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 		return fmt.Errorf("failed to decode public key from instance: %w", err)
 	}
 	instanceInfo.PublicKey = publicKey.PublicKey()
+	instanceInfo.ID = publicKey.GetID()
 
 	// close SSH connection
 	sshCon.Close()
@@ -621,7 +620,7 @@ func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 		}
 		instanceInfo, err := provider.GetInstanceInfo(instance.ID, instance.Location)
 		if err != nil {
-			log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			log.Errorf("failed to retrieve remote status from instance '%s': %s", instance.Name, err.Error())
 			instance.Status = "n/a"
 		} else {
 			instance.Status = instanceInfo.Status
@@ -657,15 +656,15 @@ func (cm *Manager) retrieveInstanceStatus(instance InstanceInfo) (string, error)
 	if instance.Kind == KindLocalVM {
 		provider, err := cm.GetProvider(instance.KindID)
 		if err != nil {
-			return "", fmt.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 		}
 		err = provider.Init()
 		if err != nil {
-			return "", fmt.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 		}
 		instanceInfo, err := provider.GetInstanceInfo(instance.ID, instance.Location)
 		if err != nil {
-			return "", fmt.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 
 		}
 
@@ -685,7 +684,7 @@ func (cm *Manager) GetInstancesWithUpdatedStatus() ([]InstanceInfo, error) {
 	for i, instance := range instances {
 		status, err := cm.retrieveInstanceStatus(instance)
 		if err != nil {
-			log.Errorf("Failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+			log.Warn(err.Error())
 			instances[i].Status = "n/a"
 		} else {
 			instances[i].Status = status

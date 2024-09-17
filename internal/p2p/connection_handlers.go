@@ -61,30 +61,26 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 			return
 		}
 
-		var machineID string
-		if !p2p.externalDB.Initialized() {
-			machineID = "init"
-		} else {
-			machine, found := p2p.machines.Get(conn.RemotePeer().String())
+		if p2p.externalDB.Initialized() {
+			_, found := p2p.machines.Get(conn.RemotePeer().String())
 			if !found {
 				log.Warnf("new connection with peer '%s' with unknown machine. Closing connection", conn.RemotePeer().String())
 				conn.Close()
 				return
 			}
-			machineID = machine.GetID()
 		}
 
-		log.Debugf("new connection with peer %s(%s). Creating client", machineID, conn.RemotePeer().String())
+		log.Debugf("new connection with peer %s. Creating client", conn.RemotePeer().String())
 		client, err := p2p.createClientForPeer(conn.RemotePeer())
 		if err != nil {
-			log.Errorf("failed to create client for new peer %s(%s): %s", machineID, conn.RemotePeer().String(), err.Error())
+			log.Errorf("failed to create client for new peer %s: %s", conn.RemotePeer().String(), err.Error())
 			conn.Close()
 			return
 		}
 
-		p2p.clients.Set(machineID, client)
-		if err := p2p.externalDB.AddPeer(machineID, client.grpcConnection); err != nil {
-			log.Errorf("failed to add peer %s(%s) to external DB: %s", machineID, conn.RemotePeer().String(), err.Error())
+		p2p.clients.Set(conn.RemotePeer().String(), client)
+		if err := p2p.externalDB.AddPeer(conn.RemotePeer().String(), client.grpcConnection); err != nil {
+			log.Errorf("failed to add peer %s to external DB: %s", conn.RemotePeer().String(), err.Error())
 			conn.Close()
 			return
 		}
@@ -99,18 +95,17 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 		}
 	}()
 
-	machine, found := p2p.machines.Get(conn.RemotePeer().String())
+	_, found := p2p.machines.Get(conn.RemotePeer().String())
 	if !found {
 		log.Debugf("disconnected from unknown peer %s", conn.RemotePeer().String())
 		return
 	}
 
-	log.Debugf("disconnected from peer %s(%s)", machine.GetID(), conn.RemotePeer().String())
-	p2p.machines.Delete(conn.RemotePeer().String())
-	p2p.clients.Delete(machine.GetID())
+	log.Debugf("disconnected from peer %s", conn.RemotePeer().String())
+	p2p.clients.Delete(conn.RemotePeer().String())
 	if p2p.externalDB != nil {
-		if err := p2p.externalDB.RemovePeer(machine.GetID()); err != nil {
-			log.Errorf("failed to remove DB peer for %s(%s): %v", machine.GetID(), conn.RemotePeer().String(), err)
+		if err := p2p.externalDB.RemovePeer(conn.RemotePeer().String()); err != nil {
+			log.Errorf("failed to remove DB peer for %s: %v", conn.RemotePeer().String(), err)
 		}
 	}
 }

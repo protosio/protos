@@ -149,14 +149,14 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("failed to validate init request: %w", err)
 	}
 
-	im := initMachine{
-		id:        "init",
-		publicKey: req.OriginDevicePublicKey,
-	}
-
 	pubKey, err := pcrypto.CreatePublicKeyFromBase64(req.OriginDevicePublicKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot perform initialization: %w", err)
+	}
+
+	im := initMachine{
+		id:        pubKey.GetID(),
+		publicKey: req.OriginDevicePublicKey,
 	}
 
 	_, err = s.p2p.AddPeer(&im)
@@ -166,7 +166,7 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 
 	err = s.DB.InitFromPeer(im.GetID())
 	if err != nil {
-		err = fmt.Errorf("failed to initialize database from peer %s(%s): %w", im.GetID(), pubKey.PeerID(), err)
+		err = fmt.Errorf("failed to initialize database from peer %s(%s): %w", im.GetID(), pubKey.GetID(), err)
 		log.Error(err.Error())
 		return nil, err
 	}
