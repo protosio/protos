@@ -340,8 +340,14 @@ func (m *linkMngr) CreateLink(name string) (Link, error) {
 }
 
 func (m *linkMngr) DelLink(name string) error {
+	interfaceFile := fmt.Sprintf("%s/%s.name", m.interfacesDir, name)
 	lnk, err := m.GetLink(name)
 	if err != nil {
+		// remove the .name file
+		err = os.Remove(interfaceFile)
+		if err != nil {
+			return fmt.Errorf("could not delete link '%s': %w", name, err)
+		}
 		return err
 	}
 
@@ -351,14 +357,20 @@ func (m *linkMngr) DelLink(name string) error {
 	cmd := exec.Command(sudoPath, rmPath, "-f", link.interfaceSockFile)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		// remove the .name file
+		err = os.Remove(interfaceFile)
+		if err != nil {
+			return fmt.Errorf("could not delete link '%s': %w", name, err)
+		}
 		return fmt.Errorf("failed to delete link '%s': \n---- output ----\n%s-------------------", name, string(output))
 	}
 
 	// remove the .name file
-	err = os.Remove(link.interfaceNameFile)
+	err = os.Remove(interfaceFile)
 	if err != nil {
 		return fmt.Errorf("could not delete link '%s': %w", name, err)
 	}
+
 	return nil
 }
 
