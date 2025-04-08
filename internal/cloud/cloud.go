@@ -278,13 +278,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	mm, cmm := createInstanceInsertMapper(instanceInfo)
 
-	// TODO: create some kind of transaction to insert both instance and cloud instance
-	err = db.Insert(cm.db, mm)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
-	}
-
-	err = db.Insert(cm.db, cmm)
+	err = db.Insert(cm.db, mm, cmm)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
@@ -369,12 +363,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	}
 
 	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
-	err = db.Insert(cm.db, machineMapper)
-	if err != nil {
-		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
-	}
-
-	err = db.Insert(cm.db, machineMetadataMapper)
+	err = db.Insert(cm.db, machineMapper, machineMetadataMapper)
 	if err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
