@@ -1,15 +1,15 @@
-FROM golang:1.17.3-alpine3.14 AS build
+FROM golang:1.26.3-alpine3.23 AS build
 
 WORKDIR /go/src/github.com
 ENV GOPATH=/go PATH=$PATH:/go/bin
 ADD . /go/src/github.com/protos
 WORKDIR /go/src/github.com/protos
-RUN apk --update add git
+RUN apk add --no-cache git
 RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -ldflags '-w -extldflags "-static"' -o bin/protosd cmd/protosd/protosd.go
 RUN mkdir /root/tmp
 
 
-FROM alpine:3.14.3
+FROM alpine:3.23
 WORKDIR /
 RUN mkdir /opt/protos /var/protos /var/protos-containerd
 COPY --from=build /go/src/github.com/protos/bin/protosd /opt/protos/protosd
