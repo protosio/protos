@@ -1,0 +1,39 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - durationcheck
+    - errchkjson
+    - errorlint
+    - misspell
+    - nilerr
+    - nilnesserr
+    - rowserrcheck
+    - sqlclosecheck
+    - wastedassign
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - staticcheck
+        text: "QF1001:"
+      - linters:
+          - staticcheck
+        text: "QF1002:"
+      - linters:
+          - staticcheck
+        text: "QF1012:"
+      - linters:
+          - staticcheck
+        text: "ST1005:"

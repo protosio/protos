@@ -17,8 +17,8 @@ import (
 func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) {
 
 	// grpc conn
-	conn, err := grpc.Dial(
-		peerID.String(),
+	conn, err := grpc.NewClient(
+		"passthrough:///"+peerID.String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		p2pgrpc.WithP2PDialer(p2p.host, protosRPCProtocol),
 	)
@@ -35,9 +35,11 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 
 	tries := 0
 	for {
-		_, err = client.Ping(context.TODO(), &p2pproto.PingRequest{
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_, err = client.Ping(ctx, &p2pproto.PingRequest{
 			Ping: "pong",
 		})
+		cancel()
 		if err != nil {
 			if tries < 60 {
 				time.Sleep(200 * time.Millisecond)
@@ -57,7 +59,7 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 
 func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 	go func() {
-		if conn.Stat().Transient {
+		if conn.Stat().Limited {
 			return
 		}
 

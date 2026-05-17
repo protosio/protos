@@ -59,7 +59,7 @@ func (t *forwarder) errSig(s string, err error) {
 	if t.closed {
 		return
 	}
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		log.Error(s, err)
 	}
 	t.errsig <- true

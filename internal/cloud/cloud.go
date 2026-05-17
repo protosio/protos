@@ -37,62 +37,86 @@ func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
-	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p}
+	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, providers: defaultProviderRegistry()}
 
 	return manager, nil
 }
 
 // Manager manages cloud providers and instances
 type Manager struct {
-	db  *db.DB
-	um  *user.Manager
-	sm  *pcrypto.Manager
-	p2p *p2p.P2P
+	db        *db.DB
+	um        *user.Manager
+	sm        *pcrypto.Manager
+	p2p       *p2p.P2P
+	providers *providerRegistry
 }
 
 //
 // Cloud manager methods
 //
 
-// NewProvider creates and returns a cloud provider. At this point it is not saved in the db
-func (cm *Manager) NewProvider(cloudName string, cloud string) (CloudProvider, error) {
-	cloudType := Type(cloud)
-	cld := ProviderInfo{Name: cloudName, Type: cloudType, cm: cm}
-	return cld.getCloudProvider()
+// AddProvider validates and saves a cloud provider configuration.
+func (cm *Manager) AddProvider(cloudName string, cloud string, auth map[string]string) error {
+	record := newProviderRecord(cloudName, Type(cloud), auth)
+	provider, err := cm.newProviderClient(record)
+	if err != nil {
+		return fmt.Errorf("failed to create cloud provider: %w", err)
+	}
+	if err := provider.Init(); err != nil {
+		return fmt.Errorf("failed to initialize cloud provider: %w", err)
+	}
+	if err := cm.saveProviderRecord(provider.ProviderRecord()); err != nil {
+		return fmt.Errorf("failed to save cloud provider: %w", err)
+	}
+	return nil
 }
 
 // SupportedProviders returns a list of supported cloud providers
 func (cm *Manager) SupportedProviders() []string {
-	return []string{Scaleway.String()}
+	providerTypes := cm.providers.types()
+	supportedProviders := make([]string, 0, len(providerTypes))
+	for _, providerType := range providerTypes {
+		supportedProviders = append(supportedProviders, providerType.String())
+	}
+	return supportedProviders
+}
+
+// ProviderAuthFields returns the authentication fields required by a provider type.
+func (cm *Manager) ProviderAuthFields(cloud string) ([]string, error) {
+	factory, found := cm.providers.factory(Type(cloud))
+	if !found {
+		return nil, fmt.Errorf("cloud '%s' not supported", cloud)
+	}
+	return factory.AuthFields(), nil
 }
 
 // GetProvider returns a cloud provider instance from the db
-func (cm *Manager) GetProvider(id string) (CloudProvider, error) {
-	cpModel := sq.New[db.CLOUD_PROVIDER]("")
-	cpi, err := db.SelectOne(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.ID.EqString(id)}))
+func (cm *Manager) GetProvider(id string) (ProviderClient, error) {
+	record, found, err := cm.findProviderRecord(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve cloud provider '%s': %w", id, err)
 	}
-	cp, err := cpi.getCloudProvider()
+	if !found {
+		return nil, fmt.Errorf("could not find cloud provider '%s'", id)
+	}
+	provider, err := cm.newProviderClient(record)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve cloud provider '%s': %w", id, err)
 	}
-	return cp, fmt.Errorf("could not find cloud provider '%s'", id)
+	return provider, nil
 }
 
 // DeleteProvider deletes a cloud provider from the db
 func (cm *Manager) DeleteProvider(name string) error {
-	cld, err := cm.GetProvider(name)
+	record, found, err := cm.findProviderRecord(name)
 	if err != nil {
 		return err
 	}
-
-	providerInfo, ok := cld.(*ProviderInfo)
-	if !ok {
-		panic("Failed type assertion in delete provider")
+	if !found {
+		return fmt.Errorf("could not find cloud provider '%s'", name)
 	}
 
-	err = db.Delete(cm.db, createCloudProviderDeleteMapper(providerInfo.ID))
+	err = db.Delete(cm.db, createCloudProviderDeleteMapper(record.ID))
 	if err != nil {
 		return fmt.Errorf("failed to delete instance '%s': %w", name, err)
 	}
@@ -101,15 +125,15 @@ func (cm *Manager) DeleteProvider(name string) error {
 }
 
 // GetProviders returns all the cloud providers from the db
-func (cm *Manager) GetProviders() ([]CloudProvider, error) {
-	cloudProviders := []CloudProvider{}
+func (cm *Manager) GetProviders() ([]ProviderClient, error) {
+	cloudProviders := []ProviderClient{}
 	clouds, err := db.SelectMultiple(cm.db, createCloudProviderQueryMapper(nil))
 	if err != nil {
 		return cloudProviders, fmt.Errorf("failed to retrieve cloud providers: %w", err)
 	}
 
 	for _, cloud := range clouds {
-		client, err := cloud.getCloudProvider()
+		client, err := cm.newProviderClient(cloud)
 		if err != nil {
 			return cloudProviders, err
 		}
@@ -117,6 +141,73 @@ func (cm *Manager) GetProviders() ([]CloudProvider, error) {
 	}
 
 	return cloudProviders, nil
+}
+
+func (cm *Manager) providerDeps() ProviderDeps {
+	return ProviderDeps{SecretManager: cm.sm}
+}
+
+func (cm *Manager) newProviderClient(record ProviderRecord) (ProviderClient, error) {
+	record = record.normalized()
+	if record.ID == "" {
+		return nil, fmt.Errorf("cloud provider id is empty")
+	}
+	if record.Name == "" {
+		return nil, fmt.Errorf("cloud provider name is empty")
+	}
+	factory, found := cm.providers.factory(record.Type)
+	if !found {
+		return nil, fmt.Errorf("cloud '%s' not supported", record.Type.String())
+	}
+	return factory.NewClient(record, cm.providerDeps())
+}
+
+func (cm *Manager) saveProviderRecord(record ProviderRecord) error {
+	record = record.normalized()
+	records, err := cm.findProviderRecordsByID(record.ID)
+	if err != nil {
+		return err
+	}
+	if len(records) == 0 {
+		return db.Insert(cm.db, createCloudProviderInsertMapper(record))
+	}
+	return db.Update(cm.db, createCloudProviderUpdateMapper(record))
+}
+
+func (cm *Manager) findProviderRecord(ref string) (ProviderRecord, bool, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return ProviderRecord{}, false, fmt.Errorf("cloud provider name is empty")
+	}
+
+	records, err := cm.findProviderRecordsByID(ref)
+	if err != nil {
+		return ProviderRecord{}, false, err
+	}
+	if len(records) == 1 {
+		return records[0], true, nil
+	}
+	if len(records) > 1 {
+		return ProviderRecord{}, false, fmt.Errorf("found multiple cloud providers with id '%s'", ref)
+	}
+
+	cpModel := sq.New[db.CLOUD_PROVIDER]("")
+	records, err = db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.NAME.EqString(ref)}))
+	if err != nil {
+		return ProviderRecord{}, false, err
+	}
+	if len(records) == 0 {
+		return ProviderRecord{}, false, nil
+	}
+	if len(records) > 1 {
+		return ProviderRecord{}, false, fmt.Errorf("found multiple cloud providers named '%s'", ref)
+	}
+	return records[0], true, nil
+}
+
+func (cm *Manager) findProviderRecordsByID(id string) ([]ProviderRecord, error) {
+	cpModel := sq.New[db.CLOUD_PROVIDER]("")
+	return db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.ID.EqString(id)}))
 }
 
 //
@@ -130,13 +221,24 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
 	}
-	err = provider.Init()
+	computeProvider, err := requireComputeProvider(provider)
 	if err != nil {
+		return InstanceInfo{}, err
+	}
+	imageProvider, err := requireImageProvider(provider)
+	if err != nil {
+		return InstanceInfo{}, err
+	}
+	volumeProvider, err := requireVolumeProvider(provider)
+	if err != nil {
+		return InstanceInfo{}, err
+	}
+	if err := provider.Init(); err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to init cloud provider '%s'(%s) API: %w", cloudName, provider.TypeStr(), err)
 	}
 
 	// validate machine type
-	supportedMachineTypes, err := provider.SupportedMachines(cloudLocation)
+	supportedMachineTypes, err := computeProvider.SupportedMachines(cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, err
 	}
@@ -146,7 +248,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// add image
 	imageID := ""
-	images, err := provider.GetImages()
+	images, err := imageProvider.GetImages()
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
@@ -162,7 +264,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		// upload protos image
 		if image, found := release.CloudImages[provider.TypeStr()]; found {
 			log.Infof("Protos image version '%s' not in your infra cloud account. Adding it.", release.Version)
-			imageID, err = provider.AddImage(image.URL, image.Digest, release.Version, cloudLocation)
+			imageID, err = imageProvider.AddImage(image.URL, image.Digest, release.Version, cloudLocation)
 			if err != nil {
 				return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 			}
@@ -180,14 +282,14 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// deploy a protos instance
 	log.Infof("Deploying instance '%s' of type '%s', using Protos version '%s' (image id '%s')", instanceName, machineType, release.Version, imageID)
-	vmID, err := provider.NewInstance(instanceName, imageID, instanceSSHKey.AuthorizedKey(), machineType, cloudLocation)
+	vmID, err := computeProvider.NewInstance(instanceName, imageID, instanceSSHKey.AuthorizedKey(), machineType, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
 	log.Infof("Instance with ID '%s' deployed", vmID)
 
 	// get instance info
-	instanceInfo, err := provider.GetInstanceInfo(vmID, cloudLocation)
+	instanceInfo, err := computeProvider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to get Protos instance info: %w", err)
 	}
@@ -199,26 +301,26 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
-	volumeID, err := provider.NewVolume(instanceName, 30000, cloudLocation)
+	volumeID, err := volumeProvider.NewVolume(instanceName, 30000, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to create data volume: %w", err)
 	}
 
 	// attach volume to instance
-	err = provider.AttachVolume(volumeID, vmID, cloudLocation)
+	err = volumeProvider.AttachVolume(volumeID, vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to attach volume to instance '%s': %w", instanceName, err)
 	}
 
 	// start protos instance
 	log.Infof("Starting instance '%s'", instanceName)
-	err = provider.StartInstance(vmID, cloudLocation)
+	err = computeProvider.StartInstance(vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to start instance: %w", err)
 	}
 
 	// get instance info again
-	instanceUpdate, err := provider.GetInstanceInfo(vmID, cloudLocation)
+	instanceUpdate, err := computeProvider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to get instance info: %w", err)
 	}
@@ -256,7 +358,12 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), InstanceName: instanceName})
+	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{
+		OriginDevice:          thisDevice.GetName(),
+		OriginDevicePublicKey: thisDevice.GetPublicKey(),
+		OriginSwarmionAddrs:   cm.db.ListenMultiaddrs(),
+		InstanceName:          instanceName,
+	})
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
 	}
@@ -267,7 +374,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, fmt.Errorf("failed to remove peer: %w", err)
 	}
 
-	instanceUpdate, err = provider.GetInstanceInfo(vmID, cloudLocation)
+	instanceUpdate, err = computeProvider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to get instance info: %w", err)
 	}
@@ -278,7 +385,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	mm, cmm := createInstanceInsertMapper(instanceInfo)
 
-	err = db.Insert(cm.db, mm, cmm)
+	err = db.Insert(cm.db, mm, cmm, db.CreatePeerInsertMapper(instanceInfo.ID))
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
@@ -349,7 +456,12 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{OriginDevice: thisDevice.GetName(), OriginDevicePublicKey: thisDevice.GetPublicKey(), InstanceName: instanceName})
+	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{
+		OriginDevice:          thisDevice.GetName(),
+		OriginDevicePublicKey: thisDevice.GetPublicKey(),
+		OriginSwarmionAddrs:   cm.db.ListenMultiaddrs(),
+		InstanceName:          instanceName,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to init instance: %w", err)
 	}
@@ -363,7 +475,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	}
 
 	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
-	err = db.Insert(cm.db, machineMapper, machineMetadataMapper)
+	err = db.Insert(cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.ID))
 	if err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
@@ -405,13 +517,20 @@ func (cm *Manager) DeleteInstance(id string) error {
 			return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
 		}
 
-		err = provider.Init()
+		computeProvider, err := requireComputeProvider(provider)
 		if err != nil {
+			return err
+		}
+		volumeProvider, err := requireVolumeProvider(provider)
+		if err != nil {
+			return err
+		}
+		if err := provider.Init(); err != nil {
 			return fmt.Errorf("could not init cloud '%s': %w", id, err)
 		}
 
 		found := true
-		vmInfo, err := provider.GetInstanceInfo(instance.ID, instance.Location)
+		vmInfo, err := computeProvider.GetInstanceInfo(instance.ID, instance.Location)
 		if err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				found = false
@@ -424,19 +543,19 @@ func (cm *Manager) DeleteInstance(id string) error {
 		if found {
 			if vmInfo.Status == ServerStateRunning {
 				log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.ID)
-				err = provider.StopInstance(instance.ID, instance.Location)
+				err = computeProvider.StopInstance(instance.ID, instance.Location)
 				if err != nil {
 					return fmt.Errorf("could not stop instance '%s': %w", id, err)
 				}
 			}
 			log.Infof("Deleting instance '%s' (%s)", instance.Name, instance.ID)
-			err = provider.DeleteInstance(instance.ID, instance.Location)
+			err = computeProvider.DeleteInstance(instance.ID, instance.Location)
 			if err != nil {
 				return fmt.Errorf("could not delete instance '%s': %w", id, err)
 			}
 			for _, vol := range vmInfo.Volumes {
 				log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, id)
-				err = provider.DeleteVolume(vol.VolumeID, instance.Location)
+				err = volumeProvider.DeleteVolume(vol.VolumeID, instance.Location)
 				if err != nil {
 					log.Errorf("failed to delete volume '%s': %s", vol.Name, err.Error())
 				}
@@ -450,7 +569,7 @@ func (cm *Manager) DeleteInstance(id string) error {
 	}
 
 	im, cmmd := createInstanceDeleteMapper(instance.ID)
-	err = db.Delete(cm.db, im, cmmd)
+	err = db.Delete(cm.db, db.CreatePeerDeleteMapper(instance.ID), im, cmmd)
 	if err != nil {
 		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
 	}
@@ -469,19 +588,22 @@ func (cm *Manager) StartInstance(id string) error {
 		return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
 	}
 
-	err = provider.Init()
+	computeProvider, err := requireComputeProvider(provider)
 	if err != nil {
+		return err
+	}
+	if err := provider.Init(); err != nil {
 		return fmt.Errorf("could not init cloud '%s': %w", id, err)
 	}
 
 	log.Infof("Starting instance '%s' (%s)", instance.Name, instance.ID)
-	err = provider.StartInstance(instance.ID, instance.Location)
+	err = computeProvider.StartInstance(instance.ID, instance.Location)
 	if err != nil {
 		return fmt.Errorf("could not start instance '%s': %w", id, err)
 	}
 
 	// IP can change if an instance is stopped and started so a refresh is required
-	info, err := provider.GetInstanceInfo(instance.ID, instance.Location)
+	info, err := computeProvider.GetInstanceInfo(instance.ID, instance.Location)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance info for '%s': %w", id, err)
 	}
@@ -514,13 +636,16 @@ func (cm *Manager) StopInstance(id string) error {
 		return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
 	}
 
-	err = provider.Init()
+	computeProvider, err := requireComputeProvider(provider)
 	if err != nil {
+		return err
+	}
+	if err := provider.Init(); err != nil {
 		return fmt.Errorf("could not init cloud '%s': %w", id, err)
 	}
 
 	log.Infof("Stopping instance '%s' (%s)", instance.Name, instance.ID)
-	err = provider.StopInstance(instance.ID, instance.Location)
+	err = computeProvider.StopInstance(instance.ID, instance.Location)
 	if err != nil {
 		return fmt.Errorf("could not stop instance '%s': %w", id, err)
 	}
@@ -603,11 +728,14 @@ func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 		if err != nil {
 			return InstanceInfo{}, err
 		}
-		err = provider.Init()
+		computeProvider, err := requireComputeProvider(provider)
 		if err != nil {
 			return InstanceInfo{}, err
 		}
-		instanceInfo, err := provider.GetInstanceInfo(instance.ID, instance.Location)
+		if err := provider.Init(); err != nil {
+			return InstanceInfo{}, err
+		}
+		instanceInfo, err := computeProvider.GetInstanceInfo(instance.ID, instance.Location)
 		if err != nil {
 			log.Errorf("failed to retrieve remote status from instance '%s': %s", instance.Name, err.Error())
 			instance.Status = "n/a"
@@ -642,16 +770,19 @@ func (cm *Manager) GetInstances(excludeLocalInstance bool) ([]InstanceInfo, erro
 
 func (cm *Manager) retrieveInstanceStatus(instance InstanceInfo) (string, error) {
 
-	if instance.Kind == KindLocalVM {
+	if instance.Kind != KindLocalVM {
 		provider, err := cm.GetProvider(instance.KindID)
 		if err != nil {
 			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 		}
-		err = provider.Init()
+		computeProvider, err := requireComputeProvider(provider)
 		if err != nil {
 			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 		}
-		instanceInfo, err := provider.GetInstanceInfo(instance.ID, instance.Location)
+		if err := provider.Init(); err != nil {
+			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+		}
+		instanceInfo, err := computeProvider.GetInstanceInfo(instance.ID, instance.Location)
 		if err != nil {
 			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 
@@ -702,13 +833,16 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 		return fmt.Errorf("%s: %w", errMsg, err)
 	}
 
-	err = provider.Init()
+	imageProvider, err := requireImageProvider(provider)
 	if err != nil {
+		return fmt.Errorf("%s: %w", errMsg, err)
+	}
+	if err := provider.Init(); err != nil {
 		return fmt.Errorf("%s: %w", errMsg, err)
 	}
 
 	// find image
-	images, err := provider.GetImages()
+	images, err := imageProvider.GetImages()
 	if err != nil {
 		return fmt.Errorf("%s: %w", errMsg, err)
 	}
@@ -719,7 +853,7 @@ func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudNam
 	}
 
 	// upload image
-	_, err = provider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
+	_, err = imageProvider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
 	if err != nil {
 		return fmt.Errorf("%s: %w", errMsg, err)
 	}

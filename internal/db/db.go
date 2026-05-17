@@ -2,69 +2,559 @@ package db
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/fs"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/bokwoon95/sq"
-	"github.com/bokwoon95/sqddl/ddl"
-	"github.com/nustiueudinastea/doltswarm"
+	"github.com/dolthub/vitess/go/vt/sqlparser"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/protosio/protos/internal/config"
+	protoscontracts "github.com/protosio/protos/internal/db/contracts/sql/protos"
 	"github.com/protosio/protos/internal/util"
+	"github.com/rs/xid"
+	"google.golang.org/grpc"
+	swarmionapp "swarmion.dev/runtime/app"
+	swarmiondoltrepo "swarmion.dev/runtime/doltrepo"
+	cueschema "swarmion.dev/schema-engines/cue"
+	declarativeschema "swarmion.dev/schema-engines/declarative"
+	libp2ptransport "swarmion.dev/transports/libp2p"
 )
 
-var Instance *doltswarm.DB
+const (
+	swarmionNamespaceTemplate      = "/protos/db/%s"
+	swarmionAdminNamespaceTemplate = "/protos/db/%s/admin"
+	swarmionPortOffset             = 1
+)
+
+type Signer interface {
+	Sign(commit string) (string, error)
+	Verify(commit string, signature string, publicKey string) error
+	PublicKey() string
+	GetID() string
+	Private() []byte
+}
+
+type Commit struct {
+	Hash      string
+	Committer string
+	Email     string
+	Date      time.Time
+	Message   string
+}
+
+type DB struct {
+	app     *swarmionapp.App
+	network *libp2ptransport.Network
+	sqldb   *sql.DB
+
+	name       string
+	workingDir string
+	signer     Signer
+
+	mu                   sync.Mutex
+	opMu                 sync.Mutex
+	initialized          bool
+	tableChangeCallbacks *util.Map[string, tableChangeCallback]
+}
 
 //go:embed migrations/*.sql
 var rootDir embed.FS
 
-func Open(workDir string, dbName string, signer doltswarm.Signer) (*DB, error) {
-	dbi, err := doltswarm.Open(workDir, dbName, util.GetLogger("swarm"), signer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create db: %v", err)
+func Open(workDir string, dbName string, signer Signer) (*DB, error) {
+	if signer == nil {
+		return nil, fmt.Errorf("signer is nil")
+	}
+	if dbName == "" {
+		return nil, fmt.Errorf("db name is empty")
 	}
 
-	return &DB{DB: dbi, name: dbName}, nil
-}
+	absWorkDir, err := filepath.Abs(workDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve workdir: %w", err)
+	}
 
-type DB struct {
-	*doltswarm.DB
-	name string
+	db := &DB{
+		name:                 dbName,
+		workingDir:           absWorkDir,
+		signer:               signer,
+		tableChangeCallbacks: util.NewMap[string, tableChangeCallback](),
+	}
+
+	if databaseExists(absWorkDir, dbName) {
+		if err := db.openSwarmion(context.Background(), nil); err != nil {
+			return nil, fmt.Errorf("failed to open swarmion db: %w", err)
+		}
+	}
+
+	return db, nil
 }
 
 func (db *DB) Init() error {
+	if err := db.openSwarmion(context.Background(), nil); err != nil {
+		return fmt.Errorf("failed to init swarmion db: %w", err)
+	}
 
-	err := db.InitLocal()
+	if err := db.runMigrations(context.Background()); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	if _, err := db.commitStaged(context.Background(), "init commit", true); err != nil {
+		return fmt.Errorf("failed to commit: %w", err)
+	}
+
+	return nil
+}
+
+func databaseExists(workDir string, dbName string) bool {
+	_, err := os.Stat(filepath.Join(workDir, dbName, ".dolt"))
+	return err == nil
+}
+
+func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if db.app != nil {
+		return nil
+	}
+
+	privateKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(db.signer.Private())
 	if err != nil {
-		return fmt.Errorf("failed to init local: %v", err)
+		return fmt.Errorf("failed to create swarmion private key: %w", err)
+	}
+
+	logger := log.New(io.Discard, "", log.LstdFlags|log.Lmicroseconds|log.LUTC)
+	listenPort := swarmionListenPort()
+	network, err := libp2ptransport.New(ctx, libp2ptransport.Config{
+		ListenAddrs:          []string{fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)},
+		BootstrapPeers:       append([]string(nil), bootstrapPeers...),
+		PrivateKey:           privateKey,
+		TargetConnectedPeers: 32,
+		Logger:               logger,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create swarmion transport: %w", err)
+	}
+
+	app, err := swarmionapp.Open(ctx, swarmionapp.Config{
+		Repository: swarmiondoltrepo.Config{
+			Dir:         db.workingDir,
+			Name:        db.name,
+			CommitName:  db.signer.GetID(),
+			CommitEmail: db.signer.GetID() + "@protos.local",
+			Signer:      db.signer,
+		},
+		BootstrapPeers:                 append([]string(nil), bootstrapPeers...),
+		Namespace:                      fmt.Sprintf(swarmionNamespaceTemplate, db.name),
+		AdminNamespace:                 fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name),
+		HeartbeatInterval:              5 * time.Second,
+		FinalizedMaterializationPolicy: swarmionapp.FinalizedMaterializationEager,
+		AutomaticEpochPolicies:         true,
+		SchemaEngine:                   cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
+		OnWriteNotification:            db.handleWriteNotification,
+		Logger:                         logger,
+	}, network)
+	if err != nil {
+		_ = network.Close()
+		return fmt.Errorf("failed to open swarmion runtime: %w", err)
+	}
+
+	db.app = app
+	db.network = network
+	db.sqldb = app.SQLDB()
+	db.initialized = true
+	return nil
+}
+
+func (db *DB) runMigrations(ctx context.Context) error {
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	if _, err := sqldb.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS sqddl_history (
+filename VARCHAR(255) NOT NULL,
+checksum VARCHAR(255) NOT NULL,
+started_at TIMESTAMP NULL,
+time_taken_ns BIGINT NOT NULL,
+success BOOLEAN NOT NULL,
+PRIMARY KEY (filename)
+)`); err != nil {
+		return fmt.Errorf("ensure migration history: %w", err)
 	}
 
 	migrationsDir, err := fs.Sub(rootDir, "migrations")
 	if err != nil {
-		return fmt.Errorf("failed to get migrations dir: %v", err)
+		return fmt.Errorf("failed to get migrations dir: %w", err)
+	}
+	entries, err := fs.ReadDir(migrationsDir, ".")
+	if err != nil {
+		return fmt.Errorf("read migrations dir: %w", err)
 	}
 
-	_, err = db.GetSqlDB().ExecContext(context.TODO(), fmt.Sprintf("USE %s;", db.name))
-	if err != nil {
-		return fmt.Errorf("failed to use db: %w", err)
+	var filenames []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || strings.HasSuffix(name, ".undo.sql") || !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+		filenames = append(filenames, name)
 	}
+	sort.Strings(filenames)
 
-	migrateCmd := &ddl.MigrateCmd{
-		Dialect: "mysql",
-		DB:      db.GetSqlDB(),
-		DirFS:   migrationsDir,
-	}
-	err = migrateCmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to run migrations: %v", err)
-	}
+	for _, filename := range filenames {
+		applied, err := migrationApplied(ctx, sqldb, filename)
+		if err != nil {
+			return err
+		}
+		if applied {
+			continue
+		}
 
-	_, err = db.Commit("init commit")
-	if err != nil {
-		return fmt.Errorf("failed to commit: %v", err)
+		start := time.Now()
+		contents, err := fs.ReadFile(migrationsDir, filename)
+		if err != nil {
+			return fmt.Errorf("read migration %s: %w", filename, err)
+		}
+		statements, err := sqlparser.SplitStatementToPieces(string(contents))
+		if err != nil {
+			return fmt.Errorf("split migration %s: %w", filename, err)
+		}
+		for _, statement := range statements {
+			statement = strings.TrimSpace(statement)
+			if statement == "" {
+				continue
+			}
+			if _, err := sqldb.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("%s: %w", filename, err)
+			}
+		}
+
+		checksum := sha256.Sum256(contents)
+		if _, err := sqldb.ExecContext(
+			ctx,
+			`INSERT INTO sqddl_history (filename, checksum, started_at, time_taken_ns, success)
+VALUES (?, ?, NOW(), ?, true)
+ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), started_at = VALUES(started_at), time_taken_ns = VALUES(time_taken_ns), success = VALUES(success)`,
+			filename,
+			hex.EncodeToString(checksum[:]),
+			time.Since(start).Nanoseconds(),
+		); err != nil {
+			return fmt.Errorf("record migration %s: %w", filename, err)
+		}
 	}
 
 	return nil
+}
+
+func migrationApplied(ctx context.Context, sqldb *sql.DB, filename string) (bool, error) {
+	var success bool
+	err := sqldb.QueryRowContext(ctx, "SELECT success FROM sqddl_history WHERE filename = ?", filename).Scan(&success)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read migration history for %s: %w", filename, err)
+	}
+	return success, nil
+}
+
+func (db *DB) Close() error {
+	if db == nil {
+		return nil
+	}
+	db.opMu.Lock()
+	defer db.opMu.Unlock()
+
+	db.mu.Lock()
+	app := db.app
+	db.app = nil
+	db.network = nil
+	db.sqldb = nil
+	db.initialized = false
+	db.mu.Unlock()
+
+	if app == nil {
+		return nil
+	}
+	return app.Close()
+}
+
+func (db *DB) Initialized() bool {
+	if db == nil {
+		return false
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.initialized
+}
+
+func (db *DB) InitFromPeer(peerID string, bootstrapPeers []string) error {
+	if len(bootstrapPeers) == 0 {
+		return fmt.Errorf("cannot initialize swarmion db from peer %s without bootstrap addresses", peerID)
+	}
+	if err := db.openSwarmion(context.Background(), bootstrapPeers); err != nil {
+		return fmt.Errorf("failed to initialize swarmion db from peer %s: %w", peerID, err)
+	}
+	return nil
+}
+
+func (db *DB) EnableGRPCServers(*grpc.Server) error {
+	return nil
+}
+
+func (db *DB) AddPeer(string, *grpc.ClientConn) error {
+	return nil
+}
+
+func (db *DB) RemovePeer(string) error {
+	return nil
+}
+
+func (db *DB) ConnectPeer(peerID string, publicIP string) error {
+	if strings.TrimSpace(peerID) == "" || strings.TrimSpace(publicIP) == "" {
+		return nil
+	}
+	if !db.Initialized() {
+		return nil
+	}
+
+	db.mu.Lock()
+	network := db.network
+	db.mu.Unlock()
+	if network == nil {
+		return nil
+	}
+
+	listenPort := swarmionListenPort()
+	if listenPort == 0 {
+		return nil
+	}
+	addr := fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", publicIP, listenPort, peerID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return network.Connect(ctx, addr)
+}
+
+func swarmionListenPort() int {
+	if config.Get().P2PPort <= 0 {
+		return 0
+	}
+	return config.Get().P2PPort + swarmionPortOffset
+}
+
+func (db *DB) ListenMultiaddrs() []string {
+	if db == nil {
+		return nil
+	}
+	db.mu.Lock()
+	network := db.network
+	db.mu.Unlock()
+	if network == nil {
+		return nil
+	}
+	return network.ListenMultiaddrs()
+}
+
+func (db *DB) GetSqlDB() *sql.DB {
+	if db == nil {
+		return nil
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.sqldb
+}
+
+func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return nil, fmt.Errorf("db is not initialized")
+	}
+	return sqldb.ExecContext(ctx, query, args...)
+}
+
+func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return nil, fmt.Errorf("db is not initialized")
+	}
+	return sqldb.QueryContext(ctx, query, args...)
+}
+
+func (db *DB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return nil, fmt.Errorf("db is not initialized")
+	}
+	return sqldb.PrepareContext(ctx, query)
+}
+
+func (db *DB) ExecSQLAndCommit(statement string, commitMsg string) (string, error) {
+	if strings.TrimSpace(statement) == "" {
+		return "", fmt.Errorf("sql statement is empty")
+	}
+
+	db.opMu.Lock()
+	defer db.opMu.Unlock()
+
+	if _, err := db.ExecContext(context.Background(), statement); err != nil {
+		return "", fmt.Errorf("failed to exec sql statement: %w", err)
+	}
+	commit, err := db.commitStaged(context.Background(), commitMsg, false)
+	if err != nil {
+		return "", err
+	}
+
+	return commit, nil
+}
+
+func (db *DB) GetLastCommit(branch string) (Commit, error) {
+	if strings.TrimSpace(branch) == "" {
+		branch = "main"
+	}
+	query := fmt.Sprintf("SELECT commit_hash, committer, email, date, message FROM dolt_log('%s') LIMIT 1;", escapeSQL(branch))
+	commits, err := db.getCommits(query)
+	if err != nil {
+		return Commit{}, err
+	}
+	if len(commits) == 0 {
+		return Commit{}, fmt.Errorf("no commits found")
+	}
+	return commits[0], nil
+}
+
+func (db *DB) GetAllCommits() ([]Commit, error) {
+	return db.getCommits("SELECT commit_hash, committer, email, date, message FROM dolt_log('main');")
+}
+
+func (db *DB) getCommits(query string) ([]Commit, error) {
+	rows, err := db.QueryContext(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve commits: %w", err)
+	}
+	defer rows.Close()
+
+	var commits []Commit
+	for rows.Next() {
+		var commit Commit
+		if err := rows.Scan(&commit.Hash, &commit.Committer, &commit.Email, &commit.Date, &commit.Message); err != nil {
+			return nil, fmt.Errorf("failed to scan commit: %w", err)
+		}
+		commits = append(commits, commit)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read commits: %w", err)
+	}
+	return commits, nil
+}
+
+func (db *DB) commitStaged(ctx context.Context, message string, allowNoop bool) (string, error) {
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return "", fmt.Errorf("db is not initialized")
+	}
+	if strings.TrimSpace(message) == "" {
+		message = "swarmion commit"
+	}
+
+	call := "CALL swarmion_commit('-Am', ?)"
+	if allowNoop {
+		call = "CALL swarmion_commit_info('-Am', ?)"
+	}
+
+	rows, err := sqldb.QueryContext(ctx, call, message)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return "", err
+	}
+	values := make([]any, len(cols))
+	scan := make([]any, len(cols))
+	for i := range values {
+		scan[i] = &values[i]
+	}
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return "", err
+		}
+		return "", nil
+	}
+	if err := rows.Scan(scan...); err != nil {
+		return "", err
+	}
+	for i, col := range cols {
+		if strings.EqualFold(col, "hash") {
+			return fmt.Sprint(values[i]), nil
+		}
+	}
+	return "", nil
+}
+
+func (db *DB) RegisterTableChangeCallback(tableName string, notifier Notifier) {
+	if db == nil || notifier == nil {
+		return
+	}
+	guid := xid.New()
+	db.tableChangeCallbacks.Set(guid.String(), tableChangeCallback{
+		tableName: tableName,
+		notifier:  notifier,
+	})
+}
+
+func (db *DB) handleWriteNotification(_ context.Context, notification swarmionapp.WriteNotification) error {
+	if !notification.Accepted || len(notification.ChangedTables) == 0 {
+		return nil
+	}
+	db.triggerTableChangeCallbacks(notification.ChangedTables...)
+	return nil
+}
+
+func (db *DB) triggerTableChangeCallbacks(tableNames ...string) {
+	if db == nil {
+		return
+	}
+	tableSet := make(map[string]struct{}, len(tableNames))
+	for _, tableName := range tableNames {
+		tableSet[tableName] = struct{}{}
+	}
+
+	seen := map[uintptr]struct{}{}
+	for _, callback := range db.tableChangeCallbacks.Snapshot() {
+		if len(tableSet) > 0 {
+			if _, found := tableSet[callback.tableName]; !found {
+				continue
+			}
+		}
+		if id, ok := notifierIdentity(callback.notifier); ok {
+			if _, found := seen[id]; found {
+				continue
+			}
+			seen[id] = struct{}{}
+		}
+		notifyAsync(callback.notifier)
+	}
+}
+
+func escapeSQL(value string) string {
+	return strings.ReplaceAll(value, "'", "''")
 }
 
 //
@@ -75,7 +565,7 @@ func SelectOne[T any](db *DB, mc QueryMapper[T]) (T, error) {
 	query, mapper := mc()
 	res, err := sq.FetchOne(db, query.SetDialect(sq.DialectMySQL), mapper)
 	if err != nil {
-		return res, fmt.Errorf("failed to select one: %v", err)
+		return res, fmt.Errorf("failed to select one: %w", err)
 	}
 	return res, nil
 }
@@ -84,7 +574,7 @@ func SelectMultiple[T any](db *DB, mc QueryMapper[T]) ([]T, error) {
 	query, mapper := mc()
 	res, err := sq.FetchAll(db, query.SetDialect(sq.DialectMySQL), mapper)
 	if err != nil {
-		return nil, fmt.Errorf("failed to select multiple: %v", err)
+		return nil, fmt.Errorf("failed to select multiple: %w", err)
 	}
 	return res, nil
 }
@@ -95,56 +585,77 @@ func SelectMultiple[T any](db *DB, mc QueryMapper[T]) ([]T, error) {
 
 // Insert inserts a new entry in the database using the sq query builder
 func Insert(db *DB, mappers ...InsertMapper) error {
-	execFunc := func(tx *sql.Tx) error {
-		for _, mapper := range mappers {
-			_, err := sq.Exec(tx, mapper().SetDialect(sq.DialectMySQL))
-			if err != nil {
-				return fmt.Errorf("failed to insert: %v", err)
-			}
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	db.opMu.Lock()
+	defer db.opMu.Unlock()
+
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	for _, mapper := range mappers {
+		_, err := sq.Exec(sqldb, mapper().SetDialect(sq.DialectMySQL))
+		if err != nil {
+			return fmt.Errorf("failed to insert: %w", err)
 		}
-		return nil
 	}
 
-	_, err := db.ExecAndCommit(execFunc, "insert")
+	_, err := db.commitStaged(context.Background(), "insert", false)
 	if err != nil {
-		return fmt.Errorf("failed to inser: %v", err)
+		return fmt.Errorf("failed to insert: %w", err)
 	}
 
 	return nil
 }
 
 func Update(db *DB, mappers ...UpdateMapper) error {
-	execFunc := func(tx *sql.Tx) error {
-		for _, mapper := range mappers {
-			_, err := sq.Exec(tx, mapper().SetDialect(sq.DialectMySQL))
-			if err != nil {
-				return fmt.Errorf("failed to update: %v", err)
-			}
-		}
-		return nil
+	if db == nil {
+		return fmt.Errorf("db is nil")
 	}
-	_, err := db.ExecAndCommit(execFunc, "update")
+	db.opMu.Lock()
+	defer db.opMu.Unlock()
+
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	for _, mapper := range mappers {
+		_, err := sq.Exec(sqldb, mapper().SetDialect(sq.DialectMySQL))
+		if err != nil {
+			return fmt.Errorf("failed to update: %w", err)
+		}
+	}
+	_, err := db.commitStaged(context.Background(), "update", false)
 	if err != nil {
-		return fmt.Errorf("failed to update: %v", err)
+		return fmt.Errorf("failed to update: %w", err)
 	}
 
 	return nil
 }
 
 func Delete(db *DB, mappers ...DeleteMapper) error {
-	execFunc := func(tx *sql.Tx) error {
-		for _, mapper := range mappers {
-			_, err := sq.Exec(tx, mapper().SetDialect(sq.DialectMySQL))
-			if err != nil {
-				return fmt.Errorf("failed to delete: %v", err)
-			}
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	db.opMu.Lock()
+	defer db.opMu.Unlock()
+
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	for _, mapper := range mappers {
+		_, err := sq.Exec(sqldb, mapper().SetDialect(sq.DialectMySQL))
+		if err != nil {
+			return fmt.Errorf("failed to delete: %w", err)
 		}
-		return nil
 	}
 
-	_, err := db.ExecAndCommit(execFunc, "delete")
+	_, err := db.commitStaged(context.Background(), "delete", false)
 	if err != nil {
-		return fmt.Errorf("failed to delete: %v", err)
+		return fmt.Errorf("failed to delete: %w", err)
 	}
 
 	return nil

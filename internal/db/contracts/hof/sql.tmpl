@@ -1,0 +1,13 @@
+{{ range $table := .schema.tables -}}
+CREATE TABLE {{ $table.name }} (
+{{- range $i, $column := $table.columns }}
+{{- if $i }},{{ end }}
+    {{ $column.name }} {{ $column.type }}{{ if $column.not_null }} NOT NULL{{ end }}{{ if $column.primary_key }} PRIMARY KEY{{ end }}
+{{- end }}
+);
+
+{{ range $index := $table.indexes -}}
+CREATE INDEX {{ $index.name }} ON {{ $table.name }} ({{ range $i, $column := $index.columns }}{{ if $i }}, {{ end }}{{ $column }}{{ end }});
+
+{{ end -}}
+{{ end -}}

@@ -86,10 +86,7 @@ func (l *linkTUN) IsUp() bool {
 	l.iface = *iface
 	// use flags to figure out status
 	flags := l.iface.Flags.String()
-	if strings.Contains(flags, "up") {
-		return true
-	}
-	return false
+	return strings.Contains(flags, "up")
 }
 
 func (l *linkTUN) ListenUDP(local net.UDPAddr) (*net.UDPConn, error) {
@@ -184,7 +181,7 @@ func (l *linkTUN) AddAddr(a Address) error {
 		cmd = exec.Command(sudoPath, ifconfigPath, l.realInterface, "inet6", addr, "prefixlen", strconv.Itoa(len))
 	} else {
 		// IPv4
-		cmd = exec.Command(sudoPath, ifconfigPath, l.realInterface, "inet", a.IPNet.String())
+		cmd = exec.Command(sudoPath, ifconfigPath, l.realInterface, "inet", a.String())
 
 		if a.Peer != nil && a.Peer.IP != nil {
 			cmd.Args = append(cmd.Args, a.Peer.IP.String())

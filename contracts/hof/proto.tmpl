@@ -1,0 +1,40 @@
+syntax = "{{ .proto.syntax }}";
+
+package {{ .proto.package }};
+{{ range .proto.imports }}
+import "{{ . }}";
+{{ end }}
+
+option go_package = "{{ .proto.go_package }}";
+{{ range .proto.services }}
+service {{ .name }} {
+{{- range .rpcs }}
+  rpc {{ .name }}({{ .request }}) returns ({{ .response }}) {}
+{{- end }}
+}
+{{ end -}}
+{{ range .proto.declarations }}
+{{ if eq .kind "enum" -}}
+enum {{ .name }} {
+{{- range .values }}
+  {{ .name }} = {{ .number }};
+{{- end }}
+}
+{{ else if eq .kind "message" -}}
+message {{ .name }} {
+{{- range .reserved_names }}
+  reserved "{{ . }}";
+{{- end }}
+{{- range .fields }}
+  {{ with .rule }}{{ . }} {{ end }}{{ .type }} {{ .name }} = {{ .number }};
+{{- end }}
+{{- range .oneofs }}
+  oneof {{ .name }} {
+{{- range .fields }}
+    {{ .type }} {{ .name }} = {{ .number }};
+{{- end }}
+  }
+{{- end }}
+}
+{{ end -}}
+{{ end -}}

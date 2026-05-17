@@ -1,0 +1,4 @@
+{{ range $table := .schema.tables -}}
+DROP TABLE IF EXISTS {{ $table.name }};
+
+{{ end -}}

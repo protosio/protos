@@ -1,11 +1,12 @@
 syntax = "proto3";
 
-option go_package = "./proto";
-
 package proto;
 
+
+option go_package = "./proto";
+
 service Pinger {
-  rpc Ping (PingRequest) returns (PingResponse) {}
+  rpc Ping(PingRequest) returns (PingResponse) {}
 }
 
 message PingRequest {

@@ -1,0 +1,87 @@
+version: "3"
+
+vars:
+  TIMEOUT: '{{.TIMEOUT | default "5m"}}'
+  GO_TEST_CACHE: '{{.GO_TEST_CACHE | default "/tmp/protos-gocache"}}'
+  ICU_PREFIX:
+    sh: |
+      if [ -n "${ICU_PREFIX:-}" ]; then
+        printf '%s\n' "$ICU_PREFIX"
+      elif command -v brew >/dev/null 2>&1; then
+        brew --prefix icu4c 2>/dev/null || printf '%s\n' /opt/homebrew/opt/icu4c
+      else
+        printf '%s\n' /opt/homebrew/opt/icu4c
+      fi
+
+tasks:
+  generate:
+    desc: Generate all artifacts from CUE contracts
+    cmds:
+      - task: generate:contracts
+
+  generate:contracts:
+    desc: Generate protobuf, DB migrations, DB models, and Swarmion SQL catalog from CUE
+    cmds:
+      - ./scripts/generate-contracts.sh
+
+  generate:protobuf:
+    desc: Generate protobuf sources and Go stubs from CUE
+    cmds:
+      - ./scripts/generate-protobuf.sh
+
+  verify:contracts:
+    desc: Verify checked-in generated artifacts match CUE contracts
+    cmds:
+      - ./scripts/verify-contracts.sh
+
+  quality:
+    desc: Run code quality checks
+    cmds:
+      - task: lint
+      - task: deadcode
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - |
+        set -e
+        if command -v golangci-lint >/dev/null 2>&1; then
+          lint_cmd="golangci-lint"
+        else
+          lint_cmd="go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"
+        fi
+        env \
+          GOCACHE={{.GO_TEST_CACHE}} \
+          CGO_CPPFLAGS=-I{{.ICU_PREFIX}}/include \
+          CGO_CFLAGS=-I{{.ICU_PREFIX}}/include \
+          CGO_CXXFLAGS=-I{{.ICU_PREFIX}}/include \
+          CGO_LDFLAGS=-L{{.ICU_PREFIX}}/lib \
+          ${lint_cmd} run --config .golangci.yml --timeout {{.TIMEOUT}} ./...
+
+  deadcode:
+    desc: Run golang.org/x/tools/cmd/deadcode
+    cmds:
+      - |
+        set -e
+        if command -v deadcode >/dev/null 2>&1; then
+          deadcode_cmd="deadcode"
+        else
+          deadcode_cmd="go run golang.org/x/tools/cmd/deadcode@latest"
+        fi
+        env \
+          GOCACHE={{.GO_TEST_CACHE}} \
+          CGO_CPPFLAGS=-I{{.ICU_PREFIX}}/include \
+          CGO_CFLAGS=-I{{.ICU_PREFIX}}/include \
+          CGO_CXXFLAGS=-I{{.ICU_PREFIX}}/include \
+          CGO_LDFLAGS=-L{{.ICU_PREFIX}}/lib \
+          ${deadcode_cmd} -test ./...
+
+  test:
+    desc: Run Go tests with ICU flags required by the Swarmion/Dolt stack
+    cmds:
+      - env CGO_CPPFLAGS=-I{{.ICU_PREFIX}}/include CGO_CFLAGS=-I{{.ICU_PREFIX}}/include CGO_CXXFLAGS=-I{{.ICU_PREFIX}}/include CGO_LDFLAGS=-L{{.ICU_PREFIX}}/lib go test -timeout {{.TIMEOUT}} ./...
+
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list

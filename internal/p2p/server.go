@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -11,7 +10,7 @@ import (
 
 	p2pgrpc "github.com/birros/go-libp2p-grpc"
 	"github.com/go-playground/validator/v10"
-	"github.com/nustiueudinastea/doltswarm"
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"google.golang.org/grpc"
@@ -25,10 +24,10 @@ var _ proto.InstanceServer = (*Server)(nil)
 type ExternalDB interface {
 	AddPeer(peerID string, conn *grpc.ClientConn) error
 	RemovePeer(peerID string) error
-	GetAllCommits() ([]doltswarm.Commit, error)
-	ExecAndCommit(execFunc doltswarm.ExecFunc, commitMsg string) (string, error)
-	GetLastCommit(branch string) (doltswarm.Commit, error)
-	InitFromPeer(peerID string) error
+	GetAllCommits() ([]db.Commit, error)
+	ExecSQLAndCommit(statement string, commitMsg string) (string, error)
+	GetLastCommit(branch string) (db.Commit, error)
+	InitFromPeer(peerID string, bootstrapPeers []string) error
 	EnableGRPCServers(server *grpc.Server) error
 	Initialized() bool
 }
@@ -70,15 +69,7 @@ func (s *Server) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingR
 }
 
 func (s *Server) ExecSQL(ctx context.Context, req *proto.ExecSQLRequest) (*proto.ExecSQLResponse, error) {
-	execFunc := func(tx *sql.Tx) error {
-		_, err := tx.Exec(req.Statement)
-		if err != nil {
-			return fmt.Errorf("failed to exec sql statement: %v", err)
-		}
-		return nil
-	}
-
-	commit, err := s.DB.ExecAndCommit(execFunc, req.Msg)
+	commit, err := s.DB.ExecSQLAndCommit(req.Statement, req.Msg)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +155,7 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
 
-	err = s.DB.InitFromPeer(im.GetID())
+	err = s.DB.InitFromPeer(im.GetID(), req.OriginSwarmionAddrs)
 	if err != nil {
 		err = fmt.Errorf("failed to initialize database from peer %s(%s): %w", im.GetID(), pubKey.GetID(), err)
 		log.Error(err.Error())

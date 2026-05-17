@@ -1,8 +1,9 @@
 syntax = "proto3";
 
-option go_package = "./proto";
-
 package proto;
+
+
+option go_package = "./proto";
 
 service PeerDB {
   rpc ExecSQL(ExecSQLRequest) returns (ExecSQLResponse) {}
@@ -14,6 +15,7 @@ message ExecSQLRequest {
   string statement = 1;
   string msg = 2;
 }
+
 message ExecSQLResponse {
   string commit = 1;
   string result = 2;
@@ -26,12 +28,16 @@ message Commit {
   string message = 3;
 }
 
-message GetAllCommitsRequest {}
+message GetAllCommitsRequest {
+}
+
 message GetAllCommitsResponse {
   repeated Commit commits = 1;
 }
 
-message GetHeadRequest {}
+message GetHeadRequest {
+}
+
 message GetHeadResponse {
   string commit = 1;
 }

@@ -9,3 +9,5 @@ DROP TABLE IF EXISTS apps;
 DROP TABLE IF EXISTS users;
 
 DROP TABLE IF EXISTS user_devices_metadata;
+
+DROP TABLE IF EXISTS peers;

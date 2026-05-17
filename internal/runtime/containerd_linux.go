@@ -22,12 +22,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/network"
+	"github.com/protosio/protos/internal/util"
 )
 
 const (
 	protosNamespace string = "protos"
 )
 
+var log = util.GetLogger("platform")
 var pltfrm *containerdPlatform
 
 type containerdPlatform struct {

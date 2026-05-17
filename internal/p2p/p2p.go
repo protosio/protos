@@ -27,7 +27,6 @@ var log = util.GetLogger("p2p")
 
 const (
 	protosRPCProtocol         = "/protos/rpc/0.0.1"
-	protosUpdatesTopic        = "/protos/updates/0.0.1"
 	destinationStringTemplate = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
 )
 
@@ -41,6 +40,10 @@ type Machine interface {
 	GetPublicKey() string
 	GetPublicIP() string
 	GetName() string
+}
+
+type peerDBConnector interface {
+	ConnectPeer(peerID string, publicIP string) error
 }
 
 // Client is a remote p2p client
@@ -60,7 +63,6 @@ type P2P struct {
 	externalDB ExternalDB
 
 	restartServerSignal chan initMachine
-	newPeerChan         chan peer.AddrInfo
 
 	// the index is the peer ID
 	machines *util.Map[string, Machine]
@@ -90,6 +92,15 @@ func (p2p *P2P) pubKeyToPeerID(pubKey string) (peer.ID, error) {
 func (p2p *P2P) GetClient(id string) (*Client, error) {
 	client, found := p2p.clients.Get(id)
 	if !found {
+		for peerID, machine := range p2p.machines.Snapshot() {
+			if machine.GetID() != id && machine.GetName() != id {
+				continue
+			}
+			client, found = p2p.clients.Get(peerID)
+			if found {
+				return client, nil
+			}
+		}
 		return nil, fmt.Errorf("could not find RPC client for instance '%s'", id)
 	}
 
@@ -103,7 +114,6 @@ func (p2p *P2P) GetClient(id string) (*Client, error) {
 // ConfigurePeers configures all the peers passed as arguemnt
 func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	currentMachines := map[string]Machine{}
-	currentPeerIDs := map[string]peer.ID{}
 
 	log.Debugf("configuring p2p peers: %v", machines)
 
@@ -115,7 +125,6 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 		}
 
 		currentMachines[peerID.String()] = machine
-		currentPeerIDs[machine.GetID()] = peerID
 	}
 
 	//
@@ -130,14 +139,24 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	//
 	// disconnect and delete all clients that are not in the current list
 	//
-	for machineID := range p2p.clients.Snapshot() {
-		peerID, found := currentPeerIDs[machineID]
-		if !found {
-			err := p2p.host.Network().ClosePeer(peerID)
+	for peerIDString := range p2p.clients.Snapshot() {
+		if _, found := currentMachines[peerIDString]; !found {
+			peerID, err := peer.Decode(peerIDString)
 			if err != nil {
-				log.Debugf("failed to remove peer %s(%s)", machineID, peerID.String())
+				log.Debugf("failed to decode stale peer %s: %v", peerIDString, err)
+				p2p.clients.Delete(peerIDString)
+				continue
 			}
-			p2p.clients.Delete(machineID)
+			err = p2p.host.Network().ClosePeer(peerID)
+			if err != nil {
+				log.Debugf("failed to remove peer %s: %v", peerIDString, err)
+			}
+			p2p.clients.Delete(peerIDString)
+			if p2p.externalDB != nil {
+				if err := p2p.externalDB.RemovePeer(peerIDString); err != nil {
+					log.Debugf("failed to remove DB peer %s: %v", peerIDString, err)
+				}
+			}
 		}
 	}
 
@@ -156,11 +175,17 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 
 // AddPeer adds a peer to the p2p manager
 func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
+	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get peer ID from public key: %w", err)
+	}
+	peerIDString := peerID.String()
 
-	p2p.machines.Set(machine.GetID(), machine)
+	p2p.machines.Set(peerIDString, machine)
 
-	client, found := p2p.clients.Get(machine.GetID())
+	client, found := p2p.clients.Get(peerIDString)
 	if found {
+		p2p.connectExternalDBPeer(machine)
 		return client, nil
 	}
 
@@ -168,7 +193,7 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 		return nil, nil
 	}
 
-	destinationString := fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, machine.GetID())
+	destinationString := fmt.Sprintf(destinationStringTemplate, machine.GetPublicIP(), config.Get().P2PPort, peerIDString)
 	maddr, err := multiaddr.NewMultiaddr(destinationString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create multi address: %w", err)
@@ -179,25 +204,47 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 		return nil, fmt.Errorf("failed to extract info from address: %w", err)
 	}
 
-	log.Debugf("adding peer id %s at ip %s", machine.GetID(), machine.GetPublicIP())
+	log.Debugf("adding peer id %s at ip %s", peerIDString, machine.GetPublicIP())
 
-	err = p2p.host.Connect(context.Background(), *peerInfo)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = p2p.host.Connect(ctx, *peerInfo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to peer %s: %s", machine.GetID(), err.Error())
+		return nil, fmt.Errorf("failed to connect to peer %s: %s", peerIDString, err.Error())
 	}
 
 	// wait for the client to be created by the connection handler
 	tries := 0
 	for tries < 5 {
 		time.Sleep(1 * time.Second)
-		client, found := p2p.clients.Get(machine.GetID())
+		client, found := p2p.clients.Get(peerIDString)
 		if found {
+			p2p.connectExternalDBPeer(machine)
 			return client, nil
 		}
 		tries++
 	}
 
-	return nil, fmt.Errorf("failed to retrieve client for peer %s: client not found", machine.GetID())
+	return nil, fmt.Errorf("failed to retrieve client for peer %s: client not found", peerIDString)
+}
+
+func (p2p *P2P) connectExternalDBPeer(machine Machine) {
+	if p2p == nil || p2p.externalDB == nil || machine == nil || machine.GetPublicIP() == "" {
+		return
+	}
+	connector, ok := p2p.externalDB.(peerDBConnector)
+	if !ok {
+		return
+	}
+	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
+	if err != nil {
+		log.Debugf("failed to get DB peer ID for %s: %v", machine.GetID(), err)
+		return
+	}
+	if err := connector.ConnectPeer(peerID.String(), machine.GetPublicIP()); err != nil {
+		log.Debugf("failed to connect DB peer %s: %v", peerID.String(), err)
+	}
 }
 
 func (p2p *P2P) RemovePeer(machine Machine) error {
@@ -305,7 +352,6 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 		externalDB: externalDB,
 
 		restartServerSignal: make(chan initMachine),
-		newPeerChan:         make(chan peer.AddrInfo),
 
 		clients:  util.NewMap[string, *Client](),
 		machines: util.NewMap[string, Machine](),

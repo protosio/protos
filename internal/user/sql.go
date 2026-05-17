@@ -21,18 +21,6 @@ func createUserInsertMapper(user User) db.InsertMapper {
 	}
 }
 
-func createUserUpdateMapper(user User) func() (sq.Table, func(*sq.Column), []sq.Predicate) {
-	return func() (sq.Table, func(*sq.Column), []sq.Predicate) {
-		u := sq.New[db.USER]("")
-		predicates := []sq.Predicate{u.USERNAME.EqString(user.Username)}
-		return u, func(col *sq.Column) {
-			col.SetString(u.USERNAME, user.Name)
-			col.SetString(u.NAME, user.Name)
-			col.SetBool(u.IS_DISABLED, user.IsDisabled)
-		}, predicates
-	}
-}
-
 func createUserQueryMapper(predicates []sq.Predicate) db.QueryMapper[User] {
 	u := sq.New[db.USER]("")
 	var query sq.SelectQuery
@@ -57,13 +45,6 @@ func createUserQueryMapper(predicates []sq.Predicate) db.QueryMapper[User] {
 	}
 }
 
-func createUserDeleteByNameQuery(username string) func() (sq.Table, []sq.Predicate) {
-	return func() (sq.Table, []sq.Predicate) {
-		u := sq.New[db.USER]("")
-		return u, []sq.Predicate{u.USERNAME.EqString(username)}
-	}
-}
-
 //
 // UserDevice
 //
@@ -78,19 +59,6 @@ func createUserDeviceInsertMapper(device UserDevice) db.InsertMapper {
 			col.SetString(d.NAME, device.Name)
 		}
 		return sq.InsertInto(d).ColumnValues(mapper)
-	}
-}
-
-func createUserDeviceUpdateMapper(device UserDevice) db.UpdateMapper {
-	return func() sq.UpdateQuery {
-		d := sq.New[db.USER_DEVICE_METADATA]("")
-		mapper := func(col *sq.Column) {
-			col.SetString(d.ID, device.ID)
-			col.SetString(d.PUBLIC_KEY, device.PublicKey)
-			col.SetString(d.USER_ID, device.UserID)
-			col.SetString(d.NAME, device.Name)
-		}
-		return sq.Update(d).SetFunc(mapper).Where(d.ID.EqString(device.ID))
 	}
 }
 
@@ -132,12 +100,5 @@ func createUserDeviceQueryAllMapper(excludePublicKey string) db.QueryMapper[User
 			}
 		}
 		return query, mapper
-	}
-}
-
-func createUserDeviceDeleteByNameQuery(id string) db.DeleteMapper {
-	return func() sq.DeleteQuery {
-		u := sq.New[db.USER_DEVICE_METADATA]("")
-		return sq.DeleteFrom(u).Where(u.ID.EqString(id))
 	}
 }

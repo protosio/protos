@@ -15,6 +15,7 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
+	"github.com/protosio/protos/internal/membership"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -180,10 +181,17 @@ func (pc *ProtosClient) StartUp() error {
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-	pc.DB.RegisterNotifier(db.CLOUD_MACHINE_METADATA{}, pc)
-	pc.DB.RegisterNotifier(db.MACHINE{}, pc)
-	pc.DB.RegisterNotifier(db.USER{}, pc)
-	pc.DB.RegisterNotifier(db.USER_DEVICE_METADATA{}, pc)
+		for _, model := range []any{
+			db.CLOUD_MACHINE_METADATA{},
+			db.MACHINE{},
+			db.PEER{},
+			db.USER{},
+			db.USER_DEVICE_METADATA{},
+		} {
+			if err := pc.DB.RegisterNotifier(model, pc); err != nil {
+				return fmt.Errorf("failed to register database notifier: %w", err)
+			}
+		}
 
 	if pc.DB.Initialized() {
 		pc.Notify()
@@ -200,33 +208,33 @@ func (pc *ProtosClient) Notify() {
 		return
 	}
 
+	peerIDs, err := db.GetPeerIDs(pc.DB)
+	if err != nil {
+		log.Errorf("failed to get peer membership: %s", err.Error())
+		return
+	}
+
 	instances, err := pc.CloudManager.GetInstances(false)
 	if err != nil {
 		log.Errorf("failed to get instances: %s", err.Error())
 		return
 	}
-
-	peers := []p2p.Machine{}
-	for _, instance := range instances {
-		peers = append(peers, instance)
-	}
+	instances = membership.FilterInstances(instances, peerIDs)
 
 	userDevices, err := pc.Manager.GetAllDevices(true)
 	if err != nil {
 		log.Errorf("failed to get user devices: %s", err.Error())
 		return
 	}
+	userDevices = membership.FilterDevices(userDevices, peerIDs)
 
 	err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
 	if err != nil {
 		log.Errorf("failed to configure network peers: %s", err.Error())
 		return
 	}
-	for _, device := range userDevices {
-		peers = append(peers, &device)
-	}
 
-	err = pc.P2PManager.ConfigurePeers(peers)
+	err = pc.P2PManager.ConfigurePeers(membership.Machines(instances, userDevices))
 	if err != nil {
 		log.Errorf("failed to configure p2p peers: %s", err.Error())
 		return

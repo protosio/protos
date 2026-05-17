@@ -3,7 +3,6 @@ package cloud
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"text/tabwriter"
 )
@@ -91,16 +90,4 @@ func createMachineTypesString(machineTypes map[string]MachineSpec) string {
 	}
 	w.Flush()
 	return machineTypesStr.String()
-}
-
-func copyIP(ip net.IP) net.IP {
-	ipCopy := make(net.IP, len(ip))
-	copy(ipCopy, ip)
-	return ipCopy
-}
-
-func copyMask(mask net.IPMask) net.IPMask {
-	maskCopy := make(net.IPMask, len(mask))
-	copy(maskCopy, mask)
-	return maskCopy
 }

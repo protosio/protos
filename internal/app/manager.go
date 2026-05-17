@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"net"
 	"sync"
 
 	"github.com/bokwoon95/sq"
@@ -194,7 +193,7 @@ func (am *Manager) Start(name string) error {
 	app.DesiredStatus = statusRunning
 	err = db.Update(am.db, createAppUpdateMapper(app))
 	if err != nil {
-		return fmt.Errorf("failed to set desired application status to '%s'(%s): %v", statusRunning, app.Name, err)
+		return fmt.Errorf("failed to set desired application status to '%s'(%s): %w", statusRunning, app.Name, err)
 	}
 
 	return nil
@@ -210,7 +209,7 @@ func (am *Manager) Stop(name string) error {
 	app.DesiredStatus = statusStopped
 	err = db.Update(am.db, createAppUpdateMapper(app))
 	if err != nil {
-		return fmt.Errorf("failed to set desired application status to '%s'(%s): %v", statusStopped, app.Name, err)
+		return fmt.Errorf("failed to set desired application status to '%s'(%s): %w", statusStopped, app.Name, err)
 	}
 	return nil
 }
@@ -262,45 +261,4 @@ func (am *Manager) GetStatus(name string) (string, error) {
 	}
 
 	return app.GetStatus(), nil
-}
-
-func allocateIP(apps []App, networkStr string) (net.IP, error) {
-
-	_, network, err := net.ParseCIDR(networkStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to allocate IP: %w", err)
-	}
-
-	usedIPs := map[string]bool{}
-	for _, app := range apps {
-		ip := app.GetIP()
-		if ip != nil && network.Contains(ip) {
-			usedIPs[ip.String()] = true
-		}
-	}
-
-	allIPs := []net.IP{}
-	for ip := network.IP.Mask(network.Mask); network.Contains(ip); incIP(ip) {
-		newIP := make(net.IP, len(ip))
-		copy(newIP, ip)
-		allIPs = append(allIPs, newIP)
-	}
-
-	// starting from the 4th position in the slice to avoid allocating the network IP, WG and bridge interface IPs
-	for _, ip := range allIPs[3 : len(allIPs)-1] {
-		if _, found := usedIPs[ip.String()]; !found {
-			return ip, nil
-		}
-	}
-	return nil, fmt.Errorf("failed to allocate IP. No IP's left")
-}
-
-// From https://play.golang.org/p/m8TNTtygK0
-func incIP(ip net.IP) {
-	for j := len(ip) - 1; j >= 0; j-- {
-		ip[j]++
-		if ip[j] > 0 {
-			break
-		}
-	}
 }

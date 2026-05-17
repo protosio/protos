@@ -31,8 +31,7 @@ var cmdCloud *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				err := addCloudProvider(name)
 				return err
@@ -45,8 +44,7 @@ var cmdCloud *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				return deleteCloudProvider(name)
 			},
@@ -58,8 +56,7 @@ var cmdCloud *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				return infoCloudProvider(name)
 			},

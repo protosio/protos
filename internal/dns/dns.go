@@ -42,7 +42,9 @@ func (h *handler) localResolve(w dns.ResponseWriter, r *dns.Msg) {
 		}
 	}
 
-	w.WriteMsg(msg)
+	if err := w.WriteMsg(msg); err != nil {
+		log.Errorf("Failed to write DNS response: %s", err.Error())
+	}
 }
 
 func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
@@ -54,7 +56,9 @@ func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
 		dns.HandleFailed(w, r)
 		return
 	}
-	w.WriteMsg(resp)
+	if err := w.WriteMsg(resp); err != nil {
+		log.Errorf("Failed to write DNS response: %s", err.Error())
+	}
 
 }
 
@@ -77,7 +81,9 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	} else {
 		msg := &dns.Msg{}
 		msg.SetReply(r)
-		w.WriteMsg(msg)
+		if err := w.WriteMsg(msg); err != nil {
+			log.Errorf("Failed to write DNS response: %s", err.Error())
+		}
 	}
 }
 

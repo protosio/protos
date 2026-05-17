@@ -36,20 +36,17 @@ var cmdApp *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				installerID := c.Args().Get(1)
 				if installerID == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				instanceID := c.Args().Get(2)
 				if instanceID == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return createApp(name, installerID, instanceID, c.Bool("state"))
@@ -62,8 +59,7 @@ var cmdApp *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return startApp(name)
@@ -76,8 +72,7 @@ var cmdApp *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return stopApp(name)
@@ -90,8 +85,7 @@ var cmdApp *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return removeApp(name)
@@ -104,14 +98,20 @@ var cmdApp *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return getAppLogs(name)
 			},
 		},
 	},
+}
+
+func showSubcommandHelp(c *cli.Context) error {
+	if err := cli.ShowSubcommandHelp(c); err != nil {
+		return err
+	}
+	return cli.Exit("", 1)
 }
 
 func listApps() error {

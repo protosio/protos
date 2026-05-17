@@ -15,6 +15,7 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
+	"github.com/protosio/protos/internal/membership"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -132,12 +133,22 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	dnsStopper := dns.StartServer(lkey, DNSPort, cfg.ExternalDNS, cfg.InternalDomain, appManager)
 	stoppers["dns"] = dnsStopper
 
-	dbNotifier := &DBNotifier{cm: cloudManager, um: userManager, nm: networkManager, p2pm: p2pManager}
-	dbcli.RegisterNotifier(db.CLOUD_MACHINE_METADATA{}, dbNotifier)
-	dbcli.RegisterNotifier(db.MACHINE{}, dbNotifier)
-	dbcli.RegisterNotifier(db.USER{}, dbNotifier)
-	dbcli.RegisterNotifier(db.USER_DEVICE_METADATA{}, dbNotifier)
-	dbcli.RegisterNotifier(db.APP{}, appManager)
+	dbNotifier := &DBNotifier{database: dbcli, cm: cloudManager, um: userManager, nm: networkManager, p2pm: p2pManager}
+	for _, registration := range []struct {
+		model    any
+		notifier db.Notifier
+	}{
+		{model: db.CLOUD_MACHINE_METADATA{}, notifier: dbNotifier},
+		{model: db.MACHINE{}, notifier: dbNotifier},
+		{model: db.PEER{}, notifier: dbNotifier},
+		{model: db.USER{}, notifier: dbNotifier},
+		{model: db.USER_DEVICE_METADATA{}, notifier: dbNotifier},
+		{model: db.APP{}, notifier: appManager},
+	} {
+		if err := dbcli.RegisterNotifier(registration.model, registration.notifier); err != nil {
+			log.Fatal(fmt.Errorf("failed to register database notifier: %w", err))
+		}
+	}
 
 	log.Info("Started all servers successfully")
 
@@ -153,30 +164,33 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 }
 
 type DBNotifier struct {
-	cm   *cloud.Manager
-	um   *user.Manager
-	nm   *network.Manager
-	p2pm *p2p.P2P
+	database *db.DB
+	cm       *cloud.Manager
+	um       *user.Manager
+	nm       *network.Manager
+	p2pm     *p2p.P2P
 }
 
 func (dbn *DBNotifier) Notify() {
+	peerIDs, err := db.GetPeerIDs(dbn.database)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to retrieve peer membership: %w", err))
+		return
+	}
 
 	instances, err := dbn.cm.GetInstances(true)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to retrieve instances: %w", err))
 		return
 	}
-
-	peers := []p2p.Machine{}
-	for _, instance := range instances {
-		peers = append(peers, instance)
-	}
+	instances = membership.FilterInstances(instances, peerIDs)
 
 	userDevices, err := dbn.um.GetAllDevices(false)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to retrieve user devices: %w", err))
 		return
 	}
+	userDevices = membership.FilterDevices(userDevices, peerIDs)
 
 	// configure peers without user devices
 	err = dbn.nm.ConfigurePeers(instances, userDevices)
@@ -185,12 +199,7 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 
-	// finally add user devices to peer list
-	for _, device := range userDevices {
-		peers = append(peers, &device)
-	}
-
-	err = dbn.p2pm.ConfigurePeers(peers)
+	err = dbn.p2pm.ConfigurePeers(membership.Machines(instances, userDevices))
 	if err != nil {
 		log.Error(fmt.Errorf("failed to configure p2p peers: %w", err))
 		return

@@ -104,19 +104,18 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 
 	resp := pbApic.GetAppsResponse{}
 	for _, app := range apps {
-		var status string
+		status := "n/a"
 		client, err := b.protosClient.P2PManager.GetClient(app.InstanceID)
 		if err != nil {
 			log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
-			status = "n/a"
 		} else {
 			// FIXME: run this in parallel for all apps
 			resp, err := client.GetAppStatus(context.TODO(), &p2pproto.GetAppStatusRequest{AppName: app.Name})
 			if err != nil {
 				log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
-				status = "n/a"
+			} else {
+				status = resp.Status
 			}
-			status = resp.Status
 		}
 
 		respApp := pbApic.App{
@@ -185,22 +184,22 @@ func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) 
 
 	app, err := b.protosClient.AppManager.Get(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %w", in.Name, err)
 	}
 
 	client, err := b.protosClient.P2PManager.GetClient(app.InstanceID)
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %w", in.Name, err)
 	}
 
 	resp, err := client.GetAppLogs(context.TODO(), &p2pproto.GetAppLogsRequest{AppName: app.Name})
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %w", in.Name, err)
 	}
 
 	base64Logs, err := base64.StdEncoding.DecodeString(resp.Logs)
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve logs for app '%s': %v", in.Name, err)
+		return nil, fmt.Errorf("could not retrieve logs for app '%s': %w", in.Name, err)
 	}
 
 	return &pbApic.GetAppLogsResponse{Logs: []byte(base64Logs)}, nil
@@ -216,14 +215,13 @@ func (b *Backend) GetSupportedCloudProviders(ctx context.Context, in *pbApic.Get
 
 	resp := pbApic.GetSupportedCloudProvidersResponse{}
 	for _, supportedCloudProvider := range supportedCloudProviders {
-		// create new temporary cloud provider to retrieve the required auth fields
-		tempCloud, err := b.protosClient.CloudManager.NewProvider("tempCloud", supportedCloudProvider)
+		authFields, err := b.protosClient.CloudManager.ProviderAuthFields(supportedCloudProvider)
 		if err != nil {
 			return nil, err
 		}
 		respCloudType := pbApic.CloudType{
 			Name:                 supportedCloudProvider,
-			AuthenticationFields: tempCloud.AuthFields(),
+			AuthenticationFields: authFields,
 		}
 		resp.CloudTypes = append(resp.CloudTypes, &respCloudType)
 	}
@@ -260,14 +258,21 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 		return nil, fmt.Errorf("failed to retrieve cloud provider: %w", err)
 	}
 
+	computeProvider, ok := cloudProvider.(cloud.ComputeProvider)
+	if !ok {
+		return nil, fmt.Errorf("cloud provider '%s'(%s) does not support compute operations", in.Name, cloudProvider.TypeStr())
+	}
 	// initialize cloud provider before use
 	err = cloudProvider.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error reaching cloud provider '%s'(%s) API: %w", in.Name, cloudProvider.TypeStr(), err)
 	}
 
-	supportedLocations := cloudProvider.SupportedLocations()
-	supportedMachines, err := cloudProvider.SupportedMachines(supportedLocations[0])
+	supportedLocations := computeProvider.SupportedLocations()
+	if len(supportedLocations) == 0 {
+		return nil, fmt.Errorf("cloud provider '%s'(%s) does not report any supported locations", in.Name, cloudProvider.TypeStr())
+	}
+	supportedMachines, err := computeProvider.SupportedMachines(supportedLocations[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve supported machines: %w", err)
 	}
@@ -300,28 +305,8 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 }
 
 func (b *Backend) AddCloudProvider(ctx context.Context, in *pbApic.AddCloudProviderRequest) (*pbApic.AddCloudProviderResponse, error) {
-	// create new cloud provider
-	provider, err := b.protosClient.CloudManager.NewProvider(in.Name, in.Type)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cloud provider: %w", err)
-	}
-
-	// set authentication
-	err = provider.SetAuth(in.Credentials)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set credentials for cloud provider: %w", err)
-	}
-
-	// init cloud client
-	err = provider.Init()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cloud provider: %w", err)
-	}
-
-	// save the cloud provider in the db
-	err = provider.Save()
-	if err != nil {
-		return nil, fmt.Errorf("failed to save cloud provider: %w", err)
+	if err := b.protosClient.CloudManager.AddProvider(in.Name, in.Type, in.Credentials); err != nil {
+		return nil, err
 	}
 	return &pbApic.AddCloudProviderResponse{}, nil
 }
@@ -608,12 +593,15 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 		return nil, fmt.Errorf("could not retrieve cloud '%s': %w", in.Name, err)
 	}
 
+	imageProvider, ok := provider.(cloud.ImageProvider)
+	if !ok {
+		return nil, fmt.Errorf("cloud provider '%s'(%s) does not support image operations", in.Name, provider.TypeStr())
+	}
 	err = provider.Init()
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to cloud provider '%s'(%s) API: %w", in.Name, provider.TypeStr(), err)
 	}
-
-	images, err := provider.GetProtosImages()
+	images, err := imageProvider.GetProtosImages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve cloud images from cloud '%s': %w", in.Name, err)
 	}
@@ -642,13 +630,17 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}
 
+	imageProvider, ok := provider.(cloud.ImageProvider)
+	if !ok {
+		return nil, fmt.Errorf("%s: cloud provider '%s'(%s) does not support image operations", errMsg, in.CloudName, provider.TypeStr())
+	}
 	err = provider.Init()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}
 
 	// delete image
-	err = provider.RemoveImage(in.ImageName, in.CloudLocation)
+	err = imageProvider.RemoveImage(in.ImageName, in.CloudLocation)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}

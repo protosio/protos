@@ -29,8 +29,7 @@ var cmdRelease *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				cloudName := c.Args().Get(0)
 				if cloudName == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				err := listProtosCloudImages(cloudName)
@@ -67,14 +66,12 @@ var cmdRelease *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				imagePath := c.Args().Get(0)
 				if imagePath == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				imageName := c.Args().Get(1)
 				if imageName == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				timeout := c.Int("timeout")
@@ -103,8 +100,7 @@ var cmdRelease *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				imageName := c.Args().Get(0)
 				if imageName == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return deleteImageFromCloud(imageName, cloudName, cloudLocation)

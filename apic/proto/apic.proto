@@ -1,78 +1,53 @@
-
 syntax = "proto3";
 
 package apic;
 
+
 option go_package = "github.com/protosio/protos/internal/apic;proto";
 
 service ProtosClientApi {
-  // Init
-  rpc Init(InitRequest) returns (InitResponse);
-
-  // User
-  rpc GetUserDevices(GetUserDevicesRequest) returns (GetUserDevicesResponse);
-  rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse);
-  rpc GetLocalSSHKey(GetLocalSSHKeyRequest) returns (GetLocalSSHKeyResponse);
-
-  // App methods
-  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
-  rpc CreateApp(CreateAppRequest) returns (CreateAppResponse);
-  rpc StartApp(StartAppRequest) returns (StartAppResponse);
-  rpc StopApp(StopAppRequest) returns (StopAppResponse);
-  rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse);
-  rpc GetAppLogs(GetAppLogsRequest) returns (GetAppLogsResponse);
-
-  // Cloud provider methods
-  rpc GetSupportedCloudProviders(GetSupportedCloudProvidersRequest)
-      returns (GetSupportedCloudProvidersResponse);
-  rpc GetCloudProviders(GetCloudProvidersRequest)
-      returns (GetCloudProvidersResponse);
-  rpc GetCloudProvider(GetCloudProviderRequest)
-      returns (GetCloudProviderResponse);
-  rpc AddCloudProvider(AddCloudProviderRequest)
-      returns (AddCloudProviderResponse);
-  rpc RemoveCloudProvider(RemoveCloudProviderRequest)
-      returns (RemoveCloudProviderResponse);
-
-  // Cloud instance methods
-  rpc GetInstances(GetInstancesRequest) returns (GetInstancesResponse);
-  rpc GetInstance(GetInstanceRequest) returns (GetInstanceResponse);
-  rpc DeployInstance(DeployInstanceRequest) returns (DeployInstanceResponse);
-  rpc RemoveInstance(RemoveInstanceRequest) returns (RemoveInstanceResponse);
-  rpc StartInstance(StartInstanceRequest) returns (StartInstanceResponse);
-  rpc StopInstance(StopInstanceRequest) returns (StopInstanceResponse);
-  rpc GetInstanceKey(GetInstanceKeyRequest) returns (GetInstanceKeyResponse);
-  rpc GetInstanceLogs(GetInstanceLogsRequest) returns (GetInstanceLogsResponse);
-  rpc InitInstance(InitInstanceRequest) returns (InitInstanceResponse);
-  rpc UpdateInstance(UpdateInstanceRequest) returns (UpdateInstanceResponse);
-
-  // Releases methods
-  rpc GetProtosdReleases(GetProtosdReleasesRequest)
-      returns (GetProtosdReleasesResponse);
-  rpc GetCloudImages(GetCloudImagesRequest) returns (GetCloudImagesResponse);
-  rpc UploadCloudImage(UploadCloudImageRequest)
-      returns (UploadCloudImageResponse);
-  rpc RemoveCloudImage(RemoveCloudImageRequest)
-      returns (RemoveCloudImageResponse);
-
-  // DVC methods
-  rpc GetLocalCommits(GetLocalCommitsRequest) returns (GetLocalCommitsResponse);
-  rpc GetRemoteCommits(GetRemoteCommitsRequest) returns (GetRemoteCommitsResponse);
+  rpc Init(InitRequest) returns (InitResponse) {}
+  rpc GetUserDevices(GetUserDevicesRequest) returns (GetUserDevicesResponse) {}
+  rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {}
+  rpc GetLocalSSHKey(GetLocalSSHKeyRequest) returns (GetLocalSSHKeyResponse) {}
+  rpc GetApps(GetAppsRequest) returns (GetAppsResponse) {}
+  rpc CreateApp(CreateAppRequest) returns (CreateAppResponse) {}
+  rpc StartApp(StartAppRequest) returns (StartAppResponse) {}
+  rpc StopApp(StopAppRequest) returns (StopAppResponse) {}
+  rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse) {}
+  rpc GetAppLogs(GetAppLogsRequest) returns (GetAppLogsResponse) {}
+  rpc GetSupportedCloudProviders(GetSupportedCloudProvidersRequest) returns (GetSupportedCloudProvidersResponse) {}
+  rpc GetCloudProviders(GetCloudProvidersRequest) returns (GetCloudProvidersResponse) {}
+  rpc GetCloudProvider(GetCloudProviderRequest) returns (GetCloudProviderResponse) {}
+  rpc AddCloudProvider(AddCloudProviderRequest) returns (AddCloudProviderResponse) {}
+  rpc RemoveCloudProvider(RemoveCloudProviderRequest) returns (RemoveCloudProviderResponse) {}
+  rpc GetInstances(GetInstancesRequest) returns (GetInstancesResponse) {}
+  rpc GetInstance(GetInstanceRequest) returns (GetInstanceResponse) {}
+  rpc DeployInstance(DeployInstanceRequest) returns (DeployInstanceResponse) {}
+  rpc RemoveInstance(RemoveInstanceRequest) returns (RemoveInstanceResponse) {}
+  rpc StartInstance(StartInstanceRequest) returns (StartInstanceResponse) {}
+  rpc StopInstance(StopInstanceRequest) returns (StopInstanceResponse) {}
+  rpc GetInstanceKey(GetInstanceKeyRequest) returns (GetInstanceKeyResponse) {}
+  rpc GetInstanceLogs(GetInstanceLogsRequest) returns (GetInstanceLogsResponse) {}
+  rpc InitInstance(InitInstanceRequest) returns (InitInstanceResponse) {}
+  rpc UpdateInstance(UpdateInstanceRequest) returns (UpdateInstanceResponse) {}
+  rpc GetProtosdReleases(GetProtosdReleasesRequest) returns (GetProtosdReleasesResponse) {}
+  rpc GetCloudImages(GetCloudImagesRequest) returns (GetCloudImagesResponse) {}
+  rpc UploadCloudImage(UploadCloudImageRequest) returns (UploadCloudImageResponse) {}
+  rpc RemoveCloudImage(RemoveCloudImageRequest) returns (RemoveCloudImageResponse) {}
+  rpc GetLocalCommits(GetLocalCommitsRequest) returns (GetLocalCommitsResponse) {}
+  rpc GetRemoteCommits(GetRemoteCommitsRequest) returns (GetRemoteCommitsResponse) {}
 }
 
-//
-// Init
-//
 message InitRequest {
   string username = 1;
   string name = 2;
   string organization = 3;
 }
-message InitResponse {}
 
-//
-// User
-//
+message InitResponse {
+}
+
 message UserDevice {
   string id = 1;
   string name = 2;
@@ -80,25 +55,30 @@ message UserDevice {
   string public_key_wireguard = 4;
 }
 
-message GetUserDevicesRequest {}
-message GetUserDevicesResponse { repeated UserDevice devices = 1; }
+message GetUserDevicesRequest {
+}
 
-message GetUserInfoRequest {}
+message GetUserDevicesResponse {
+  repeated UserDevice devices = 1;
+}
+
+message GetUserInfoRequest {
+}
+
 message GetUserInfoResponse {
-    string username = 1;
-	string name = 2;
-	bool is_admin = 3;
+  string username = 1;
+  string name = 2;
+  bool is_admin = 3;
 }
 
-message GetLocalSSHKeyRequest {}
+message GetLocalSSHKeyRequest {
+}
+
 message GetLocalSSHKeyResponse {
-    string public = 1;
-    string private = 2;
+  string public = 1;
+  string private = 2;
 }
 
-//
-// App
-//
 message App {
   string id = 1;
   string name = 2;
@@ -108,11 +88,14 @@ message App {
   string ip = 6;
   string installer = 7;
   bool persistence = 8;
-
 }
 
-message GetAppsRequest {}
-message GetAppsResponse { repeated App apps = 1; }
+message GetAppsRequest {
+}
+
+message GetAppsResponse {
+  repeated App apps = 1;
+}
 
 message CreateAppRequest {
   string name = 1;
@@ -120,23 +103,40 @@ message CreateAppRequest {
   string instance_id = 3;
   bool persistence = 4;
 }
-message CreateAppResponse { string id = 1; }
 
-message StartAppRequest { string name = 1; }
-message StartAppResponse {}
+message CreateAppResponse {
+  string id = 1;
+}
 
-message StopAppRequest { string name = 1; }
-message StopAppResponse {}
+message StartAppRequest {
+  string name = 1;
+}
 
-message RemoveAppRequest { string name = 1; }
-message RemoveAppResponse {}
+message StartAppResponse {
+}
 
-message GetAppLogsRequest { string name = 1; }
-message GetAppLogsResponse { bytes logs = 1; }
+message StopAppRequest {
+  string name = 1;
+}
 
-//
-// App store
-//
+message StopAppResponse {
+}
+
+message RemoveAppRequest {
+  string name = 1;
+}
+
+message RemoveAppResponse {
+}
+
+message GetAppLogsRequest {
+  string name = 1;
+}
+
+message GetAppLogsResponse {
+  bytes logs = 1;
+}
+
 message Installer {
   string id = 1;
   string name = 2;
@@ -147,25 +147,29 @@ message Installer {
   repeated string capabilities = 7;
 }
 
-message GetInstallersRequest {}
-message GetInstallersResponse { repeated Installer installers = 1; }
+message GetInstallersRequest {
+}
 
-message GetInstallerRequest { string id = 1; }
-message GetInstallerResponse { Installer installer = 1; }
+message GetInstallersResponse {
+  repeated Installer installers = 1;
+}
 
-//
-// Cloud provider
-//
+message GetInstallerRequest {
+  string id = 1;
+}
+
+message GetInstallerResponse {
+  Installer installer = 1;
+}
 
 message CloudMachineSpec {
-  int32 cores = 1;                  // Nr of cores
-  int32 memory = 2;                 // MiB
-  int32 default_storage = 3;        // GB
-  int32 bandwidth = 4;              // Mbit
-  int32 included_data_transfer = 5; // GB. 0 for unlimited
-  bool baremetal = 6;               // true if machine is bare metal
-  float price_monthly = 7; // no currency conversion at the moment. Each cloud
-                           // reports this differently
+  int32 cores = 1;
+  int32 memory = 2;
+  int32 default_storage = 3;
+  int32 bandwidth = 4;
+  int32 included_data_transfer = 5;
+  bool baremetal = 6;
+  float price_monthly = 7;
 }
 
 message CloudType {
@@ -180,32 +184,43 @@ message CloudProvider {
   map<string, CloudMachineSpec> supported_machines = 4;
 }
 
-message GetSupportedCloudProvidersRequest {}
+message GetSupportedCloudProvidersRequest {
+}
+
 message GetSupportedCloudProvidersResponse {
   repeated CloudType cloud_types = 1;
 }
 
-message GetCloudProvidersRequest {}
+message GetCloudProvidersRequest {
+}
+
 message GetCloudProvidersResponse {
   repeated CloudProvider cloud_providers = 1;
 }
 
-message GetCloudProviderRequest { string name = 1; }
-message GetCloudProviderResponse { CloudProvider cloud_provider = 1; }
+message GetCloudProviderRequest {
+  string name = 1;
+}
+
+message GetCloudProviderResponse {
+  CloudProvider cloud_provider = 1;
+}
 
 message AddCloudProviderRequest {
   string name = 1;
   string type = 2;
   map<string, string> credentials = 3;
 }
-message AddCloudProviderResponse {}
 
-message RemoveCloudProviderRequest { string name = 1; }
-message RemoveCloudProviderResponse {}
+message AddCloudProviderResponse {
+}
 
-//
-// Cloud instances
-//
+message RemoveCloudProviderRequest {
+  string name = 1;
+}
+
+message RemoveCloudProviderResponse {
+}
 
 message CloudInstance {
   string name = 1;
@@ -223,11 +238,20 @@ message CloudInstance {
   map<string, string> peers = 13;
 }
 
-message GetInstancesRequest {}
-message GetInstancesResponse { repeated CloudInstance instances = 1; }
+message GetInstancesRequest {
+}
 
-message GetInstanceRequest { string name = 1; }
-message GetInstanceResponse { CloudInstance instance = 1; }
+message GetInstancesResponse {
+  repeated CloudInstance instances = 1;
+}
+
+message GetInstanceRequest {
+  string name = 1;
+}
+
+message GetInstanceResponse {
+  CloudInstance instance = 1;
+}
 
 message DeployInstanceRequest {
   string name = 1;
@@ -237,41 +261,64 @@ message DeployInstanceRequest {
   string protos_version = 5;
   string dev_img = 6;
 }
-message DeployInstanceResponse { CloudInstance instance = 1; }
+
+message DeployInstanceResponse {
+  CloudInstance instance = 1;
+}
 
 message RemoveInstanceRequest {
   string name = 1;
   bool local_only = 2;
 }
-message RemoveInstanceResponse {}
 
-message StartInstanceRequest { string name = 1; }
-message StartInstanceResponse {}
+message RemoveInstanceResponse {
+}
 
-message StopInstanceRequest { string name = 1; }
-message StopInstanceResponse {}
+message StartInstanceRequest {
+  string name = 1;
+}
 
-message GetInstanceKeyRequest { string name = 1; }
-message GetInstanceKeyResponse { string key = 1; }
+message StartInstanceResponse {
+}
 
-message GetInstanceLogsRequest { string name = 1; }
-message GetInstanceLogsResponse { string logs = 1; }
+message StopInstanceRequest {
+  string name = 1;
+}
+
+message StopInstanceResponse {
+}
+
+message GetInstanceKeyRequest {
+  string name = 1;
+}
+
+message GetInstanceKeyResponse {
+  string key = 1;
+}
+
+message GetInstanceLogsRequest {
+  string name = 1;
+}
+
+message GetInstanceLogsResponse {
+  string logs = 1;
+}
 
 message InitInstanceRequest {
   string name = 1;
   string ip = 2;
 }
-message InitInstanceResponse {}
+
+message InitInstanceResponse {
+}
 
 message UpdateInstanceRequest {
   string id = 1;
   string ip = 2;
 }
-message UpdateInstanceResponse {}
 
-//
-// Releases methods
-//
+message UpdateInstanceResponse {
+}
 
 message CloudImage {
   string provider = 1;
@@ -293,10 +340,17 @@ message Release {
   int64 release_date = 4;
 }
 
-message GetProtosdReleasesRequest {}
-message GetProtosdReleasesResponse { repeated Release releases = 1; }
+message GetProtosdReleasesRequest {
+}
 
-message GetCloudImagesRequest { string name = 1; }
+message GetProtosdReleasesResponse {
+  repeated Release releases = 1;
+}
+
+message GetCloudImagesRequest {
+  string name = 1;
+}
+
 message GetCloudImagesResponse {
   map<string, CloudSpecificImage> cloud_images = 1;
 }
@@ -308,18 +362,18 @@ message UploadCloudImageRequest {
   string cloud_location = 4;
   int32 timeout = 5;
 }
-message UploadCloudImageResponse {}
+
+message UploadCloudImageResponse {
+}
 
 message RemoveCloudImageRequest {
   string image_name = 2;
   string cloud_name = 3;
   string cloud_location = 4;
 }
-message RemoveCloudImageResponse {}
 
-//
-// DVC
-//
+message RemoveCloudImageResponse {
+}
 
 message Commit {
   string hash = 1;
@@ -327,7 +381,9 @@ message Commit {
   string message = 3;
 }
 
-message GetLocalCommitsRequest {}
+message GetLocalCommitsRequest {
+}
+
 message GetLocalCommitsResponse {
   repeated Commit commits = 1;
 }
@@ -335,6 +391,7 @@ message GetLocalCommitsResponse {
 message GetRemoteCommitsRequest {
   string remote = 1;
 }
+
 message GetRemoteCommitsResponse {
   repeated Commit commits = 1;
 }

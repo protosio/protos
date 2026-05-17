@@ -77,7 +77,7 @@ func main() {
 		// connecting to the GRPC API first
 		var opts []grpc.DialOption
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		conn, err = grpc.Dial("unix://"+unixSocket, opts...)
+		conn, err = grpc.NewClient("unix://"+unixSocket, opts...)
 		if err != nil {
 			log.Fatalf("Failed to connect to GRPC API: %s", err.Error())
 		}

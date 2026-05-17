@@ -178,7 +178,7 @@ func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error
 		UserID:    userID,
 	}
 
-	err := db.Insert(um.db, createUserDeviceInsertMapper(ud))
+	err := db.Insert(um.db, createUserDeviceInsertMapper(ud), db.CreatePeerInsertMapper(ud.ID))
 	if err != nil {
 		return errors.Wrapf(err, "Could not insert user device '%s'", name)
 	}

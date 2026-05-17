@@ -197,33 +197,3 @@ func (m *Manager) delDomain(domain string) error {
 	}
 	return nil
 }
-
-func parsePeerConfig(peerConfig string) (string, wgtypes.Key, net.IP, net.IP, net.IPNet, error) {
-	parts := strings.Split(peerConfig, ":")
-	if len(parts) != 5 {
-		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("failed to parse the following peer config: '%s'", peerConfig)
-	}
-
-	publicKey, err := base64.StdEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("failed to decode public key in peer config '%s': %w", peerConfig, err)
-	}
-
-	var wgPublicKey wgtypes.Key
-	copy(wgPublicKey[:], publicKey)
-
-	peerPublicIP := net.ParseIP(parts[2])
-	if peerPublicIP == nil {
-		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("failed to parse public IP in peer config '%s': %w", peerConfig, err)
-	}
-	peerInternalIP := net.ParseIP(parts[3])
-	if peerInternalIP == nil {
-		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("failed to parse internal IP in peer config '%s': %w", peerConfig, err)
-	}
-	_, peerNet, err := net.ParseCIDR(parts[4])
-	if err != nil {
-		return "", wgtypes.Key{}, net.IP{}, net.IP{}, net.IPNet{}, fmt.Errorf("failed to parse network in peer config '%s': %w", peerConfig, err)
-	}
-
-	return parts[0], wgPublicKey, peerPublicIP, peerInternalIP, *peerNet, nil
-}

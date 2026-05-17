@@ -36,8 +36,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				return infoInstance(name)
 			},
@@ -81,8 +80,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return deployInstance(name, cloudName, cloudLocation, protosVersion, machineType, devImg)
@@ -101,8 +99,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				local := c.Bool("local")
 				return deleteInstance(name, local)
@@ -115,8 +112,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				return startInstance(name)
 			},
@@ -128,8 +124,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				return stopInstance(name)
 			},
@@ -141,8 +136,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				return getInstanceKey(name)
 			},
@@ -154,14 +148,12 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				ip := c.Args().Get(1)
 				if ip == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 				return instanceInit(name, ip)
 			},
@@ -180,8 +172,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				id := c.Args().Get(0)
 				if id == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return updateInstance(id, ip)
@@ -202,8 +193,7 @@ var cmdInstance *cli.Command = &cli.Command{
 			Action: func(c *cli.Context) error {
 				name := c.Args().Get(0)
 				if name == "" {
-					cli.ShowSubcommandHelp(c)
-					os.Exit(1)
+					return showSubcommandHelp(c)
 				}
 
 				return getInstanceLogs(name)

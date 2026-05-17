@@ -139,10 +139,12 @@ func createInstanceDeleteMapper(id string) (db.DeleteMapper, db.DeleteMapper) {
 // Cloud provider
 //
 
-func createCloudProviderInsertMapper(provider ProviderInfo) db.InsertMapper {
+func createCloudProviderInsertMapper(provider ProviderRecord) db.InsertMapper {
 	return func() sq.InsertQuery {
+		provider = provider.normalized()
 		c := sq.New[db.CLOUD_PROVIDER]("")
 		mapper := func(col *sq.Column) {
+			col.SetString(c.ID, provider.ID)
 			col.SetString(c.NAME, provider.Name)
 			col.SetString(c.TYPE, provider.Type.String())
 			col.SetJSON(c.AUTH, provider.Auth)
@@ -151,10 +153,11 @@ func createCloudProviderInsertMapper(provider ProviderInfo) db.InsertMapper {
 	}
 }
 
-func createCloudProviderUpdateMapper(provider ProviderInfo) db.UpdateMapper {
+func createCloudProviderUpdateMapper(provider ProviderRecord) db.UpdateMapper {
 	return func() sq.UpdateQuery {
+		provider = provider.normalized()
 		c := sq.New[db.CLOUD_PROVIDER]("")
-		predicates := []sq.Predicate{c.NAME.EqString(provider.ID)}
+		predicates := []sq.Predicate{c.ID.EqString(provider.ID)}
 		mappper := func(col *sq.Column) {
 			col.SetString(c.NAME, provider.Name)
 			col.SetString(c.TYPE, provider.Type.String())
@@ -164,7 +167,7 @@ func createCloudProviderUpdateMapper(provider ProviderInfo) db.UpdateMapper {
 	}
 }
 
-func createCloudProviderQueryMapper(predicates []sq.Predicate) db.QueryMapper[ProviderInfo] {
+func createCloudProviderQueryMapper(predicates []sq.Predicate) db.QueryMapper[ProviderRecord] {
 	cp := sq.New[db.CLOUD_PROVIDER]("")
 	var query sq.SelectQuery
 	if len(predicates) != 0 {
@@ -176,14 +179,15 @@ func createCloudProviderQueryMapper(predicates []sq.Predicate) db.QueryMapper[Pr
 			From(cp)
 	}
 
-	return func() (sq.SelectQuery, func(row *sq.Row) ProviderInfo) {
-		mapper := func(row *sq.Row) ProviderInfo {
-			pi := ProviderInfo{
+	return func() (sq.SelectQuery, func(row *sq.Row) ProviderRecord) {
+		mapper := func(row *sq.Row) ProviderRecord {
+			record := ProviderRecord{
+				ID:   row.StringField(cp.ID),
 				Name: row.StringField(cp.NAME),
 				Type: Type(row.StringField(cp.TYPE)),
 			}
-			row.JSONField(&pi.Auth, cp.AUTH)
-			return pi
+			row.JSONField(&record.Auth, cp.AUTH)
+			return record.normalized()
 		}
 		return query, mapper
 	}

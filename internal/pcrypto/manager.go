@@ -13,10 +13,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const (
-	sshDS = "ssh"
-)
-
 // Manager keeps track of all the keys
 type Manager struct {
 	db *db.DB
