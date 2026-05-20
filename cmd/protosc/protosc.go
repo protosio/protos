@@ -1,14 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/Masterminds/semver"
-	"github.com/getlantern/systray"
 	"github.com/protosio/protos/apic"
-	"github.com/protosio/protos/cmd/protosc/icon"
 	"github.com/protosio/protos/internal/protosc"
 	"github.com/protosio/protos/internal/util"
 	"github.com/sirupsen/logrus"
@@ -30,7 +29,7 @@ func stopServers() {
 	}
 }
 
-func handleQuitSignals(osSigs chan os.Signal, traySig chan struct{}, errorSig chan struct{}) {
+func handleQuitSignals(osSigs <-chan os.Signal, traySig <-chan struct{}, errorSig <-chan struct{}, afterStop func()) {
 	select {
 	case osSig := <-osSigs:
 		log.Infof("received OS signal %s. Terminating", osSig.String())
@@ -42,7 +41,9 @@ func handleQuitSignals(osSigs chan os.Signal, traySig chan struct{}, errorSig ch
 
 	log.Info("shutting down Protos client")
 	stopServers()
-	systray.Quit()
+	if afterStop != nil {
+		afterStop()
+	}
 }
 
 func main() {
@@ -76,9 +77,7 @@ func main() {
 	}
 
 	app.Action = func(c *cli.Context) error {
-		log.Info("starting Protos client")
-		systray.Run(onReady, onExit)
-		return nil
+		return runClientApp()
 	}
 
 	app.Before = func(c *cli.Context) error {
@@ -96,30 +95,17 @@ func main() {
 
 }
 
-func onReady() {
-	systray.SetTemplateIcon(icon.Data, icon.Data)
-	systray.SetTooltip("Protos")
-	mQuitOrig := systray.AddMenuItem("Quit", "Quit")
-
-	// Handle OS signals and tray icon quit signal
-	osSigs := make(chan os.Signal, 1)
-	errorSig := make(chan struct{}, 1)
-	signal.Notify(osSigs, syscall.SIGINT, syscall.SIGTERM)
-	go handleQuitSignals(osSigs, mQuitOrig.ClickedCh, errorSig)
-
+func startClient() error {
+	log.Info("starting Protos client")
 	protosClient, err := protosc.New(dataPath, version)
 	if err != nil {
-		log.Errorf("failed to create Protos client: %s", err.Error())
-		errorSig <- struct{}{}
-		return
+		return fmt.Errorf("failed to create Protos client: %w", err)
 	}
 	stoppers["protosClient"] = protosClient.Stop
 
 	grpcStopper, err := apic.StartGRPCServer(dataPath, version.String(), protosClient)
 	if err != nil {
-		log.Errorf("failed to start gRPC server: %s", err.Error())
-		errorSig <- struct{}{}
-		return
+		return fmt.Errorf("failed to start gRPC server: %w", err)
 	}
 	stoppers["grpc"] = grpcStopper
 
@@ -129,12 +115,14 @@ func onReady() {
 
 	err = protosClient.StartUp()
 	if err != nil {
-		log.Errorf("failed to finish startup: %s", err.Error())
-		errorSig <- struct{}{}
-		return
+		return fmt.Errorf("failed to finish startup: %w", err)
 	}
+	return nil
 }
 
-func onExit() {
-	log.Info("shutdown complete")
+func waitForInterrupt() {
+	osSigs := make(chan os.Signal, 1)
+	signal.Notify(osSigs, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(osSigs)
+	handleQuitSignals(osSigs, nil, nil, nil)
 }

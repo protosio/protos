@@ -21,6 +21,11 @@ service ProtosClientApi {
   rpc GetCloudProvider(GetCloudProviderRequest) returns (GetCloudProviderResponse) {}
   rpc AddCloudProvider(AddCloudProviderRequest) returns (AddCloudProviderResponse) {}
   rpc RemoveCloudProvider(RemoveCloudProviderRequest) returns (RemoveCloudProviderResponse) {}
+  rpc GetSupportedProvisioners(GetSupportedProvisionersRequest) returns (GetSupportedProvisionersResponse) {}
+  rpc GetProvisioners(GetProvisionersRequest) returns (GetProvisionersResponse) {}
+  rpc GetProvisioner(GetProvisionerRequest) returns (GetProvisionerResponse) {}
+  rpc AddProvisioner(AddProvisionerRequest) returns (AddProvisionerResponse) {}
+  rpc RemoveProvisioner(RemoveProvisionerRequest) returns (RemoveProvisionerResponse) {}
   rpc GetInstances(GetInstancesRequest) returns (GetInstancesResponse) {}
   rpc GetInstance(GetInstanceRequest) returns (GetInstanceResponse) {}
   rpc DeployInstance(DeployInstanceRequest) returns (DeployInstanceResponse) {}
@@ -35,6 +40,9 @@ service ProtosClientApi {
   rpc GetCloudImages(GetCloudImagesRequest) returns (GetCloudImagesResponse) {}
   rpc UploadCloudImage(UploadCloudImageRequest) returns (UploadCloudImageResponse) {}
   rpc RemoveCloudImage(RemoveCloudImageRequest) returns (RemoveCloudImageResponse) {}
+  rpc GetProvisionerImages(GetProvisionerImagesRequest) returns (GetProvisionerImagesResponse) {}
+  rpc UploadProvisionerImage(UploadProvisionerImageRequest) returns (UploadProvisionerImageResponse) {}
+  rpc RemoveProvisionerImage(RemoveProvisionerImageRequest) returns (RemoveProvisionerImageResponse) {}
   rpc GetLocalCommits(GetLocalCommitsRequest) returns (GetLocalCommitsResponse) {}
   rpc GetRemoteCommits(GetRemoteCommitsRequest) returns (GetRemoteCommitsResponse) {}
 }
@@ -222,6 +230,66 @@ message RemoveCloudProviderRequest {
 message RemoveCloudProviderResponse {
 }
 
+message ProvisionerMachineSpec {
+  int32 cores = 1;
+  int32 memory = 2;
+  int32 default_storage = 3;
+  int32 bandwidth = 4;
+  int32 included_data_transfer = 5;
+  bool baremetal = 6;
+  float price_monthly = 7;
+}
+
+message ProvisionerType {
+  string name = 1;
+  repeated string authentication_fields = 2;
+}
+
+message Provisioner {
+  string name = 1;
+  ProvisionerType type = 2;
+  repeated string supported_locations = 3;
+  map<string, ProvisionerMachineSpec> supported_machines = 4;
+}
+
+message GetSupportedProvisionersRequest {
+}
+
+message GetSupportedProvisionersResponse {
+  repeated ProvisionerType provisioner_types = 1;
+}
+
+message GetProvisionersRequest {
+}
+
+message GetProvisionersResponse {
+  repeated Provisioner provisioners = 1;
+}
+
+message GetProvisionerRequest {
+  string name = 1;
+}
+
+message GetProvisionerResponse {
+  Provisioner provisioner = 1;
+}
+
+message AddProvisionerRequest {
+  string name = 1;
+  string type = 2;
+  map<string, string> credentials = 3;
+}
+
+message AddProvisionerResponse {
+}
+
+message RemoveProvisionerRequest {
+  string name = 1;
+}
+
+message RemoveProvisionerResponse {
+}
+
 message CloudInstance {
   string name = 1;
   string public_ip = 2;
@@ -355,6 +423,14 @@ message GetCloudImagesResponse {
   map<string, CloudSpecificImage> cloud_images = 1;
 }
 
+message GetProvisionerImagesRequest {
+  string name = 1;
+}
+
+message GetProvisionerImagesResponse {
+  map<string, CloudSpecificImage> images = 1;
+}
+
 message UploadCloudImageRequest {
   string image_path = 1;
   string image_name = 2;
@@ -366,6 +442,17 @@ message UploadCloudImageRequest {
 message UploadCloudImageResponse {
 }
 
+message UploadProvisionerImageRequest {
+  string image_path = 1;
+  string image_name = 2;
+  string provisioner_name = 3;
+  string location = 4;
+  int32 timeout = 5;
+}
+
+message UploadProvisionerImageResponse {
+}
+
 message RemoveCloudImageRequest {
   string image_name = 2;
   string cloud_name = 3;
@@ -373,6 +460,15 @@ message RemoveCloudImageRequest {
 }
 
 message RemoveCloudImageResponse {
+}
+
+message RemoveProvisionerImageRequest {
+  string image_name = 1;
+  string provisioner_name = 2;
+  string location = 3;
+}
+
+message RemoveProvisionerImageResponse {
 }
 
 message Commit {

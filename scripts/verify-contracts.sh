@@ -18,6 +18,7 @@ generate_proto_tmp() {
 }
 
 generate_proto_tmp contracts/proto/apic/v1/apic.cue apic.proto
+generate_proto_tmp contracts/proto/hostagent/v1/hostagent.cue hostagent.proto
 generate_proto_tmp contracts/proto/p2p/v1/app.cue app.proto
 generate_proto_tmp contracts/proto/p2p/v1/instance.cue instance.proto
 generate_proto_tmp contracts/proto/p2p/v1/peerdb.cue peerDB.proto
@@ -42,6 +43,7 @@ generate_proto_tmp contracts/proto/p2p/v1/pinger.cue pinger.proto
 gofmt -w "$tmp_dir/models.go" "$tmp_dir/protos_v0_0_gen.go" "$tmp_dir/protos_catalog_gen.go"
 
 diff -u apic/proto/apic.proto "$tmp_dir/apic.proto"
+diff -u internal/hostagent/proto/hostagent.proto "$tmp_dir/hostagent.proto"
 diff -u internal/p2p/proto/app.proto "$tmp_dir/app.proto"
 diff -u internal/p2p/proto/instance.proto "$tmp_dir/instance.proto"
 diff -u internal/p2p/proto/peerDB.proto "$tmp_dir/peerDB.proto"

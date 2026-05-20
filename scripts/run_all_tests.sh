@@ -1,10 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-go test -v \
-	./internal/task \
-    ./internal/resource \
-	./internal/provider \
-	./internal/installer \
-	./internal/app \
-	./internal/capability \
-	./internal/auth
+env \
+	CGO_ENABLED="${CGO_ENABLED:-0}" \
+	GOFLAGS="${GOFLAGS:--tags=dolt_purego_zstd,gms_pure_go}" \
+	go test -v ./...

@@ -23,28 +23,46 @@ func (h *handler) localResolve(w dns.ResponseWriter, r *dns.Msg) {
 	msg.SetReply(r)
 
 	switch r.Question[0].Qtype {
-	case dns.TypeA:
+	case dns.TypeA, dns.TypeAAAA:
 		msg.Authoritative = true
 		domain := msg.Question[0].Name
 		address, ok := domainsMap[domain]
 		domainParts := strings.Split(domain, ".")
 
 		if ok {
-			msg.Answer = append(msg.Answer, &dns.A{
-				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
-				A:   net.ParseIP(address),
-			})
+			appendAddressAnswer(msg, domain, address)
 		} else if app, err := h.appManager.Get(domainParts[0]); err == nil {
-			msg.Answer = append(msg.Answer, &dns.A{
-				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
-				A:   app.IP,
-			})
+			appendAddressAnswer(msg, domain, app.IP.String())
 		}
 	}
 
 	if err := w.WriteMsg(msg); err != nil {
 		log.Errorf("Failed to write DNS response: %s", err.Error())
 	}
+}
+
+func appendAddressAnswer(msg *dns.Msg, domain string, address string) {
+	ip := net.ParseIP(address)
+	if ip == nil {
+		return
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		if msg.Question[0].Qtype != dns.TypeA {
+			return
+		}
+		msg.Answer = append(msg.Answer, &dns.A{
+			Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
+			A:   ip4,
+		})
+		return
+	}
+	if msg.Question[0].Qtype != dns.TypeAAAA {
+		return
+	}
+	msg.Answer = append(msg.Answer, &dns.AAAA{
+		Hdr:  dns.RR_Header{Name: domain, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 60},
+		AAAA: ip,
+	})
 }
 
 func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
@@ -91,7 +109,11 @@ var srv *dns.Server
 
 // StartServer starts a DNS server used for resolving internal Protos addresses
 func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, appManager *app.Manager) func() error {
-	log.Infof("Starting DNS server. Listening internally on '%s:%d' for domain '%s'", key.IPv6Address().String(), port, domain)
+	listenAddr := key.IPv6Address().String()
+	if port != 53 {
+		listenAddr = "127.0.0.1"
+	}
+	log.Infof("Starting DNS server. Listening internally on '%s:%d' for domain '%s'", listenAddr, port, domain)
 	if dnsServer != "" {
 		log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
 	}
@@ -100,8 +122,8 @@ func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, ap
 	// ToDo: improve this
 	domainsMap["protos."+domain+"."] = key.IPv6Address().String()
 
-	srv = &dns.Server{Addr: net.JoinHostPort(key.IPv6Address().String(), strconv.Itoa(port)), Net: "udp"}
-	srv.Handler = &handler{listenAddr: key.IPv6Address().String(), dnsServer: dnsServer, appManager: appManager}
+	srv = &dns.Server{Addr: net.JoinHostPort(listenAddr, strconv.Itoa(port)), Net: "udp"}
+	srv.Handler = &handler{listenAddr: listenAddr, dnsServer: dnsServer, appManager: appManager}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			log.Fatalf("Failed to start DNS UDP listener %s\n", err.Error())

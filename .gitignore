@@ -53,3 +53,15 @@ vendor/**
 # Protos
 bin/
 .aider*
+tmp/
+.tmp-contracts.*
+local-macos-vms/
+**/local-macos-vms/
+provisioner-images/targets/output/
+provisioner-images/**/output/
+provisioner-images/**/.cache/
+*.raw
+*.img
+*.iso
+*.log
+.env

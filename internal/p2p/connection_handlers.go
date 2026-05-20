@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"fmt"
+	stdnet "net"
 	"time"
 
 	p2pgrpc "github.com/birros/go-libp2p-grpc"
@@ -20,7 +21,7 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 	conn, err := grpc.NewClient(
 		"passthrough:///"+peerID.String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		p2pgrpc.WithP2PDialer(p2p.host, protosRPCProtocol),
+		p2p.withP2PDialer(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to grpc dial peer '%s': %w", peerID.String(), err)
@@ -57,10 +58,33 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 	return client, nil
 }
 
+func (p2p *P2P) withP2PDialer() grpc.DialOption {
+	return grpc.WithContextDialer(func(ctx context.Context, peerIDString string) (stdnet.Conn, error) {
+		peerID, err := peer.Decode(peerIDString)
+		if err != nil {
+			return nil, err
+		}
+
+		switch connectedness := p2p.host.Network().Connectedness(peerID); connectedness {
+		case network.Connected:
+		case network.Limited:
+			ctx = network.WithAllowLimitedConn(ctx, "protos p2p grpc")
+		default:
+			return nil, fmt.Errorf("not connected to peer %s: %s", peerIDString, connectedness)
+		}
+
+		stream, err := p2p.host.NewStream(ctx, peerID, protosRPCProtocol)
+		if err != nil {
+			return nil, err
+		}
+		return &p2pgrpc.Conn{Stream: stream}, nil
+	})
+}
+
 func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 	go func() {
 		if conn.Stat().Limited {
-			return
+			log.Debugf("new limited connection with peer %s", conn.RemotePeer().String())
 		}
 
 		if p2p.externalDB.Initialized() {
@@ -75,13 +99,20 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 		log.Debugf("new connection with peer %s. Creating client", conn.RemotePeer().String())
 		client, err := p2p.createClientForPeer(conn.RemotePeer())
 		if err != nil {
+			p2p.markPeerFailed(conn.RemotePeer().String(), nil, err)
 			log.Errorf("failed to create client for new peer %s: %s", conn.RemotePeer().String(), err.Error())
 			conn.Close()
 			return
 		}
 
 		p2p.clients.Set(conn.RemotePeer().String(), client)
+		if machine, found := p2p.machines.Get(conn.RemotePeer().String()); found {
+			p2p.markPeerConnected(conn.RemotePeer().String(), machine)
+		} else {
+			p2p.markPeerConnected(conn.RemotePeer().String(), nil)
+		}
 		if err := p2p.externalDB.AddPeer(conn.RemotePeer().String(), client.grpcConnection); err != nil {
+			p2p.markPeerFailed(conn.RemotePeer().String(), nil, err)
 			log.Errorf("failed to add peer %s to external DB: %s", conn.RemotePeer().String(), err.Error())
 			conn.Close()
 			return
@@ -105,9 +136,11 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 
 	log.Debugf("disconnected from peer %s", conn.RemotePeer().String())
 	p2p.clients.Delete(conn.RemotePeer().String())
+	p2p.markPeerDisconnected(conn.RemotePeer().String())
 	if p2p.externalDB != nil {
 		if err := p2p.externalDB.RemovePeer(conn.RemotePeer().String()); err != nil {
 			log.Errorf("failed to remove DB peer for %s: %v", conn.RemotePeer().String(), err)
 		}
 	}
+	p2p.requestReconcile()
 }

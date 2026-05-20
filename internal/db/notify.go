@@ -3,6 +3,8 @@ package db
 import (
 	"errors"
 	"reflect"
+	"sync"
+	"time"
 
 	"github.com/protosio/protos/internal/util"
 )
@@ -51,6 +53,38 @@ func notifyAsync(notifier Notifier) {
 		}()
 		notifier.Notify()
 	}()
+}
+
+func StartPeriodicNotifier(notifier Notifier, interval time.Duration) func() error {
+	if notifier == nil {
+		return func() error { return nil }
+	}
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				notifier.Notify()
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	var once sync.Once
+	return func() error {
+		once.Do(func() {
+			close(done)
+		})
+		return nil
+	}
 }
 
 func notifierIdentity(notifier Notifier) (uintptr, bool) {

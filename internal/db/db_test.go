@@ -2,6 +2,8 @@ package db_test
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/protosio/protos/internal/config"
@@ -69,4 +71,48 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	if _, err := store.GetLastCommit("main"); err != nil {
 		t.Fatalf("get last commit: %v", err)
 	}
+}
+
+func TestDialableListenMultiaddrsIncludeExplicitIPs(t *testing.T) {
+	cfg := config.Get()
+	previousP2PPort := cfg.P2PPort
+	cfg.P2PPort = 10500
+	t.Cleanup(func() {
+		cfg.P2PPort = previousP2PPort
+	})
+
+	workDir := t.TempDir()
+	key, err := pcrypto.GetLocalKey(workDir)
+	if err != nil {
+		t.Fatalf("get local key: %v", err)
+	}
+	store, err := db.Open(workDir, "protos_test", key)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer store.Close()
+
+	got := store.DialableListenMultiaddrs([]string{"200::1", "192.168.64.1", "200::1"})
+	wants := []string{
+		fmt.Sprintf("/ip6/200::1/tcp/10501/p2p/%s", key.GetID()),
+		fmt.Sprintf("/ip4/192.168.64.1/tcp/10501/p2p/%s", key.GetID()),
+	}
+	for _, want := range wants {
+		if !slices.Contains(got, want) {
+			t.Fatalf("DialableListenMultiaddrs() = %v, want %s", got, want)
+		}
+	}
+	if count := countString(got, wants[0]); count != 1 {
+		t.Fatalf("explicit IPv6 addr appeared %d times, want 1 in %v", count, got)
+	}
+}
+
+func countString(values []string, target string) int {
+	count := 0
+	for _, value := range values {
+		if value == target {
+			count++
+		}
+	}
+	return count
 }

@@ -1,18 +1,20 @@
 package protos
 
 #Machine: {
-	id:   string
-	name: string
-	kind: string
+	id:              string
+	name:            string
+	kind:            string
+	desired_status?: string
 }
 
 #CloudMachineMetadata: {
-	id:           string
-	cloud_id:     string
-	public_ip:    string
-	location:     string
-	architecture: string
-	public_key:   string
+	id:                    string
+	cloud_id:              string
+	provider_resource_id?: string
+	public_ip:             string
+	location:              string
+	architecture:          string
+	public_key:            string
 }
 
 #CloudProvider: {
@@ -71,6 +73,7 @@ contract: {
 					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "kind", type: "VARCHAR(255)", not_null: true, go: {name: "KIND", sq_type: "StringField", ddl: "notnull"}},
+					{name: "desired_status", type: "VARCHAR(255)", go: {name: "DESIRED_STATUS", sq_type: "StringField"}},
 				]
 				indexes: [{name: "machines_name_idx", columns: ["name"]}]
 			},
@@ -80,6 +83,7 @@ contract: {
 				columns: [
 					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
 					{name: "cloud_id", type: "VARCHAR(255)", not_null: true, go: {name: "CLOUD_ID", sq_type: "StringField", ddl: "notnull"}},
+					{name: "provider_resource_id", type: "VARCHAR(255)", go: {name: "PROVIDER_RESOURCE_ID", sq_type: "StringField"}},
 					{name: "public_ip", type: "VARCHAR(255)", not_null: true, go: {name: "PUBLIC_IP", sq_type: "StringField", ddl: "notnull"}},
 					{name: "location", type: "VARCHAR(255)", not_null: true, go: {name: "LOCATION", sq_type: "StringField", ddl: "notnull"}},
 					{name: "architecture", type: "VARCHAR(255)", not_null: true, go: {name: "ARCHITECTURE", sq_type: "StringField", ddl: "notnull"}},

@@ -10,13 +10,13 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/oci"
-	"github.com/containerd/containerd/platforms"
+	"github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/containerd/errdefs"
+	"github.com/containerd/platforms"
 	"github.com/dennwc/btrfs"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -38,7 +38,7 @@ type containerdPlatform struct {
 	volumesPath    string
 	initSignal     chan net.IP
 	networkManager *network.Manager
-	client         *containerd.Client
+	client         *client.Client
 	initLock       *sync.RWMutex
 }
 
@@ -82,7 +82,7 @@ func (cdp *containerdPlatform) Init() error {
 
 	if cdp.client == nil {
 		log.Infof("Connecting to the containerd daemon using endpoint '%s'", cdp.endpoint)
-		cdp.client, err = containerd.New(cdp.endpoint)
+		cdp.client, err = client.New(cdp.endpoint)
 		if err != nil {
 			return errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
 		}
@@ -127,12 +127,12 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef st
 	cnt, err := cdp.client.NewContainer(
 		ctx,
 		appID,
-		containerd.WithImage(image),
-		containerd.WithImageStopSignal(image, "SIGTERM"),
-		containerd.WithSnapshotter("btrfs"),
-		containerd.WithNewSnapshot(appID, image),
-		containerd.WithNewSpec(opts...),
-		containerd.WithContainerLabels(map[string]string{"platform": protosNamespace, "appID": appID, "appName": name}),
+		client.WithImage(image),
+		client.WithImageStopSignal(image, "SIGTERM"),
+		client.WithSnapshotter("btrfs"),
+		client.WithNewSnapshot(appID, image),
+		client.WithNewSpec(opts...),
+		client.WithContainerLabels(map[string]string{"platform": protosNamespace, "appID": appID, "appName": name}),
 	)
 	if err != nil {
 		return pru, fmt.Errorf("failed to create container '%s' for app '%s': %w", name, appID, err)
@@ -245,7 +245,7 @@ func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
 func (cdp *containerdPlatform) PullImage(imageRef string) error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
-	image, err := cdp.client.Pull(ctx, imageRef, containerd.WithPullUnpack, containerd.WithPlatform(platforms.DefaultString()), containerd.WithPullSnapshotter("btrfs"))
+	image, err := cdp.client.Pull(ctx, imageRef, client.WithPullUnpack, client.WithPlatform(platforms.DefaultString()), client.WithPullSnapshotter("btrfs"))
 	if err != nil {
 		return fmt.Errorf("failed to pull image '%s' from app store: %w", imageRef, err)
 	}
@@ -358,7 +358,7 @@ func (cdp *containerdPlatform) createVolumeSnapshot(sourceVolumeID string, name 
 // containerdSandbox represents a container
 type containerdSandbox struct {
 	p   *containerdPlatform
-	cnt containerd.Container
+	cnt client.Container
 
 	containerID string
 }
@@ -372,7 +372,7 @@ func (cnt *containerdSandbox) Update() error {
 func (cnt *containerdSandbox) Start(ip net.IP) error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
-	var task containerd.Task
+	var task client.Task
 	var err error
 	task, err = cnt.cnt.Task(ctx, nil)
 	if err != nil {
@@ -385,9 +385,9 @@ func (cnt *containerdSandbox) Start(ip net.IP) error {
 			return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
 		}
 
-		if status.Status == containerd.Running {
+		if status.Status == client.Running {
 			return nil
-		} else if status.Status == containerd.Stopped || status.Status == containerd.Created {
+		} else if status.Status == client.Stopped || status.Status == client.Created {
 			err = cnt.Stop()
 			if err != nil {
 				return fmt.Errorf("failed to start sandbox '%s': %w", cnt.containerID, err)
@@ -438,7 +438,7 @@ func (cnt *containerdSandbox) Stop() error {
 		return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
 	}
 
-	if status.Status != containerd.Stopped {
+	if status.Status != client.Stopped {
 		if err := task.Kill(ctx, syscall.SIGTERM); err != nil {
 			return fmt.Errorf("failed to stop sandbox '%s': %w", cnt.containerID, err)
 		}
@@ -508,7 +508,7 @@ func (cnt *containerdSandbox) GetStatus() string {
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
 			// if container has no task it means it's stopped
-			return string(containerd.Stopped)
+			return string(client.Stopped)
 
 		}
 		return "UNKNOWN"

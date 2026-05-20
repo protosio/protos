@@ -3,8 +3,11 @@ module github.com/protosio/protos
 go 1.26.3
 
 replace (
-	github.com/dolthub/dolt/go => ../dolt/go
-	github.com/dolthub/driver => ../doltsqldriver
+	github.com/dolthub/dolt/go => github.com/nustiueudinastea/dolt/go v0.0.0-20260519092250-dc384c58ba80
+	github.com/dolthub/driver => github.com/nustiueudinastea/doltsqldriver v0.0.0-20260513100158-ab0b5e5fa8c2
+	github.com/protosio/protos/network/modules/ipc => ./network/modules/ipc
+	github.com/protosio/protos/network/modules/networkextension => ./network/modules/networkextension
+	github.com/protosio/protos/network/modules/wireguard => ./network/modules/wireguard
 )
 
 require (
@@ -15,9 +18,9 @@ require (
 	github.com/bokwoon95/sq v0.5.1
 	github.com/bramvdbogaerde/go-scp v1.6.0
 	github.com/cheggaaa/pb/v3 v3.1.7
-	github.com/containerd/containerd v1.7.31
-	github.com/containernetworking/cni v1.3.0
-	github.com/containernetworking/plugins v1.9.1
+	github.com/containerd/containerd/v2 v2.2.0
+	github.com/containerd/errdefs v1.0.0
+	github.com/containerd/platforms v1.0.0-rc.2
 	github.com/dennwc/btrfs v0.0.0-20260222081608-edfb8b9e4f55
 	github.com/getlantern/systray v1.2.2
 	github.com/go-playground/validator/v10 v10.30.2
@@ -28,15 +31,18 @@ require (
 	github.com/miekg/dns v1.1.72
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 	github.com/multiformats/go-multiaddr v0.16.1
-	github.com/opencontainers/runtime-spec v1.3.0
+	github.com/opencontainers/runtime-spec v1.2.1
 	github.com/pkg/errors v0.9.1
+	github.com/protosio/protos/network/modules/ipc v0.0.0
+	github.com/protosio/protos/network/modules/networkextension v0.0.0
+	github.com/protosio/protos/network/modules/wireguard v0.0.0
 	github.com/rakyll/statik v0.1.8
 	github.com/rs/xid v1.6.0
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sirupsen/logrus v1.9.4
+	github.com/tmc/apple v0.6.3
 	github.com/urfave/cli/v2 v2.27.7
-	github.com/vishvananda/netlink v1.3.1
 	golang.org/x/crypto v0.51.0
 	golang.org/x/sys v0.44.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
@@ -71,16 +77,18 @@ require (
 	github.com/cockroachdb/errors v1.13.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
 	github.com/cockroachdb/redact v1.1.8 // indirect
-	github.com/containerd/cgroups/v3 v3.1.3 // indirect
+	github.com/containerd/cgroups/v3 v3.1.0 // indirect
 	github.com/containerd/containerd/api v1.11.0 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
-	github.com/containerd/platforms v1.0.0-rc.4 // indirect
+	github.com/containerd/plugin v1.0.0 // indirect
+	github.com/containernetworking/cni v1.3.0 // indirect
+	github.com/containernetworking/plugins v1.9.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dolthub/eventsapi_schema v0.0.0-20260310172945-37a9265ade69 // indirect
 	github.com/dolthub/ishell v0.0.0-20260414231531-5f031e3e9037 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/emicklei/proto v1.14.3 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
@@ -134,6 +142,7 @@ require (
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/vishvananda/netlink v1.3.1 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/xtaci/smux v1.5.57 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
@@ -144,6 +153,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260508192327-42602be52be6 // indirect
+	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/knftables v0.0.21 // indirect
 )
@@ -153,8 +163,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.11.0 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
-	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
-	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20250520111509-a70c2aa677fa // indirect
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0 // indirect
 	github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29 // indirect
 	github.com/Microsoft/hcsshim v0.15.0-rc.1 // indirect
@@ -198,7 +206,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1 // indirect
 	github.com/dennwc/ioctl v1.0.1 // indirect
-	github.com/docker/go-events v0.0.0-20250808211157-605354379745 // indirect
 	github.com/dolthub/aws-sdk-go-ini-parser v0.0.0-20250305001723-2821c37f6c12 // indirect
 	github.com/dolthub/dolt/go v0.40.5-0.20260507231811-577c666cc34c // indirect
 	github.com/dolthub/driver v0.0.0-00010101000000-000000000000 // indirect
@@ -239,7 +246,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
@@ -354,6 +361,12 @@ require (
 	swarmion.dev/transports v0.0.0
 )
 
+replace github.com/grafana/thema => github.com/nustiueudinastea/thema v0.0.0-20240605110052-2016107581da
+
+replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014e3f
+
+replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b
+
 replace swarmion.dev/runtime => ../swarmion/runtime
 
 replace swarmion.dev/protocol => ../swarmion/protocol
@@ -363,9 +376,3 @@ replace swarmion.dev/transports => ../swarmion/transports
 replace swarmion.dev/schema-engines/cue => ../swarmion/schema-engines/cue
 
 replace swarmion.dev/schema-engines/declarative => ../swarmion/schema-engines/declarative
-
-replace github.com/grafana/thema => github.com/nustiueudinastea/thema v0.0.0-20240605110052-2016107581da
-
-replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014e3f
-
-replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b

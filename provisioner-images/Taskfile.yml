@@ -1,0 +1,166 @@
+version: "3"
+
+vars:
+  LINUXKIT: '{{default "/opt/homebrew/bin/linuxkit" .LINUXKIT}}'
+  DOCKER_CONFIG: '{{default "/tmp/protos-dockerconfig-empty" .DOCKER_CONFIG}}'
+  DOCKER_HOME: '{{default "/tmp/protos-home" .DOCKER_HOME}}'
+  DOCKER_CONTEXT: '{{default "/tmp/protos-docker-context" .DOCKER_CONTEXT}}'
+  PROTOS_IMAGE: '{{default "protosio/protosd:local" .PROTOS_IMAGE}}'
+  PROTOS_IMAGE_PLATFORM: '{{default "" .PROTOS_IMAGE_PLATFORM}}'
+  NATIVE_GO_TAGS: '{{default "dolt_purego_zstd,gms_pure_go" .NATIVE_GO_TAGS}}'
+  TARGETS: ./targets
+  WORKDIR: ./targets/output
+
+tasks:
+  output-dir:
+    internal: true
+    cmds:
+      - mkdir -p {{.WORKDIR}}
+      - mkdir -p {{.DOCKER_CONFIG}}
+      - mkdir -p {{.DOCKER_HOME}}
+      - printf '{}\n' > {{.DOCKER_CONFIG}}/config.json
+      - |
+        mkdir -p {{.DOCKER_HOME}}/.ssh
+        if [ -f "$HOME/.ssh/protos.pub" ]; then
+          cp "$HOME/.ssh/protos.pub" {{.DOCKER_HOME}}/.ssh/protos.pub
+        fi
+
+  pkg:
+    desc: Build local LinuxKit packages.
+    cmds:
+      - mkdir -p {{.DOCKER_CONFIG}}
+      - mkdir -p {{.DOCKER_HOME}}
+      - printf '{}\n' > {{.DOCKER_CONFIG}}/config.json
+      - |
+        HOST_HOME="$HOME"
+        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} pkg build pkg/containerd
+      - |
+        HOST_HOME="$HOME"
+        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} pkg build --network pkg/dev
+
+  protosd-image:
+    desc: Build the local protosd container image used by LinuxKit targets.
+    cmds:
+      - rm -rf {{.DOCKER_CONTEXT}}
+      - mkdir -p {{.DOCKER_CONTEXT}}/swarmion/schema-engines
+      - |
+        for path in ../../swarmion/runtime ../../swarmion/protocol ../../swarmion/transports ../../swarmion/schema-engines/cue ../../swarmion/schema-engines/declarative; do
+          if [ ! -d "$path" ]; then
+            echo "Required local Go replacement directory is missing: $path"
+            exit 1
+          fi
+        done
+      - |
+        rsync -a --delete \
+          --exclude '.git' \
+          --exclude 'provisioner-images/targets/output' \
+          --exclude 'provisioner-images/**/output' \
+          --exclude 'local-macos-vms' \
+          --exclude '**/local-macos-vms' \
+          --exclude 'tmp' \
+          --exclude '**/tmp' \
+          --exclude '*.raw' \
+          --exclude '*.img' \
+          --exclude '*.iso' \
+          --exclude '*.log' \
+          ../ {{.DOCKER_CONTEXT}}/backend
+      - rsync -a --delete --exclude '.git' ../../swarmion/runtime {{.DOCKER_CONTEXT}}/swarmion/
+      - rsync -a --delete --exclude '.git' ../../swarmion/protocol {{.DOCKER_CONTEXT}}/swarmion/
+      - rsync -a --delete --exclude '.git' ../../swarmion/transports {{.DOCKER_CONTEXT}}/swarmion/
+      - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/cue {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
+      - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/declarative {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
+      - |
+        platform_args=""
+        if [ -n "{{.PROTOS_IMAGE_PLATFORM}}" ]; then
+          platform_args="--platform {{.PROTOS_IMAGE_PLATFORM}}"
+        fi
+        docker build $platform_args -f {{.DOCKER_CONTEXT}}/backend/Dockerfile --build-arg PROTOS_BUILD_DIR=backend --build-arg PROTOS_NATIVE_GO_TAGS={{.NATIVE_GO_TAGS}} -t {{.PROTOS_IMAGE}} {{.DOCKER_CONTEXT}}
+
+  macdev:
+    desc: Build the local macOS development kernel+initrd and EFI initrd ISO images.
+    deps: [output-dir]
+    cmds:
+      - rm -rf {{.WORKDIR}}/macdev
+      - mkdir {{.WORKDIR}}/macdev
+      - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_macdev.cue > {{.WORKDIR}}/macdev/macdev.yaml
+      - |
+        HOST_HOME="$HOME"
+        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch arm64 --format kernel+initrd --format iso-efi-initrd --dir {{.WORKDIR}}/macdev {{.WORKDIR}}/macdev/macdev.yaml
+      - truncate -s 30G {{.WORKDIR}}/macdev/macdev-disk.img
+
+  mactest:
+    desc: Build the local macOS test kernel+initrd and EFI initrd ISO images.
+    deps: [output-dir, protosd-image]
+    cmds:
+      - rm -rf {{.WORKDIR}}/mactest
+      - mkdir {{.WORKDIR}}/mactest
+      - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_mactest.cue > {{.WORKDIR}}/mactest/mactest.yaml
+      - |
+        HOST_HOME="$HOME"
+        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch arm64 --format kernel+initrd --format iso-efi-initrd --dir {{.WORKDIR}}/mactest {{.WORKDIR}}/mactest/mactest.yaml
+      - truncate -s 30G {{.WORKDIR}}/mactest/mactest-disk.img
+
+  scaleway:
+    desc: Build the Scaleway AMD64 EFI ISO image.
+    deps: [output-dir]
+    cmds:
+      - task protosd-image PROTOS_IMAGE_PLATFORM=linux/amd64
+      - rm -rf {{.WORKDIR}}/scaleway
+      - mkdir {{.WORKDIR}}/scaleway
+      - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_scaleway.cue > {{.WORKDIR}}/scaleway/scaleway.yaml
+      - |
+        HOST_HOME="$HOME"
+        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format iso-efi --dir {{.WORKDIR}}/scaleway {{.WORKDIR}}/scaleway/scaleway.yaml
+
+  syncstart:
+    desc: Start a Mutagen sync session into the local VM.
+    vars:
+      VM_IP:
+        sh: |
+          if [ -n "${VM_IP:-}" ]; then
+            printf '%s\n' "$VM_IP"
+            exit 0
+          fi
+          vm_dir="${PROTOS_VM_DIR:-$HOME/.protos/local-macos-vms}"
+          find "$vm_dir/instances" -name manifest.json -type f 2>/dev/null \
+            | while IFS= read -r manifest; do
+                sed -n 's/.*"public_ip": "\([^"]*\)".*/\1/p' "$manifest"
+              done \
+            | tail -n1
+    cmds:
+      - |
+        if [ -z "$PROTOS_SRC" ]; then
+          echo "PROTOS_SRC environment variable is not set"
+          exit 1
+        fi
+        echo "PROTOS_SRC is set to: $PROTOS_SRC"
+      - 'echo "Using VM IP: {{.VM_IP}}"'
+      - echo "Starting mutagen daemon"
+      - mutagen daemon start
+      - mutagen sync create "$PROTOS_SRC" root@{{.VM_IP}}:/var/lib/src
+
+  syncstop:
+    desc: Stop the active Mutagen sync session.
+    cmds:
+      - |
+        identifier=$(mutagen sync list | grep -oE 'Identifier: (.*)' | cut -d ' ' -f 2)
+        if [ -z "$identifier" ]; then
+          echo "No sync endpoint found"
+        else
+          echo "Terminating sync: $identifier"
+          mutagen sync terminate "$identifier"
+        fi
+      - 'echo "Stopping mutagen daemon"'
+      - mutagen daemon stop
+
+  stopvm:
+    desc: Send SIGHUP to the LinuxKit runner process.
+    cmds:
+      - |
+        pid=$(ps aux | grep linuxkit | grep -v grep | awk '{print $2}')
+        if [ -z "$pid" ]; then
+          echo "linuxkit process not found"
+        else
+          echo "Sending SIGHUP to linuxkit process with PID $pid"
+          kill -HUP "$pid"
+        fi

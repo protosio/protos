@@ -14,16 +14,18 @@ type MACHINE struct {
 	ID             sq.StringField `ddl:"notnull primarykey"`
 	NAME           sq.StringField `ddl:"notnull index"`
 	KIND           sq.StringField `ddl:"notnull"`
+	DESIRED_STATUS sq.StringField
 }
 
 type CLOUD_MACHINE_METADATA struct {
-	sq.TableStruct `sq:"cloud_machines_metadata"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
-	CLOUD_ID       sq.StringField `ddl:"notnull"`
-	PUBLIC_IP      sq.StringField `ddl:"notnull"`
-	LOCATION       sq.StringField `ddl:"notnull"`
-	ARCHITECTURE   sq.StringField `ddl:"notnull"`
-	PUBLIC_KEY     sq.StringField `ddl:"notnull index"`
+	sq.TableStruct       `sq:"cloud_machines_metadata"`
+	ID                   sq.StringField `ddl:"notnull primarykey"`
+	CLOUD_ID             sq.StringField `ddl:"notnull"`
+	PROVIDER_RESOURCE_ID sq.StringField
+	PUBLIC_IP            sq.StringField `ddl:"notnull"`
+	LOCATION             sq.StringField `ddl:"notnull"`
+	ARCHITECTURE         sq.StringField `ddl:"notnull"`
+	PUBLIC_KEY           sq.StringField `ddl:"notnull index"`
 }
 
 type CLOUD_PROVIDER struct {

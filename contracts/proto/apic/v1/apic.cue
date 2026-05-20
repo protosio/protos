@@ -88,6 +88,25 @@ package apicv1
 	supported_locations?: [...string]
 	supported_machines?:  [string]: #CloudMachineSpec
 }
+#ProvisionerMachineSpec: {
+	cores?:                  int
+	memory?:                 int
+	default_storage?:        int
+	bandwidth?:              int
+	included_data_transfer?: int
+	baremetal?:              bool
+	price_monthly?:          number
+}
+#ProvisionerType: {
+	name?:                  string
+	authentication_fields?: [...string]
+}
+#Provisioner: {
+	name?:               string
+	type?:               #ProvisionerType
+	supported_locations?: [...string]
+	supported_machines?:  [string]: #ProvisionerMachineSpec
+}
 #GetSupportedCloudProvidersRequest: {}
 #GetSupportedCloudProvidersResponse: cloud_types?: [...#CloudType]
 #GetCloudProvidersRequest: {}
@@ -102,6 +121,20 @@ package apicv1
 #AddCloudProviderResponse: {}
 #RemoveCloudProviderRequest: name?: string
 #RemoveCloudProviderResponse: {}
+#GetSupportedProvisionersRequest: {}
+#GetSupportedProvisionersResponse: provisioner_types?: [...#ProvisionerType]
+#GetProvisionersRequest: {}
+#GetProvisionersResponse: provisioners?: [...#Provisioner]
+#GetProvisionerRequest: name?: string
+#GetProvisionerResponse: provisioner?: #Provisioner
+#AddProvisionerRequest: {
+	name?:        string
+	type?:        string
+	credentials?: [string]: string
+}
+#AddProvisionerResponse: {}
+#RemoveProvisionerRequest: name?: string
+#RemoveProvisionerResponse: {}
 
 #CloudInstance: {
 	name?:                 string
@@ -176,6 +209,8 @@ package apicv1
 #GetProtosdReleasesResponse: releases?: [...#Release]
 #GetCloudImagesRequest: name?: string
 #GetCloudImagesResponse: cloud_images?: [string]: #CloudSpecificImage
+#GetProvisionerImagesRequest: name?: string
+#GetProvisionerImagesResponse: images?: [string]: #CloudSpecificImage
 #UploadCloudImageRequest: {
 	image_path?:     string
 	image_name?:     string
@@ -184,12 +219,26 @@ package apicv1
 	timeout?:        int
 }
 #UploadCloudImageResponse: {}
+#UploadProvisionerImageRequest: {
+	image_path?: string
+	image_name?: string
+	provisioner_name?: string
+	location?:   string
+	timeout?:    int
+}
+#UploadProvisionerImageResponse: {}
 #RemoveCloudImageRequest: {
 	image_name?:     string
 	cloud_name?:     string
 	cloud_location?: string
 }
 #RemoveCloudImageResponse: {}
+#RemoveProvisionerImageRequest: {
+	image_name?:      string
+	provisioner_name?: string
+	location?:        string
+}
+#RemoveProvisionerImageResponse: {}
 
 #Commit: {
 	hash?:      string
@@ -234,6 +283,11 @@ contract: {
 				{name: "GetCloudProvider", request: "GetCloudProviderRequest", response: "GetCloudProviderResponse"},
 				{name: "AddCloudProvider", request: "AddCloudProviderRequest", response: "AddCloudProviderResponse"},
 				{name: "RemoveCloudProvider", request: "RemoveCloudProviderRequest", response: "RemoveCloudProviderResponse"},
+				{name: "GetSupportedProvisioners", request: "GetSupportedProvisionersRequest", response: "GetSupportedProvisionersResponse"},
+				{name: "GetProvisioners", request: "GetProvisionersRequest", response: "GetProvisionersResponse"},
+				{name: "GetProvisioner", request: "GetProvisionerRequest", response: "GetProvisionerResponse"},
+				{name: "AddProvisioner", request: "AddProvisionerRequest", response: "AddProvisionerResponse"},
+				{name: "RemoveProvisioner", request: "RemoveProvisionerRequest", response: "RemoveProvisionerResponse"},
 				{name: "GetInstances", request: "GetInstancesRequest", response: "GetInstancesResponse"},
 				{name: "GetInstance", request: "GetInstanceRequest", response: "GetInstanceResponse"},
 				{name: "DeployInstance", request: "DeployInstanceRequest", response: "DeployInstanceResponse"},
@@ -248,6 +302,9 @@ contract: {
 				{name: "GetCloudImages", request: "GetCloudImagesRequest", response: "GetCloudImagesResponse"},
 				{name: "UploadCloudImage", request: "UploadCloudImageRequest", response: "UploadCloudImageResponse"},
 				{name: "RemoveCloudImage", request: "RemoveCloudImageRequest", response: "RemoveCloudImageResponse"},
+				{name: "GetProvisionerImages", request: "GetProvisionerImagesRequest", response: "GetProvisionerImagesResponse"},
+				{name: "UploadProvisionerImage", request: "UploadProvisionerImageRequest", response: "UploadProvisionerImageResponse"},
+				{name: "RemoveProvisionerImage", request: "RemoveProvisionerImageRequest", response: "RemoveProvisionerImageResponse"},
 				{name: "GetLocalCommits", request: "GetLocalCommitsRequest", response: "GetLocalCommitsResponse"},
 				{name: "GetRemoteCommits", request: "GetRemoteCommitsRequest", response: "GetRemoteCommitsResponse"},
 			]
@@ -357,6 +414,39 @@ contract: {
 			{kind: "message", name: "AddCloudProviderResponse", fields: []},
 			{kind: "message", name: "RemoveCloudProviderRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "RemoveCloudProviderResponse", fields: []},
+			{kind: "message", name: "ProvisionerMachineSpec", fields: [
+				{type: "int32", name: "cores", number: 1},
+				{type: "int32", name: "memory", number: 2},
+				{type: "int32", name: "default_storage", number: 3},
+				{type: "int32", name: "bandwidth", number: 4},
+				{type: "int32", name: "included_data_transfer", number: 5},
+				{type: "bool", name: "baremetal", number: 6},
+				{type: "float", name: "price_monthly", number: 7},
+			]},
+			{kind: "message", name: "ProvisionerType", fields: [
+				{type: "string", name: "name", number: 1},
+				{rule: "repeated", type: "string", name: "authentication_fields", number: 2},
+			]},
+			{kind: "message", name: "Provisioner", fields: [
+				{type: "string", name: "name", number: 1},
+				{type: "ProvisionerType", name: "type", number: 2},
+				{rule: "repeated", type: "string", name: "supported_locations", number: 3},
+				{type: "map<string, ProvisionerMachineSpec>", name: "supported_machines", number: 4},
+			]},
+			{kind: "message", name: "GetSupportedProvisionersRequest", fields: []},
+			{kind: "message", name: "GetSupportedProvisionersResponse", fields: [{rule: "repeated", type: "ProvisionerType", name: "provisioner_types", number: 1}]},
+			{kind: "message", name: "GetProvisionersRequest", fields: []},
+			{kind: "message", name: "GetProvisionersResponse", fields: [{rule: "repeated", type: "Provisioner", name: "provisioners", number: 1}]},
+			{kind: "message", name: "GetProvisionerRequest", fields: [{type: "string", name: "name", number: 1}]},
+			{kind: "message", name: "GetProvisionerResponse", fields: [{type: "Provisioner", name: "provisioner", number: 1}]},
+			{kind: "message", name: "AddProvisionerRequest", fields: [
+				{type: "string", name: "name", number: 1},
+				{type: "string", name: "type", number: 2},
+				{type: "map<string, string>", name: "credentials", number: 3},
+			]},
+			{kind: "message", name: "AddProvisionerResponse", fields: []},
+			{kind: "message", name: "RemoveProvisionerRequest", fields: [{type: "string", name: "name", number: 1}]},
+			{kind: "message", name: "RemoveProvisionerResponse", fields: []},
 			{kind: "message", name: "CloudInstance", fields: [
 				{type: "string", name: "name", number: 1},
 				{type: "string", name: "public_ip", number: 2},
@@ -429,6 +519,8 @@ contract: {
 			{kind: "message", name: "GetProtosdReleasesResponse", fields: [{rule: "repeated", type: "Release", name: "releases", number: 1}]},
 			{kind: "message", name: "GetCloudImagesRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "GetCloudImagesResponse", fields: [{type: "map<string, CloudSpecificImage>", name: "cloud_images", number: 1}]},
+			{kind: "message", name: "GetProvisionerImagesRequest", fields: [{type: "string", name: "name", number: 1}]},
+			{kind: "message", name: "GetProvisionerImagesResponse", fields: [{type: "map<string, CloudSpecificImage>", name: "images", number: 1}]},
 			{kind: "message", name: "UploadCloudImageRequest", fields: [
 				{type: "string", name: "image_path", number: 1},
 				{type: "string", name: "image_name", number: 2},
@@ -437,12 +529,26 @@ contract: {
 				{type: "int32", name: "timeout", number: 5},
 			]},
 			{kind: "message", name: "UploadCloudImageResponse", fields: []},
+			{kind: "message", name: "UploadProvisionerImageRequest", fields: [
+				{type: "string", name: "image_path", number: 1},
+				{type: "string", name: "image_name", number: 2},
+				{type: "string", name: "provisioner_name", number: 3},
+				{type: "string", name: "location", number: 4},
+				{type: "int32", name: "timeout", number: 5},
+			]},
+			{kind: "message", name: "UploadProvisionerImageResponse", fields: []},
 			{kind: "message", name: "RemoveCloudImageRequest", fields: [
 				{type: "string", name: "image_name", number: 2},
 				{type: "string", name: "cloud_name", number: 3},
 				{type: "string", name: "cloud_location", number: 4},
 			]},
 			{kind: "message", name: "RemoveCloudImageResponse", fields: []},
+			{kind: "message", name: "RemoveProvisionerImageRequest", fields: [
+				{type: "string", name: "image_name", number: 1},
+				{type: "string", name: "provisioner_name", number: 2},
+				{type: "string", name: "location", number: 3},
+			]},
+			{kind: "message", name: "RemoveProvisionerImageResponse", fields: []},
 			{kind: "message", name: "Commit", fields: [
 				{type: "string", name: "hash", number: 1},
 				{type: "string", name: "committer", number: 2},
@@ -501,6 +607,19 @@ lineage: {
 			AddCloudProviderResponse?:            #AddCloudProviderResponse
 			RemoveCloudProviderRequest?:          #RemoveCloudProviderRequest
 			RemoveCloudProviderResponse?:         #RemoveCloudProviderResponse
+			ProvisionerMachineSpec?:              #ProvisionerMachineSpec
+			ProvisionerType?:                     #ProvisionerType
+			Provisioner?:                         #Provisioner
+			GetSupportedProvisionersRequest?:      #GetSupportedProvisionersRequest
+			GetSupportedProvisionersResponse?:     #GetSupportedProvisionersResponse
+			GetProvisionersRequest?:               #GetProvisionersRequest
+			GetProvisionersResponse?:              #GetProvisionersResponse
+			GetProvisionerRequest?:                #GetProvisionerRequest
+			GetProvisionerResponse?:               #GetProvisionerResponse
+			AddProvisionerRequest?:                #AddProvisionerRequest
+			AddProvisionerResponse?:               #AddProvisionerResponse
+			RemoveProvisionerRequest?:             #RemoveProvisionerRequest
+			RemoveProvisionerResponse?:            #RemoveProvisionerResponse
 			CloudInstance?:                       #CloudInstance
 			GetInstancesRequest?:                 #GetInstancesRequest
 			GetInstancesResponse?:                #GetInstancesResponse
@@ -529,10 +648,16 @@ lineage: {
 			GetProtosdReleasesResponse?:          #GetProtosdReleasesResponse
 			GetCloudImagesRequest?:               #GetCloudImagesRequest
 			GetCloudImagesResponse?:              #GetCloudImagesResponse
+			GetProvisionerImagesRequest?:          #GetProvisionerImagesRequest
+			GetProvisionerImagesResponse?:         #GetProvisionerImagesResponse
 			UploadCloudImageRequest?:             #UploadCloudImageRequest
 			UploadCloudImageResponse?:            #UploadCloudImageResponse
+			UploadProvisionerImageRequest?:        #UploadProvisionerImageRequest
+			UploadProvisionerImageResponse?:       #UploadProvisionerImageResponse
 			RemoveCloudImageRequest?:             #RemoveCloudImageRequest
 			RemoveCloudImageResponse?:            #RemoveCloudImageResponse
+			RemoveProvisionerImageRequest?:        #RemoveProvisionerImageRequest
+			RemoveProvisionerImageResponse?:       #RemoveProvisionerImageResponse
 			Commit?:                              #Commit
 			GetLocalCommitsRequest?:              #GetLocalCommitsRequest
 			GetLocalCommitsResponse?:             #GetLocalCommitsResponse

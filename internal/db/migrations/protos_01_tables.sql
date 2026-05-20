@@ -1,7 +1,8 @@
 CREATE TABLE machines (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    kind VARCHAR(255) NOT NULL
+    kind VARCHAR(255) NOT NULL,
+    desired_status VARCHAR(255)
 );
 
 CREATE INDEX machines_name_idx ON machines (name);
@@ -9,6 +10,7 @@ CREATE INDEX machines_name_idx ON machines (name);
 CREATE TABLE cloud_machines_metadata (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     cloud_id VARCHAR(255) NOT NULL,
+    provider_resource_id VARCHAR(255),
     public_ip VARCHAR(255) NOT NULL,
     location VARCHAR(255) NOT NULL,
     architecture VARCHAR(255) NOT NULL,

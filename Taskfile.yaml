@@ -3,15 +3,7 @@ version: "3"
 vars:
   TIMEOUT: '{{.TIMEOUT | default "5m"}}'
   GO_TEST_CACHE: '{{.GO_TEST_CACHE | default "/tmp/protos-gocache"}}'
-  ICU_PREFIX:
-    sh: |
-      if [ -n "${ICU_PREFIX:-}" ]; then
-        printf '%s\n' "$ICU_PREFIX"
-      elif command -v brew >/dev/null 2>&1; then
-        brew --prefix icu4c 2>/dev/null || printf '%s\n' /opt/homebrew/opt/icu4c
-      else
-        printf '%s\n' /opt/homebrew/opt/icu4c
-      fi
+  NATIVE_GO_TAGS: '{{.NATIVE_GO_TAGS | default "dolt_purego_zstd,gms_pure_go"}}'
 
 tasks:
   generate:
@@ -52,11 +44,25 @@ tasks:
         fi
         env \
           GOCACHE={{.GO_TEST_CACHE}} \
-          CGO_CPPFLAGS=-I{{.ICU_PREFIX}}/include \
-          CGO_CFLAGS=-I{{.ICU_PREFIX}}/include \
-          CGO_CXXFLAGS=-I{{.ICU_PREFIX}}/include \
-          CGO_LDFLAGS=-L{{.ICU_PREFIX}}/lib \
+          CGO_ENABLED=0 \
+          GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" \
           ${lint_cmd} run --config .golangci.yml --timeout {{.TIMEOUT}} ./...
+      - for:
+          - network/modules/ipc
+          - network/modules/networkextension
+          - network/modules/wireguard
+        cmd: |
+          cd {{.ITEM}}
+          if command -v golangci-lint >/dev/null 2>&1; then
+            lint_cmd="golangci-lint"
+          else
+            lint_cmd="go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"
+          fi
+          env \
+            GOCACHE={{.GO_TEST_CACHE}} \
+            CGO_ENABLED=0 \
+            GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" \
+            ${lint_cmd} run --config ../../../.golangci.yml --timeout {{.TIMEOUT}} ./...
 
   deadcode:
     desc: Run golang.org/x/tools/cmd/deadcode
@@ -70,16 +76,18 @@ tasks:
         fi
         env \
           GOCACHE={{.GO_TEST_CACHE}} \
-          CGO_CPPFLAGS=-I{{.ICU_PREFIX}}/include \
-          CGO_CFLAGS=-I{{.ICU_PREFIX}}/include \
-          CGO_CXXFLAGS=-I{{.ICU_PREFIX}}/include \
-          CGO_LDFLAGS=-L{{.ICU_PREFIX}}/lib \
-          ${deadcode_cmd} -test ./...
+          CGO_ENABLED=0 \
+          ${deadcode_cmd} -tags={{.NATIVE_GO_TAGS}} -test ./...
 
   test:
-    desc: Run Go tests with ICU flags required by the Swarmion/Dolt stack
+    desc: Run Go tests with the native Swarmion/Dolt stack
     cmds:
-      - env CGO_CPPFLAGS=-I{{.ICU_PREFIX}}/include CGO_CFLAGS=-I{{.ICU_PREFIX}}/include CGO_CXXFLAGS=-I{{.ICU_PREFIX}}/include CGO_LDFLAGS=-L{{.ICU_PREFIX}}/lib go test -timeout {{.TIMEOUT}} ./...
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
+      - for:
+          - network/modules/ipc
+          - network/modules/networkextension
+          - network/modules/wireguard
+        cmd: cd {{.ITEM}} && env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
 
   default:
     desc: Show available tasks

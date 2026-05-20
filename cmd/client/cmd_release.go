@@ -24,15 +24,15 @@ var cmdRelease *cli.Command = &cli.Command{
 		},
 		{
 			Name:      "ls",
-			ArgsUsage: "<cloud name>",
-			Usage:     "Retrieve and list the Protosd images available in a specific cloud provider",
+			ArgsUsage: "<provisioner name>",
+			Usage:     "Retrieve and list the Protosd images available in a specific provisioner",
 			Action: func(c *cli.Context) error {
-				cloudName := c.Args().Get(0)
-				if cloudName == "" {
+				provisionerName := c.Args().Get(0)
+				if provisionerName == "" {
 					return showSubcommandHelp(c)
 				}
 
-				err := listProtosCloudImages(cloudName)
+				err := listProtosProvisionerImages(provisionerName)
 				if err != nil {
 					return err
 				}
@@ -42,17 +42,18 @@ var cmdRelease *cli.Command = &cli.Command{
 		{
 			Name:      "upload",
 			ArgsUsage: "<image path> <image name>",
-			Usage:     "Upload a locally built image to a cloud provider. Used for development",
+			Usage:     "Upload a locally built image to a provisioner. Used for development",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "cloud",
-					Usage:       "Specify which `CLOUD` provider to upload the image to",
+					Name:        "provisioner",
+					Aliases:     []string{"cloud"},
+					Usage:       "Specify which `PROVISIONER` to upload the image to",
 					Required:    true,
 					Destination: &cloudName,
 				},
 				&cli.StringFlag{
 					Name:        "location",
-					Usage:       "Specify one of the supported `LOCATION`s to upload the image (cloud specific). Not required for all cloud providers",
+					Usage:       "Specify one of the supported `LOCATION`s to upload the image. Not required for all provisioners",
 					Required:    false,
 					Destination: &cloudLocation,
 				},
@@ -76,23 +77,24 @@ var cmdRelease *cli.Command = &cli.Command{
 
 				timeout := c.Int("timeout")
 
-				return uploadLocalImageToCloud(imagePath, imageName, cloudName, cloudLocation, int32(timeout))
+				return uploadLocalImageToProvisioner(imagePath, imageName, cloudName, cloudLocation, int32(timeout))
 			},
 		},
 		{
 			Name:      "delete",
 			ArgsUsage: "<image name>",
-			Usage:     "Delete an image from a cloud provider",
+			Usage:     "Delete an image from a provisioner",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "cloud",
-					Usage:       "Specify which `CLOUD` provider to upload the image to",
+					Name:        "provisioner",
+					Aliases:     []string{"cloud"},
+					Usage:       "Specify which `PROVISIONER` to delete the image from",
 					Required:    true,
 					Destination: &cloudName,
 				},
 				&cli.StringFlag{
 					Name:        "location",
-					Usage:       "Specify one of the supported `LOCATION`s to upload the image (cloud specific). Not required for all cloud providers",
+					Usage:       "Specify one of the supported `LOCATION`s for the image. Not required for all provisioners",
 					Required:    false,
 					Destination: &cloudLocation,
 				},
@@ -103,7 +105,7 @@ var cmdRelease *cli.Command = &cli.Command{
 					return showSubcommandHelp(c)
 				}
 
-				return deleteImageFromCloud(imageName, cloudName, cloudLocation)
+				return deleteImageFromProvisioner(imageName, cloudName, cloudLocation)
 			},
 		},
 	},
@@ -135,10 +137,10 @@ func listProtosAvailableReleases() error {
 	return nil
 }
 
-func listProtosCloudImages(cloudName string) error {
+func listProtosProvisionerImages(provisionerName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp, err := client.GetCloudImages(ctx, &apic.GetCloudImagesRequest{Name: cloudName})
+	resp, err := client.GetProvisionerImages(ctx, &apic.GetProvisionerImagesRequest{Name: provisionerName})
 	if err != nil {
 		return err
 	}
@@ -149,7 +151,7 @@ func listProtosCloudImages(cloudName string) error {
 
 	fmt.Fprintf(w, " %s\t%s\t%s\t", "Version", "ID", "Location")
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t", "-------", "--", "--------")
-	for _, img := range resp.CloudImages {
+	for _, img := range resp.Images {
 		fmt.Fprintf(w, "\n %s\t%s\t%s\t", img.Name, img.Id, img.Location)
 	}
 	fmt.Fprint(w, "\n")
@@ -157,10 +159,10 @@ func listProtosCloudImages(cloudName string) error {
 	return nil
 }
 
-func uploadLocalImageToCloud(imagePath string, imageName string, cloudName string, cloudLocation string, timeout int32) error {
+func uploadLocalImageToProvisioner(imagePath string, imageName string, provisionerName string, location string, timeout int32) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout+1)*time.Minute)
 	defer cancel()
-	_, err := client.UploadCloudImage(ctx, &apic.UploadCloudImageRequest{ImagePath: imagePath, ImageName: imageName, CloudName: cloudName, CloudLocation: cloudLocation, Timeout: timeout})
+	_, err := client.UploadProvisionerImage(ctx, &apic.UploadProvisionerImageRequest{ImagePath: imagePath, ImageName: imageName, ProvisionerName: provisionerName, Location: location, Timeout: timeout})
 	if err != nil {
 		return err
 	}
@@ -168,10 +170,10 @@ func uploadLocalImageToCloud(imagePath string, imageName string, cloudName strin
 	return nil
 }
 
-func deleteImageFromCloud(imageName string, cloudName string, cloudLocation string) error {
+func deleteImageFromProvisioner(imageName string, provisionerName string, location string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := client.RemoveCloudImage(ctx, &apic.RemoveCloudImageRequest{ImageName: imageName, CloudName: cloudName, CloudLocation: cloudLocation})
+	_, err := client.RemoveProvisionerImage(ctx, &apic.RemoveProvisionerImageRequest{ImageName: imageName, ProvisionerName: provisionerName, Location: location})
 	if err != nil {
 		return err
 	}

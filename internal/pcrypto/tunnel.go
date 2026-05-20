@@ -25,6 +25,15 @@ type Tunnel struct {
 	connMap   []chan bool
 }
 
+// ReverseTunnel forwards connections accepted on the remote SSH server back to
+// a local target reachable from this process.
+type ReverseTunnel struct {
+	sshConn  *ssh.Client
+	listener net.Listener
+	target   string
+	connMap  []chan bool
+}
+
 type forwarder struct {
 	closed bool
 	errsig chan bool
@@ -62,7 +71,10 @@ func (t *forwarder) errSig(s string, err error) {
 	if !errors.Is(err, io.EOF) {
 		log.Error(s, err)
 	}
-	t.errsig <- true
+	select {
+	case t.errsig <- true:
+	default:
+	}
 	t.closed = true
 }
 
@@ -87,9 +99,21 @@ func newForwarder(lconn, rconn net.Conn, close chan bool) *forwarder {
 		lconn:  lconn,
 		rconn:  rconn,
 		closed: false,
-		errsig: make(chan bool),
+		errsig: make(chan bool, 1),
 		close:  close,
 	}
+}
+
+func isListenerClosedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+		return true
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "use of closed network connection") || msg == "EOF"
 }
 
 // Start initiates the ssh tunnel
@@ -121,7 +145,7 @@ func (t *Tunnel) Start() (int, error) {
 			// accept a connection on localhost
 			localConn, err := t.listener.Accept()
 			if err != nil {
-				if strings.Contains(err.Error(), "use of closed network connection") {
+				if isListenerClosedError(err) {
 					log.Debug("Local SSH tunnel listener closed. Not accepting any new connections.")
 					return
 				}
@@ -164,7 +188,76 @@ func (t *Tunnel) Close() error {
 	return nil
 }
 
+// Start initiates the reverse SSH tunnel.
+func (t *ReverseTunnel) Start(remoteListen string) (int, error) {
+	if t.sshConn == nil {
+		return 0, errors.New("ssh connection is nil")
+	}
+	listener, err := t.sshConn.Listen("tcp", remoteListen)
+	if err != nil {
+		return 0, err
+	}
+	t.listener = listener
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		_ = listener.Close()
+		return 0, err
+	}
+	remotePort, err := net.LookupPort("tcp", port)
+	if err != nil {
+		_ = listener.Close()
+		return 0, err
+	}
+
+	go func() {
+		for {
+			remoteConn, err := t.listener.Accept()
+			if err != nil {
+				if isListenerClosedError(err) {
+					log.Debug("Remote SSH tunnel listener closed. Not accepting any new connections.")
+					return
+				}
+				log.Errorf("Failed to accept connection via the reverse SSH tunnel: %s", err)
+				continue
+			}
+
+			localConn, err := net.Dial("tcp", t.target)
+			if err != nil {
+				log.Errorf("Failed to establish local connection (%s) for reverse SSH tunnel: %s", t.target, err)
+				_ = remoteConn.Close()
+				continue
+			}
+
+			close := make(chan bool, 1)
+			forwarder := newForwarder(remoteConn, localConn, close)
+			go forwarder.proxy()
+			t.connMap = append(t.connMap, close)
+		}
+	}()
+
+	return remotePort, nil
+}
+
+// Close terminates the reverse SSH tunnel without closing the underlying SSH connection.
+func (t *ReverseTunnel) Close() error {
+	if t.listener != nil {
+		if err := t.listener.Close(); err != nil {
+			return errors.Wrap(err, "Error while closing reverse tunnel listener")
+		}
+	}
+	for _, close := range t.connMap {
+		close <- true
+	}
+	return nil
+}
+
 // NewTunnel creates and returns an SSHTunnel
 func NewTunnel(sshHost string, sshUser string, sshAuth ssh.AuthMethod, tunnelTarget string) *Tunnel {
 	return &Tunnel{sshHost: sshHost, sshUser: sshUser, sshAuth: sshAuth, target: tunnelTarget}
+}
+
+// NewReverseTunnel creates a reverse SSH tunnel over an existing SSH connection.
+func NewReverseTunnel(sshConn *ssh.Client, tunnelTarget string) *ReverseTunnel {
+	return &ReverseTunnel{sshConn: sshConn, target: tunnelTarget}
 }

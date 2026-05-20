@@ -34,6 +34,11 @@ const (
 	ProtosClientApi_GetCloudProvider_FullMethodName           = "/apic.ProtosClientApi/GetCloudProvider"
 	ProtosClientApi_AddCloudProvider_FullMethodName           = "/apic.ProtosClientApi/AddCloudProvider"
 	ProtosClientApi_RemoveCloudProvider_FullMethodName        = "/apic.ProtosClientApi/RemoveCloudProvider"
+	ProtosClientApi_GetSupportedProvisioners_FullMethodName   = "/apic.ProtosClientApi/GetSupportedProvisioners"
+	ProtosClientApi_GetProvisioners_FullMethodName            = "/apic.ProtosClientApi/GetProvisioners"
+	ProtosClientApi_GetProvisioner_FullMethodName             = "/apic.ProtosClientApi/GetProvisioner"
+	ProtosClientApi_AddProvisioner_FullMethodName             = "/apic.ProtosClientApi/AddProvisioner"
+	ProtosClientApi_RemoveProvisioner_FullMethodName          = "/apic.ProtosClientApi/RemoveProvisioner"
 	ProtosClientApi_GetInstances_FullMethodName               = "/apic.ProtosClientApi/GetInstances"
 	ProtosClientApi_GetInstance_FullMethodName                = "/apic.ProtosClientApi/GetInstance"
 	ProtosClientApi_DeployInstance_FullMethodName             = "/apic.ProtosClientApi/DeployInstance"
@@ -48,6 +53,9 @@ const (
 	ProtosClientApi_GetCloudImages_FullMethodName             = "/apic.ProtosClientApi/GetCloudImages"
 	ProtosClientApi_UploadCloudImage_FullMethodName           = "/apic.ProtosClientApi/UploadCloudImage"
 	ProtosClientApi_RemoveCloudImage_FullMethodName           = "/apic.ProtosClientApi/RemoveCloudImage"
+	ProtosClientApi_GetProvisionerImages_FullMethodName       = "/apic.ProtosClientApi/GetProvisionerImages"
+	ProtosClientApi_UploadProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/UploadProvisionerImage"
+	ProtosClientApi_RemoveProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/RemoveProvisionerImage"
 	ProtosClientApi_GetLocalCommits_FullMethodName            = "/apic.ProtosClientApi/GetLocalCommits"
 	ProtosClientApi_GetRemoteCommits_FullMethodName           = "/apic.ProtosClientApi/GetRemoteCommits"
 )
@@ -71,6 +79,11 @@ type ProtosClientApiClient interface {
 	GetCloudProvider(ctx context.Context, in *GetCloudProviderRequest, opts ...grpc.CallOption) (*GetCloudProviderResponse, error)
 	AddCloudProvider(ctx context.Context, in *AddCloudProviderRequest, opts ...grpc.CallOption) (*AddCloudProviderResponse, error)
 	RemoveCloudProvider(ctx context.Context, in *RemoveCloudProviderRequest, opts ...grpc.CallOption) (*RemoveCloudProviderResponse, error)
+	GetSupportedProvisioners(ctx context.Context, in *GetSupportedProvisionersRequest, opts ...grpc.CallOption) (*GetSupportedProvisionersResponse, error)
+	GetProvisioners(ctx context.Context, in *GetProvisionersRequest, opts ...grpc.CallOption) (*GetProvisionersResponse, error)
+	GetProvisioner(ctx context.Context, in *GetProvisionerRequest, opts ...grpc.CallOption) (*GetProvisionerResponse, error)
+	AddProvisioner(ctx context.Context, in *AddProvisionerRequest, opts ...grpc.CallOption) (*AddProvisionerResponse, error)
+	RemoveProvisioner(ctx context.Context, in *RemoveProvisionerRequest, opts ...grpc.CallOption) (*RemoveProvisionerResponse, error)
 	GetInstances(ctx context.Context, in *GetInstancesRequest, opts ...grpc.CallOption) (*GetInstancesResponse, error)
 	GetInstance(ctx context.Context, in *GetInstanceRequest, opts ...grpc.CallOption) (*GetInstanceResponse, error)
 	DeployInstance(ctx context.Context, in *DeployInstanceRequest, opts ...grpc.CallOption) (*DeployInstanceResponse, error)
@@ -85,6 +98,9 @@ type ProtosClientApiClient interface {
 	GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error)
 	UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error)
+	GetProvisionerImages(ctx context.Context, in *GetProvisionerImagesRequest, opts ...grpc.CallOption) (*GetProvisionerImagesResponse, error)
+	UploadProvisionerImage(ctx context.Context, in *UploadProvisionerImageRequest, opts ...grpc.CallOption) (*UploadProvisionerImageResponse, error)
+	RemoveProvisionerImage(ctx context.Context, in *RemoveProvisionerImageRequest, opts ...grpc.CallOption) (*RemoveProvisionerImageResponse, error)
 	GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(ctx context.Context, in *GetRemoteCommitsRequest, opts ...grpc.CallOption) (*GetRemoteCommitsResponse, error)
 }
@@ -247,6 +263,56 @@ func (c *protosClientApiClient) RemoveCloudProvider(ctx context.Context, in *Rem
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetSupportedProvisioners(ctx context.Context, in *GetSupportedProvisionersRequest, opts ...grpc.CallOption) (*GetSupportedProvisionersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSupportedProvisionersResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetSupportedProvisioners_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetProvisioners(ctx context.Context, in *GetProvisionersRequest, opts ...grpc.CallOption) (*GetProvisionersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProvisionersResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetProvisioners_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetProvisioner(ctx context.Context, in *GetProvisionerRequest, opts ...grpc.CallOption) (*GetProvisionerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProvisionerResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetProvisioner_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) AddProvisioner(ctx context.Context, in *AddProvisionerRequest, opts ...grpc.CallOption) (*AddProvisionerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddProvisionerResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_AddProvisioner_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) RemoveProvisioner(ctx context.Context, in *RemoveProvisionerRequest, opts ...grpc.CallOption) (*RemoveProvisionerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveProvisionerResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_RemoveProvisioner_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) GetInstances(ctx context.Context, in *GetInstancesRequest, opts ...grpc.CallOption) (*GetInstancesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetInstancesResponse)
@@ -387,6 +453,36 @@ func (c *protosClientApiClient) RemoveCloudImage(ctx context.Context, in *Remove
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetProvisionerImages(ctx context.Context, in *GetProvisionerImagesRequest, opts ...grpc.CallOption) (*GetProvisionerImagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProvisionerImagesResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetProvisionerImages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) UploadProvisionerImage(ctx context.Context, in *UploadProvisionerImageRequest, opts ...grpc.CallOption) (*UploadProvisionerImageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadProvisionerImageResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_UploadProvisionerImage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) RemoveProvisionerImage(ctx context.Context, in *RemoveProvisionerImageRequest, opts ...grpc.CallOption) (*RemoveProvisionerImageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveProvisionerImageResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_RemoveProvisionerImage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetLocalCommitsResponse)
@@ -426,6 +522,11 @@ type ProtosClientApiServer interface {
 	GetCloudProvider(context.Context, *GetCloudProviderRequest) (*GetCloudProviderResponse, error)
 	AddCloudProvider(context.Context, *AddCloudProviderRequest) (*AddCloudProviderResponse, error)
 	RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error)
+	GetSupportedProvisioners(context.Context, *GetSupportedProvisionersRequest) (*GetSupportedProvisionersResponse, error)
+	GetProvisioners(context.Context, *GetProvisionersRequest) (*GetProvisionersResponse, error)
+	GetProvisioner(context.Context, *GetProvisionerRequest) (*GetProvisionerResponse, error)
+	AddProvisioner(context.Context, *AddProvisionerRequest) (*AddProvisionerResponse, error)
+	RemoveProvisioner(context.Context, *RemoveProvisionerRequest) (*RemoveProvisionerResponse, error)
 	GetInstances(context.Context, *GetInstancesRequest) (*GetInstancesResponse, error)
 	GetInstance(context.Context, *GetInstanceRequest) (*GetInstanceResponse, error)
 	DeployInstance(context.Context, *DeployInstanceRequest) (*DeployInstanceResponse, error)
@@ -440,6 +541,9 @@ type ProtosClientApiServer interface {
 	GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error)
 	UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error)
 	RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error)
+	GetProvisionerImages(context.Context, *GetProvisionerImagesRequest) (*GetProvisionerImagesResponse, error)
+	UploadProvisionerImage(context.Context, *UploadProvisionerImageRequest) (*UploadProvisionerImageResponse, error)
+	RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error)
 	GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error)
 }
@@ -496,6 +600,21 @@ func (UnimplementedProtosClientApiServer) AddCloudProvider(context.Context, *Add
 func (UnimplementedProtosClientApiServer) RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveCloudProvider not implemented")
 }
+func (UnimplementedProtosClientApiServer) GetSupportedProvisioners(context.Context, *GetSupportedProvisionersRequest) (*GetSupportedProvisionersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSupportedProvisioners not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetProvisioners(context.Context, *GetProvisionersRequest) (*GetProvisionersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProvisioners not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetProvisioner(context.Context, *GetProvisionerRequest) (*GetProvisionerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProvisioner not implemented")
+}
+func (UnimplementedProtosClientApiServer) AddProvisioner(context.Context, *AddProvisionerRequest) (*AddProvisionerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddProvisioner not implemented")
+}
+func (UnimplementedProtosClientApiServer) RemoveProvisioner(context.Context, *RemoveProvisionerRequest) (*RemoveProvisionerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveProvisioner not implemented")
+}
 func (UnimplementedProtosClientApiServer) GetInstances(context.Context, *GetInstancesRequest) (*GetInstancesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetInstances not implemented")
 }
@@ -537,6 +656,15 @@ func (UnimplementedProtosClientApiServer) UploadCloudImage(context.Context, *Upl
 }
 func (UnimplementedProtosClientApiServer) RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveCloudImage not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetProvisionerImages(context.Context, *GetProvisionerImagesRequest) (*GetProvisionerImagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProvisionerImages not implemented")
+}
+func (UnimplementedProtosClientApiServer) UploadProvisionerImage(context.Context, *UploadProvisionerImageRequest) (*UploadProvisionerImageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UploadProvisionerImage not implemented")
+}
+func (UnimplementedProtosClientApiServer) RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveProvisionerImage not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLocalCommits not implemented")
@@ -834,6 +962,96 @@ func _ProtosClientApi_RemoveCloudProvider_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetSupportedProvisioners_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSupportedProvisionersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetSupportedProvisioners(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetSupportedProvisioners_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetSupportedProvisioners(ctx, req.(*GetSupportedProvisionersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetProvisioners_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProvisionersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetProvisioners(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetProvisioners_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetProvisioners(ctx, req.(*GetProvisionersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetProvisioner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProvisionerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetProvisioner(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetProvisioner_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetProvisioner(ctx, req.(*GetProvisionerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_AddProvisioner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddProvisionerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).AddProvisioner(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_AddProvisioner_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).AddProvisioner(ctx, req.(*AddProvisionerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_RemoveProvisioner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveProvisionerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).RemoveProvisioner(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_RemoveProvisioner_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).RemoveProvisioner(ctx, req.(*RemoveProvisionerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_GetInstances_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetInstancesRequest)
 	if err := dec(in); err != nil {
@@ -1086,6 +1304,60 @@ func _ProtosClientApi_RemoveCloudImage_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetProvisionerImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProvisionerImagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetProvisionerImages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetProvisionerImages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetProvisionerImages(ctx, req.(*GetProvisionerImagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_UploadProvisionerImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadProvisionerImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).UploadProvisionerImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_UploadProvisionerImage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).UploadProvisionerImage(ctx, req.(*UploadProvisionerImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_RemoveProvisionerImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveProvisionerImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).RemoveProvisionerImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_RemoveProvisionerImage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).RemoveProvisionerImage(ctx, req.(*RemoveProvisionerImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_GetLocalCommits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetLocalCommitsRequest)
 	if err := dec(in); err != nil {
@@ -1190,6 +1462,26 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_RemoveCloudProvider_Handler,
 		},
 		{
+			MethodName: "GetSupportedProvisioners",
+			Handler:    _ProtosClientApi_GetSupportedProvisioners_Handler,
+		},
+		{
+			MethodName: "GetProvisioners",
+			Handler:    _ProtosClientApi_GetProvisioners_Handler,
+		},
+		{
+			MethodName: "GetProvisioner",
+			Handler:    _ProtosClientApi_GetProvisioner_Handler,
+		},
+		{
+			MethodName: "AddProvisioner",
+			Handler:    _ProtosClientApi_AddProvisioner_Handler,
+		},
+		{
+			MethodName: "RemoveProvisioner",
+			Handler:    _ProtosClientApi_RemoveProvisioner_Handler,
+		},
+		{
 			MethodName: "GetInstances",
 			Handler:    _ProtosClientApi_GetInstances_Handler,
 		},
@@ -1244,6 +1536,18 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveCloudImage",
 			Handler:    _ProtosClientApi_RemoveCloudImage_Handler,
+		},
+		{
+			MethodName: "GetProvisionerImages",
+			Handler:    _ProtosClientApi_GetProvisionerImages_Handler,
+		},
+		{
+			MethodName: "UploadProvisionerImage",
+			Handler:    _ProtosClientApi_UploadProvisionerImage_Handler,
+		},
+		{
+			MethodName: "RemoveProvisionerImage",
+			Handler:    _ProtosClientApi_RemoveProvisionerImage_Handler,
 		},
 		{
 			MethodName: "GetLocalCommits",

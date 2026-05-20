@@ -1,0 +1,28 @@
+version = 2
+
+state = "/run/containerd"
+root = "/var/lib/containerd"
+disabled_plugins = [
+    "io.containerd.grpc.v1.cri",
+    "io.containerd.snapshotter.v1.zfs",
+    "io.containerd.snapshotter.v1.aufs",
+    "io.containerd.snapshotter.v1.overlayfs",
+    "io.containerd.internal.v1.opt",
+    "io.containerd.transfer.v1.local",
+    "io.containerd.grpc.v1.transfer",
+    "io.containerd.tracing.processor.v1.otlp",
+    "io.containerd.internal.v1.tracing"
+]
+required_plugins = ["io.containerd.snapshotter.v1.btrfs"]
+
+[grpc]
+address = "/run/containerd/containerd.sock"
+uid = 0
+gid = 0
+
+[debug]
+address = "/run/containerd/debug.sock"
+level = "info"
+
+[metrics]
+address = ""

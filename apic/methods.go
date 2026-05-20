@@ -7,9 +7,9 @@ import (
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
-	"github.com/protosio/protos/internal/cloud"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/release"
 )
 
@@ -258,7 +258,7 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 		return nil, fmt.Errorf("failed to retrieve cloud provider: %w", err)
 	}
 
-	computeProvider, ok := cloudProvider.(cloud.ComputeProvider)
+	computeProvider, ok := cloudProvider.(provisioners.ComputeProvider)
 	if !ok {
 		return nil, fmt.Errorf("cloud provider '%s'(%s) does not support compute operations", in.Name, cloudProvider.TypeStr())
 	}
@@ -321,6 +321,113 @@ func (b *Backend) RemoveCloudProvider(ctx context.Context, in *pbApic.RemoveClou
 	return &pbApic.RemoveCloudProviderResponse{}, nil
 }
 
+func (b *Backend) GetSupportedProvisioners(ctx context.Context, in *pbApic.GetSupportedProvisionersRequest) (*pbApic.GetSupportedProvisionersResponse, error) {
+	log.Debug("Retrieving supported provisioners")
+	supportedProvisioners := b.protosClient.CloudManager.SupportedProvisioners()
+
+	resp := pbApic.GetSupportedProvisionersResponse{}
+	for _, supportedProvisioner := range supportedProvisioners {
+		authFields, err := b.protosClient.CloudManager.ProvisionerAuthFields(supportedProvisioner)
+		if err != nil {
+			return nil, err
+		}
+		resp.ProvisionerTypes = append(resp.ProvisionerTypes, &pbApic.ProvisionerType{
+			Name:                 supportedProvisioner,
+			AuthenticationFields: authFields,
+		})
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) GetProvisioners(ctx context.Context, in *pbApic.GetProvisionersRequest) (*pbApic.GetProvisionersResponse, error) {
+	log.Debug("Retrieving provisioners")
+	provisioners, err := b.protosClient.CloudManager.GetProvisioners()
+	if err != nil {
+		return nil, err
+	}
+
+	resp := pbApic.GetProvisionersResponse{}
+	for _, provisioner := range provisioners {
+		resp.Provisioners = append(resp.Provisioners, &pbApic.Provisioner{
+			Name: provisioner.NameStr(),
+			Type: &pbApic.ProvisionerType{
+				Name:                 provisioner.TypeStr(),
+				AuthenticationFields: provisioner.AuthFields(),
+			},
+		})
+	}
+
+	return &resp, nil
+}
+
+func (b *Backend) GetProvisioner(ctx context.Context, in *pbApic.GetProvisionerRequest) (*pbApic.GetProvisionerResponse, error) {
+	log.Debugf("Retrieving provisioner '%s'", in.Name)
+	provisioner, err := b.protosClient.CloudManager.GetProvisioner(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve provisioner: %w", err)
+	}
+
+	computeProvisioner, ok := provisioner.(provisioners.ComputeProvisioner)
+	if !ok {
+		return nil, fmt.Errorf("provisioner '%s'(%s) does not support compute operations", in.Name, provisioner.TypeStr())
+	}
+	if err := provisioner.Init(); err != nil {
+		return nil, fmt.Errorf("error reaching provisioner '%s'(%s) API: %w", in.Name, provisioner.TypeStr(), err)
+	}
+
+	supportedLocations := computeProvisioner.SupportedLocations()
+	if len(supportedLocations) == 0 {
+		return nil, fmt.Errorf("provisioner '%s'(%s) does not report any supported locations", in.Name, provisioner.TypeStr())
+	}
+	supportedMachines, err := computeProvisioner.SupportedMachines(supportedLocations[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve supported machines: %w", err)
+	}
+
+	return &pbApic.GetProvisionerResponse{
+		Provisioner: &pbApic.Provisioner{
+			Name:               provisioner.NameStr(),
+			SupportedLocations: supportedLocations,
+			SupportedMachines:  provisionerMachineSpecs(supportedMachines),
+			Type: &pbApic.ProvisionerType{
+				Name:                 provisioner.TypeStr(),
+				AuthenticationFields: provisioner.AuthFields(),
+			},
+		},
+	}, nil
+}
+
+func (b *Backend) AddProvisioner(ctx context.Context, in *pbApic.AddProvisionerRequest) (*pbApic.AddProvisionerResponse, error) {
+	if err := b.protosClient.CloudManager.AddProvisioner(in.Name, in.Type, in.Credentials); err != nil {
+		return nil, err
+	}
+	return &pbApic.AddProvisionerResponse{}, nil
+}
+
+func (b *Backend) RemoveProvisioner(ctx context.Context, in *pbApic.RemoveProvisionerRequest) (*pbApic.RemoveProvisionerResponse, error) {
+	if err := b.protosClient.CloudManager.DeleteProvisioner(in.Name); err != nil {
+		return nil, fmt.Errorf("failed to delete provisioner '%s': %w", in.Name, err)
+	}
+	return &pbApic.RemoveProvisionerResponse{}, nil
+}
+
+func provisionerMachineSpecs(machineSpecs map[string]provisioners.MachineSpec) map[string]*pbApic.ProvisionerMachineSpec {
+	respSupportedMachines := map[string]*pbApic.ProvisionerMachineSpec{}
+	for name, supportedMachine := range machineSpecs {
+		respSupportedMachines[name] = &pbApic.ProvisionerMachineSpec{
+			Cores:                int32(supportedMachine.Cores),
+			Memory:               int32(supportedMachine.Memory),
+			DefaultStorage:       int32(supportedMachine.DefaultStorage),
+			Bandwidth:            int32(supportedMachine.Bandwidth),
+			IncludedDataTransfer: int32(supportedMachine.IncludedDataTransfer),
+			Baremetal:            supportedMachine.Baremetal,
+			PriceMonthly:         supportedMachine.PriceMonthly,
+		}
+	}
+	return respSupportedMachines
+}
+
 //
 // Cloud instance methods
 //
@@ -346,7 +453,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 		}
 
 		cloudName := "local"
-		if instance.Kind == cloud.KindCloudVM {
+		if instance.Kind == provisioners.KindCloudVM {
 			provider, err := b.protosClient.CloudManager.GetProvider(instance.KindID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to retrieve cloud provider: %w", err)
@@ -393,7 +500,14 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 	client, err := b.protosClient.P2PManager.GetClient(instance.Name)
 	if err != nil {
 		log.Error(err.Error())
-		status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
+		if peerState, found := b.protosClient.P2PManager.GetPeerState(instance.Name); found {
+			status = fmt.Sprintf("%s (%s)", instance.Status, peerState.Reachability())
+			if peerState.LastError != "" {
+				log.Debugf("last p2p error for instance '%s': %s", instance.Name, peerState.LastError)
+			}
+		} else {
+			status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
+		}
 	} else {
 		resp, err := client.GetPeers(context.TODO(), &p2pproto.GetPeersRequest{})
 		if err != nil {
@@ -428,22 +542,25 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceRequest) (*pbApic.DeployInstanceResponse, error) {
 	log.Debugf("Deploying new instance '%s'", in.Name)
 
-	releases, err := b.protosClient.GetProtosAvailableReleases()
-	if err != nil {
-		return nil, err
-	}
 	rls := release.Release{}
+	var err error
 	if in.DevImg != "" {
 		rls.Version = in.DevImg
-	} else if in.ProtosVersion != "" {
-		rls, err = releases.GetVersion(in.ProtosVersion)
+	} else {
+		releases, err := b.protosClient.GetProtosAvailableReleases()
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		rls, err = releases.GetLatest()
-		if err != nil {
-			return nil, err
+		if in.ProtosVersion != "" {
+			rls, err = releases.GetVersion(in.ProtosVersion)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			rls, err = releases.GetLatest()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -508,7 +625,11 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 
 func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyRequest) (*pbApic.GetInstanceKeyResponse, error) {
 	log.Debugf("Retrieving key for instance '%s'", in.Name)
-	return &pbApic.GetInstanceKeyResponse{Key: ""}, nil
+	key, err := b.protosClient.CloudManager.GetInstanceSSHKey(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve key for instance '%s': %w", in.Name, err)
+	}
+	return &pbApic.GetInstanceKeyResponse{Key: key}, nil
 }
 
 func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLogsRequest) (*pbApic.GetInstanceLogsResponse, error) {
@@ -534,7 +655,7 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceRequest) (*pbApic.InitInstanceResponse, error) {
 	log.Debugf("Initializing local instance '%s' at '%s'", in.Name, in.Ip)
 
-	err := b.protosClient.CloudManager.InitInstance(in.Name, cloud.KindLocalVM, "local-id", "local", in.Ip)
+	err := b.protosClient.CloudManager.InitInstance(in.Name, provisioners.KindLocalVM, "local-id", "local", in.Ip)
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize instance '%s': %w", in.Name, err)
 	}
@@ -593,7 +714,7 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 		return nil, fmt.Errorf("could not retrieve cloud '%s': %w", in.Name, err)
 	}
 
-	imageProvider, ok := provider.(cloud.ImageProvider)
+	imageProvider, ok := provider.(provisioners.ImageProvider)
 	if !ok {
 		return nil, fmt.Errorf("cloud provider '%s'(%s) does not support image operations", in.Name, provider.TypeStr())
 	}
@@ -617,9 +738,43 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 	return &resp, nil
 }
 
+func (b *Backend) GetProvisionerImages(ctx context.Context, in *pbApic.GetProvisionerImagesRequest) (*pbApic.GetProvisionerImagesResponse, error) {
+	log.Debugf("Retrieving images from provisioner '%s'", in.Name)
+	provisioner, err := b.protosClient.CloudManager.GetProvisioner(in.Name)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve provisioner '%s': %w", in.Name, err)
+	}
+
+	imageProvisioner, ok := provisioner.(provisioners.ImageProvisioner)
+	if !ok {
+		return nil, fmt.Errorf("provisioner '%s'(%s) does not support image operations", in.Name, provisioner.TypeStr())
+	}
+	if err := provisioner.Init(); err != nil {
+		return nil, fmt.Errorf("failed to connect to provisioner '%s'(%s) API: %w", in.Name, provisioner.TypeStr(), err)
+	}
+	images, err := imageProvisioner.GetProtosImages()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve images from provisioner '%s': %w", in.Name, err)
+	}
+	resp := pbApic.GetProvisionerImagesResponse{Images: map[string]*pbApic.CloudSpecificImage{}}
+	for id, image := range images {
+		resp.Images[id] = &pbApic.CloudSpecificImage{
+			Id:       image.ID,
+			Name:     image.Name,
+			Location: image.Location,
+		}
+	}
+	return &resp, nil
+}
+
 func (b *Backend) UploadCloudImage(ctx context.Context, in *pbApic.UploadCloudImageRequest) (*pbApic.UploadCloudImageResponse, error) {
 	log.Debugf("Uploading cloud image '%s'(%s) to cloud '%s'", in.ImageName, in.ImagePath, in.CloudName)
 	return &pbApic.UploadCloudImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Minute)
+}
+
+func (b *Backend) UploadProvisionerImage(ctx context.Context, in *pbApic.UploadProvisionerImageRequest) (*pbApic.UploadProvisionerImageResponse, error) {
+	log.Debugf("Uploading image '%s'(%s) to provisioner '%s'", in.ImageName, in.ImagePath, in.ProvisionerName)
+	return &pbApic.UploadProvisionerImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.ProvisionerName, in.Location, time.Duration(in.Timeout)*time.Minute)
 }
 
 func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudImageRequest) (*pbApic.RemoveCloudImageResponse, error) {
@@ -630,7 +785,7 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}
 
-	imageProvider, ok := provider.(cloud.ImageProvider)
+	imageProvider, ok := provider.(provisioners.ImageProvider)
 	if !ok {
 		return nil, fmt.Errorf("%s: cloud provider '%s'(%s) does not support image operations", errMsg, in.CloudName, provider.TypeStr())
 	}
@@ -645,6 +800,27 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}
 	return &pbApic.RemoveCloudImageResponse{}, nil
+}
+
+func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveProvisionerImageRequest) (*pbApic.RemoveProvisionerImageResponse, error) {
+	log.Debugf("Removing image '%s' from provisioner '%s'", in.ImageName, in.ProvisionerName)
+	errMsg := fmt.Sprintf("failed to delete image '%s' from provisioner '%s'", in.ImageName, in.ProvisionerName)
+	provisioner, err := b.protosClient.CloudManager.GetProvisioner(in.ProvisionerName)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", errMsg, err)
+	}
+
+	imageProvisioner, ok := provisioner.(provisioners.ImageProvisioner)
+	if !ok {
+		return nil, fmt.Errorf("%s: provisioner '%s'(%s) does not support image operations", errMsg, in.ProvisionerName, provisioner.TypeStr())
+	}
+	if err := provisioner.Init(); err != nil {
+		return nil, fmt.Errorf("%s: %w", errMsg, err)
+	}
+	if err := imageProvisioner.RemoveImage(in.ImageName, in.Location); err != nil {
+		return nil, fmt.Errorf("%s: %w", errMsg, err)
+	}
+	return &pbApic.RemoveProvisionerImageResponse{}, nil
 }
 
 //

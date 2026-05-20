@@ -47,14 +47,15 @@ var cmdInstance *cli.Command = &cli.Command{
 			Usage:     "Deploy a new Protos instance",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "cloud",
-					Usage:       "Specify which `CLOUD` to deploy the instance on",
+					Name:        "provisioner",
+					Aliases:     []string{"cloud"},
+					Usage:       "Specify which `PROVISIONER` to deploy the instance on",
 					Required:    true,
 					Destination: &cloudName,
 				},
 				&cli.StringFlag{
 					Name:        "location",
-					Usage:       "Specify one of the supported `LOCATION`s to deploy the instance in (cloud specific)",
+					Usage:       "Specify one of the supported `LOCATION`s to deploy the instance in",
 					Required:    true,
 					Destination: &cloudLocation,
 				},
@@ -66,13 +67,13 @@ var cmdInstance *cli.Command = &cli.Command{
 				},
 				&cli.StringFlag{
 					Name:        "devimg",
-					Usage:       "Use a dev image uploaded to your cloud accoun",
+					Usage:       "Use a dev image uploaded to your provisioner account",
 					Required:    false,
 					Destination: &devImg,
 				},
 				&cli.StringFlag{
 					Name:        "type",
-					Usage:       "Specify cloud machine type `TYPE` to deploy. Get it from 'cloud info' subcommand",
+					Usage:       "Specify machine type `TYPE` to deploy. Get it from 'provisioner info' subcommand",
 					Required:    true,
 					Destination: &machineType,
 				},
@@ -219,7 +220,7 @@ func listInstances() error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "ID", "Name", "Public IP", "Internal IP", "Cloud", "Location", "Status")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "ID", "Name", "Public IP", "Internal IP", "Provisioner", "Location", "Status")
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "----", "----", "---------", "-----------", "-----", "--------", "------")
 	for _, instance := range resp.Instances {
 		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", instance.VmId, instance.Name, instance.PublicIp, instance.InternalIp, instance.CloudName, instance.Location, instance.Status)
@@ -243,8 +244,8 @@ func infoInstance(instanceName string) error {
 	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKeyWireguard)
 	fmt.Printf("Public IP: %s\n", instance.PublicIp)
 	fmt.Printf("Internal IP: %s\n", instance.InternalIp)
-	fmt.Printf("Cloud type: %s\n", instance.CloudType)
-	fmt.Printf("Cloud name: %s\n", instance.CloudName)
+	fmt.Printf("Provisioner type: %s\n", instance.CloudType)
+	fmt.Printf("Provisioner name: %s\n", instance.CloudName)
 	fmt.Printf("Architecture: %s\n", instance.Architecture)
 	fmt.Printf("Location: %s\n", instance.Location)
 	fmt.Printf("Protosd version: %s\n", instance.ProtosVersion)
@@ -270,8 +271,8 @@ func deployInstance(instanceName string, cloudName string, cloudLocation string,
 	fmt.Printf("Public Key (wireguard): %s\n", instance.PublicKeyWireguard)
 	fmt.Printf("Public IP: %s\n", instance.PublicIp)
 	fmt.Printf("Internal IP: %s\n", instance.InternalIp)
-	fmt.Printf("Cloud type: %s\n", instance.CloudType)
-	fmt.Printf("Cloud name: %s\n", instance.CloudName)
+	fmt.Printf("Provisioner type: %s\n", instance.CloudType)
+	fmt.Printf("Provisioner name: %s\n", instance.CloudName)
 	fmt.Printf("Architecture: %s\n", instance.Architecture)
 	fmt.Printf("Location: %s\n", instance.Location)
 	fmt.Printf("Protosd version: %s\n", instance.ProtosVersion)

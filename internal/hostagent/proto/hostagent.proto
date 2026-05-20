@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package hostagent;
+
+
+option go_package = "github.com/protosio/protos/internal/hostagent/proto;proto";
+
+service HostAgent {
+  rpc Apply(ApplyRequest) returns (ApplyResponse) {}
+  rpc Status(StatusRequest) returns (StatusResponse) {}
+}
+
+message ApplyRequest {
+  HostDesiredState desired_state = 1;
+}
+
+message ApplyResponse {
+  repeated VMObservedState vms = 1;
+  NetworkObservedState network = 2;
+  string message = 3;
+}
+
+message StatusRequest {
+  repeated VMRef vms = 1;
+  bool network = 2;
+}
+
+message StatusResponse {
+  repeated VMObservedState vms = 1;
+  NetworkObservedState network = 2;
+  string message = 3;
+}
+
+message HostDesiredState {
+  repeated VMDesiredState vms = 1;
+  NetworkDesiredState network = 2;
+}
+
+message VMDesiredState {
+  string id = 1;
+  string manifest_path = 2;
+  string desired_state = 3;
+}
+
+message VMRef {
+  string id = 1;
+  string manifest_path = 2;
+}
+
+message VMObservedState {
+  string id = 1;
+  string manifest_path = 2;
+  string status = 3;
+  int32 pid = 4;
+  string public_ip = 5;
+  string message = 6;
+}
+
+message NetworkDesiredState {
+  string desired_state = 1;
+  NetworkConfig config = 2;
+  repeated InstancePeer instances = 3;
+  repeated DevicePeer devices = 4;
+  repeated NamespacedInterface namespaced_interfaces = 5;
+  bool reconcile_peers = 6;
+}
+
+message NetworkConfig {
+  string ipv6_address = 1;
+  string wireguard_private_key = 2;
+  string domain = 3;
+}
+
+message InstancePeer {
+  string id = 1;
+  string name = 2;
+  string public_key = 3;
+  string public_ip = 4;
+}
+
+message DevicePeer {
+  string name = 1;
+  string public_key = 2;
+}
+
+message NamespacedInterface {
+  string netns_path = 1;
+  string ip = 2;
+}
+
+message NetworkObservedState {
+  string module = 1;
+  bool up = 2;
+  string message = 3;
+}

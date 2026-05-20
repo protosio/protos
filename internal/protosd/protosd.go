@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/Masterminds/semver"
 
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/banner"
-	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
@@ -19,9 +19,12 @@ import (
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
+	"github.com/protosio/protos/provisioners/local_macos"
+	"github.com/protosio/protos/provisioners/scaleway"
 )
 
 const DNSPort = 53
@@ -92,7 +95,14 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 		log.Fatal(err)
 	}
 
-	cloudManager, err := cloud.CreateManager(dbcli, userManager, sm, p2pManager)
+	cloudManager, err := provisioners.CreateManager(
+		dbcli,
+		userManager,
+		sm,
+		p2pManager,
+		scaleway.NewFactory(),
+		localmacos.NewFactory(),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -157,6 +167,7 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 	} else {
 		log.Info("DB not initialized. Waiting for remote init")
 	}
+	stoppers["db-reconcile"] = db.StartPeriodicNotifier(dbNotifier, 5*time.Second)
 
 	wg.Wait()
 	log.Info("Shutdown completed")
@@ -165,17 +176,25 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 
 type DBNotifier struct {
 	database *db.DB
-	cm       *cloud.Manager
+	cm       *provisioners.Manager
 	um       *user.Manager
 	nm       *network.Manager
 	p2pm     *p2p.P2P
+	mu       sync.Mutex
 }
 
 func (dbn *DBNotifier) Notify() {
+	dbn.mu.Lock()
+	defer dbn.mu.Unlock()
+
 	peerIDs, err := db.GetPeerIDs(dbn.database)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to retrieve peer membership: %w", err))
 		return
+	}
+
+	if err := dbn.cm.ReconcileDesiredInstances(); err != nil {
+		log.Error(fmt.Errorf("failed to reconcile desired instances: %w", err))
 	}
 
 	instances, err := dbn.cm.GetInstances(true)

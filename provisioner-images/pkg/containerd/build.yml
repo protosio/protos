@@ -1,0 +1,5 @@
+org: protosio
+image: containerd
+arches:
+  - arm64
+  - amd64

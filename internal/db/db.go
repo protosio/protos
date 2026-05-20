@@ -6,10 +6,12 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -141,7 +143,10 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 	logger := log.New(io.Discard, "", log.LstdFlags|log.Lmicroseconds|log.LUTC)
 	listenPort := swarmionListenPort()
 	network, err := libp2ptransport.New(ctx, libp2ptransport.Config{
-		ListenAddrs:          []string{fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)},
+		ListenAddrs: []string{
+			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort),
+			fmt.Sprintf("/ip6/::/tcp/%d", listenPort),
+		},
 		BootstrapPeers:       append([]string(nil), bootstrapPeers...),
 		PrivateKey:           privateKey,
 		TargetConnectedPeers: 32,
@@ -240,6 +245,9 @@ PRIMARY KEY (filename)
 				continue
 			}
 			if _, err := sqldb.ExecContext(ctx, statement); err != nil {
+				if ignorableMigrationError(statement, err) {
+					continue
+				}
 				return fmt.Errorf("%s: %w", filename, err)
 			}
 		}
@@ -259,6 +267,17 @@ ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), started_at = VALUES(started
 	}
 
 	return nil
+}
+
+func ignorableMigrationError(statement string, err error) bool {
+	if err == nil {
+		return false
+	}
+	statement = strings.ToUpper(statement)
+	message := strings.ToLower(err.Error())
+	return strings.Contains(statement, "ALTER TABLE") &&
+		strings.Contains(statement, "ADD COLUMN") &&
+		strings.Contains(message, "already exists")
 }
 
 func migrationApplied(ctx context.Context, sqldb *sql.DB, filename string) (bool, error) {
@@ -310,6 +329,7 @@ func (db *DB) InitFromPeer(peerID string, bootstrapPeers []string) error {
 	if err := db.openSwarmion(context.Background(), bootstrapPeers); err != nil {
 		return fmt.Errorf("failed to initialize swarmion db from peer %s: %w", peerID, err)
 	}
+	db.triggerTableChangeCallbacks()
 	return nil
 }
 
@@ -326,7 +346,11 @@ func (db *DB) RemovePeer(string) error {
 }
 
 func (db *DB) ConnectPeer(peerID string, publicIP string) error {
-	if strings.TrimSpace(peerID) == "" || strings.TrimSpace(publicIP) == "" {
+	return db.ConnectPeerIPs(peerID, []string{publicIP})
+}
+
+func (db *DB) ConnectPeerIPs(peerID string, ips []string) error {
+	if strings.TrimSpace(peerID) == "" {
 		return nil
 	}
 	if !db.Initialized() {
@@ -344,10 +368,23 @@ func (db *DB) ConnectPeer(peerID string, publicIP string) error {
 	if listenPort == 0 {
 		return nil
 	}
-	addr := fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", publicIP, listenPort, peerID)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return network.Connect(ctx, addr)
+
+	addrs := swarmionPeerAddrs(peerID, ips, listenPort)
+	if len(addrs) == 0 {
+		return nil
+	}
+
+	var errs []error
+	for _, addr := range addrs {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := network.Connect(ctx, addr)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		errs = append(errs, fmt.Errorf("%s: %w", addr, err))
+	}
+	return errors.Join(errs...)
 }
 
 func swarmionListenPort() int {
@@ -355,6 +392,33 @@ func swarmionListenPort() int {
 		return 0
 	}
 	return config.Get().P2PPort + swarmionPortOffset
+}
+
+func swarmionPeerAddrs(peerID string, ips []string, port int) []string {
+	seen := map[string]struct{}{}
+	var addrs []string
+	for _, rawIP := range ips {
+		rawIP = strings.TrimSpace(rawIP)
+		if rawIP == "" {
+			continue
+		}
+		ip := net.ParseIP(rawIP)
+		if ip == nil {
+			continue
+		}
+		var addr string
+		if ip.To4() == nil {
+			addr = fmt.Sprintf("/ip6/%s/tcp/%d/p2p/%s", ip.String(), port, peerID)
+		} else {
+			addr = fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, peerID)
+		}
+		if _, found := seen[addr]; found {
+			continue
+		}
+		seen[addr] = struct{}{}
+		addrs = append(addrs, addr)
+	}
+	return addrs
 }
 
 func (db *DB) ListenMultiaddrs() []string {
@@ -368,6 +432,35 @@ func (db *DB) ListenMultiaddrs() []string {
 		return nil
 	}
 	return network.ListenMultiaddrs()
+}
+
+func (db *DB) DialableListenMultiaddrs(ips []string) []string {
+	if db == nil {
+		return nil
+	}
+	var addrs []string
+	if db.signer != nil {
+		addrs = append(addrs, swarmionPeerAddrs(db.signer.GetID(), ips, swarmionListenPort())...)
+	}
+	addrs = append(addrs, db.ListenMultiaddrs()...)
+	return dedupeMultiaddrs(addrs)
+}
+
+func dedupeMultiaddrs(addrs []string) []string {
+	seen := map[string]struct{}{}
+	deduped := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue
+		}
+		if _, found := seen[addr]; found {
+			continue
+		}
+		seen[addr] = struct{}{}
+		deduped = append(deduped, addr)
+	}
+	return deduped
 }
 
 func (db *DB) GetSqlDB() *sql.DB {
@@ -596,8 +689,7 @@ func Insert(db *DB, mappers ...InsertMapper) error {
 		return fmt.Errorf("db is not initialized")
 	}
 	for _, mapper := range mappers {
-		_, err := sq.Exec(sqldb, mapper().SetDialect(sq.DialectMySQL))
-		if err != nil {
+		if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
 			return fmt.Errorf("failed to insert: %w", err)
 		}
 	}
@@ -622,12 +714,11 @@ func Update(db *DB, mappers ...UpdateMapper) error {
 		return fmt.Errorf("db is not initialized")
 	}
 	for _, mapper := range mappers {
-		_, err := sq.Exec(sqldb, mapper().SetDialect(sq.DialectMySQL))
-		if err != nil {
+		if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
 			return fmt.Errorf("failed to update: %w", err)
 		}
 	}
-	_, err := db.commitStaged(context.Background(), "update", false)
+	_, err := db.commitStaged(context.Background(), "update", true)
 	if err != nil {
 		return fmt.Errorf("failed to update: %w", err)
 	}
@@ -647,8 +738,7 @@ func Delete(db *DB, mappers ...DeleteMapper) error {
 		return fmt.Errorf("db is not initialized")
 	}
 	for _, mapper := range mappers {
-		_, err := sq.Exec(sqldb, mapper().SetDialect(sq.DialectMySQL))
-		if err != nil {
+		if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
 			return fmt.Errorf("failed to delete: %w", err)
 		}
 	}
@@ -658,5 +748,16 @@ func Delete(db *DB, mappers ...DeleteMapper) error {
 		return fmt.Errorf("failed to delete: %w", err)
 	}
 
+	return nil
+}
+
+func execWriteMapper(sqldb *sql.DB, query sq.Query) error {
+	statement, args, err := sq.ToSQL(sq.DialectMySQL, query, nil)
+	if err != nil {
+		return err
+	}
+	if _, err := sqldb.ExecContext(context.Background(), statement, args...); err != nil {
+		return err
+	}
 	return nil
 }

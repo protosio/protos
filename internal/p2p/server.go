@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	p2pgrpc "github.com/birros/go-libp2p-grpc"
 	"github.com/go-playground/validator/v10"
@@ -120,10 +121,17 @@ func (s *Server) GetLogs(context.Context, *proto.GetLogsRequest) (*proto.GetLogs
 func (s *Server) GetPeers(context.Context, *proto.GetPeersRequest) (*proto.GetPeersResponse, error) {
 
 	peers := map[string]string{}
-	for id, client := range s.p2p.clients.Snapshot() {
-		peerStatus := "disconnected"
-		if client != nil {
-			peerStatus = "connected"
+	for id, machine := range s.p2p.machines.Snapshot() {
+		peerStatus := string(PeerStatusDesired)
+		if state, found := s.p2p.peerStates.Get(id); found && state.Status != "" {
+			peerStatus = string(state.Status)
+		}
+		if client, found := s.p2p.clients.Get(id); found && client != nil {
+			peerStatus = string(PeerStatusConnected)
+		}
+		if machine.GetName() != "" {
+			peers[machine.GetName()] = peerStatus
+			continue
 		}
 		peers[id] = peerStatus
 	}
@@ -162,9 +170,11 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, err
 	}
 
-	// notify server restarted
-	s.p2p.restartServerSignal <- im
-	close(s.p2p.restartServerSignal)
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		s.p2p.restartServerSignal <- im
+		close(s.p2p.restartServerSignal)
+	}()
 
 	return &proto.InitResponse{Architecture: runtime.GOARCH}, nil
 }

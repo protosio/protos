@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/app"
-	"github.com/protosio/protos/internal/cloud"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
@@ -19,10 +19,13 @@ import (
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
+	"github.com/protosio/protos/provisioners/local_macos"
+	"github.com/protosio/protos/provisioners/scaleway"
 
 	"github.com/Masterminds/semver"
 )
@@ -34,6 +37,7 @@ type ProtosClient struct {
 	cfg      config.Config
 	version  string
 	wg       sync.WaitGroup
+	notifyMu sync.Mutex
 	localKey *pcrypto.Key
 
 	DB             *db.DB
@@ -41,7 +45,7 @@ type ProtosClient struct {
 	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
 	NetworkManager *network.Manager
-	CloudManager   *cloud.Manager
+	CloudManager   *provisioners.Manager
 	P2PManager     *p2p.P2P
 }
 
@@ -149,10 +153,17 @@ func (pc *ProtosClient) Init(username string, name string, organization string) 
 }
 
 func (pc *ProtosClient) StartUp() error {
+	skipNetwork := os.Getenv("PROTOS_SKIP_NETWORK") == "1"
 
-	networkManager, err := networkUp(pc.cfg.InternalDomain)
-	if err != nil {
-		return fmt.Errorf("failed to create network manager: %s", err.Error())
+	var networkManager *network.Manager
+	if skipNetwork {
+		log.Warn("skipping host network setup")
+	} else {
+		var err error
+		networkManager, err = networkUp(pc.cfg.InternalDomain)
+		if err != nil {
+			return fmt.Errorf("failed to create network manager: %s", err.Error())
+		}
 	}
 
 	appRuntime := runtime.Create(networkManager, pc.cfg.RuntimeEndpoint)
@@ -170,38 +181,50 @@ func (pc *ProtosClient) StartUp() error {
 	}
 	pc.stoppers["p2p"] = p2pStopper
 
-	cloudManager, err := cloud.CreateManager(pc.DB, pc.Manager, pc.KeyManager, p2pManager)
+	cloudManager, err := provisioners.CreateManager(
+		pc.DB,
+		pc.Manager,
+		pc.KeyManager,
+		p2pManager,
+		scaleway.NewFactory(),
+		localmacos.NewFactory(),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create cloud manager: %s", err.Error())
 	}
 
-	dnsStopper := dns.StartServer(pc.localKey, config.LocalDNSPort, "", pc.cfg.InternalDomain, appManager)
-	pc.stoppers["dns"] = dnsStopper
+	if !skipNetwork {
+		dnsStopper := dns.StartServer(pc.localKey, config.LocalDNSPort, "", pc.cfg.InternalDomain, appManager)
+		pc.stoppers["dns"] = dnsStopper
+	}
 	pc.AppManager = appManager
 	pc.CloudManager = cloudManager
 	pc.NetworkManager = networkManager
 
-		for _, model := range []any{
-			db.CLOUD_MACHINE_METADATA{},
-			db.MACHINE{},
-			db.PEER{},
-			db.USER{},
-			db.USER_DEVICE_METADATA{},
-		} {
-			if err := pc.DB.RegisterNotifier(model, pc); err != nil {
-				return fmt.Errorf("failed to register database notifier: %w", err)
-			}
+	for _, model := range []any{
+		db.CLOUD_MACHINE_METADATA{},
+		db.MACHINE{},
+		db.PEER{},
+		db.USER{},
+		db.USER_DEVICE_METADATA{},
+	} {
+		if err := pc.DB.RegisterNotifier(model, pc); err != nil {
+			return fmt.Errorf("failed to register database notifier: %w", err)
 		}
+	}
 
 	if pc.DB.Initialized() {
 		pc.Notify()
 	}
+	pc.stoppers["db-reconcile"] = db.StartPeriodicNotifier(pc, 5*time.Second)
 
 	return nil
 
 }
 
 func (pc *ProtosClient) Notify() {
+	pc.notifyMu.Lock()
+	defer pc.notifyMu.Unlock()
 
 	if pc.CloudManager == nil || pc.Manager == nil || pc.P2PManager == nil {
 		log.Debug("Protos client not ready yet. Skipping refresh")
@@ -228,10 +251,12 @@ func (pc *ProtosClient) Notify() {
 	}
 	userDevices = membership.FilterDevices(userDevices, peerIDs)
 
-	err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
-	if err != nil {
-		log.Errorf("failed to configure network peers: %s", err.Error())
-		return
+	if pc.NetworkManager != nil {
+		err = pc.NetworkManager.ConfigurePeers(instances, userDevices)
+		if err != nil {
+			log.Errorf("failed to configure network peers: %s", err.Error())
+			return
+		}
 	}
 
 	err = pc.P2PManager.ConfigurePeers(membership.Machines(instances, userDevices))

@@ -22,6 +22,7 @@ var Version = schema.VersionDefinition{
 					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "kind", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "desired_status", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
 				},
 			},
 			{
@@ -29,6 +30,7 @@ var Version = schema.VersionDefinition{
 				Columns: []schema.SQLColumn{
 					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
 					{Name: "cloud_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "provider_resource_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
 					{Name: "public_ip", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "location", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "architecture", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -95,11 +97,13 @@ var CreateSQL = []string{
 	`CREATE TABLE machines (
   id VARCHAR(255) NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  kind VARCHAR(255) NOT NULL
+  kind VARCHAR(255) NOT NULL,
+  desired_status VARCHAR(255)
 )`,
 	`CREATE TABLE cloud_machines_metadata (
   id VARCHAR(255) NOT NULL PRIMARY KEY,
   cloud_id VARCHAR(255) NOT NULL,
+  provider_resource_id VARCHAR(255),
   public_ip VARCHAR(255) NOT NULL,
   location VARCHAR(255) NOT NULL,
   architecture VARCHAR(255) NOT NULL,
