@@ -64,4 +64,4 @@ provisioner-images/**/.cache/
 *.img
 *.iso
 *.log
-.env
+.env*
