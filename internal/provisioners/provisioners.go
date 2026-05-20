@@ -797,13 +797,21 @@ func (cm *Manager) UpdateInstance(id string, ip string) error {
 
 // DeleteInstance deletes an instance
 func (cm *Manager) DeleteInstance(id string) error {
+	return cm.deleteInstance(id, false)
+}
+
+// DeleteInstanceLocal deletes only local database and peer state for an instance.
+func (cm *Manager) DeleteInstanceLocal(id string) error {
+	return cm.deleteInstance(id, true)
+}
+
+func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 	instance, err := cm.GetInstance(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
 
-	// if local only, ignore any cloud resources
-	if instance.Kind == KindCloudVM {
+	if !localOnly && instance.Kind == KindCloudVM {
 		provider, err := cm.GetProvider(instance.KindID)
 		if err != nil {
 			return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
@@ -874,99 +882,26 @@ func (cm *Manager) DeleteInstance(id string) error {
 
 // StartInstance starts an instance
 func (cm *Manager) StartInstance(id string) error {
-	instance, err := cm.GetInstance(id)
-	if err != nil {
-		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
-	}
-	provider, err := cm.GetProvider(instance.KindID)
-	if err != nil {
-		return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
-	}
-
-	computeProvider, err := requireComputeProvisioner(provider)
-	if err != nil {
-		return err
-	}
-	if err := provider.Init(); err != nil {
-		return fmt.Errorf("could not init cloud '%s': %w", id, err)
-	}
-
-	_, providerInstanceID, err := getProviderInstanceInfo(computeProvider, instance)
-	if err != nil {
-		return fmt.Errorf("failed to get details for instance '%s': %w", id, err)
-	}
-
-	log.Infof("Starting instance '%s' (%s)", instance.Name, providerInstanceID)
-	err = computeProvider.StartInstance(providerInstanceID, instance.Location)
-	if err != nil {
-		return fmt.Errorf("could not start instance '%s': %w", id, err)
-	}
-
-	// IP can change if an instance is stopped and started so a refresh is required
-	info, err := computeProvider.GetInstanceInfo(providerInstanceID, instance.Location)
-	if err != nil {
-		return fmt.Errorf("could not retrieve instance info for '%s': %w", id, err)
-	}
-
-	instance.PublicIP = info.PublicIP
-	instance.Volumes = info.Volumes
-	instance.DesiredStatus = ServerStateRunning
-	if instance.ProviderResourceID == "" {
-		instance.ProviderResourceID = providerInstanceID
-	}
-	if err := cm.p2p.RequestReconnect(instance); err != nil {
-		log.Debugf("failed to request p2p reconnect for instance '%s': %v", instance.Name, err)
-	}
-
-	im, cmm := createInstanceUpdateMapper(instance)
-	err = db.Update(cm.db, im)
-	if err != nil {
-		return fmt.Errorf("failed to save instance '%s': %w", id, err)
-	}
-
-	err = db.Update(cm.db, cmm)
-	if err != nil {
-		return fmt.Errorf("failed to save instance metadata '%s': %w", id, err)
-	}
-
-	return nil
+	return cm.setInstanceDesiredStatus(id, ServerStateRunning)
 }
 
 // StopInstance stops an instance
 func (cm *Manager) StopInstance(id string) error {
+	return cm.setInstanceDesiredStatus(id, ServerStateStopped)
+}
+
+func (cm *Manager) setInstanceDesiredStatus(id string, desiredStatus string) error {
 	instance, err := cm.GetInstance(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
-	provider, err := cm.GetProvider(instance.KindID)
-	if err != nil {
-		return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
-	}
-
-	computeProvider, err := requireComputeProvisioner(provider)
-	if err != nil {
-		return err
-	}
-	if err := provider.Init(); err != nil {
-		return fmt.Errorf("could not init cloud '%s': %w", id, err)
-	}
-
-	_, providerInstanceID, err := getProviderInstanceInfo(computeProvider, instance)
-	if err != nil {
-		return fmt.Errorf("failed to get details for instance '%s': %w", id, err)
-	}
-
-	log.Infof("Stopping instance '%s' (%s)", instance.Name, providerInstanceID)
-	err = computeProvider.StopInstance(providerInstanceID, instance.Location)
-	if err != nil {
-		return fmt.Errorf("could not stop instance '%s': %w", id, err)
-	}
-	instance.DesiredStatus = ServerStateStopped
-	im, cmm := createInstanceUpdateMapper(instance)
-	if err := db.Update(cm.db, im, cmm); err != nil {
+	instance.DesiredStatus = desiredStatus
+	im, _ := createInstanceUpdateMapper(instance)
+	if err := db.Update(cm.db, im); err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", id, err)
 	}
-	return nil
+	log.Infof("Set desired status for instance '%s' to '%s'", instance.Name, desiredStatus)
+	return cm.ReconcileDesiredInstances()
 }
 
 // TunnelInstance creates and SSH tunnel to the instance
@@ -1014,20 +949,42 @@ func (cm *Manager) LogsRemoteInstance(id string) (string, error) {
 		return "", err
 	}
 
-	localKey, err := cm.sm.GetLocalKey()
+	auth, err := cm.sshAuthForInstance(instanceInfo)
 	if err != nil {
 		return "", err
 	}
 
-	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", localKey.SSHAuth(), 10)
+	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", auth, 10)
 	if err != nil {
 		return "", err
 	}
+	defer sshCon.Close()
+
 	output, err := pcrypto.ExecuteCommand("cat /var/log/protos.log", sshCon)
 	if err != nil {
 		return "", err
 	}
 	return output, nil
+}
+
+func (cm *Manager) sshAuthForInstance(instance InstanceInfo) (ssh.AuthMethod, error) {
+	keyPath, err := instanceSSHKeyPath(instance.ID)
+	if err != nil {
+		return nil, err
+	}
+	auth, err := cm.sm.NewAuthFromKeyFile(keyPath)
+	if err == nil {
+		return auth, nil
+	}
+	if !os.IsNotExist(err) {
+		log.Warnf("failed to load SSH key for instance '%s': %s", instance.Name, err.Error())
+	}
+
+	localKey, localErr := cm.sm.GetLocalKey()
+	if localErr != nil {
+		return nil, fmt.Errorf("failed to load instance SSH key: %w; failed to load local SSH key: %v", err, localErr)
+	}
+	return localKey.SSHAuth(), nil
 }
 
 // GetInstance retrieves an instance from the db and returns it
@@ -1154,17 +1111,13 @@ func (cm *Manager) ReconcileDesiredInstances() error {
 			failures = append(failures, err.Error())
 			continue
 		}
-		reconciler, ok := provisioner.(InstanceReconciler)
-		if !ok {
-			continue
-		}
 		if err := provisioner.Init(); err != nil {
 			failures = append(failures, fmt.Sprintf("init provisioner %s: %v", instance.KindID, err))
 			continue
 		}
 
 		instance.DesiredStatus = desiredStatus
-		updated, err := reconciler.ReconcileInstance(instance)
+		updated, err := reconcileProvisionerInstance(provisioner, instance)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("reconcile instance %s: %v", instance.Name, err))
 			continue
@@ -1182,6 +1135,48 @@ func (cm *Manager) ReconcileDesiredInstances() error {
 		return fmt.Errorf("%s", strings.Join(failures, "; "))
 	}
 	return nil
+}
+
+func reconcileProvisionerInstance(provisioner Provisioner, instance InstanceInfo) (InstanceInfo, error) {
+	if reconciler, ok := provisioner.(InstanceReconciler); ok {
+		return reconciler.ReconcileInstance(instance)
+	}
+	computeProvider, err := requireComputeProvisioner(provisioner)
+	if err != nil {
+		return InstanceInfo{}, err
+	}
+	return reconcileComputeInstance(computeProvider, instance)
+}
+
+func reconcileComputeInstance(provider ComputeProvisioner, instance InstanceInfo) (InstanceInfo, error) {
+	current, providerInstanceID, err := getProviderInstanceInfo(provider, instance)
+	if err != nil {
+		return InstanceInfo{}, err
+	}
+	switch strings.ToLower(strings.TrimSpace(instance.DesiredStatus)) {
+	case ServerStateRunning:
+		if current.Status != ServerStateRunning {
+			if err := provider.StartInstance(providerInstanceID, instance.Location); err != nil {
+				return InstanceInfo{}, err
+			}
+			current, err = provider.GetInstanceInfo(providerInstanceID, instance.Location)
+			if err != nil {
+				return InstanceInfo{}, err
+			}
+		}
+	case ServerStateStopped:
+		if current.Status != ServerStateStopped {
+			if err := provider.StopInstance(providerInstanceID, instance.Location); err != nil {
+				return InstanceInfo{}, err
+			}
+			current, err = provider.GetInstanceInfo(providerInstanceID, instance.Location)
+			if err != nil {
+				return InstanceInfo{}, err
+			}
+		}
+	}
+	current.DesiredStatus = instance.DesiredStatus
+	return current, nil
 }
 
 func normalizeDesiredInstanceStatus(status string) string {

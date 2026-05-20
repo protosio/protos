@@ -25,8 +25,9 @@ func main() {
 	app.Version = version.String()
 
 	var configFile string
+	var dataDir string
+	var capabilities string
 	var loglevel string
-	var devmode bool
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
@@ -36,15 +37,20 @@ func main() {
 			Destination: &configFile,
 		},
 		&cli.StringFlag{
+			Name:        "data-dir",
+			Usage:       "Path where protos data is stored",
+			Destination: &dataDir,
+		},
+		&cli.StringFlag{
+			Name:        "capabilities",
+			Usage:       "Comma-separated capabilities: api,provisioner,network,app-runtime",
+			Destination: &capabilities,
+		},
+		&cli.StringFlag{
 			Name:        "loglevel",
 			Value:       "info",
 			Usage:       "Specify log level: debug, info, warn, error",
 			Destination: &loglevel,
-		},
-		&cli.BoolFlag{
-			Name:        "dev",
-			Usage:       "Allows unauthenticated dev operations via the API",
-			Destination: &devmode,
 		},
 	}
 
@@ -59,7 +65,10 @@ func main() {
 
 	app.Action = func(c *cli.Context) error {
 		log.Info("Starting Protos daemon")
-		protosd.StartUp(configFile, version, devmode)
+		protosd.StartUp(configFile, version, protosd.Options{
+			DataDir:      dataDir,
+			Capabilities: capabilities,
+		})
 		return nil
 	}
 

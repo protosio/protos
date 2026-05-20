@@ -107,7 +107,14 @@ func (s *Server) GetHead(context.Context, *proto.GetHeadRequest) (*proto.GetHead
 // HandlerGetInstanceLogs retrieves logs for the local instance
 func (s *Server) GetLogs(context.Context, *proto.GetLogsRequest) (*proto.GetLogsResponse, error) {
 
-	logs, err := os.ReadFile("/var/log/protos.log")
+	var logs []byte
+	var err error
+	for _, logPath := range []string{"/var/log/protos.log", "/proc/1/root/var/log/protos.log"} {
+		logs, err = os.ReadFile(logPath)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read protos logs: %w", err)
 	}

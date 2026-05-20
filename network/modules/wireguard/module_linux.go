@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
@@ -244,6 +243,8 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 
 	newRoutes := []netlink.Route{}
 	wgPeers := []wgtypes.PeerConfig{}
+	activeDevice := activeWireGuardDevice(lnk)
+	existingPeerEndpoints := peerEndpoints(activeDevice)
 	relayAllowedIPs := []net.IPNet{}
 	var relayEndpoint *net.UDPAddr
 	relayLocalMacOSPeers := localMacOSNATAttached()
@@ -282,12 +283,22 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 				log.Debugf("Routing local macOS VM peer %s (%s) through host relay endpoint %s", instance.Name, instanceInternalNet.String(), relayEndpoint.String())
 				continue
 			}
+			endpoint := existingPeerEndpoints[pubKeyWG]
+			var keepalive *time.Duration
+			if endpoint != nil {
+				interval := peerKeepaliveInterval()
+				keepalive = &interval
+				log.Debugf("Preserving learned endpoint %s for roaming local macOS VM peer %s (%s)", endpoint.String(), instance.Name, instanceInternalNet.String())
+			} else {
+				log.Debugf("Routing local macOS VM peer %s (%s) without a fixed endpoint; waiting for WireGuard roaming", instance.Name, instanceInternalNet.String())
+			}
 			wgPeers = append(wgPeers, wgtypes.PeerConfig{
-				PublicKey:         pubKeyWG,
-				ReplaceAllowedIPs: true,
-				AllowedIPs:        []net.IPNet{instanceInternalNet},
+				PublicKey:                   pubKeyWG,
+				ReplaceAllowedIPs:           true,
+				AllowedIPs:                  []net.IPNet{instanceInternalNet},
+				Endpoint:                    endpoint,
+				PersistentKeepaliveInterval: keepalive,
 			})
-			log.Debugf("Routing local macOS VM peer %s (%s) without a fixed endpoint; waiting for WireGuard roaming", instance.Name, instanceInternalNet.String())
 			continue
 		}
 
@@ -337,6 +348,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		wgPeers = append(wgPeers, peerConf)
 		newRoutes = append(newRoutes, netlink.Route{Dst: &instanceInternalNet, LinkIndex: lnk.Index()})
 	}
+	wgPeers = appendStalePeerRemovals(wgPeers, activeDevice)
 	log.Debugf("Applying WireGuard peer set on %s with peers=%d desired_routes=%d relay_routes=%d", wireguardNetworkInterfaceName, len(wgPeers), len(newRoutes), len(relayAllowedIPs))
 	logLinuxPeerConfigs(wgPeers)
 
@@ -345,7 +357,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		return fmt.Errorf("failed to configure interface '%s': %w", wireguardNetworkInterfaceName, err)
 	}
 	wgConfig := wgtypes.Config{
-		ReplacePeers: true,
+		ReplacePeers: false,
 		ListenPort:   &wgPort,
 		Peers:        wgPeers,
 		PrivateKey:   &wgKey,
@@ -394,8 +406,66 @@ func peerKeepaliveInterval() time.Duration {
 	return 25 * time.Second
 }
 
+func activeWireGuardDevice(lnk wglink.Link) *wgtypes.Device {
+	device, err := lnk.WGConfig()
+	if err != nil {
+		log.Debugf("Failed to read active WireGuard peer state from %s: %v", lnk.Name(), err)
+		return nil
+	}
+	return device
+}
+
+func peerEndpoints(device *wgtypes.Device) map[wgtypes.Key]*net.UDPAddr {
+	endpoints := map[wgtypes.Key]*net.UDPAddr{}
+	if device == nil {
+		return endpoints
+	}
+	for _, peer := range device.Peers {
+		if peer.Endpoint == nil {
+			continue
+		}
+		endpoints[peer.PublicKey] = copyUDPAddr(peer.Endpoint)
+	}
+	return endpoints
+}
+
+func appendStalePeerRemovals(desired []wgtypes.PeerConfig, activeDevice *wgtypes.Device) []wgtypes.PeerConfig {
+	if activeDevice == nil {
+		return desired
+	}
+	desiredKeys := make(map[wgtypes.Key]struct{}, len(desired))
+	for _, peer := range desired {
+		desiredKeys[peer.PublicKey] = struct{}{}
+	}
+	for _, peer := range activeDevice.Peers {
+		if _, found := desiredKeys[peer.PublicKey]; found {
+			continue
+		}
+		desired = append(desired, wgtypes.PeerConfig{
+			PublicKey: peer.PublicKey,
+			Remove:    true,
+		})
+	}
+	return desired
+}
+
+func copyUDPAddr(addr *net.UDPAddr) *net.UDPAddr {
+	if addr == nil {
+		return nil
+	}
+	return &net.UDPAddr{
+		IP:   append(net.IP(nil), addr.IP...),
+		Port: addr.Port,
+		Zone: addr.Zone,
+	}
+}
+
 func logLinuxPeerConfigs(peers []wgtypes.PeerConfig) {
 	for _, peer := range peers {
+		if peer.Remove {
+			log.Debugf("WireGuard peer desired: public_key=%s remove=true", shortWireGuardKey(peer.PublicKey))
+			continue
+		}
 		endpoint := "<none>"
 		if peer.Endpoint != nil {
 			endpoint = peer.Endpoint.String()
@@ -521,58 +591,66 @@ func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSpat
 	}
 	defer netns.Close()
 
-	contIface := &cnitypes.Interface{}
-	hostIface := &cnitypes.Interface{}
+	hostIfaceName := ""
 	err = netns.Do(func(hostNS ns.NetNS) error {
 		name := "prts0"
+		link, err := netlink.LinkByName(name)
+		if err == nil {
+			return configureNamespacedLink(link, config, IP)
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			return fmt.Errorf("failed to inspect interface %q: %w", name, err)
+		}
+
 		hostVeth, containerVeth, err := ip.SetupVeth(name, netBridge.MTU, "", hostNS)
 		if err != nil {
 			return err
 		}
-		contIface.Name = containerVeth.Name
-		contIface.Mac = containerVeth.HardwareAddr.String()
-		contIface.Sandbox = netns.Path()
-		hostIface.Name = hostVeth.Name
+		hostIfaceName = hostVeth.Name
 
-		link, err := netlink.LinkByName(name)
+		link, err = netlink.LinkByName(containerVeth.Name)
 		if err != nil {
-			return fmt.Errorf("failed to find interface %q: %w", name, err)
+			return fmt.Errorf("failed to find interface %q: %w", containerVeth.Name, err)
 		}
 
-		if err := netlink.LinkSetUp(link); err != nil {
-			return fmt.Errorf("failed to bring interface %q UP: %w", name, err)
-		}
-
-		network := createIPv6Net(config.IPv6Address)
-		addr := &netlink.Addr{IPNet: &net.IPNet{Mask: network.Mask, IP: IP}, Label: ""}
-		if err = netlink.AddrAdd(link, addr); err != nil {
-			return fmt.Errorf("failed to configure IP address '%s' on interface: %w", IP.String(), err)
-		}
-
-		_, networkALL, _ := net.ParseCIDR("0.0.0.0/0")
-		route := netlink.Route{
-			LinkIndex: link.Attrs().Index,
-			Dst:       networkALL,
-		}
-		err = netlink.RouteAdd(&route)
-		if err != nil {
-			return fmt.Errorf("failed to add route on interface: %w", err)
-		}
-
-		return nil
+		return configureNamespacedLink(link, config, IP)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create veth pair: %w", err)
 	}
-
-	hostVeth, err := netlink.LinkByName(hostIface.Name)
-	if err != nil {
-		return fmt.Errorf("failed to find host interface '%s': %w", hostIface.Name, err)
+	if hostIfaceName == "" {
+		return nil
 	}
-	hostIface.Mac = hostVeth.Attrs().HardwareAddr.String()
+
+	hostVeth, err := netlink.LinkByName(hostIfaceName)
+	if err != nil {
+		return fmt.Errorf("failed to find host interface '%s': %w", hostIfaceName, err)
+	}
 
 	if err := netlink.LinkSetMaster(hostVeth, netBridge); err != nil {
 		return fmt.Errorf("failed to connect %q to bridge %v: %w", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
+	}
+	return nil
+}
+
+func configureNamespacedLink(link netlink.Link, config networkmodule.Config, IP net.IP) error {
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("failed to bring interface %q UP: %w", link.Attrs().Name, err)
+	}
+
+	network := createIPv6Net(config.IPv6Address)
+	addr := &netlink.Addr{IPNet: &net.IPNet{Mask: network.Mask, IP: IP}, Label: ""}
+	if err := netlink.AddrReplace(link, addr); err != nil {
+		return fmt.Errorf("failed to configure IP address '%s' on interface: %w", IP.String(), err)
+	}
+
+	_, networkALL, _ := net.ParseCIDR("0.0.0.0/0")
+	route := netlink.Route{
+		LinkIndex: link.Attrs().Index,
+		Dst:       networkALL,
+	}
+	if err := netlink.RouteReplace(&route); err != nil {
+		return fmt.Errorf("failed to configure route on interface: %w", err)
 	}
 	return nil
 }

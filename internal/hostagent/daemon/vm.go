@@ -146,6 +146,9 @@ func (s *Server) startVM(id string, manifestPath string) *hostagentpb.VMObserved
 	if err != nil {
 		return observedError(id, manifestPath, fmt.Sprintf("resolve host agent executable symlink: %v", err))
 	}
+	if err := ensureVMRunnerEntitled(executable); err != nil {
+		return observedError(id, manifestPath, err.Error())
+	}
 
 	console, err := os.OpenFile(filepath.Join(filepath.Dir(manifestPath), consoleLogFile), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {

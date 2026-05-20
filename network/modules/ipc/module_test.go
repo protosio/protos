@@ -1,10 +1,12 @@
 package ipc
 
 import (
+	"errors"
 	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	hostagentdaemon "github.com/protosio/protos/internal/hostagent/daemon"
@@ -24,6 +26,7 @@ type fakeNetworkModule struct {
 	peersCalled     bool
 	namespaceCalled bool
 	downCalled      bool
+	upErr           error
 }
 
 func (m *fakeNetworkModule) Name() string { return "fake" }
@@ -31,12 +34,60 @@ func (m *fakeNetworkModule) Name() string { return "fake" }
 func (m *fakeNetworkModule) Up(config networkmodule.Config) error {
 	m.upConfig = config
 	m.upCalled = true
-	return nil
+	return m.upErr
 }
 
 func (m *fakeNetworkModule) Down() error {
 	m.downCalled = true
 	return nil
+}
+
+func TestModuleReturnsHostAgentNetworkError(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "protos-hostagent-test-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	socket := filepath.Join(dir, "hostagent.sock")
+	t.Setenv(hostagentipc.SocketEnv, socket)
+
+	fake := &fakeNetworkModule{upErr: errors.New("cannot configure host network")}
+	grpcServer := grpc.NewServer()
+	hostagentpb.RegisterHostAgentServer(grpcServer, hostagentdaemon.NewServer(fake))
+
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer os.Remove(socket)
+	defer grpcServer.Stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- grpcServer.Serve(listener)
+	}()
+
+	module, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer module.Close()
+
+	config := networkmodule.Config{
+		IPv6Address:         netip.MustParseAddr("fd7a:115c:a1e0::1"),
+		WireGuardPrivateKey: "private",
+		Domain:              "protos.internal",
+	}
+	err = module.Up(config)
+	if err == nil {
+		t.Fatal("expected host agent network error")
+	}
+	if !strings.Contains(err.Error(), "cannot configure host network") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	grpcServer.Stop()
+	<-errCh
 }
 
 func (m *fakeNetworkModule) ConfigurePeers(config networkmodule.Config, peers networkmodule.Peers) error {

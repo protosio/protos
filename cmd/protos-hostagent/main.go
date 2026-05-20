@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var log = util.GetLogger("protos-vm-hostagent")
+var log = util.GetLogger("protos-hostagent")
 
 func main() {
 	var (
@@ -208,7 +208,7 @@ func envInt(name string, fallback int) int {
 }
 
 func defaultWorkDir() string {
-	if workDir := os.Getenv("PROTOS_VM_HOSTAGENT_WORKDIR"); workDir != "" {
+	if workDir := os.Getenv("PROTOS_HOSTAGENT_WORKDIR"); workDir != "" {
 		return workDir
 	}
 	if runtime.GOOS == "darwin" {

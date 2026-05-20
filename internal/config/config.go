@@ -28,6 +28,7 @@ type Config struct {
 	StaticAssets    string
 	InternalDomain  string
 	ExternalDNS     string // format: <ip>:<port>
+	Capabilities    []string
 	Version         *semver.Version
 }
 

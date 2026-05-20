@@ -1,3 +1,5 @@
+//go:build darwin
+
 package main
 
 import (
@@ -43,7 +45,7 @@ func main() {
 	timeout := flag.Duration("timeout", 6*time.Minute, "overall verification timeout")
 	machineType := flag.String("machine", "vz-2c-2g", "local macOS machine type")
 	instanceCount := flag.Int("instances", 2, "number of local macOS VMs to deploy and verify")
-	configureNetwork := flag.Bool("network", true, "configure the host network module through protos-vm-hostagent")
+	configureNetwork := flag.Bool("network", true, "configure the host network module through protos-hostagent")
 	flag.Parse()
 
 	if err := run(*imagePath, *workDir, *keep, *timeout, *machineType, *instanceCount, *configureNetwork); err != nil {
@@ -115,7 +117,7 @@ func run(imagePath string, workDir string, keep bool, timeout time.Duration, mac
 		}
 		if err := networkManager.Init(localKey, config.Get().InternalDomain); err != nil {
 			_ = networkManager.Close()
-			return fmt.Errorf("initialize network manager through protos-vm-hostagent: %w", err)
+			return fmt.Errorf("initialize network manager through protos-hostagent: %w", err)
 		}
 		defer func() {
 			_ = networkManager.ConfigurePeers(nil, nil)

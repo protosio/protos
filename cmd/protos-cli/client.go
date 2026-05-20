@@ -27,8 +27,8 @@ func main() {
 	}
 
 	app := &cli.App{
-		Name:    "protos",
-		Usage:   "Protos cmd line client",
+		Name:    "protos-cli",
+		Usage:   "Protos command line client",
 		Authors: []*cli.Author{{Name: "Alex Giurgiu", Email: "alex@giurgiu.io"}},
 		Version: version.String(),
 		Flags: []cli.Flag{

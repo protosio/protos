@@ -22,9 +22,9 @@ require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/platforms v1.0.0-rc.2
 	github.com/dennwc/btrfs v0.0.0-20260222081608-edfb8b9e4f55
-	github.com/getlantern/systray v1.2.2
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
+	github.com/hetznercloud/hcloud-go/v2 v2.40.0
 	github.com/jsimonetti/rtnetlink v1.4.2
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/martinlindhe/base36 v1.1.1
@@ -222,19 +222,12 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
-	github.com/getlantern/context v0.0.0-20220418194847-3d5e7a086201 // indirect
-	github.com/getlantern/errors v1.0.4 // indirect
-	github.com/getlantern/golog v0.0.0-20230503153817-8e72de7e0a65 // indirect
-	github.com/getlantern/hex v0.0.0-20220104173244-ad7e4b9194dc // indirect
-	github.com/getlantern/hidden v0.0.0-20220104173330-f221c5a24770 // indirect
-	github.com/getlantern/ops v0.0.0-20231025133620-f368ab734534 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.10.0 // indirect
-	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -299,7 +292,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/selinux v1.14.1 // indirect
 	github.com/oracle/oci-go-sdk/v65 v65.114.2 // indirect
-	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

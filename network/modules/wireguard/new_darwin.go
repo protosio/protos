@@ -14,6 +14,7 @@ func New() (*Module, error) {
 		dnsManager: dnsManager,
 		platformState: platformState{
 			routes: map[string]struct{}{},
+			peers:  map[string]struct{}{},
 		},
 	}, nil
 }

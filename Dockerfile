@@ -19,4 +19,4 @@ COPY --from=build /go/src/github.com/protos/${PROTOS_BUILD_DIR}/bin/protosd /opt
 COPY --from=build /go/src/github.com/protos/${PROTOS_BUILD_DIR}/configs/protosd.yaml /opt/protos/protosd.yaml
 RUN chmod +x /opt/protos/protosd
 
-ENTRYPOINT ["/opt/protos/protosd", "--loglevel", "debug", "--config", "/opt/protos/protosd.yaml", "daemon"]
+ENTRYPOINT ["/opt/protos/protosd", "--loglevel", "debug", "--config", "/opt/protos/protosd.yaml"]

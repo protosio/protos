@@ -15,6 +15,7 @@ func createAppInsertMapper(app App) db.InsertMapper {
 			col.SetString(a.INSTANCE_ID, app.InstanceID)
 			col.SetString(a.DESIRED_STATUS, app.DesiredStatus)
 			col.SetBool(a.PERSISTENCE, app.Persistence)
+			col.SetString(a.PUBLIC_KEY, app.ID)
 		}
 		return sq.InsertInto(a).ColumnValues(mapper)
 	}
@@ -52,7 +53,7 @@ func createAppQueryMapper(predicates []sq.Predicate) db.QueryMapper[App] {
 				Name:          row.StringField(a.NAME),
 				ID:            row.StringField(a.ID),
 				InstallerRef:  row.StringField(a.INSTALLER_REF),
-				InstanceID:    row.StringField(a.ID),
+				InstanceID:    row.StringField(a.INSTANCE_ID),
 				DesiredStatus: row.StringField(a.DESIRED_STATUS),
 				Persistence:   row.BoolField(a.PERSISTENCE),
 			}

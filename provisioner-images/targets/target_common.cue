@@ -166,6 +166,7 @@ package cloudkit
 		"/etc/resolv.conf:/etc/resolv.conf",
 		"/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt",
 		"/run/containerd/containerd.sock:/run/containerd/containerd.sock",
+		"/var/log:/var/log",
 	]
 	mounts: [
 		#cmount & {
@@ -182,7 +183,7 @@ package cloudkit
 		},
 	]
 	runtime: #runtime & {
-		mkdir: ["/var/lib/protos", "/run/containerd"]
+		mkdir: ["/var/lib/protos", "/run/containerd", "/var/log"]
 	}
 }
 
@@ -197,58 +198,58 @@ package cloudkit
 	path: "/usr/bin/protos-static-network"
 	mode: "0755"
 	contents: """
-			#!/bin/sh
-			set -eu
+        #!/bin/sh
+        set -eu
 
-			CONFIG_DIR=/run/config/protos/network
-			IFACE=$(cat "$CONFIG_DIR/interface" 2>/dev/null || echo eth0)
-			ADDRESS=$(cat "$CONFIG_DIR/address")
-			GATEWAY=$(cat "$CONFIG_DIR/gateway" 2>/dev/null || true)
-			DNS=$(cat "$CONFIG_DIR/dns" 2>/dev/null || true)
+        CONFIG_DIR=/run/config/protos/network
+        IFACE=$(cat "$CONFIG_DIR/interface" 2>/dev/null || echo eth0)
+        ADDRESS=$(cat "$CONFIG_DIR/address")
+        GATEWAY=$(cat "$CONFIG_DIR/gateway" 2>/dev/null || true)
+        DNS=$(cat "$CONFIG_DIR/dns" 2>/dev/null || true)
 
-			if [ -z "$ADDRESS" ]; then
-				echo "static network address is missing" >&2
-				exit 1
-			fi
+        if [ -z "$ADDRESS" ]; then
+          echo "static network address is missing" >&2
+          exit 1
+        fi
 
-			ip link set "$IFACE" up
-			ip addr flush dev "$IFACE" scope global || true
-			ip addr add "$ADDRESS" dev "$IFACE"
+        ip link set "$IFACE" up
+        ip addr flush dev "$IFACE" scope global || true
+        ip addr add "$ADDRESS" dev "$IFACE"
 
-			if [ -n "$GATEWAY" ]; then
-				ip route replace default via "$GATEWAY" dev "$IFACE"
-			fi
+        if [ -n "$GATEWAY" ]; then
+          ip route replace default via "$GATEWAY" dev "$IFACE"
+        fi
 
-			if [ -n "$DNS" ]; then
-				: > /etc/resolv.conf
-				for server in $DNS; do
-					echo "nameserver $server" >> /etc/resolv.conf
-				done
-			fi
+        if [ -n "$DNS" ]; then
+          : > /etc/resolv.conf
+          for server in $DNS; do
+            echo "nameserver $server" >> /etc/resolv.conf
+          done
+        fi
 
-			ip addr show dev "$IFACE"
-			ip route show default || true
-			"""
+        ip addr show dev "$IFACE"
+        ip route show default || true
+        """
 }
 #file_dhcpcd_conf: #file & {
 	path: "/etc/protos-dhcpcd.conf"
 	contents: """
-			# Configure both classic eth* and predictable en*/ens*/enp* NIC names.
-			allowinterfaces eth* en* ens* enp*
+        # Configure both classic eth* and predictable en*/ens*/enp* NIC names.
+        allowinterfaces eth* en* ens* enp*
 
-			hostname
-		clientid
-		persistent
-		option rapid_commit
-		option domain_name_servers, domain_name, domain_search, host_name
-		option classless_static_routes
-		option ntp_servers
-		option interface_mtu
-		require dhcp_server_identifier
-		slaac private
-		nodelay
-		noarp
-		waitip 4
-		"""
+        hostname
+        clientid
+        persistent
+        option rapid_commit
+        option domain_name_servers, domain_name, domain_search, host_name
+        option classless_static_routes
+        option ntp_servers
+        option interface_mtu
+        require dhcp_server_identifier
+        slaac private
+        nodelay
+        noarp
+        waitip 4
+        """
 }
 #files: [#file_ip_forwarding, #file_static_network, #file_dhcpcd_conf]

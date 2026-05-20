@@ -46,7 +46,7 @@ func (m *Module) Up(config networkmodule.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
 	defer cancel()
 
-	_, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
+	resp, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
 		DesiredState: &hostagentpb.HostDesiredState{
 			Network: &hostagentpb.NetworkDesiredState{
 				DesiredState: "up",
@@ -57,14 +57,14 @@ func (m *Module) Up(config networkmodule.Config) error {
 	if err != nil {
 		return fmt.Errorf("host agent network up via %s: %w", m.socket, err)
 	}
-	return nil
+	return networkResponseError(m.socket, "up", resp.GetNetwork())
 }
 
 func (m *Module) Down() error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
 	defer cancel()
 
-	_, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
+	resp, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
 		DesiredState: &hostagentpb.HostDesiredState{
 			Network: &hostagentpb.NetworkDesiredState{DesiredState: "down"},
 		},
@@ -72,14 +72,14 @@ func (m *Module) Down() error {
 	if err != nil {
 		return fmt.Errorf("host agent network down via %s: %w", m.socket, err)
 	}
-	return nil
+	return networkResponseError(m.socket, "down", resp.GetNetwork())
 }
 
 func (m *Module) ConfigurePeers(config networkmodule.Config, peers networkmodule.Peers) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
 	defer cancel()
 
-	_, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
+	resp, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
 		DesiredState: &hostagentpb.HostDesiredState{
 			Network: &hostagentpb.NetworkDesiredState{
 				DesiredState:   "configured",
@@ -93,14 +93,14 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peers networkmodule
 	if err != nil {
 		return fmt.Errorf("host agent network configure peers via %s: %w", m.socket, err)
 	}
-	return nil
+	return networkResponseError(m.socket, "configure peers", resp.GetNetwork())
 }
 
 func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSPath string, ip net.IP) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
 	defer cancel()
 
-	_, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
+	resp, err := m.client.Apply(ctx, &hostagentpb.ApplyRequest{
 		DesiredState: &hostagentpb.HostDesiredState{
 			Network: &hostagentpb.NetworkDesiredState{
 				DesiredState: "configured",
@@ -117,7 +117,7 @@ func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSPat
 	if err != nil {
 		return fmt.Errorf("host agent network create namespaced interface via %s: %w", m.socket, err)
 	}
-	return nil
+	return networkResponseError(m.socket, "create namespaced interface", resp.GetNetwork())
 }
 
 func (m *Module) Close() error {
@@ -157,4 +157,14 @@ func devicesToProto(devices []networkmodule.DevicePeer) []*hostagentpb.DevicePee
 		})
 	}
 	return out
+}
+
+func networkResponseError(socket string, operation string, observed *hostagentpb.NetworkObservedState) error {
+	if observed == nil {
+		return fmt.Errorf("host agent network %s via %s returned no network state", operation, socket)
+	}
+	if observed.GetMessage() != "" {
+		return fmt.Errorf("host agent network %s via %s failed: %s", operation, socket, observed.GetMessage())
+	}
+	return nil
 }

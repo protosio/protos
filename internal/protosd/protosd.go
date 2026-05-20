@@ -1,15 +1,22 @@
 package protosd
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	stdruntime "runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/Masterminds/semver"
+	"github.com/pkg/errors"
 
+	"github.com/protosio/protos/apic"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/banner"
 	"github.com/protosio/protos/internal/config"
@@ -20,130 +27,276 @@ import (
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
-	"github.com/protosio/protos/internal/runtime"
+	"github.com/protosio/protos/internal/release"
+	appruntime "github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
+	"github.com/protosio/protos/provisioners/hetzner"
 	"github.com/protosio/protos/provisioners/local_macos"
 	"github.com/protosio/protos/provisioners/scaleway"
 )
 
 const DNSPort = 53
 
-var log = util.GetLogger("daemon")
+var log = util.GetLogger("protosd")
 
-var stoppers = map[string]func() error{}
-
-func catchSignals(sigs chan os.Signal, wg *sync.WaitGroup) {
-	sig := <-sigs
-	log.Infof("Received OS signal %s. Terminating", sig.String())
-	for _, stopper := range stoppers {
-		err := stopper()
-		if err != nil {
-			log.Error(err)
-		}
-	}
-	wg.Done()
+type Capabilities struct {
+	API        bool
+	Provision  bool
+	Network    bool
+	AppRuntime bool
 }
 
-// StartUp triggers a sequence of steps required to start the application
-func StartUp(configFile string, version *semver.Version, devmode bool) {
-	// Load config and print banner
-	cfg := config.Load(configFile, version)
+func DefaultCapabilities() Capabilities {
+	caps := Capabilities{
+		API:     true,
+		Network: true,
+	}
+	if stdruntime.GOOS == "darwin" {
+		caps.Provision = true
+		return caps
+	}
+	caps.AppRuntime = true
+	return caps
+}
 
-	// create workdir
-	if _, err := os.Stat(cfg.WorkDir); os.IsNotExist(err) {
-		err := os.Mkdir(cfg.WorkDir, 0755)
+func ParseCapabilities(value string) (Capabilities, error) {
+	if env := strings.TrimSpace(os.Getenv("PROTOS_CAPABILITIES")); env != "" && strings.TrimSpace(value) == "" {
+		value = env
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return DefaultCapabilities(), nil
+	}
+
+	caps := Capabilities{}
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t' || r == '\n'
+	})
+	for _, field := range fields {
+		field = strings.ToLower(strings.TrimSpace(field))
+		switch field {
+		case "":
+		case "none":
+			caps = Capabilities{}
+		case "default":
+			caps = DefaultCapabilities()
+		case "all":
+			caps = Capabilities{API: true, Provision: true, Network: true, AppRuntime: true}
+		case "api":
+			caps.API = true
+		case "provision", "provisioner", "machine-provisioner":
+			caps.Provision = true
+		case "network", "host-network":
+			caps.Network = true
+		case "app-runtime", "apps", "runtime":
+			caps.AppRuntime = true
+		case "no-api", "!api":
+			caps.API = false
+		case "no-provision", "no-provisioner", "!provision", "!provisioner":
+			caps.Provision = false
+		case "no-network", "!network":
+			caps.Network = false
+		case "no-app-runtime", "!app-runtime":
+			caps.AppRuntime = false
+		default:
+			return caps, fmt.Errorf("unknown protosd capability %q", field)
+		}
+	}
+	return caps, nil
+}
+
+func (c Capabilities) String() string {
+	enabled := []string{"db", "p2p"}
+	if c.API {
+		enabled = append(enabled, "api")
+	}
+	if c.Provision {
+		enabled = append(enabled, "provisioner")
+	}
+	if c.Network {
+		enabled = append(enabled, "network")
+	}
+	if c.AppRuntime {
+		enabled = append(enabled, "app-runtime")
+	}
+	return strings.Join(enabled, ",")
+}
+
+type Options struct {
+	DataDir      string
+	Capabilities string
+}
+
+type Node struct {
+	cfg          config.Config
+	version      string
+	capabilities Capabilities
+	stoppers     map[string]func() error
+	localKey     *pcrypto.Key
+	notifyMu     sync.Mutex
+	initOnce     sync.Once
+	initCh       chan struct{}
+
+	DB             *db.DB
+	Manager        *user.Manager
+	KeyManager     *pcrypto.Manager
+	AppManager     *app.Manager
+	NetworkManager *network.Manager
+	CloudManager   *provisioners.Manager
+	P2PManager     *p2p.P2P
+	appRuntime     appruntime.RuntimePlatform
+}
+
+func StartUp(configFile string, version *semver.Version, opts Options) {
+	node, err := NewNode(configFile, version, opts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer node.closeDB()
+
+	if err := node.Start(); err != nil {
+		log.Fatal(err)
+	}
+	node.Wait()
+}
+
+func NewNode(configFile string, version *semver.Version, opts Options) (*Node, error) {
+	cfg := config.Load(configFile, version)
+	if strings.TrimSpace(opts.DataDir) != "" {
+		cfg.WorkDir = opts.DataDir
+	}
+	if cfg.WorkDir == "" {
+		cfg.WorkDir = defaultWorkDir()
+	}
+	workDir, err := resolvePath(cfg.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+	cfg.WorkDir = workDir
+	config.Get().WorkDir = workDir
+
+	capabilityValue := strings.TrimSpace(opts.Capabilities)
+	if capabilityValue == "" {
+		capabilityValue = strings.TrimSpace(os.Getenv("PROTOS_CAPABILITIES"))
+	}
+	if capabilityValue == "" && len(cfg.Capabilities) > 0 {
+		capabilityValue = strings.Join(cfg.Capabilities, ",")
+	}
+	caps, err := ParseCapabilities(capabilityValue)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.MkdirAll(cfg.WorkDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create Protos directory %q: %w", cfg.WorkDir, err)
+	}
+
+	lkey, err := pcrypto.GetLocalKey(cfg.WorkDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get local key: %w", err)
+	}
+
+	dbcli, err := db.Open(cfg.WorkDir, config.DBName, lkey)
+	if err != nil {
+		return nil, err
+	}
+
+	keyManager := pcrypto.CreateManager(dbcli)
+	userManager := user.CreateManager(dbcli, keyManager)
+	node := &Node{
+		cfg:          cfg,
+		version:      version.String(),
+		capabilities: caps,
+		stoppers:     map[string]func() error{},
+		localKey:     lkey,
+		initCh:       make(chan struct{}),
+		DB:           dbcli,
+		KeyManager:   keyManager,
+		Manager:      userManager,
+	}
+	if dbcli.Initialized() {
+		node.markInitialized()
+	}
+	return node, nil
+}
+
+func (n *Node) Start() error {
+	log.Infof("starting Protos daemon with capabilities: %s", n.capabilities.String())
+	banner.PrintBanner(n.cfg)
+
+	var err error
+	if n.capabilities.Network {
+		n.NetworkManager, err = network.NewManager()
 		if err != nil {
-			log.Fatalf("Failed to create Protos directory '%s': %s", cfg.WorkDir, err.Error())
+			return err
 		}
 	}
 
-	// Handle OS signals
-	var wg sync.WaitGroup
-	wg.Add(1)
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go catchSignals(sigs, &wg)
+	n.appRuntime = appruntime.Create(n.NetworkManager, n.cfg.RuntimeEndpoint)
+	n.AppManager = app.CreateManager(n.localKey.GetID(), n.appRuntime, n.DB)
 
-	// retrieve local key
-	lkey, err := pcrypto.GetLocalKey(cfg.WorkDir)
+	n.P2PManager, err = p2p.NewManager(n.localKey, n.AppManager, n.DB, n.cfg.P2PPort)
 	if err != nil {
-		log.Fatal(fmt.Errorf("failed to get local key: %w", err))
+		return fmt.Errorf("failed to create p2p manager: %w", err)
 	}
 
-	// open databse
-	dbcli, err := db.Open(cfg.WorkDir, config.DBName, lkey)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer dbcli.Close()
-
-	// create all the managers
-	sm := pcrypto.CreateManager(dbcli)
-
-	networkManager, err := network.NewManager()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	appRuntime := runtime.Create(networkManager, cfg.RuntimeEndpoint)
-	userManager := user.CreateManager(dbcli, sm)
-	appManager := app.CreateManager(app.TypeProtosd, appRuntime, dbcli)
-
-	p2pManager, err := p2p.NewManager(lkey, appManager, dbcli, cfg.P2PPort)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	cloudManager, err := provisioners.CreateManager(
-		dbcli,
-		userManager,
-		sm,
-		p2pManager,
+	n.CloudManager, err = provisioners.CreateManager(
+		n.DB,
+		n.Manager,
+		n.KeyManager,
+		n.P2PManager,
+		hetzner.NewFactory(),
 		scaleway.NewFactory(),
 		localmacos.NewFactory(),
 	)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("failed to create provisioner manager: %w", err)
 	}
 
-	p2pStopper, err := p2pManager.StartServer()
+	if n.capabilities.API {
+		apiStopper, err := apic.StartGRPCServer(n.cfg.WorkDir, n.version, n.APIServices())
+		if err != nil {
+			return err
+		}
+		n.stoppers["api"] = apiStopper
+	}
+
+	p2pStopper, err := n.P2PManager.StartServer()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	stoppers["p2p"] = p2pStopper
+	n.stoppers["p2p"] = p2pStopper
 
-	banner.PrintBanner(cfg)
-
-	canceled := false
-	ctxStopper := func() error {
-		canceled = true
-		return nil
-	}
-	stoppers["wfi"] = ctxStopper
-
-	// perform runtime initialization (container runtime)
-	err = appRuntime.Init()
-	if err != nil {
-		log.Fatal(err)
+	if n.capabilities.Network {
+		if err := n.NetworkManager.Init(n.localKey, n.cfg.InternalDomain); err != nil {
+			return fmt.Errorf("failed to initialize network reconciler: %w", err)
+		}
+		n.stoppers["network"] = func() error {
+			log.Info("bringing down network")
+			return n.NetworkManager.Down()
+		}
+		dnsStopper := dns.StartServer(n.localKey, n.dnsPort(), n.cfg.ExternalDNS, n.cfg.InternalDomain, n.AppManager)
+		n.stoppers["dns"] = dnsStopper
 	}
 
-	if canceled {
-		wg.Wait()
-		log.Info("Shutdown completed")
-		return
+	if n.capabilities.AppRuntime {
+		if n.appRuntime == nil {
+			return fmt.Errorf("app runtime capability is enabled but no runtime platform is available on %s", stdruntime.GOOS)
+		}
+		if err := n.appRuntime.Init(); err != nil {
+			return err
+		}
 	}
 
-	// perform network initialization
-	err = networkManager.Init(lkey, cfg.InternalDomain)
-	if err != nil {
-		log.Fatal(err)
+	dbNotifier := &DBNotifier{
+		database:     n.DB,
+		cm:           n.CloudManager,
+		um:           n.Manager,
+		nm:           n.NetworkManager,
+		p2pm:         n.P2PManager,
+		capabilities: n.capabilities,
 	}
-
-	dnsStopper := dns.StartServer(lkey, DNSPort, cfg.ExternalDNS, cfg.InternalDomain, appManager)
-	stoppers["dns"] = dnsStopper
-
-	dbNotifier := &DBNotifier{database: dbcli, cm: cloudManager, um: userManager, nm: networkManager, p2pm: p2pManager}
 	for _, registration := range []struct {
 		model    any
 		notifier db.Notifier
@@ -153,48 +306,147 @@ func StartUp(configFile string, version *semver.Version, devmode bool) {
 		{model: db.PEER{}, notifier: dbNotifier},
 		{model: db.USER{}, notifier: dbNotifier},
 		{model: db.USER_DEVICE_METADATA{}, notifier: dbNotifier},
-		{model: db.APP{}, notifier: appManager},
 	} {
-		if err := dbcli.RegisterNotifier(registration.model, registration.notifier); err != nil {
-			log.Fatal(fmt.Errorf("failed to register database notifier: %w", err))
+		if err := n.DB.RegisterNotifier(registration.model, registration.notifier); err != nil {
+			return fmt.Errorf("failed to register database notifier: %w", err)
+		}
+	}
+	if n.capabilities.AppRuntime {
+		if err := n.DB.RegisterNotifier(db.APP{}, n.AppManager); err != nil {
+			return fmt.Errorf("failed to register app notifier: %w", err)
 		}
 	}
 
 	log.Info("Started all servers successfully")
-
-	if dbcli.Initialized() {
+	if n.DB.Initialized() {
 		dbNotifier.Notify()
 	} else {
-		log.Info("DB not initialized. Waiting for remote init")
+		log.Info("DB not initialized. Waiting for local init or remote init")
 	}
-	stoppers["db-reconcile"] = db.StartPeriodicNotifier(dbNotifier, 5*time.Second)
+	n.stoppers["db-reconcile"] = db.StartPeriodicNotifier(dbNotifier, 5*time.Second)
+	return nil
+}
 
-	wg.Wait()
+func (n *Node) APIServices() *apic.Services {
+	return &apic.Services{
+		DB:             n.DB,
+		Manager:        n.Manager,
+		KeyManager:     n.KeyManager,
+		AppManager:     n.AppManager,
+		NetworkManager: n.NetworkManager,
+		CloudManager:   n.CloudManager,
+		P2PManager:     n.P2PManager,
+		CanProvision:   n.capabilities.Provision,
+		InitFunc:       n.Init,
+		ReleaseFetch:   n.GetProtosAvailableReleases,
+	}
+}
+
+func (n *Node) Init(username string, name string, organization string) error {
+	log.Debug("Performing initialization")
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to init. Could not retrieve hostname: %w", err)
+	}
+	if err := n.DB.Init(); err != nil {
+		return fmt.Errorf("failed to init. Error while initializing db: %w", err)
+	}
+
+	adminUser, err := n.Manager.CreateUser(username, name, true)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+	if err := n.Manager.AddDevice(adminUser.Username, hostname, n.localKey); err != nil {
+		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
+	}
+	n.markInitialized()
+	return nil
+}
+
+func (n *Node) GetProtosAvailableReleases() (release.Releases, error) {
+	var releases release.Releases
+	resp, err := http.Get(config.ReleasesURL)
+	if err != nil {
+		return releases, errors.Wrapf(err, "Failed to retrieve releases from '%s'", config.ReleasesURL)
+	}
+	defer resp.Body.Close()
+
+	err = json.NewDecoder(resp.Body).Decode(&releases)
+	if err != nil {
+		return releases, errors.Wrap(err, "Failed to JSON decode the releases response")
+	}
+	if len(releases.Releases) == 0 {
+		return releases, errors.Errorf("Something went wrong. Parsed 0 releases from '%s'", config.ReleasesURL)
+	}
+	return releases, nil
+}
+
+func (n *Node) Wait() {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigs)
+
+	sig := <-sigs
+	log.Infof("Received OS signal %s. Terminating", sig.String())
+	n.Stop()
 	log.Info("Shutdown completed")
+}
 
+func (n *Node) Stop() {
+	for _, stopper := range n.stoppers {
+		if err := stopper(); err != nil {
+			log.Error(err)
+		}
+	}
+}
+
+func (n *Node) closeDB() {
+	if n.DB != nil {
+		_ = n.DB.Close()
+	}
+}
+
+func (n *Node) markInitialized() {
+	n.initOnce.Do(func() {
+		close(n.initCh)
+	})
+}
+
+func (n *Node) dnsPort() int {
+	if stdruntime.GOOS == "darwin" {
+		return config.LocalDNSPort
+	}
+	return DNSPort
 }
 
 type DBNotifier struct {
-	database *db.DB
-	cm       *provisioners.Manager
-	um       *user.Manager
-	nm       *network.Manager
-	p2pm     *p2p.P2P
-	mu       sync.Mutex
+	database     *db.DB
+	cm           *provisioners.Manager
+	um           *user.Manager
+	nm           *network.Manager
+	p2pm         *p2p.P2P
+	capabilities Capabilities
+	mu           sync.Mutex
 }
 
 func (dbn *DBNotifier) Notify() {
 	dbn.mu.Lock()
 	defer dbn.mu.Unlock()
 
+	if !dbn.database.Initialized() {
+		return
+	}
+
+	if dbn.capabilities.Provision {
+		if err := dbn.cm.ReconcileDesiredInstances(); err != nil {
+			log.Error(fmt.Errorf("failed to reconcile desired instances: %w", err))
+		}
+	}
+
 	peerIDs, err := db.GetPeerIDs(dbn.database)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to retrieve peer membership: %w", err))
 		return
-	}
-
-	if err := dbn.cm.ReconcileDesiredInstances(); err != nil {
-		log.Error(fmt.Errorf("failed to reconcile desired instances: %w", err))
 	}
 
 	instances, err := dbn.cm.GetInstances(true)
@@ -211,11 +463,11 @@ func (dbn *DBNotifier) Notify() {
 	}
 	userDevices = membership.FilterDevices(userDevices, peerIDs)
 
-	// configure peers without user devices
-	err = dbn.nm.ConfigurePeers(instances, userDevices)
-	if err != nil {
-		log.Error(fmt.Errorf("failed to configure network peers: %w", err))
-		return
+	if dbn.capabilities.Network && dbn.nm != nil {
+		if err := dbn.nm.ConfigurePeers(instances, userDevices); err != nil {
+			log.Error(fmt.Errorf("failed to configure network peers: %w", err))
+			return
+		}
 	}
 
 	err = dbn.p2pm.ConfigurePeers(membership.Machines(instances, userDevices))
@@ -223,4 +475,31 @@ func (dbn *DBNotifier) Notify() {
 		log.Error(fmt.Errorf("failed to configure p2p peers: %w", err))
 		return
 	}
+}
+
+func defaultWorkDir() string {
+	if stdruntime.GOOS != "darwin" {
+		return "/var/lib/protos"
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".protos"
+	}
+	return filepath.Join(home, ".protos")
+}
+
+func resolvePath(path string) (string, error) {
+	if path == "" {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve home directory: %w", err)
+	}
+	if path == "~" {
+		path = home
+	} else if strings.HasPrefix(path, "~/") {
+		path = filepath.Join(home, path[2:])
+	}
+	return filepath.Abs(path)
 }

@@ -489,7 +489,7 @@ func (cnt *containerdSandbox) Remove() error {
 
 	err = os.Remove(fmt.Sprintf("%s/%s.log", cnt.p.logsPath, cnt.containerID))
 	if err != nil {
-		log.Warn("Failed to delete log file for sandbox '%s': %w", cnt.containerID, err)
+		log.Warnf("Failed to delete log file for sandbox '%s': %s", cnt.containerID, err)
 	}
 
 	return nil

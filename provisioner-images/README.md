@@ -15,23 +15,23 @@ The macOS targets emit `kernel+initrd` files for direct boot experiments and
 an EFI initrd ISO for the local macOS provisioner. The provisioner prefers the
 EFI ISO when it is present.
 
-## Sign the local VM host agent
+## Sign the host agent
 
 ```
-codesign --entitlements ../cmd/protos-vm-hostagent/protos-vm-hostagent.entitlements -f -s - <protos-vm-hostagent binary path>
+codesign --entitlements ../cmd/protos-hostagent/protos-hostagent.entitlements -f -s - <protos-hostagent binary path>
 ```
 
-## Run the local VM host agent
+## Run the host agent
 
-For the root-backed development path, run the host agent instead of the
-standalone network daemon:
+For the root-backed development path, run the host agent:
 
 ```
-sudo protos-vm-hostagent
+sudo protos-hostagent
 ```
 
-It serves VM control on `/var/run/protos-vm-hostagent.sock` and the existing
-network reconciliation API on the same socket.
+It serves VM control and network reconciliation on
+`/var/run/protos-hostagent.sock`. Set `PROTOS_HOSTAGENT_SOCKET` to override the
+socket path.
 When started with `sudo`, the socket is chowned to `SUDO_UID`/`SUDO_GID` so
 the invoking user can run `protosd` unprivileged. A LaunchDaemon install should
 set `--socket-uid` and `--socket-gid` explicitly.
@@ -82,5 +82,5 @@ cd /var/lib/src/backend
 To start protosd run:
 
 ```
-go run cmd/protosd/protosd.go --loglevel debug
+go run ./cmd/protosd --loglevel debug
 ```

@@ -39,6 +39,7 @@ type platformState struct {
 	privateKeyHex          string
 	listenPort             int
 	routes                 map[string]struct{}
+	peers                  map[string]struct{}
 	previousIPv6Forwarding string
 	forwardingConfigured   bool
 }
@@ -114,6 +115,7 @@ func (m *Module) Down() error {
 	m.interfaceName = ""
 	m.privateKeyHex = ""
 	m.listenPort = 0
+	m.peers = map[string]struct{}{}
 
 	return err
 }
@@ -247,7 +249,17 @@ func (m *Module) applyBaseConfigLocked(config networkmodule.Config) error {
 
 func (m *Module) applyPeerConfigLocked(peers []declarativePeer) error {
 	var b strings.Builder
-	b.WriteString("replace_peers=true\n")
+	desired := make(map[string]struct{}, len(peers))
+	for _, peer := range peers {
+		desired[peer.publicKeyHex] = struct{}{}
+	}
+	for publicKeyHex := range m.peers {
+		if _, found := desired[publicKeyHex]; found {
+			continue
+		}
+		fmt.Fprintf(&b, "public_key=%s\n", publicKeyHex)
+		b.WriteString("remove=true\n")
+	}
 	for _, peer := range peers {
 		fmt.Fprintf(&b, "public_key=%s\n", peer.publicKeyHex)
 		b.WriteString("replace_allowed_ips=true\n")
@@ -264,7 +276,11 @@ func (m *Module) applyPeerConfigLocked(peers []declarativePeer) error {
 	}
 	b.WriteString("\n")
 
-	return m.wgDevice.IpcSet(b.String())
+	if err := m.wgDevice.IpcSet(b.String()); err != nil {
+		return err
+	}
+	m.peers = desired
+	return nil
 }
 
 func (m *Module) configureAddressLocked(address string) error {

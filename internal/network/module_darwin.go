@@ -17,7 +17,7 @@ const NetworkModuleEnv = "PROTOS_NETWORK_MODULE"
 
 func newModule() (networkmodule.Module, error) {
 	switch moduleName := strings.ToLower(os.Getenv(NetworkModuleEnv)); moduleName {
-	case "", "ipc", "daemon", "networkd":
+	case "", "ipc":
 		return ipcmodule.New()
 	case "wireguard", "wireguard-go", "tun":
 		return wireguardmodule.New()

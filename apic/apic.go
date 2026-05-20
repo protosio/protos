@@ -12,7 +12,14 @@ import (
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	pbApic "github.com/protosio/protos/apic/proto"
-	"github.com/protosio/protos/internal/protosc"
+	"github.com/protosio/protos/internal/app"
+	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/network"
+	"github.com/protosio/protos/internal/p2p"
+	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/provisioners"
+	"github.com/protosio/protos/internal/release"
+	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -22,7 +29,35 @@ import (
 var log = util.GetLogger("grpcAPI")
 
 type Backend struct {
-	protosClient *protosc.ProtosClient
+	protosClient *Services
+}
+
+type Services struct {
+	DB             *db.DB
+	Manager        *user.Manager
+	KeyManager     *pcrypto.Manager
+	AppManager     *app.Manager
+	NetworkManager *network.Manager
+	CloudManager   *provisioners.Manager
+	P2PManager     *p2p.P2P
+	CanProvision   bool
+
+	InitFunc     func(username string, name string, organization string) error
+	ReleaseFetch func() (release.Releases, error)
+}
+
+func (s *Services) Init(username string, name string, organization string) error {
+	if s.InitFunc == nil {
+		return fmt.Errorf("init is not available")
+	}
+	return s.InitFunc(username, name, organization)
+}
+
+func (s *Services) GetProtosAvailableReleases() (release.Releases, error) {
+	if s.ReleaseFetch == nil {
+		return release.Releases{}, fmt.Errorf("release lookup is not available")
+	}
+	return s.ReleaseFetch()
 }
 
 func errorLoggingUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
@@ -33,7 +68,7 @@ func errorLoggingUnaryInterceptor(ctx context.Context, req interface{}, info *gr
 	return resp, err
 }
 
-func StartGRPCServer(dataPath string, version string, protosClient *protosc.ProtosClient) (func() error, error) {
+func StartGRPCServer(dataPath string, version string, protosClient *Services) (func() error, error) {
 
 	homedir, err := os.UserHomeDir()
 	if err != nil {
@@ -84,13 +119,6 @@ func StartGRPCServer(dataPath string, version string, protosClient *protosc.Prot
 	stopper := func() error {
 		log.Info("stopping gRPC server")
 		srv.GracefulStop()
-		if protosClient.NetworkManager != nil {
-			log.Info("bringing down network")
-			err = protosClient.NetworkManager.Down()
-			if err != nil {
-				log.Error(err)
-			}
-		}
 		return nil
 	}
 	return stopper, nil

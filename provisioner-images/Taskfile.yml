@@ -112,6 +112,18 @@ tasks:
         HOST_HOME="$HOME"
         DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format iso-efi --dir {{.WORKDIR}}/scaleway {{.WORKDIR}}/scaleway/scaleway.yaml
 
+  hetzner:
+    desc: Build the Hetzner AMD64 EFI ISO image.
+    deps: [output-dir]
+    cmds:
+      - task protosd-image PROTOS_IMAGE_PLATFORM=linux/amd64
+      - rm -rf {{.WORKDIR}}/hetzner
+      - mkdir {{.WORKDIR}}/hetzner
+      - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_hetzner.cue > {{.WORKDIR}}/hetzner/hetzner.yaml
+      - |
+        HOST_HOME="$HOME"
+        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format iso-efi --dir {{.WORKDIR}}/hetzner {{.WORKDIR}}/hetzner/hetzner.yaml
+
   syncstart:
     desc: Start a Mutagen sync session into the local VM.
     vars:

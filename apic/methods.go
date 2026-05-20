@@ -17,6 +17,13 @@ import (
 // Initialization
 //
 
+func (b *Backend) requireProvisionerCapability(action string) error {
+	if b.protosClient.CanProvision {
+		return nil
+	}
+	return fmt.Errorf("cannot %s: this protosd instance does not have the provisioner capability", action)
+}
+
 func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.InitResponse, error) {
 
 	err := b.protosClient.Init(in.Username, in.Name, in.Organization)
@@ -305,6 +312,9 @@ func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProvi
 }
 
 func (b *Backend) AddCloudProvider(ctx context.Context, in *pbApic.AddCloudProviderRequest) (*pbApic.AddCloudProviderResponse, error) {
+	if err := b.requireProvisionerCapability("add cloud provider"); err != nil {
+		return nil, err
+	}
 	if err := b.protosClient.CloudManager.AddProvider(in.Name, in.Type, in.Credentials); err != nil {
 		return nil, err
 	}
@@ -312,6 +322,9 @@ func (b *Backend) AddCloudProvider(ctx context.Context, in *pbApic.AddCloudProvi
 }
 
 func (b *Backend) RemoveCloudProvider(ctx context.Context, in *pbApic.RemoveCloudProviderRequest) (*pbApic.RemoveCloudProviderResponse, error) {
+	if err := b.requireProvisionerCapability("remove cloud provider"); err != nil {
+		return nil, err
+	}
 	// delete existing cloud provider
 	err := b.protosClient.CloudManager.DeleteProvider(in.Name)
 	if err != nil {
@@ -399,6 +412,9 @@ func (b *Backend) GetProvisioner(ctx context.Context, in *pbApic.GetProvisionerR
 }
 
 func (b *Backend) AddProvisioner(ctx context.Context, in *pbApic.AddProvisionerRequest) (*pbApic.AddProvisionerResponse, error) {
+	if err := b.requireProvisionerCapability("add provisioner"); err != nil {
+		return nil, err
+	}
 	if err := b.protosClient.CloudManager.AddProvisioner(in.Name, in.Type, in.Credentials); err != nil {
 		return nil, err
 	}
@@ -406,6 +422,9 @@ func (b *Backend) AddProvisioner(ctx context.Context, in *pbApic.AddProvisionerR
 }
 
 func (b *Backend) RemoveProvisioner(ctx context.Context, in *pbApic.RemoveProvisionerRequest) (*pbApic.RemoveProvisionerResponse, error) {
+	if err := b.requireProvisionerCapability("remove provisioner"); err != nil {
+		return nil, err
+	}
 	if err := b.protosClient.CloudManager.DeleteProvisioner(in.Name); err != nil {
 		return nil, fmt.Errorf("failed to delete provisioner '%s': %w", in.Name, err)
 	}
@@ -434,7 +453,15 @@ func provisionerMachineSpecs(machineSpecs map[string]provisioners.MachineSpec) m
 
 func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesRequest) (*pbApic.GetInstancesResponse, error) {
 	log.Debugf("Retrieving instances")
-	instances, err := b.protosClient.CloudManager.GetInstancesWithUpdatedStatus()
+	var (
+		instances []provisioners.InstanceInfo
+		err       error
+	)
+	if b.protosClient.CanProvision {
+		instances, err = b.protosClient.CloudManager.GetInstancesWithUpdatedStatus()
+	} else {
+		instances, err = b.protosClient.CloudManager.GetInstances(false)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
@@ -515,9 +542,9 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
 		} else {
 			status = fmt.Sprintf("%s (%s)", instance.Status, "reachable")
-		}
-		for name, peer := range resp.Peers {
-			peers[name] = peer
+			for name, peer := range resp.Peers {
+				peers[name] = peer
+			}
 		}
 	}
 
@@ -540,6 +567,9 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 }
 
 func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceRequest) (*pbApic.DeployInstanceResponse, error) {
+	if err := b.requireProvisionerCapability("deploy instance"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Deploying new instance '%s'", in.Name)
 
 	rls := release.Release{}
@@ -596,8 +626,16 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 }
 
 func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceRequest) (*pbApic.RemoveInstanceResponse, error) {
+	if err := b.requireProvisionerCapability("remove instance"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Removing instance '%s'", in.Name)
-	err := b.protosClient.CloudManager.DeleteInstance(in.Name)
+	var err error
+	if in.LocalOnly {
+		err = b.protosClient.CloudManager.DeleteInstanceLocal(in.Name)
+	} else {
+		err = b.protosClient.CloudManager.DeleteInstance(in.Name)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove instance '%s': %w", in.Name, err)
 	}
@@ -606,6 +644,9 @@ func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceR
 }
 
 func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceRequest) (*pbApic.StartInstanceResponse, error) {
+	if err := b.requireProvisionerCapability("start instance"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Starting instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.StartInstance(in.Name)
 	if err != nil {
@@ -615,6 +656,9 @@ func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceReq
 }
 
 func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceRequest) (*pbApic.StopInstanceResponse, error) {
+	if err := b.requireProvisionerCapability("stop instance"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Stopping instance '%s'", in.Name)
 	err := b.protosClient.CloudManager.StopInstance(in.Name)
 	if err != nil {
@@ -637,12 +681,12 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 
 	client, err := b.protosClient.P2PManager.GetClient(in.Name)
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
+		return b.getInstanceLogsViaSSH(in.Name, err)
 	}
 
 	logs, err := client.GetLogs(context.TODO(), &p2pproto.GetLogsRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
+		return b.getInstanceLogsViaSSH(in.Name, err)
 	}
 	base64Logs, err := base64.StdEncoding.DecodeString(logs.Logs)
 	if err != nil {
@@ -652,7 +696,19 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 	return &pbApic.GetInstanceLogsResponse{Logs: string(base64Logs)}, nil
 }
 
+func (b *Backend) getInstanceLogsViaSSH(instanceName string, p2pErr error) (*pbApic.GetInstanceLogsResponse, error) {
+	log.Debugf("Falling back to SSH logs for instance '%s' after p2p log retrieval failed: %s", instanceName, p2pErr.Error())
+	logs, err := b.protosClient.CloudManager.LogsRemoteInstance(instanceName)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve instance '%s' logs: p2p failed: %w; ssh fallback failed: %v", instanceName, p2pErr, err)
+	}
+	return &pbApic.GetInstanceLogsResponse{Logs: logs}, nil
+}
+
 func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceRequest) (*pbApic.InitInstanceResponse, error) {
+	if err := b.requireProvisionerCapability("initialize instance"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Initializing local instance '%s' at '%s'", in.Name, in.Ip)
 
 	err := b.protosClient.CloudManager.InitInstance(in.Name, provisioners.KindLocalVM, "local-id", "local", in.Ip)
@@ -663,6 +719,9 @@ func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceReque
 }
 
 func (b *Backend) UpdateInstance(ctx context.Context, in *pbApic.UpdateInstanceRequest) (*pbApic.UpdateInstanceResponse, error) {
+	if err := b.requireProvisionerCapability("update instance"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Updating instance '%s' to ip '%s'", in.Id, in.Ip)
 
 	err := b.protosClient.CloudManager.UpdateInstance(in.Id, in.Ip)
@@ -768,16 +827,25 @@ func (b *Backend) GetProvisionerImages(ctx context.Context, in *pbApic.GetProvis
 }
 
 func (b *Backend) UploadCloudImage(ctx context.Context, in *pbApic.UploadCloudImageRequest) (*pbApic.UploadCloudImageResponse, error) {
+	if err := b.requireProvisionerCapability("upload cloud image"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Uploading cloud image '%s'(%s) to cloud '%s'", in.ImageName, in.ImagePath, in.CloudName)
 	return &pbApic.UploadCloudImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Minute)
 }
 
 func (b *Backend) UploadProvisionerImage(ctx context.Context, in *pbApic.UploadProvisionerImageRequest) (*pbApic.UploadProvisionerImageResponse, error) {
+	if err := b.requireProvisionerCapability("upload provisioner image"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Uploading image '%s'(%s) to provisioner '%s'", in.ImageName, in.ImagePath, in.ProvisionerName)
 	return &pbApic.UploadProvisionerImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.ProvisionerName, in.Location, time.Duration(in.Timeout)*time.Minute)
 }
 
 func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudImageRequest) (*pbApic.RemoveCloudImageResponse, error) {
+	if err := b.requireProvisionerCapability("remove cloud image"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Removing cloud image '%s' from cloud '%s'", in.ImageName, in.CloudName)
 	errMsg := fmt.Sprintf("failed to delete image '%s' from cloud '%s'", in.ImageName, in.CloudLocation)
 	provider, err := b.protosClient.CloudManager.GetProvider(in.CloudName)
@@ -803,6 +871,9 @@ func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudIm
 }
 
 func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveProvisionerImageRequest) (*pbApic.RemoveProvisionerImageResponse, error) {
+	if err := b.requireProvisionerCapability("remove provisioner image"); err != nil {
+		return nil, err
+	}
 	log.Debugf("Removing image '%s' from provisioner '%s'", in.ImageName, in.ProvisionerName)
 	errMsg := fmt.Sprintf("failed to delete image '%s' from provisioner '%s'", in.ImageName, in.ProvisionerName)
 	provisioner, err := b.protosClient.CloudManager.GetProvisioner(in.ProvisionerName)

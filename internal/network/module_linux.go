@@ -18,7 +18,7 @@ func newModule() (networkmodule.Module, error) {
 	switch moduleName := strings.ToLower(os.Getenv(NetworkModuleEnv)); moduleName {
 	case "", "wireguard", "wireguard-go", "tun":
 		return wireguardmodule.New()
-	case "ipc", "daemon", "networkd":
+	case "ipc":
 		return ipcmodule.New()
 	default:
 		return nil, fmt.Errorf("unknown network module %q", moduleName)

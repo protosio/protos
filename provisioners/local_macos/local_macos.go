@@ -344,7 +344,7 @@ func (lm *localMacOS) DeleteInstance(id string, location string) error {
 		}
 		log.Debugf("Skipping host agent delete for stopped local macOS VM '%s': %v", manifest.ID, err)
 	}
-	if err := os.RemoveAll(lm.instanceDir(manifest.ID)); err != nil {
+	if err := removeLocalMacOSDir(lm.instanceDir(manifest.ID)); err != nil {
 		return fmt.Errorf("failed to remove local macOS VM '%s': %w", id, err)
 	}
 	return nil
@@ -789,6 +789,33 @@ func (lm *localMacOS) instanceManifestPath(id string) string {
 	return filepath.Join(lm.instanceDir(id), localMacOSManifestFile)
 }
 
+func removeLocalMacOSDir(path string) error {
+	var lastErr error
+	for attempt := 0; attempt < 20; attempt++ {
+		if err := os.RemoveAll(path); err != nil {
+			lastErr = err
+		} else if _, err := os.Stat(path); os.IsNotExist(err) {
+			return nil
+		} else if err != nil {
+			lastErr = err
+		} else {
+			lastErr = fmt.Errorf("directory still exists")
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("directory still exists")
+	}
+	if entries, err := os.ReadDir(path); err == nil && len(entries) > 0 {
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		return fmt.Errorf("%w; remaining entries: %s", lastErr, strings.Join(names, ", "))
+	}
+	return lastErr
+}
+
 func (lm *localMacOS) volumeManifestPath(id string) string {
 	return filepath.Join(lm.volumesDir(), id+".json")
 }
@@ -1020,10 +1047,10 @@ func (lm *localMacOS) applyHostAgentVM(id string, desiredState string) (*hostage
 
 	state, err := client.ApplyVM(id, lm.instanceManifestPath(id), desiredState)
 	if err != nil {
-		return nil, fmt.Errorf("local macOS VM host agent is unavailable; start it with sudo protos-vm-hostagent: %w", err)
+		return nil, fmt.Errorf("host agent is unavailable; start it with sudo protos-hostagent: %w", err)
 	}
 	if state.GetStatus() == "error" {
-		return nil, fmt.Errorf("local macOS VM host agent failed to apply state '%s' for VM '%s': %s", desiredState, id, state.GetMessage())
+		return nil, fmt.Errorf("host agent failed to apply state '%s' for VM '%s': %s", desiredState, id, state.GetMessage())
 	}
 	return state, nil
 }
@@ -1037,7 +1064,7 @@ func (lm *localMacOS) hostAgentVMStatus(id string) (*hostagentpb.VMObservedState
 
 	state, err := client.VMStatus(id, lm.instanceManifestPath(id))
 	if err != nil {
-		return nil, fmt.Errorf("local macOS VM host agent is unavailable; start it with sudo protos-vm-hostagent: %w", err)
+		return nil, fmt.Errorf("host agent is unavailable; start it with sudo protos-hostagent: %w", err)
 	}
 	return state, nil
 }

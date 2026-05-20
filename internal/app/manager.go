@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/bokwoon95/sq"
@@ -14,7 +15,6 @@ import (
 
 const (
 	appDS       = "app"
-	TypeProtosc = "protosc"
 	TypeProtosd = "protosd"
 )
 
@@ -85,7 +85,7 @@ func (am *Manager) GetByID(id string) (App, error) {
 		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 
-	return App{}, errors.Wrapf(err, "Could not find application '%s'", id)
+	return app, nil
 }
 
 // Get returns a copy of an application based on its name
@@ -96,7 +96,7 @@ func (am *Manager) Get(id string) (App, error) {
 		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 
-	return App{}, fmt.Errorf("could not find application '%s'", id)
+	return app, nil
 }
 
 // GetAll returns a copy of all the applications
@@ -122,13 +122,8 @@ func (am *Manager) GetByIntance(instance string) ([]App, error) {
 
 // Refresh checks the db for new apps and deploys them if they belong to the current instance
 func (am *Manager) Notify() {
-	if am.ptype == TypeProtosc {
-		return
-	}
-
 	log.Debug("Syncing apps")
-	// TODO: fix the query
-	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper([]sq.Predicate{sq.New[db.APP]("").INSTANCE_ID.EqString("n/a")}))
+	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))
 	if err != nil {
 		log.Errorf("Failed to get apps from db: %s", err.Error())
 		return
@@ -137,6 +132,9 @@ func (am *Manager) Notify() {
 	appsMap := map[string]App{}
 	for _, app := range dbapps {
 		appsMap[app.ID] = app
+		if !am.shouldReconcile(app) {
+			continue
+		}
 
 		app.mgr = am
 		app.access = &sync.Mutex{}
@@ -181,6 +179,11 @@ func (am *Manager) Notify() {
 			}
 		}
 	}
+}
+
+func (am *Manager) shouldReconcile(app App) bool {
+	instanceID := strings.TrimSpace(app.InstanceID)
+	return instanceID == "n/a" || instanceID == am.ptype
 }
 
 // Start sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance

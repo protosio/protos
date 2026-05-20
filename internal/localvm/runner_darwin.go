@@ -69,7 +69,7 @@ func Run(manifestPath string) error {
 		return fmt.Errorf("VM configuration validation failed: %w", err)
 	}
 
-	queue := vzvm.NewQueue("protos.vmhostagent." + manifest.ID)
+	queue := vzvm.NewQueue("protos.hostagent." + manifest.ID)
 	vm := vzvm.Create(config, queue)
 	if vm.ID == 0 {
 		return fmt.Errorf("failed to create VM")
@@ -234,7 +234,7 @@ func configureEFIBootLoader(config vz.VZVirtualMachineConfiguration, instanceDir
 }
 
 func configureConsole(config vz.VZVirtualMachineConfiguration, instanceDir string) error {
-	if os.Getenv("PROTOS_VM_HOSTAGENT_CONSOLE_STDIO") == "1" || os.Getenv("PROTOS_VM_RUNNER_CONSOLE_STDIO") == "1" {
+	if os.Getenv("PROTOS_HOSTAGENT_CONSOLE_STDIO") == "1" || os.Getenv("PROTOS_VM_RUNNER_CONSOLE_STDIO") == "1" {
 		toGuestRead, toGuestWrite, err := os.Pipe()
 		if err != nil {
 			return fmt.Errorf("failed to create console input pipe: %w", err)
