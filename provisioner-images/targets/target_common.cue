@@ -220,12 +220,21 @@ package cloudkit
           ip route replace default via "$GATEWAY" dev "$IFACE"
         fi
 
-        if [ -n "$DNS" ]; then
-          : > /etc/resolv.conf
-          for server in $DNS; do
-            echo "nameserver $server" >> /etc/resolv.conf
-          done
-        fi
+	        if [ -n "$DNS" ]; then
+	          RESOLV_CONF=/etc/resolv.conf
+	          if [ -L "$RESOLV_CONF" ]; then
+	            RESOLV_TARGET=$(readlink "$RESOLV_CONF")
+	            case "$RESOLV_TARGET" in
+	              /*) RESOLV_CONF="$RESOLV_TARGET" ;;
+	              *) RESOLV_CONF="$(dirname "$RESOLV_CONF")/$RESOLV_TARGET" ;;
+	            esac
+	          fi
+	          mkdir -p "$(dirname "$RESOLV_CONF")"
+	          : > "$RESOLV_CONF"
+	          for server in $DNS; do
+	            echo "nameserver $server" >> "$RESOLV_CONF"
+	          done
+	        fi
 
         ip addr show dev "$IFACE"
         ip route show default || true

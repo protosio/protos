@@ -635,6 +635,7 @@ type InstancePeer struct {
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	PublicKey     string                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	PublicIp      string                 `protobuf:"bytes,4,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
+	Routes        []string               `protobuf:"bytes,5,rep,name=routes,proto3" json:"routes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -695,6 +696,13 @@ func (x *InstancePeer) GetPublicIp() string {
 		return x.PublicIp
 	}
 	return ""
+}
+
+func (x *InstancePeer) GetRoutes() []string {
+	if x != nil {
+		return x.Routes
+	}
+	return nil
 }
 
 type DevicePeer struct {
@@ -906,13 +914,14 @@ const file_internal_hostagent_proto_hostagent_proto_rawDesc = "" +
 	"\rNetworkConfig\x12!\n" +
 	"\fipv6_address\x18\x01 \x01(\tR\vipv6Address\x122\n" +
 	"\x15wireguard_private_key\x18\x02 \x01(\tR\x13wireguardPrivateKey\x12\x16\n" +
-	"\x06domain\x18\x03 \x01(\tR\x06domain\"n\n" +
+	"\x06domain\x18\x03 \x01(\tR\x06domain\"\x86\x01\n" +
 	"\fInstancePeer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x03 \x01(\tR\tpublicKey\x12\x1b\n" +
-	"\tpublic_ip\x18\x04 \x01(\tR\bpublicIp\"?\n" +
+	"\tpublic_ip\x18\x04 \x01(\tR\bpublicIp\x12\x16\n" +
+	"\x06routes\x18\x05 \x03(\tR\x06routes\"?\n" +
 	"\n" +
 	"DevicePeer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +

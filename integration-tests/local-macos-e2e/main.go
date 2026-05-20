@@ -120,7 +120,7 @@ func run(imagePath string, workDir string, keep bool, timeout time.Duration, mac
 			return fmt.Errorf("initialize network manager through protos-hostagent: %w", err)
 		}
 		defer func() {
-			_ = networkManager.ConfigurePeers(nil, nil)
+			_ = networkManager.ConfigurePeers(nil, nil, nil)
 			_ = networkManager.Close()
 		}()
 	}
@@ -244,7 +244,7 @@ func reconnectPeersUntil(deadline time.Time, store *db.DB, cloudManager *provisi
 			continue
 		}
 		if networkManager != nil {
-			if err := networkManager.ConfigurePeers(instances, devices); err != nil {
+			if err := networkManager.ConfigurePeers(instances, devices, nil); err != nil {
 				lastErr = fmt.Errorf("configure network peers: %w", err)
 				time.Sleep(2 * time.Second)
 				continue

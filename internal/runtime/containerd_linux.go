@@ -386,6 +386,11 @@ func (cnt *containerdSandbox) Start(ip net.IP) error {
 		}
 
 		if status.Status == client.Running {
+			netNSpath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
+			err = cnt.p.networkManager.CreateNamespacedInterface(netNSpath, ip)
+			if err != nil {
+				return fmt.Errorf("failed to reconcile network for running app '%s': %w", cnt.containerID, err)
+			}
 			return nil
 		} else if status.Status == client.Stopped || status.Status == client.Created {
 			err = cnt.Stop()

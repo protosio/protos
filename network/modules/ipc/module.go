@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"time"
 
 	hostagentipc "github.com/protosio/protos/internal/hostagent/ipc"
@@ -143,7 +144,16 @@ func instancesToProto(instances []networkmodule.InstancePeer) []*hostagentpb.Ins
 			Name:      instance.Name,
 			PublicKey: instance.PublicKey,
 			PublicIp:  instance.PublicIP,
+			Routes:    instanceRoutesToProto(instance.Routes),
 		})
+	}
+	return out
+}
+
+func instanceRoutesToProto(routes []netip.Addr) []string {
+	out := make([]string, 0, len(routes))
+	for _, route := range routes {
+		out = append(out, route.String())
 	}
 	return out
 }

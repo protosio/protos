@@ -66,6 +66,7 @@ package hostagentv1
 	name?:       string
 	public_key?: string
 	public_ip?:  string
+	routes?:     [...string]
 }
 
 #DevicePeer: {
@@ -163,6 +164,7 @@ contract: {
 				{type: "string", name: "name", number: 2},
 				{type: "string", name: "public_key", number: 3},
 				{type: "string", name: "public_ip", number: 4},
+				{rule: "repeated", type: "string", name: "routes", number: 5},
 			]},
 			{kind: "message", name: "DevicePeer", fields: [
 				{type: "string", name: "name", number: 1},

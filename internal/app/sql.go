@@ -8,6 +8,10 @@ import (
 func createAppInsertMapper(app App) db.InsertMapper {
 	return func() sq.InsertQuery {
 		a := sq.New[db.APP]("")
+		publicKey := app.PublicKey
+		if publicKey == "" {
+			publicKey = app.ID
+		}
 		mapper := func(col *sq.Column) {
 			col.SetString(a.NAME, app.Name)
 			col.SetString(a.ID, app.ID)
@@ -15,7 +19,7 @@ func createAppInsertMapper(app App) db.InsertMapper {
 			col.SetString(a.INSTANCE_ID, app.InstanceID)
 			col.SetString(a.DESIRED_STATUS, app.DesiredStatus)
 			col.SetBool(a.PERSISTENCE, app.Persistence)
-			col.SetString(a.PUBLIC_KEY, app.ID)
+			col.SetString(a.PUBLIC_KEY, publicKey)
 		}
 		return sq.InsertInto(a).ColumnValues(mapper)
 	}
@@ -56,6 +60,8 @@ func createAppQueryMapper(predicates []sq.Predicate) db.QueryMapper[App] {
 				InstanceID:    row.StringField(a.INSTANCE_ID),
 				DesiredStatus: row.StringField(a.DESIRED_STATUS),
 				Persistence:   row.BoolField(a.PERSISTENCE),
+				PublicKey:     row.StringField(a.PUBLIC_KEY),
+				IP:            appIPFromPublicKey(row.StringField(a.PUBLIC_KEY)),
 			}
 		}
 		return query, mapper

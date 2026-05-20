@@ -132,7 +132,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		return err
 	}
 
-	peers, routes, err := m.declarativePeers(peerSet)
+	peers, routes, err := m.declarativePeers(config, peerSet)
 	if err != nil {
 		return err
 	}
@@ -373,7 +373,7 @@ func (m *Module) syncDomainLocked(domain string) error {
 	return nil
 }
 
-func (m *Module) declarativePeers(peerSet networkmodule.Peers) ([]declarativePeer, map[string]struct{}, error) {
+func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmodule.Peers) ([]declarativePeer, map[string]struct{}, error) {
 	peers := make([]declarativePeer, 0, len(peerSet.Instances)+len(peerSet.Devices))
 	routes := map[string]struct{}{}
 
@@ -386,6 +386,10 @@ func (m *Module) declarativePeers(peerSet networkmodule.Peers) ([]declarativePee
 		pubKeyAddr, err := ipv6AddressFromPublicKeyBase64(instance.PublicKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+		}
+		if pubKeyAddr == config.IPv6Address {
+			log.Debugf("Skipping local instance peer %s (%s)", instance.Name, pubKeyAddr.String())
+			continue
 		}
 
 		allowedIP := createIPv6Net(pubKeyAddr)
@@ -404,10 +408,23 @@ func (m *Module) declarativePeers(peerSet networkmodule.Peers) ([]declarativePee
 		}
 
 		route := allowedIP.String()
+		allowedIPs := []string{route}
 		routes[route] = struct{}{}
+		for _, routeAddr := range instance.Routes {
+			if routeAddr == pubKeyAddr || routeAddr == config.IPv6Address {
+				continue
+			}
+			appRoute := createIPv6Net(routeAddr)
+			if appRoute == nil {
+				continue
+			}
+			route := appRoute.String()
+			routes[route] = struct{}{}
+			allowedIPs = append(allowedIPs, route)
+		}
 		peers = append(peers, declarativePeer{
 			publicKeyHex:               publicKeyHex,
-			allowedIPs:                 []string{route},
+			allowedIPs:                 allowedIPs,
 			endpoint:                   net.JoinHostPort(instancePublicIP.String(), strconv.Itoa(wireguardPort)),
 			persistentKeepaliveSeconds: peerKeepaliveSeconds,
 		})

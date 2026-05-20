@@ -1,12 +1,14 @@
 package app
 
 import (
+	"crypto/ed25519"
 	"fmt"
 	"net"
 	"sync"
 
 	"github.com/pkg/errors"
 
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/runtime"
 
 	"github.com/protosio/protos/internal/util"
@@ -47,6 +49,7 @@ type App struct {
 	InstanceID    string `json:"instance-id"`
 	DesiredStatus string `json:"desired-status"`
 	IP            net.IP `json:"ip"`
+	PublicKey     string `json:"public-key"`
 	Persistence   bool   `json:"persistence"`
 }
 
@@ -57,6 +60,17 @@ type App struct {
 // createSandbox create the underlying container
 func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 	log.Infof("Creating sandbox for app '%s'[%s] at '%s'", app.Name, app.ID, app.IP.String())
+	exists, err := app.mgr.runtime.ImageExistsLocally(app.InstallerRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check image for app '%s': %w", app.ID, err)
+	}
+	if !exists {
+		log.Infof("Pulling image '%s' for app '%s'", app.InstallerRef, app.ID)
+		if err := app.mgr.runtime.PullImage(app.InstallerRef); err != nil {
+			return nil, fmt.Errorf("failed to pull image for app '%s': %w", app.ID, err)
+		}
+	}
+
 	cnt, err := app.mgr.runtime.NewSandbox(app.Name, app.ID, app.InstallerRef, app.Persistence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sandbox for app '%s': %w", app.ID, err)
@@ -114,6 +128,9 @@ func (app *App) GetVersion() string {
 // Start starts an application
 func (app *App) Start() error {
 	log.Infof("Starting application '%s'[%s]", app.Name, app.ID)
+	if app.IP == nil {
+		return fmt.Errorf("application '%s'[%s] has no overlay IP; public key is missing or invalid", app.Name, app.ID)
+	}
 
 	cnt, err := app.getOrcreateSandbox()
 	if err != nil {
@@ -151,4 +168,22 @@ func (app *App) Stop() error {
 // GetIP returns the ip address of the app
 func (app *App) GetIP() net.IP {
 	return app.IP
+}
+
+func (app *App) IPString() string {
+	if app.IP == nil {
+		return ""
+	}
+	return app.IP.String()
+}
+
+func appIPFromPublicKey(publicKey string) net.IP {
+	key, err := pcrypto.CreatePublicKeyFromBase64(publicKey)
+	if err != nil {
+		return nil
+	}
+	if len(key.Pub) != ed25519.PublicKeySize {
+		return nil
+	}
+	return net.ParseIP(key.IPv6Address().String())
 }

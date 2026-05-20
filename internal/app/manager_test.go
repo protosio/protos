@@ -48,6 +48,114 @@ func TestGetReturnsAppWithInstanceID(t *testing.T) {
 	if got.InstanceID != "vm-id" {
 		t.Fatalf("InstanceID = %q, want vm-id", got.InstanceID)
 	}
+
+	got, err = manager.Get("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != "app-id" {
+		t.Fatalf("name lookup ID = %q, want app-id", got.ID)
+	}
+}
+
+func TestGetStatusForHydratedAppUsesManagerRuntime(t *testing.T) {
+	store := newTestAppDB(t)
+	insertTestApp(t, store, "app-id", "app", "vm-id", statusStopped)
+	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store)
+
+	status, err := manager.GetStatus("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != statusStopped {
+		t.Fatalf("status = %q, want %q", status, statusStopped)
+	}
+}
+
+func TestCreateAssignsAppPublicKeyAndOverlayIP(t *testing.T) {
+	store := newTestAppDB(t)
+	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store)
+
+	created, err := manager.Create("docker.io/library/busybox:latest", "app", "vm-id", false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.PublicKey == "" {
+		t.Fatal("PublicKey is empty")
+	}
+	if created.IP == nil {
+		t.Fatal("IP is nil")
+	}
+
+	got, err := manager.Get(created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublicKey != created.PublicKey {
+		t.Fatalf("PublicKey = %q, want %q", got.PublicKey, created.PublicKey)
+	}
+	if !got.IP.Equal(created.IP) {
+		t.Fatalf("IP = %s, want %s", got.IP, created.IP)
+	}
+}
+
+func TestStartPullsMissingImage(t *testing.T) {
+	store := newTestAppDB(t)
+	runtime := &fakeRuntimePlatform{imageExists: false}
+	manager := CreateManager("local-node", runtime, store)
+
+	created, err := manager.Create("docker.io/library/busybox:latest", "app", "local-node", false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Start(created.Name); err != nil {
+		t.Fatal(err)
+	}
+	manager.Notify()
+	if runtime.pullImageCalls != 1 {
+		t.Fatalf("pullImageCalls = %d, want 1", runtime.pullImageCalls)
+	}
+	if runtime.newSandboxCalls != 1 {
+		t.Fatalf("newSandboxCalls = %d, want 1", runtime.newSandboxCalls)
+	}
+}
+
+func TestNotifyRepairsAlreadyRunningLocalApp(t *testing.T) {
+	store := newTestAppDB(t)
+	key, err := pcrypto.CreateManager(store).GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := App{
+		ID:            "app-id",
+		Name:          "app",
+		InstallerRef:  "installer",
+		InstanceID:    "local-node",
+		DesiredStatus: statusRunning,
+		IP:            appIPFromPublicKey(key.PublicString()),
+		PublicKey:     key.PublicString(),
+	}
+	if err := db.Insert(store, createAppInsertMapper(app)); err != nil {
+		t.Fatal(err)
+	}
+
+	sandbox := &fakeRuntimeSandbox{id: "app-id", status: statusRunning}
+	runtime := &fakeRuntimePlatform{
+		sandboxes: map[string]*fakeRuntimeSandbox{"app-id": sandbox},
+	}
+	manager := CreateManager("local-node", runtime, store)
+
+	manager.Notify()
+
+	if runtime.newSandboxCalls != 0 {
+		t.Fatalf("newSandboxCalls = %d, want 0", runtime.newSandboxCalls)
+	}
+	if sandbox.startCalls != 1 {
+		t.Fatalf("startCalls = %d, want 1", sandbox.startCalls)
+	}
+	if sandbox.status != statusRunning {
+		t.Fatalf("status = %q, want %q", sandbox.status, statusRunning)
+	}
 }
 
 func newTestAppDB(t *testing.T) *db.DB {
@@ -94,6 +202,8 @@ func insertTestApp(t *testing.T, store *db.DB, id string, name string, instanceI
 type fakeRuntimePlatform struct {
 	sandboxes       map[string]*fakeRuntimeSandbox
 	newSandboxCalls int
+	imageExists     bool
+	pullImageCalls  int
 }
 
 func (f *fakeRuntimePlatform) Init() error {
@@ -122,7 +232,7 @@ func (f *fakeRuntimePlatform) GetImage(string) (appruntime.PlatformImage, error)
 }
 
 func (f *fakeRuntimePlatform) ImageExistsLocally(string) (bool, error) {
-	return true, nil
+	return f.imageExists, nil
 }
 
 func (f *fakeRuntimePlatform) GetAllImages() (map[string]appruntime.PlatformImage, error) {
@@ -130,6 +240,8 @@ func (f *fakeRuntimePlatform) GetAllImages() (map[string]appruntime.PlatformImag
 }
 
 func (f *fakeRuntimePlatform) PullImage(string) error {
+	f.pullImageCalls++
+	f.imageExists = true
 	return nil
 }
 
@@ -152,12 +264,14 @@ func (f *fakeRuntimePlatform) GetHWStats() (appruntime.HardwareStats, error) {
 }
 
 type fakeRuntimeSandbox struct {
-	id      string
-	status  string
-	removed bool
+	id         string
+	status     string
+	removed    bool
+	startCalls int
 }
 
 func (f *fakeRuntimeSandbox) Start(net.IP) error {
+	f.startCalls++
 	f.status = statusRunning
 	return nil
 }

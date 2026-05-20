@@ -21,6 +21,7 @@ type InstancePeer struct {
 	Name      string
 	PublicKey string
 	PublicIP  string
+	Routes    []netip.Addr
 }
 
 type DevicePeer struct {

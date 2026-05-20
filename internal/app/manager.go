@@ -7,6 +7,7 @@ import (
 
 	"github.com/bokwoon95/sq"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/runtime"
 
 	"github.com/pkg/errors"
@@ -20,9 +21,10 @@ const (
 
 // Manager keeps track of all the apps
 type Manager struct {
-	ptype   string
-	db      *db.DB
-	runtime runtime.RuntimePlatform
+	ptype    string
+	db       *db.DB
+	runtime  runtime.RuntimePlatform
+	notifyMu sync.Mutex
 }
 
 //
@@ -37,6 +39,21 @@ func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB) *Ma
 	return manager
 }
 
+func (am *Manager) bind(app App) App {
+	app.mgr = am
+	if app.access == nil {
+		app.access = &sync.Mutex{}
+	}
+	return app
+}
+
+func (am *Manager) bindAll(apps []App) []App {
+	for i := range apps {
+		apps[i] = am.bind(apps[i])
+	}
+	return apps
+}
+
 //
 // Client methods
 //
@@ -45,11 +62,15 @@ func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB) *Ma
 func (am *Manager) Create(installer string, name string, instanceName string, persistence bool, installerParams map[string]string) (*App, error) {
 
 	var app *App
-	if name == "" || instanceName == "" {
+	if name == "" || installer == "" || instanceName == "" {
 		return app, fmt.Errorf("application name, installer ID, installer version or instance ID cannot be empty")
 	}
 
-	// FIXME: here a key needs to be generated for the app, so that we can also derive the IP from it
+	key, err := pcrypto.CreateManager(am.db).GenerateKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate application key: %w", err)
+	}
+
 	guid := xid.New()
 	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installer)
 	app = &App{
@@ -61,10 +82,12 @@ func (am *Manager) Create(installer string, name string, instanceName string, pe
 		InstallerRef:  installer,
 		InstanceID:    instanceName,
 		DesiredStatus: statusStopped,
+		IP:            appIPFromPublicKey(key.PublicString()),
+		PublicKey:     key.PublicString(),
 		Persistence:   persistence,
 	}
 
-	err := db.Insert(am.db, createAppInsertMapper(*app))
+	err = db.Insert(am.db, createAppInsertMapper(*app))
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
 	}
@@ -85,18 +108,23 @@ func (am *Manager) GetByID(id string) (App, error) {
 		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 
-	return app, nil
+	return am.bind(app), nil
 }
 
-// Get returns a copy of an application based on its name
+// Get returns a copy of an application based on its name or id
 func (am *Manager) Get(id string) (App, error) {
 	appModel := sq.New[db.APP]("")
 	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.ID.EqString(id)}))
-	if err != nil {
-		return app, fmt.Errorf("failed to retrieve instance: %w", err)
+	if err == nil {
+		return am.bind(app), nil
 	}
 
-	return app, nil
+	app, nameErr := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.NAME.EqString(id)}))
+	if nameErr != nil {
+		return app, fmt.Errorf("failed to retrieve app by id or name %q: id lookup: %v; name lookup: %w", id, err, nameErr)
+	}
+
+	return am.bind(app), nil
 }
 
 // GetAll returns a copy of all the applications
@@ -106,7 +134,7 @@ func (am *Manager) GetAll() ([]App, error) {
 		return nil, fmt.Errorf("could not get all applications: %w", err)
 	}
 
-	return apps, nil
+	return am.bindAll(apps), nil
 }
 
 // GetAll returns a copy of all the applications
@@ -117,11 +145,14 @@ func (am *Manager) GetByIntance(instance string) ([]App, error) {
 		return nil, fmt.Errorf("could not get all applications: %w", err)
 	}
 
-	return apps, nil
+	return am.bindAll(apps), nil
 }
 
 // Refresh checks the db for new apps and deploys them if they belong to the current instance
 func (am *Manager) Notify() {
+	am.notifyMu.Lock()
+	defer am.notifyMu.Unlock()
+
 	log.Debug("Syncing apps")
 	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))
 	if err != nil {
@@ -136,16 +167,13 @@ func (am *Manager) Notify() {
 			continue
 		}
 
-		app.mgr = am
-		app.access = &sync.Mutex{}
+		app = am.bind(app)
 		log.Infof("App '%s' desired status: '%s'", app.Name, app.DesiredStatus)
 		if app.DesiredStatus == statusRunning {
-			if app.GetStatus() != statusRunning {
-				err := app.Start()
-				if err != nil {
-					log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
-					continue
-				}
+			err := app.Start()
+			if err != nil {
+				log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
+				continue
 			}
 		} else if app.DesiredStatus == statusStopped {
 			if app.GetStatus() != statusStopped {
@@ -228,7 +256,7 @@ func (am *Manager) Remove(id string) error {
 		return fmt.Errorf("application '%s' should be stopped before being removed", id)
 	}
 
-	err = db.Delete(am.db, createAppDeleteByNameQuery(id))
+	err = db.Delete(am.db, createAppDeleteByNameQuery(app.ID))
 	if err != nil {
 		return errors.Wrapf(err, "Failed to remove application %s", id)
 	}

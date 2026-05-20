@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"net/netip"
 
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -29,6 +30,11 @@ type Manager struct {
 	module networkmodule.Module
 }
 
+type AppRoute struct {
+	InstanceID string
+	IP         net.IP
+}
+
 func (m *Manager) Init(key *pcrypto.Key, domain string) error {
 	m.config = networkmodule.Config{
 		IPv6Address:         key.IPv6Address(),
@@ -50,10 +56,22 @@ func (m *Manager) Down() error {
 	return m.module.Down()
 }
 
-func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices []user.UserDevice) error {
+func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices []user.UserDevice, appRoutes []AppRoute) error {
 	peers := networkmodule.Peers{
 		Instances: make([]networkmodule.InstancePeer, 0, len(instances)),
 		Devices:   make([]networkmodule.DevicePeer, 0, len(devices)),
+	}
+
+	routesByInstance := map[string][]netip.Addr{}
+	for _, route := range appRoutes {
+		if route.IP == nil || route.InstanceID == "" {
+			continue
+		}
+		addr, ok := netip.AddrFromSlice(route.IP.To16())
+		if !ok || !addr.Is6() {
+			continue
+		}
+		routesByInstance[route.InstanceID] = append(routesByInstance[route.InstanceID], addr)
 	}
 
 	for _, instance := range instances {
@@ -62,6 +80,7 @@ func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices 
 			Name:      instance.Name,
 			PublicKey: instance.PublicKey,
 			PublicIP:  instance.PublicIP,
+			Routes:    routesByInstance[instance.ID],
 		})
 	}
 

@@ -57,7 +57,7 @@ func TestApplyNetworkConfiguredReconcilesEmptyPeerSet(t *testing.T) {
 		Config:         config,
 		ReconcilePeers: true,
 		Instances: []*hostagentpb.InstancePeer{
-			{Id: "vm-1", Name: "vm-1", PublicKey: "pub", PublicIp: "192.0.2.10"},
+			{Id: "vm-1", Name: "vm-1", PublicKey: "pub", PublicIp: "192.0.2.10", Routes: []string{"200:db8::20"}},
 		},
 	})
 	if resp.GetMessage() != "" {
@@ -65,6 +65,9 @@ func TestApplyNetworkConfiguredReconcilesEmptyPeerSet(t *testing.T) {
 	}
 	if networkModule.configureCalled != 1 || len(networkModule.lastPeers.Instances) != 1 {
 		t.Fatalf("first reconcile did not apply peer set: called=%d peers=%#v", networkModule.configureCalled, networkModule.lastPeers)
+	}
+	if got := networkModule.lastPeers.Instances[0].Routes; len(got) != 1 || got[0] != netip.MustParseAddr("200:db8::20") {
+		t.Fatalf("instance routes did not round-trip: %#v", got)
 	}
 
 	resp = server.applyNetwork(&hostagentpb.NetworkDesiredState{

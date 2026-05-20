@@ -21,6 +21,7 @@ const (
 	wireguardNetworkInterfaceName = "protosWG"
 	bridgeNetworkInterface        = "protosBR"
 	bridgeMTU                     = 1500
+	namespacedGatewayIPv6         = "fe80::7072:6f74:6f73"
 	localMacOSNATGatewayHost      = 1
 )
 
@@ -198,6 +199,20 @@ func setBridgeUp(bridge *netlink.Bridge) error {
 	if err := netlink.LinkSetUp(bridge); err != nil {
 		return fmt.Errorf("failed to bring bridge '%s' up: %w", bridge.Attrs().Name, err)
 	}
+	if err := configureBridgeGateway(bridge); err != nil {
+		return err
+	}
+	return nil
+}
+
+func configureBridgeGateway(bridge netlink.Link) error {
+	gatewayNet, err := namespacedGatewayNet()
+	if err != nil {
+		return err
+	}
+	if err := netlink.AddrReplace(bridge, &netlink.Addr{IPNet: gatewayNet}); err != nil {
+		return fmt.Errorf("failed to configure bridge gateway '%s' on %s: %w", gatewayNet.String(), bridge.Attrs().Name, err)
+	}
 	return nil
 }
 
@@ -261,6 +276,10 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		if err != nil {
 			return fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}
+		if pubKeyAddr == config.IPv6Address {
+			log.Debugf("Skipping local instance peer %s (%s)", instance.Name, pubKeyAddr.String())
+			continue
+		}
 
 		pubKeyWG, err := publicEd25519ToWireGuard(instance.PublicKey)
 		if err != nil {
@@ -273,14 +292,23 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		}
 
 		instanceInternalNet := *createIPv6Net(pubKeyAddr)
+		allowedIPs := []net.IPNet{instanceInternalNet}
 		newRoutes = append(newRoutes, netlink.Route{Dst: &instanceInternalNet, LinkIndex: lnk.Index()})
+		for _, routeAddr := range instance.Routes {
+			if routeAddr == pubKeyAddr || routeAddr == config.IPv6Address {
+				continue
+			}
+			routeNet := *createIPv6Net(routeAddr)
+			allowedIPs = append(allowedIPs, routeNet)
+			newRoutes = append(newRoutes, netlink.Route{Dst: &routeNet, LinkIndex: lnk.Index()})
+		}
 		if isLocalMacOSNATIP(instancePublicIP) {
 			if relayLocalMacOSPeers {
-				relayAllowedIPs = append(relayAllowedIPs, instanceInternalNet)
+				relayAllowedIPs = append(relayAllowedIPs, allowedIPs...)
 				if relayEndpoint == nil {
 					relayEndpoint = &net.UDPAddr{IP: localMacOSNATGateway(instancePublicIP), Port: wgPort}
 				}
-				log.Debugf("Routing local macOS VM peer %s (%s) through host relay endpoint %s", instance.Name, instanceInternalNet.String(), relayEndpoint.String())
+				log.Debugf("Routing local macOS VM peer %s (%d routes) through host relay endpoint %s", instance.Name, len(allowedIPs), relayEndpoint.String())
 				continue
 			}
 			endpoint := existingPeerEndpoints[pubKeyWG]
@@ -295,7 +323,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 			wgPeers = append(wgPeers, wgtypes.PeerConfig{
 				PublicKey:                   pubKeyWG,
 				ReplaceAllowedIPs:           true,
-				AllowedIPs:                  []net.IPNet{instanceInternalNet},
+				AllowedIPs:                  allowedIPs,
 				Endpoint:                    endpoint,
 				PersistentKeepaliveInterval: keepalive,
 			})
@@ -307,7 +335,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 			PublicKey:                   pubKeyWG,
 			ReplaceAllowedIPs:           true,
 			Endpoint:                    &net.UDPAddr{IP: instancePublicIP, Port: wgPort},
-			AllowedIPs:                  []net.IPNet{instanceInternalNet},
+			AllowedIPs:                  allowedIPs,
 			PersistentKeepaliveInterval: &keepalive,
 		}
 
@@ -592,10 +620,12 @@ func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSpat
 	defer netns.Close()
 
 	hostIfaceName := ""
+	hostIfaceIndex := 0
 	err = netns.Do(func(hostNS ns.NetNS) error {
 		name := "prts0"
 		link, err := netlink.LinkByName(name)
 		if err == nil {
+			hostIfaceIndex = link.Attrs().ParentIndex
 			return configureNamespacedLink(link, config, IP)
 		}
 		if !strings.Contains(err.Error(), "not found") {
@@ -618,15 +648,29 @@ func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSpat
 	if err != nil {
 		return fmt.Errorf("failed to create veth pair: %w", err)
 	}
-	if hostIfaceName == "" {
+	if err := ensureNamespacedHostRoute(IP); err != nil {
+		return err
+	}
+	if hostIfaceName == "" && hostIfaceIndex == 0 {
 		return nil
 	}
 
-	hostVeth, err := netlink.LinkByName(hostIfaceName)
-	if err != nil {
-		return fmt.Errorf("failed to find host interface '%s': %w", hostIfaceName, err)
+	var hostVeth netlink.Link
+	if hostIfaceName != "" {
+		hostVeth, err = netlink.LinkByName(hostIfaceName)
+		if err != nil {
+			return fmt.Errorf("failed to find host interface '%s': %w", hostIfaceName, err)
+		}
+	} else {
+		hostVeth, err = netlink.LinkByIndex(hostIfaceIndex)
+		if err != nil {
+			return fmt.Errorf("failed to find host interface index '%d': %w", hostIfaceIndex, err)
+		}
 	}
 
+	if err := netlink.LinkSetUp(hostVeth); err != nil {
+		return fmt.Errorf("failed to bring host interface %q UP: %w", hostVeth.Attrs().Name, err)
+	}
 	if err := netlink.LinkSetMaster(hostVeth, netBridge); err != nil {
 		return fmt.Errorf("failed to connect %q to bridge %v: %w", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
 	}
@@ -634,6 +678,9 @@ func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSpat
 }
 
 func configureNamespacedLink(link netlink.Link, config networkmodule.Config, IP net.IP) error {
+	if IP == nil || IP.To16() == nil || IP.To4() != nil {
+		return fmt.Errorf("invalid IPv6 address for namespaced interface: %v", IP)
+	}
 	if err := netlink.LinkSetUp(link); err != nil {
 		return fmt.Errorf("failed to bring interface %q UP: %w", link.Attrs().Name, err)
 	}
@@ -644,13 +691,53 @@ func configureNamespacedLink(link netlink.Link, config networkmodule.Config, IP 
 		return fmt.Errorf("failed to configure IP address '%s' on interface: %w", IP.String(), err)
 	}
 
-	_, networkALL, _ := net.ParseCIDR("0.0.0.0/0")
+	gateway, err := namespacedGatewayIP()
+	if err != nil {
+		return err
+	}
+	_, networkALL, _ := net.ParseCIDR("::/0")
 	route := netlink.Route{
 		LinkIndex: link.Attrs().Index,
 		Dst:       networkALL,
+		Gw:        gateway,
 	}
 	if err := netlink.RouteReplace(&route); err != nil {
 		return fmt.Errorf("failed to configure route on interface: %w", err)
 	}
 	return nil
+}
+
+func ensureNamespacedHostRoute(IP net.IP) error {
+	if netBridge == nil {
+		return fmt.Errorf("bridge is nil")
+	}
+	if IP == nil || IP.To16() == nil || IP.To4() != nil {
+		return fmt.Errorf("invalid IPv6 address for namespaced interface: %v", IP)
+	}
+	routeNet := &net.IPNet{IP: IP, Mask: net.CIDRMask(net.IPv6len*8, net.IPv6len*8)}
+	route := netlink.Route{
+		LinkIndex: netBridge.Attrs().Index,
+		Dst:       routeNet,
+	}
+	if err := netlink.RouteReplace(&route); err != nil {
+		return fmt.Errorf("failed to configure host route for namespaced interface '%s': %w", IP.String(), err)
+	}
+	return nil
+}
+
+func namespacedGatewayIP() (net.IP, error) {
+	ip := net.ParseIP(namespacedGatewayIPv6)
+	if ip == nil {
+		return nil, fmt.Errorf("invalid namespaced gateway IP %q", namespacedGatewayIPv6)
+	}
+	return ip, nil
+}
+
+func namespacedGatewayNet() (*net.IPNet, error) {
+	ip, network, err := net.ParseCIDR(namespacedGatewayIPv6 + "/64")
+	if err != nil {
+		return nil, fmt.Errorf("invalid namespaced gateway network: %w", err)
+	}
+	network.IP = ip
+	return network, nil
 }

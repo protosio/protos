@@ -293,6 +293,7 @@ func (n *Node) Start() error {
 		database:     n.DB,
 		cm:           n.CloudManager,
 		um:           n.Manager,
+		am:           n.AppManager,
 		nm:           n.NetworkManager,
 		p2pm:         n.P2PManager,
 		capabilities: n.capabilities,
@@ -306,6 +307,7 @@ func (n *Node) Start() error {
 		{model: db.PEER{}, notifier: dbNotifier},
 		{model: db.USER{}, notifier: dbNotifier},
 		{model: db.USER_DEVICE_METADATA{}, notifier: dbNotifier},
+		{model: db.APP{}, notifier: dbNotifier},
 	} {
 		if err := n.DB.RegisterNotifier(registration.model, registration.notifier); err != nil {
 			return fmt.Errorf("failed to register database notifier: %w", err)
@@ -423,6 +425,7 @@ type DBNotifier struct {
 	database     *db.DB
 	cm           *provisioners.Manager
 	um           *user.Manager
+	am           *app.Manager
 	nm           *network.Manager
 	p2pm         *p2p.P2P
 	capabilities Capabilities
@@ -463,11 +466,33 @@ func (dbn *DBNotifier) Notify() {
 	}
 	userDevices = membership.FilterDevices(userDevices, peerIDs)
 
+	appRoutes := []network.AppRoute{}
+	if dbn.am != nil {
+		apps, err := dbn.am.GetAll()
+		if err != nil {
+			log.Error(fmt.Errorf("failed to retrieve apps for network routing: %w", err))
+			return
+		}
+		for _, application := range apps {
+			if application.IP == nil {
+				continue
+			}
+			appRoutes = append(appRoutes, network.AppRoute{
+				InstanceID: application.InstanceID,
+				IP:         application.IP,
+			})
+		}
+	}
+
 	if dbn.capabilities.Network && dbn.nm != nil {
-		if err := dbn.nm.ConfigurePeers(instances, userDevices); err != nil {
+		if err := dbn.nm.ConfigurePeers(instances, userDevices, appRoutes); err != nil {
 			log.Error(fmt.Errorf("failed to configure network peers: %w", err))
 			return
 		}
+	}
+
+	if dbn.capabilities.AppRuntime && dbn.am != nil {
+		dbn.am.Notify()
 	}
 
 	err = dbn.p2pm.ConfigurePeers(membership.Machines(instances, userDevices))

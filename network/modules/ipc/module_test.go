@@ -147,8 +147,14 @@ func TestModuleCallsHostAgent(t *testing.T) {
 	}
 
 	peers := networkmodule.Peers{
-		Instances: []networkmodule.InstancePeer{{ID: "i1", Name: "instance", PublicKey: "pub", PublicIP: "127.0.0.1"}},
-		Devices:   []networkmodule.DevicePeer{{Name: "device", PublicKey: "devpub"}},
+		Instances: []networkmodule.InstancePeer{{
+			ID:        "i1",
+			Name:      "instance",
+			PublicKey: "pub",
+			PublicIP:  "127.0.0.1",
+			Routes:    []netip.Addr{netip.MustParseAddr("200:db8::20")},
+		}},
+		Devices: []networkmodule.DevicePeer{{Name: "device", PublicKey: "devpub"}},
 	}
 	if err := module.ConfigurePeers(config, peers); err != nil {
 		t.Fatalf("ConfigurePeers: %v", err)
@@ -173,6 +179,9 @@ func TestModuleCallsHostAgent(t *testing.T) {
 	}
 	if len(fake.peers.Instances) != 1 || fake.peers.Instances[0].ID != "i1" {
 		t.Fatalf("instances did not round-trip: %#v", fake.peers.Instances)
+	}
+	if got := fake.peers.Instances[0].Routes; len(got) != 1 || got[0] != netip.MustParseAddr("200:db8::20") {
+		t.Fatalf("instance routes did not round-trip: %#v", got)
 	}
 	if fake.namespacePath != "/proc/1/ns/net" || !fake.namespaceIP.Equal(net.ParseIP("10.0.0.2")) {
 		t.Fatalf("namespace request did not round-trip: path=%q ip=%s", fake.namespacePath, fake.namespaceIP)

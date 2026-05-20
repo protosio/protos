@@ -126,12 +126,14 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 		}
 
 		respApp := pbApic.App{
-			Id:        app.ID,
-			Name:      app.Name,
-			Version:   app.GetVersion(),
-			Status:    fmt.Sprintf("%s (%s)", status, app.DesiredStatus),
-			Ip:        app.IP.String(),
-			Installer: app.InstallerRef,
+			Id:           app.ID,
+			Name:         app.Name,
+			Version:      app.GetVersion(),
+			Status:       fmt.Sprintf("%s (%s)", status, app.DesiredStatus),
+			InstanceName: app.InstanceID,
+			Ip:           app.IPString(),
+			Installer:    app.InstallerRef,
+			Persistence:  app.Persistence,
 		}
 		resp.Apps = append(resp.Apps, &respApp)
 	}

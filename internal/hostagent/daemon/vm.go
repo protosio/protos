@@ -281,7 +281,11 @@ func (s *Server) applyNetwork(desired *hostagentpb.NetworkDesiredState) *hostage
 		}
 		s.networkUp = true
 		if desired.GetReconcilePeers() || hasNetworkPeers(desired) {
-			if err := s.network.ConfigurePeers(config, networkPeersFromProto(desired.GetInstances(), desired.GetDevices())); err != nil {
+			peers, err := networkPeersFromProto(desired.GetInstances(), desired.GetDevices())
+			if err != nil {
+				return s.networkStatus(err.Error())
+			}
+			if err := s.network.ConfigurePeers(config, peers); err != nil {
 				return s.networkStatus(err.Error())
 			}
 		}
@@ -295,7 +299,11 @@ func (s *Server) applyNetwork(desired *hostagentpb.NetworkDesiredState) *hostage
 			return s.networkStatus(err.Error())
 		}
 		if desired.GetReconcilePeers() || hasNetworkPeers(desired) {
-			if err := s.network.ConfigurePeers(config, networkPeersFromProto(desired.GetInstances(), desired.GetDevices())); err != nil {
+			peers, err := networkPeersFromProto(desired.GetInstances(), desired.GetDevices())
+			if err != nil {
+				return s.networkStatus(err.Error())
+			}
+			if err := s.network.ConfigurePeers(config, peers); err != nil {
 				return s.networkStatus(err.Error())
 			}
 		}
@@ -368,18 +376,27 @@ func networkConfigFromProto(config *hostagentpb.NetworkConfig) (networkmodule.Co
 	}, nil
 }
 
-func networkPeersFromProto(instances []*hostagentpb.InstancePeer, devices []*hostagentpb.DevicePeer) networkmodule.Peers {
+func networkPeersFromProto(instances []*hostagentpb.InstancePeer, devices []*hostagentpb.DevicePeer) (networkmodule.Peers, error) {
 	peers := networkmodule.Peers{
 		Instances: make([]networkmodule.InstancePeer, 0, len(instances)),
 		Devices:   make([]networkmodule.DevicePeer, 0, len(devices)),
 	}
 
 	for _, instance := range instances {
+		routes := make([]netip.Addr, 0, len(instance.GetRoutes()))
+		for _, route := range instance.GetRoutes() {
+			addr, err := netip.ParseAddr(route)
+			if err != nil {
+				return networkmodule.Peers{}, fmt.Errorf("invalid route %q for instance peer %q: %w", route, instance.GetName(), err)
+			}
+			routes = append(routes, addr)
+		}
 		peers.Instances = append(peers.Instances, networkmodule.InstancePeer{
 			ID:        instance.GetId(),
 			Name:      instance.GetName(),
 			PublicKey: instance.GetPublicKey(),
 			PublicIP:  instance.GetPublicIp(),
+			Routes:    routes,
 		})
 	}
 
@@ -390,7 +407,7 @@ func networkPeersFromProto(instances []*hostagentpb.InstancePeer, devices []*hos
 		})
 	}
 
-	return peers
+	return peers, nil
 }
 
 type manifest struct {
