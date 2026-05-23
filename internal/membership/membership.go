@@ -1,6 +1,7 @@
 package membership
 
 import (
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/user"
@@ -35,4 +36,31 @@ func Machines(instances []provisioners.InstanceInfo, devices []user.UserDevice) 
 		peers = append(peers, &devices[i])
 	}
 	return peers
+}
+
+func WitnessCandidates(instances []provisioners.InstanceInfo, devices []user.UserDevice) []db.WitnessCandidate {
+	candidates := make([]db.WitnessCandidate, 0, len(instances)+len(devices))
+	for _, instance := range instances {
+		candidates = append(candidates, db.WitnessCandidate{
+			PeerID:     instance.GetID(),
+			DeviceType: witnessDeviceTypeForInstance(instance),
+			Rank:       instance.WitnessRank,
+		})
+	}
+	for _, device := range devices {
+		candidates = append(candidates, db.WitnessCandidate{
+			PeerID:     device.GetID(),
+			DeviceType: witnessDeviceTypeForUserDevice(device),
+			Rank:       device.WitnessRank,
+		})
+	}
+	return candidates
+}
+
+func witnessDeviceTypeForInstance(instance provisioners.InstanceInfo) string {
+	return db.WitnessDeviceTypeForMachine(instance.Kind, instance.KindID)
+}
+
+func witnessDeviceTypeForUserDevice(device user.UserDevice) string {
+	return db.WitnessDeviceTypeForUserDeviceName(device.GetName())
 }

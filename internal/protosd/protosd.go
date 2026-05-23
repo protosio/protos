@@ -1,6 +1,7 @@
 package protosd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -499,6 +500,10 @@ func (dbn *DBNotifier) Notify() {
 	if err != nil {
 		log.Error(fmt.Errorf("failed to configure p2p peers: %w", err))
 		return
+	}
+
+	if err := dbn.database.ReconcileWitnesses(context.Background(), membership.WitnessCandidates(instances, userDevices)); err != nil {
+		log.Error(fmt.Errorf("failed to reconcile swarmion witnesses: %w", err))
 	}
 }
 

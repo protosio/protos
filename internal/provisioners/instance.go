@@ -56,6 +56,7 @@ type InstanceInfo struct {
 	KindID             string // ID of the cloud provider or device ID for local VM
 	ProviderResourceID string // ID used by the provisioner API for lifecycle operations
 	DesiredStatus      string
+	WitnessRank        int
 	Location           string
 	Status             string
 	Architecture       string

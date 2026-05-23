@@ -5,6 +5,7 @@ package protos
 	name:            string
 	kind:            string
 	desired_status?: string
+	witness_rank:    int
 }
 
 #CloudMachineMetadata: {
@@ -41,10 +42,11 @@ package protos
 }
 
 #UserDeviceMetadata: {
-	id:         string
-	public_key: string
-	user_id:    string
-	name:       string
+	id:           string
+	public_key:   string
+	user_id:      string
+	name:         string
+	witness_rank: int
 }
 
 #Peer: {
@@ -74,6 +76,7 @@ contract: {
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "kind", type: "VARCHAR(255)", not_null: true, go: {name: "KIND", sq_type: "StringField", ddl: "notnull"}},
 					{name: "desired_status", type: "VARCHAR(255)", go: {name: "DESIRED_STATUS", sq_type: "StringField"}},
+					{name: "witness_rank", type: "INT", not_null: true, go: {name: "WITNESS_RANK", sq_type: "NumberField", ddl: "notnull"}},
 				]
 				indexes: [{name: "machines_name_idx", columns: ["name"]}]
 			},
@@ -137,6 +140,7 @@ contract: {
 					{name: "public_key", type: "VARCHAR(255)", not_null: true, go: {name: "PUBLIC_KEY", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "user_id", type: "VARCHAR(255)", not_null: true, go: {name: "USER_ID", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull"}},
+					{name: "witness_rank", type: "INT", not_null: true, go: {name: "WITNESS_RANK", sq_type: "NumberField", ddl: "notnull"}},
 				]
 				indexes: [
 					{name: "user_devices_metadata_public_key_idx", columns: ["public_key"]},

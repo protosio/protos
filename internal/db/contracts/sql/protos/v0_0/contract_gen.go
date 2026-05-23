@@ -23,6 +23,7 @@ var Version = schema.VersionDefinition{
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "kind", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "desired_status", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
+					{Name: "witness_rank", Type: "INT", PrimaryKey: false, NotNull: true},
 				},
 			},
 			{
@@ -73,6 +74,7 @@ var Version = schema.VersionDefinition{
 					{Name: "public_key", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "user_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "witness_rank", Type: "INT", PrimaryKey: false, NotNull: true},
 				},
 			},
 			{
@@ -98,7 +100,8 @@ var CreateSQL = []string{
   id VARCHAR(255) NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   kind VARCHAR(255) NOT NULL,
-  desired_status VARCHAR(255)
+  desired_status VARCHAR(255),
+  witness_rank INT NOT NULL
 )`,
 	`CREATE TABLE cloud_machines_metadata (
   id VARCHAR(255) NOT NULL PRIMARY KEY,
@@ -133,7 +136,8 @@ var CreateSQL = []string{
   id VARCHAR(255) NOT NULL PRIMARY KEY,
   public_key VARCHAR(255) NOT NULL,
   user_id VARCHAR(255) NOT NULL,
-  name VARCHAR(255) NOT NULL
+  name VARCHAR(255) NOT NULL,
+  witness_rank INT NOT NULL
 )`,
 	`CREATE TABLE peers (
   id VARCHAR(255) NOT NULL PRIMARY KEY

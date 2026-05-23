@@ -22,10 +22,11 @@ type UserInfo struct {
 
 // UserDevice - represents a device that a user uses to connect to the instances. A user can have multiple devices (laptop, mobile phone etc)
 type UserDevice struct {
-	ID        string `json:"id" validate:"required"`
-	PublicKey string `json:"publickey" validate:"base64"` // ed25519 public key
-	Name      string `json:"name" validate:"required"`    // ID that uniquely identifies a machine
-	UserID    string `json:"userid" validate:"required"`
+	ID          string `json:"id" validate:"required"`
+	PublicKey   string `json:"publickey" validate:"base64"` // ed25519 public key
+	Name        string `json:"name" validate:"required"`    // ID that uniquely identifies a machine
+	UserID      string `json:"userid" validate:"required"`
+	WitnessRank int    `json:"witness_rank"`
 }
 
 // User represents a Protos user
@@ -172,10 +173,11 @@ func (um *Manager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, error) 
 // AddDevice adds a device to the user
 func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error {
 	ud := UserDevice{
-		ID:        key.GetID(),
-		Name:      name,
-		PublicKey: key.PublicString(),
-		UserID:    userID,
+		ID:          key.GetID(),
+		Name:        name,
+		PublicKey:   key.PublicString(),
+		UserID:      userID,
+		WitnessRank: db.DefaultWitnessRankForUserDeviceName(name),
 	}
 
 	err := db.Insert(um.db, createUserDeviceInsertMapper(ud), db.CreatePeerInsertMapper(ud.ID))

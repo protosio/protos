@@ -57,6 +57,7 @@ func createUserDeviceInsertMapper(device UserDevice) db.InsertMapper {
 			col.SetString(d.PUBLIC_KEY, device.PublicKey)
 			col.SetString(d.USER_ID, device.UserID)
 			col.SetString(d.NAME, device.Name)
+			col.SetInt(d.WITNESS_RANK, device.WitnessRank)
 		}
 		return sq.InsertInto(d).ColumnValues(mapper)
 	}
@@ -71,10 +72,11 @@ func createUserDeviceQueryMapper(publicKey string) db.QueryMapper[UserDevice] {
 	return func() (sq.SelectQuery, func(row *sq.Row) UserDevice) {
 		mapper := func(row *sq.Row) UserDevice {
 			return UserDevice{
-				ID:        row.StringField(d.ID),
-				UserID:    row.StringField(d.USER_ID),
-				PublicKey: row.StringField(d.PUBLIC_KEY),
-				Name:      row.StringField(d.NAME),
+				ID:          row.StringField(d.ID),
+				UserID:      row.StringField(d.USER_ID),
+				PublicKey:   row.StringField(d.PUBLIC_KEY),
+				Name:        row.StringField(d.NAME),
+				WitnessRank: row.IntField(d.WITNESS_RANK),
 			}
 		}
 		return query, mapper
@@ -93,10 +95,11 @@ func createUserDeviceQueryAllMapper(excludePublicKey string) db.QueryMapper[User
 	return func() (sq.SelectQuery, func(row *sq.Row) UserDevice) {
 		mapper := func(row *sq.Row) UserDevice {
 			return UserDevice{
-				ID:        row.StringField(d.ID),
-				UserID:    row.StringField(d.USER_ID),
-				PublicKey: row.StringField(d.PUBLIC_KEY),
-				Name:      row.StringField(d.NAME),
+				ID:          row.StringField(d.ID),
+				UserID:      row.StringField(d.USER_ID),
+				PublicKey:   row.StringField(d.PUBLIC_KEY),
+				Name:        row.StringField(d.NAME),
+				WitnessRank: row.IntField(d.WITNESS_RANK),
 			}
 		}
 		return query, mapper

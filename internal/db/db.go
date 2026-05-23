@@ -68,6 +68,9 @@ type DB struct {
 	mu                   sync.Mutex
 	opMu                 sync.Mutex
 	initialized          bool
+	watchCancel          context.CancelFunc
+	witnessMu            sync.Mutex
+	witnessRankRequests  map[string]pendingWitnessRankRequest
 	tableChangeCallbacks *util.Map[string, tableChangeCallback]
 }
 
@@ -170,6 +173,7 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 		HeartbeatInterval:              5 * time.Second,
 		FinalizedMaterializationPolicy: swarmionapp.FinalizedMaterializationEager,
 		AutomaticEpochPolicies:         true,
+		WitnessSelectionLimit:          protosWitnessSelectionLimit,
 		SchemaEngine:                   cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
 		OnWriteNotification:            db.handleWriteNotification,
 		Logger:                         logger,
@@ -183,7 +187,44 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 	db.network = network
 	db.sqldb = app.SQLDB()
 	db.initialized = true
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	db.watchCancel = watchCancel
+	db.startSwarmionWatchers(watchCtx, app)
 	return nil
+}
+
+func (db *DB) startSwarmionWatchers(ctx context.Context, app *swarmionapp.App) {
+	if db == nil || app == nil {
+		return
+	}
+	if events, err := app.WatchFinalizedRoots(ctx); err == nil {
+		go db.forwardFinalizedRootEvents(events)
+	} else {
+		notifyLog.Warnf("failed to watch swarmion finalized roots: %s", err.Error())
+	}
+	if events, err := app.WatchStatus(ctx); err == nil {
+		go db.forwardSwarmionStatusEvents(events)
+	} else {
+		notifyLog.Warnf("failed to watch swarmion status: %s", err.Error())
+	}
+}
+
+func (db *DB) forwardFinalizedRootEvents(events <-chan swarmionapp.FinalizedRootEvent) {
+	for event := range events {
+		db.triggerTableChangeCallbacks(event.ChangedTables...)
+	}
+}
+
+func (db *DB) forwardSwarmionStatusEvents(events <-chan swarmionapp.StatusEvent) {
+	for event := range events {
+		switch event.Kind {
+		case swarmionapp.StatusEventFatalChanged,
+			swarmionapp.StatusEventActiveWitnessesChanged,
+			swarmionapp.StatusEventEligibleWitnessesChanged,
+			swarmionapp.StatusEventStateProvidersChanged:
+			db.triggerTableChangeCallbacks()
+		}
+	}
 }
 
 func (db *DB) runMigrations(ctx context.Context) error {
@@ -301,12 +342,17 @@ func (db *DB) Close() error {
 
 	db.mu.Lock()
 	app := db.app
+	watchCancel := db.watchCancel
 	db.app = nil
 	db.network = nil
 	db.sqldb = nil
 	db.initialized = false
+	db.watchCancel = nil
 	db.mu.Unlock()
 
+	if watchCancel != nil {
+		watchCancel()
+	}
 	if app == nil {
 		return nil
 	}
@@ -461,6 +507,32 @@ func dedupeMultiaddrs(addrs []string) []string {
 		deduped = append(deduped, addr)
 	}
 	return deduped
+}
+
+func (db *DB) SwarmionStatus() (swarmionapp.Status, bool) {
+	if db == nil {
+		return swarmionapp.Status{}, false
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return swarmionapp.Status{}, false
+	}
+	return app.Status(), true
+}
+
+func (db *DB) SwarmionCompatibility(ctx context.Context) ([]swarmionapp.ManifestCompatibility, error) {
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil, fmt.Errorf("swarmion app is not initialized")
+	}
+	return app.Compatibility(ctx)
 }
 
 func (db *DB) GetSqlDB() *sql.DB {

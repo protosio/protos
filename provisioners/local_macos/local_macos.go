@@ -464,7 +464,7 @@ func (lm *localMacOS) GetInstanceInfo(id string, location string) (provisioners.
 		ID:                 manifest.ID,
 		Name:               manifest.Name,
 		PublicIP:           manifest.PublicIP,
-		Kind:               provisioners.KindCloudVM,
+		Kind:               provisioners.KindLocalVM,
 		KindID:             lm.NameStr(),
 		ProviderResourceID: manifest.ID,
 		Location:           localMacOSLocation,

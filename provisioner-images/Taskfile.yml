@@ -113,7 +113,7 @@ tasks:
         DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format iso-efi --dir {{.WORKDIR}}/scaleway {{.WORKDIR}}/scaleway/scaleway.yaml
 
   hetzner:
-    desc: Build the Hetzner AMD64 EFI ISO image.
+    desc: Build the Hetzner AMD64 FAT16 EFI disk image.
     deps: [output-dir]
     cmds:
       - task protosd-image PROTOS_IMAGE_PLATFORM=linux/amd64
@@ -122,7 +122,25 @@ tasks:
       - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_hetzner.cue > {{.WORKDIR}}/hetzner/hetzner.yaml
       - |
         HOST_HOME="$HOME"
-        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format iso-efi --dir {{.WORKDIR}}/hetzner {{.WORKDIR}}/hetzner/hetzner.yaml
+        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format raw-efi --dir {{.WORKDIR}}/hetzner {{.WORKDIR}}/hetzner/hetzner.yaml
+      - |
+        docker run --rm -v "$PWD/{{.WORKDIR}}/hetzner:/work" -w /work alpine:3.23 sh -c '
+          set -eu
+          apk add --no-cache dosfstools mtools >/dev/null
+          rm -rf efi-extract
+          mkdir -p efi-extract/EFI/BOOT efi-extract/EFI/Linux efi-extract/LOADER
+          mcopy -i hetzner-efi.img@@1048576 ::/EFI/BOOT/BOOTX64.EFI efi-extract/EFI/BOOT/
+          mcopy -i hetzner-efi.img@@1048576 ::/EFI/Linux/LINUXKIT.EFI efi-extract/EFI/Linux/
+          mcopy -i hetzner-efi.img@@1048576 ::/LOADER/loader.conf efi-extract/LOADER/
+          truncate -s 256M hetzner-efi-fat16.img
+          mkfs.vfat -F 16 -n PROTOSBOOT hetzner-efi-fat16.img >/dev/null
+          mmd -i hetzner-efi-fat16.img ::/EFI ::/EFI/BOOT ::/EFI/Linux ::/LOADER
+          mcopy -i hetzner-efi-fat16.img efi-extract/EFI/BOOT/BOOTX64.EFI ::/EFI/BOOT/
+          mcopy -i hetzner-efi-fat16.img efi-extract/EFI/Linux/LINUXKIT.EFI ::/EFI/Linux/
+          mcopy -i hetzner-efi-fat16.img efi-extract/LOADER/loader.conf ::/LOADER/
+          printf "FS0:\\\\EFI\\\\BOOT\\\\BOOTX64.EFI\r\n" > startup.nsh
+          mcopy -i hetzner-efi-fat16.img startup.nsh ::/
+        '
 
   syncstart:
     desc: Start a Mutagen sync session into the local VM.

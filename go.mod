@@ -343,7 +343,7 @@ require (
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
-	swarmion.dev/protocol v0.0.0 // indirect
+	swarmion.dev/protocol v0.0.0
 	swarmion.dev/runtime v0.0.0
 	swarmion.dev/schema-engines/cue v0.0.0
 	swarmion.dev/schema-engines/declarative v0.0.0

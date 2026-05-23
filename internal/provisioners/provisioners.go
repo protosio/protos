@@ -317,7 +317,7 @@ func (cm *Manager) findProviderRecordsByID(id string) ([]ProviderRecord, error) 
 //
 
 // DeployInstance deploys an instance on the provided cloud
-func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error) {
+func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, err error) {
 	// init cloud
 	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
@@ -338,6 +338,31 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if err := provider.Init(); err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to init cloud provider '%s'(%s) API: %w", cloudName, provider.TypeStr(), err)
 	}
+
+	var vmID string
+	var volumeID string
+	var instanceInfo InstanceInfo
+	defer func() {
+		if err == nil || vmID == "" {
+			return
+		}
+		log.Warnf("Cleaning up failed instance deployment '%s' (%s): %s", instanceName, vmID, err.Error())
+		if instanceInfo.ID != "" {
+			_ = cm.p2p.RemovePeer(instanceInfo)
+			_ = cm.deleteInstanceSSHKey(instanceInfo.ID)
+		}
+		if stopErr := computeProvider.StopInstance(vmID, cloudLocation); stopErr != nil {
+			log.Debugf("failed to stop partially deployed instance '%s' (%s): %s", instanceName, vmID, stopErr.Error())
+		}
+		if deleteErr := computeProvider.DeleteInstance(vmID, cloudLocation); deleteErr != nil {
+			log.Warnf("failed to delete partially deployed instance '%s' (%s): %s", instanceName, vmID, deleteErr.Error())
+		}
+		if volumeID != "" {
+			if deleteErr := volumeProvider.DeleteVolume(volumeID, cloudLocation); deleteErr != nil {
+				log.Warnf("failed to delete partially deployed instance volume '%s' for '%s': %s", volumeID, instanceName, deleteErr.Error())
+			}
+		}
+	}()
 
 	// validate machine type
 	supportedMachineTypes, err := computeProvider.SupportedMachines(cloudLocation)
@@ -384,14 +409,14 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// deploy a protos instance
 	log.Infof("Deploying instance '%s' of type '%s', using Protos version '%s' (image id '%s')", instanceName, machineType, release.Version, imageID)
-	vmID, err := computeProvider.NewInstance(instanceName, imageID, instanceSSHKey.AuthorizedKey(), machineType, cloudLocation)
+	vmID, err = computeProvider.NewInstance(instanceName, imageID, instanceSSHKey.AuthorizedKey(), machineType, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
 	log.Infof("Instance with ID '%s' deployed", vmID)
 
 	// get instance info
-	instanceInfo, err := computeProvider.GetInstanceInfo(vmID, cloudLocation)
+	instanceInfo, err = computeProvider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to get Protos instance info: %w", err)
 	}
@@ -404,6 +429,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if instanceInfo.KindID == "" {
 		instanceInfo.KindID = provider.NameStr()
 	}
+	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
 
 	thisDevice, err := cm.um.GetCurrentDevice()
 	if err != nil {
@@ -412,7 +438,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
-	volumeID, err := volumeProvider.NewVolume(instanceName, 30000, cloudLocation)
+	volumeID, err = volumeProvider.NewVolume(instanceName, 30000, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to create data volume: %w", err)
 	}
@@ -442,7 +468,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// wait for port 22 to be open
-	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
+	err = util.WaitForPort(instanceInfo.PublicIP, "22", 60)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
 	}
@@ -514,6 +540,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.Architecture = resp.Architecture
 	instanceInfo.Status = instanceUpdate.Status
 	instanceInfo.DesiredStatus = ServerStateRunning
+	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
 
 	mm, cmm := createInstanceInsertMapper(instanceInfo)
 
@@ -534,6 +561,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 		Kind:          kind,
 		KindID:        kindID,
 		DesiredStatus: ServerStateRunning,
+		WitnessRank:   db.DefaultWitnessRankForMachine(kind, kindID),
 		Location:      locationName,
 	}
 
@@ -811,7 +839,7 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
 
-	if !localOnly && instance.Kind == KindCloudVM {
+	if !localOnly && (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) {
 		provider, err := cm.GetProvider(instance.KindID)
 		if err != nil {
 			return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
@@ -1213,6 +1241,9 @@ func mergedReconciledInstance(current InstanceInfo, observed InstanceInfo) Insta
 	if observed.DesiredStatus == "" {
 		observed.DesiredStatus = current.DesiredStatus
 	}
+	if observed.WitnessRank <= 0 {
+		observed.WitnessRank = current.WitnessRank
+	}
 	if observed.Location == "" {
 		observed.Location = current.Location
 	}
@@ -1229,6 +1260,7 @@ func persistentInstanceEqual(a InstanceInfo, b InstanceInfo) bool {
 		a.KindID == b.KindID &&
 		a.ProviderResourceID == b.ProviderResourceID &&
 		a.DesiredStatus == b.DesiredStatus &&
+		a.WitnessRank == b.WitnessRank &&
 		a.PublicIP == b.PublicIP &&
 		a.Location == b.Location &&
 		a.Architecture == b.Architecture &&

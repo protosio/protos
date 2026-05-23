@@ -15,6 +15,7 @@ type MACHINE struct {
 	NAME           sq.StringField `ddl:"notnull index"`
 	KIND           sq.StringField `ddl:"notnull"`
 	DESIRED_STATUS sq.StringField
+	WITNESS_RANK   sq.NumberField `ddl:"notnull"`
 }
 
 type CLOUD_MACHINE_METADATA struct {
@@ -60,6 +61,7 @@ type USER_DEVICE_METADATA struct {
 	PUBLIC_KEY     sq.StringField `ddl:"notnull index"`
 	USER_ID        sq.StringField `ddl:"notnull index"`
 	NAME           sq.StringField `ddl:"notnull"`
+	WITNESS_RANK   sq.NumberField `ddl:"notnull"`
 }
 
 type PEER struct {

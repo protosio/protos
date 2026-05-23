@@ -192,12 +192,17 @@ func (hz *hetzner) NewInstance(name string, imageID string, pubKey string, machi
 
 	startAfterCreate := false
 	log.Infof("Deploying Hetzner VM using image '%s'", imageID)
+	userData, err := hetznerAuthorizedKeysUserData(pubKey)
+	if err != nil {
+		return "", errors.Wrap(err, "Failed to build Hetzner user data")
+	}
 	result, _, err := hz.client.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             name,
 		ServerType:       serverType,
 		Image:            image,
 		SSHKeys:          []*hcloud.SSHKey{sshKey},
 		Location:         serverLocation,
+		UserData:         userData,
 		StartAfterCreate: &startAfterCreate,
 		Labels: map[string]string{
 			hetznerLabelManaged: "true",
@@ -587,6 +592,9 @@ func (hz *hetzner) getImages(protosOnly bool) (map[string]provisioners.ImageInfo
 
 	result := map[string]provisioners.ImageInfo{}
 	for _, image := range images {
+		if image == nil {
+			continue
+		}
 		if image.Status != hcloud.ImageStatusAvailable {
 			continue
 		}
@@ -616,6 +624,9 @@ func (hz *hetzner) listProtosHcloudImages(ctx context.Context) ([]*hcloud.Image,
 	}
 	filtered := make([]*hcloud.Image, 0, len(images))
 	for _, image := range images {
+		if image == nil {
+			continue
+		}
 		if image.Labels[hetznerLabelImage] == "true" || strings.HasPrefix(image.Description, "protos-") {
 			filtered = append(filtered, image)
 		}
@@ -1071,4 +1082,15 @@ func sanitizeRemoteName(name string) string {
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func hetznerAuthorizedKeysUserData(pubKey string) (string, error) {
+	authorizedKeys := strings.TrimSpace(pubKey) + "\n"
+	return fmt.Sprintf(`#!/bin/sh
+set -eu
+mkdir -p /run/config/ssh
+cat > /run/config/ssh/authorized_keys <<'PROTOS_AUTHORIZED_KEYS'
+%sPROTOS_AUTHORIZED_KEYS
+chmod 0600 /run/config/ssh/authorized_keys
+`, authorizedKeys), nil
 }

@@ -18,6 +18,7 @@ func createInstanceInsertMapper(instance InstanceInfo) (db.InsertMapper, db.Inse
 			col.SetString(m.NAME, instance.Name)
 			col.SetString(m.KIND, instance.Kind)
 			col.SetString(m.DESIRED_STATUS, instance.DesiredStatus)
+			col.SetInt(m.WITNESS_RANK, instance.WitnessRank)
 		}
 
 		return sq.InsertInto(m).ColumnValues(mapper)
@@ -49,6 +50,7 @@ func createInstanceUpdateMapper(instance InstanceInfo) (db.UpdateMapper, db.Upda
 			col.SetString(m.NAME, instance.Name)
 			col.SetString(m.KIND, instance.Kind)
 			col.SetString(m.DESIRED_STATUS, instance.DesiredStatus)
+			col.SetInt(m.WITNESS_RANK, instance.WitnessRank)
 		}
 
 		return sq.Update(m).SetFunc(mapper).Where(m.ID.EqString(instance.ID))
@@ -86,6 +88,7 @@ func createInstanceQueryMapper(id string) db.QueryMapper[InstanceInfo] {
 				Name:               row.StringField(m.NAME),
 				Kind:               row.StringField(m.KIND),
 				DesiredStatus:      row.StringField(m.DESIRED_STATUS),
+				WitnessRank:        row.IntField(m.WITNESS_RANK),
 				KindID:             row.StringField(cmm.CLOUD_ID),
 				ProviderResourceID: row.StringField(cmm.PROVIDER_RESOURCE_ID),
 				PublicIP:           row.StringField(cmm.PUBLIC_IP),
@@ -114,6 +117,7 @@ func createInstanceQueryByNameMapper(name string) db.QueryMapper[InstanceInfo] {
 				Name:               row.StringField(m.NAME),
 				Kind:               row.StringField(m.KIND),
 				DesiredStatus:      row.StringField(m.DESIRED_STATUS),
+				WitnessRank:        row.IntField(m.WITNESS_RANK),
 				KindID:             row.StringField(cmm.CLOUD_ID),
 				ProviderResourceID: row.StringField(cmm.PROVIDER_RESOURCE_ID),
 				PublicIP:           row.StringField(cmm.PUBLIC_IP),
@@ -145,6 +149,7 @@ func createInstanceQueryAllMapper(excludePublicKey string) db.QueryMapper[Instan
 				Name:               row.StringField(m.NAME),
 				Kind:               row.StringField(m.KIND),
 				DesiredStatus:      row.StringField(m.DESIRED_STATUS),
+				WitnessRank:        row.IntField(m.WITNESS_RANK),
 				KindID:             row.StringField(cmm.CLOUD_ID),
 				ProviderResourceID: row.StringField(cmm.PROVIDER_RESOURCE_ID),
 				PublicIP:           row.StringField(cmm.PUBLIC_IP),
