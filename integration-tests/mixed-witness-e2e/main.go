@@ -517,15 +517,41 @@ func waitForWitnessState(
 	expect witnessExpectation,
 ) error {
 	var lastErr error
+	var lastReport time.Time
+	reportProgress := func(status *swarmionapp.Status, err error) {
+		if time.Since(lastReport) < 30*time.Second {
+			return
+		}
+		lastReport = time.Now()
+		if status == nil {
+			fmt.Printf("waiting for witness transition: label=%s err=%v\n", expect.label, err)
+			return
+		}
+		fmt.Printf(
+			"waiting for witness transition: label=%s err=%v active=%v eligible=%v ranks=%v connected=%v providers=%v finalized=%s failures=%d last_failure=%s\n",
+			expect.label,
+			err,
+			status.ActiveWitnessIDs,
+			status.EligibleWitnessIDs,
+			status.EligibleWitnessRanks,
+			status.ConnectedPeers,
+			status.StateProviders,
+			status.FinalizedRootHash.String(),
+			status.ProtocolFailureCount,
+			status.LastProtocolFailureDetail,
+		)
+	}
 	for time.Now().Before(deadline) {
 		instances, devices, err := reconcileTopology(store, cloudManager, userManager, p2pManager, networkManager)
 		if err != nil {
 			lastErr = err
+			reportProgress(nil, lastErr)
 			time.Sleep(3 * time.Second)
 			continue
 		}
 		if err := assertPersistedWitnessRanks(instances, devices, expect.ranks); err != nil {
 			lastErr = err
+			reportProgress(nil, lastErr)
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -533,6 +559,7 @@ func waitForWitnessState(
 		status, ok := store.SwarmionStatus()
 		if !ok {
 			lastErr = fmt.Errorf("swarmion status is unavailable")
+			reportProgress(nil, lastErr)
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -542,11 +569,18 @@ func waitForWitnessState(
 		if err := assertNoBlockingCompatibility(store); err != nil {
 			return err
 		}
+		if err := assertProtocolWitnessRanks(status.EligibleWitnessRanks, expect.ranks); err != nil {
+			lastErr = err
+			reportProgress(&status, lastErr)
+			time.Sleep(3 * time.Second)
+			continue
+		}
 		if observed, epochID, ok := witnessStatusMatches(status, expect); ok {
 			fmt.Printf("witness assertion ok: %s witnesses=%v eligible=%v root=%s epoch=%s\n", expect.label, observed, status.EligibleWitnessIDs, status.FinalizedRootHash.String(), epochID)
 			return nil
 		}
 		lastErr = fmt.Errorf("active witnesses %v did not match %s", status.ActiveWitnessIDs, describeExpectation(expect))
+		reportProgress(&status, lastErr)
 		time.Sleep(3 * time.Second)
 	}
 	return fmt.Errorf("timed out waiting for witness transition %q: %w", expect.label, lastErr)
@@ -570,6 +604,22 @@ func assertPersistedWitnessRanks(instances []provisioners.InstanceInfo, devices 
 		}
 		if got != want {
 			return fmt.Errorf("persisted witness rank for peer %s = %d, want %d", peerID, got, want)
+		}
+	}
+	return nil
+}
+
+func assertProtocolWitnessRanks(observed map[string]int, expected map[string]int) error {
+	if len(expected) == 0 {
+		return nil
+	}
+	for peerID, want := range expected {
+		got, found := observed[peerID]
+		if !found {
+			return fmt.Errorf("missing finalized protocol witness rank for peer %s", peerID)
+		}
+		if got != want {
+			return fmt.Errorf("finalized protocol witness rank for peer %s = %d, want %d", peerID, got, want)
 		}
 	}
 	return nil

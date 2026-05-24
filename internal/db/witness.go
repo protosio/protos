@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"swarmion.dev/protocol"
-	"swarmion.dev/runtime/adminrpc"
 	swarmionapp "swarmion.dev/runtime/app"
 )
 
@@ -21,7 +20,6 @@ const (
 
 	protosWitnessSelectionLimit = 2
 	witnessRankRetryAfter       = 30 * time.Second
-	witnessRankRequestTimeout   = 5 * time.Second
 )
 
 var witnessRankByDeviceType = map[string]int{
@@ -131,10 +129,10 @@ func (db *DB) ReconcileWitnesses(ctx context.Context, candidates []WitnessCandid
 		return nil
 	}
 
-	eligible := stringSet(status.EligibleWitnessIDs)
+	eligible := eligibleWitnessesWithExpectedRanks(status, ranked)
 	for _, candidate := range ranked {
 		candidateEligible := setHas(eligible, candidate.PeerID)
-		if candidate.PeerID != status.PeerID && candidateEligible {
+		if candidate.PeerID != status.PeerID {
 			continue
 		}
 		if _, err := db.requestWitnessRank(ctx, app, status, candidate, candidateEligible); err != nil {
@@ -153,7 +151,8 @@ func (db *DB) ReconcileWitnesses(ctx context.Context, candidates []WitnessCandid
 	if containsString(formation, status.PeerID) {
 		return db.applyWitnessFormation(ctx, app, activeEpochID, formation)
 	}
-	return db.applyRemoteWitnessFormation(ctx, status, activeEpochID, formation)
+	notifyLog.Debugf("local peer %s is not in desired swarmion witness formation %v; waiting for a requested peer to apply it", status.PeerID, formation)
+	return nil
 }
 
 func WitnessFormationInStatus(status swarmionapp.Status, formation []string) ([]string, string, bool) {
@@ -255,6 +254,23 @@ func eligibleWitnessFormation(candidates []rankedWitnessCandidate, eligible map[
 	return formation
 }
 
+func eligibleWitnessesWithExpectedRanks(status swarmionapp.Status, candidates []rankedWitnessCandidate) map[string]struct{} {
+	out := map[string]struct{}{}
+	eligible := stringSet(status.EligibleWitnessIDs)
+	for _, candidate := range candidates {
+		if !setHas(eligible, candidate.PeerID) {
+			continue
+		}
+		if status.EligibleWitnessRanks != nil {
+			if rank, found := status.EligibleWitnessRanks[candidate.PeerID]; !found || rank != candidate.Rank {
+				continue
+			}
+		}
+		out[candidate.PeerID] = struct{}{}
+	}
+	return out
+}
+
 func eligibleCloudWitnessFormation(candidates []rankedWitnessCandidate, eligible map[string]struct{}) []string {
 	formation := make([]string, 0, protosWitnessSelectionLimit)
 	for _, candidate := range candidates {
@@ -292,54 +308,19 @@ func (db *DB) requestWitnessRank(
 	candidate rankedWitnessCandidate,
 	candidateEligible bool,
 ) (bool, error) {
-	if candidate.PeerID == status.PeerID {
-		if !db.reserveWitnessRankRequest("local:"+candidate.PeerID, candidate.Rank, !candidateEligible) {
-			return false, nil
-		}
-		if _, err := app.PublishWitnessRankUpdate(ctx, candidate.Rank); err != nil {
-			return false, err
-		}
-		notifyLog.Infof("published local swarmion witness rank %d for %s peer %s", candidate.Rank, candidate.DeviceType, candidate.PeerID)
-		return true, nil
-	}
-
-	if !candidateEligible && db.reserveWitnessRankRequest("owner:"+candidate.PeerID, candidate.Rank, true) {
-		if _, err := app.PublishWitnessRankUpdateForSubject(ctx, candidate.PeerID, candidate.Rank); err == nil {
-			notifyLog.Infof("published owner-authorized swarmion witness rank %d for %s peer %s", candidate.Rank, candidate.DeviceType, candidate.PeerID)
-			return true, nil
-		} else {
-			notifyLog.Debugf("failed to publish owner-authorized swarmion witness rank for peer %s: %s", candidate.PeerID, err.Error())
-		}
-	}
-
-	if !containsString(status.ConnectedPeers, candidate.PeerID) {
+	if candidate.PeerID != status.PeerID {
 		return false, nil
 	}
-	if !db.reserveWitnessRankRequest("remote:"+candidate.PeerID, candidate.Rank, true) {
+	if candidateEligible {
 		return false, nil
 	}
-
-	db.mu.Lock()
-	network := db.network
-	adminNamespace := fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name)
-	db.mu.Unlock()
-	if network == nil {
+	if !db.reserveWitnessRankRequest("local:"+candidate.PeerID, candidate.Rank, true) {
 		return false, nil
 	}
-
-	client, err := adminrpc.NewClient(network, adminrpc.Config{Namespace: adminNamespace})
-	if err != nil {
+	if _, err := app.PublishWitnessRankUpdate(ctx, candidate.Rank); err != nil {
 		return false, err
 	}
-	callCtx, cancel := witnessRankContext(ctx)
-	defer cancel()
-	if _, err := client.WitnessEligibility(callCtx, candidate.PeerID, adminrpc.WitnessEligibilityRequest{
-		Kind: "rank",
-		Rank: candidate.Rank,
-	}); err != nil {
-		return false, err
-	}
-	notifyLog.Infof("requested swarmion witness rank %d for %s peer %s", candidate.Rank, candidate.DeviceType, candidate.PeerID)
+	notifyLog.Infof("published local swarmion witness rank %d for %s peer %s", candidate.Rank, candidate.DeviceType, candidate.PeerID)
 	return true, nil
 }
 
@@ -361,16 +342,6 @@ func (db *DB) reserveWitnessRankRequest(peerID string, rank int, retry bool) boo
 		RequestedAt: now,
 	}
 	return true
-}
-
-func witnessRankContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		return context.WithTimeout(context.Background(), witnessRankRequestTimeout)
-	}
-	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= witnessRankRequestTimeout {
-		return context.WithCancel(ctx)
-	}
-	return context.WithTimeout(ctx, witnessRankRequestTimeout)
 }
 
 func witnessChangeEpochID(activeEpochID string) string {
@@ -424,68 +395,6 @@ func (db *DB) applyWitnessFormation(ctx context.Context, app *swarmionapp.App, a
 		applied.AddedWitnessIDs,
 		applied.RemovedActiveWitnessIDs,
 	)
-	return nil
-}
-
-func (db *DB) applyRemoteWitnessFormation(ctx context.Context, status swarmionapp.Status, activeEpochID string, formation []string) error {
-	db.mu.Lock()
-	network := db.network
-	adminNamespace := fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name)
-	db.mu.Unlock()
-	if network == nil {
-		return nil
-	}
-	connected := stringSet(status.ConnectedPeers)
-	client, err := adminrpc.NewClient(network, adminrpc.Config{Namespace: adminNamespace})
-	if err != nil {
-		return err
-	}
-	var lastReason string
-	for _, peerID := range formation {
-		if !setHas(connected, peerID) {
-			continue
-		}
-		req := adminrpc.PlannedWitnessChangeRequest{
-			EpochID:   activeEpochID,
-			Witnesses: append([]string(nil), formation...),
-			DryRun:    true,
-			Reason:    "reconcile Protos witness formation",
-		}
-		dryRun, err := client.PlannedWitnessChange(ctx, peerID, req)
-		if err != nil {
-			lastReason = err.Error()
-			continue
-		}
-		if !dryRun.Accepted {
-			lastReason = dryRun.Reason
-			continue
-		}
-		if len(dryRun.AddedWitnessIDs) == 0 && len(dryRun.RemovedActiveWitnessIDs) == 0 {
-			return nil
-		}
-
-		req.DryRun = false
-		req.Adopt = true
-		applied, err := client.PlannedWitnessChange(ctx, peerID, req)
-		if err != nil {
-			return fmt.Errorf("apply remote swarmion witness formation via %s: %w", peerID, err)
-		}
-		if !applied.Accepted {
-			return fmt.Errorf("remote swarmion witness formation via %s rejected: %s", peerID, applied.Reason)
-		}
-		notifyLog.Infof(
-			"applied remote swarmion witness formation %v via %s for epoch %s; added=%v removed=%v",
-			req.Witnesses,
-			peerID,
-			applied.EpochID,
-			applied.AddedWitnessIDs,
-			applied.RemovedActiveWitnessIDs,
-		)
-		return nil
-	}
-	if lastReason != "" {
-		notifyLog.Debugf("remote swarmion witness formation not ready: %s", lastReason)
-	}
 	return nil
 }
 

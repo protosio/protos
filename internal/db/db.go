@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"embed"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -46,6 +47,54 @@ type Signer interface {
 	PublicKey() string
 	GetID() string
 	Private() []byte
+}
+
+type swarmionSigner struct {
+	Signer
+	publicKey string
+}
+
+func newSwarmionSigner(signer Signer, publicKey libp2pcrypto.PubKey) (swarmionSigner, error) {
+	if signer == nil {
+		return swarmionSigner{}, fmt.Errorf("signer is nil")
+	}
+	if publicKey == nil {
+		return swarmionSigner{}, fmt.Errorf("swarmion public key is nil")
+	}
+	publicKeyBytes, err := libp2pcrypto.MarshalPublicKey(publicKey)
+	if err != nil {
+		return swarmionSigner{}, fmt.Errorf("marshal swarmion public key: %w", err)
+	}
+	return swarmionSigner{
+		Signer:    signer,
+		publicKey: base64.StdEncoding.EncodeToString(publicKeyBytes),
+	}, nil
+}
+
+func (s swarmionSigner) PublicKey() string {
+	return s.publicKey
+}
+
+func (s swarmionSigner) Verify(commit string, signature string, publicKey string) error {
+	if s.Signer == nil {
+		return fmt.Errorf("signer is nil")
+	}
+	if err := s.Signer.Verify(commit, signature, publicKey); err == nil {
+		return nil
+	}
+	publicKeyBytes, err := base64.StdEncoding.DecodeString(publicKey)
+	if err != nil {
+		return s.Signer.Verify(commit, signature, publicKey)
+	}
+	pubKey, err := libp2pcrypto.UnmarshalPublicKey(publicKeyBytes)
+	if err != nil {
+		return s.Signer.Verify(commit, signature, publicKey)
+	}
+	rawKey, err := pubKey.Raw()
+	if err != nil {
+		return fmt.Errorf("extract raw swarmion public key: %w", err)
+	}
+	return s.Signer.Verify(commit, signature, base64.StdEncoding.EncodeToString(rawKey))
 }
 
 type Commit struct {
@@ -159,13 +208,19 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 		return fmt.Errorf("failed to create swarmion transport: %w", err)
 	}
 
+	swarmionSigner, err := newSwarmionSigner(db.signer, privateKey.GetPublic())
+	if err != nil {
+		_ = network.Close()
+		return fmt.Errorf("failed to create swarmion signer: %w", err)
+	}
+
 	app, err := swarmionapp.Open(ctx, swarmionapp.Config{
 		Repository: swarmiondoltrepo.Config{
 			Dir:         db.workingDir,
 			Name:        db.name,
 			CommitName:  db.signer.GetID(),
 			CommitEmail: db.signer.GetID() + "@protos.local",
-			Signer:      db.signer,
+			Signer:      swarmionSigner,
 		},
 		BootstrapPeers:                 append([]string(nil), bootstrapPeers...),
 		Namespace:                      fmt.Sprintf(swarmionNamespaceTemplate, db.name),

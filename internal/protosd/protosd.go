@@ -460,6 +460,13 @@ func (dbn *DBNotifier) Notify() {
 	}
 	instances = membership.FilterInstances(instances, peerIDs)
 
+	witnessInstances, err := dbn.cm.GetInstances(false)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to retrieve witness instances: %w", err))
+		return
+	}
+	witnessInstances = membership.FilterInstances(witnessInstances, peerIDs)
+
 	userDevices, err := dbn.um.GetAllDevices(false)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to retrieve user devices: %w", err))
@@ -502,7 +509,7 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 
-	if err := dbn.database.ReconcileWitnesses(context.Background(), membership.WitnessCandidates(instances, userDevices)); err != nil {
+	if err := dbn.database.ReconcileWitnesses(context.Background(), membership.WitnessCandidates(witnessInstances, userDevices)); err != nil {
 		log.Error(fmt.Errorf("failed to reconcile swarmion witnesses: %w", err))
 	}
 }

@@ -342,6 +342,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	var vmID string
 	var volumeID string
 	var instanceInfo InstanceInfo
+	var persistedInstance bool
 	defer func() {
 		if err == nil || vmID == "" {
 			return
@@ -350,6 +351,10 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		if instanceInfo.ID != "" {
 			_ = cm.p2p.RemovePeer(instanceInfo)
 			_ = cm.deleteInstanceSSHKey(instanceInfo.ID)
+			if persistedInstance {
+				im, cmmd := createInstanceDeleteMapper(instanceInfo.ID)
+				_ = db.Delete(cm.db, db.CreatePeerDeleteMapper(instanceInfo.ID), im, cmmd)
+			}
 		}
 		if stopErr := computeProvider.StopInstance(vmID, cloudLocation); stopErr != nil {
 			log.Debugf("failed to stop partially deployed instance '%s' (%s): %s", instanceName, vmID, stopErr.Error())
@@ -495,6 +500,12 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		log.Warnf("failed to persist SSH key for instance '%s': %s", instanceInfo.Name, err.Error())
 	}
 
+	mm, cmm := createInstanceInsertMapper(instanceInfo)
+	if err := db.Insert(cm.db, mm, cmm, db.CreatePeerInsertMapper(instanceInfo.ID)); err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+	}
+	persistedInstance = true
+
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		_ = cm.p2p.RemovePeer(instanceInfo)
@@ -542,19 +553,12 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.DesiredStatus = ServerStateRunning
 	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
 
-	mm, cmm := createInstanceInsertMapper(instanceInfo)
-
-	err = db.Insert(cm.db, mm, cmm, db.CreatePeerInsertMapper(instanceInfo.ID))
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
-	}
-
 	log.Infof("Instance '%s' at '%s' is ready", instanceName, instanceInfo.PublicIP)
 
 	return instanceInfo, nil
 }
 
-func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) error {
+func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) (err error) {
 	instanceInfo := InstanceInfo{
 		PublicIP:      ipString,
 		Name:          instanceName,
@@ -605,6 +609,20 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	instanceInfo.PublicKey = publicKey.PublicKey()
 	instanceInfo.ID = publicKey.GetID()
 
+	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
+	insertedInstance := false
+	if err := db.Insert(cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.ID)); err != nil {
+		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+	}
+	insertedInstance = true
+	defer func() {
+		if err == nil || !insertedInstance {
+			return
+		}
+		im, cmmd := createInstanceDeleteMapper(instanceInfo.ID)
+		_ = db.Delete(cm.db, db.CreatePeerDeleteMapper(instanceInfo.ID), im, cmmd)
+	}()
+
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		return fmt.Errorf("failed to initialize instance: %w", err)
@@ -637,12 +655,6 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	err = cm.p2p.RemovePeer(instanceInfo)
 	if err != nil {
 		return fmt.Errorf("failed to remove peer: %w", err)
-	}
-
-	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
-	err = db.Insert(cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.ID))
-	if err != nil {
-		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
 
 	log.Infof("Instance '%s'(%s) initialized", instanceName, ipString)
