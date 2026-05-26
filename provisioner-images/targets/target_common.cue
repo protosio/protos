@@ -159,10 +159,15 @@ package cloudkit
 	name:  "protos"
 	image: "protosio/protosd:local"
 	pid:   "host"
-	env: ["PROTOS_NETWORK_MODULE=wireguard"]
+	env: [
+		"PROTOS_NETWORK_MODULE=wireguard",
+		"PROTOS_CONTAINERD_SNAPSHOTTER=native",
+		"TMPDIR=/var/lib/protos/tmp",
+	]
 	capabilities: ["all"]
 	binds: [
 		"/var/lib/containerd:/var/lib/containerd",
+		"/dev:/dev",
 		"/etc/resolv.conf:/etc/resolv.conf",
 		"/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt",
 		"/run/containerd/containerd.sock:/run/containerd/containerd.sock",
@@ -183,7 +188,7 @@ package cloudkit
 		},
 	]
 	runtime: #runtime & {
-		mkdir: ["/var/lib/protos", "/run/containerd", "/var/log"]
+		mkdir: ["/var/lib/protos", "/var/lib/protos/tmp", "/run/containerd", "/var/log"]
 	}
 }
 

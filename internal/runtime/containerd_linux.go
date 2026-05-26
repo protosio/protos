@@ -26,7 +26,9 @@ import (
 )
 
 const (
-	protosNamespace string = "protos"
+	protosNamespace              string = "protos"
+	defaultContainerdSnapshotter string = "native"
+	containerdSnapshotterEnv     string = "PROTOS_CONTAINERD_SNAPSHOTTER"
 )
 
 var log = util.GetLogger("platform")
@@ -36,6 +38,7 @@ type containerdPlatform struct {
 	endpoint       string
 	logsPath       string
 	volumesPath    string
+	snapshotter    string
 	initSignal     chan net.IP
 	networkManager *network.Manager
 	client         *client.Client
@@ -51,6 +54,7 @@ func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUni
 			endpoint:       runtimeUnixSocket,
 			logsPath:       cfg.WorkDir + "/logs",
 			volumesPath:    cfg.WorkDir + "/volumes",
+			snapshotter:    containerdSnapshotter(),
 			initSignal:     make(chan net.IP, 1),
 			initLock:       &sync.RWMutex{},
 			networkManager: networkManager,
@@ -129,7 +133,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef st
 		appID,
 		client.WithImage(image),
 		client.WithImageStopSignal(image, "SIGTERM"),
-		client.WithSnapshotter("btrfs"),
+		client.WithSnapshotter(cdp.snapshotter),
 		client.WithNewSnapshot(appID, image),
 		client.WithNewSpec(opts...),
 		client.WithContainerLabels(map[string]string{"platform": protosNamespace, "appID": appID, "appName": name}),
@@ -245,7 +249,7 @@ func (cdp *containerdPlatform) GetHWStats() (HardwareStats, error) {
 func (cdp *containerdPlatform) PullImage(imageRef string) error {
 	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
 
-	image, err := cdp.client.Pull(ctx, imageRef, client.WithPullUnpack, client.WithPlatform(platforms.DefaultString()), client.WithPullSnapshotter("btrfs"))
+	image, err := cdp.client.Pull(ctx, imageRef, client.WithPullUnpack, client.WithPlatform(platforms.DefaultString()), client.WithPullSnapshotter(cdp.snapshotter))
 	if err != nil {
 		return fmt.Errorf("failed to pull image '%s' from app store: %w", imageRef, err)
 	}
@@ -268,6 +272,14 @@ func (cdp *containerdPlatform) PullImage(imageRef string) error {
 	}
 
 	return nil
+}
+
+func containerdSnapshotter() string {
+	snapshotter := strings.TrimSpace(os.Getenv(containerdSnapshotterEnv))
+	if snapshotter == "" {
+		return defaultContainerdSnapshotter
+	}
+	return snapshotter
 }
 
 func (cdp *containerdPlatform) RemoveImage(id string) error {

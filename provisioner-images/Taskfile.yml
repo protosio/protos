@@ -42,9 +42,9 @@ tasks:
     desc: Build the local protosd container image used by LinuxKit targets.
     cmds:
       - rm -rf {{.DOCKER_CONTEXT}}
-      - mkdir -p {{.DOCKER_CONTEXT}}/swarmion/schema-engines
+      - mkdir -p {{.DOCKER_CONTEXT}}/swarmion/schema-engines {{.DOCKER_CONTEXT}}/swarmion/internal
       - |
-        for path in ../../swarmion/runtime ../../swarmion/protocol ../../swarmion/transports ../../swarmion/schema-engines/cue ../../swarmion/schema-engines/declarative; do
+        for path in ../../swarmion/runtime ../../swarmion/protocol ../../swarmion/transports ../../swarmion/internal/witnesstransition ../../swarmion/schema-engines/cue ../../swarmion/schema-engines/declarative; do
           if [ ! -d "$path" ]; then
             echo "Required local Go replacement directory is missing: $path"
             exit 1
@@ -67,6 +67,7 @@ tasks:
       - rsync -a --delete --exclude '.git' ../../swarmion/runtime {{.DOCKER_CONTEXT}}/swarmion/
       - rsync -a --delete --exclude '.git' ../../swarmion/protocol {{.DOCKER_CONTEXT}}/swarmion/
       - rsync -a --delete --exclude '.git' ../../swarmion/transports {{.DOCKER_CONTEXT}}/swarmion/
+      - rsync -a --delete --exclude '.git' ../../swarmion/internal/witnesstransition {{.DOCKER_CONTEXT}}/swarmion/internal/
       - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/cue {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
       - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/declarative {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
       - |

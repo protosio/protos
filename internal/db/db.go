@@ -577,6 +577,28 @@ func (db *DB) SwarmionStatus() (swarmionapp.Status, bool) {
 	return app.Status(), true
 }
 
+func (db *DB) CatchUpFinalized(ctx context.Context, reason string) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "protos finalized read"
+	}
+	if _, err := app.CatchUpFinalized(ctx, reason); err != nil {
+		return fmt.Errorf("catch up swarmion finalized view: %w", err)
+	}
+	return nil
+}
+
 func (db *DB) SwarmionCompatibility(ctx context.Context) ([]swarmionapp.ManifestCompatibility, error) {
 	if db == nil {
 		return nil, fmt.Errorf("db is nil")

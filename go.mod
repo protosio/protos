@@ -343,6 +343,7 @@ require (
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
+	swarmion.dev/internal/witnesstransition v0.0.0 // indirect
 	swarmion.dev/protocol v0.0.0
 	swarmion.dev/runtime v0.0.0
 	swarmion.dev/schema-engines/cue v0.0.0
@@ -355,6 +356,8 @@ replace github.com/grafana/thema => github.com/nustiueudinastea/thema v0.0.0-202
 replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014e3f
 
 replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b
+
+replace swarmion.dev/internal/witnesstransition => ../swarmion/internal/witnesstransition
 
 replace swarmion.dev/runtime => ../swarmion/runtime
 

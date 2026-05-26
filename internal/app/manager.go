@@ -121,7 +121,7 @@ func (am *Manager) Get(id string) (App, error) {
 
 	app, nameErr := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.NAME.EqString(id)}))
 	if nameErr != nil {
-		return app, fmt.Errorf("failed to retrieve app by id or name %q: id lookup: %v; name lookup: %w", id, err, nameErr)
+		return app, fmt.Errorf("failed to retrieve app by id or name %q: id lookup: %w; name lookup: %w", id, err, nameErr)
 	}
 
 	return am.bind(app), nil

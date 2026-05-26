@@ -230,7 +230,7 @@ func (hz *hetzner) DeleteInstance(id string, location string) error {
 		return errors.Errorf("Hetzner instance '%s' not found", id)
 	}
 
-	if _, err := hz.client.Server.Delete(ctx, server); err != nil {
+	if _, _, err := hz.client.Server.DeleteWithResult(ctx, server); err != nil {
 		return errors.Wrapf(err, "Failed to delete Hetzner instance '%s'", id)
 	}
 	if err := hz.deleteSSHKeysByName(ctx, server.Name); err != nil {
@@ -842,7 +842,7 @@ func (hz *hetzner) cleanImageUploadServer(server *hcloud.Server) {
 	if err := hz.poweroffServer(ctx, server); err != nil {
 		log.Warnf("Failed to stop Hetzner image upload server '%s': %s", server.Name, err.Error())
 	}
-	if _, err := hz.client.Server.Delete(ctx, server); err != nil {
+	if _, _, err := hz.client.Server.DeleteWithResult(ctx, server); err != nil {
 		log.Warnf("Failed to delete Hetzner image upload server '%s': %s", server.Name, err.Error())
 		return
 	}

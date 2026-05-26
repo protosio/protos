@@ -67,3 +67,51 @@ func TestAppendAddressAnswer(t *testing.T) {
 		})
 	}
 }
+
+func TestIsLocalDomainQuery(t *testing.T) {
+	tests := []struct {
+		name   string
+		query  string
+		domain string
+		want   bool
+	}{
+		{
+			name:   "root internal domain",
+			query:  "protos.internal.",
+			domain: "protos.internal",
+			want:   true,
+		},
+		{
+			name:   "app under internal domain",
+			query:  "app-1.protos.internal.",
+			domain: "protos.internal",
+			want:   true,
+		},
+		{
+			name:   "external three label domain",
+			query:  "registry-1.docker.io.",
+			domain: "protos.internal",
+			want:   false,
+		},
+		{
+			name:   "suffix label boundary",
+			query:  "notprotos.internal.",
+			domain: "protos.internal",
+			want:   false,
+		},
+		{
+			name:   "empty domain",
+			query:  "app-1.protos.internal.",
+			domain: "",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isLocalDomainQuery(tt.query, tt.domain); got != tt.want {
+				t.Fatalf("isLocalDomainQuery(%q, %q) = %v, want %v", tt.query, tt.domain, got, tt.want)
+			}
+		})
+	}
+}

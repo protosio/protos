@@ -116,6 +116,9 @@ func (db *DB) ReconcileWitnesses(ctx context.Context, candidates []WitnessCandid
 		return nil
 	}
 
+	if _, err := app.CatchUpFinalized(ctx, "reconcile Protos witnesses"); err != nil {
+		return fmt.Errorf("catch up swarmion finalized state for witness reconciliation: %w", err)
+	}
 	status := app.Status()
 	if status.Fatal != nil {
 		return fmt.Errorf("swarmion fatal state blocks witness reconciliation: %s", status.Fatal.State)
@@ -130,29 +133,30 @@ func (db *DB) ReconcileWitnesses(ctx context.Context, candidates []WitnessCandid
 	}
 
 	eligible := eligibleWitnessesWithExpectedRanks(status, ranked)
+	witnessCandidates := witnessCandidateSetForApply(ranked)
+	if len(witnessCandidates) == 0 {
+		return nil
+	}
+
+	formation := stringSet(rankedCandidatePeerIDs(witnessCandidates))
 	for _, candidate := range ranked {
-		candidateEligible := setHas(eligible, candidate.PeerID)
-		if candidate.PeerID != status.PeerID {
+		if candidate.PeerID != status.PeerID || setHas(formation, candidate.PeerID) {
 			continue
 		}
-		if _, err := db.requestWitnessRank(ctx, app, status, candidate, candidateEligible); err != nil {
+		if _, err := db.requestWitnessRank(ctx, app, candidate, setHas(eligible, candidate.PeerID)); err != nil {
 			notifyLog.Debugf("failed to request swarmion witness rank for peer %s: %s", candidate.PeerID, err.Error())
 		}
 	}
 
-	formation := eligibleWitnessFormation(ranked, eligible)
-	if len(formation) == 0 {
+	if !setHas(formation, status.PeerID) {
+		notifyLog.Debugf(
+			"local swarmion peer %s is outside desired witness candidate formation %v",
+			status.PeerID,
+			rankedCandidatePeerIDs(witnessCandidates),
+		)
 		return nil
 	}
-	if _, _, ok := WitnessFormationInStatus(status, formation); ok {
-		return nil
-	}
-	activeEpochID := witnessChangeEpochID(status.ActiveEpochID)
-	if containsString(formation, status.PeerID) {
-		return db.applyWitnessFormation(ctx, app, activeEpochID, formation)
-	}
-	notifyLog.Debugf("local peer %s is not in desired swarmion witness formation %v; waiting for a requested peer to apply it", status.PeerID, formation)
-	return nil
+	return db.applyWitnessCandidates(ctx, app, status, witnessCandidates)
 }
 
 func WitnessFormationInStatus(status swarmionapp.Status, formation []string) ([]string, string, bool) {
@@ -234,7 +238,7 @@ func eligibleWitnessFormation(candidates []rankedWitnessCandidate, eligible map[
 		return cloudFormation
 	}
 	formation := make([]string, 0, len(candidates))
-	rankFloor := eligibleUserClientRankFloor(candidates, eligible)
+	rankFloor := userClientRankFloor(candidates)
 	holdPartialCloudPromotion := len(cloudFormation) > 0 && rankFloor > 0
 	for _, candidate := range candidates {
 		if !setHas(eligible, candidate.PeerID) {
@@ -252,6 +256,84 @@ func eligibleWitnessFormation(candidates []rankedWitnessCandidate, eligible map[
 		}
 	}
 	return formation
+}
+
+func eligibleWitnessCandidateSet(candidates []rankedWitnessCandidate, eligible map[string]struct{}) []rankedWitnessCandidate {
+	cloudFormation := eligibleCloudWitnessFormation(candidates, eligible)
+	if len(cloudFormation) >= protosWitnessSelectionLimit {
+		return cloudHandoffWitnessCandidates(candidates, eligible, cloudFormation)
+	}
+	return rankedCandidatesByPeerID(candidates, eligibleWitnessFormation(candidates, eligible))
+}
+
+func witnessCandidateSetForApply(candidates []rankedWitnessCandidate) []rankedWitnessCandidate {
+	cloudFormation := eligibleCloudWitnessFormation(candidates, allCandidatePeerSet(candidates))
+	if len(cloudFormation) >= protosWitnessSelectionLimit {
+		return cloudHandoffWitnessCandidates(candidates, allCandidatePeerSet(candidates), cloudFormation)
+	}
+	return eligibleWitnessCandidateSet(candidates, allCandidatePeerSet(candidates))
+}
+
+func allCandidatePeerSet(candidates []rankedWitnessCandidate) map[string]struct{} {
+	out := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.PeerID) != "" {
+			out[candidate.PeerID] = struct{}{}
+		}
+	}
+	return out
+}
+
+func activeWitnessCandidateFormationSatisfied(status swarmionapp.Status, candidates []rankedWitnessCandidate) bool {
+	formation := rankedCandidatePeerIDs(candidates)
+	if len(formation) == 0 {
+		return false
+	}
+	if snapshot, found := status.EpochSnapshots[status.ActiveEpochID]; found {
+		activeFormation := peerIDsToStrings(snapshot.FormationSet)
+		if len(activeFormation) == 0 {
+			activeFormation = peerIDsToStrings(snapshot.ActiveWitnessIDs)
+		}
+		return witnessSetEquals(activeFormation, formation)
+	}
+	return witnessSetEquals(status.ActiveWitnessIDs, formation)
+}
+
+func cloudHandoffWitnessCandidates(candidates []rankedWitnessCandidate, eligible map[string]struct{}, cloudFormation []string) []rankedWitnessCandidate {
+	want := stringSet(cloudFormation)
+	for _, candidate := range candidates {
+		if !setHas(eligible, candidate.PeerID) {
+			continue
+		}
+		if candidate.DeviceType != WitnessDeviceTypeCloudVM {
+			want[candidate.PeerID] = struct{}{}
+		}
+	}
+	return rankedCandidatesByPeerID(candidates, setValues(want))
+}
+
+func rankedCandidatesByPeerID(candidates []rankedWitnessCandidate, peerIDs []string) []rankedWitnessCandidate {
+	if len(peerIDs) == 0 {
+		return nil
+	}
+	want := stringSet(peerIDs)
+	out := make([]rankedWitnessCandidate, 0, len(peerIDs))
+	for _, candidate := range candidates {
+		if setHas(want, candidate.PeerID) {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+func rankedCandidatePeerIDs(candidates []rankedWitnessCandidate) []string {
+	out := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.PeerID) != "" {
+			out = append(out, candidate.PeerID)
+		}
+	}
+	return out
 }
 
 func eligibleWitnessesWithExpectedRanks(status swarmionapp.Status, candidates []rankedWitnessCandidate) map[string]struct{} {
@@ -285,12 +367,9 @@ func eligibleCloudWitnessFormation(candidates []rankedWitnessCandidate, eligible
 	return formation
 }
 
-func eligibleUserClientRankFloor(candidates []rankedWitnessCandidate, eligible map[string]struct{}) int {
+func userClientRankFloor(candidates []rankedWitnessCandidate) int {
 	rankFloor := 0
 	for _, candidate := range candidates {
-		if !setHas(eligible, candidate.PeerID) {
-			continue
-		}
 		switch candidate.DeviceType {
 		case WitnessDeviceTypeLocalUserClient, WitnessDeviceTypeUserDevice:
 			if candidate.Rank > rankFloor {
@@ -304,13 +383,9 @@ func eligibleUserClientRankFloor(candidates []rankedWitnessCandidate, eligible m
 func (db *DB) requestWitnessRank(
 	ctx context.Context,
 	app *swarmionapp.App,
-	status swarmionapp.Status,
 	candidate rankedWitnessCandidate,
 	candidateEligible bool,
 ) (bool, error) {
-	if candidate.PeerID != status.PeerID {
-		return false, nil
-	}
 	if candidateEligible {
 		return false, nil
 	}
@@ -344,78 +419,88 @@ func (db *DB) reserveWitnessRankRequest(peerID string, rank int, retry bool) boo
 	return true
 }
 
-func witnessChangeEpochID(activeEpochID string) string {
-	if activeEpochID == "" || strings.EqualFold(activeEpochID, "main") {
-		return ""
+func (db *DB) applyWitnessCandidates(ctx context.Context, app *swarmionapp.App, status swarmionapp.Status, candidates []rankedWitnessCandidate) error {
+	candidateSet := swarmionapp.WitnessCandidates{
+		Candidates: swarmionWitnessCandidates(candidates),
+		Source:     swarmionWitnessCandidateSource(status),
+		Reason:     "reconcile Protos witness candidates",
 	}
-	return activeEpochID
-}
-
-func (db *DB) applyWitnessFormation(ctx context.Context, app *swarmionapp.App, activeEpochID string, formation []string) error {
-	change := swarmionapp.WitnessChange{
-		EpochID:    activeEpochID,
-		WitnessIDs: append([]string(nil), formation...),
-		DryRun:     true,
-		Reason:     "reconcile Protos witness formation",
-	}
-	dryRun, err := app.ProposeWitnesses(ctx, change)
+	applied, err := app.ApplyWitnessCandidates(ctx, candidateSet)
 	if err != nil {
-		return fmt.Errorf("dry-run swarmion witness formation: %w", err)
-	}
-	if !dryRun.Accepted {
-		pruned := pruneWitnessFormation(formation, dryRun.IneligibleWitnessIDs, dryRun.UnreadyWitnessIDs)
-		if len(pruned) != len(formation) && containsString(pruned, app.PeerID()) {
-			change.WitnessIDs = pruned
-			dryRun, err = app.ProposeWitnesses(ctx, change)
-			if err != nil {
-				return fmt.Errorf("dry-run pruned swarmion witness formation: %w", err)
-			}
-		}
-	}
-	if !dryRun.Accepted {
-		notifyLog.Debugf("swarmion witness formation not ready: %s", dryRun.Reason)
-		return nil
-	}
-	if len(dryRun.AddedWitnessIDs) == 0 && len(dryRun.RemovedActiveWitnessIDs) == 0 {
-		return nil
-	}
-
-	change.DryRun = false
-	applied, err := app.ApplyWitnesses(ctx, change)
-	if err != nil {
-		return fmt.Errorf("apply swarmion witness formation: %w", err)
+		return fmt.Errorf("apply swarmion witness candidates: %w", err)
 	}
 	if !applied.Accepted {
-		return fmt.Errorf("swarmion rejected witness formation: %s", applied.Reason)
+		notifyLog.Infof(
+			"swarmion witness candidates not ready: kind=%s reason=%s blockers=%v pending_rank_updates=%v formation=%v selected=%v",
+			applied.Kind,
+			applied.Reason,
+			applied.BlockerCodes,
+			applied.PendingRankUpdatePeerIDs,
+			applied.FormationIDs,
+			applied.SelectedWitnessIDs,
+		)
+		return nil
+	}
+	if applied.Noop {
+		notifyLog.Debugf(
+			"swarmion witness candidates no-op for local peer %s: kind=%s reason=%s formation=%v active_epoch=%s",
+			app.PeerID(),
+			applied.Kind,
+			applied.Reason,
+			applied.FormationIDs,
+			applied.EpochID,
+		)
+		return nil
+	}
+	if !applied.AdoptedLocalEpoch {
+		notifyLog.Infof(
+			"swarmion witness candidates accepted before local epoch adoption: kind=%s epoch=%s reason=%s safe_to_author=%v unsafe_to_author=%s",
+			applied.Kind,
+			applied.EpochID,
+			applied.Reason,
+			applied.SafeToAuthor,
+			applied.UnsafeToAuthorReason,
+		)
+		return nil
+	}
+	if !applied.SafeToAuthor {
+		notifyLog.Infof(
+			"swarmion witness candidates adopted but local authoring is not ready yet: kind=%s epoch=%s unsafe_to_author=%s",
+			applied.Kind,
+			applied.EpochID,
+			applied.UnsafeToAuthorReason,
+		)
+		return nil
 	}
 	notifyLog.Infof(
-		"applied swarmion witness formation %v for epoch %s; added=%v removed=%v",
-		change.WitnessIDs,
+		"applied swarmion witness candidates kind=%s formation=%v selected=%v epoch=%s safe_to_disconnect=%v safe_to_author=%v",
+		applied.Kind,
+		applied.FormationIDs,
+		applied.SelectedWitnessIDs,
 		applied.EpochID,
-		applied.AddedWitnessIDs,
-		applied.RemovedActiveWitnessIDs,
+		applied.SafeToDisconnectPeerIDs,
+		applied.SafeToAuthor,
 	)
 	return nil
 }
 
-func pruneWitnessFormation(formation []string, removeSets ...[]string) []string {
-	remove := map[string]struct{}{}
-	for _, values := range removeSets {
-		for _, value := range values {
-			value = strings.TrimSpace(value)
-			if value != "" {
-				remove[value] = struct{}{}
-			}
-		}
+func swarmionWitnessCandidateSource(status swarmionapp.Status) swarmionapp.WitnessCandidateSource {
+	return swarmionapp.WitnessCandidateSource{
+		ActiveEpochID:     status.ActiveEpochID,
+		FinalizedCommitID: status.FinalizedCommitID.String(),
+		FinalizedRootHash: status.FinalizedRootHash.String(),
 	}
-	pruned := make([]string, 0, len(formation))
-	for _, peerID := range formation {
-		if _, found := remove[peerID]; found {
-			continue
-		}
-		pruned = append(pruned, peerID)
+}
+
+func swarmionWitnessCandidates(candidates []rankedWitnessCandidate) []swarmionapp.WitnessCandidate {
+	out := make([]swarmionapp.WitnessCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		out = append(out, swarmionapp.WitnessCandidate{
+			PeerID: candidate.PeerID,
+			Rank:   candidate.Rank,
+		})
 	}
-	return pruned
+	return out
 }
 
 func stringSet(values []string) map[string]struct{} {
@@ -429,18 +514,20 @@ func stringSet(values []string) map[string]struct{} {
 	return out
 }
 
+func setValues(set map[string]struct{}) []string {
+	out := make([]string, 0, len(set))
+	for value := range set {
+		if strings.TrimSpace(value) != "" {
+			out = append(out, value)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 func setHas(set map[string]struct{}, value string) bool {
 	_, found := set[value]
 	return found
-}
-
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }
 
 func witnessSetEquals(left []string, right []string) bool {

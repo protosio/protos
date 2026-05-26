@@ -83,16 +83,12 @@ func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
 type handler struct {
 	listenAddr string
 	dnsServer  string
+	domain     string
 	appManager *app.Manager
 }
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	domainl := strings.TrimSuffix(r.Question[0].Name, ".")
-	domainlParts := strings.Split(domainl, ".")
-
-	domainq := strings.TrimSuffix(r.Question[0].Name, ".")
-	domainqParts := strings.Split(domainq, ".")
-	if len(domainqParts) == 3 && domainqParts[2] == domainlParts[2] && domainqParts[1] == domainlParts[1] {
+	if isLocalDomainQuery(r.Question[0].Name, h.domain) {
 		h.localResolve(w, r)
 	} else if h.dnsServer != "" {
 		h.remoteResolve(w, r)
@@ -103,6 +99,15 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			log.Errorf("Failed to write DNS response: %s", err.Error())
 		}
 	}
+}
+
+func isLocalDomainQuery(name string, domain string) bool {
+	name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".")
+	domain = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
+	if name == "" || domain == "" {
+		return false
+	}
+	return name == domain || strings.HasSuffix(name, "."+domain)
 }
 
 var srv *dns.Server
@@ -123,7 +128,7 @@ func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, ap
 	domainsMap["protos."+domain+"."] = key.IPv6Address().String()
 
 	srv = &dns.Server{Addr: net.JoinHostPort(listenAddr, strconv.Itoa(port)), Net: "udp"}
-	srv.Handler = &handler{listenAddr: listenAddr, dnsServer: dnsServer, appManager: appManager}
+	srv.Handler = &handler{listenAddr: listenAddr, dnsServer: dnsServer, domain: domain, appManager: appManager}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			log.Fatalf("Failed to start DNS UDP listener %s\n", err.Error())

@@ -84,6 +84,21 @@ func TestEligibleWitnessFormationKeepsLowerRankVMsAsFallbacksBehindLaptop(t *tes
 	}
 }
 
+func TestEligibleWitnessFormationDoesNotPromoteSingleCloudWhenLaptopRankIsNotEligibleYet(t *testing.T) {
+	candidates := []rankedWitnessCandidate{
+		{PeerID: "cloud", DeviceType: WitnessDeviceTypeCloudVM, Rank: 100},
+		{PeerID: "laptop", DeviceType: WitnessDeviceTypeLocalUserClient, Rank: 50},
+		{PeerID: "vm", DeviceType: WitnessDeviceTypeLocalVM, Rank: 30},
+	}
+	got := eligibleWitnessFormation(candidates, map[string]struct{}{
+		"cloud": {},
+		"vm":    {},
+	})
+	if len(got) != 0 {
+		t.Fatalf("eligibleWitnessFormation() = %#v, want no partial cloud promotion", got)
+	}
+}
+
 func TestEligibleWitnessFormationPromotesTwoCloudVMsTogether(t *testing.T) {
 	candidates := []rankedWitnessCandidate{
 		{PeerID: "hetzner", DeviceType: WitnessDeviceTypeCloudVM, Rank: 100},
@@ -103,15 +118,94 @@ func TestEligibleWitnessFormationPromotesTwoCloudVMsTogether(t *testing.T) {
 	}
 }
 
-func TestPruneWitnessFormation(t *testing.T) {
-	got := pruneWitnessFormation(
-		[]string{"cloud", "vm", "device"},
-		[]string{"vm"},
-		[]string{"missing", "device"},
-	)
-	want := []string{"cloud"}
+func TestEligibleWitnessCandidateSetKeepsWritablePeersInCloudHandoffFormation(t *testing.T) {
+	candidates := []rankedWitnessCandidate{
+		{PeerID: "hetzner", DeviceType: WitnessDeviceTypeCloudVM, Rank: 100},
+		{PeerID: "scaleway", DeviceType: WitnessDeviceTypeCloudVM, Rank: 100},
+		{PeerID: "laptop", DeviceType: WitnessDeviceTypeLocalUserClient, Rank: 50},
+		{PeerID: "vm", DeviceType: WitnessDeviceTypeLocalVM, Rank: 30},
+		{PeerID: "phone", DeviceType: WitnessDeviceTypePhone, Rank: 10},
+	}
+	got := rankedCandidatePeerIDs(eligibleWitnessCandidateSet(candidates, map[string]struct{}{
+		"hetzner":  {},
+		"scaleway": {},
+		"laptop":   {},
+		"vm":       {},
+		"phone":    {},
+	}))
+	want := []string{"hetzner", "scaleway", "laptop", "vm", "phone"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("pruneWitnessFormation() = %#v, want %#v", got, want)
+		t.Fatalf("eligibleWitnessCandidateSet() = %#v, want %#v", got, want)
+	}
+}
+
+func TestWitnessCandidateSetForApplyIncludesFullCloudHandoffFormationBeforeRanksFinalize(t *testing.T) {
+	candidates := []rankedWitnessCandidate{
+		{PeerID: "hetzner", DeviceType: WitnessDeviceTypeCloudVM, Rank: 100},
+		{PeerID: "scaleway", DeviceType: WitnessDeviceTypeCloudVM, Rank: 100},
+		{PeerID: "laptop", DeviceType: WitnessDeviceTypeLocalUserClient, Rank: 50},
+		{PeerID: "vm", DeviceType: WitnessDeviceTypeLocalVM, Rank: 30},
+	}
+	got := witnessCandidateSetForApply(candidates)
+	want := []string{"hetzner", "scaleway", "laptop", "vm"}
+	if gotIDs := rankedCandidatePeerIDs(got); !reflect.DeepEqual(gotIDs, want) {
+		t.Fatalf("witnessCandidateSetForApply() formation=%#v, want %#v", gotIDs, want)
+	}
+}
+
+func TestWitnessCandidateSetForApplyKeepsSingleCloudStandbyBehindLaptop(t *testing.T) {
+	candidates := []rankedWitnessCandidate{
+		{PeerID: "hetzner", DeviceType: WitnessDeviceTypeCloudVM, Rank: 100},
+		{PeerID: "laptop", DeviceType: WitnessDeviceTypeLocalUserClient, Rank: 50},
+		{PeerID: "vm", DeviceType: WitnessDeviceTypeLocalVM, Rank: 30},
+	}
+	got := witnessCandidateSetForApply(candidates)
+	want := []string{"laptop"}
+	if gotIDs := rankedCandidatePeerIDs(got); !reflect.DeepEqual(gotIDs, want) {
+		t.Fatalf("witnessCandidateSetForApply() formation=%#v, want %#v", gotIDs, want)
+	}
+}
+
+func TestActiveWitnessCandidateFormationSatisfiedUsesActiveFormationSet(t *testing.T) {
+	status := swarmionapp.Status{
+		ActiveEpochID:    "child-1",
+		ActiveWitnessIDs: []string{"hetzner", "scaleway"},
+		EpochSnapshots: map[string]protocol.EpochSnapshot{
+			"child-1": {
+				FormationSet:     []protocol.PeerID{"hetzner", "scaleway", "laptop", "vm"},
+				ActiveWitnessIDs: []protocol.PeerID{"hetzner", "scaleway"},
+			},
+		},
+	}
+	if !activeWitnessCandidateFormationSatisfied(status, []rankedWitnessCandidate{
+		{PeerID: "hetzner"},
+		{PeerID: "scaleway"},
+		{PeerID: "laptop"},
+		{PeerID: "vm"},
+	}) {
+		t.Fatal("activeWitnessCandidateFormationSatisfied() = false, want true for matching active formation")
+	}
+	if activeWitnessCandidateFormationSatisfied(status, []rankedWitnessCandidate{
+		{PeerID: "hetzner"},
+		{PeerID: "scaleway"},
+		{PeerID: "laptop"},
+	}) {
+		t.Fatal("activeWitnessCandidateFormationSatisfied() = true, want false for different active formation")
+	}
+}
+
+func TestEligibleWitnessCandidateSetDoesNotPromoteLocalVMBeforeCloudPair(t *testing.T) {
+	candidates := []rankedWitnessCandidate{
+		{PeerID: "laptop", DeviceType: WitnessDeviceTypeLocalUserClient, Rank: 50},
+		{PeerID: "vm", DeviceType: WitnessDeviceTypeLocalVM, Rank: 30},
+	}
+	got := rankedCandidatePeerIDs(eligibleWitnessCandidateSet(candidates, map[string]struct{}{
+		"laptop": {},
+		"vm":     {},
+	}))
+	want := []string{"laptop"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("eligibleWitnessCandidateSet() = %#v, want %#v", got, want)
 	}
 }
 
@@ -138,11 +232,52 @@ func TestWitnessFormationInStatusFindsKnownChildEpochFormation(t *testing.T) {
 	}
 }
 
-func TestWitnessChangeEpochID(t *testing.T) {
-	if got := witnessChangeEpochID("main"); got != "" {
-		t.Fatalf("witnessChangeEpochID(main)=%q, want empty current epoch", got)
+func TestSwarmionWitnessCandidates(t *testing.T) {
+	got := swarmionWitnessCandidates([]rankedWitnessCandidate{
+		{PeerID: "cloud", Rank: 100},
+		{PeerID: "laptop", Rank: 50},
+	})
+	want := []swarmionapp.WitnessCandidate{
+		{PeerID: "cloud", Rank: 100},
+		{PeerID: "laptop", Rank: 50},
 	}
-	if got := witnessChangeEpochID("split-1"); got != "split-1" {
-		t.Fatalf("witnessChangeEpochID(split-1)=%q", got)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("swarmionWitnessCandidates() = %#v, want %#v", got, want)
+	}
+}
+
+func TestSwarmionWitnessCandidateSource(t *testing.T) {
+	status := swarmionapp.Status{
+		ActiveEpochID:     "child-1",
+		FinalizedCommitID: protocol.NewFinalizedCommitID("commit-1"),
+		FinalizedRootHash: protocol.NewRootHash("root-1"),
+	}
+	got := swarmionWitnessCandidateSource(status)
+	if got.ActiveEpochID != "child-1" {
+		t.Fatalf("ActiveEpochID=%q, want child-1", got.ActiveEpochID)
+	}
+	if got.FinalizedCommitID != "commit-1" {
+		t.Fatalf("FinalizedCommitID=%q, want commit-1", got.FinalizedCommitID)
+	}
+	if got.FinalizedRootHash == "" {
+		t.Fatal("FinalizedRootHash is empty")
+	}
+}
+
+func TestSwarmionWitnessCandidateSourceKeepsRootAlias(t *testing.T) {
+	status := swarmionapp.Status{
+		ActiveEpochID:     "main",
+		FinalizedCommitID: protocol.NewFinalizedCommitID("commit-1"),
+		FinalizedRootHash: protocol.NewRootHash("root-1"),
+	}
+	got := swarmionWitnessCandidateSource(status)
+	if got.ActiveEpochID != "main" {
+		t.Fatalf("ActiveEpochID=%q, want main", got.ActiveEpochID)
+	}
+	if got.FinalizedCommitID != "commit-1" {
+		t.Fatalf("FinalizedCommitID=%q, want commit-1", got.FinalizedCommitID)
+	}
+	if got.FinalizedRootHash == "" {
+		t.Fatal("FinalizedRootHash is empty")
 	}
 }

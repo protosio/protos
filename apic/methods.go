@@ -702,7 +702,7 @@ func (b *Backend) getInstanceLogsViaSSH(instanceName string, p2pErr error) (*pbA
 	log.Debugf("Falling back to SSH logs for instance '%s' after p2p log retrieval failed: %s", instanceName, p2pErr.Error())
 	logs, err := b.protosClient.CloudManager.LogsRemoteInstance(instanceName)
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve instance '%s' logs: p2p failed: %w; ssh fallback failed: %v", instanceName, p2pErr, err)
+		return nil, fmt.Errorf("could not retrieve instance '%s' logs: p2p failed: %w; ssh fallback failed: %w", instanceName, p2pErr, err)
 	}
 	return &pbApic.GetInstanceLogsResponse{Logs: logs}, nil
 }

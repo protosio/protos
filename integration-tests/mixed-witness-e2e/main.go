@@ -15,6 +15,7 @@ import (
 	"flag"
 
 	"github.com/Masterminds/semver"
+	protosapp "github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	hostagentipc "github.com/protosio/protos/internal/hostagent/ipc"
@@ -29,6 +30,7 @@ import (
 	"github.com/protosio/protos/provisioners/hetzner"
 	"github.com/protosio/protos/provisioners/local_macos"
 	"github.com/protosio/protos/provisioners/scaleway"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/status"
 	swarmionapp "swarmion.dev/runtime/app"
 )
@@ -44,11 +46,17 @@ func (noopAppManager) GetStatus(string) (string, error) {
 }
 
 type witnessExpectation struct {
-	label    string
-	required []string
-	allowed  []string
-	count    int
-	ranks    map[string]int
+	label         string
+	required      []string
+	allowed       []string
+	count         int
+	requireActive bool
+	ranks         map[string]int
+}
+
+type appConnectivityPair struct {
+	hetznerApp  *protosapp.App
+	scalewayApp *protosapp.App
 }
 
 func main() {
@@ -66,6 +74,7 @@ func main() {
 	scalewayMachine := flag.String("scaleway-machine", "DEV1-S", "Scaleway machine type")
 	scalewayLocation := flag.String("scaleway-location", "fr-par-1", "Scaleway zone")
 	scalewayEnv := flag.String("scaleway-env", ".env-scaleway", "Scaleway credential env file")
+	appImage := flag.String("app-image", "docker.io/library/nginx:alpine", "container image used for app connectivity checks; must run an HTTP server by default and include /bin/sh plus wget")
 	configureNetwork := flag.Bool("network", true, "configure the host network module through protos-hostagent")
 	flag.Parse()
 
@@ -84,6 +93,7 @@ func main() {
 		scalewayMachine:    *scalewayMachine,
 		scalewayLocation:   *scalewayLocation,
 		scalewayEnv:        *scalewayEnv,
+		appImage:           *appImage,
 		configureNetwork:   *configureNetwork,
 	}
 	if err := run(cfg); err != nil {
@@ -107,6 +117,7 @@ type harnessConfig struct {
 	scalewayMachine    string
 	scalewayLocation   string
 	scalewayEnv        string
+	appImage           string
 	configureNetwork   bool
 }
 
@@ -365,10 +376,11 @@ func run(cfg harnessConfig) error {
 		return fmt.Errorf("deploy Scaleway VM: %w", err)
 	}
 	if err := waitForWitnessState(deadline, store, cloudManager, userManager, p2pManager, networkManager, witnessExpectation{
-		label:    "two cloud VMs become active witnesses",
-		required: []string{hetznerVM.ID, scalewayVM.ID},
-		allowed:  []string{hetznerVM.ID, scalewayVM.ID},
-		count:    2,
+		label:         "two cloud VMs become active witnesses and laptop adopts child epoch",
+		required:      []string{hetznerVM.ID, scalewayVM.ID},
+		allowed:       []string{hetznerVM.ID, scalewayVM.ID},
+		count:         2,
+		requireActive: true,
 		ranks: map[string]int{
 			localKey.GetID(): localClientRank,
 			localVM1.ID:      localVMRank,
@@ -384,6 +396,25 @@ func run(cfg harnessConfig) error {
 	if err != nil {
 		return err
 	}
+	if err := waitForRemoteFullMesh(deadline, clients, deployed); err != nil {
+		return err
+	}
+	if err := waitForAllRemoteHeads(deadline, store, clients, deployed); err != nil {
+		return fmt.Errorf("post-witness handoff DB sync failed: %w", err)
+	}
+
+	appPair, err := createCloudAppConnectivityPair(cfg, store, cloudManager, userManager, p2pManager, networkManager, hetznerVM, scalewayVM, suffix)
+	if err != nil {
+		return err
+	}
+	if err := waitForLocalHeadFinalized(deadline, store, "cloud app deployment writes"); err != nil {
+		return err
+	}
+
+	clients, err = reconnectPeersUntil(deadline, store, cloudManager, userManager, p2pManager, networkManager, instanceNames(deployed))
+	if err != nil {
+		return err
+	}
 	if networkManager != nil {
 		if err := waitForHostWireGuardPings(deadline, deployed); err != nil {
 			return err
@@ -395,8 +426,48 @@ func run(cfg harnessConfig) error {
 	if err := waitForAllRemoteHeads(deadline, store, clients, deployed); err != nil {
 		return err
 	}
+	if err := verifyCloudAppConnectivity(deadline, cloudManager, clients, hetznerVM, scalewayVM, appPair); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func waitForLocalHeadFinalized(deadline time.Time, store *db.DB, label string) error {
+	target, err := store.GetLastCommit("main")
+	if err != nil {
+		return fmt.Errorf("get local %s head: %w", label, err)
+	}
+	var lastErr error
+	var lastReport time.Time
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := store.CatchUpFinalized(ctx, label)
+		cancel()
+		if err != nil {
+			lastErr = err
+		} else {
+			head, headErr := store.GetLastCommit("main")
+			if headErr != nil {
+				lastErr = headErr
+			} else if head.Hash == target.Hash {
+				fmt.Printf("local head finalized for %s: %s\n", label, target.Hash)
+				return nil
+			} else {
+				lastErr = fmt.Errorf("local head %q did not match authored head %q", head.Hash, target.Hash)
+			}
+		}
+		if time.Since(lastReport) >= 30*time.Second {
+			lastReport = time.Now()
+			if status, ok := store.SwarmionStatus(); ok {
+				fmt.Printf("waiting for local finalized head: label=%s err=%v active=%v finalized=%s failures=%d last_failure=%s\n", label, lastErr, status.ActiveWitnessIDs, status.FinalizedRootHash.String(), status.ProtocolFailureCount, status.LastProtocolFailureDetail)
+			} else {
+				fmt.Printf("waiting for local finalized head: label=%s err=%v\n", label, lastErr)
+			}
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return fmt.Errorf("local authored head did not finalize for %s: %w", label, lastErr)
 }
 
 func ensureHostAgentAvailable() error {
@@ -637,7 +708,11 @@ func reconcileTopology(
 		return nil, nil, err
 	}
 	if networkManager != nil {
-		if err := networkManager.ConfigurePeers(instances, devices, nil); err != nil {
+		routes, err := appRoutes(store)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load app routes: %w", err)
+		}
+		if err := networkManager.ConfigurePeers(instances, devices, routes); err != nil {
 			return nil, nil, fmt.Errorf("configure network peers: %w", err)
 		}
 	}
@@ -648,6 +723,24 @@ func reconcileTopology(
 		return nil, nil, err
 	}
 	return instances, devices, nil
+}
+
+func appRoutes(store *db.DB) ([]protosnetwork.AppRoute, error) {
+	apps, err := protosapp.CreateManager("", nil, store).GetAll()
+	if err != nil {
+		return nil, err
+	}
+	routes := make([]protosnetwork.AppRoute, 0, len(apps))
+	for _, app := range apps {
+		if app.IP == nil || strings.TrimSpace(app.InstanceID) == "" {
+			continue
+		}
+		routes = append(routes, protosnetwork.AppRoute{
+			InstanceID: app.InstanceID,
+			IP:         app.IP,
+		})
+	}
+	return routes, nil
 }
 
 func assertNoBlockingCompatibility(store *db.DB) error {
@@ -685,6 +778,9 @@ func witnessSetMatches(active []string, expect witnessExpectation) bool {
 func witnessStatusMatches(status swarmionapp.Status, expect witnessExpectation) ([]string, string, bool) {
 	if witnessSetMatches(status.ActiveWitnessIDs, expect) {
 		return append([]string(nil), status.ActiveWitnessIDs...), status.ActiveEpochID, true
+	}
+	if expect.requireActive {
+		return nil, "", false
 	}
 	if len(expect.required) != expect.count {
 		return nil, "", false
@@ -851,6 +947,185 @@ func waitForAllRemoteHeads(deadline time.Time, store *db.DB, clients map[string]
 	return nil
 }
 
+func createCloudAppConnectivityPair(
+	cfg harnessConfig,
+	store *db.DB,
+	cloudManager *provisioners.Manager,
+	userManager *user.Manager,
+	p2pManager *p2p.P2P,
+	networkManager *protosnetwork.Manager,
+	hetznerVM provisioners.InstanceInfo,
+	scalewayVM provisioners.InstanceInfo,
+	suffix string,
+) (*appConnectivityPair, error) {
+	appImage := strings.TrimSpace(cfg.appImage)
+	if appImage == "" {
+		return nil, fmt.Errorf("app image cannot be empty")
+	}
+
+	appManager := protosapp.CreateManager("", nil, store)
+	hetznerApp, err := appManager.Create(appImage, "app-hetzner-"+suffix, hetznerVM.ID, false, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create Hetzner app: %w", err)
+	}
+	scalewayApp, err := appManager.Create(appImage, "app-scaleway-"+suffix, scalewayVM.ID, false, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create Scaleway app: %w", err)
+	}
+	fmt.Printf(
+		"created app connectivity pair: image=%s hetzner_app=%s ip=%s scaleway_app=%s ip=%s\n",
+		appImage,
+		hetznerApp.Name,
+		hetznerApp.IPString(),
+		scalewayApp.Name,
+		scalewayApp.IPString(),
+	)
+
+	if err := appManager.Start(hetznerApp.Name); err != nil {
+		return nil, fmt.Errorf("request Hetzner app start: %w", err)
+	}
+	if err := appManager.Start(scalewayApp.Name); err != nil {
+		return nil, fmt.Errorf("request Scaleway app start: %w", err)
+	}
+	if _, _, err := reconcileTopology(store, cloudManager, userManager, p2pManager, networkManager); err != nil {
+		return nil, fmt.Errorf("reconcile app routes after app creation: %w", err)
+	}
+
+	return &appConnectivityPair{hetznerApp: hetznerApp, scalewayApp: scalewayApp}, nil
+}
+
+func verifyCloudAppConnectivity(
+	deadline time.Time,
+	cloudManager *provisioners.Manager,
+	clients map[string]*p2p.Client,
+	hetznerVM provisioners.InstanceInfo,
+	scalewayVM provisioners.InstanceInfo,
+	appPair *appConnectivityPair,
+) error {
+	if appPair == nil || appPair.hetznerApp == nil || appPair.scalewayApp == nil {
+		return fmt.Errorf("cloud app connectivity pair is required")
+	}
+	hetznerApp := appPair.hetznerApp
+	scalewayApp := appPair.scalewayApp
+
+	if err := waitForRemoteAppStatus(deadline, clients[hetznerVM.Name], hetznerVM.Name, hetznerApp.Name, "running"); err != nil {
+		return err
+	}
+	if err := waitForRemoteAppStatus(deadline, clients[scalewayVM.Name], scalewayVM.Name, scalewayApp.Name, "running"); err != nil {
+		return err
+	}
+
+	if err := waitForContainerHTTPToApp(deadline, cloudManager, hetznerVM, hetznerApp, scalewayApp); err != nil {
+		return err
+	}
+	if err := waitForContainerHTTPToApp(deadline, cloudManager, scalewayVM, scalewayApp, hetznerApp); err != nil {
+		return err
+	}
+	return nil
+}
+
+func waitForRemoteAppStatus(deadline time.Time, client *p2p.Client, instanceName string, appName string, want string) error {
+	if client == nil {
+		return fmt.Errorf("missing p2p client for %s", instanceName)
+	}
+	var lastErr error
+	var lastReport time.Time
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		statusResp, err := client.GetAppStatus(ctx, &p2pproto.GetAppStatusRequest{AppName: appName})
+		cancel()
+		if err == nil {
+			got := strings.TrimSpace(statusResp.GetStatus())
+			if got == want {
+				fmt.Printf("remote app status ok: instance=%s app=%s status=%s\n", instanceName, appName, got)
+				return nil
+			}
+			lastErr = fmt.Errorf("status=%q, want %q", got, want)
+			if time.Since(lastReport) >= 30*time.Second {
+				lastReport = time.Now()
+				fmt.Printf("waiting for remote app status: instance=%s app=%s %v\n", instanceName, appName, lastErr)
+			}
+		} else {
+			if st, ok := status.FromError(err); ok {
+				lastErr = fmt.Errorf("%s", st.Message())
+			} else {
+				lastErr = err
+			}
+			if time.Since(lastReport) >= 30*time.Second {
+				lastReport = time.Now()
+				fmt.Printf("waiting for remote app status: instance=%s app=%s err=%v\n", instanceName, appName, lastErr)
+			}
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("app %s on %s did not reach status %q: %w", appName, instanceName, want, lastErr)
+}
+
+func waitForContainerHTTPToApp(
+	deadline time.Time,
+	cloudManager *provisioners.Manager,
+	source provisioners.InstanceInfo,
+	sourceApp *protosapp.App,
+	targetApp *protosapp.App,
+) error {
+	if sourceApp == nil || targetApp == nil {
+		return fmt.Errorf("source and target apps are required")
+	}
+	if targetApp.IP == nil {
+		return fmt.Errorf("target app %s has no overlay IP", targetApp.Name)
+	}
+	var lastErr error
+	var lastReport time.Time
+	for time.Now().Before(deadline) {
+		url := fmt.Sprintf("http://[%s]/", targetApp.IP.String())
+		inner := fmt.Sprintf("wget -q -T 8 -O - %s", shellQuote(url))
+		pidFile := fmt.Sprintf("/run/containerd/io.containerd.runtime.v2.task/protos/%s/init.pid", sourceApp.ID)
+		hostInner := fmt.Sprintf(
+			"pid=$(cat %s 2>/dev/null) && [ -n \"$pid\" ] && nsenter -t \"$pid\" -m -n /bin/sh -lc %s",
+			shellQuote(pidFile),
+			shellQuote(inner),
+		)
+		command := fmt.Sprintf("nsenter -t 1 -m -- /bin/sh -lc %s", shellQuote(hostInner))
+		output, err := runSSHCommandOnInstance(cloudManager, source, command)
+		if err == nil && strings.TrimSpace(output) != "" {
+			fmt.Printf("app connectivity ok: source_instance=%s source_app=%s target_app=%s target_ip=%s bytes=%d\n", source.Name, sourceApp.Name, targetApp.Name, targetApp.IP.String(), len(output))
+			return nil
+		}
+		if err != nil {
+			lastErr = fmt.Errorf("%w: %s", err, strings.TrimSpace(output))
+		} else {
+			lastErr = fmt.Errorf("empty HTTP response from %s", url)
+		}
+		if time.Since(lastReport) >= 30*time.Second {
+			lastReport = time.Now()
+			fmt.Printf("waiting for app connectivity: source_instance=%s source_app=%s target_app=%s err=%v\n", source.Name, sourceApp.Name, targetApp.Name, lastErr)
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("app %s on %s could not reach app %s over the overlay: %w", sourceApp.Name, source.Name, targetApp.Name, lastErr)
+}
+
+func runSSHCommandOnInstance(cloudManager *provisioners.Manager, instance provisioners.InstanceInfo, command string) (string, error) {
+	privateKey, err := cloudManager.GetInstanceSSHKey(instance.ID)
+	if err != nil {
+		return "", fmt.Errorf("load SSH key for %s: %w", instance.Name, err)
+	}
+	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
+	if err != nil {
+		return "", fmt.Errorf("parse SSH key for %s: %w", instance.Name, err)
+	}
+	conn, err := pcrypto.NewConnection(instance.PublicIP, "root", ssh.PublicKeys(signer), 10)
+	if err != nil {
+		return "", fmt.Errorf("connect to %s over SSH: %w", instance.Name, err)
+	}
+	defer conn.Close()
+	return pcrypto.ExecuteCommand(command, conn)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
 func instanceNames(instances []provisioners.InstanceInfo) []string {
 	names := make([]string, 0, len(instances))
 	for _, instance := range instances {
@@ -869,6 +1144,7 @@ func wireGuardIPv6(instance provisioners.InstanceInfo) string {
 
 func waitForRemoteHead(deadline time.Time, client *p2p.Client, expected string) error {
 	var lastErr error
+	var lastReport time.Time
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		head, err := client.GetHead(ctx, &p2pproto.GetHeadRequest{})
@@ -884,6 +1160,10 @@ func waitForRemoteHead(deadline time.Time, client *p2p.Client, expected string) 
 			}
 		} else {
 			lastErr = fmt.Errorf("remote head %q did not match local head %q", head.Commit, expected)
+		}
+		if time.Since(lastReport) >= 30*time.Second {
+			lastReport = time.Now()
+			fmt.Printf("waiting for remote DB head: %v\n", lastErr)
 		}
 		time.Sleep(3 * time.Second)
 	}

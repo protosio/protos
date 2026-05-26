@@ -135,7 +135,6 @@ type Node struct {
 	capabilities Capabilities
 	stoppers     map[string]func() error
 	localKey     *pcrypto.Key
-	notifyMu     sync.Mutex
 	initOnce     sync.Once
 	initCh       chan struct{}
 
@@ -279,6 +278,9 @@ func (n *Node) Start() error {
 		}
 		dnsStopper := dns.StartServer(n.localKey, n.dnsPort(), n.cfg.ExternalDNS, n.cfg.InternalDomain, n.AppManager)
 		n.stoppers["dns"] = dnsStopper
+		if err := n.configureLocalResolver(); err != nil {
+			return err
+		}
 	}
 
 	if n.capabilities.AppRuntime {
@@ -422,6 +424,21 @@ func (n *Node) dnsPort() int {
 	return DNSPort
 }
 
+func (n *Node) configureLocalResolver() error {
+	if stdruntime.GOOS == "darwin" {
+		return nil
+	}
+	if n.localKey == nil {
+		return fmt.Errorf("cannot configure local resolver without a local key")
+	}
+	resolver := fmt.Sprintf("nameserver %s\n", n.localKey.IPv6Address().String())
+	if err := os.WriteFile("/etc/resolv.conf", []byte(resolver), 0644); err != nil {
+		return fmt.Errorf("configure local resolver: %w", err)
+	}
+	log.Infof("Configured local resolver to use Protos DNS at %s", n.localKey.IPv6Address().String())
+	return nil
+}
+
 type DBNotifier struct {
 	database     *db.DB
 	cm           *provisioners.Manager
@@ -440,6 +457,14 @@ func (dbn *DBNotifier) Notify() {
 	if !dbn.database.Initialized() {
 		return
 	}
+
+	catchUpCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	if err := dbn.database.CatchUpFinalized(catchUpCtx, "protosd reconcile desired state"); err != nil {
+		cancel()
+		log.Error(fmt.Errorf("failed to catch up finalized DB state: %w", err))
+		return
+	}
+	cancel()
 
 	if dbn.capabilities.Provision {
 		if err := dbn.cm.ReconcileDesiredInstances(); err != nil {

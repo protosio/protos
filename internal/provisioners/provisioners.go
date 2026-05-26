@@ -1022,7 +1022,7 @@ func (cm *Manager) sshAuthForInstance(instance InstanceInfo) (ssh.AuthMethod, er
 
 	localKey, localErr := cm.sm.GetLocalKey()
 	if localErr != nil {
-		return nil, fmt.Errorf("failed to load instance SSH key: %w; failed to load local SSH key: %v", err, localErr)
+		return nil, fmt.Errorf("failed to load instance SSH key: %w; failed to load local SSH key: %w", err, localErr)
 	}
 	return localKey.SSHAuth(), nil
 }

@@ -49,7 +49,7 @@ func Load(configFile string, version *semver.Version) Config {
 		}
 	}
 
-	err = yaml.Unmarshal(yamlFile, &config)
+	err = yaml.Unmarshal(yamlFile, config)
 	if err != nil {
 		log.Fatal(err)
 	}

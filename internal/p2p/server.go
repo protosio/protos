@@ -28,6 +28,7 @@ type ExternalDB interface {
 	GetAllCommits() ([]db.Commit, error)
 	ExecSQLAndCommit(statement string, commitMsg string) (string, error)
 	GetLastCommit(branch string) (db.Commit, error)
+	CatchUpFinalized(ctx context.Context, reason string) error
 	InitFromPeer(peerID string, bootstrapPeers []string) error
 	EnableGRPCServers(server *grpc.Server) error
 	Initialized() bool
@@ -77,7 +78,10 @@ func (s *Server) ExecSQL(ctx context.Context, req *proto.ExecSQLRequest) (*proto
 	return &proto.ExecSQLResponse{Result: "", Commit: commit}, nil
 }
 
-func (s *Server) GetAllCommits(context.Context, *proto.GetAllCommitsRequest) (*proto.GetAllCommitsResponse, error) {
+func (s *Server) GetAllCommits(ctx context.Context, _ *proto.GetAllCommitsRequest) (*proto.GetAllCommitsResponse, error) {
+	if err := s.DB.CatchUpFinalized(ctx, "p2p get all commits"); err != nil {
+		return nil, err
+	}
 	commits, err := s.DB.GetAllCommits()
 	if err != nil {
 		return nil, err
@@ -96,7 +100,10 @@ func (s *Server) GetAllCommits(context.Context, *proto.GetAllCommitsRequest) (*p
 	return res, nil
 }
 
-func (s *Server) GetHead(context.Context, *proto.GetHeadRequest) (*proto.GetHeadResponse, error) {
+func (s *Server) GetHead(ctx context.Context, _ *proto.GetHeadRequest) (*proto.GetHeadResponse, error) {
+	if err := s.DB.CatchUpFinalized(ctx, "p2p get head"); err != nil {
+		return nil, err
+	}
 	commit, err := s.DB.GetLastCommit("main")
 	if err != nil {
 		return nil, err
@@ -198,6 +205,9 @@ func (s *Server) GetAppLogs(ctx context.Context, req *proto.GetAppLogsRequest) (
 }
 
 func (s *Server) GetAppStatus(ctx context.Context, req *proto.GetAppStatusRequest) (*proto.GetAppStatusResponse, error) {
+	if err := s.DB.CatchUpFinalized(ctx, "p2p get app status"); err != nil {
+		return nil, err
+	}
 
 	status, err := s.p2p.appManager.GetStatus(req.AppName)
 	if err != nil {
