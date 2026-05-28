@@ -190,15 +190,29 @@ func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error
 
 // GetCurrentDevice returns the device that Protos is running on currently
 func (um *Manager) GetCurrentDevice() (UserDevice, error) {
+	ud, ok, err := um.GetCurrentDeviceIfExists()
+	if err != nil {
+		return UserDevice{}, err
+	}
+	if !ok {
+		return UserDevice{}, fmt.Errorf("failed to retrieve device: current peer is not a user device")
+	}
+	return ud, nil
+}
+
+// GetCurrentDeviceIfExists returns the local user device when this peer is a user device.
+func (um *Manager) GetCurrentDeviceIfExists() (UserDevice, bool, error) {
 	key, err := um.sm.GetLocalKey()
 	if err != nil {
-		return UserDevice{}, fmt.Errorf("could not retrieve local key: %w", err)
+		return UserDevice{}, false, fmt.Errorf("could not retrieve local key: %w", err)
 	}
 
-	ud, err := db.SelectOne(um.db, createUserDeviceQueryMapper(key.PublicString()))
+	devices, err := db.SelectMultiple(um.db, createUserDeviceQueryMapper(key.PublicString()))
 	if err != nil {
-		return UserDevice{}, fmt.Errorf("failed to retrieve device: %w", err)
+		return UserDevice{}, false, fmt.Errorf("failed to retrieve device: %w", err)
 	}
-
-	return ud, nil
+	if len(devices) == 0 {
+		return UserDevice{}, false, nil
+	}
+	return devices[0], true, nil
 }

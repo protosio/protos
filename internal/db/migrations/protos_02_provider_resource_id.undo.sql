@@ -1,2 +1,0 @@
-ALTER TABLE cloud_machines_metadata
-DROP COLUMN provider_resource_id;

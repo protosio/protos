@@ -83,6 +83,17 @@ var Version = schema.VersionDefinition{
 					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
 				},
 			},
+			{
+				Name: "exit_routes",
+				Columns: []schema.SQLColumn{
+					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "device_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "instance_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "desired_status", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "dns_server", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "cidrs", Type: "TEXT", PrimaryKey: false, NotNull: true},
+				},
+			},
 		},
 	},
 }
@@ -141,5 +152,13 @@ var CreateSQL = []string{
 )`,
 	`CREATE TABLE peers (
   id VARCHAR(255) NOT NULL PRIMARY KEY
+)`,
+	`CREATE TABLE exit_routes (
+  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  device_id VARCHAR(255) NOT NULL,
+  instance_id VARCHAR(255) NOT NULL,
+  desired_status VARCHAR(255) NOT NULL,
+  dns_server VARCHAR(255) NOT NULL,
+  cidrs TEXT NOT NULL
 )`,
 }

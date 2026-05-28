@@ -23,6 +23,7 @@ import (
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/protosio/protos/internal/config"
+	networkmodule "github.com/protosio/protos/internal/network/module"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
@@ -61,6 +62,10 @@ type peerDBConnector interface {
 
 type peerDBIPConnector interface {
 	ConnectPeerIPs(peerID string, ips []string) error
+}
+
+type NetworkInspector interface {
+	State() (networkmodule.State, error)
 }
 
 // Client is a remote p2p client
@@ -113,6 +118,7 @@ type P2P struct {
 	appManager AppManager
 	grpcServer *grpc.Server
 	externalDB ExternalDB
+	network    NetworkInspector
 
 	restartServerSignal chan initMachine
 
@@ -131,6 +137,13 @@ type P2P struct {
 	reconcileCh chan struct{}
 	stopCh      chan struct{}
 	stopOnce    sync.Once
+}
+
+func (p2p *P2P) SetNetworkInspector(network NetworkInspector) {
+	if p2p == nil {
+		return
+	}
+	p2p.network = network
 }
 
 // GetPeerID adds a peer to the p2p manager

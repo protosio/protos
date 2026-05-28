@@ -4,6 +4,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/miekg/dns"
 	"github.com/pkg/errors"
@@ -65,10 +67,10 @@ func appendAddressAnswer(msg *dns.Msg, domain string, address string) {
 	})
 }
 
-func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
-	log.Debugf("Performing external DNS resolve @ '%s' for '%s'", h.dnsServer, r.Question[0].Name)
+func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg, dnsServer string) {
+	log.Debugf("Performing external DNS resolve @ '%s' for '%s'", dnsServer, r.Question[0].Name)
 	c := &dns.Client{Net: "udp"}
-	resp, _, err := c.Exchange(r, h.dnsServer)
+	resp, _, err := c.Exchange(r, dnsServer)
 	if err != nil {
 		log.Errorf("Failed to resolve '%s': %s", r.Question[0].Name, err.Error())
 		dns.HandleFailed(w, r)
@@ -82,16 +84,29 @@ func (h *handler) remoteResolve(w dns.ResponseWriter, r *dns.Msg) {
 
 type handler struct {
 	listenAddr string
-	dnsServer  string
+	dnsServer  atomic.Value
 	domain     string
 	appManager *app.Manager
 }
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	remoteAddr := w.RemoteAddr()
+	if !h.acceptsDNSClient(remoteAddr) {
+		remote := "<nil>"
+		if remoteAddr != nil {
+			remote = remoteAddr.String()
+		}
+		log.Debugf("Rejecting DNS query from non-local client %s", remote)
+		dns.HandleFailed(w, r)
+		return
+	}
 	if isLocalDomainQuery(r.Question[0].Name, h.domain) {
 		h.localResolve(w, r)
-	} else if h.dnsServer != "" {
-		h.remoteResolve(w, r)
+		return
+	}
+	dnsServer := h.externalServer()
+	if dnsServer != "" {
+		h.remoteResolve(w, r, dnsServer)
 	} else {
 		msg := &dns.Msg{}
 		msg.SetReply(r)
@@ -110,7 +125,56 @@ func isLocalDomainQuery(name string, domain string) bool {
 	return name == domain || strings.HasSuffix(name, "."+domain)
 }
 
-var srv *dns.Server
+func (h *handler) externalServer() string {
+	if h == nil {
+		return ""
+	}
+	value, _ := h.dnsServer.Load().(string)
+	return value
+}
+
+func (h *handler) setExternalServer(server string) {
+	if h == nil {
+		return
+	}
+	h.dnsServer.Store(strings.TrimSpace(server))
+}
+
+func (h *handler) acceptsDNSClient(addr net.Addr) bool {
+	if h == nil || addr == nil {
+		return false
+	}
+	clientIP := dnsClientIP(addr)
+	if clientIP == nil {
+		return false
+	}
+	if clientIP.IsLoopback() {
+		return true
+	}
+	listenIP := net.ParseIP(h.listenAddr)
+	return listenIP != nil && clientIP.Equal(listenIP)
+}
+
+func dnsClientIP(addr net.Addr) net.IP {
+	switch typed := addr.(type) {
+	case *net.UDPAddr:
+		return typed.IP
+	case *net.TCPAddr:
+		return typed.IP
+	default:
+		host, _, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			host = addr.String()
+		}
+		return net.ParseIP(strings.Trim(host, "[]"))
+	}
+}
+
+var (
+	srv        *dns.Server
+	srvHandler *handler
+	srvMu      sync.Mutex
+)
 
 // StartServer starts a DNS server used for resolving internal Protos addresses
 func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, appManager *app.Manager) func() error {
@@ -127,10 +191,18 @@ func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, ap
 	// ToDo: improve this
 	domainsMap["protos."+domain+"."] = key.IPv6Address().String()
 
-	srv = &dns.Server{Addr: net.JoinHostPort(listenAddr, strconv.Itoa(port)), Net: "udp"}
-	srv.Handler = &handler{listenAddr: listenAddr, dnsServer: dnsServer, domain: domain, appManager: appManager}
+	handler := &handler{listenAddr: listenAddr, domain: domain, appManager: appManager}
+	handler.setExternalServer(dnsServer)
+
+	server := &dns.Server{Addr: net.JoinHostPort(listenAddr, strconv.Itoa(port)), Net: "udp"}
+	server.Handler = handler
+
+	srvMu.Lock()
+	srv = server
+	srvHandler = handler
+	srvMu.Unlock()
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
+		if err := server.ListenAndServe(); err != nil {
 			log.Fatalf("Failed to start DNS UDP listener %s\n", err.Error())
 		}
 	}()
@@ -141,10 +213,33 @@ func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, ap
 	return stopper
 }
 
+func SetExternalServer(dnsServer string) {
+	srvMu.Lock()
+	handler := srvHandler
+	srvMu.Unlock()
+	if handler == nil {
+		return
+	}
+	handler.setExternalServer(dnsServer)
+	if dnsServer != "" {
+		log.Debugf("Forwarding external DNS queries to '%s'", dnsServer)
+	} else {
+		log.Debug("External DNS forwarding disabled")
+	}
+}
+
 // StopServer starts a DNS server used for resolving internal Protos addresses
 func StopServer() error {
 	log.Debug("Shutting down DNS server")
-	if err := srv.Shutdown(); err != nil {
+	srvMu.Lock()
+	server := srv
+	srv = nil
+	srvHandler = nil
+	srvMu.Unlock()
+	if server == nil {
+		return nil
+	}
+	if err := server.Shutdown(); err != nil {
 		return errors.Wrap(err, "Something went wrong while shutting down the DNS server")
 	}
 	return nil

@@ -13,7 +13,7 @@ func New() (*Module, error) {
 	return &Module{
 		dnsManager: dnsManager,
 		platformState: platformState{
-			routes: map[string]struct{}{},
+			routes: map[string]routeSpec{},
 			peers:  map[string]struct{}{},
 		},
 	}, nil

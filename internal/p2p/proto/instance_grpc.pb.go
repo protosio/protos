@@ -19,9 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Instance_Init_FullMethodName     = "/proto.Instance/Init"
-	Instance_GetPeers_FullMethodName = "/proto.Instance/GetPeers"
-	Instance_GetLogs_FullMethodName  = "/proto.Instance/GetLogs"
+	Instance_Init_FullMethodName            = "/proto.Instance/Init"
+	Instance_GetPeers_FullMethodName        = "/proto.Instance/GetPeers"
+	Instance_GetLogs_FullMethodName         = "/proto.Instance/GetLogs"
+	Instance_GetNetworkState_FullMethodName = "/proto.Instance/GetNetworkState"
+	Instance_GetExitRoutes_FullMethodName   = "/proto.Instance/GetExitRoutes"
+	Instance_GetRuntimeState_FullMethodName = "/proto.Instance/GetRuntimeState"
 )
 
 // InstanceClient is the client API for Instance service.
@@ -31,6 +34,9 @@ type InstanceClient interface {
 	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	GetPeers(ctx context.Context, in *GetPeersRequest, opts ...grpc.CallOption) (*GetPeersResponse, error)
 	GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (*GetLogsResponse, error)
+	GetNetworkState(ctx context.Context, in *GetNetworkStateRequest, opts ...grpc.CallOption) (*GetNetworkStateResponse, error)
+	GetExitRoutes(ctx context.Context, in *GetExitRoutesRequest, opts ...grpc.CallOption) (*GetExitRoutesResponse, error)
+	GetRuntimeState(ctx context.Context, in *GetRuntimeStateRequest, opts ...grpc.CallOption) (*GetRuntimeStateResponse, error)
 }
 
 type instanceClient struct {
@@ -71,6 +77,36 @@ func (c *instanceClient) GetLogs(ctx context.Context, in *GetLogsRequest, opts .
 	return out, nil
 }
 
+func (c *instanceClient) GetNetworkState(ctx context.Context, in *GetNetworkStateRequest, opts ...grpc.CallOption) (*GetNetworkStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNetworkStateResponse)
+	err := c.cc.Invoke(ctx, Instance_GetNetworkState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *instanceClient) GetExitRoutes(ctx context.Context, in *GetExitRoutesRequest, opts ...grpc.CallOption) (*GetExitRoutesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetExitRoutesResponse)
+	err := c.cc.Invoke(ctx, Instance_GetExitRoutes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *instanceClient) GetRuntimeState(ctx context.Context, in *GetRuntimeStateRequest, opts ...grpc.CallOption) (*GetRuntimeStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRuntimeStateResponse)
+	err := c.cc.Invoke(ctx, Instance_GetRuntimeState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InstanceServer is the server API for Instance service.
 // All implementations should embed UnimplementedInstanceServer
 // for forward compatibility.
@@ -78,6 +114,9 @@ type InstanceServer interface {
 	Init(context.Context, *InitRequest) (*InitResponse, error)
 	GetPeers(context.Context, *GetPeersRequest) (*GetPeersResponse, error)
 	GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error)
+	GetNetworkState(context.Context, *GetNetworkStateRequest) (*GetNetworkStateResponse, error)
+	GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error)
+	GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error)
 }
 
 // UnimplementedInstanceServer should be embedded to have
@@ -95,6 +134,15 @@ func (UnimplementedInstanceServer) GetPeers(context.Context, *GetPeersRequest) (
 }
 func (UnimplementedInstanceServer) GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLogs not implemented")
+}
+func (UnimplementedInstanceServer) GetNetworkState(context.Context, *GetNetworkStateRequest) (*GetNetworkStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNetworkState not implemented")
+}
+func (UnimplementedInstanceServer) GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetExitRoutes not implemented")
+}
+func (UnimplementedInstanceServer) GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRuntimeState not implemented")
 }
 func (UnimplementedInstanceServer) testEmbeddedByValue() {}
 
@@ -170,6 +218,60 @@ func _Instance_GetLogs_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Instance_GetNetworkState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNetworkStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstanceServer).GetNetworkState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Instance_GetNetworkState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstanceServer).GetNetworkState(ctx, req.(*GetNetworkStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Instance_GetExitRoutes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExitRoutesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstanceServer).GetExitRoutes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Instance_GetExitRoutes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstanceServer).GetExitRoutes(ctx, req.(*GetExitRoutesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Instance_GetRuntimeState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRuntimeStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstanceServer).GetRuntimeState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Instance_GetRuntimeState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstanceServer).GetRuntimeState(ctx, req.(*GetRuntimeStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Instance_ServiceDesc is the grpc.ServiceDesc for Instance service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -188,6 +290,18 @@ var Instance_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLogs",
 			Handler:    _Instance_GetLogs_Handler,
+		},
+		{
+			MethodName: "GetNetworkState",
+			Handler:    _Instance_GetNetworkState_Handler,
+		},
+		{
+			MethodName: "GetExitRoutes",
+			Handler:    _Instance_GetExitRoutes_Handler,
+		},
+		{
+			MethodName: "GetRuntimeState",
+			Handler:    _Instance_GetRuntimeState_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

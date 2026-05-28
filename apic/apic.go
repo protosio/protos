@@ -9,8 +9,6 @@ import (
 	"runtime/debug"
 	"strings"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/db"
@@ -30,6 +28,10 @@ var log = util.GetLogger("grpcAPI")
 
 type Backend struct {
 	protosClient *Services
+}
+
+func NewBackend(protosClient *Services) pbApic.ProtosClientApiServer {
+	return &Backend{protosClient: protosClient}
 }
 
 type Services struct {
@@ -68,6 +70,35 @@ func errorLoggingUnaryInterceptor(ctx context.Context, req interface{}, info *gr
 	return resp, err
 }
 
+func recoveryUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			log.Errorf("[PANIC] %s\n----------------\n%s----------------", p, string(debug.Stack()))
+			err = status.Error(codes.Internal, "Internal error. Please check client logs")
+		}
+	}()
+	return handler(ctx, req)
+}
+
+func recoveryStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			log.Errorf("[PANIC] %s\n----------------\n%s----------------", p, string(debug.Stack()))
+			err = status.Error(codes.Internal, "Internal error. Please check client logs")
+		}
+	}()
+	return handler(srv, stream)
+}
+
+func NewGRPCServer(protosClient *Services) *grpc.Server {
+	srv := grpc.NewServer(
+		grpc.ChainStreamInterceptor(recoveryStreamInterceptor),
+		grpc.ChainUnaryInterceptor(errorLoggingUnaryInterceptor, recoveryUnaryInterceptor),
+	)
+	pbApic.RegisterProtosClientApiServer(srv, NewBackend(protosClient))
+	return srv
+}
+
 func StartGRPCServer(dataPath string, version string, protosClient *Services) (func() error, error) {
 
 	homedir, err := os.UserHomeDir()
@@ -87,27 +118,7 @@ func StartGRPCServer(dataPath string, version string, protosClient *Services) (f
 		return nil, fmt.Errorf("failed to listen on local socket: %w", err)
 	}
 
-	recoveryOpt := grpc_recovery.WithRecoveryHandlerContext(
-		func(ctx context.Context, p interface{}) error {
-			log.Errorf("[PANIC] %s\n----------------\n%s----------------", p, string(debug.Stack()))
-			return status.Error(codes.Internal, "Internal error. Please check client logs")
-		},
-	)
-
-	srv := grpc.NewServer(
-		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
-			grpc_recovery.StreamServerInterceptor(recoveryOpt),
-		)),
-		grpc.UnaryInterceptor(
-			grpc_middleware.ChainUnaryServer(
-				grpc.UnaryServerInterceptor(errorLoggingUnaryInterceptor),
-				grpc_recovery.UnaryServerInterceptor(recoveryOpt),
-			),
-		),
-	)
-	pbApic.RegisterProtosClientApiServer(srv, &Backend{
-		protosClient: protosClient,
-	})
+	srv := NewGRPCServer(protosClient)
 
 	log.Info("starting gRPC server at unix://", unixSocketFile)
 	go func() {

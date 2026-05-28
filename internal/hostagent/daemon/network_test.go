@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"errors"
 	"net"
 	"net/netip"
 	"testing"
@@ -13,8 +14,11 @@ type fakeNetworkModule struct {
 	upCalled        int
 	configureCalled int
 	downCalled      int
+	closeCalled     int
 	lastConfig      networkmodule.Config
 	lastPeers       networkmodule.Peers
+	downErr         error
+	closeErr        error
 }
 
 func (m *fakeNetworkModule) Name() string { return "fake" }
@@ -27,7 +31,7 @@ func (m *fakeNetworkModule) Up(config networkmodule.Config) error {
 
 func (m *fakeNetworkModule) Down() error {
 	m.downCalled++
-	return nil
+	return m.downErr
 }
 
 func (m *fakeNetworkModule) ConfigurePeers(config networkmodule.Config, peers networkmodule.Peers) error {
@@ -37,7 +41,14 @@ func (m *fakeNetworkModule) ConfigurePeers(config networkmodule.Config, peers ne
 	return nil
 }
 
-func (m *fakeNetworkModule) Close() error { return nil }
+func (m *fakeNetworkModule) State() (networkmodule.State, error) {
+	return networkmodule.State{Module: m.Name(), Up: m.upCalled > m.downCalled}, nil
+}
+
+func (m *fakeNetworkModule) Close() error {
+	m.closeCalled++
+	return m.closeErr
+}
 
 func (m *fakeNetworkModule) CreateNamespacedInterface(networkmodule.Config, string, net.IP) error {
 	return nil
@@ -86,5 +97,64 @@ func TestApplyNetworkConfiguredReconcilesEmptyPeerSet(t *testing.T) {
 	}
 	if networkModule.lastConfig.IPv6Address != netip.MustParseAddr("200:db8::1") {
 		t.Fatalf("config did not round-trip: %#v", networkModule.lastConfig)
+	}
+}
+
+func TestServerCloseTearsDownNetwork(t *testing.T) {
+	networkModule := &fakeNetworkModule{}
+	server := NewServer(networkModule)
+
+	resp := server.applyNetwork(&hostagentpb.NetworkDesiredState{
+		DesiredState: "up",
+		Config: &hostagentpb.NetworkConfig{
+			Ipv6Address:         "200:db8::1",
+			WireguardPrivateKey: "private",
+		},
+	})
+	if resp.GetMessage() != "" {
+		t.Fatalf("applyNetwork returned message %q", resp.GetMessage())
+	}
+
+	if err := server.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if networkModule.downCalled != 1 {
+		t.Fatalf("Down called %d times, want 1", networkModule.downCalled)
+	}
+	if networkModule.closeCalled != 1 {
+		t.Fatalf("Close called %d times, want 1", networkModule.closeCalled)
+	}
+
+	if err := server.Close(); err != nil {
+		t.Fatalf("second Close returned error: %v", err)
+	}
+	if networkModule.downCalled != 1 || networkModule.closeCalled != 1 {
+		t.Fatalf("Close was not idempotent: down=%d close=%d", networkModule.downCalled, networkModule.closeCalled)
+	}
+}
+
+func TestServerCloseStillClosesModuleWhenDownFails(t *testing.T) {
+	networkModule := &fakeNetworkModule{downErr: errors.New("down failed")}
+	server := NewServer(networkModule)
+
+	resp := server.applyNetwork(&hostagentpb.NetworkDesiredState{
+		DesiredState: "up",
+		Config: &hostagentpb.NetworkConfig{
+			Ipv6Address:         "200:db8::1",
+			WireguardPrivateKey: "private",
+		},
+	})
+	if resp.GetMessage() != "" {
+		t.Fatalf("applyNetwork returned message %q", resp.GetMessage())
+	}
+
+	if err := server.Close(); err == nil {
+		t.Fatalf("Close returned nil error")
+	}
+	if networkModule.downCalled != 1 {
+		t.Fatalf("Down called %d times, want 1", networkModule.downCalled)
+	}
+	if networkModule.closeCalled != 1 {
+		t.Fatalf("Close called %d times, want 1", networkModule.closeCalled)
 	}
 }

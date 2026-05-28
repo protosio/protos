@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/netip"
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
+	"github.com/protosio/protos/internal/network"
+	networkmodule "github.com/protosio/protos/internal/network/module"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
@@ -734,6 +737,557 @@ func (b *Backend) UpdateInstance(ctx context.Context, in *pbApic.UpdateInstanceR
 	return &pbApic.UpdateInstanceResponse{}, nil
 }
 
+func (b *Backend) GetNetworkState(ctx context.Context, in *pbApic.GetNetworkStateRequest) (*pbApic.GetNetworkStateResponse, error) {
+	instanceName := in.GetInstance()
+	if instanceName == "" || instanceName == "local" {
+		if b.protosClient.NetworkManager == nil {
+			return nil, fmt.Errorf("network manager is not configured")
+		}
+		state, err := b.protosClient.NetworkManager.State()
+		if err != nil {
+			return nil, err
+		}
+		return &pbApic.GetNetworkStateResponse{State: networkStateToProto(state)}, nil
+	}
+
+	client, err := b.protosClient.P2PManager.GetClient(instanceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
+	}
+	resp, err := client.GetNetworkState(ctx, &p2pproto.GetNetworkStateRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve network state from instance '%s': %w", instanceName, err)
+	}
+	return &pbApic.GetNetworkStateResponse{State: networkStateFromP2PProto(resp.GetState())}, nil
+}
+
+func (b *Backend) GetExitRoutes(ctx context.Context, in *pbApic.GetExitRoutesRequest) (*pbApic.GetExitRoutesResponse, error) {
+	instanceName := in.GetInstance()
+	if instanceName != "" && instanceName != "local" {
+		client, err := b.protosClient.P2PManager.GetClient(instanceName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
+		}
+		remote, err := client.GetExitRoutes(ctx, &p2pproto.GetExitRoutesRequest{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve exit routes from instance '%s': %w", instanceName, err)
+		}
+		resp := &pbApic.GetExitRoutesResponse{}
+		for _, route := range remote.GetRoutes() {
+			resp.Routes = append(resp.Routes, b.exitRouteToProto(network.ExitRoute{
+				ID:            route.GetId(),
+				DeviceID:      route.GetDeviceId(),
+				InstanceID:    route.GetInstanceId(),
+				DesiredStatus: route.GetStatus(),
+				DNSServer:     route.GetDnsServer(),
+				CIDRs:         append([]string(nil), route.GetCidrs()...),
+			}))
+		}
+		return resp, nil
+	}
+
+	routes, err := network.GetExitRoutes(b.protosClient.DB)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &pbApic.GetExitRoutesResponse{}
+	for _, route := range routes {
+		resp.Routes = append(resp.Routes, b.exitRouteToProto(route))
+	}
+	return resp, nil
+}
+
+func (b *Backend) GetRuntimeState(ctx context.Context, in *pbApic.GetRuntimeStateRequest) (*pbApic.GetRuntimeStateResponse, error) {
+	instanceName := in.GetInstance()
+	if instanceName == "" || instanceName == "local" {
+		state, err := b.localRuntimeState(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &pbApic.GetRuntimeStateResponse{State: state}, nil
+	}
+
+	client, err := b.protosClient.P2PManager.GetClient(instanceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
+	}
+	resp, err := client.GetRuntimeState(ctx, &p2pproto.GetRuntimeStateRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve runtime state from instance '%s': %w", instanceName, err)
+	}
+	return &pbApic.GetRuntimeStateResponse{State: runtimeStateFromP2PProto(resp.GetState())}, nil
+}
+
+func (b *Backend) WatchChanges(in *pbApic.WatchChangesRequest, stream pbApic.ProtosClientApi_WatchChangesServer) error {
+	if b.protosClient == nil || b.protosClient.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+
+	ctx := stream.Context()
+	changes, cancel := b.protosClient.DB.WatchChanges(ctx)
+	defer cancel()
+
+	var sequence uint64
+	send := func(reason string, tableNames []string, runtimeChanged bool) error {
+		sequence++
+		return stream.Send(&pbApic.WatchChangesResponse{
+			Sequence:       sequence,
+			TableNames:     append([]string(nil), tableNames...),
+			RuntimeChanged: runtimeChanged,
+			Reason:         reason,
+		})
+	}
+
+	if in.GetIncludeSnapshot() {
+		if err := send("initial", nil, true); err != nil {
+			return err
+		}
+	}
+
+	var ticker *time.Ticker
+	var ticks <-chan time.Time
+	if heartbeatMs := in.GetHeartbeatIntervalMs(); heartbeatMs > 0 {
+		interval := time.Duration(heartbeatMs) * time.Millisecond
+		if interval < time.Second {
+			interval = time.Second
+		}
+		ticker = time.NewTicker(interval)
+		ticks = ticker.C
+		defer ticker.Stop()
+	}
+
+	for {
+		select {
+		case event, ok := <-changes:
+			if !ok {
+				return nil
+			}
+			runtimeChanged := len(event.TableNames) == 0
+			reason := "db"
+			if runtimeChanged {
+				reason = "runtime"
+			}
+			if err := send(reason, event.TableNames, runtimeChanged); err != nil {
+				return err
+			}
+		case <-ticks:
+			if err := send("heartbeat", nil, true); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func networkStateToProto(state networkmodule.State) *pbApic.NetworkState {
+	out := &pbApic.NetworkState{
+		Module:        state.Module,
+		Up:            state.Up,
+		InterfaceName: state.InterfaceName,
+		Messages:      append([]string(nil), state.Messages...),
+	}
+	for _, item := range state.Interfaces {
+		out.Interfaces = append(out.Interfaces, &pbApic.NetworkInterface{
+			Name:       item.Name,
+			Type:       item.Type,
+			Index:      int32(item.Index),
+			Mtu:        int32(item.MTU),
+			Up:         item.Up,
+			Master:     item.Master,
+			MacAddress: item.MacAddress,
+			Kind:       item.Kind,
+		})
+	}
+	for _, item := range state.Addresses {
+		out.Addresses = append(out.Addresses, &pbApic.NetworkAddress{
+			InterfaceName: item.InterfaceName,
+			Cidr:          item.CIDR,
+			Scope:         item.Scope,
+		})
+	}
+	for _, item := range state.Routes {
+		out.Routes = append(out.Routes, &pbApic.NetworkRoute{
+			InterfaceName: item.InterfaceName,
+			Destination:   item.Destination,
+			Gateway:       item.Gateway,
+			Source:        item.Source,
+			Family:        item.Family,
+			Table:         item.Table,
+			Protocol:      item.Protocol,
+			Scope:         item.Scope,
+			Priority:      item.Priority,
+			Kind:          item.Kind,
+		})
+	}
+	for _, item := range state.WireGuardPeers {
+		out.WireguardPeers = append(out.WireguardPeers, &pbApic.WireGuardPeer{
+			PublicKey:       item.PublicKey,
+			Endpoint:        item.Endpoint,
+			AllowedIps:      append([]string(nil), item.AllowedIPs...),
+			LatestHandshake: item.LatestHandshake,
+			RxBytes:         item.RxBytes,
+			TxBytes:         item.TxBytes,
+		})
+	}
+	for _, table := range state.FirewallTables {
+		tableProto := &pbApic.FirewallTable{
+			Family: table.Family,
+			Name:   table.Name,
+		}
+		for _, chain := range table.Chains {
+			chainProto := &pbApic.FirewallChain{
+				Name:     chain.Name,
+				Type:     chain.Type,
+				Hook:     chain.Hook,
+				Priority: chain.Priority,
+			}
+			for _, rule := range chain.Rules {
+				chainProto.Rules = append(chainProto.Rules, &pbApic.FirewallRule{
+					Expressions: append([]string(nil), rule.Expressions...),
+					Packets:     rule.Packets,
+					Bytes:       rule.Bytes,
+				})
+			}
+			tableProto.Chains = append(tableProto.Chains, chainProto)
+		}
+		out.FirewallTables = append(out.FirewallTables, tableProto)
+	}
+	for _, item := range state.DNS {
+		out.Dns = append(out.Dns, &pbApic.DNSState{
+			Scope:   item.Scope,
+			Domain:  item.Domain,
+			Servers: append([]string(nil), item.Servers...),
+			Port:    int32(item.Port),
+			Active:  item.Active,
+			Source:  item.Source,
+		})
+	}
+	return out
+}
+
+func networkStateFromP2PProto(state *p2pproto.NetworkState) *pbApic.NetworkState {
+	if state == nil {
+		return nil
+	}
+	out := &pbApic.NetworkState{
+		Module:        state.GetModule(),
+		Up:            state.GetUp(),
+		InterfaceName: state.GetInterfaceName(),
+		Messages:      append([]string(nil), state.GetMessages()...),
+	}
+	for _, item := range state.GetInterfaces() {
+		out.Interfaces = append(out.Interfaces, &pbApic.NetworkInterface{
+			Name:       item.GetName(),
+			Type:       item.GetType(),
+			Index:      item.GetIndex(),
+			Mtu:        item.GetMtu(),
+			Up:         item.GetUp(),
+			Master:     item.GetMaster(),
+			MacAddress: item.GetMacAddress(),
+			Kind:       item.GetKind(),
+		})
+	}
+	for _, item := range state.GetAddresses() {
+		out.Addresses = append(out.Addresses, &pbApic.NetworkAddress{
+			InterfaceName: item.GetInterfaceName(),
+			Cidr:          item.GetCidr(),
+			Scope:         item.GetScope(),
+		})
+	}
+	for _, item := range state.GetRoutes() {
+		out.Routes = append(out.Routes, &pbApic.NetworkRoute{
+			InterfaceName: item.GetInterfaceName(),
+			Destination:   item.GetDestination(),
+			Gateway:       item.GetGateway(),
+			Source:        item.GetSource(),
+			Family:        item.GetFamily(),
+			Table:         item.GetTable(),
+			Protocol:      item.GetProtocol(),
+			Scope:         item.GetScope(),
+			Priority:      item.GetPriority(),
+			Kind:          item.GetKind(),
+		})
+	}
+	for _, item := range state.GetWireguardPeers() {
+		out.WireguardPeers = append(out.WireguardPeers, &pbApic.WireGuardPeer{
+			PublicKey:       item.GetPublicKey(),
+			Endpoint:        item.GetEndpoint(),
+			AllowedIps:      append([]string(nil), item.GetAllowedIps()...),
+			LatestHandshake: item.GetLatestHandshake(),
+			RxBytes:         item.GetRxBytes(),
+			TxBytes:         item.GetTxBytes(),
+		})
+	}
+	for _, table := range state.GetFirewallTables() {
+		tableProto := &pbApic.FirewallTable{
+			Family: table.GetFamily(),
+			Name:   table.GetName(),
+		}
+		for _, chain := range table.GetChains() {
+			chainProto := &pbApic.FirewallChain{
+				Name:     chain.GetName(),
+				Type:     chain.GetType(),
+				Hook:     chain.GetHook(),
+				Priority: chain.GetPriority(),
+			}
+			for _, rule := range chain.GetRules() {
+				chainProto.Rules = append(chainProto.Rules, &pbApic.FirewallRule{
+					Expressions: append([]string(nil), rule.GetExpressions()...),
+					Packets:     rule.GetPackets(),
+					Bytes:       rule.GetBytes(),
+				})
+			}
+			tableProto.Chains = append(tableProto.Chains, chainProto)
+		}
+		out.FirewallTables = append(out.FirewallTables, tableProto)
+	}
+	for _, item := range state.GetDns() {
+		out.Dns = append(out.Dns, &pbApic.DNSState{
+			Scope:   item.GetScope(),
+			Domain:  item.GetDomain(),
+			Servers: append([]string(nil), item.GetServers()...),
+			Port:    item.GetPort(),
+			Active:  item.GetActive(),
+			Source:  item.GetSource(),
+		})
+	}
+	return out
+}
+
+func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, error) {
+	if err := b.protosClient.DB.CatchUpFinalized(ctx, "apic get runtime state"); err != nil {
+		return nil, err
+	}
+	status, ok := b.protosClient.DB.SwarmionStatus()
+	if !ok {
+		return nil, fmt.Errorf("swarmion status is not available")
+	}
+	out := &pbApic.RuntimeState{
+		PeerId:                       status.PeerID,
+		ManifestDigest:               status.ManifestDigest,
+		FinalizedRootHash:            status.FinalizedRootHash.String(),
+		TentativeRootHash:            status.TentativeRootHash.String(),
+		ProtocolFinalizedRootHash:    status.RuntimeFinalizedDesiredRootHash.String(),
+		DurableMainRootHash:          status.DurableMainRootHash.String(),
+		ActiveEpochId:                status.ActiveEpochID,
+		ActiveWitnessIds:             append([]string(nil), status.ActiveWitnessIDs...),
+		EligibleWitnessIds:           append([]string(nil), status.EligibleWitnessIDs...),
+		StateProviders:               append([]string(nil), status.StateProviders...),
+		ConnectedPeers:               append([]string(nil), status.ConnectedPeers...),
+		RuntimeRefreshPending:        status.RuntimeRefreshPending,
+		RuntimeRefreshLastError:      status.RuntimeRefreshLastError,
+		RuntimeFinalizedPending:      status.RuntimeFinalizedMaterializePending,
+		RuntimeFinalizedLastError:    status.RuntimeFinalizedMaterializeLastError,
+		RuntimeMaterializationPolicy: status.RuntimeFinalizedMaterializationPolicy.String(),
+	}
+	if status.Fatal != nil {
+		out.FatalState = status.Fatal.State
+	} else {
+		out.FatalState = status.FatalState.String()
+	}
+
+	peerStatuses, err := b.protosClient.DB.SwarmionPeerStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, peerStatus := range peerStatuses {
+		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
+			PeerId:          peerStatus.PeerID,
+			Connected:       peerStatus.Connected,
+			Dialable:        peerStatus.Dialable,
+			StateProvider:   peerStatus.StateProvider,
+			Witness:         peerStatus.Witness,
+			EligibleWitness: peerStatus.EligibleWitness,
+			Compatible:      peerStatus.Compatible,
+			Incompatible:    peerStatus.Incompatible,
+			Ignored:         peerStatus.Ignored,
+			RelayOnly:       peerStatus.RelayOnly,
+			Addresses:       append([]string(nil), peerStatus.Addresses...),
+			LastDialErrors:  cloneStringMap(peerStatus.LastDialErrors),
+			Reason:          peerStatus.Reason,
+		})
+	}
+	compatibility, err := b.protosClient.DB.SwarmionCompatibility(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range compatibility {
+		out.Compatibility = append(out.Compatibility, &pbApic.RuntimeCompatibility{
+			PeerId:       item.PeerID,
+			LocalDigest:  item.LocalDigest,
+			RemoteDigest: item.RemoteDigest,
+			Compatible:   item.Compatible,
+			Blocking:     item.Blocking,
+			Reason:       item.Reason,
+		})
+	}
+	if trace, ok := b.protosClient.DB.SwarmionContentSyncTrace(); ok {
+		out.ContentSyncTrace = append([]string(nil), trace...)
+	}
+	return out, nil
+}
+
+func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState {
+	if state == nil {
+		return nil
+	}
+	out := &pbApic.RuntimeState{
+		PeerId:                       state.GetPeerId(),
+		ManifestDigest:               state.GetManifestDigest(),
+		FinalizedRootHash:            state.GetFinalizedRootHash(),
+		TentativeRootHash:            state.GetTentativeRootHash(),
+		ProtocolFinalizedRootHash:    state.GetProtocolFinalizedRootHash(),
+		DurableMainRootHash:          state.GetDurableMainRootHash(),
+		ActiveEpochId:                state.GetActiveEpochId(),
+		ActiveWitnessIds:             append([]string(nil), state.GetActiveWitnessIds()...),
+		EligibleWitnessIds:           append([]string(nil), state.GetEligibleWitnessIds()...),
+		StateProviders:               append([]string(nil), state.GetStateProviders()...),
+		ConnectedPeers:               append([]string(nil), state.GetConnectedPeers()...),
+		FatalState:                   state.GetFatalState(),
+		RuntimeRefreshPending:        state.GetRuntimeRefreshPending(),
+		RuntimeRefreshLastError:      state.GetRuntimeRefreshLastError(),
+		RuntimeFinalizedPending:      state.GetRuntimeFinalizedPending(),
+		RuntimeFinalizedLastError:    state.GetRuntimeFinalizedLastError(),
+		RuntimeMaterializationPolicy: state.GetRuntimeMaterializationPolicy(),
+		ContentSyncTrace:             append([]string(nil), state.GetContentSyncTrace()...),
+	}
+	for _, peerStatus := range state.GetPeerStatuses() {
+		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
+			PeerId:          peerStatus.GetPeerId(),
+			Connected:       peerStatus.GetConnected(),
+			Dialable:        peerStatus.GetDialable(),
+			StateProvider:   peerStatus.GetStateProvider(),
+			Witness:         peerStatus.GetWitness(),
+			EligibleWitness: peerStatus.GetEligibleWitness(),
+			Compatible:      peerStatus.GetCompatible(),
+			Incompatible:    peerStatus.GetIncompatible(),
+			Ignored:         peerStatus.GetIgnored(),
+			RelayOnly:       peerStatus.GetRelayOnly(),
+			Addresses:       append([]string(nil), peerStatus.GetAddresses()...),
+			LastDialErrors:  cloneStringMap(peerStatus.GetLastDialErrors()),
+			Reason:          peerStatus.GetReason(),
+		})
+	}
+	for _, item := range state.GetCompatibility() {
+		out.Compatibility = append(out.Compatibility, &pbApic.RuntimeCompatibility{
+			PeerId:       item.GetPeerId(),
+			LocalDigest:  item.GetLocalDigest(),
+			RemoteDigest: item.GetRemoteDigest(),
+			Compatible:   item.GetCompatible(),
+			Blocking:     item.GetBlocking(),
+			Reason:       item.GetReason(),
+		})
+	}
+	return out
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func (b *Backend) SetExitRoute(ctx context.Context, in *pbApic.SetExitRouteRequest) (*pbApic.SetExitRouteResponse, error) {
+	instanceRef := in.GetInstance()
+	if instanceRef == "" {
+		return nil, fmt.Errorf("instance is required")
+	}
+	instance, err := b.protosClient.CloudManager.GetInstance(instanceRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve exit instance '%s': %w", instanceRef, err)
+	}
+	if !isPublicExitIP(instance.PublicIP) {
+		return nil, fmt.Errorf("instance '%s' does not have a routable public IP", instance.Name)
+	}
+
+	deviceID := in.GetDeviceId()
+	if deviceID == "" {
+		currentDevice, err := b.protosClient.Manager.GetCurrentDevice()
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve current device: %w", err)
+		}
+		deviceID = currentDevice.ID
+	}
+
+	route, err := network.SetExitRoute(b.protosClient.DB, deviceID, instance.ID, in.GetDnsServer(), in.GetCidrs())
+	if err != nil {
+		return nil, fmt.Errorf("failed to set exit route: %w", err)
+	}
+	return &pbApic.SetExitRouteResponse{Route: b.exitRouteToProto(route)}, nil
+}
+
+func isPublicExitIP(ip string) bool {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	addr = addr.Unmap()
+	if !addr.IsGlobalUnicast() || addr.IsPrivate() {
+		return false
+	}
+	for _, prefix := range nonPublicExitIPPrefixes {
+		if prefix.Contains(addr) {
+			return false
+		}
+	}
+	return true
+}
+
+var nonPublicExitIPPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("2001:db8::/32"),
+}
+
+func (b *Backend) ClearExitRoute(ctx context.Context, in *pbApic.ClearExitRouteRequest) (*pbApic.ClearExitRouteResponse, error) {
+	deviceID := in.GetDeviceId()
+	if deviceID == "" {
+		currentDevice, err := b.protosClient.Manager.GetCurrentDevice()
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve current device: %w", err)
+		}
+		deviceID = currentDevice.ID
+	}
+	if err := network.ClearExitRoute(b.protosClient.DB, deviceID); err != nil {
+		return nil, fmt.Errorf("failed to clear exit route: %w", err)
+	}
+	return &pbApic.ClearExitRouteResponse{}, nil
+}
+
+func (b *Backend) exitRouteToProto(route network.ExitRoute) *pbApic.ExitRoute {
+	resp := &pbApic.ExitRoute{
+		Id:         route.ID,
+		DeviceId:   route.DeviceID,
+		InstanceId: route.InstanceID,
+		Status:     route.DesiredStatus,
+		DnsServer:  route.DNSServer,
+		Cidrs:      route.CIDRs,
+	}
+	if b.protosClient == nil || b.protosClient.CloudManager == nil {
+		return resp
+	}
+	instance, err := b.protosClient.CloudManager.GetInstance(route.InstanceID)
+	if err != nil {
+		log.Debugf("failed to enrich exit route %s: %s", route.ID, err.Error())
+		return resp
+	}
+	resp.InstanceName = instance.Name
+	resp.PublicIp = instance.PublicIP
+	resp.Location = instance.Location
+	return resp
+}
+
 //
 // Releases methods
 //
@@ -902,22 +1456,73 @@ func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveP
 
 func (b *Backend) GetLocalCommits(ctx context.Context, in *pbApic.GetLocalCommitsRequest) (*pbApic.GetLocalCommitsResponse, error) {
 	log.Debug("Retrieving local commits")
-	commits, err := b.protosClient.DB.GetAllCommits()
+	finalizedCommits, err := b.protosClient.DB.GetCommits("main")
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve local commits: %w", err)
+		return nil, fmt.Errorf("failed to retrieve finalized commits: %w", err)
+	}
+	tentativeCommits, err := b.protosClient.DB.GetCommits("tentative")
+	if err != nil {
+		log.Debugf("failed to retrieve tentative commits: %s", err.Error())
+		tentativeCommits = nil
+	}
+
+	type localCommitRow struct {
+		hash      string
+		committer string
+		message   string
+		states    map[string]struct{}
+	}
+	rows := map[string]*localCommitRow{}
+	order := []string{}
+	mergeCommit := func(hash, committer, message, state string) {
+		if hash == "" {
+			return
+		}
+		row, ok := rows[hash]
+		if !ok {
+			row = &localCommitRow{
+				hash:      hash,
+				committer: committer,
+				message:   message,
+				states:    map[string]struct{}{},
+			}
+			rows[hash] = row
+			order = append(order, hash)
+		}
+		row.states[state] = struct{}{}
+	}
+
+	for _, commit := range finalizedCommits {
+		mergeCommit(commit.Hash, commit.Committer, commit.Message, "finalized")
+	}
+	for _, commit := range tentativeCommits {
+		mergeCommit(commit.Hash, commit.Committer, commit.Message, "tentative")
 	}
 
 	resp := pbApic.GetLocalCommitsResponse{}
-	for _, commit := range commits {
+	for _, hash := range order {
+		commit := rows[hash]
 		respCommit := pbApic.Commit{
-			Hash:      commit.Hash,
-			Committer: commit.Committer,
-			Message:   commit.Message,
+			Hash:      commit.hash,
+			Committer: commit.committer,
+			Message:   commit.message,
+			States:    commitStates(commit.states),
 		}
 		resp.Commits = append(resp.Commits, &respCommit)
 	}
 
 	return &resp, nil
+}
+
+func commitStates(states map[string]struct{}) []string {
+	out := []string{}
+	if _, ok := states["finalized"]; ok {
+		out = append(out, "finalized")
+	}
+	if _, ok := states["tentative"]; ok {
+		out = append(out, "tentative")
+	}
+	return out
 }
 
 func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteCommitsRequest) (*pbApic.GetRemoteCommitsResponse, error) {

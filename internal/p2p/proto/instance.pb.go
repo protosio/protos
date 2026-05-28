@@ -293,6 +293,1506 @@ func (x *GetLogsResponse) GetLogs() string {
 	return ""
 }
 
+type GetNetworkStateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetNetworkStateRequest) Reset() {
+	*x = GetNetworkStateRequest{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetNetworkStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNetworkStateRequest) ProtoMessage() {}
+
+func (x *GetNetworkStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNetworkStateRequest.ProtoReflect.Descriptor instead.
+func (*GetNetworkStateRequest) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{6}
+}
+
+type GetNetworkStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	State         *NetworkState          `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetNetworkStateResponse) Reset() {
+	*x = GetNetworkStateResponse{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetNetworkStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNetworkStateResponse) ProtoMessage() {}
+
+func (x *GetNetworkStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNetworkStateResponse.ProtoReflect.Descriptor instead.
+func (*GetNetworkStateResponse) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetNetworkStateResponse) GetState() *NetworkState {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+type GetExitRoutesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExitRoutesRequest) Reset() {
+	*x = GetExitRoutesRequest{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExitRoutesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExitRoutesRequest) ProtoMessage() {}
+
+func (x *GetExitRoutesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExitRoutesRequest.ProtoReflect.Descriptor instead.
+func (*GetExitRoutesRequest) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{8}
+}
+
+type GetExitRoutesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Routes        []*ExitRoute           `protobuf:"bytes,1,rep,name=routes,proto3" json:"routes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExitRoutesResponse) Reset() {
+	*x = GetExitRoutesResponse{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExitRoutesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExitRoutesResponse) ProtoMessage() {}
+
+func (x *GetExitRoutesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExitRoutesResponse.ProtoReflect.Descriptor instead.
+func (*GetExitRoutesResponse) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetExitRoutesResponse) GetRoutes() []*ExitRoute {
+	if x != nil {
+		return x.Routes
+	}
+	return nil
+}
+
+type GetRuntimeStateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRuntimeStateRequest) Reset() {
+	*x = GetRuntimeStateRequest{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRuntimeStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRuntimeStateRequest) ProtoMessage() {}
+
+func (x *GetRuntimeStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRuntimeStateRequest.ProtoReflect.Descriptor instead.
+func (*GetRuntimeStateRequest) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{10}
+}
+
+type GetRuntimeStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	State         *RuntimeState          `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRuntimeStateResponse) Reset() {
+	*x = GetRuntimeStateResponse{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRuntimeStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRuntimeStateResponse) ProtoMessage() {}
+
+func (x *GetRuntimeStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRuntimeStateResponse.ProtoReflect.Descriptor instead.
+func (*GetRuntimeStateResponse) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetRuntimeStateResponse) GetState() *RuntimeState {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+type NetworkState struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Module         string                 `protobuf:"bytes,1,opt,name=module,proto3" json:"module,omitempty"`
+	Up             bool                   `protobuf:"varint,2,opt,name=up,proto3" json:"up,omitempty"`
+	InterfaceName  string                 `protobuf:"bytes,3,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
+	Addresses      []*NetworkAddress      `protobuf:"bytes,4,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	Routes         []*NetworkRoute        `protobuf:"bytes,5,rep,name=routes,proto3" json:"routes,omitempty"`
+	WireguardPeers []*WireGuardPeer       `protobuf:"bytes,6,rep,name=wireguard_peers,json=wireguardPeers,proto3" json:"wireguard_peers,omitempty"`
+	FirewallTables []*FirewallTable       `protobuf:"bytes,7,rep,name=firewall_tables,json=firewallTables,proto3" json:"firewall_tables,omitempty"`
+	Dns            []*DNSState            `protobuf:"bytes,8,rep,name=dns,proto3" json:"dns,omitempty"`
+	Messages       []string               `protobuf:"bytes,9,rep,name=messages,proto3" json:"messages,omitempty"`
+	Interfaces     []*NetworkInterface    `protobuf:"bytes,10,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *NetworkState) Reset() {
+	*x = NetworkState{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkState) ProtoMessage() {}
+
+func (x *NetworkState) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkState.ProtoReflect.Descriptor instead.
+func (*NetworkState) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *NetworkState) GetModule() string {
+	if x != nil {
+		return x.Module
+	}
+	return ""
+}
+
+func (x *NetworkState) GetUp() bool {
+	if x != nil {
+		return x.Up
+	}
+	return false
+}
+
+func (x *NetworkState) GetInterfaceName() string {
+	if x != nil {
+		return x.InterfaceName
+	}
+	return ""
+}
+
+func (x *NetworkState) GetAddresses() []*NetworkAddress {
+	if x != nil {
+		return x.Addresses
+	}
+	return nil
+}
+
+func (x *NetworkState) GetRoutes() []*NetworkRoute {
+	if x != nil {
+		return x.Routes
+	}
+	return nil
+}
+
+func (x *NetworkState) GetWireguardPeers() []*WireGuardPeer {
+	if x != nil {
+		return x.WireguardPeers
+	}
+	return nil
+}
+
+func (x *NetworkState) GetFirewallTables() []*FirewallTable {
+	if x != nil {
+		return x.FirewallTables
+	}
+	return nil
+}
+
+func (x *NetworkState) GetDns() []*DNSState {
+	if x != nil {
+		return x.Dns
+	}
+	return nil
+}
+
+func (x *NetworkState) GetMessages() []string {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *NetworkState) GetInterfaces() []*NetworkInterface {
+	if x != nil {
+		return x.Interfaces
+	}
+	return nil
+}
+
+type NetworkInterface struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Index         int32                  `protobuf:"varint,3,opt,name=index,proto3" json:"index,omitempty"`
+	Mtu           int32                  `protobuf:"varint,4,opt,name=mtu,proto3" json:"mtu,omitempty"`
+	Up            bool                   `protobuf:"varint,5,opt,name=up,proto3" json:"up,omitempty"`
+	Master        string                 `protobuf:"bytes,6,opt,name=master,proto3" json:"master,omitempty"`
+	MacAddress    string                 `protobuf:"bytes,7,opt,name=mac_address,json=macAddress,proto3" json:"mac_address,omitempty"`
+	Kind          string                 `protobuf:"bytes,8,opt,name=kind,proto3" json:"kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkInterface) Reset() {
+	*x = NetworkInterface{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkInterface) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkInterface) ProtoMessage() {}
+
+func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkInterface.ProtoReflect.Descriptor instead.
+func (*NetworkInterface) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *NetworkInterface) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *NetworkInterface) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *NetworkInterface) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *NetworkInterface) GetMtu() int32 {
+	if x != nil {
+		return x.Mtu
+	}
+	return 0
+}
+
+func (x *NetworkInterface) GetUp() bool {
+	if x != nil {
+		return x.Up
+	}
+	return false
+}
+
+func (x *NetworkInterface) GetMaster() string {
+	if x != nil {
+		return x.Master
+	}
+	return ""
+}
+
+func (x *NetworkInterface) GetMacAddress() string {
+	if x != nil {
+		return x.MacAddress
+	}
+	return ""
+}
+
+func (x *NetworkInterface) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+type NetworkAddress struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InterfaceName string                 `protobuf:"bytes,1,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
+	Cidr          string                 `protobuf:"bytes,2,opt,name=cidr,proto3" json:"cidr,omitempty"`
+	Scope         string                 `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkAddress) Reset() {
+	*x = NetworkAddress{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkAddress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkAddress) ProtoMessage() {}
+
+func (x *NetworkAddress) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkAddress.ProtoReflect.Descriptor instead.
+func (*NetworkAddress) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *NetworkAddress) GetInterfaceName() string {
+	if x != nil {
+		return x.InterfaceName
+	}
+	return ""
+}
+
+func (x *NetworkAddress) GetCidr() string {
+	if x != nil {
+		return x.Cidr
+	}
+	return ""
+}
+
+func (x *NetworkAddress) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+type NetworkRoute struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InterfaceName string                 `protobuf:"bytes,1,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
+	Destination   string                 `protobuf:"bytes,2,opt,name=destination,proto3" json:"destination,omitempty"`
+	Gateway       string                 `protobuf:"bytes,3,opt,name=gateway,proto3" json:"gateway,omitempty"`
+	Source        string                 `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	Family        string                 `protobuf:"bytes,5,opt,name=family,proto3" json:"family,omitempty"`
+	Table         string                 `protobuf:"bytes,6,opt,name=table,proto3" json:"table,omitempty"`
+	Protocol      string                 `protobuf:"bytes,7,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	Scope         string                 `protobuf:"bytes,8,opt,name=scope,proto3" json:"scope,omitempty"`
+	Priority      string                 `protobuf:"bytes,9,opt,name=priority,proto3" json:"priority,omitempty"`
+	Kind          string                 `protobuf:"bytes,10,opt,name=kind,proto3" json:"kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkRoute) Reset() {
+	*x = NetworkRoute{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkRoute) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkRoute) ProtoMessage() {}
+
+func (x *NetworkRoute) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkRoute.ProtoReflect.Descriptor instead.
+func (*NetworkRoute) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *NetworkRoute) GetInterfaceName() string {
+	if x != nil {
+		return x.InterfaceName
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetGateway() string {
+	if x != nil {
+		return x.Gateway
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetFamily() string {
+	if x != nil {
+		return x.Family
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetTable() string {
+	if x != nil {
+		return x.Table
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetPriority() string {
+	if x != nil {
+		return x.Priority
+	}
+	return ""
+}
+
+func (x *NetworkRoute) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+type WireGuardPeer struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	PublicKey       string                 `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	Endpoint        string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	AllowedIps      []string               `protobuf:"bytes,3,rep,name=allowed_ips,json=allowedIps,proto3" json:"allowed_ips,omitempty"`
+	LatestHandshake string                 `protobuf:"bytes,4,opt,name=latest_handshake,json=latestHandshake,proto3" json:"latest_handshake,omitempty"`
+	RxBytes         uint64                 `protobuf:"varint,5,opt,name=rx_bytes,json=rxBytes,proto3" json:"rx_bytes,omitempty"`
+	TxBytes         uint64                 `protobuf:"varint,6,opt,name=tx_bytes,json=txBytes,proto3" json:"tx_bytes,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *WireGuardPeer) Reset() {
+	*x = WireGuardPeer{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WireGuardPeer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WireGuardPeer) ProtoMessage() {}
+
+func (x *WireGuardPeer) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WireGuardPeer.ProtoReflect.Descriptor instead.
+func (*WireGuardPeer) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *WireGuardPeer) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+func (x *WireGuardPeer) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *WireGuardPeer) GetAllowedIps() []string {
+	if x != nil {
+		return x.AllowedIps
+	}
+	return nil
+}
+
+func (x *WireGuardPeer) GetLatestHandshake() string {
+	if x != nil {
+		return x.LatestHandshake
+	}
+	return ""
+}
+
+func (x *WireGuardPeer) GetRxBytes() uint64 {
+	if x != nil {
+		return x.RxBytes
+	}
+	return 0
+}
+
+func (x *WireGuardPeer) GetTxBytes() uint64 {
+	if x != nil {
+		return x.TxBytes
+	}
+	return 0
+}
+
+type FirewallTable struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Family        string                 `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Chains        []*FirewallChain       `protobuf:"bytes,3,rep,name=chains,proto3" json:"chains,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FirewallTable) Reset() {
+	*x = FirewallTable{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FirewallTable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FirewallTable) ProtoMessage() {}
+
+func (x *FirewallTable) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FirewallTable.ProtoReflect.Descriptor instead.
+func (*FirewallTable) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *FirewallTable) GetFamily() string {
+	if x != nil {
+		return x.Family
+	}
+	return ""
+}
+
+func (x *FirewallTable) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FirewallTable) GetChains() []*FirewallChain {
+	if x != nil {
+		return x.Chains
+	}
+	return nil
+}
+
+type FirewallChain struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Hook          string                 `protobuf:"bytes,3,opt,name=hook,proto3" json:"hook,omitempty"`
+	Priority      string                 `protobuf:"bytes,4,opt,name=priority,proto3" json:"priority,omitempty"`
+	Rules         []*FirewallRule        `protobuf:"bytes,5,rep,name=rules,proto3" json:"rules,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FirewallChain) Reset() {
+	*x = FirewallChain{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FirewallChain) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FirewallChain) ProtoMessage() {}
+
+func (x *FirewallChain) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FirewallChain.ProtoReflect.Descriptor instead.
+func (*FirewallChain) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *FirewallChain) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FirewallChain) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *FirewallChain) GetHook() string {
+	if x != nil {
+		return x.Hook
+	}
+	return ""
+}
+
+func (x *FirewallChain) GetPriority() string {
+	if x != nil {
+		return x.Priority
+	}
+	return ""
+}
+
+func (x *FirewallChain) GetRules() []*FirewallRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+type FirewallRule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Expressions   []string               `protobuf:"bytes,1,rep,name=expressions,proto3" json:"expressions,omitempty"`
+	Packets       uint64                 `protobuf:"varint,2,opt,name=packets,proto3" json:"packets,omitempty"`
+	Bytes         uint64                 `protobuf:"varint,3,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FirewallRule) Reset() {
+	*x = FirewallRule{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FirewallRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FirewallRule) ProtoMessage() {}
+
+func (x *FirewallRule) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FirewallRule.ProtoReflect.Descriptor instead.
+func (*FirewallRule) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *FirewallRule) GetExpressions() []string {
+	if x != nil {
+		return x.Expressions
+	}
+	return nil
+}
+
+func (x *FirewallRule) GetPackets() uint64 {
+	if x != nil {
+		return x.Packets
+	}
+	return 0
+}
+
+func (x *FirewallRule) GetBytes() uint64 {
+	if x != nil {
+		return x.Bytes
+	}
+	return 0
+}
+
+type DNSState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Scope         string                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	Servers       []string               `protobuf:"bytes,3,rep,name=servers,proto3" json:"servers,omitempty"`
+	Port          int32                  `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	Active        bool                   `protobuf:"varint,5,opt,name=active,proto3" json:"active,omitempty"`
+	Source        string                 `protobuf:"bytes,6,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DNSState) Reset() {
+	*x = DNSState{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DNSState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DNSState) ProtoMessage() {}
+
+func (x *DNSState) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DNSState.ProtoReflect.Descriptor instead.
+func (*DNSState) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *DNSState) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *DNSState) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *DNSState) GetServers() []string {
+	if x != nil {
+		return x.Servers
+	}
+	return nil
+}
+
+func (x *DNSState) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *DNSState) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *DNSState) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+type ExitRoute struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	InstanceId    string                 `protobuf:"bytes,3,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	DnsServer     string                 `protobuf:"bytes,5,opt,name=dns_server,json=dnsServer,proto3" json:"dns_server,omitempty"`
+	Cidrs         []string               `protobuf:"bytes,6,rep,name=cidrs,proto3" json:"cidrs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExitRoute) Reset() {
+	*x = ExitRoute{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExitRoute) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExitRoute) ProtoMessage() {}
+
+func (x *ExitRoute) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExitRoute.ProtoReflect.Descriptor instead.
+func (*ExitRoute) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ExitRoute) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ExitRoute) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *ExitRoute) GetInstanceId() string {
+	if x != nil {
+		return x.InstanceId
+	}
+	return ""
+}
+
+func (x *ExitRoute) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ExitRoute) GetDnsServer() string {
+	if x != nil {
+		return x.DnsServer
+	}
+	return ""
+}
+
+func (x *ExitRoute) GetCidrs() []string {
+	if x != nil {
+		return x.Cidrs
+	}
+	return nil
+}
+
+type RuntimeState struct {
+	state                        protoimpl.MessageState  `protogen:"open.v1"`
+	PeerId                       string                  `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	ManifestDigest               string                  `protobuf:"bytes,2,opt,name=manifest_digest,json=manifestDigest,proto3" json:"manifest_digest,omitempty"`
+	FinalizedRootHash            string                  `protobuf:"bytes,3,opt,name=finalized_root_hash,json=finalizedRootHash,proto3" json:"finalized_root_hash,omitempty"`
+	TentativeRootHash            string                  `protobuf:"bytes,4,opt,name=tentative_root_hash,json=tentativeRootHash,proto3" json:"tentative_root_hash,omitempty"`
+	ProtocolFinalizedRootHash    string                  `protobuf:"bytes,5,opt,name=protocol_finalized_root_hash,json=protocolFinalizedRootHash,proto3" json:"protocol_finalized_root_hash,omitempty"`
+	DurableMainRootHash          string                  `protobuf:"bytes,6,opt,name=durable_main_root_hash,json=durableMainRootHash,proto3" json:"durable_main_root_hash,omitempty"`
+	ActiveEpochId                string                  `protobuf:"bytes,7,opt,name=active_epoch_id,json=activeEpochId,proto3" json:"active_epoch_id,omitempty"`
+	ActiveWitnessIds             []string                `protobuf:"bytes,8,rep,name=active_witness_ids,json=activeWitnessIds,proto3" json:"active_witness_ids,omitempty"`
+	EligibleWitnessIds           []string                `protobuf:"bytes,9,rep,name=eligible_witness_ids,json=eligibleWitnessIds,proto3" json:"eligible_witness_ids,omitempty"`
+	StateProviders               []string                `protobuf:"bytes,10,rep,name=state_providers,json=stateProviders,proto3" json:"state_providers,omitempty"`
+	ConnectedPeers               []string                `protobuf:"bytes,11,rep,name=connected_peers,json=connectedPeers,proto3" json:"connected_peers,omitempty"`
+	FatalState                   string                  `protobuf:"bytes,12,opt,name=fatal_state,json=fatalState,proto3" json:"fatal_state,omitempty"`
+	RuntimeRefreshPending        bool                    `protobuf:"varint,13,opt,name=runtime_refresh_pending,json=runtimeRefreshPending,proto3" json:"runtime_refresh_pending,omitempty"`
+	RuntimeRefreshLastError      string                  `protobuf:"bytes,14,opt,name=runtime_refresh_last_error,json=runtimeRefreshLastError,proto3" json:"runtime_refresh_last_error,omitempty"`
+	RuntimeFinalizedPending      bool                    `protobuf:"varint,15,opt,name=runtime_finalized_pending,json=runtimeFinalizedPending,proto3" json:"runtime_finalized_pending,omitempty"`
+	RuntimeFinalizedLastError    string                  `protobuf:"bytes,16,opt,name=runtime_finalized_last_error,json=runtimeFinalizedLastError,proto3" json:"runtime_finalized_last_error,omitempty"`
+	RuntimeMaterializationPolicy string                  `protobuf:"bytes,17,opt,name=runtime_materialization_policy,json=runtimeMaterializationPolicy,proto3" json:"runtime_materialization_policy,omitempty"`
+	PeerStatuses                 []*RuntimePeerStatus    `protobuf:"bytes,18,rep,name=peer_statuses,json=peerStatuses,proto3" json:"peer_statuses,omitempty"`
+	Compatibility                []*RuntimeCompatibility `protobuf:"bytes,19,rep,name=compatibility,proto3" json:"compatibility,omitempty"`
+	ContentSyncTrace             []string                `protobuf:"bytes,20,rep,name=content_sync_trace,json=contentSyncTrace,proto3" json:"content_sync_trace,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *RuntimeState) Reset() {
+	*x = RuntimeState{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeState) ProtoMessage() {}
+
+func (x *RuntimeState) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeState.ProtoReflect.Descriptor instead.
+func (*RuntimeState) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *RuntimeState) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetManifestDigest() string {
+	if x != nil {
+		return x.ManifestDigest
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetFinalizedRootHash() string {
+	if x != nil {
+		return x.FinalizedRootHash
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetTentativeRootHash() string {
+	if x != nil {
+		return x.TentativeRootHash
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetProtocolFinalizedRootHash() string {
+	if x != nil {
+		return x.ProtocolFinalizedRootHash
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetDurableMainRootHash() string {
+	if x != nil {
+		return x.DurableMainRootHash
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetActiveEpochId() string {
+	if x != nil {
+		return x.ActiveEpochId
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetActiveWitnessIds() []string {
+	if x != nil {
+		return x.ActiveWitnessIds
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetEligibleWitnessIds() []string {
+	if x != nil {
+		return x.EligibleWitnessIds
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetStateProviders() []string {
+	if x != nil {
+		return x.StateProviders
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetConnectedPeers() []string {
+	if x != nil {
+		return x.ConnectedPeers
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetFatalState() string {
+	if x != nil {
+		return x.FatalState
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetRuntimeRefreshPending() bool {
+	if x != nil {
+		return x.RuntimeRefreshPending
+	}
+	return false
+}
+
+func (x *RuntimeState) GetRuntimeRefreshLastError() string {
+	if x != nil {
+		return x.RuntimeRefreshLastError
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetRuntimeFinalizedPending() bool {
+	if x != nil {
+		return x.RuntimeFinalizedPending
+	}
+	return false
+}
+
+func (x *RuntimeState) GetRuntimeFinalizedLastError() string {
+	if x != nil {
+		return x.RuntimeFinalizedLastError
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetRuntimeMaterializationPolicy() string {
+	if x != nil {
+		return x.RuntimeMaterializationPolicy
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetPeerStatuses() []*RuntimePeerStatus {
+	if x != nil {
+		return x.PeerStatuses
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetCompatibility() []*RuntimeCompatibility {
+	if x != nil {
+		return x.Compatibility
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetContentSyncTrace() []string {
+	if x != nil {
+		return x.ContentSyncTrace
+	}
+	return nil
+}
+
+type RuntimePeerStatus struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	PeerId          string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	Connected       bool                   `protobuf:"varint,2,opt,name=connected,proto3" json:"connected,omitempty"`
+	Dialable        bool                   `protobuf:"varint,3,opt,name=dialable,proto3" json:"dialable,omitempty"`
+	StateProvider   bool                   `protobuf:"varint,4,opt,name=state_provider,json=stateProvider,proto3" json:"state_provider,omitempty"`
+	Witness         bool                   `protobuf:"varint,5,opt,name=witness,proto3" json:"witness,omitempty"`
+	EligibleWitness bool                   `protobuf:"varint,6,opt,name=eligible_witness,json=eligibleWitness,proto3" json:"eligible_witness,omitempty"`
+	Compatible      bool                   `protobuf:"varint,7,opt,name=compatible,proto3" json:"compatible,omitempty"`
+	Incompatible    bool                   `protobuf:"varint,8,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
+	Ignored         bool                   `protobuf:"varint,9,opt,name=ignored,proto3" json:"ignored,omitempty"`
+	RelayOnly       bool                   `protobuf:"varint,10,opt,name=relay_only,json=relayOnly,proto3" json:"relay_only,omitempty"`
+	Addresses       []string               `protobuf:"bytes,11,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	LastDialErrors  map[string]string      `protobuf:"bytes,12,rep,name=last_dial_errors,json=lastDialErrors,proto3" json:"last_dial_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Reason          string                 `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RuntimePeerStatus) Reset() {
+	*x = RuntimePeerStatus{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimePeerStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimePeerStatus) ProtoMessage() {}
+
+func (x *RuntimePeerStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimePeerStatus.ProtoReflect.Descriptor instead.
+func (*RuntimePeerStatus) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *RuntimePeerStatus) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *RuntimePeerStatus) GetConnected() bool {
+	if x != nil {
+		return x.Connected
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetDialable() bool {
+	if x != nil {
+		return x.Dialable
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetStateProvider() bool {
+	if x != nil {
+		return x.StateProvider
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetWitness() bool {
+	if x != nil {
+		return x.Witness
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetEligibleWitness() bool {
+	if x != nil {
+		return x.EligibleWitness
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetCompatible() bool {
+	if x != nil {
+		return x.Compatible
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetIncompatible() bool {
+	if x != nil {
+		return x.Incompatible
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetIgnored() bool {
+	if x != nil {
+		return x.Ignored
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetRelayOnly() bool {
+	if x != nil {
+		return x.RelayOnly
+	}
+	return false
+}
+
+func (x *RuntimePeerStatus) GetAddresses() []string {
+	if x != nil {
+		return x.Addresses
+	}
+	return nil
+}
+
+func (x *RuntimePeerStatus) GetLastDialErrors() map[string]string {
+	if x != nil {
+		return x.LastDialErrors
+	}
+	return nil
+}
+
+func (x *RuntimePeerStatus) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type RuntimeCompatibility struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	LocalDigest   string                 `protobuf:"bytes,2,opt,name=local_digest,json=localDigest,proto3" json:"local_digest,omitempty"`
+	RemoteDigest  string                 `protobuf:"bytes,3,opt,name=remote_digest,json=remoteDigest,proto3" json:"remote_digest,omitempty"`
+	Compatible    bool                   `protobuf:"varint,4,opt,name=compatible,proto3" json:"compatible,omitempty"`
+	Blocking      bool                   `protobuf:"varint,5,opt,name=blocking,proto3" json:"blocking,omitempty"`
+	Reason        string                 `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuntimeCompatibility) Reset() {
+	*x = RuntimeCompatibility{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeCompatibility) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeCompatibility) ProtoMessage() {}
+
+func (x *RuntimeCompatibility) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeCompatibility.ProtoReflect.Descriptor instead.
+func (*RuntimeCompatibility) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *RuntimeCompatibility) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *RuntimeCompatibility) GetLocalDigest() string {
+	if x != nil {
+		return x.LocalDigest
+	}
+	return ""
+}
+
+func (x *RuntimeCompatibility) GetRemoteDigest() string {
+	if x != nil {
+		return x.RemoteDigest
+	}
+	return ""
+}
+
+func (x *RuntimeCompatibility) GetCompatible() bool {
+	if x != nil {
+		return x.Compatible
+	}
+	return false
+}
+
+func (x *RuntimeCompatibility) GetBlocking() bool {
+	if x != nil {
+		return x.Blocking
+	}
+	return false
+}
+
+func (x *RuntimeCompatibility) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 var File_internal_p2p_proto_instance_proto protoreflect.FileDescriptor
 
 const file_internal_p2p_proto_instance_proto_rawDesc = "" +
@@ -314,11 +1814,155 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x10\n" +
 	"\x0eGetLogsRequest\"%\n" +
 	"\x0fGetLogsResponse\x12\x12\n" +
-	"\x04logs\x18\x01 \x01(\tR\x04logs2\xb8\x01\n" +
+	"\x04logs\x18\x01 \x01(\tR\x04logs\"\x18\n" +
+	"\x16GetNetworkStateRequest\"D\n" +
+	"\x17GetNetworkStateResponse\x12)\n" +
+	"\x05state\x18\x01 \x01(\v2\x13.proto.NetworkStateR\x05state\"\x16\n" +
+	"\x14GetExitRoutesRequest\"A\n" +
+	"\x15GetExitRoutesResponse\x12(\n" +
+	"\x06routes\x18\x01 \x03(\v2\x10.proto.ExitRouteR\x06routes\"\x18\n" +
+	"\x16GetRuntimeStateRequest\"D\n" +
+	"\x17GetRuntimeStateResponse\x12)\n" +
+	"\x05state\x18\x01 \x01(\v2\x13.proto.RuntimeStateR\x05state\"\xb5\x03\n" +
+	"\fNetworkState\x12\x16\n" +
+	"\x06module\x18\x01 \x01(\tR\x06module\x12\x0e\n" +
+	"\x02up\x18\x02 \x01(\bR\x02up\x12%\n" +
+	"\x0einterface_name\x18\x03 \x01(\tR\rinterfaceName\x123\n" +
+	"\taddresses\x18\x04 \x03(\v2\x15.proto.NetworkAddressR\taddresses\x12+\n" +
+	"\x06routes\x18\x05 \x03(\v2\x13.proto.NetworkRouteR\x06routes\x12=\n" +
+	"\x0fwireguard_peers\x18\x06 \x03(\v2\x14.proto.WireGuardPeerR\x0ewireguardPeers\x12=\n" +
+	"\x0ffirewall_tables\x18\a \x03(\v2\x14.proto.FirewallTableR\x0efirewallTables\x12!\n" +
+	"\x03dns\x18\b \x03(\v2\x0f.proto.DNSStateR\x03dns\x12\x1a\n" +
+	"\bmessages\x18\t \x03(\tR\bmessages\x127\n" +
+	"\n" +
+	"interfaces\x18\n" +
+	" \x03(\v2\x17.proto.NetworkInterfaceR\n" +
+	"interfaces\"\xbf\x01\n" +
+	"\x10NetworkInterface\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x14\n" +
+	"\x05index\x18\x03 \x01(\x05R\x05index\x12\x10\n" +
+	"\x03mtu\x18\x04 \x01(\x05R\x03mtu\x12\x0e\n" +
+	"\x02up\x18\x05 \x01(\bR\x02up\x12\x16\n" +
+	"\x06master\x18\x06 \x01(\tR\x06master\x12\x1f\n" +
+	"\vmac_address\x18\a \x01(\tR\n" +
+	"macAddress\x12\x12\n" +
+	"\x04kind\x18\b \x01(\tR\x04kind\"a\n" +
+	"\x0eNetworkAddress\x12%\n" +
+	"\x0einterface_name\x18\x01 \x01(\tR\rinterfaceName\x12\x12\n" +
+	"\x04cidr\x18\x02 \x01(\tR\x04cidr\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x99\x02\n" +
+	"\fNetworkRoute\x12%\n" +
+	"\x0einterface_name\x18\x01 \x01(\tR\rinterfaceName\x12 \n" +
+	"\vdestination\x18\x02 \x01(\tR\vdestination\x12\x18\n" +
+	"\agateway\x18\x03 \x01(\tR\agateway\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\x12\x16\n" +
+	"\x06family\x18\x05 \x01(\tR\x06family\x12\x14\n" +
+	"\x05table\x18\x06 \x01(\tR\x05table\x12\x1a\n" +
+	"\bprotocol\x18\a \x01(\tR\bprotocol\x12\x14\n" +
+	"\x05scope\x18\b \x01(\tR\x05scope\x12\x1a\n" +
+	"\bpriority\x18\t \x01(\tR\bpriority\x12\x12\n" +
+	"\x04kind\x18\n" +
+	" \x01(\tR\x04kind\"\xcc\x01\n" +
+	"\rWireGuardPeer\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x01 \x01(\tR\tpublicKey\x12\x1a\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12\x1f\n" +
+	"\vallowed_ips\x18\x03 \x03(\tR\n" +
+	"allowedIps\x12)\n" +
+	"\x10latest_handshake\x18\x04 \x01(\tR\x0flatestHandshake\x12\x19\n" +
+	"\brx_bytes\x18\x05 \x01(\x04R\arxBytes\x12\x19\n" +
+	"\btx_bytes\x18\x06 \x01(\x04R\atxBytes\"i\n" +
+	"\rFirewallTable\x12\x16\n" +
+	"\x06family\x18\x01 \x01(\tR\x06family\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12,\n" +
+	"\x06chains\x18\x03 \x03(\v2\x14.proto.FirewallChainR\x06chains\"\x92\x01\n" +
+	"\rFirewallChain\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
+	"\x04hook\x18\x03 \x01(\tR\x04hook\x12\x1a\n" +
+	"\bpriority\x18\x04 \x01(\tR\bpriority\x12)\n" +
+	"\x05rules\x18\x05 \x03(\v2\x13.proto.FirewallRuleR\x05rules\"`\n" +
+	"\fFirewallRule\x12 \n" +
+	"\vexpressions\x18\x01 \x03(\tR\vexpressions\x12\x18\n" +
+	"\apackets\x18\x02 \x01(\x04R\apackets\x12\x14\n" +
+	"\x05bytes\x18\x03 \x01(\x04R\x05bytes\"\x96\x01\n" +
+	"\bDNSState\x12\x14\n" +
+	"\x05scope\x18\x01 \x01(\tR\x05scope\x12\x16\n" +
+	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x18\n" +
+	"\aservers\x18\x03 \x03(\tR\aservers\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\x05R\x04port\x12\x16\n" +
+	"\x06active\x18\x05 \x01(\bR\x06active\x12\x16\n" +
+	"\x06source\x18\x06 \x01(\tR\x06source\"\xa6\x01\n" +
+	"\tExitRoute\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1f\n" +
+	"\vinstance_id\x18\x03 \x01(\tR\n" +
+	"instanceId\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"dns_server\x18\x05 \x01(\tR\tdnsServer\x12\x14\n" +
+	"\x05cidrs\x18\x06 \x03(\tR\x05cidrs\"\x89\b\n" +
+	"\fRuntimeState\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12'\n" +
+	"\x0fmanifest_digest\x18\x02 \x01(\tR\x0emanifestDigest\x12.\n" +
+	"\x13finalized_root_hash\x18\x03 \x01(\tR\x11finalizedRootHash\x12.\n" +
+	"\x13tentative_root_hash\x18\x04 \x01(\tR\x11tentativeRootHash\x12?\n" +
+	"\x1cprotocol_finalized_root_hash\x18\x05 \x01(\tR\x19protocolFinalizedRootHash\x123\n" +
+	"\x16durable_main_root_hash\x18\x06 \x01(\tR\x13durableMainRootHash\x12&\n" +
+	"\x0factive_epoch_id\x18\a \x01(\tR\ractiveEpochId\x12,\n" +
+	"\x12active_witness_ids\x18\b \x03(\tR\x10activeWitnessIds\x120\n" +
+	"\x14eligible_witness_ids\x18\t \x03(\tR\x12eligibleWitnessIds\x12'\n" +
+	"\x0fstate_providers\x18\n" +
+	" \x03(\tR\x0estateProviders\x12'\n" +
+	"\x0fconnected_peers\x18\v \x03(\tR\x0econnectedPeers\x12\x1f\n" +
+	"\vfatal_state\x18\f \x01(\tR\n" +
+	"fatalState\x126\n" +
+	"\x17runtime_refresh_pending\x18\r \x01(\bR\x15runtimeRefreshPending\x12;\n" +
+	"\x1aruntime_refresh_last_error\x18\x0e \x01(\tR\x17runtimeRefreshLastError\x12:\n" +
+	"\x19runtime_finalized_pending\x18\x0f \x01(\bR\x17runtimeFinalizedPending\x12?\n" +
+	"\x1cruntime_finalized_last_error\x18\x10 \x01(\tR\x19runtimeFinalizedLastError\x12D\n" +
+	"\x1eruntime_materialization_policy\x18\x11 \x01(\tR\x1cruntimeMaterializationPolicy\x12=\n" +
+	"\rpeer_statuses\x18\x12 \x03(\v2\x18.proto.RuntimePeerStatusR\fpeerStatuses\x12A\n" +
+	"\rcompatibility\x18\x13 \x03(\v2\x1b.proto.RuntimeCompatibilityR\rcompatibility\x12,\n" +
+	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\"\xa0\x04\n" +
+	"\x11RuntimePeerStatus\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1c\n" +
+	"\tconnected\x18\x02 \x01(\bR\tconnected\x12\x1a\n" +
+	"\bdialable\x18\x03 \x01(\bR\bdialable\x12%\n" +
+	"\x0estate_provider\x18\x04 \x01(\bR\rstateProvider\x12\x18\n" +
+	"\awitness\x18\x05 \x01(\bR\awitness\x12)\n" +
+	"\x10eligible_witness\x18\x06 \x01(\bR\x0feligibleWitness\x12\x1e\n" +
+	"\n" +
+	"compatible\x18\a \x01(\bR\n" +
+	"compatible\x12\"\n" +
+	"\fincompatible\x18\b \x01(\bR\fincompatible\x12\x18\n" +
+	"\aignored\x18\t \x01(\bR\aignored\x12\x1d\n" +
+	"\n" +
+	"relay_only\x18\n" +
+	" \x01(\bR\trelayOnly\x12\x1c\n" +
+	"\taddresses\x18\v \x03(\tR\taddresses\x12V\n" +
+	"\x10last_dial_errors\x18\f \x03(\v2,.proto.RuntimePeerStatus.LastDialErrorsEntryR\x0elastDialErrors\x12\x16\n" +
+	"\x06reason\x18\r \x01(\tR\x06reason\x1aA\n" +
+	"\x13LastDialErrorsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcb\x01\n" +
+	"\x14RuntimeCompatibility\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12!\n" +
+	"\flocal_digest\x18\x02 \x01(\tR\vlocalDigest\x12#\n" +
+	"\rremote_digest\x18\x03 \x01(\tR\fremoteDigest\x12\x1e\n" +
+	"\n" +
+	"compatible\x18\x04 \x01(\bR\n" +
+	"compatible\x12\x1a\n" +
+	"\bblocking\x18\x05 \x01(\bR\bblocking\x12\x16\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason2\xae\x03\n" +
 	"\bInstance\x121\n" +
 	"\x04Init\x12\x12.proto.InitRequest\x1a\x13.proto.InitResponse\"\x00\x12=\n" +
 	"\bGetPeers\x12\x16.proto.GetPeersRequest\x1a\x17.proto.GetPeersResponse\"\x00\x12:\n" +
-	"\aGetLogs\x12\x15.proto.GetLogsRequest\x1a\x16.proto.GetLogsResponse\"\x00B\tZ\a./protob\x06proto3"
+	"\aGetLogs\x12\x15.proto.GetLogsRequest\x1a\x16.proto.GetLogsResponse\"\x00\x12R\n" +
+	"\x0fGetNetworkState\x12\x1d.proto.GetNetworkStateRequest\x1a\x1e.proto.GetNetworkStateResponse\"\x00\x12L\n" +
+	"\rGetExitRoutes\x12\x1b.proto.GetExitRoutesRequest\x1a\x1c.proto.GetExitRoutesResponse\"\x00\x12R\n" +
+	"\x0fGetRuntimeState\x12\x1d.proto.GetRuntimeStateRequest\x1a\x1e.proto.GetRuntimeStateResponse\"\x00B\tZ\a./protob\x06proto3"
 
 var (
 	file_internal_p2p_proto_instance_proto_rawDescOnce sync.Once
@@ -332,29 +1976,69 @@ func file_internal_p2p_proto_instance_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_instance_proto_rawDescData
 }
 
-var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_internal_p2p_proto_instance_proto_goTypes = []any{
-	(*InitRequest)(nil),      // 0: proto.InitRequest
-	(*InitResponse)(nil),     // 1: proto.InitResponse
-	(*GetPeersRequest)(nil),  // 2: proto.GetPeersRequest
-	(*GetPeersResponse)(nil), // 3: proto.GetPeersResponse
-	(*GetLogsRequest)(nil),   // 4: proto.GetLogsRequest
-	(*GetLogsResponse)(nil),  // 5: proto.GetLogsResponse
-	nil,                      // 6: proto.GetPeersResponse.PeersEntry
+	(*InitRequest)(nil),             // 0: proto.InitRequest
+	(*InitResponse)(nil),            // 1: proto.InitResponse
+	(*GetPeersRequest)(nil),         // 2: proto.GetPeersRequest
+	(*GetPeersResponse)(nil),        // 3: proto.GetPeersResponse
+	(*GetLogsRequest)(nil),          // 4: proto.GetLogsRequest
+	(*GetLogsResponse)(nil),         // 5: proto.GetLogsResponse
+	(*GetNetworkStateRequest)(nil),  // 6: proto.GetNetworkStateRequest
+	(*GetNetworkStateResponse)(nil), // 7: proto.GetNetworkStateResponse
+	(*GetExitRoutesRequest)(nil),    // 8: proto.GetExitRoutesRequest
+	(*GetExitRoutesResponse)(nil),   // 9: proto.GetExitRoutesResponse
+	(*GetRuntimeStateRequest)(nil),  // 10: proto.GetRuntimeStateRequest
+	(*GetRuntimeStateResponse)(nil), // 11: proto.GetRuntimeStateResponse
+	(*NetworkState)(nil),            // 12: proto.NetworkState
+	(*NetworkInterface)(nil),        // 13: proto.NetworkInterface
+	(*NetworkAddress)(nil),          // 14: proto.NetworkAddress
+	(*NetworkRoute)(nil),            // 15: proto.NetworkRoute
+	(*WireGuardPeer)(nil),           // 16: proto.WireGuardPeer
+	(*FirewallTable)(nil),           // 17: proto.FirewallTable
+	(*FirewallChain)(nil),           // 18: proto.FirewallChain
+	(*FirewallRule)(nil),            // 19: proto.FirewallRule
+	(*DNSState)(nil),                // 20: proto.DNSState
+	(*ExitRoute)(nil),               // 21: proto.ExitRoute
+	(*RuntimeState)(nil),            // 22: proto.RuntimeState
+	(*RuntimePeerStatus)(nil),       // 23: proto.RuntimePeerStatus
+	(*RuntimeCompatibility)(nil),    // 24: proto.RuntimeCompatibility
+	nil,                             // 25: proto.GetPeersResponse.PeersEntry
+	nil,                             // 26: proto.RuntimePeerStatus.LastDialErrorsEntry
 }
 var file_internal_p2p_proto_instance_proto_depIdxs = []int32{
-	6, // 0: proto.GetPeersResponse.peers:type_name -> proto.GetPeersResponse.PeersEntry
-	0, // 1: proto.Instance.Init:input_type -> proto.InitRequest
-	2, // 2: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
-	4, // 3: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
-	1, // 4: proto.Instance.Init:output_type -> proto.InitResponse
-	3, // 5: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
-	5, // 6: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	25, // 0: proto.GetPeersResponse.peers:type_name -> proto.GetPeersResponse.PeersEntry
+	12, // 1: proto.GetNetworkStateResponse.state:type_name -> proto.NetworkState
+	21, // 2: proto.GetExitRoutesResponse.routes:type_name -> proto.ExitRoute
+	22, // 3: proto.GetRuntimeStateResponse.state:type_name -> proto.RuntimeState
+	14, // 4: proto.NetworkState.addresses:type_name -> proto.NetworkAddress
+	15, // 5: proto.NetworkState.routes:type_name -> proto.NetworkRoute
+	16, // 6: proto.NetworkState.wireguard_peers:type_name -> proto.WireGuardPeer
+	17, // 7: proto.NetworkState.firewall_tables:type_name -> proto.FirewallTable
+	20, // 8: proto.NetworkState.dns:type_name -> proto.DNSState
+	13, // 9: proto.NetworkState.interfaces:type_name -> proto.NetworkInterface
+	18, // 10: proto.FirewallTable.chains:type_name -> proto.FirewallChain
+	19, // 11: proto.FirewallChain.rules:type_name -> proto.FirewallRule
+	23, // 12: proto.RuntimeState.peer_statuses:type_name -> proto.RuntimePeerStatus
+	24, // 13: proto.RuntimeState.compatibility:type_name -> proto.RuntimeCompatibility
+	26, // 14: proto.RuntimePeerStatus.last_dial_errors:type_name -> proto.RuntimePeerStatus.LastDialErrorsEntry
+	0,  // 15: proto.Instance.Init:input_type -> proto.InitRequest
+	2,  // 16: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
+	4,  // 17: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
+	6,  // 18: proto.Instance.GetNetworkState:input_type -> proto.GetNetworkStateRequest
+	8,  // 19: proto.Instance.GetExitRoutes:input_type -> proto.GetExitRoutesRequest
+	10, // 20: proto.Instance.GetRuntimeState:input_type -> proto.GetRuntimeStateRequest
+	1,  // 21: proto.Instance.Init:output_type -> proto.InitResponse
+	3,  // 22: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
+	5,  // 23: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
+	7,  // 24: proto.Instance.GetNetworkState:output_type -> proto.GetNetworkStateResponse
+	9,  // 25: proto.Instance.GetExitRoutes:output_type -> proto.GetExitRoutesResponse
+	11, // 26: proto.Instance.GetRuntimeState:output_type -> proto.GetRuntimeStateResponse
+	21, // [21:27] is the sub-list for method output_type
+	15, // [15:21] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_internal_p2p_proto_instance_proto_init() }
@@ -368,7 +2052,7 @@ func file_internal_p2p_proto_instance_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_instance_proto_rawDesc), len(file_internal_p2p_proto_instance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

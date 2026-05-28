@@ -53,6 +53,15 @@ package protos
 	id: string
 }
 
+#ExitRoute: {
+	id:             string
+	device_id:      string
+	instance_id:    string
+	desired_status: string
+	dns_server:     string
+	cidrs:          string
+}
+
 contract: {
 	surface: "sql"
 	migration: {
@@ -155,26 +164,25 @@ contract: {
 				]
 				indexes: []
 			},
+			{
+				name: "exit_routes"
+				go: name: "EXIT_ROUTE"
+				columns: [
+					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "device_id", type: "VARCHAR(255)", not_null: true, go: {name: "DEVICE_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "instance_id", type: "VARCHAR(255)", not_null: true, go: {name: "INSTANCE_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "desired_status", type: "VARCHAR(255)", not_null: true, go: {name: "DESIRED_STATUS", sq_type: "StringField", ddl: "notnull"}},
+					{name: "dns_server", type: "VARCHAR(255)", not_null: true, go: {name: "DNS_SERVER", sq_type: "StringField", ddl: "notnull"}},
+					{name: "cidrs", type: "TEXT", not_null: true, go: {name: "CIDRS", sq_type: "StringField", ddl: "notnull"}},
+				]
+				indexes: [
+					{name: "exit_routes_device_id_idx", columns: ["device_id"]},
+					{name: "exit_routes_instance_id_idx", columns: ["instance_id"]},
+				]
+			},
 		]
 	}
 	go: package: "protosv00"
-}
-
-lineage: {
-	name: "protos.db"
-	schemas: [{
-		version: [0, 0]
-		schema: {
-			machines?:                 [...#Machine]
-			cloud_machines_metadata?: [...#CloudMachineMetadata]
-			cloud_providers?:         [...#CloudProvider]
-			apps?:                    [...#App]
-			users?:                   [...#User]
-			user_devices_metadata?:   [...#UserDeviceMetadata]
-			peers?:                   [...#Peer]
-		}
-	}]
-	lenses: []
 }
 
 migration: contract.migration

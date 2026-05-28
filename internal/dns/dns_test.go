@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"net"
 	"testing"
 
 	mdns "github.com/miekg/dns"
@@ -111,6 +112,59 @@ func TestIsLocalDomainQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := isLocalDomainQuery(tt.query, tt.domain); got != tt.want {
 				t.Fatalf("isLocalDomainQuery(%q, %q) = %v, want %v", tt.query, tt.domain, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHandlerExternalServerCanBeUpdated(t *testing.T) {
+	h := &handler{}
+	if got := h.externalServer(); got != "" {
+		t.Fatalf("initial external server = %q, want empty", got)
+	}
+	h.setExternalServer("8.8.8.8:53")
+	if got := h.externalServer(); got != "8.8.8.8:53" {
+		t.Fatalf("external server = %q, want 8.8.8.8:53", got)
+	}
+	h.setExternalServer("1.1.1.1:53")
+	if got := h.externalServer(); got != "1.1.1.1:53" {
+		t.Fatalf("external server = %q, want 1.1.1.1:53", got)
+	}
+}
+
+func TestHandlerAcceptsOnlyLocalDNSClients(t *testing.T) {
+	h := &handler{listenAddr: "200:1855:ef37:8cab:9529:68fc:e21e:487c"}
+	tests := []struct {
+		name string
+		addr net.Addr
+		want bool
+	}{
+		{
+			name: "loopback",
+			addr: &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 5353},
+			want: true,
+		},
+		{
+			name: "local listen address",
+			addr: &net.UDPAddr{IP: net.ParseIP("200:1855:ef37:8cab:9529:68fc:e21e:487c"), Port: 5353},
+			want: true,
+		},
+		{
+			name: "remote protos peer",
+			addr: &net.UDPAddr{IP: net.ParseIP("200:1855:ef37:8cab:9529:68fc:e21e:9999"), Port: 5353},
+			want: false,
+		},
+		{
+			name: "nil",
+			addr: nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := h.acceptsDNSClient(tt.addr); got != tt.want {
+				t.Fatalf("acceptsDNSClient(%v) = %v, want %v", tt.addr, got, tt.want)
 			}
 		})
 	}

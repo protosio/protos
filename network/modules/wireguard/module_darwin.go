@@ -7,21 +7,19 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os/exec"
+	"net/netip"
+	"sort"
 	"strconv"
 	"strings"
 
 	networkmodule "github.com/protosio/protos/internal/network/module"
+	"golang.org/x/sys/unix"
 	wgconn "golang.zx2c4.com/wireguard/conn"
 	wgdevice "golang.zx2c4.com/wireguard/device"
 	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
 const (
-	ifconfigPath = "/sbin/ifconfig"
-	routePath    = "/sbin/route"
-	sysctlPath   = "/usr/sbin/sysctl"
-
 	wireguardPort             = 10999
 	domainDNSServer           = "127.0.0.1"
 	domainDNSServerPort       = 10053
@@ -36,12 +34,14 @@ type platformState struct {
 	wgDevice               *wgdevice.Device
 	interfaceName          string
 	address                string
+	ipv4Address            string
 	privateKeyHex          string
 	listenPort             int
-	routes                 map[string]struct{}
+	routes                 map[string]routeSpec
 	peers                  map[string]struct{}
 	previousIPv6Forwarding string
 	forwardingConfigured   bool
+	exitDNSConfigured      bool
 }
 
 type declarativePeer struct {
@@ -51,8 +51,24 @@ type declarativePeer struct {
 	persistentKeepaliveSeconds int
 }
 
+type routeSpec struct {
+	family      string
+	destination string
+	gateway     string
+	iface       string
+	priority    int
+}
+
+func (r routeSpec) key() string {
+	return r.family + "|" + r.destination
+}
+
 func (m *Module) closePlatform() error {
-	return m.Down()
+	err := m.Down()
+	if m.dnsManager != nil {
+		err = errors.Join(err, m.dnsManager.Close())
+	}
+	return err
 }
 
 func (m *Module) Up(config networkmodule.Config) error {
@@ -71,11 +87,11 @@ func (m *Module) Down() error {
 	defer m.mu.Unlock()
 
 	var err error
-	for route := range m.routes {
+	for key, route := range m.routes {
 		if deleteErr := m.deleteRouteLocked(route); deleteErr != nil {
 			err = errors.Join(err, deleteErr)
 		}
-		delete(m.routes, route)
+		delete(m.routes, key)
 	}
 
 	if m.domain != "" {
@@ -84,16 +100,25 @@ func (m *Module) Down() error {
 		}
 		m.domain = ""
 	}
+	if deleteErr := m.syncExitDNSLocked(false); deleteErr != nil {
+		err = errors.Join(err, deleteErr)
+	}
 
 	if restoreErr := m.restoreIPv6ForwardingLocked(); restoreErr != nil {
 		err = errors.Join(err, restoreErr)
 	}
 
 	if m.address != "" && m.interfaceName != "" {
-		if deleteErr := runCommand(ifconfigPath, m.interfaceName, "inet6", m.address, "-alias"); deleteErr != nil {
+		if deleteErr := deleteInterfaceIPv6Address(m.interfaceName, m.address); deleteErr != nil {
 			log.Debugf("Failed to remove WireGuard address %s from %s: %v", m.address, m.interfaceName, deleteErr)
 		}
 		m.address = ""
+	}
+	if m.ipv4Address != "" && m.interfaceName != "" {
+		if deleteErr := deleteInterfaceIPv4Address(m.interfaceName, m.ipv4Address); deleteErr != nil {
+			log.Debugf("Failed to remove WireGuard IPv4 address %s from %s: %v", m.ipv4Address, m.interfaceName, deleteErr)
+		}
+		m.ipv4Address = ""
 	}
 
 	if m.wgDevice != nil {
@@ -115,6 +140,7 @@ func (m *Module) Down() error {
 	m.interfaceName = ""
 	m.privateKeyHex = ""
 	m.listenPort = 0
+	m.routes = map[string]routeSpec{}
 	m.peers = map[string]struct{}{}
 
 	return err
@@ -132,15 +158,18 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		return err
 	}
 
-	peers, routes, err := m.declarativePeers(config, peerSet)
+	peers, routes, hairpinRoutes, localExitNeedsIPv4, localExitDNSActive, err := m.declarativePeers(config, peerSet)
 	if err != nil {
+		return err
+	}
+	if err := m.configureIPv4AddressLocked(config.IPv4Address, localExitNeedsIPv4); err != nil {
 		return err
 	}
 
 	log.Debugf("Applying WireGuard peer set with %d peers and %d routes", len(peers), len(routes))
 	logDeclarativePeerState(peers)
 	if m.hairpinDevice != nil {
-		m.hairpinDevice.setHairpinRoutes(routes)
+		m.hairpinDevice.setHairpinRoutes(hairpinRoutes)
 	}
 	if err := m.applyPeerConfigLocked(peers); err != nil {
 		return fmt.Errorf("failed to configure embedded WireGuard device: %w", err)
@@ -148,6 +177,9 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 
 	if err := m.syncRoutesLocked(routes); err != nil {
 		return fmt.Errorf("failed to reconcile utun routes: %w", err)
+	}
+	if err := m.syncExitDNSLocked(localExitDNSActive); err != nil {
+		return fmt.Errorf("failed to reconcile exit DNS: %w", err)
 	}
 	if m.hairpinDevice != nil {
 		stats := m.hairpinDevice.stats()
@@ -213,7 +245,7 @@ func (m *Module) ensureDeviceLocked() error {
 	m.wgDevice = wgDevice
 	m.interfaceName = interfaceName
 	if m.routes == nil {
-		m.routes = map[string]struct{}{}
+		m.routes = map[string]routeSpec{}
 	}
 
 	log.Debugf("Created embedded WireGuard device on %s", interfaceName)
@@ -289,18 +321,18 @@ func (m *Module) configureAddressLocked(address string) error {
 	}
 
 	if m.address != "" {
-		if err := runCommand(ifconfigPath, m.interfaceName, "inet6", m.address, "-alias"); err != nil {
+		if err := deleteInterfaceIPv6Address(m.interfaceName, m.address); err != nil {
 			log.Debugf("Failed to remove previous WireGuard address %s from %s: %v", m.address, m.interfaceName, err)
 		}
 		m.address = ""
 	}
 
-	if err := runCommand(ifconfigPath, m.interfaceName, "inet6", address, "prefixlen", "128", "alias"); err != nil {
-		if !isCommandError(err, "File exists", "already exists") {
+	if err := addInterfaceIPv6Address(m.interfaceName, address); err != nil {
+		if !errors.Is(err, unix.EEXIST) {
 			return fmt.Errorf("failed to assign IPv6 address %s to %s: %w", address, m.interfaceName, err)
 		}
 	}
-	if err := runCommand(ifconfigPath, m.interfaceName, "up"); err != nil {
+	if err := setInterfaceUp(m.interfaceName); err != nil {
 		return fmt.Errorf("failed to bring %s up: %w", m.interfaceName, err)
 	}
 
@@ -308,6 +340,39 @@ func (m *Module) configureAddressLocked(address string) error {
 	if m.hairpinDevice != nil {
 		m.hairpinDevice.setLocalAddress(address)
 	}
+	return nil
+}
+
+func (m *Module) configureIPv4AddressLocked(address netip.Addr, enabled bool) error {
+	if !enabled {
+		if m.ipv4Address != "" {
+			if err := deleteInterfaceIPv4Address(m.interfaceName, m.ipv4Address); err != nil {
+				log.Debugf("Failed to remove WireGuard IPv4 address %s from %s: %v", m.ipv4Address, m.interfaceName, err)
+			}
+			m.ipv4Address = ""
+		}
+		return nil
+	}
+	if !address.IsValid() || !address.Is4() {
+		return fmt.Errorf("network IPv4 address is required for exit routing")
+	}
+
+	addr := address.String()
+	if m.ipv4Address == addr {
+		return nil
+	}
+	if m.ipv4Address != "" {
+		if err := deleteInterfaceIPv4Address(m.interfaceName, m.ipv4Address); err != nil {
+			log.Debugf("Failed to remove previous WireGuard IPv4 address %s from %s: %v", m.ipv4Address, m.interfaceName, err)
+		}
+		m.ipv4Address = ""
+	}
+	if err := addInterfaceIPv4Address(m.interfaceName, address); err != nil {
+		if !errors.Is(err, unix.EEXIST) {
+			return fmt.Errorf("failed to assign IPv4 address %s to %s: %w", addr, m.interfaceName, err)
+		}
+	}
+	m.ipv4Address = addr
 	return nil
 }
 
@@ -373,9 +438,37 @@ func (m *Module) syncDomainLocked(domain string) error {
 	return nil
 }
 
-func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmodule.Peers) ([]declarativePeer, map[string]struct{}, error) {
+func (m *Module) syncExitDNSLocked(enabled bool) error {
+	if enabled {
+		dnsServerIP := net.ParseIP(domainDNSServer)
+		if dnsServerIP == nil {
+			return fmt.Errorf("failed to parse DNS server IP '%s'", domainDNSServer)
+		}
+		if err := m.dnsManager.SetGlobalServer(dnsServerIP, domainDNSServerPort); err != nil {
+			return err
+		}
+		if m.exitDNSConfigured {
+			return nil
+		}
+		m.exitDNSConfigured = true
+		log.Debugf("Configured macOS global DNS resolver through Protos at %s:%d", domainDNSServer, domainDNSServerPort)
+		return nil
+	}
+	if err := m.dnsManager.DelGlobalServer(); err != nil {
+		return err
+	}
+	m.exitDNSConfigured = false
+	log.Debug("Restored macOS global DNS resolver after Protos exit route")
+	return nil
+}
+
+func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmodule.Peers) ([]declarativePeer, map[string]routeSpec, map[string]struct{}, bool, bool, error) {
 	peers := make([]declarativePeer, 0, len(peerSet.Instances)+len(peerSet.Devices))
-	routes := map[string]struct{}{}
+	routes := map[string]routeSpec{}
+	hairpinRoutes := map[string]struct{}{}
+	exitRoute, localExitActive := localExitRoute(config, peerSet)
+	localExitNeedsIPv4 := false
+	localExitDNSActive := false
 
 	for _, instance := range peerSet.Instances {
 		if instance.PublicKey == "" || instance.PublicIP == "" || instance.Name == "" {
@@ -385,7 +478,7 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 
 		pubKeyAddr, err := ipv6AddressFromPublicKeyBase64(instance.PublicKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}
 		if pubKeyAddr == config.IPv6Address {
 			log.Debugf("Skipping local instance peer %s (%s)", instance.Name, pubKeyAddr.String())
@@ -394,22 +487,23 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 
 		allowedIP := createIPv6Net(pubKeyAddr)
 		if allowedIP == nil {
-			return nil, nil, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", instance.Name)
+			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", instance.Name)
 		}
 
 		publicKeyHex, err := publicWireGuardKeyHex(instance.PublicKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}
 
 		instancePublicIP := net.ParseIP(instance.PublicIP)
 		if instancePublicIP == nil {
-			return nil, nil, fmt.Errorf("failed to parse public IP while configuring VPN interface '%s': bad IP %s", instance.Name, instance.PublicIP)
+			return nil, nil, nil, false, false, fmt.Errorf("failed to parse public IP while configuring VPN interface '%s': bad IP %s", instance.Name, instance.PublicIP)
 		}
 
 		route := allowedIP.String()
 		allowedIPs := []string{route}
-		routes[route] = struct{}{}
+		addInterfaceRoute(routes, inet6Route, route, m.interfaceName, 20)
+		hairpinRoutes[route] = struct{}{}
 		for _, routeAddr := range instance.Routes {
 			if routeAddr == pubKeyAddr || routeAddr == config.IPv6Address {
 				continue
@@ -419,8 +513,22 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 				continue
 			}
 			route := appRoute.String()
-			routes[route] = struct{}{}
+			addInterfaceRoute(routes, inet6Route, route, m.interfaceName, 20)
+			hairpinRoutes[route] = struct{}{}
 			allowedIPs = append(allowedIPs, route)
+		}
+		if localExitActive && exitRoute.InstanceID == instance.ID {
+			exitCIDRs, err := normalizedExitRouteCIDRs(exitRoute)
+			if err != nil {
+				return nil, nil, nil, false, false, fmt.Errorf("failed to configure exit route through %s: %w", instance.Name, err)
+			}
+			allowedIPs = append(allowedIPs, exitCIDRs...)
+			if err := addExitCIDRRoutes(routes, exitCIDRs, instancePublicIP, m.interfaceName); err != nil {
+				return nil, nil, nil, false, false, fmt.Errorf("failed to configure exit route through %s: %w", instance.Name, err)
+			}
+			localExitNeedsIPv4 = exitRouteCIDRsNeedIPv4(exitCIDRs)
+			localExitDNSActive = exitRouteCIDRsUseFullTunnel(exitCIDRs)
+			log.Debugf("Routing %s through exit instance %s (%s)", strings.Join(exitCIDRs, ","), instance.Name, instance.PublicIP)
 		}
 		peers = append(peers, declarativePeer{
 			publicKeyHex:               publicKeyHex,
@@ -438,52 +546,112 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 
 		pubKeyAddr, err := ipv6AddressFromPublicKeyBase64(device.PublicKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
+			return nil, nil, nil, false, false, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
 		}
 
 		allowedIP := createIPv6Net(pubKeyAddr)
 		if allowedIP == nil {
-			return nil, nil, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", device.Name)
+			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", device.Name)
 		}
 
 		publicKeyHex, err := publicWireGuardKeyHex(device.PublicKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
+			return nil, nil, nil, false, false, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
 		}
 
 		route := allowedIP.String()
-		routes[route] = struct{}{}
+		addInterfaceRoute(routes, inet6Route, route, m.interfaceName, 20)
+		hairpinRoutes[route] = struct{}{}
 		peers = append(peers, declarativePeer{
 			publicKeyHex: publicKeyHex,
 			allowedIPs:   []string{route},
 		})
 	}
 
-	return peers, routes, nil
+	return peers, routes, hairpinRoutes, localExitNeedsIPv4, localExitDNSActive, nil
 }
 
-func (m *Module) syncRoutesLocked(desiredRoutes map[string]struct{}) error {
+const (
+	inetRoute  = "-inet"
+	inet6Route = "-inet6"
+)
+
+func addInterfaceRoute(routes map[string]routeSpec, family string, destination string, iface string, priority int) {
+	route := routeSpec{family: family, destination: destination, iface: iface, priority: priority}
+	routes[route.key()] = route
+}
+
+func addGatewayRoute(routes map[string]routeSpec, family string, destination string, gateway string, iface string, priority int) {
+	route := routeSpec{family: family, destination: destination, gateway: gateway, iface: iface, priority: priority}
+	routes[route.key()] = route
+}
+
+func addExitCIDRRoutes(routes map[string]routeSpec, cidrs []string, endpoint net.IP, iface string) error {
+	for _, cidr := range cidrs {
+		prefix, err := netip.ParsePrefix(cidr)
+		if err != nil {
+			return err
+		}
+		prefix = prefix.Masked()
+		family := inetRoute
+		if prefix.Addr().Is6() {
+			family = inet6Route
+		}
+
+		routePrefixes := []string{prefix.String()}
+		if prefix.Bits() == 0 {
+			if prefix.Addr().Is4() {
+				routePrefixes = ipv4DefaultRoutePrefixes
+			} else {
+				routePrefixes = ipv6DefaultRoutePrefixes
+			}
+		}
+		for _, route := range routePrefixes {
+			addInterfaceRoute(routes, family, route, iface, 100)
+		}
+	}
+
+	if !exitRouteCIDRsContainEndpoint(cidrs, endpoint) {
+		return nil
+	}
+	family := inetRoute
+	destination := endpoint.String() + "/32"
+	if endpoint.To4() == nil {
+		family = inet6Route
+		destination = endpoint.String() + "/128"
+	}
+	target, err := defaultRouteTarget(family)
+	if err != nil {
+		return err
+	}
+	addGatewayRoute(routes, family, destination, target.gateway, target.iface, 0)
+	return nil
+}
+
+func (m *Module) syncRoutesLocked(desiredRoutes map[string]routeSpec) error {
 	deleted := 0
-	for route := range m.routes {
-		if _, ok := desiredRoutes[route]; ok {
+	for _, route := range sortedRouteSpecs(m.routes, true) {
+		key := route.key()
+		if desired, ok := desiredRoutes[key]; ok && desired == route {
 			continue
 		}
 		if err := m.deleteRouteLocked(route); err != nil {
 			return err
 		}
-		delete(m.routes, route)
+		delete(m.routes, key)
 		deleted++
 	}
 
 	added := 0
-	for route := range desiredRoutes {
-		if _, ok := m.routes[route]; ok {
+	for _, route := range sortedRouteSpecs(desiredRoutes, false) {
+		key := route.key()
+		if _, ok := m.routes[key]; ok {
 			continue
 		}
 		if err := m.addRouteLocked(route); err != nil {
 			return err
 		}
-		m.routes[route] = struct{}{}
+		m.routes[key] = route
 		added++
 	}
 	if added > 0 || deleted > 0 {
@@ -493,22 +661,54 @@ func (m *Module) syncRoutesLocked(desiredRoutes map[string]struct{}) error {
 	return nil
 }
 
-func (m *Module) addRouteLocked(route string) error {
-	err := runCommand(routePath, "-n", "add", "-inet6", route, "-interface", m.interfaceName)
-	if err != nil && !isCommandError(err, "File exists", "already in table") {
-		return fmt.Errorf("failed to add route %s through %s: %w", route, m.interfaceName, err)
+func sortedRouteSpecs(routes map[string]routeSpec, reverse bool) []routeSpec {
+	values := make([]routeSpec, 0, len(routes))
+	for _, route := range routes {
+		values = append(values, route)
 	}
-	log.Debugf("Added WireGuard route %s through %s", route, m.interfaceName)
+	sort.Slice(values, func(i int, j int) bool {
+		if values[i].priority != values[j].priority {
+			if reverse {
+				return values[i].priority > values[j].priority
+			}
+			return values[i].priority < values[j].priority
+		}
+		return values[i].key() < values[j].key()
+	})
+	return values
+}
+
+func (m *Module) addRouteLocked(route routeSpec) error {
+	err := addDarwinRoute(route)
+	if err != nil && !errors.Is(err, unix.EEXIST) {
+		return fmt.Errorf("failed to add route %s: %w", route.destination, err)
+	}
+	log.Debugf("Added WireGuard route %s", routeString(route))
 	return nil
 }
 
-func (m *Module) deleteRouteLocked(route string) error {
-	err := runCommand(routePath, "-n", "delete", "-inet6", route, "-interface", m.interfaceName)
-	if err != nil && !isCommandError(err, "not in table", "not found", "No such process") {
-		return fmt.Errorf("failed to delete route %s through %s: %w", route, m.interfaceName, err)
+func (m *Module) deleteRouteLocked(route routeSpec) error {
+	err := deleteDarwinRoute(route)
+	if err != nil && !errors.Is(err, unix.ESRCH) {
+		return fmt.Errorf("failed to delete route %s: %w", route.destination, err)
 	}
-	log.Debugf("Deleted WireGuard route %s through %s", route, m.interfaceName)
+	log.Debugf("Deleted WireGuard route %s", routeString(route))
 	return nil
+}
+
+func routeString(route routeSpec) string {
+	if route.gateway != "" {
+		return fmt.Sprintf("%s via %s", route.destination, route.gateway)
+	}
+	if route.iface != "" {
+		return fmt.Sprintf("%s dev %s", route.destination, route.iface)
+	}
+	return route.destination
+}
+
+type routeTarget struct {
+	gateway string
+	iface   string
 }
 
 func logDeclarativePeerState(peers []declarativePeer) {
@@ -569,44 +769,18 @@ func (m *Module) delDomain(domain string) error {
 	return nil
 }
 
-func runCommand(name string, args ...string) error {
-	output, err := exec.Command(name, args...).CombinedOutput()
-	if err == nil {
-		return nil
-	}
-
-	outputText := strings.TrimSpace(string(output))
-	if outputText == "" {
-		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
-	}
-	return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, outputText)
-}
-
 func sysctlValue(name string) (string, error) {
-	output, err := exec.Command(sysctlPath, "-n", name).CombinedOutput()
+	value, err := sysctlUint32(name)
 	if err != nil {
-		outputText := strings.TrimSpace(string(output))
-		if outputText == "" {
-			return "", fmt.Errorf("%s -n %s: %w", sysctlPath, name, err)
-		}
-		return "", fmt.Errorf("%s -n %s: %w: %s", sysctlPath, name, err, outputText)
+		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
+	return strconv.FormatUint(uint64(value), 10), nil
 }
 
 func setSysctl(name string, value string) error {
-	return runCommand(sysctlPath, "-w", fmt.Sprintf("%s=%s", name, value))
-}
-
-func isCommandError(err error, needles ...string) bool {
-	if err == nil {
-		return false
+	parsed, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return fmt.Errorf("invalid sysctl value %q for %s: %w", value, name, err)
 	}
-	errText := err.Error()
-	for _, needle := range needles {
-		if strings.Contains(errText, needle) {
-			return true
-		}
-	}
-	return false
+	return setSysctlUint32(name, uint32(parsed))
 }

@@ -9,6 +9,9 @@ service Instance {
   rpc Init(InitRequest) returns (InitResponse) {}
   rpc GetPeers(GetPeersRequest) returns (GetPeersResponse) {}
   rpc GetLogs(GetLogsRequest) returns (GetLogsResponse) {}
+  rpc GetNetworkState(GetNetworkStateRequest) returns (GetNetworkStateResponse) {}
+  rpc GetExitRoutes(GetExitRoutesRequest) returns (GetExitRoutesResponse) {}
+  rpc GetRuntimeState(GetRuntimeStateRequest) returns (GetRuntimeStateResponse) {}
 }
 
 message InitRequest {
@@ -34,4 +37,163 @@ message GetLogsRequest {
 
 message GetLogsResponse {
   string logs = 1;
+}
+
+message GetNetworkStateRequest {
+}
+
+message GetNetworkStateResponse {
+  NetworkState state = 1;
+}
+
+message GetExitRoutesRequest {
+}
+
+message GetExitRoutesResponse {
+  repeated ExitRoute routes = 1;
+}
+
+message GetRuntimeStateRequest {
+}
+
+message GetRuntimeStateResponse {
+  RuntimeState state = 1;
+}
+
+message NetworkState {
+  string module = 1;
+  bool up = 2;
+  string interface_name = 3;
+  repeated NetworkAddress addresses = 4;
+  repeated NetworkRoute routes = 5;
+  repeated WireGuardPeer wireguard_peers = 6;
+  repeated FirewallTable firewall_tables = 7;
+  repeated DNSState dns = 8;
+  repeated string messages = 9;
+  repeated NetworkInterface interfaces = 10;
+}
+
+message NetworkInterface {
+  string name = 1;
+  string type = 2;
+  int32 index = 3;
+  int32 mtu = 4;
+  bool up = 5;
+  string master = 6;
+  string mac_address = 7;
+  string kind = 8;
+}
+
+message NetworkAddress {
+  string interface_name = 1;
+  string cidr = 2;
+  string scope = 3;
+}
+
+message NetworkRoute {
+  string interface_name = 1;
+  string destination = 2;
+  string gateway = 3;
+  string source = 4;
+  string family = 5;
+  string table = 6;
+  string protocol = 7;
+  string scope = 8;
+  string priority = 9;
+  string kind = 10;
+}
+
+message WireGuardPeer {
+  string public_key = 1;
+  string endpoint = 2;
+  repeated string allowed_ips = 3;
+  string latest_handshake = 4;
+  uint64 rx_bytes = 5;
+  uint64 tx_bytes = 6;
+}
+
+message FirewallTable {
+  string family = 1;
+  string name = 2;
+  repeated FirewallChain chains = 3;
+}
+
+message FirewallChain {
+  string name = 1;
+  string type = 2;
+  string hook = 3;
+  string priority = 4;
+  repeated FirewallRule rules = 5;
+}
+
+message FirewallRule {
+  repeated string expressions = 1;
+  uint64 packets = 2;
+  uint64 bytes = 3;
+}
+
+message DNSState {
+  string scope = 1;
+  string domain = 2;
+  repeated string servers = 3;
+  int32 port = 4;
+  bool active = 5;
+  string source = 6;
+}
+
+message ExitRoute {
+  string id = 1;
+  string device_id = 2;
+  string instance_id = 3;
+  string status = 4;
+  string dns_server = 5;
+  repeated string cidrs = 6;
+}
+
+message RuntimeState {
+  string peer_id = 1;
+  string manifest_digest = 2;
+  string finalized_root_hash = 3;
+  string tentative_root_hash = 4;
+  string protocol_finalized_root_hash = 5;
+  string durable_main_root_hash = 6;
+  string active_epoch_id = 7;
+  repeated string active_witness_ids = 8;
+  repeated string eligible_witness_ids = 9;
+  repeated string state_providers = 10;
+  repeated string connected_peers = 11;
+  string fatal_state = 12;
+  bool runtime_refresh_pending = 13;
+  string runtime_refresh_last_error = 14;
+  bool runtime_finalized_pending = 15;
+  string runtime_finalized_last_error = 16;
+  string runtime_materialization_policy = 17;
+  repeated RuntimePeerStatus peer_statuses = 18;
+  repeated RuntimeCompatibility compatibility = 19;
+  repeated string content_sync_trace = 20;
+}
+
+message RuntimePeerStatus {
+  string peer_id = 1;
+  bool connected = 2;
+  bool dialable = 3;
+  bool state_provider = 4;
+  bool witness = 5;
+  bool eligible_witness = 6;
+  bool compatible = 7;
+  bool incompatible = 8;
+  bool ignored = 9;
+  bool relay_only = 10;
+  repeated string addresses = 11;
+  map<string, string> last_dial_errors = 12;
+  string reason = 13;
+}
+
+message RuntimeCompatibility {
+  string peer_id = 1;
+  string local_digest = 2;
+  string remote_digest = 3;
+  bool compatible = 4;
+  bool blocking = 5;
+  string reason = 6;
 }

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/util"
 	"github.com/sirupsen/logrus"
@@ -51,6 +51,8 @@ func main() {
 			cmdApp,
 			cmdCloud,
 			cmdInstance,
+			cmdRoute,
+			cmdInspect,
 			cmdRelease,
 			cmdDvc,
 		},

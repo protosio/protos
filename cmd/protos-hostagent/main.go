@@ -73,15 +73,17 @@ func runDaemon(hostSocket, socketMode string, socketUID, socketGID int, workDir 
 	}
 	config.New(workDir, nil)
 
-	networkServer, closeNetwork, err := hostWireGuardModule()
+	networkServer, err := hostWireGuardModule()
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = closeNetwork()
-	}()
 
 	hostServer := hostagentdaemon.NewServer(networkServer)
+	defer func() {
+		if err := hostServer.Close(); err != nil {
+			log.Warnf("Host agent cleanup failed: %v", err)
+		}
+	}()
 	uid, gid := socketOwner(socketUID, socketGID)
 
 	mode, err := parseFileMode(socketMode)
@@ -95,9 +97,13 @@ func runDaemon(hostSocket, socketMode string, socketUID, socketGID int, workDir 
 	if err != nil {
 		return err
 	}
-	defer hostEndpoint.close()
 
 	endpoints := []*grpcEndpoint{hostEndpoint}
+	defer func() {
+		for _, endpoint := range endpoints {
+			endpoint.close()
+		}
+	}()
 	log.Infof("Serving host agent on %s", hostSocket)
 
 	errCh := make(chan error, len(endpoints))
@@ -109,19 +115,29 @@ func runDaemon(hostSocket, socketMode string, socketUID, socketGID int, workDir 
 	}
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(sigCh)
 
 	select {
 	case sig := <-sigCh:
 		log.Infof("Received %s, stopping", sig)
 		for _, endpoint := range endpoints {
-			endpoint.server.GracefulStop()
+			endpoint.server.Stop()
 		}
-		return nil
+		return hostServer.Close()
 	case err := <-errCh:
 		for _, endpoint := range endpoints {
-			endpoint.server.GracefulStop()
+			endpoint.server.Stop()
+		}
+		cleanupErr := hostServer.Close()
+		if err == grpc.ErrServerStopped {
+			err = nil
+		}
+		if err != nil && cleanupErr != nil {
+			return fmt.Errorf("%w; cleanup failed: %v", err, cleanupErr)
+		}
+		if cleanupErr != nil {
+			return cleanupErr
 		}
 		return err
 	}
@@ -169,12 +185,12 @@ func (e *grpcEndpoint) close() {
 	_ = os.Remove(e.socket)
 }
 
-func hostWireGuardModule() (networkmodule.Module, func() error, error) {
+func hostWireGuardModule() (networkmodule.Module, error) {
 	mod, err := wireguardmodule.New()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return mod, mod.Close, nil
+	return mod, nil
 }
 
 func parseFileMode(mode string) (os.FileMode, error) {

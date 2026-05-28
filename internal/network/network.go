@@ -1,6 +1,7 @@
 package network
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"net"
 	"net/netip"
@@ -38,6 +39,8 @@ type AppRoute struct {
 func (m *Manager) Init(key *pcrypto.Key, domain string) error {
 	m.config = networkmodule.Config{
 		IPv6Address:         key.IPv6Address(),
+		IPv4Address:         tunnelIPv4ForPublicKey(key.PublicString()),
+		LocalPeerID:         key.GetID(),
 		WireGuardPrivateKey: key.PrivateWG().String(),
 		Domain:              domain,
 	}
@@ -56,10 +59,11 @@ func (m *Manager) Down() error {
 	return m.module.Down()
 }
 
-func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices []user.UserDevice, appRoutes []AppRoute) error {
+func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices []user.UserDevice, appRoutes []AppRoute, exitRoutes []ExitRoute) error {
 	peers := networkmodule.Peers{
-		Instances: make([]networkmodule.InstancePeer, 0, len(instances)),
-		Devices:   make([]networkmodule.DevicePeer, 0, len(devices)),
+		Instances:  make([]networkmodule.InstancePeer, 0, len(instances)),
+		Devices:    make([]networkmodule.DevicePeer, 0, len(devices)),
+		ExitRoutes: make([]networkmodule.ExitRoute, 0, len(exitRoutes)),
 	}
 
 	routesByInstance := map[string][]netip.Addr{}
@@ -76,22 +80,44 @@ func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices 
 
 	for _, instance := range instances {
 		peers.Instances = append(peers.Instances, networkmodule.InstancePeer{
-			ID:        instance.ID,
-			Name:      instance.Name,
-			PublicKey: instance.PublicKey,
-			PublicIP:  instance.PublicIP,
-			Routes:    routesByInstance[instance.ID],
+			ID:          instance.ID,
+			Name:        instance.Name,
+			PublicKey:   instance.PublicKey,
+			PublicIP:    instance.PublicIP,
+			IPv4Address: tunnelIPv4ForPublicKey(instance.PublicKey),
+			Routes:      routesByInstance[instance.ID],
 		})
 	}
 
 	for _, device := range devices {
 		peers.Devices = append(peers.Devices, networkmodule.DevicePeer{
-			Name:      device.Name,
-			PublicKey: device.PublicKey,
+			ID:          device.ID,
+			Name:        device.Name,
+			PublicKey:   device.PublicKey,
+			IPv4Address: tunnelIPv4ForPublicKey(device.PublicKey),
+		})
+	}
+
+	for _, route := range exitRoutes {
+		if NormalizeExitRouteStatus(route.DesiredStatus) != ExitRouteStatusActive {
+			continue
+		}
+		peers.ExitRoutes = append(peers.ExitRoutes, networkmodule.ExitRoute{
+			ID:         route.ID,
+			DeviceID:   route.DeviceID,
+			InstanceID: route.InstanceID,
+			CIDRs:      route.CIDRs,
 		})
 	}
 
 	return m.module.ConfigurePeers(m.config, peers)
+}
+
+func (m *Manager) State() (networkmodule.State, error) {
+	if m == nil || m.module == nil {
+		return networkmodule.State{}, fmt.Errorf("network manager is not configured")
+	}
+	return m.module.State()
 }
 
 func (m *Manager) Close() error {
@@ -104,4 +130,14 @@ func (m *Manager) CreateNamespacedInterface(netNSpath string, ip net.IP) error {
 		return fmt.Errorf("network module %q does not support namespaced interfaces", m.module.Name())
 	}
 	return namespacedModule.CreateNamespacedInterface(m.config, netNSpath, ip)
+}
+
+func tunnelIPv4ForPublicKey(publicKey string) netip.Addr {
+	sum := sha256.Sum256([]byte(publicKey))
+	return netip.AddrFrom4([4]byte{
+		100,
+		64 | (sum[0] & 0x3f),
+		sum[1],
+		sum[2],
+	})
 }

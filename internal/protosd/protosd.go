@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/apic"
@@ -134,6 +134,8 @@ type Node struct {
 	version      string
 	capabilities Capabilities
 	stoppers     map[string]func() error
+	stopMu       sync.Mutex
+	stopped      bool
 	localKey     *pcrypto.Key
 	initOnce     sync.Once
 	initCh       chan struct{}
@@ -240,6 +242,9 @@ func (n *Node) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create p2p manager: %w", err)
 	}
+	if n.NetworkManager != nil {
+		n.P2PManager.SetNetworkInspector(n.NetworkManager)
+	}
 
 	n.CloudManager, err = provisioners.CreateManager(
 		n.DB,
@@ -268,6 +273,7 @@ func (n *Node) Start() error {
 	}
 	n.stoppers["p2p"] = p2pStopper
 
+	externalDNS := ""
 	if n.capabilities.Network {
 		if err := n.NetworkManager.Init(n.localKey, n.cfg.InternalDomain); err != nil {
 			return fmt.Errorf("failed to initialize network reconciler: %w", err)
@@ -276,7 +282,12 @@ func (n *Node) Start() error {
 			log.Info("bringing down network")
 			return n.NetworkManager.Down()
 		}
-		dnsStopper := dns.StartServer(n.localKey, n.dnsPort(), n.cfg.ExternalDNS, n.cfg.InternalDomain, n.AppManager)
+		normalizedDNS, err := network.NormalizeDNSServer(n.cfg.ExternalDNS)
+		if err != nil {
+			return fmt.Errorf("invalid external DNS server %q: %w", n.cfg.ExternalDNS, err)
+		}
+		externalDNS = normalizedDNS
+		dnsStopper := dns.StartServer(n.localKey, n.dnsPort(), externalDNS, n.cfg.InternalDomain, n.AppManager)
 		n.stoppers["dns"] = dnsStopper
 		if err := n.configureLocalResolver(); err != nil {
 			return err
@@ -300,6 +311,7 @@ func (n *Node) Start() error {
 		nm:           n.NetworkManager,
 		p2pm:         n.P2PManager,
 		capabilities: n.capabilities,
+		externalDNS:  externalDNS,
 	}
 	for _, registration := range []struct {
 		model    any
@@ -308,6 +320,7 @@ func (n *Node) Start() error {
 		{model: db.CLOUD_MACHINE_METADATA{}, notifier: dbNotifier},
 		{model: db.MACHINE{}, notifier: dbNotifier},
 		{model: db.PEER{}, notifier: dbNotifier},
+		{model: db.EXIT_ROUTE{}, notifier: dbNotifier},
 		{model: db.USER{}, notifier: dbNotifier},
 		{model: db.USER_DEVICE_METADATA{}, notifier: dbNotifier},
 		{model: db.APP{}, notifier: dbNotifier},
@@ -398,11 +411,28 @@ func (n *Node) Wait() {
 }
 
 func (n *Node) Stop() {
+	n.stopMu.Lock()
+	if n.stopped {
+		n.stopMu.Unlock()
+		return
+	}
+	n.stopped = true
+	stoppers := make([]func() error, 0, len(n.stoppers))
 	for _, stopper := range n.stoppers {
+		stoppers = append(stoppers, stopper)
+	}
+	n.stopMu.Unlock()
+
+	for _, stopper := range stoppers {
 		if err := stopper(); err != nil {
 			log.Error(err)
 		}
 	}
+}
+
+func (n *Node) Close() {
+	n.Stop()
+	n.closeDB()
 }
 
 func (n *Node) closeDB() {
@@ -447,6 +477,7 @@ type DBNotifier struct {
 	nm           *network.Manager
 	p2pm         *p2p.P2P
 	capabilities Capabilities
+	externalDNS  string
 	mu           sync.Mutex
 }
 
@@ -517,8 +548,17 @@ func (dbn *DBNotifier) Notify() {
 		}
 	}
 
+	exitRoutes, err := network.GetExitRoutes(dbn.database)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to retrieve exit routes: %w", err))
+		return
+	}
+	if dbn.capabilities.Network {
+		dbn.configureDNSForwarder(exitRoutes)
+	}
+
 	if dbn.capabilities.Network && dbn.nm != nil {
-		if err := dbn.nm.ConfigurePeers(instances, userDevices, appRoutes); err != nil {
+		if err := dbn.nm.ConfigurePeers(instances, userDevices, appRoutes, exitRoutes); err != nil {
 			log.Error(fmt.Errorf("failed to configure network peers: %w", err))
 			return
 		}
@@ -537,6 +577,33 @@ func (dbn *DBNotifier) Notify() {
 	if err := dbn.database.ReconcileWitnesses(context.Background(), membership.WitnessCandidates(witnessInstances, userDevices)); err != nil {
 		log.Error(fmt.Errorf("failed to reconcile swarmion witnesses: %w", err))
 	}
+}
+
+func (dbn *DBNotifier) configureDNSForwarder(exitRoutes []network.ExitRoute) {
+	if dbn.um == nil {
+		return
+	}
+	dnsServer := dbn.externalDNS
+	currentDevice, ok, err := dbn.um.GetCurrentDeviceIfExists()
+	if err != nil {
+		log.Debugf("failed to resolve current device for DNS exit route: %s", err.Error())
+		dns.SetExternalServer(dnsServer)
+		return
+	}
+	if !ok {
+		dns.SetExternalServer(dnsServer)
+		return
+	}
+	for _, route := range exitRoutes {
+		if route.DeviceID != currentDevice.ID || network.NormalizeExitRouteStatus(route.DesiredStatus) != network.ExitRouteStatusActive {
+			continue
+		}
+		if network.ExitRouteUsesFullTunnel(route) && route.DNSServer != "" {
+			dnsServer = route.DNSServer
+		}
+		break
+	}
+	dns.SetExternalServer(dnsServer)
 }
 
 func defaultWorkDir() string {

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/membership"
@@ -120,7 +120,7 @@ func run(imagePath string, workDir string, keep bool, timeout time.Duration, mac
 			return fmt.Errorf("initialize network manager through protos-hostagent: %w", err)
 		}
 		defer func() {
-			_ = networkManager.ConfigurePeers(nil, nil, nil)
+			_ = networkManager.ConfigurePeers(nil, nil, nil, nil)
 			_ = networkManager.Close()
 		}()
 	}
@@ -244,7 +244,7 @@ func reconnectPeersUntil(deadline time.Time, store *db.DB, cloudManager *provisi
 			continue
 		}
 		if networkManager != nil {
-			if err := networkManager.ConfigurePeers(instances, devices, nil); err != nil {
+			if err := networkManager.ConfigurePeers(instances, devices, nil, nil); err != nil {
 				lastErr = fmt.Errorf("configure network peers: %w", err)
 				time.Sleep(2 * time.Second)
 				continue

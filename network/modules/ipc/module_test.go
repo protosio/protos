@@ -42,6 +42,10 @@ func (m *fakeNetworkModule) Down() error {
 	return nil
 }
 
+func (m *fakeNetworkModule) State() (networkmodule.State, error) {
+	return networkmodule.State{Module: m.Name(), Up: m.upCalled && !m.downCalled}, nil
+}
+
 func TestModuleReturnsHostAgentNetworkError(t *testing.T) {
 	dir, err := os.MkdirTemp("/tmp", "protos-hostagent-test-*")
 	if err != nil {

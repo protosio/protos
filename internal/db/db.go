@@ -150,6 +150,10 @@ func Open(workDir string, dbName string, signer Signer) (*DB, error) {
 		if err := db.openSwarmion(context.Background(), nil); err != nil {
 			return nil, fmt.Errorf("failed to open swarmion db: %w", err)
 		}
+		if err := db.runMigrations(context.Background()); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("failed to run migrations: %w", err)
+		}
 	}
 
 	return db, nil
@@ -162,10 +166,6 @@ func (db *DB) Init() error {
 
 	if err := db.runMigrations(context.Background()); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
-	}
-
-	if _, err := db.commitStaged(context.Background(), "init commit", true); err != nil {
-		return fmt.Errorf("failed to commit: %w", err)
 	}
 
 	return nil
@@ -207,7 +207,6 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create swarmion transport: %w", err)
 	}
-
 	swarmionSigner, err := newSwarmionSigner(db.signer, privateKey.GetPublic())
 	if err != nil {
 		_ = network.Close()
@@ -273,7 +272,9 @@ func (db *DB) forwardFinalizedRootEvents(events <-chan swarmionapp.FinalizedRoot
 func (db *DB) forwardSwarmionStatusEvents(events <-chan swarmionapp.StatusEvent) {
 	for event := range events {
 		switch event.Kind {
-		case swarmionapp.StatusEventFatalChanged,
+		case swarmionapp.StatusEventFinalizedRootChanged,
+			swarmionapp.StatusEventTentativeRootChanged,
+			swarmionapp.StatusEventFatalChanged,
 			swarmionapp.StatusEventActiveWitnessesChanged,
 			swarmionapp.StatusEventEligibleWitnessesChanged,
 			swarmionapp.StatusEventStateProvidersChanged:
@@ -307,7 +308,7 @@ PRIMARY KEY (filename)
 		return fmt.Errorf("read migrations dir: %w", err)
 	}
 
-	var filenames []string
+	filenames := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || strings.HasSuffix(name, ".undo.sql") || !strings.HasSuffix(name, ".sql") {
@@ -317,6 +318,7 @@ PRIMARY KEY (filename)
 	}
 	sort.Strings(filenames)
 
+	appliedAny := false
 	for _, filename := range filenames {
 		applied, err := migrationApplied(ctx, sqldb, filename)
 		if err != nil {
@@ -325,43 +327,59 @@ PRIMARY KEY (filename)
 		if applied {
 			continue
 		}
-
-		start := time.Now()
-		contents, err := fs.ReadFile(migrationsDir, filename)
-		if err != nil {
-			return fmt.Errorf("read migration %s: %w", filename, err)
+		if err := db.applyMigration(ctx, migrationsDir, filename); err != nil {
+			return err
 		}
-		statements, err := sqlparser.SplitStatementToPieces(string(contents))
-		if err != nil {
-			return fmt.Errorf("split migration %s: %w", filename, err)
-		}
-		for _, statement := range statements {
-			statement = strings.TrimSpace(statement)
-			if statement == "" {
-				continue
-			}
-			if _, err := sqldb.ExecContext(ctx, statement); err != nil {
-				if ignorableMigrationError(statement, err) {
-					continue
-				}
-				return fmt.Errorf("%s: %w", filename, err)
-			}
-		}
-
-		checksum := sha256.Sum256(contents)
-		if _, err := sqldb.ExecContext(
-			ctx,
-			`INSERT INTO sqddl_history (filename, checksum, started_at, time_taken_ns, success)
-VALUES (?, ?, NOW(), ?, true)
-ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), started_at = VALUES(started_at), time_taken_ns = VALUES(time_taken_ns), success = VALUES(success)`,
-			filename,
-			hex.EncodeToString(checksum[:]),
-			time.Since(start).Nanoseconds(),
-		); err != nil {
-			return fmt.Errorf("record migration %s: %w", filename, err)
+		appliedAny = true
+	}
+	if appliedAny {
+		if _, err := db.commitStaged(ctx, "run migrations", true); err != nil {
+			return fmt.Errorf("commit migrations: %w", err)
 		}
 	}
 
+	return nil
+}
+
+func (db *DB) applyMigration(ctx context.Context, migrationsDir fs.FS, filename string) error {
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	start := time.Now()
+	contents, err := fs.ReadFile(migrationsDir, filename)
+	if err != nil {
+		return fmt.Errorf("read migration %s: %w", filename, err)
+	}
+	statements, err := sqlparser.SplitStatementToPieces(string(contents))
+	if err != nil {
+		return fmt.Errorf("split migration %s: %w", filename, err)
+	}
+	for _, statement := range statements {
+		statement = strings.TrimSpace(statement)
+		if statement == "" {
+			continue
+		}
+		if _, err := sqldb.ExecContext(ctx, statement); err != nil {
+			if ignorableMigrationError(statement, err) {
+				continue
+			}
+			return fmt.Errorf("%s: %w", filename, err)
+		}
+	}
+
+	checksum := sha256.Sum256(contents)
+	if _, err := sqldb.ExecContext(
+		ctx,
+		`INSERT INTO sqddl_history (filename, checksum, started_at, time_taken_ns, success)
+VALUES (?, ?, NOW(), ?, true)
+ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), started_at = VALUES(started_at), time_taken_ns = VALUES(time_taken_ns), success = VALUES(success)`,
+		filename,
+		hex.EncodeToString(checksum[:]),
+		time.Since(start).Nanoseconds(),
+	); err != nil {
+		return fmt.Errorf("record migration %s: %w", filename, err)
+	}
 	return nil
 }
 
@@ -371,9 +389,17 @@ func ignorableMigrationError(statement string, err error) bool {
 	}
 	statement = strings.ToUpper(statement)
 	message := strings.ToLower(err.Error())
-	return strings.Contains(statement, "ALTER TABLE") &&
+	if strings.Contains(statement, "ALTER TABLE") &&
 		strings.Contains(statement, "ADD COLUMN") &&
-		strings.Contains(message, "already exists")
+		strings.Contains(message, "already exists") {
+		return true
+	}
+	if strings.Contains(statement, "CREATE TABLE") &&
+		strings.Contains(message, "already exists") {
+		return true
+	}
+	return strings.Contains(statement, "CREATE INDEX") &&
+		(strings.Contains(message, "already exists") || strings.Contains(message, "duplicate key name"))
 }
 
 func migrationApplied(ctx context.Context, sqldb *sql.DB, filename string) (bool, error) {
@@ -612,6 +638,32 @@ func (db *DB) SwarmionCompatibility(ctx context.Context) ([]swarmionapp.Manifest
 	return app.Compatibility(ctx)
 }
 
+func (db *DB) SwarmionPeerStatus(ctx context.Context) ([]swarmionapp.PeerStatus, error) {
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil, fmt.Errorf("swarmion app is not initialized")
+	}
+	return app.PeerStatus(ctx)
+}
+
+func (db *DB) SwarmionContentSyncTrace() ([]string, bool) {
+	if db == nil {
+		return nil, false
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil, false
+	}
+	return app.ContentSyncTrace(), true
+}
+
 func (db *DB) GetSqlDB() *sql.DB {
 	if db == nil {
 		return nil
@@ -680,7 +732,15 @@ func (db *DB) GetLastCommit(branch string) (Commit, error) {
 }
 
 func (db *DB) GetAllCommits() ([]Commit, error) {
-	return db.getCommits("SELECT commit_hash, committer, email, date, message FROM dolt_log('main');")
+	return db.GetCommits("main")
+}
+
+func (db *DB) GetCommits(branch string) ([]Commit, error) {
+	if strings.TrimSpace(branch) == "" {
+		branch = "main"
+	}
+	query := fmt.Sprintf("SELECT commit_hash, committer, email, date, message FROM dolt_log('%s');", escapeSQL(branch))
+	return db.getCommits(query)
 }
 
 func (db *DB) getCommits(query string) ([]Commit, error) {
@@ -761,6 +821,47 @@ func (db *DB) RegisterTableChangeCallback(tableName string, notifier Notifier) {
 	})
 }
 
+func (db *DB) WatchChanges(ctx context.Context) (<-chan ChangeEvent, func()) {
+	ch := make(chan ChangeEvent, 1)
+	if db == nil {
+		close(ch)
+		return ch, func() {}
+	}
+	notifier := &changeWatchNotifier{ch: ch}
+	guid := xid.New().String()
+	db.tableChangeCallbacks.Set(guid, tableChangeCallback{notifier: notifier})
+
+	var once sync.Once
+	cancel := func() {
+		once.Do(func() {
+			db.tableChangeCallbacks.Delete(guid)
+		})
+	}
+	if ctx != nil {
+		go func() {
+			<-ctx.Done()
+			cancel()
+		}()
+	}
+	return ch, cancel
+}
+
+type changeWatchNotifier struct {
+	ch chan ChangeEvent
+}
+
+func (n *changeWatchNotifier) Notify() {
+	n.NotifyChange(nil)
+}
+
+func (n *changeWatchNotifier) NotifyChange(tableNames []string) {
+	event := ChangeEvent{TableNames: append([]string(nil), tableNames...)}
+	select {
+	case n.ch <- event:
+	default:
+	}
+}
+
 func (db *DB) handleWriteNotification(_ context.Context, notification swarmionapp.WriteNotification) error {
 	if !notification.Accepted || len(notification.ChangedTables) == 0 {
 		return nil
@@ -780,7 +881,7 @@ func (db *DB) triggerTableChangeCallbacks(tableNames ...string) {
 
 	seen := map[uintptr]struct{}{}
 	for _, callback := range db.tableChangeCallbacks.Snapshot() {
-		if len(tableSet) > 0 {
+		if len(tableSet) > 0 && callback.tableName != "" {
 			if _, found := tableSet[callback.tableName]; !found {
 				continue
 			}
@@ -791,7 +892,7 @@ func (db *DB) triggerTableChangeCallbacks(tableNames ...string) {
 			}
 			seen[id] = struct{}{}
 		}
-		notifyAsync(callback.notifier)
+		notifyChangeAsync(callback.notifier, tableNames)
 	}
 }
 

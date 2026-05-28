@@ -13,6 +13,15 @@ type Notifier interface {
 	Notify()
 }
 
+type ChangeNotifier interface {
+	Notifier
+	NotifyChange(tableNames []string)
+}
+
+type ChangeEvent struct {
+	TableNames []string
+}
+
 type tableChangeCallback struct {
 	tableName string
 	notifier  Notifier
@@ -45,12 +54,20 @@ func getTableName(model any) string {
 }
 
 func notifyAsync(notifier Notifier) {
+	notifyChangeAsync(notifier, nil)
+}
+
+func notifyChangeAsync(notifier Notifier, tableNames []string) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				notifyLog.Errorf("database notifier panic: %v", r)
 			}
 		}()
+		if changeNotifier, ok := notifier.(ChangeNotifier); ok {
+			changeNotifier.NotifyChange(tableNames)
+			return
+		}
 		notifier.Notify()
 	}()
 }

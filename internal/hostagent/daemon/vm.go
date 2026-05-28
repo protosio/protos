@@ -48,6 +48,7 @@ type Server struct {
 	mu        sync.Mutex
 	network   networkmodule.Module
 	networkUp bool
+	closed    bool
 }
 
 func NewServer(networkModules ...networkmodule.Module) *Server {
@@ -66,6 +67,9 @@ func (s *Server) Apply(ctx context.Context, req *hostagentpb.ApplyRequest) (*hos
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return nil, fmt.Errorf("host agent is shutting down")
+	}
 
 	resp := &hostagentpb.ApplyResponse{Vms: make([]*hostagentpb.VMObservedState, 0, len(desired.GetVms()))}
 	for _, vm := range desired.GetVms() {
@@ -80,6 +84,9 @@ func (s *Server) Apply(ctx context.Context, req *hostagentpb.ApplyRequest) (*hos
 func (s *Server) Status(ctx context.Context, req *hostagentpb.StatusRequest) (*hostagentpb.StatusResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return nil, fmt.Errorf("host agent is shutting down")
+	}
 
 	resp := &hostagentpb.StatusResponse{Vms: make([]*hostagentpb.VMObservedState, 0, len(req.GetVms()))}
 	for _, vm := range req.GetVms() {
@@ -89,6 +96,31 @@ func (s *Server) Status(ctx context.Context, req *hostagentpb.StatusRequest) (*h
 		resp.Network = s.networkStatus("")
 	}
 	return resp, nil
+}
+
+func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+
+	if s.network == nil {
+		return nil
+	}
+
+	var err error
+	if downErr := s.network.Down(); downErr != nil {
+		err = errors.Join(err, fmt.Errorf("tear down network: %w", downErr))
+	}
+	s.networkUp = false
+	if closeErr := s.network.Close(); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("close network module: %w", closeErr))
+	}
+	s.network = nil
+	return err
 }
 
 func (s *Server) applyVM(vm *hostagentpb.VMDesiredState) *hostagentpb.VMObservedState {
@@ -281,7 +313,7 @@ func (s *Server) applyNetwork(desired *hostagentpb.NetworkDesiredState) *hostage
 		}
 		s.networkUp = true
 		if desired.GetReconcilePeers() || hasNetworkPeers(desired) {
-			peers, err := networkPeersFromProto(desired.GetInstances(), desired.GetDevices())
+			peers, err := networkPeersFromProto(desired.GetInstances(), desired.GetDevices(), desired.GetExitRoutes())
 			if err != nil {
 				return s.networkStatus(err.Error())
 			}
@@ -299,7 +331,7 @@ func (s *Server) applyNetwork(desired *hostagentpb.NetworkDesiredState) *hostage
 			return s.networkStatus(err.Error())
 		}
 		if desired.GetReconcilePeers() || hasNetworkPeers(desired) {
-			peers, err := networkPeersFromProto(desired.GetInstances(), desired.GetDevices())
+			peers, err := networkPeersFromProto(desired.GetInstances(), desired.GetDevices(), desired.GetExitRoutes())
 			if err != nil {
 				return s.networkStatus(err.Error())
 			}
@@ -345,18 +377,111 @@ func (s *Server) applyNamespacedInterfaces(config networkmodule.Config, interfac
 
 func (s *Server) networkStatus(message string) *hostagentpb.NetworkObservedState {
 	moduleName := ""
+	var state *hostagentpb.NetworkState
 	if s.network != nil {
 		moduleName = s.network.Name()
+		if observed, err := s.network.State(); err == nil {
+			state = networkStateToProto(observed)
+		} else if message == "" {
+			message = fmt.Sprintf("inspect network state: %v", err)
+		}
 	}
 	return &hostagentpb.NetworkObservedState{
 		Module:  moduleName,
 		Up:      s.networkUp,
 		Message: message,
+		State:   state,
 	}
 }
 
+func networkStateToProto(state networkmodule.State) *hostagentpb.NetworkState {
+	out := &hostagentpb.NetworkState{
+		Module:        state.Module,
+		Up:            state.Up,
+		InterfaceName: state.InterfaceName,
+		Messages:      append([]string(nil), state.Messages...),
+	}
+	for _, item := range state.Interfaces {
+		out.Interfaces = append(out.Interfaces, &hostagentpb.NetworkInterface{
+			Name:       item.Name,
+			Type:       item.Type,
+			Index:      int32(item.Index),
+			Mtu:        int32(item.MTU),
+			Up:         item.Up,
+			Master:     item.Master,
+			MacAddress: item.MacAddress,
+			Kind:       item.Kind,
+		})
+	}
+	for _, item := range state.Addresses {
+		out.Addresses = append(out.Addresses, &hostagentpb.NetworkAddress{
+			InterfaceName: item.InterfaceName,
+			Cidr:          item.CIDR,
+			Scope:         item.Scope,
+		})
+	}
+	for _, item := range state.Routes {
+		out.Routes = append(out.Routes, &hostagentpb.NetworkRoute{
+			InterfaceName: item.InterfaceName,
+			Destination:   item.Destination,
+			Gateway:       item.Gateway,
+			Source:        item.Source,
+			Family:        item.Family,
+			Table:         item.Table,
+			Protocol:      item.Protocol,
+			Scope:         item.Scope,
+			Priority:      item.Priority,
+			Kind:          item.Kind,
+		})
+	}
+	for _, item := range state.WireGuardPeers {
+		out.WireguardPeers = append(out.WireguardPeers, &hostagentpb.WireGuardPeer{
+			PublicKey:       item.PublicKey,
+			Endpoint:        item.Endpoint,
+			AllowedIps:      append([]string(nil), item.AllowedIPs...),
+			LatestHandshake: item.LatestHandshake,
+			RxBytes:         item.RxBytes,
+			TxBytes:         item.TxBytes,
+		})
+	}
+	for _, table := range state.FirewallTables {
+		tableProto := &hostagentpb.FirewallTable{
+			Family: table.Family,
+			Name:   table.Name,
+		}
+		for _, chain := range table.Chains {
+			chainProto := &hostagentpb.FirewallChain{
+				Name:     chain.Name,
+				Type:     chain.Type,
+				Hook:     chain.Hook,
+				Priority: chain.Priority,
+			}
+			for _, rule := range chain.Rules {
+				chainProto.Rules = append(chainProto.Rules, &hostagentpb.FirewallRule{
+					Expressions: append([]string(nil), rule.Expressions...),
+					Packets:     rule.Packets,
+					Bytes:       rule.Bytes,
+				})
+			}
+			tableProto.Chains = append(tableProto.Chains, chainProto)
+		}
+		out.FirewallTables = append(out.FirewallTables, tableProto)
+	}
+	for _, item := range state.DNS {
+		out.Dns = append(out.Dns, &hostagentpb.DNSState{
+			Scope:   item.Scope,
+			Domain:  item.Domain,
+			Servers: append([]string(nil), item.Servers...),
+			Port:    int32(item.Port),
+			Active:  item.Active,
+			Source:  item.Source,
+		})
+	}
+	return out
+}
+
 func hasNetworkPeers(desired *hostagentpb.NetworkDesiredState) bool {
-	return len(desired.GetInstances()) > 0 || len(desired.GetDevices()) > 0
+	return len(desired.GetInstances()) > 0 || len(desired.GetDevices()) > 0 || len(desired.GetExitRoutes()) > 0
 }
 
 func networkConfigFromProto(config *hostagentpb.NetworkConfig) (networkmodule.Config, error) {
@@ -368,21 +493,39 @@ func networkConfigFromProto(config *hostagentpb.NetworkConfig) (networkmodule.Co
 	if err != nil {
 		return networkmodule.Config{}, fmt.Errorf("invalid IPv6 address %q: %w", config.GetIpv6Address(), err)
 	}
+	ipv4Addr := netip.Addr{}
+	if config.GetIpv4Address() != "" {
+		ipv4Addr, err = netip.ParseAddr(config.GetIpv4Address())
+		if err != nil {
+			return networkmodule.Config{}, fmt.Errorf("invalid IPv4 address %q: %w", config.GetIpv4Address(), err)
+		}
+	}
 
 	return networkmodule.Config{
 		IPv6Address:         addr,
+		IPv4Address:         ipv4Addr,
+		LocalPeerID:         config.GetLocalPeerId(),
 		WireGuardPrivateKey: config.GetWireguardPrivateKey(),
 		Domain:              config.GetDomain(),
 	}, nil
 }
 
-func networkPeersFromProto(instances []*hostagentpb.InstancePeer, devices []*hostagentpb.DevicePeer) (networkmodule.Peers, error) {
+func networkPeersFromProto(instances []*hostagentpb.InstancePeer, devices []*hostagentpb.DevicePeer, exitRoutes []*hostagentpb.ExitRoute) (networkmodule.Peers, error) {
 	peers := networkmodule.Peers{
-		Instances: make([]networkmodule.InstancePeer, 0, len(instances)),
-		Devices:   make([]networkmodule.DevicePeer, 0, len(devices)),
+		Instances:  make([]networkmodule.InstancePeer, 0, len(instances)),
+		Devices:    make([]networkmodule.DevicePeer, 0, len(devices)),
+		ExitRoutes: make([]networkmodule.ExitRoute, 0, len(exitRoutes)),
 	}
 
 	for _, instance := range instances {
+		ipv4Addr := netip.Addr{}
+		if instance.GetIpv4Address() != "" {
+			addr, err := netip.ParseAddr(instance.GetIpv4Address())
+			if err != nil {
+				return networkmodule.Peers{}, fmt.Errorf("invalid IPv4 address %q for instance peer %q: %w", instance.GetIpv4Address(), instance.GetName(), err)
+			}
+			ipv4Addr = addr
+		}
 		routes := make([]netip.Addr, 0, len(instance.GetRoutes()))
 		for _, route := range instance.GetRoutes() {
 			addr, err := netip.ParseAddr(route)
@@ -392,18 +535,38 @@ func networkPeersFromProto(instances []*hostagentpb.InstancePeer, devices []*hos
 			routes = append(routes, addr)
 		}
 		peers.Instances = append(peers.Instances, networkmodule.InstancePeer{
-			ID:        instance.GetId(),
-			Name:      instance.GetName(),
-			PublicKey: instance.GetPublicKey(),
-			PublicIP:  instance.GetPublicIp(),
-			Routes:    routes,
+			ID:          instance.GetId(),
+			Name:        instance.GetName(),
+			PublicKey:   instance.GetPublicKey(),
+			PublicIP:    instance.GetPublicIp(),
+			IPv4Address: ipv4Addr,
+			Routes:      routes,
 		})
 	}
 
 	for _, device := range devices {
+		ipv4Addr := netip.Addr{}
+		if device.GetIpv4Address() != "" {
+			addr, err := netip.ParseAddr(device.GetIpv4Address())
+			if err != nil {
+				return networkmodule.Peers{}, fmt.Errorf("invalid IPv4 address %q for device peer %q: %w", device.GetIpv4Address(), device.GetName(), err)
+			}
+			ipv4Addr = addr
+		}
 		peers.Devices = append(peers.Devices, networkmodule.DevicePeer{
-			Name:      device.GetName(),
-			PublicKey: device.GetPublicKey(),
+			ID:          device.GetId(),
+			Name:        device.GetName(),
+			PublicKey:   device.GetPublicKey(),
+			IPv4Address: ipv4Addr,
+		})
+	}
+
+	for _, route := range exitRoutes {
+		peers.ExitRoutes = append(peers.ExitRoutes, networkmodule.ExitRoute{
+			ID:         route.GetId(),
+			DeviceID:   route.GetDeviceId(),
+			InstanceID: route.GetInstanceId(),
+			CIDRs:      route.GetCidrs(),
 		})
 	}
 

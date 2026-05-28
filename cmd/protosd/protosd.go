@@ -6,7 +6,7 @@ import (
 	"github.com/protosio/protos/internal/protosd"
 	"github.com/protosio/protos/internal/util"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/sirupsen/logrus"
 	cli "github.com/urfave/cli/v2"
 )

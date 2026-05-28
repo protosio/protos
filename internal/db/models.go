@@ -68,3 +68,13 @@ type PEER struct {
 	sq.TableStruct `sq:"peers"`
 	ID             sq.StringField `ddl:"notnull primarykey"`
 }
+
+type EXIT_ROUTE struct {
+	sq.TableStruct `sq:"exit_routes"`
+	ID             sq.StringField `ddl:"notnull primarykey"`
+	DEVICE_ID      sq.StringField `ddl:"notnull index"`
+	INSTANCE_ID    sq.StringField `ddl:"notnull index"`
+	DESIRED_STATUS sq.StringField `ddl:"notnull"`
+	DNS_SERVER     sq.StringField `ddl:"notnull"`
+	CIDRS          sq.StringField `ddl:"notnull"`
+}

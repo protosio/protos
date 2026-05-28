@@ -334,7 +334,7 @@ func getInstanceLogs(instanceName string) error {
 
 func instanceInit(instanceName string, ipString string) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	_, err := client.InitInstance(ctx, &apic.InitInstanceRequest{Name: instanceName, Ip: ipString})
 	if err != nil {

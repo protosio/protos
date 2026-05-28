@@ -3,12 +3,13 @@
 package wireguard
 
 import (
+	"crypto/rand"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	networkmodule "github.com/protosio/protos/internal/network/module"
@@ -32,9 +33,15 @@ var _ networkmodule.NamespacedInterfaceModule = (*Module)(nil)
 
 type platformState struct {
 	linkManager wglink.Manager
+	exitGateway bool
 }
 
 func (m *Module) closePlatform() error {
+	if m.dnsManager != nil {
+		if err := m.dnsManager.Close(); err != nil {
+			return err
+		}
+	}
 	if m.linkManager == nil {
 		return nil
 	}
@@ -77,22 +84,21 @@ func diffRoutes(a []netlink.Route, b []netlink.Route) ([]netlink.Route, []netlin
 	return extraA, extraB
 }
 
-func diffManagedRoutes(existingRoutes []netlink.Route, desiredRoutes []netlink.Route, localIP net.IP) ([]netlink.Route, []netlink.Route) {
-	return diffRoutes(managedWireGuardRoutes(existingRoutes, localIP), desiredRoutes)
+func diffManagedRoutes(existingRoutes []netlink.Route, desiredRoutes []netlink.Route, localIPv6 net.IP, localIPv4 net.IP) ([]netlink.Route, []netlink.Route) {
+	return diffRoutes(managedWireGuardRoutes(existingRoutes, localIPv6, localIPv4), desiredRoutes)
 }
 
-func managedWireGuardRoutes(routes []netlink.Route, localIP net.IP) []netlink.Route {
+func managedWireGuardRoutes(routes []netlink.Route, localIPv6 net.IP, localIPv4 net.IP) []netlink.Route {
 	managed := make([]netlink.Route, 0, len(routes))
 	for _, route := range routes {
 		if route.Dst == nil || route.Dst.IP == nil {
 			continue
 		}
 		ip := route.Dst.IP
-		if ip.Equal(localIP) || ip.To4() != nil || !ip.IsGlobalUnicast() {
+		if localIPv6 != nil && ip.Equal(localIPv6) {
 			continue
 		}
-		ones, bits := route.Dst.Mask.Size()
-		if bits != net.IPv6len*8 || ones != bits {
+		if localIPv4 != nil && ip.Equal(localIPv4) {
 			continue
 		}
 		managed = append(managed, route)
@@ -217,6 +223,9 @@ func configureBridgeGateway(bridge netlink.Link) error {
 }
 
 func (m *Module) Down() error {
+	if err := m.syncExitGateway(nil); err != nil {
+		log.Warnf("failed to disable exit gateway rules: %v", err)
+	}
 	err := m.linkManager.DelLink(wireguardNetworkInterfaceName)
 	if err != nil {
 		if !strings.Contains(err.Error(), "no such network interface") {
@@ -263,6 +272,11 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 	relayAllowedIPs := []net.IPNet{}
 	var relayEndpoint *net.UDPAddr
 	relayLocalMacOSPeers := localMacOSNATAttached()
+	exitGatewayRoutesByDevice, err := exitGatewayRouteCIDRsByDevice(config, peerSet)
+	if err != nil {
+		return fmt.Errorf("failed to resolve exit gateway routes: %w", err)
+	}
+	exitGatewayRoutes := []exitGatewayRoute{}
 	if len(peerSet.Devices) == 0 {
 		log.Debug("Configuring WireGuard with zero user device peers; stale peers and routes will be removed")
 	}
@@ -358,6 +372,28 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 
 		instanceInternalNet := *createIPv6Net(pubKeyAddr)
 		allowedIPs := []net.IPNet{instanceInternalNet}
+		if exitCIDRs, ok := exitGatewayRoutesByDevice[userDevice.ID]; ok {
+			gatewayRoute := exitGatewayRoute{
+				deviceID:         userDevice.ID,
+				deviceName:       userDevice.Name,
+				sourceIPv6CIDR:   instanceInternalNet.String(),
+				destinationCIDRs: exitCIDRs,
+			}
+			if exitRouteCIDRsNeedIPv4(exitCIDRs) {
+				ipv4Net := ipNetFromAddr(userDevice.IPv4Address, net.IPv4len*8)
+				if ipv4Net == nil {
+					return fmt.Errorf("failed to configure exit routing for device '%s': missing tunnel IPv4 address", userDevice.Name)
+				}
+				gatewayRoute.sourceIPv4CIDR = ipv4Net.String()
+				allowedIPs = append(allowedIPs, *ipv4Net)
+				newRoutes = append(newRoutes, netlink.Route{Dst: ipv4Net, LinkIndex: lnk.Index()})
+			}
+			if gatewayRoute.sourceIPv4CIDR == "" && gatewayRoute.sourceIPv6CIDR == "" {
+				return fmt.Errorf("failed to configure exit routing for device '%s': missing tunnel address", userDevice.Name)
+			}
+			exitGatewayRoutes = append(exitGatewayRoutes, gatewayRoute)
+			log.Debugf("Allowing device %s to use this VM as an exit gateway for %s", userDevice.Name, strings.Join(exitCIDRs, ","))
+		}
 		var endpoint *net.UDPAddr
 		var keepalive *time.Duration
 		if deviceIndex == 0 && len(relayAllowedIPs) > 0 {
@@ -401,12 +437,16 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		return fmt.Errorf("failed to retrieve interface: %w", err)
 	}
 
-	existingRoutes, err := netlink.RouteList(netlinkWG, netlink.FAMILY_V6)
+	existingRoutes, err := netlink.RouteList(netlinkWG, netlink.FAMILY_ALL)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve routes: %w", err)
 	}
 
-	delRoutes, addRoutes := diffManagedRoutes(existingRoutes, newRoutes, config.IPv6Address.AsSlice())
+	var localIPv4 net.IP
+	if config.IPv4Address.IsValid() {
+		localIPv4 = config.IPv4Address.AsSlice()
+	}
+	delRoutes, addRoutes := diffManagedRoutes(existingRoutes, newRoutes, config.IPv6Address.AsSlice(), localIPv4)
 
 	for _, route := range addRoutes {
 		route.LinkIndex = netlinkWG.Attrs().Index
@@ -426,6 +466,9 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 	}
 	if len(addRoutes) > 0 || len(delRoutes) > 0 {
 		log.Debugf("Reconciled WireGuard routes on %s: added=%d deleted=%d desired=%d", wireguardNetworkInterfaceName, len(addRoutes), len(delRoutes), len(newRoutes))
+	}
+	if err := m.syncExitGateway(exitGatewayRoutes); err != nil {
+		return err
 	}
 	return nil
 }
@@ -551,6 +594,125 @@ func routeString(route netlink.Route) string {
 	return route.Dst.String()
 }
 
+func (m *Module) syncExitGateway(routes []exitGatewayRoute) error {
+	if len(routes) > 0 {
+		if err := ensureExitGatewayRules(routes); err != nil {
+			return err
+		}
+		m.exitGateway = true
+		return nil
+	}
+	if err := deleteExitGatewayRules(); err != nil {
+		return err
+	}
+	m.exitGateway = false
+	return nil
+}
+
+func ensureExitGatewayRules(routes []exitGatewayRoute) error {
+	v4Iface, _ := defaultRouteInterface(netlink.FAMILY_V4)
+	v6Iface, _ := defaultRouteInterface(netlink.FAMILY_V6)
+	if v4Iface == "" && v6Iface == "" {
+		return fmt.Errorf("failed to find a default route interface for exit gateway")
+	}
+	return replaceExitGatewayRules(routes, v4Iface, v6Iface)
+}
+
+func deleteExitGatewayRules() error {
+	return clearExitGatewayRules()
+}
+
+func defaultRouteInterface(family int) (string, error) {
+	routes, err := netlink.RouteList(nil, family)
+	if err == nil {
+		if name := defaultRouteInterfaceFromRoutes(routes); name != "" {
+			return name, nil
+		}
+	}
+	if name := defaultRouteInterfaceFromProc(family); name != "" {
+		return name, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("default route not found")
+}
+
+func defaultRouteInterfaceFromRoutes(routes []netlink.Route) string {
+	for _, route := range routes {
+		if !isDefaultRouteDst(route.Dst) {
+			continue
+		}
+		link, err := netlink.LinkByIndex(route.LinkIndex)
+		if err != nil {
+			continue
+		}
+		if link.Attrs().Name == wireguardNetworkInterfaceName {
+			continue
+		}
+		return link.Attrs().Name
+	}
+	return ""
+}
+
+func isDefaultRouteDst(dst *net.IPNet) bool {
+	if dst == nil {
+		return true
+	}
+	ones, _ := dst.Mask.Size()
+	return ones == 0
+}
+
+func defaultRouteInterfaceFromProc(family int) string {
+	switch family {
+	case netlink.FAMILY_V4:
+		data, err := os.ReadFile("/proc/net/route")
+		if err != nil {
+			return ""
+		}
+		return parseProcDefaultRoute(data, false)
+	case netlink.FAMILY_V6:
+		data, err := os.ReadFile("/proc/net/ipv6_route")
+		if err != nil {
+			return ""
+		}
+		return parseProcDefaultRoute(data, true)
+	default:
+		return ""
+	}
+}
+
+func parseProcDefaultRoute(data []byte, ipv6 bool) string {
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || fields[0] == "Iface" {
+			continue
+		}
+		if ipv6 {
+			if len(fields) < 10 {
+				continue
+			}
+			if fields[0] != strings.Repeat("0", 32) || fields[1] != "00000000" {
+				continue
+			}
+			if fields[9] != wireguardNetworkInterfaceName {
+				return fields[9]
+			}
+			continue
+		}
+		if len(fields) < 2 {
+			continue
+		}
+		if fields[1] != "00000000" {
+			continue
+		}
+		if fields[0] != wireguardNetworkInterfaceName {
+			return fields[0]
+		}
+	}
+	return ""
+}
+
 func shortWireGuardKey(key wgtypes.Key) string {
 	value := key.String()
 	if len(value) <= 12 {
@@ -632,15 +794,15 @@ func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSpat
 			return fmt.Errorf("failed to inspect interface %q: %w", name, err)
 		}
 
-		hostVeth, containerVeth, err := ip.SetupVeth(name, netBridge.MTU, "", hostNS)
+		hostVethName, containerVethName, err := setupVeth(name, netBridge.MTU, hostNS)
 		if err != nil {
 			return err
 		}
-		hostIfaceName = hostVeth.Name
+		hostIfaceName = hostVethName
 
-		link, err = netlink.LinkByName(containerVeth.Name)
+		link, err = netlink.LinkByName(containerVethName)
 		if err != nil {
-			return fmt.Errorf("failed to find interface %q: %w", containerVeth.Name, err)
+			return fmt.Errorf("failed to find interface %q: %w", containerVethName, err)
 		}
 
 		return configureNamespacedLink(link, config, IP)
@@ -675,6 +837,61 @@ func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSpat
 		return fmt.Errorf("failed to connect %q to bridge %v: %w", hostVeth.Attrs().Name, netBridge.Attrs().Name, err)
 	}
 	return nil
+}
+
+func setupVeth(containerIfaceName string, mtu int, hostNS ns.NetNS) (string, string, error) {
+	var lastErr error
+	for i := 0; i < 10; i++ {
+		hostIfaceName, err := randomVethName()
+		if err != nil {
+			return "", "", err
+		}
+		linkAttrs := netlink.NewLinkAttrs()
+		linkAttrs.Name = containerIfaceName
+		linkAttrs.MTU = mtu
+		veth := &netlink.Veth{
+			LinkAttrs:     linkAttrs,
+			PeerName:      hostIfaceName,
+			PeerNamespace: netlink.NsFd(int(hostNS.Fd())),
+		}
+		if err := netlink.LinkAdd(veth); err != nil {
+			lastErr = err
+			if os.IsExist(err) {
+				continue
+			}
+			return "", "", fmt.Errorf("failed to create veth pair %s/%s: %w", containerIfaceName, hostIfaceName, err)
+		}
+
+		containerVeth, err := netlink.LinkByName(containerIfaceName)
+		if err != nil {
+			_ = netlink.LinkDel(veth)
+			return "", "", fmt.Errorf("failed to find container veth %q: %w", containerIfaceName, err)
+		}
+		if err := hostNS.Do(func(_ ns.NetNS) error {
+			hostVeth, err := netlink.LinkByName(hostIfaceName)
+			if err != nil {
+				return fmt.Errorf("failed to find host veth %q: %w", hostIfaceName, err)
+			}
+			if err := netlink.LinkSetUp(hostVeth); err != nil {
+				return fmt.Errorf("failed to bring host veth %q up: %w", hostIfaceName, err)
+			}
+			_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv6/conf/%s/accept_ra", hostIfaceName), "0")
+			return nil
+		}); err != nil {
+			_ = netlink.LinkDel(containerVeth)
+			return "", "", err
+		}
+		return hostIfaceName, containerVeth.Attrs().Name, nil
+	}
+	return "", "", fmt.Errorf("failed to find a unique veth name: %w", lastErr)
+}
+
+func randomVethName() (string, error) {
+	entropy := make([]byte, 4)
+	if _, err := rand.Read(entropy); err != nil {
+		return "", fmt.Errorf("failed to generate veth name: %w", err)
+	}
+	return fmt.Sprintf("veth%x", entropy), nil
 }
 
 func configureNamespacedLink(link netlink.Link, config networkmodule.Config, IP net.IP) error {

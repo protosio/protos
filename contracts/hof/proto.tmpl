@@ -9,7 +9,7 @@ option go_package = "{{ .proto.go_package }}";
 {{ range .proto.services }}
 service {{ .name }} {
 {{- range .rpcs }}
-  rpc {{ .name }}({{ .request }}) returns ({{ .response }}) {}
+  rpc {{ .name }}({{ if .request_stream }}stream {{ end }}{{ .request }}) returns ({{ if .response_stream }}stream {{ end }}{{ .response }}) {}
 {{- end }}
 }
 {{ end -}}

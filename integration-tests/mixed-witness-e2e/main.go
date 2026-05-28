@@ -14,7 +14,7 @@ import (
 
 	"flag"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	protosapp "github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -66,7 +66,7 @@ func main() {
 	timeout := flag.Duration("timeout", 45*time.Minute, "overall verification timeout")
 	imageUploadTimeout := flag.Duration("image-upload-timeout", 30*time.Minute, "per-provider cloud image upload timeout")
 	localMachine := flag.String("local-machine", "vz-2c-2g", "local macOS machine type")
-	hetznerImage := flag.String("hetzner-image", "provisioner-images/targets/output/hetzner/hetzner-efi-fat16.img", "Hetzner FAT16 EFI disk image to upload")
+	hetznerImage := flag.String("hetzner-image", "provisioner-images/targets/output/hetzner/hetzner-bios.img", "Hetzner BIOS disk image to upload")
 	hetznerMachine := flag.String("hetzner-machine", "cpx22", "Hetzner machine type")
 	hetznerLocation := flag.String("hetzner-location", "hel1", "Hetzner location")
 	hetznerEnv := flag.String("hetzner-env", ".env-hetzner", "Hetzner credential env file")
@@ -130,7 +130,7 @@ func run(cfg harnessConfig) error {
 	if err != nil {
 		return err
 	}
-	hetznerImagePath, err := uploadImagePath(cfg.hetznerImage, "hetzner-efi-fat16.img")
+	hetznerImagePath, err := uploadImagePath(cfg.hetznerImage, "hetzner-bios.img")
 	if err != nil {
 		return fmt.Errorf("resolve Hetzner image: %w", err)
 	}
@@ -197,7 +197,7 @@ func run(cfg harnessConfig) error {
 			return fmt.Errorf("initialize network manager through protos-hostagent: %w", err)
 		}
 		defer func() {
-			_ = networkManager.ConfigurePeers(nil, nil, nil)
+			_ = networkManager.ConfigurePeers(nil, nil, nil, nil)
 			_ = networkManager.Close()
 		}()
 	}
@@ -712,7 +712,7 @@ func reconcileTopology(
 		if err != nil {
 			return nil, nil, fmt.Errorf("load app routes: %w", err)
 		}
-		if err := networkManager.ConfigurePeers(instances, devices, routes); err != nil {
+		if err := networkManager.ConfigurePeers(instances, devices, routes, nil); err != nil {
 			return nil, nil, fmt.Errorf("configure network peers: %w", err)
 		}
 	}

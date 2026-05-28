@@ -63,12 +63,15 @@ message NetworkDesiredState {
   repeated DevicePeer devices = 4;
   repeated NamespacedInterface namespaced_interfaces = 5;
   bool reconcile_peers = 6;
+  repeated ExitRoute exit_routes = 7;
 }
 
 message NetworkConfig {
   string ipv6_address = 1;
   string wireguard_private_key = 2;
   string domain = 3;
+  string ipv4_address = 4;
+  string local_peer_id = 5;
 }
 
 message InstancePeer {
@@ -77,11 +80,14 @@ message InstancePeer {
   string public_key = 3;
   string public_ip = 4;
   repeated string routes = 5;
+  string ipv4_address = 6;
 }
 
 message DevicePeer {
   string name = 1;
   string public_key = 2;
+  string id = 3;
+  string ipv4_address = 4;
 }
 
 message NamespacedInterface {
@@ -89,8 +95,97 @@ message NamespacedInterface {
   string ip = 2;
 }
 
+message ExitRoute {
+  string id = 1;
+  string device_id = 2;
+  string instance_id = 3;
+  repeated string cidrs = 4;
+}
+
 message NetworkObservedState {
   string module = 1;
   bool up = 2;
   string message = 3;
+  NetworkState state = 4;
+}
+
+message NetworkState {
+  string module = 1;
+  bool up = 2;
+  string interface_name = 3;
+  repeated NetworkAddress addresses = 4;
+  repeated NetworkRoute routes = 5;
+  repeated WireGuardPeer wireguard_peers = 6;
+  repeated FirewallTable firewall_tables = 7;
+  repeated DNSState dns = 8;
+  repeated string messages = 9;
+  repeated NetworkInterface interfaces = 10;
+}
+
+message NetworkInterface {
+  string name = 1;
+  string type = 2;
+  int32 index = 3;
+  int32 mtu = 4;
+  bool up = 5;
+  string master = 6;
+  string mac_address = 7;
+  string kind = 8;
+}
+
+message NetworkAddress {
+  string interface_name = 1;
+  string cidr = 2;
+  string scope = 3;
+}
+
+message NetworkRoute {
+  string interface_name = 1;
+  string destination = 2;
+  string gateway = 3;
+  string source = 4;
+  string family = 5;
+  string table = 6;
+  string protocol = 7;
+  string scope = 8;
+  string priority = 9;
+  string kind = 10;
+}
+
+message WireGuardPeer {
+  string public_key = 1;
+  string endpoint = 2;
+  repeated string allowed_ips = 3;
+  string latest_handshake = 4;
+  uint64 rx_bytes = 5;
+  uint64 tx_bytes = 6;
+}
+
+message FirewallTable {
+  string family = 1;
+  string name = 2;
+  repeated FirewallChain chains = 3;
+}
+
+message FirewallChain {
+  string name = 1;
+  string type = 2;
+  string hook = 3;
+  string priority = 4;
+  repeated FirewallRule rules = 5;
+}
+
+message FirewallRule {
+  repeated string expressions = 1;
+  uint64 packets = 2;
+  uint64 bytes = 3;
+}
+
+message DNSState {
+  string scope = 1;
+  string domain = 2;
+  repeated string servers = 3;
+  int32 port = 4;
+  bool active = 5;
+  string source = 6;
 }

@@ -64,3 +64,16 @@ CREATE INDEX user_devices_metadata_user_id_idx ON user_devices_metadata (user_id
 CREATE TABLE peers (
     id VARCHAR(255) NOT NULL PRIMARY KEY
 );
+
+CREATE TABLE exit_routes (
+    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    device_id VARCHAR(255) NOT NULL,
+    instance_id VARCHAR(255) NOT NULL,
+    desired_status VARCHAR(255) NOT NULL,
+    dns_server VARCHAR(255) NOT NULL,
+    cidrs TEXT NOT NULL
+);
+
+CREATE INDEX exit_routes_device_id_idx ON exit_routes (device_id);
+
+CREATE INDEX exit_routes_instance_id_idx ON exit_routes (instance_id);
