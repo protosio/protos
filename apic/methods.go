@@ -5,9 +5,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/netip"
+	"sort"
+	"strings"
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/network"
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
@@ -484,14 +487,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			log.Error(err.Error())
 		}
 
-		cloudName := "local"
-		if instance.Kind == provisioners.KindCloudVM {
-			provider, err := b.protosClient.CloudManager.GetProvider(instance.KindID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to retrieve cloud provider: %w", err)
-			}
-			cloudName = provider.NameStr()
-		}
+		cloudName, cloudType := b.instanceProvisionerLabels(instance)
 		respInstance := pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
@@ -503,6 +499,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 			Architecture:       instance.Architecture,
 			Status:             instance.Status,
 			CloudName:          cloudName,
+			CloudType:          cloudType,
 		}
 		resp.Instances = append(resp.Instances, &respInstance)
 	}
@@ -553,6 +550,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		}
 	}
 
+	cloudName, cloudType := b.instanceProvisionerLabels(instance)
 	resp := pbApic.GetInstanceResponse{
 		Instance: &pbApic.CloudInstance{
 			Name:               instance.Name,
@@ -564,6 +562,8 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 			PublicKeyWireguard: wgPublicKey.String(),
 			Status:             status,
 			Architecture:       instance.Architecture,
+			CloudName:          cloudName,
+			CloudType:          cloudType,
 			Peers:              peers,
 		},
 	}
@@ -628,6 +628,22 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 	}
 
 	return &resp, nil
+}
+
+func (b *Backend) instanceProvisionerLabels(instance provisioners.InstanceInfo) (string, string) {
+	provisionerName := strings.TrimSpace(instance.KindID)
+	provisionerType := strings.TrimSpace(instance.Kind)
+	if provisionerName == "" || provisionerName == "local-id" {
+		provisionerName = "local"
+	}
+	if b.protosClient == nil || b.protosClient.CloudManager == nil || strings.TrimSpace(instance.KindID) == "" {
+		return provisionerName, provisionerType
+	}
+	provisioner, err := b.protosClient.CloudManager.GetProvisioner(instance.KindID)
+	if err != nil {
+		return provisionerName, provisionerType
+	}
+	return provisioner.NameStr(), provisioner.TypeStr()
 }
 
 func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceRequest) (*pbApic.RemoveInstanceResponse, error) {
@@ -1109,6 +1125,11 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 			Reason:          peerStatus.Reason,
 		})
 	}
+	peerIDs, err := db.GetPeerIDs(b.protosClient.DB)
+	if err != nil {
+		return nil, err
+	}
+	addKnownRuntimePeerStatuses(out, peerIDs)
 	compatibility, err := b.protosClient.DB.SwarmionCompatibility(ctx)
 	if err != nil {
 		return nil, err
@@ -1181,6 +1202,72 @@ func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState
 		})
 	}
 	return out
+}
+
+func addKnownRuntimePeerStatuses(out *pbApic.RuntimeState, peerIDs map[string]struct{}) {
+	if out == nil {
+		return
+	}
+	wanted := make(map[string]struct{}, len(peerIDs)+1)
+	for peerID := range peerIDs {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			wanted[peerID] = struct{}{}
+		}
+	}
+	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
+		wanted[localPeerID] = struct{}{}
+	}
+	if len(wanted) == 0 {
+		return
+	}
+
+	existing := make(map[string]struct{}, len(out.GetPeerStatuses()))
+	for _, peerStatus := range out.GetPeerStatuses() {
+		peerID := strings.TrimSpace(peerStatus.GetPeerId())
+		if peerID != "" {
+			existing[peerID] = struct{}{}
+		}
+	}
+
+	missing := make([]string, 0, len(wanted))
+	for peerID := range wanted {
+		if _, found := existing[peerID]; !found {
+			missing = append(missing, peerID)
+		}
+	}
+	sort.Strings(missing)
+	for _, peerID := range missing {
+		out.PeerStatuses = append(out.PeerStatuses, knownRuntimePeerStatus(peerID, out))
+	}
+}
+
+func knownRuntimePeerStatus(peerID string, state *pbApic.RuntimeState) *pbApic.RuntimePeerStatus {
+	isSelf := peerID == strings.TrimSpace(state.GetPeerId())
+	status := &pbApic.RuntimePeerStatus{
+		PeerId:          peerID,
+		Connected:       isSelf || stringInList(peerID, state.GetConnectedPeers()),
+		Dialable:        isSelf,
+		StateProvider:   stringInList(peerID, state.GetStateProviders()),
+		Witness:         stringInList(peerID, state.GetActiveWitnessIds()),
+		EligibleWitness: stringInList(peerID, state.GetEligibleWitnessIds()),
+		Compatible:      isSelf,
+	}
+	if isSelf {
+		status.Reason = "self"
+	} else {
+		status.Reason = "known database peer"
+	}
+	return status
+}
+
+func stringInList(value string, values []string) bool {
+	for _, item := range values {
+		if strings.TrimSpace(item) == value {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneStringMap(values map[string]string) map[string]string {
@@ -1456,73 +1543,30 @@ func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveP
 
 func (b *Backend) GetLocalCommits(ctx context.Context, in *pbApic.GetLocalCommitsRequest) (*pbApic.GetLocalCommitsResponse, error) {
 	log.Debug("Retrieving local commits")
-	finalizedCommits, err := b.protosClient.DB.GetCommits("main")
+	commits, err := b.protosClient.DB.GetCombinedCommits("main", "tentative")
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve finalized commits: %w", err)
-	}
-	tentativeCommits, err := b.protosClient.DB.GetCommits("tentative")
-	if err != nil {
-		log.Debugf("failed to retrieve tentative commits: %s", err.Error())
-		tentativeCommits = nil
-	}
-
-	type localCommitRow struct {
-		hash      string
-		committer string
-		message   string
-		states    map[string]struct{}
-	}
-	rows := map[string]*localCommitRow{}
-	order := []string{}
-	mergeCommit := func(hash, committer, message, state string) {
-		if hash == "" {
-			return
-		}
-		row, ok := rows[hash]
-		if !ok {
-			row = &localCommitRow{
-				hash:      hash,
-				committer: committer,
-				message:   message,
-				states:    map[string]struct{}{},
-			}
-			rows[hash] = row
-			order = append(order, hash)
-		}
-		row.states[state] = struct{}{}
-	}
-
-	for _, commit := range finalizedCommits {
-		mergeCommit(commit.Hash, commit.Committer, commit.Message, "finalized")
-	}
-	for _, commit := range tentativeCommits {
-		mergeCommit(commit.Hash, commit.Committer, commit.Message, "tentative")
+		return nil, fmt.Errorf("failed to retrieve local commits: %w", err)
 	}
 
 	resp := pbApic.GetLocalCommitsResponse{}
-	for _, hash := range order {
-		commit := rows[hash]
-		respCommit := pbApic.Commit{
-			Hash:      commit.hash,
-			Committer: commit.committer,
-			Message:   commit.message,
-			States:    commitStates(commit.states),
-		}
-		resp.Commits = append(resp.Commits, &respCommit)
+	for _, commit := range commits {
+		resp.Commits = append(resp.Commits, commitViewToProto(commit))
 	}
 
 	return &resp, nil
 }
 
-func commitStates(states map[string]struct{}) []string {
-	out := []string{}
-	if _, ok := states["finalized"]; ok {
-		out = append(out, "finalized")
+func commitViewToProto(commit db.CommitView) *pbApic.Commit {
+	resp := &pbApic.Commit{
+		Hash:      commit.Hash,
+		Committer: commit.Committer,
+		Message:   commit.Message,
+		States:    append([]string(nil), commit.States...),
 	}
-	if _, ok := states["tentative"]; ok {
-		out = append(out, "tentative")
+	if !commit.Date.IsZero() {
+		resp.DateUnix = commit.Date.Unix()
 	}
-	return out
+	return resp
 }
 
 func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteCommitsRequest) (*pbApic.GetRemoteCommitsResponse, error) {
@@ -1544,9 +1588,38 @@ func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteComm
 			Hash:      commit.Hash,
 			Committer: commit.Committer,
 			Message:   commit.Message,
+			States:    []string{db.CommitStateFinalized},
 		}
 		resp.Commits = append(resp.Commits, &respCommit)
 	}
 
 	return &resp, nil
+}
+
+func (b *Backend) ExecuteSql(ctx context.Context, in *pbApic.ExecuteSqlRequest) (*pbApic.ExecuteSqlResponse, error) {
+	log.Debug("Executing SQL from client API")
+	if b.protosClient == nil || b.protosClient.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	result, err := b.protosClient.DB.ExecuteSQL(ctx, in.GetSql(), int(in.GetMaxRows()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute SQL: %w", err)
+	}
+	resp := &pbApic.ExecuteSqlResponse{
+		Columns:      append([]string(nil), result.Columns...),
+		RowsAffected: result.RowsAffected,
+		Truncated:    result.Truncated,
+		Message:      result.Message,
+	}
+	for _, row := range result.Rows {
+		respRow := &pbApic.SqlRow{Cells: make([]*pbApic.SqlCell, 0, len(row.Cells))}
+		for _, cell := range row.Cells {
+			respRow.Cells = append(respRow.Cells, &pbApic.SqlCell{
+				Value:  cell.Value,
+				IsNull: cell.Null,
+			})
+		}
+		resp.Rows = append(resp.Rows, respRow)
+	}
+	return resp, nil
 }

@@ -4,9 +4,11 @@ package localmacos
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -39,13 +41,12 @@ const (
 	localMacOSMetadataISO   = "metadata.iso"
 	localMacOSManifestFile  = "manifest.json"
 	localMacOSConsoleLog    = "console.log"
+	localMacOSDiagMaxBytes  = 8192
 
-	localMacOSNetworkInterface  = "eth0"
-	localMacOSNetworkCIDR       = "192.168.64.0/24"
-	localMacOSNetworkGateway    = "192.168.64.1"
-	localMacOSNetworkPrefix     = 24
-	localMacOSStaticIPRangeFrom = 128
-	localMacOSStaticIPRangeTo   = 254
+	localMacOSNetworkInterface    = "eth0"
+	localMacOSNATBridgeInterface  = "bridge100"
+	localMacOSFallbackNetworkCIDR = "192.168.64.0/24"
+	localMacOSFallbackGateway     = "192.168.64.1"
 )
 
 var localMacOSAuthFields = []string{}
@@ -118,6 +119,12 @@ type localMacOSInstanceManifest struct {
 	MetadataISO  string                     `json:"metadata_iso,omitempty"`
 	Network      localMacOSNetworkManifest  `json:"network,omitempty"`
 	Volumes      []localMacOSAttachedVolume `json:"volumes,omitempty"`
+}
+
+type localMacOSNATNetwork struct {
+	Gateway      net.IP
+	Network      *net.IPNet
+	PrefixLength int
 }
 
 type localMacOSImageSource struct {
@@ -480,6 +487,28 @@ func (lm *localMacOS) GetInstanceInfo(id string, location string) (provisioners.
 	return info, nil
 }
 
+func (lm *localMacOS) DeploymentDiagnostics(id string, location string) (string, error) {
+	if err := validateLocalMacOSLocation(location); err != nil {
+		return "", err
+	}
+	manifest, err := lm.readInstanceManifestByIDOrName(id)
+	if err != nil {
+		return "", err
+	}
+	lines := []string{
+		fmt.Sprintf("image: %s", firstNonEmptyLocalMacOSString(manifest.ImageID, "unknown")),
+		fmt.Sprintf("network: %s/%d via %s", firstNonEmptyLocalMacOSString(manifest.Network.IPAddress, "unknown"), manifest.Network.PrefixLength, firstNonEmptyLocalMacOSString(manifest.Network.Gateway, "unknown")),
+		fmt.Sprintf("mac: %s", firstNonEmptyLocalMacOSString(manifest.MACAddress, "unknown")),
+	}
+	data, err := os.ReadFile(filepath.Join(lm.instanceDir(manifest.ID), localMacOSConsoleLog))
+	if err != nil {
+		lines = append(lines, fmt.Sprintf("console: unavailable: %s", err.Error()))
+		return strings.Join(lines, "\n"), nil
+	}
+	lines = append(lines, "console output:", tailLocalMacOSDiagnostics(data, localMacOSDiagMaxBytes))
+	return strings.Join(lines, "\n"), nil
+}
+
 func (lm *localMacOS) ReconcileInstance(instance provisioners.InstanceInfo) (provisioners.InstanceInfo, error) {
 	ref := firstNonEmptyLocalMacOSString(instance.ProviderResourceID, instance.Name, instance.ID)
 	if ref == "" {
@@ -816,6 +845,17 @@ func removeLocalMacOSDir(path string) error {
 	return lastErr
 }
 
+func tailLocalMacOSDiagnostics(data []byte, limit int) string {
+	if limit <= 0 || len(data) <= limit {
+		return string(data)
+	}
+	data = data[len(data)-limit:]
+	if idx := bytes.IndexByte(data, '\n'); idx >= 0 && idx+1 < len(data) {
+		data = data[idx+1:]
+	}
+	return fmt.Sprintf("[last %d bytes]\n%s", limit, string(data))
+}
+
 func (lm *localMacOS) volumeManifestPath(id string) string {
 	return filepath.Join(lm.volumesDir(), id+".json")
 }
@@ -838,7 +878,16 @@ func (lm *localMacOS) getImages(protosOnly bool) (map[string]provisioners.ImageI
 			log.Warnf("failed to read local macOS image '%s': %s", entry.Name(), err.Error())
 			continue
 		}
-		images[manifest.ID] = provisioners.ImageInfo{ID: manifest.ID, Name: manifest.Name, Location: manifest.Location}
+		var updatedAt time.Time
+		if info, err := os.Stat(filepath.Join(lm.imageDir(entry.Name()), localMacOSManifestFile)); err == nil {
+			updatedAt = info.ModTime()
+		}
+		images[manifest.ID] = provisioners.ImageInfo{
+			ID:        manifest.ID,
+			Name:      manifest.Name,
+			Location:  manifest.Location,
+			UpdatedAt: updatedAt,
+		}
 	}
 	return images, nil
 }
@@ -887,41 +936,45 @@ func (lm *localMacOS) ensureNetworkManifest(manifest *localMacOSInstanceManifest
 	if manifest == nil {
 		return fmt.Errorf("local macOS VM manifest is nil")
 	}
-	if manifest.Network.IPAddress == "" {
+	natNetwork, err := localMacOSCurrentNATNetwork()
+	if err != nil {
+		return err
+	}
+	ip := net.ParseIP(strings.TrimSpace(manifest.Network.IPAddress))
+	if ip == nil || !natNetwork.Network.Contains(ip) {
 		network, err := lm.newNetworkManifest(manifest.ID)
 		if err != nil {
 			return err
 		}
 		manifest.Network = network
+	} else {
+		manifest.Network.PrefixLength = natNetwork.PrefixLength
+		manifest.Network.Gateway = natNetwork.Gateway.String()
 	}
 	if manifest.Network.Interface == "" {
 		manifest.Network.Interface = localMacOSNetworkInterface
 	}
-	if manifest.Network.PrefixLength == 0 {
-		manifest.Network.PrefixLength = localMacOSNetworkPrefix
-	}
-	if manifest.Network.Gateway == "" {
-		manifest.Network.Gateway = localMacOSNetworkGateway
-	}
 	if len(manifest.Network.DNSServers) == 0 {
 		manifest.Network.DNSServers = defaultLocalMacOSDNSServers()
 	}
-	if manifest.PublicIP == "" {
-		manifest.PublicIP = manifest.Network.IPAddress
-	}
+	manifest.PublicIP = manifest.Network.IPAddress
 	return nil
 }
 
 func (lm *localMacOS) newNetworkManifest(id string) (localMacOSNetworkManifest, error) {
-	ipAddress, err := lm.allocateStaticIPAddress(id)
+	natNetwork, err := localMacOSCurrentNATNetwork()
+	if err != nil {
+		return localMacOSNetworkManifest{}, err
+	}
+	ipAddress, err := lm.allocateStaticIPAddress(id, natNetwork)
 	if err != nil {
 		return localMacOSNetworkManifest{}, err
 	}
 	return localMacOSNetworkManifest{
 		Interface:    localMacOSNetworkInterface,
 		IPAddress:    ipAddress,
-		PrefixLength: localMacOSNetworkPrefix,
-		Gateway:      localMacOSNetworkGateway,
+		PrefixLength: natNetwork.PrefixLength,
+		Gateway:      natNetwork.Gateway.String(),
 		DNSServers:   defaultLocalMacOSDNSServers(),
 	}, nil
 }
@@ -973,18 +1026,71 @@ func (lm *localMacOS) findInstanceByName(name string) (localMacOSInstanceManifes
 	return localMacOSInstanceManifest{}, nil
 }
 
-func (lm *localMacOS) allocateStaticIPAddress(id string) (string, error) {
-	_, network, err := net.ParseCIDR(localMacOSNetworkCIDR)
-	if err != nil {
-		return "", err
+func localMacOSCurrentNATNetwork() (localMacOSNATNetwork, error) {
+	if observed, err := localMacOSBridgeNATNetwork(localMacOSNATBridgeInterface); err == nil {
+		return observed, nil
+	} else {
+		log.Debugf("failed to inspect local macOS NAT bridge '%s': %s", localMacOSNATBridgeInterface, err.Error())
 	}
-	base := network.IP.To4()
-	if base == nil {
-		return "", fmt.Errorf("local macOS network %s is not IPv4", localMacOSNetworkCIDR)
-	}
+	return localMacOSFallbackNATNetwork()
+}
 
+func localMacOSBridgeNATNetwork(name string) (localMacOSNATNetwork, error) {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return localMacOSNATNetwork{}, err
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return localMacOSNATNetwork{}, err
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok || ipNet == nil {
+			continue
+		}
+		gateway := ipNet.IP.To4()
+		if gateway == nil {
+			continue
+		}
+		prefix, bits := ipNet.Mask.Size()
+		if bits != 32 || prefix <= 0 || prefix >= 31 {
+			continue
+		}
+		networkIP := append(net.IP(nil), gateway...)
+		networkIP = networkIP.Mask(ipNet.Mask)
+		return localMacOSNATNetwork{
+			Gateway:      append(net.IP(nil), gateway...),
+			Network:      &net.IPNet{IP: networkIP, Mask: append(net.IPMask(nil), ipNet.Mask...)},
+			PrefixLength: prefix,
+		}, nil
+	}
+	return localMacOSNATNetwork{}, fmt.Errorf("interface has no usable IPv4 address")
+}
+
+func localMacOSFallbackNATNetwork() (localMacOSNATNetwork, error) {
+	_, network, err := net.ParseCIDR(localMacOSFallbackNetworkCIDR)
+	if err != nil {
+		return localMacOSNATNetwork{}, err
+	}
+	gateway := net.ParseIP(localMacOSFallbackGateway).To4()
+	if gateway == nil {
+		return localMacOSNATNetwork{}, fmt.Errorf("fallback gateway %q is not IPv4", localMacOSFallbackGateway)
+	}
+	prefix, bits := network.Mask.Size()
+	if bits != 32 {
+		return localMacOSNATNetwork{}, fmt.Errorf("fallback network %q is not IPv4", localMacOSFallbackNetworkCIDR)
+	}
+	return localMacOSNATNetwork{
+		Gateway:      gateway,
+		Network:      network,
+		PrefixLength: prefix,
+	}, nil
+}
+
+func (lm *localMacOS) allocateStaticIPAddress(id string, natNetwork localMacOSNATNetwork) (string, error) {
 	used := map[string]struct{}{
-		localMacOSNetworkGateway: {},
+		natNetwork.Gateway.String(): {},
 	}
 	for ip := range lm.localMacOSManifestIPs(id) {
 		used[ip] = struct{}{}
@@ -995,22 +1101,51 @@ func (lm *localMacOS) allocateStaticIPAddress(id string) (string, error) {
 	for ip := range localMacOSARPIPs() {
 		used[ip] = struct{}{}
 	}
+	return allocateLocalMacOSStaticIP(natNetwork.Network, natNetwork.Gateway, id, used)
+}
 
-	width := localMacOSStaticIPRangeTo - localMacOSStaticIPRangeFrom + 1
-	start := localMacOSStaticIPRangeFrom
+func allocateLocalMacOSStaticIP(network *net.IPNet, gateway net.IP, id string, used map[string]struct{}) (string, error) {
+	if network == nil {
+		return "", fmt.Errorf("local macOS NAT network is nil")
+	}
+	base := network.IP.To4()
+	if base == nil {
+		return "", fmt.Errorf("local macOS NAT network %s is not IPv4", network.String())
+	}
+	prefix, bits := network.Mask.Size()
+	if bits != 32 || prefix >= 31 {
+		return "", fmt.Errorf("local macOS NAT network %s has no usable static host addresses", network.String())
+	}
+	networkUint := binary.BigEndian.Uint32(base)
+	maskUint := binary.BigEndian.Uint32([]byte(network.Mask))
+	broadcastUint := networkUint | ^maskUint
+	firstUint := networkUint + 1
+	lastUint := broadcastUint - 1
+	if lastUint < firstUint {
+		return "", fmt.Errorf("local macOS NAT network %s has no usable static host addresses", network.String())
+	}
+
+	width := uint64(lastUint-firstUint) + 1
+	startOffset := (width * 3) / 4
 	if id != "" {
 		hash := sha256.Sum256([]byte(id))
-		start += int(hash[0]) % width
+		startOffset = (startOffset + uint64(binary.BigEndian.Uint16(hash[:2]))) % width
 	}
-	for offset := 0; offset < width; offset++ {
-		host := localMacOSStaticIPRangeFrom + ((start - localMacOSStaticIPRangeFrom + offset) % width)
-		ip := net.IPv4(base[0], base[1], base[2], byte(host)).String()
+	gatewayIP := gateway.To4()
+	for offset := uint64(0); offset < width; offset++ {
+		ipUint := firstUint + uint32((startOffset+offset)%width)
+		ipBytes := make(net.IP, net.IPv4len)
+		binary.BigEndian.PutUint32(ipBytes, ipUint)
+		ip := ipBytes.String()
 		if _, found := used[ip]; found {
+			continue
+		}
+		if gatewayIP != nil && ipBytes.Equal(gatewayIP) {
 			continue
 		}
 		return ip, nil
 	}
-	return "", fmt.Errorf("no free local macOS static IPs in %s host range %d-%d", localMacOSNetworkCIDR, localMacOSStaticIPRangeFrom, localMacOSStaticIPRangeTo)
+	return "", fmt.Errorf("no free local macOS static IPs in %s", network.String())
 }
 
 func (lm *localMacOS) localMacOSManifestIPs(excludeID string) map[string]struct{} {

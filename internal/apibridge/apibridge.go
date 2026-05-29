@@ -3,6 +3,7 @@ package apibridge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -135,7 +137,7 @@ func (b *Bridge) Call(ctx context.Context, method string, request []byte) ([]byt
 		return nil, fmt.Errorf("bridge is stopped")
 	}
 	if err := conn.Invoke(ctx, fullMethod, req, resp); err != nil {
-		return nil, err
+		return nil, bridgeUserError(err)
 	}
 	encoded, err := proto.Marshal(resp)
 	if err != nil {
@@ -168,7 +170,7 @@ func (b *Bridge) WatchChanges(ctx context.Context, request []byte, emit func([]b
 
 	stream, err := pbApic.NewProtosClientApiClient(conn).WatchChanges(ctx, &req)
 	if err != nil {
-		return err
+		return bridgeUserError(err)
 	}
 	for {
 		resp, err := stream.Recv()
@@ -176,7 +178,7 @@ func (b *Bridge) WatchChanges(ctx context.Context, request []byte, emit func([]b
 			if err == io.EOF || ctx.Err() != nil {
 				return nil
 			}
-			return err
+			return bridgeUserError(err)
 		}
 		encoded, err := proto.Marshal(resp)
 		if err != nil {
@@ -186,6 +188,21 @@ func (b *Bridge) WatchChanges(ctx context.Context, request []byte, emit func([]b
 			return nil
 		}
 	}
+}
+
+func bridgeUserError(err error) error {
+	if err == nil {
+		return nil
+	}
+	st, ok := grpcstatus.FromError(err)
+	if !ok {
+		return err
+	}
+	message := strings.TrimSpace(st.Message())
+	if message == "" {
+		return err
+	}
+	return errors.New(message)
 }
 
 func (b *Bridge) Stop() error {

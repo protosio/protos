@@ -193,9 +193,56 @@ func (cm *Manager) GetProvisioner(id string) (Provisioner, error) {
 	return provisioner, nil
 }
 
+// GetProvisionerOrDefault returns a configured provisioner or a transient
+// zero-auth built-in provisioner such as local_macos.
+func (cm *Manager) GetProvisionerOrDefault(id string) (Provisioner, error) {
+	provisioner, err := cm.GetProvisioner(id)
+	if err == nil {
+		return provisioner, nil
+	}
+	defaultProvisioner, defaultErr := cm.newDefaultProvisioner(id)
+	if defaultErr != nil {
+		return nil, err
+	}
+	return defaultProvisioner, nil
+}
+
 // GetProvider returns a cloud provider instance from the db.
 func (cm *Manager) GetProvider(id string) (ProviderClient, error) {
 	return cm.GetProvisioner(id)
+}
+
+func (cm *Manager) newDefaultProvisioner(id string) (Provisioner, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, fmt.Errorf("provisioner id is empty")
+	}
+	factory, found := cm.provisioners.factory(Type(id))
+	if !found {
+		return nil, fmt.Errorf("provisioner '%s' not supported", id)
+	}
+	if len(factory.AuthFields()) > 0 {
+		return nil, fmt.Errorf("provisioner '%s' requires credentials", id)
+	}
+	return cm.newProvisioner(newProvisionerRecord(id, Type(id), nil))
+}
+
+func (cm *Manager) ensureProviderForDeployment(id string) (Provisioner, error) {
+	provisioner, err := cm.GetProvider(id)
+	if err == nil {
+		return provisioner, nil
+	}
+	defaultProvisioner, defaultErr := cm.newDefaultProvisioner(id)
+	if defaultErr != nil {
+		return nil, err
+	}
+	if err := defaultProvisioner.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize default provisioner '%s': %w", id, err)
+	}
+	if err := cm.saveProviderRecord(defaultProvisioner.ProviderRecord()); err != nil {
+		return nil, fmt.Errorf("failed to save default provisioner '%s': %w", id, err)
+	}
+	return defaultProvisioner, nil
 }
 
 // DeleteProvisioner deletes a provisioner from the db.
@@ -319,7 +366,7 @@ func (cm *Manager) findProviderRecordsByID(id string) ([]ProviderRecord, error) 
 // DeployInstance deploys an instance on the provided cloud
 func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, err error) {
 	// init cloud
-	provider, err := cm.GetProvider(cloudName)
+	provider, err := cm.ensureProviderForDeployment(cloudName)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
 	}
@@ -475,7 +522,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	// wait for port 22 to be open
 	err = util.WaitForPort(instanceInfo.PublicIP, "22", 60)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to deploy instance: %w", err)
+		return InstanceInfo{}, deploymentFailureError(computeProvider, vmID, cloudLocation, fmt.Errorf("failed to deploy instance: %w", err))
 	}
 
 	// connect via SSH
@@ -556,6 +603,23 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	log.Infof("Instance '%s' at '%s' is ready", instanceName, instanceInfo.PublicIP)
 
 	return instanceInfo, nil
+}
+
+func deploymentFailureError(provider ComputeProvisioner, id string, location string, cause error) error {
+	diagnosticsProvider, ok := provider.(DeploymentDiagnosticsProvider)
+	if !ok {
+		return cause
+	}
+	diagnostics, err := diagnosticsProvider.DeploymentDiagnostics(id, location)
+	if err != nil {
+		log.Debugf("failed to collect deployment diagnostics for '%s': %s", id, err.Error())
+		return cause
+	}
+	diagnostics = strings.TrimSpace(diagnostics)
+	if diagnostics == "" {
+		return cause
+	}
+	return fmt.Errorf("%w\n\nVM diagnostics:\n%s", cause, diagnostics)
 }
 
 func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) (err error) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/protosio/protos/internal/pcrypto"
 )
@@ -30,9 +31,10 @@ type VolumeInfo struct {
 
 // ImageInfo holds information about a cloud image used for deploying an instance
 type ImageInfo struct {
-	ID       string
-	Name     string
-	Location string
+	ID        string
+	Name      string
+	Location  string
+	UpdatedAt time.Time
 }
 
 // MachineSpec holds information about the hardware characteristics of vm or baremetal instance

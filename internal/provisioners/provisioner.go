@@ -110,6 +110,11 @@ type InstanceReconciler interface {
 	ReconcileInstance(InstanceInfo) (InstanceInfo, error)
 }
 
+// DeploymentDiagnosticsProvider can add provider-specific details to failed deploys.
+type DeploymentDiagnosticsProvider interface {
+	DeploymentDiagnostics(id string, location string) (string, error)
+}
+
 // ImageProvisioner manages VM images.
 type ImageProvisioner interface {
 	GetImages() (images map[string]ImageInfo, err error)

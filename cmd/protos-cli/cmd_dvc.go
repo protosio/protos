@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -57,12 +58,19 @@ func getCommits(instanceID string) error {
 
 	defer w.Flush()
 
-	fmt.Fprintf(w, " %s\t%s\t%s\t", "Hash", "Committer", "Message")
-	fmt.Fprintf(w, "\n %s\t%s\t%s\t", "---------", "---------", "-------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "State", "Hash", "Committer", "Message")
+	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "-----", "---------", "---------", "-------")
 	for _, commit := range commits {
-		fmt.Fprintf(w, "\n %s\t%s\t%s\t", commit.Hash, commit.Committer, commit.Message)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", commitStateLabel(commit), commit.Hash, commit.Committer, commit.Message)
 	}
 	fmt.Fprint(w, "\n")
 
 	return nil
+}
+
+func commitStateLabel(commit *pbApic.Commit) string {
+	if commit == nil || len(commit.States) == 0 {
+		return "unknown"
+	}
+	return strings.Join(commit.States, ",")
 }

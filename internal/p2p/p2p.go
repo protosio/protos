@@ -146,6 +146,25 @@ func (p2p *P2P) SetNetworkInspector(network NetworkInspector) {
 	p2p.network = network
 }
 
+func (p2p *P2P) PeerID() string {
+	if p2p == nil || p2p.host == nil {
+		return ""
+	}
+	return p2p.host.ID().String()
+}
+
+func (p2p *P2P) ListenAddresses() []string {
+	if p2p == nil || p2p.host == nil {
+		return nil
+	}
+	addrs := p2p.host.Addrs()
+	out := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		out = append(out, addr.String())
+	}
+	return out
+}
+
 // GetPeerID adds a peer to the p2p manager
 func (p2p *P2P) pubKeyToPeerID(pubKey string) (peer.ID, error) {
 	pubKeyBytes, err := base64.StdEncoding.DecodeString(pubKey)

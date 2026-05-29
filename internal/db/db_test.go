@@ -71,6 +71,17 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	if _, err := store.GetLastCommit("main"); err != nil {
 		t.Fatalf("get last commit: %v", err)
 	}
+
+	result, err := store.ExecuteSQL(context.Background(), "SELECT username, name FROM users WHERE username = 'alex'", 20)
+	if err != nil {
+		t.Fatalf("execute sql select: %v", err)
+	}
+	if len(result.Columns) != 2 || result.Columns[0] != "username" || result.Columns[1] != "name" {
+		t.Fatalf("columns = %v, want username/name", result.Columns)
+	}
+	if len(result.Rows) != 1 || len(result.Rows[0].Cells) != 2 || result.Rows[0].Cells[0].Value != "alex" {
+		t.Fatalf("rows = %#v, want alex row", result.Rows)
+	}
 }
 
 func TestDialableListenMultiaddrsIncludeExplicitIPs(t *testing.T) {

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -72,5 +74,12 @@ func TestBridgeCallsProtobufAPI(t *testing.T) {
 	}
 	if watchResponse.Reason != "initial" || !watchResponse.RuntimeChanged {
 		t.Fatalf("unexpected watch response: %+v", watchResponse)
+	}
+}
+
+func TestBridgeUserErrorUsesStatusMessage(t *testing.T) {
+	err := bridgeUserError(grpcstatus.Error(codes.Unknown, "failed to deploy instance: failed to connect"))
+	if got, want := err.Error(), "failed to deploy instance: failed to connect"; got != want {
+		t.Fatalf("bridgeUserError() = %q, want %q", got, want)
 	}
 }

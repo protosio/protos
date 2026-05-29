@@ -18,9 +18,14 @@ typedef struct {
 } ProtosWatchResult;
 
 typedef void (*ProtosWatchCallback)(void *context, ProtosResult result);
+typedef void (*ProtosWatchBytesCallback)(void *context, void *data, int64_t len, char *err);
 
 static inline void ProtosInvokeWatchCallback(ProtosWatchCallback callback, void *context, ProtosResult result) {
 	callback(context, result);
+}
+
+static inline void ProtosInvokeWatchBytesCallback(ProtosWatchBytesCallback callback, void *context, void *data, int64_t len, char *err) {
+	callback(context, data, len, err);
 }
 */
 import "C"
@@ -98,6 +103,38 @@ func ProtosWatchChanges(request unsafe.Pointer, requestLen C.int64_t, callbackCo
 	if callback == nil {
 		return watchErrorResult(fmt.Errorf("watch callback is required"))
 	}
+	return startWatch(request, requestLen, func(response []byte) {
+		C.ProtosInvokeWatchCallback(callback, callbackContext, bytesResult(response))
+	}, func(err error) {
+		C.ProtosInvokeWatchCallback(callback, callbackContext, errorResult(err))
+	}, func() {
+		C.ProtosInvokeWatchCallback(callback, callbackContext, C.ProtosResult{})
+	})
+}
+
+//export ProtosWatchChangesBytes
+func ProtosWatchChangesBytes(request unsafe.Pointer, requestLen C.int64_t, callbackContext unsafe.Pointer, callback C.ProtosWatchBytesCallback) C.ProtosWatchResult {
+	if callback == nil {
+		return watchErrorResult(fmt.Errorf("watch callback is required"))
+	}
+	return startWatch(request, requestLen, func(response []byte) {
+		result := bytesResult(response)
+		C.ProtosInvokeWatchBytesCallback(callback, callbackContext, result.data, result.len, result.err)
+	}, func(err error) {
+		result := errorResult(err)
+		C.ProtosInvokeWatchBytesCallback(callback, callbackContext, result.data, result.len, result.err)
+	}, func() {
+		C.ProtosInvokeWatchBytesCallback(callback, callbackContext, nil, 0, nil)
+	})
+}
+
+func startWatch(
+	request unsafe.Pointer,
+	requestLen C.int64_t,
+	emitData func([]byte),
+	emitError func(error),
+	emitDone func(),
+) C.ProtosWatchResult {
 	if requestLen < 0 {
 		return watchErrorResult(fmt.Errorf("request length cannot be negative"))
 	}
@@ -123,14 +160,14 @@ func ProtosWatchChanges(request unsafe.Pointer, requestLen C.int64_t, callbackCo
 	go func() {
 		defer unregisterWatch(id)
 		err := current.WatchChanges(ctx, payload, func(response []byte) bool {
-			C.ProtosInvokeWatchCallback(callback, callbackContext, bytesResult(response))
+			emitData(response)
 			return ctx.Err() == nil
 		})
 		if err != nil {
-			C.ProtosInvokeWatchCallback(callback, callbackContext, errorResult(err))
+			emitError(err)
 			return
 		}
-		C.ProtosInvokeWatchCallback(callback, callbackContext, C.ProtosResult{})
+		emitDone()
 	}()
 
 	return C.ProtosWatchResult{watch_id: C.int64_t(id)}

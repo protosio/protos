@@ -28,6 +28,7 @@ service ProtosClientApi {
   rpc RemoveProvisioner(RemoveProvisionerRequest) returns (RemoveProvisionerResponse) {}
   rpc GetInstances(GetInstancesRequest) returns (GetInstancesResponse) {}
   rpc GetInstance(GetInstanceRequest) returns (GetInstanceResponse) {}
+  rpc GetInstanceDeployOptions(GetInstanceDeployOptionsRequest) returns (GetInstanceDeployOptionsResponse) {}
   rpc DeployInstance(DeployInstanceRequest) returns (DeployInstanceResponse) {}
   rpc RemoveInstance(RemoveInstanceRequest) returns (RemoveInstanceResponse) {}
   rpc StartInstance(StartInstanceRequest) returns (StartInstanceResponse) {}
@@ -49,8 +50,10 @@ service ProtosClientApi {
   rpc GetProvisionerImages(GetProvisionerImagesRequest) returns (GetProvisionerImagesResponse) {}
   rpc UploadProvisionerImage(UploadProvisionerImageRequest) returns (UploadProvisionerImageResponse) {}
   rpc RemoveProvisionerImage(RemoveProvisionerImageRequest) returns (RemoveProvisionerImageResponse) {}
+  rpc GetSystemStatus(GetSystemStatusRequest) returns (GetSystemStatusResponse) {}
   rpc GetLocalCommits(GetLocalCommitsRequest) returns (GetLocalCommitsResponse) {}
   rpc GetRemoteCommits(GetRemoteCommitsRequest) returns (GetRemoteCommitsResponse) {}
+  rpc ExecuteSql(ExecuteSqlRequest) returns (ExecuteSqlResponse) {}
 }
 
 message InitRequest {
@@ -325,6 +328,32 @@ message GetInstanceRequest {
 
 message GetInstanceResponse {
   CloudInstance instance = 1;
+}
+
+message InstanceDeployFieldOption {
+  string value = 1;
+  string label = 2;
+  string description = 3;
+}
+
+message InstanceDeployField {
+  string name = 1;
+  string label = 2;
+  string kind = 3;
+  bool required = 4;
+  bool visible = 5;
+  string value = 6;
+  string helper = 7;
+  repeated InstanceDeployFieldOption options = 8;
+}
+
+message GetInstanceDeployOptionsRequest {
+  string provisioner = 1;
+  string location = 2;
+}
+
+message GetInstanceDeployOptionsResponse {
+  repeated InstanceDeployField fields = 1;
 }
 
 message DeployInstanceRequest {
@@ -672,11 +701,41 @@ message RemoveProvisionerImageRequest {
 message RemoveProvisionerImageResponse {
 }
 
+message CoreEndpoint {
+  string kind = 1;
+  string address = 2;
+  bool active = 3;
+  string message = 4;
+}
+
+message HostAgentConnectionStatus {
+  bool connected = 1;
+  string socket = 2;
+  string message = 3;
+}
+
+message SystemStatus {
+  string core_status = 1;
+  string work_dir = 2;
+  string capabilities = 3;
+  int32 p2p_port = 4;
+  repeated CoreEndpoint endpoints = 5;
+  HostAgentConnectionStatus host_agent = 6;
+}
+
+message GetSystemStatusRequest {
+}
+
+message GetSystemStatusResponse {
+  SystemStatus status = 1;
+}
+
 message Commit {
   string hash = 1;
   string committer = 2;
   string message = 3;
   repeated string states = 4;
+  int64 date_unix = 5;
 }
 
 message GetLocalCommitsRequest {
@@ -692,4 +751,26 @@ message GetRemoteCommitsRequest {
 
 message GetRemoteCommitsResponse {
   repeated Commit commits = 1;
+}
+
+message SqlCell {
+  string value = 1;
+  bool is_null = 2;
+}
+
+message SqlRow {
+  repeated SqlCell cells = 1;
+}
+
+message ExecuteSqlRequest {
+  string sql = 1;
+  int32 max_rows = 2;
+}
+
+message ExecuteSqlResponse {
+  repeated string columns = 1;
+  repeated SqlRow rows = 2;
+  int64 rows_affected = 3;
+  bool truncated = 4;
+  string message = 5;
 }

@@ -43,6 +43,9 @@ type Services struct {
 	CloudManager   *provisioners.Manager
 	P2PManager     *p2p.P2P
 	CanProvision   bool
+	WorkDir        string
+	Capabilities   string
+	P2PPort        int
 
 	InitFunc     func(username string, name string, organization string) error
 	ReleaseFetch func() (release.Releases, error)
@@ -112,7 +115,14 @@ func StartGRPCServer(dataPath string, version string, protosClient *Services) (f
 		dataPath = filepath.Join(homedir, dataPath[2:])
 	}
 
-	unixSocketFile := dataPath + "/protos.socket"
+	if err := os.MkdirAll(dataPath, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create API socket directory: %w", err)
+	}
+
+	unixSocketFile := filepath.Join(dataPath, "protos.socket")
+	if err := os.Remove(unixSocketFile); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to remove stale local socket: %w", err)
+	}
 	l, err := net.Listen("unix", unixSocketFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on local socket: %w", err)
@@ -130,6 +140,7 @@ func StartGRPCServer(dataPath string, version string, protosClient *Services) (f
 	stopper := func() error {
 		log.Info("stopping gRPC server")
 		srv.GracefulStop()
+		_ = os.Remove(unixSocketFile)
 		return nil
 	}
 	return stopper, nil

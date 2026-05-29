@@ -1,0 +1,3065 @@
+// This is a generated file - do not edit.
+//
+// Generated from apic/proto/apic.proto.
+
+// @dart = 3.3
+
+// ignore_for_file: annotate_overrides, camel_case_types, comment_references
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+// ignore_for_file: unused_import
+
+import 'dart:convert' as $convert;
+import 'dart:core' as $core;
+import 'dart:typed_data' as $typed_data;
+
+@$core.Deprecated('Use initRequestDescriptor instead')
+const InitRequest$json = {
+  '1': 'InitRequest',
+  '2': [
+    {'1': 'username', '3': 1, '4': 1, '5': 9, '10': 'username'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'organization', '3': 3, '4': 1, '5': 9, '10': 'organization'},
+  ],
+};
+
+/// Descriptor for `InitRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List initRequestDescriptor = $convert.base64Decode(
+    'CgtJbml0UmVxdWVzdBIaCgh1c2VybmFtZRgBIAEoCVIIdXNlcm5hbWUSEgoEbmFtZRgCIAEoCV'
+    'IEbmFtZRIiCgxvcmdhbml6YXRpb24YAyABKAlSDG9yZ2FuaXphdGlvbg==');
+
+@$core.Deprecated('Use initResponseDescriptor instead')
+const InitResponse$json = {
+  '1': 'InitResponse',
+};
+
+/// Descriptor for `InitResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List initResponseDescriptor =
+    $convert.base64Decode('CgxJbml0UmVzcG9uc2U=');
+
+@$core.Deprecated('Use userDeviceDescriptor instead')
+const UserDevice$json = {
+  '1': 'UserDevice',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'public_key', '3': 3, '4': 1, '5': 9, '10': 'publicKey'},
+    {
+      '1': 'public_key_wireguard',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '10': 'publicKeyWireguard'
+    },
+  ],
+};
+
+/// Descriptor for `UserDevice`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List userDeviceDescriptor = $convert.base64Decode(
+    'CgpVc2VyRGV2aWNlEg4KAmlkGAEgASgJUgJpZBISCgRuYW1lGAIgASgJUgRuYW1lEh0KCnB1Ym'
+    'xpY19rZXkYAyABKAlSCXB1YmxpY0tleRIwChRwdWJsaWNfa2V5X3dpcmVndWFyZBgEIAEoCVIS'
+    'cHVibGljS2V5V2lyZWd1YXJk');
+
+@$core.Deprecated('Use getUserDevicesRequestDescriptor instead')
+const GetUserDevicesRequest$json = {
+  '1': 'GetUserDevicesRequest',
+};
+
+/// Descriptor for `GetUserDevicesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getUserDevicesRequestDescriptor =
+    $convert.base64Decode('ChVHZXRVc2VyRGV2aWNlc1JlcXVlc3Q=');
+
+@$core.Deprecated('Use getUserDevicesResponseDescriptor instead')
+const GetUserDevicesResponse$json = {
+  '1': 'GetUserDevicesResponse',
+  '2': [
+    {
+      '1': 'devices',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.UserDevice',
+      '10': 'devices'
+    },
+  ],
+};
+
+/// Descriptor for `GetUserDevicesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getUserDevicesResponseDescriptor =
+    $convert.base64Decode(
+        'ChZHZXRVc2VyRGV2aWNlc1Jlc3BvbnNlEioKB2RldmljZXMYASADKAsyEC5hcGljLlVzZXJEZX'
+        'ZpY2VSB2RldmljZXM=');
+
+@$core.Deprecated('Use getUserInfoRequestDescriptor instead')
+const GetUserInfoRequest$json = {
+  '1': 'GetUserInfoRequest',
+};
+
+/// Descriptor for `GetUserInfoRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getUserInfoRequestDescriptor =
+    $convert.base64Decode('ChJHZXRVc2VySW5mb1JlcXVlc3Q=');
+
+@$core.Deprecated('Use getUserInfoResponseDescriptor instead')
+const GetUserInfoResponse$json = {
+  '1': 'GetUserInfoResponse',
+  '2': [
+    {'1': 'username', '3': 1, '4': 1, '5': 9, '10': 'username'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'is_admin', '3': 3, '4': 1, '5': 8, '10': 'isAdmin'},
+  ],
+};
+
+/// Descriptor for `GetUserInfoResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getUserInfoResponseDescriptor = $convert.base64Decode(
+    'ChNHZXRVc2VySW5mb1Jlc3BvbnNlEhoKCHVzZXJuYW1lGAEgASgJUgh1c2VybmFtZRISCgRuYW'
+    '1lGAIgASgJUgRuYW1lEhkKCGlzX2FkbWluGAMgASgIUgdpc0FkbWlu');
+
+@$core.Deprecated('Use getLocalSSHKeyRequestDescriptor instead')
+const GetLocalSSHKeyRequest$json = {
+  '1': 'GetLocalSSHKeyRequest',
+};
+
+/// Descriptor for `GetLocalSSHKeyRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getLocalSSHKeyRequestDescriptor =
+    $convert.base64Decode('ChVHZXRMb2NhbFNTSEtleVJlcXVlc3Q=');
+
+@$core.Deprecated('Use getLocalSSHKeyResponseDescriptor instead')
+const GetLocalSSHKeyResponse$json = {
+  '1': 'GetLocalSSHKeyResponse',
+  '2': [
+    {'1': 'public', '3': 1, '4': 1, '5': 9, '10': 'public'},
+    {'1': 'private', '3': 2, '4': 1, '5': 9, '10': 'private'},
+  ],
+};
+
+/// Descriptor for `GetLocalSSHKeyResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getLocalSSHKeyResponseDescriptor =
+    $convert.base64Decode(
+        'ChZHZXRMb2NhbFNTSEtleVJlc3BvbnNlEhYKBnB1YmxpYxgBIAEoCVIGcHVibGljEhgKB3ByaX'
+        'ZhdGUYAiABKAlSB3ByaXZhdGU=');
+
+@$core.Deprecated('Use appDescriptor instead')
+const App$json = {
+  '1': 'App',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'version', '3': 3, '4': 1, '5': 9, '10': 'version'},
+    {'1': 'status', '3': 4, '4': 1, '5': 9, '10': 'status'},
+    {'1': 'instance_name', '3': 5, '4': 1, '5': 9, '10': 'instanceName'},
+    {'1': 'ip', '3': 6, '4': 1, '5': 9, '10': 'ip'},
+    {'1': 'installer', '3': 7, '4': 1, '5': 9, '10': 'installer'},
+    {'1': 'persistence', '3': 8, '4': 1, '5': 8, '10': 'persistence'},
+  ],
+};
+
+/// Descriptor for `App`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List appDescriptor = $convert.base64Decode(
+    'CgNBcHASDgoCaWQYASABKAlSAmlkEhIKBG5hbWUYAiABKAlSBG5hbWUSGAoHdmVyc2lvbhgDIA'
+    'EoCVIHdmVyc2lvbhIWCgZzdGF0dXMYBCABKAlSBnN0YXR1cxIjCg1pbnN0YW5jZV9uYW1lGAUg'
+    'ASgJUgxpbnN0YW5jZU5hbWUSDgoCaXAYBiABKAlSAmlwEhwKCWluc3RhbGxlchgHIAEoCVIJaW'
+    '5zdGFsbGVyEiAKC3BlcnNpc3RlbmNlGAggASgIUgtwZXJzaXN0ZW5jZQ==');
+
+@$core.Deprecated('Use getAppsRequestDescriptor instead')
+const GetAppsRequest$json = {
+  '1': 'GetAppsRequest',
+};
+
+/// Descriptor for `GetAppsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getAppsRequestDescriptor =
+    $convert.base64Decode('Cg5HZXRBcHBzUmVxdWVzdA==');
+
+@$core.Deprecated('Use getAppsResponseDescriptor instead')
+const GetAppsResponse$json = {
+  '1': 'GetAppsResponse',
+  '2': [
+    {'1': 'apps', '3': 1, '4': 3, '5': 11, '6': '.apic.App', '10': 'apps'},
+  ],
+};
+
+/// Descriptor for `GetAppsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getAppsResponseDescriptor = $convert.base64Decode(
+    'Cg9HZXRBcHBzUmVzcG9uc2USHQoEYXBwcxgBIAMoCzIJLmFwaWMuQXBwUgRhcHBz');
+
+@$core.Deprecated('Use createAppRequestDescriptor instead')
+const CreateAppRequest$json = {
+  '1': 'CreateAppRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'installer_id', '3': 2, '4': 1, '5': 9, '10': 'installerId'},
+    {'1': 'instance_id', '3': 3, '4': 1, '5': 9, '10': 'instanceId'},
+    {'1': 'persistence', '3': 4, '4': 1, '5': 8, '10': 'persistence'},
+  ],
+};
+
+/// Descriptor for `CreateAppRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List createAppRequestDescriptor = $convert.base64Decode(
+    'ChBDcmVhdGVBcHBSZXF1ZXN0EhIKBG5hbWUYASABKAlSBG5hbWUSIQoMaW5zdGFsbGVyX2lkGA'
+    'IgASgJUgtpbnN0YWxsZXJJZBIfCgtpbnN0YW5jZV9pZBgDIAEoCVIKaW5zdGFuY2VJZBIgCgtw'
+    'ZXJzaXN0ZW5jZRgEIAEoCFILcGVyc2lzdGVuY2U=');
+
+@$core.Deprecated('Use createAppResponseDescriptor instead')
+const CreateAppResponse$json = {
+  '1': 'CreateAppResponse',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+  ],
+};
+
+/// Descriptor for `CreateAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List createAppResponseDescriptor =
+    $convert.base64Decode('ChFDcmVhdGVBcHBSZXNwb25zZRIOCgJpZBgBIAEoCVICaWQ=');
+
+@$core.Deprecated('Use startAppRequestDescriptor instead')
+const StartAppRequest$json = {
+  '1': 'StartAppRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `StartAppRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List startAppRequestDescriptor = $convert
+    .base64Decode('Cg9TdGFydEFwcFJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use startAppResponseDescriptor instead')
+const StartAppResponse$json = {
+  '1': 'StartAppResponse',
+};
+
+/// Descriptor for `StartAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List startAppResponseDescriptor =
+    $convert.base64Decode('ChBTdGFydEFwcFJlc3BvbnNl');
+
+@$core.Deprecated('Use stopAppRequestDescriptor instead')
+const StopAppRequest$json = {
+  '1': 'StopAppRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `StopAppRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List stopAppRequestDescriptor =
+    $convert.base64Decode('Cg5TdG9wQXBwUmVxdWVzdBISCgRuYW1lGAEgASgJUgRuYW1l');
+
+@$core.Deprecated('Use stopAppResponseDescriptor instead')
+const StopAppResponse$json = {
+  '1': 'StopAppResponse',
+};
+
+/// Descriptor for `StopAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List stopAppResponseDescriptor =
+    $convert.base64Decode('Cg9TdG9wQXBwUmVzcG9uc2U=');
+
+@$core.Deprecated('Use removeAppRequestDescriptor instead')
+const RemoveAppRequest$json = {
+  '1': 'RemoveAppRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `RemoveAppRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeAppRequestDescriptor = $convert
+    .base64Decode('ChBSZW1vdmVBcHBSZXF1ZXN0EhIKBG5hbWUYASABKAlSBG5hbWU=');
+
+@$core.Deprecated('Use removeAppResponseDescriptor instead')
+const RemoveAppResponse$json = {
+  '1': 'RemoveAppResponse',
+};
+
+/// Descriptor for `RemoveAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeAppResponseDescriptor =
+    $convert.base64Decode('ChFSZW1vdmVBcHBSZXNwb25zZQ==');
+
+@$core.Deprecated('Use getAppLogsRequestDescriptor instead')
+const GetAppLogsRequest$json = {
+  '1': 'GetAppLogsRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetAppLogsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getAppLogsRequestDescriptor = $convert
+    .base64Decode('ChFHZXRBcHBMb2dzUmVxdWVzdBISCgRuYW1lGAEgASgJUgRuYW1l');
+
+@$core.Deprecated('Use getAppLogsResponseDescriptor instead')
+const GetAppLogsResponse$json = {
+  '1': 'GetAppLogsResponse',
+  '2': [
+    {'1': 'logs', '3': 1, '4': 1, '5': 12, '10': 'logs'},
+  ],
+};
+
+/// Descriptor for `GetAppLogsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getAppLogsResponseDescriptor = $convert
+    .base64Decode('ChJHZXRBcHBMb2dzUmVzcG9uc2USEgoEbG9ncxgBIAEoDFIEbG9ncw==');
+
+@$core.Deprecated('Use installerDescriptor instead')
+const Installer$json = {
+  '1': 'Installer',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'version', '3': 3, '4': 1, '5': 9, '10': 'version'},
+    {'1': 'description', '3': 4, '4': 1, '5': 9, '10': 'description'},
+    {
+      '1': 'requires_resources',
+      '3': 5,
+      '4': 3,
+      '5': 9,
+      '10': 'requiresResources'
+    },
+    {
+      '1': 'provides_resources',
+      '3': 6,
+      '4': 3,
+      '5': 9,
+      '10': 'providesResources'
+    },
+    {'1': 'capabilities', '3': 7, '4': 3, '5': 9, '10': 'capabilities'},
+  ],
+};
+
+/// Descriptor for `Installer`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List installerDescriptor = $convert.base64Decode(
+    'CglJbnN0YWxsZXISDgoCaWQYASABKAlSAmlkEhIKBG5hbWUYAiABKAlSBG5hbWUSGAoHdmVyc2'
+    'lvbhgDIAEoCVIHdmVyc2lvbhIgCgtkZXNjcmlwdGlvbhgEIAEoCVILZGVzY3JpcHRpb24SLQoS'
+    'cmVxdWlyZXNfcmVzb3VyY2VzGAUgAygJUhFyZXF1aXJlc1Jlc291cmNlcxItChJwcm92aWRlc1'
+    '9yZXNvdXJjZXMYBiADKAlSEXByb3ZpZGVzUmVzb3VyY2VzEiIKDGNhcGFiaWxpdGllcxgHIAMo'
+    'CVIMY2FwYWJpbGl0aWVz');
+
+@$core.Deprecated('Use getInstallersRequestDescriptor instead')
+const GetInstallersRequest$json = {
+  '1': 'GetInstallersRequest',
+};
+
+/// Descriptor for `GetInstallersRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstallersRequestDescriptor =
+    $convert.base64Decode('ChRHZXRJbnN0YWxsZXJzUmVxdWVzdA==');
+
+@$core.Deprecated('Use getInstallersResponseDescriptor instead')
+const GetInstallersResponse$json = {
+  '1': 'GetInstallersResponse',
+  '2': [
+    {
+      '1': 'installers',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.Installer',
+      '10': 'installers'
+    },
+  ],
+};
+
+/// Descriptor for `GetInstallersResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstallersResponseDescriptor = $convert.base64Decode(
+    'ChVHZXRJbnN0YWxsZXJzUmVzcG9uc2USLwoKaW5zdGFsbGVycxgBIAMoCzIPLmFwaWMuSW5zdG'
+    'FsbGVyUgppbnN0YWxsZXJz');
+
+@$core.Deprecated('Use getInstallerRequestDescriptor instead')
+const GetInstallerRequest$json = {
+  '1': 'GetInstallerRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+  ],
+};
+
+/// Descriptor for `GetInstallerRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstallerRequestDescriptor = $convert
+    .base64Decode('ChNHZXRJbnN0YWxsZXJSZXF1ZXN0Eg4KAmlkGAEgASgJUgJpZA==');
+
+@$core.Deprecated('Use getInstallerResponseDescriptor instead')
+const GetInstallerResponse$json = {
+  '1': 'GetInstallerResponse',
+  '2': [
+    {
+      '1': 'installer',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.Installer',
+      '10': 'installer'
+    },
+  ],
+};
+
+/// Descriptor for `GetInstallerResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstallerResponseDescriptor = $convert.base64Decode(
+    'ChRHZXRJbnN0YWxsZXJSZXNwb25zZRItCglpbnN0YWxsZXIYASABKAsyDy5hcGljLkluc3RhbG'
+    'xlclIJaW5zdGFsbGVy');
+
+@$core.Deprecated('Use cloudMachineSpecDescriptor instead')
+const CloudMachineSpec$json = {
+  '1': 'CloudMachineSpec',
+  '2': [
+    {'1': 'cores', '3': 1, '4': 1, '5': 5, '10': 'cores'},
+    {'1': 'memory', '3': 2, '4': 1, '5': 5, '10': 'memory'},
+    {'1': 'default_storage', '3': 3, '4': 1, '5': 5, '10': 'defaultStorage'},
+    {'1': 'bandwidth', '3': 4, '4': 1, '5': 5, '10': 'bandwidth'},
+    {
+      '1': 'included_data_transfer',
+      '3': 5,
+      '4': 1,
+      '5': 5,
+      '10': 'includedDataTransfer'
+    },
+    {'1': 'baremetal', '3': 6, '4': 1, '5': 8, '10': 'baremetal'},
+    {'1': 'price_monthly', '3': 7, '4': 1, '5': 2, '10': 'priceMonthly'},
+  ],
+};
+
+/// Descriptor for `CloudMachineSpec`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cloudMachineSpecDescriptor = $convert.base64Decode(
+    'ChBDbG91ZE1hY2hpbmVTcGVjEhQKBWNvcmVzGAEgASgFUgVjb3JlcxIWCgZtZW1vcnkYAiABKA'
+    'VSBm1lbW9yeRInCg9kZWZhdWx0X3N0b3JhZ2UYAyABKAVSDmRlZmF1bHRTdG9yYWdlEhwKCWJh'
+    'bmR3aWR0aBgEIAEoBVIJYmFuZHdpZHRoEjQKFmluY2x1ZGVkX2RhdGFfdHJhbnNmZXIYBSABKA'
+    'VSFGluY2x1ZGVkRGF0YVRyYW5zZmVyEhwKCWJhcmVtZXRhbBgGIAEoCFIJYmFyZW1ldGFsEiMK'
+    'DXByaWNlX21vbnRobHkYByABKAJSDHByaWNlTW9udGhseQ==');
+
+@$core.Deprecated('Use cloudTypeDescriptor instead')
+const CloudType$json = {
+  '1': 'CloudType',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'authentication_fields',
+      '3': 2,
+      '4': 3,
+      '5': 9,
+      '10': 'authenticationFields'
+    },
+  ],
+};
+
+/// Descriptor for `CloudType`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cloudTypeDescriptor = $convert.base64Decode(
+    'CglDbG91ZFR5cGUSEgoEbmFtZRgBIAEoCVIEbmFtZRIzChVhdXRoZW50aWNhdGlvbl9maWVsZH'
+    'MYAiADKAlSFGF1dGhlbnRpY2F0aW9uRmllbGRz');
+
+@$core.Deprecated('Use cloudProviderDescriptor instead')
+const CloudProvider$json = {
+  '1': 'CloudProvider',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'type',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudType',
+      '10': 'type'
+    },
+    {
+      '1': 'supported_locations',
+      '3': 3,
+      '4': 3,
+      '5': 9,
+      '10': 'supportedLocations'
+    },
+    {
+      '1': 'supported_machines',
+      '3': 4,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CloudProvider.SupportedMachinesEntry',
+      '10': 'supportedMachines'
+    },
+  ],
+  '3': [CloudProvider_SupportedMachinesEntry$json],
+};
+
+@$core.Deprecated('Use cloudProviderDescriptor instead')
+const CloudProvider_SupportedMachinesEntry$json = {
+  '1': 'SupportedMachinesEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {
+      '1': 'value',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudMachineSpec',
+      '10': 'value'
+    },
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `CloudProvider`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cloudProviderDescriptor = $convert.base64Decode(
+    'Cg1DbG91ZFByb3ZpZGVyEhIKBG5hbWUYASABKAlSBG5hbWUSIwoEdHlwZRgCIAEoCzIPLmFwaW'
+    'MuQ2xvdWRUeXBlUgR0eXBlEi8KE3N1cHBvcnRlZF9sb2NhdGlvbnMYAyADKAlSEnN1cHBvcnRl'
+    'ZExvY2F0aW9ucxJZChJzdXBwb3J0ZWRfbWFjaGluZXMYBCADKAsyKi5hcGljLkNsb3VkUHJvdm'
+    'lkZXIuU3VwcG9ydGVkTWFjaGluZXNFbnRyeVIRc3VwcG9ydGVkTWFjaGluZXMaXAoWU3VwcG9y'
+    'dGVkTWFjaGluZXNFbnRyeRIQCgNrZXkYASABKAlSA2tleRIsCgV2YWx1ZRgCIAEoCzIWLmFwaW'
+    'MuQ2xvdWRNYWNoaW5lU3BlY1IFdmFsdWU6AjgB');
+
+@$core.Deprecated('Use getSupportedCloudProvidersRequestDescriptor instead')
+const GetSupportedCloudProvidersRequest$json = {
+  '1': 'GetSupportedCloudProvidersRequest',
+};
+
+/// Descriptor for `GetSupportedCloudProvidersRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getSupportedCloudProvidersRequestDescriptor =
+    $convert.base64Decode('CiFHZXRTdXBwb3J0ZWRDbG91ZFByb3ZpZGVyc1JlcXVlc3Q=');
+
+@$core.Deprecated('Use getSupportedCloudProvidersResponseDescriptor instead')
+const GetSupportedCloudProvidersResponse$json = {
+  '1': 'GetSupportedCloudProvidersResponse',
+  '2': [
+    {
+      '1': 'cloud_types',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CloudType',
+      '10': 'cloudTypes'
+    },
+  ],
+};
+
+/// Descriptor for `GetSupportedCloudProvidersResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getSupportedCloudProvidersResponseDescriptor =
+    $convert.base64Decode(
+        'CiJHZXRTdXBwb3J0ZWRDbG91ZFByb3ZpZGVyc1Jlc3BvbnNlEjAKC2Nsb3VkX3R5cGVzGAEgAy'
+        'gLMg8uYXBpYy5DbG91ZFR5cGVSCmNsb3VkVHlwZXM=');
+
+@$core.Deprecated('Use getCloudProvidersRequestDescriptor instead')
+const GetCloudProvidersRequest$json = {
+  '1': 'GetCloudProvidersRequest',
+};
+
+/// Descriptor for `GetCloudProvidersRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCloudProvidersRequestDescriptor =
+    $convert.base64Decode('ChhHZXRDbG91ZFByb3ZpZGVyc1JlcXVlc3Q=');
+
+@$core.Deprecated('Use getCloudProvidersResponseDescriptor instead')
+const GetCloudProvidersResponse$json = {
+  '1': 'GetCloudProvidersResponse',
+  '2': [
+    {
+      '1': 'cloud_providers',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CloudProvider',
+      '10': 'cloudProviders'
+    },
+  ],
+};
+
+/// Descriptor for `GetCloudProvidersResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCloudProvidersResponseDescriptor =
+    $convert.base64Decode(
+        'ChlHZXRDbG91ZFByb3ZpZGVyc1Jlc3BvbnNlEjwKD2Nsb3VkX3Byb3ZpZGVycxgBIAMoCzITLm'
+        'FwaWMuQ2xvdWRQcm92aWRlclIOY2xvdWRQcm92aWRlcnM=');
+
+@$core.Deprecated('Use getCloudProviderRequestDescriptor instead')
+const GetCloudProviderRequest$json = {
+  '1': 'GetCloudProviderRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetCloudProviderRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCloudProviderRequestDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRDbG91ZFByb3ZpZGVyUmVxdWVzdBISCgRuYW1lGAEgASgJUgRuYW1l');
+
+@$core.Deprecated('Use getCloudProviderResponseDescriptor instead')
+const GetCloudProviderResponse$json = {
+  '1': 'GetCloudProviderResponse',
+  '2': [
+    {
+      '1': 'cloud_provider',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudProvider',
+      '10': 'cloudProvider'
+    },
+  ],
+};
+
+/// Descriptor for `GetCloudProviderResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCloudProviderResponseDescriptor =
+    $convert.base64Decode(
+        'ChhHZXRDbG91ZFByb3ZpZGVyUmVzcG9uc2USOgoOY2xvdWRfcHJvdmlkZXIYASABKAsyEy5hcG'
+        'ljLkNsb3VkUHJvdmlkZXJSDWNsb3VkUHJvdmlkZXI=');
+
+@$core.Deprecated('Use addCloudProviderRequestDescriptor instead')
+const AddCloudProviderRequest$json = {
+  '1': 'AddCloudProviderRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'type', '3': 2, '4': 1, '5': 9, '10': 'type'},
+    {
+      '1': 'credentials',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.AddCloudProviderRequest.CredentialsEntry',
+      '10': 'credentials'
+    },
+  ],
+  '3': [AddCloudProviderRequest_CredentialsEntry$json],
+};
+
+@$core.Deprecated('Use addCloudProviderRequestDescriptor instead')
+const AddCloudProviderRequest_CredentialsEntry$json = {
+  '1': 'CredentialsEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `AddCloudProviderRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List addCloudProviderRequestDescriptor = $convert.base64Decode(
+    'ChdBZGRDbG91ZFByb3ZpZGVyUmVxdWVzdBISCgRuYW1lGAEgASgJUgRuYW1lEhIKBHR5cGUYAi'
+    'ABKAlSBHR5cGUSUAoLY3JlZGVudGlhbHMYAyADKAsyLi5hcGljLkFkZENsb3VkUHJvdmlkZXJS'
+    'ZXF1ZXN0LkNyZWRlbnRpYWxzRW50cnlSC2NyZWRlbnRpYWxzGj4KEENyZWRlbnRpYWxzRW50cn'
+    'kSEAoDa2V5GAEgASgJUgNrZXkSFAoFdmFsdWUYAiABKAlSBXZhbHVlOgI4AQ==');
+
+@$core.Deprecated('Use addCloudProviderResponseDescriptor instead')
+const AddCloudProviderResponse$json = {
+  '1': 'AddCloudProviderResponse',
+};
+
+/// Descriptor for `AddCloudProviderResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List addCloudProviderResponseDescriptor =
+    $convert.base64Decode('ChhBZGRDbG91ZFByb3ZpZGVyUmVzcG9uc2U=');
+
+@$core.Deprecated('Use removeCloudProviderRequestDescriptor instead')
+const RemoveCloudProviderRequest$json = {
+  '1': 'RemoveCloudProviderRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `RemoveCloudProviderRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeCloudProviderRequestDescriptor =
+    $convert.base64Decode(
+        'ChpSZW1vdmVDbG91ZFByb3ZpZGVyUmVxdWVzdBISCgRuYW1lGAEgASgJUgRuYW1l');
+
+@$core.Deprecated('Use removeCloudProviderResponseDescriptor instead')
+const RemoveCloudProviderResponse$json = {
+  '1': 'RemoveCloudProviderResponse',
+};
+
+/// Descriptor for `RemoveCloudProviderResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeCloudProviderResponseDescriptor =
+    $convert.base64Decode('ChtSZW1vdmVDbG91ZFByb3ZpZGVyUmVzcG9uc2U=');
+
+@$core.Deprecated('Use provisionerMachineSpecDescriptor instead')
+const ProvisionerMachineSpec$json = {
+  '1': 'ProvisionerMachineSpec',
+  '2': [
+    {'1': 'cores', '3': 1, '4': 1, '5': 5, '10': 'cores'},
+    {'1': 'memory', '3': 2, '4': 1, '5': 5, '10': 'memory'},
+    {'1': 'default_storage', '3': 3, '4': 1, '5': 5, '10': 'defaultStorage'},
+    {'1': 'bandwidth', '3': 4, '4': 1, '5': 5, '10': 'bandwidth'},
+    {
+      '1': 'included_data_transfer',
+      '3': 5,
+      '4': 1,
+      '5': 5,
+      '10': 'includedDataTransfer'
+    },
+    {'1': 'baremetal', '3': 6, '4': 1, '5': 8, '10': 'baremetal'},
+    {'1': 'price_monthly', '3': 7, '4': 1, '5': 2, '10': 'priceMonthly'},
+  ],
+};
+
+/// Descriptor for `ProvisionerMachineSpec`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List provisionerMachineSpecDescriptor = $convert.base64Decode(
+    'ChZQcm92aXNpb25lck1hY2hpbmVTcGVjEhQKBWNvcmVzGAEgASgFUgVjb3JlcxIWCgZtZW1vcn'
+    'kYAiABKAVSBm1lbW9yeRInCg9kZWZhdWx0X3N0b3JhZ2UYAyABKAVSDmRlZmF1bHRTdG9yYWdl'
+    'EhwKCWJhbmR3aWR0aBgEIAEoBVIJYmFuZHdpZHRoEjQKFmluY2x1ZGVkX2RhdGFfdHJhbnNmZX'
+    'IYBSABKAVSFGluY2x1ZGVkRGF0YVRyYW5zZmVyEhwKCWJhcmVtZXRhbBgGIAEoCFIJYmFyZW1l'
+    'dGFsEiMKDXByaWNlX21vbnRobHkYByABKAJSDHByaWNlTW9udGhseQ==');
+
+@$core.Deprecated('Use provisionerTypeDescriptor instead')
+const ProvisionerType$json = {
+  '1': 'ProvisionerType',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'authentication_fields',
+      '3': 2,
+      '4': 3,
+      '5': 9,
+      '10': 'authenticationFields'
+    },
+  ],
+};
+
+/// Descriptor for `ProvisionerType`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List provisionerTypeDescriptor = $convert.base64Decode(
+    'Cg9Qcm92aXNpb25lclR5cGUSEgoEbmFtZRgBIAEoCVIEbmFtZRIzChVhdXRoZW50aWNhdGlvbl'
+    '9maWVsZHMYAiADKAlSFGF1dGhlbnRpY2F0aW9uRmllbGRz');
+
+@$core.Deprecated('Use provisionerDescriptor instead')
+const Provisioner$json = {
+  '1': 'Provisioner',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'type',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.ProvisionerType',
+      '10': 'type'
+    },
+    {
+      '1': 'supported_locations',
+      '3': 3,
+      '4': 3,
+      '5': 9,
+      '10': 'supportedLocations'
+    },
+    {
+      '1': 'supported_machines',
+      '3': 4,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.Provisioner.SupportedMachinesEntry',
+      '10': 'supportedMachines'
+    },
+  ],
+  '3': [Provisioner_SupportedMachinesEntry$json],
+};
+
+@$core.Deprecated('Use provisionerDescriptor instead')
+const Provisioner_SupportedMachinesEntry$json = {
+  '1': 'SupportedMachinesEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {
+      '1': 'value',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.ProvisionerMachineSpec',
+      '10': 'value'
+    },
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `Provisioner`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List provisionerDescriptor = $convert.base64Decode(
+    'CgtQcm92aXNpb25lchISCgRuYW1lGAEgASgJUgRuYW1lEikKBHR5cGUYAiABKAsyFS5hcGljLl'
+    'Byb3Zpc2lvbmVyVHlwZVIEdHlwZRIvChNzdXBwb3J0ZWRfbG9jYXRpb25zGAMgAygJUhJzdXBw'
+    'b3J0ZWRMb2NhdGlvbnMSVwoSc3VwcG9ydGVkX21hY2hpbmVzGAQgAygLMiguYXBpYy5Qcm92aX'
+    'Npb25lci5TdXBwb3J0ZWRNYWNoaW5lc0VudHJ5UhFzdXBwb3J0ZWRNYWNoaW5lcxpiChZTdXBw'
+    'b3J0ZWRNYWNoaW5lc0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EjIKBXZhbHVlGAIgASgLMhwuYX'
+    'BpYy5Qcm92aXNpb25lck1hY2hpbmVTcGVjUgV2YWx1ZToCOAE=');
+
+@$core.Deprecated('Use getSupportedProvisionersRequestDescriptor instead')
+const GetSupportedProvisionersRequest$json = {
+  '1': 'GetSupportedProvisionersRequest',
+};
+
+/// Descriptor for `GetSupportedProvisionersRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getSupportedProvisionersRequestDescriptor =
+    $convert.base64Decode('Ch9HZXRTdXBwb3J0ZWRQcm92aXNpb25lcnNSZXF1ZXN0');
+
+@$core.Deprecated('Use getSupportedProvisionersResponseDescriptor instead')
+const GetSupportedProvisionersResponse$json = {
+  '1': 'GetSupportedProvisionersResponse',
+  '2': [
+    {
+      '1': 'provisioner_types',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.ProvisionerType',
+      '10': 'provisionerTypes'
+    },
+  ],
+};
+
+/// Descriptor for `GetSupportedProvisionersResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getSupportedProvisionersResponseDescriptor =
+    $convert.base64Decode(
+        'CiBHZXRTdXBwb3J0ZWRQcm92aXNpb25lcnNSZXNwb25zZRJCChFwcm92aXNpb25lcl90eXBlcx'
+        'gBIAMoCzIVLmFwaWMuUHJvdmlzaW9uZXJUeXBlUhBwcm92aXNpb25lclR5cGVz');
+
+@$core.Deprecated('Use getProvisionersRequestDescriptor instead')
+const GetProvisionersRequest$json = {
+  '1': 'GetProvisionersRequest',
+};
+
+/// Descriptor for `GetProvisionersRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProvisionersRequestDescriptor =
+    $convert.base64Decode('ChZHZXRQcm92aXNpb25lcnNSZXF1ZXN0');
+
+@$core.Deprecated('Use getProvisionersResponseDescriptor instead')
+const GetProvisionersResponse$json = {
+  '1': 'GetProvisionersResponse',
+  '2': [
+    {
+      '1': 'provisioners',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.Provisioner',
+      '10': 'provisioners'
+    },
+  ],
+};
+
+/// Descriptor for `GetProvisionersResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProvisionersResponseDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRQcm92aXNpb25lcnNSZXNwb25zZRI1Cgxwcm92aXNpb25lcnMYASADKAsyES5hcGljLl'
+        'Byb3Zpc2lvbmVyUgxwcm92aXNpb25lcnM=');
+
+@$core.Deprecated('Use getProvisionerRequestDescriptor instead')
+const GetProvisionerRequest$json = {
+  '1': 'GetProvisionerRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetProvisionerRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProvisionerRequestDescriptor =
+    $convert.base64Decode(
+        'ChVHZXRQcm92aXNpb25lclJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use getProvisionerResponseDescriptor instead')
+const GetProvisionerResponse$json = {
+  '1': 'GetProvisionerResponse',
+  '2': [
+    {
+      '1': 'provisioner',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.Provisioner',
+      '10': 'provisioner'
+    },
+  ],
+};
+
+/// Descriptor for `GetProvisionerResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProvisionerResponseDescriptor =
+    $convert.base64Decode(
+        'ChZHZXRQcm92aXNpb25lclJlc3BvbnNlEjMKC3Byb3Zpc2lvbmVyGAEgASgLMhEuYXBpYy5Qcm'
+        '92aXNpb25lclILcHJvdmlzaW9uZXI=');
+
+@$core.Deprecated('Use addProvisionerRequestDescriptor instead')
+const AddProvisionerRequest$json = {
+  '1': 'AddProvisionerRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'type', '3': 2, '4': 1, '5': 9, '10': 'type'},
+    {
+      '1': 'credentials',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.AddProvisionerRequest.CredentialsEntry',
+      '10': 'credentials'
+    },
+  ],
+  '3': [AddProvisionerRequest_CredentialsEntry$json],
+};
+
+@$core.Deprecated('Use addProvisionerRequestDescriptor instead')
+const AddProvisionerRequest_CredentialsEntry$json = {
+  '1': 'CredentialsEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `AddProvisionerRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List addProvisionerRequestDescriptor = $convert.base64Decode(
+    'ChVBZGRQcm92aXNpb25lclJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZRISCgR0eXBlGAIgAS'
+    'gJUgR0eXBlEk4KC2NyZWRlbnRpYWxzGAMgAygLMiwuYXBpYy5BZGRQcm92aXNpb25lclJlcXVl'
+    'c3QuQ3JlZGVudGlhbHNFbnRyeVILY3JlZGVudGlhbHMaPgoQQ3JlZGVudGlhbHNFbnRyeRIQCg'
+    'NrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgB');
+
+@$core.Deprecated('Use addProvisionerResponseDescriptor instead')
+const AddProvisionerResponse$json = {
+  '1': 'AddProvisionerResponse',
+};
+
+/// Descriptor for `AddProvisionerResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List addProvisionerResponseDescriptor =
+    $convert.base64Decode('ChZBZGRQcm92aXNpb25lclJlc3BvbnNl');
+
+@$core.Deprecated('Use removeProvisionerRequestDescriptor instead')
+const RemoveProvisionerRequest$json = {
+  '1': 'RemoveProvisionerRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `RemoveProvisionerRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeProvisionerRequestDescriptor =
+    $convert.base64Decode(
+        'ChhSZW1vdmVQcm92aXNpb25lclJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use removeProvisionerResponseDescriptor instead')
+const RemoveProvisionerResponse$json = {
+  '1': 'RemoveProvisionerResponse',
+};
+
+/// Descriptor for `RemoveProvisionerResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeProvisionerResponseDescriptor =
+    $convert.base64Decode('ChlSZW1vdmVQcm92aXNpb25lclJlc3BvbnNl');
+
+@$core.Deprecated('Use cloudInstanceDescriptor instead')
+const CloudInstance$json = {
+  '1': 'CloudInstance',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'public_ip', '3': 2, '4': 1, '5': 9, '10': 'publicIp'},
+    {'1': 'internal_ip', '3': 3, '4': 1, '5': 9, '10': 'internalIp'},
+    {'1': 'cloud_name', '3': 4, '4': 1, '5': 9, '10': 'cloudName'},
+    {'1': 'cloud_type', '3': 5, '4': 1, '5': 9, '10': 'cloudType'},
+    {'1': 'vm_id', '3': 6, '4': 1, '5': 9, '10': 'vmId'},
+    {'1': 'location', '3': 7, '4': 1, '5': 9, '10': 'location'},
+    {'1': 'public_key', '3': 8, '4': 1, '5': 9, '10': 'publicKey'},
+    {
+      '1': 'public_key_wireguard',
+      '3': 9,
+      '4': 1,
+      '5': 9,
+      '10': 'publicKeyWireguard'
+    },
+    {'1': 'protos_version', '3': 10, '4': 1, '5': 9, '10': 'protosVersion'},
+    {'1': 'status', '3': 11, '4': 1, '5': 9, '10': 'status'},
+    {'1': 'architecture', '3': 12, '4': 1, '5': 9, '10': 'architecture'},
+    {
+      '1': 'peers',
+      '3': 13,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CloudInstance.PeersEntry',
+      '10': 'peers'
+    },
+  ],
+  '3': [CloudInstance_PeersEntry$json],
+};
+
+@$core.Deprecated('Use cloudInstanceDescriptor instead')
+const CloudInstance_PeersEntry$json = {
+  '1': 'PeersEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `CloudInstance`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cloudInstanceDescriptor = $convert.base64Decode(
+    'Cg1DbG91ZEluc3RhbmNlEhIKBG5hbWUYASABKAlSBG5hbWUSGwoJcHVibGljX2lwGAIgASgJUg'
+    'hwdWJsaWNJcBIfCgtpbnRlcm5hbF9pcBgDIAEoCVIKaW50ZXJuYWxJcBIdCgpjbG91ZF9uYW1l'
+    'GAQgASgJUgljbG91ZE5hbWUSHQoKY2xvdWRfdHlwZRgFIAEoCVIJY2xvdWRUeXBlEhMKBXZtX2'
+    'lkGAYgASgJUgR2bUlkEhoKCGxvY2F0aW9uGAcgASgJUghsb2NhdGlvbhIdCgpwdWJsaWNfa2V5'
+    'GAggASgJUglwdWJsaWNLZXkSMAoUcHVibGljX2tleV93aXJlZ3VhcmQYCSABKAlSEnB1YmxpY0'
+    'tleVdpcmVndWFyZBIlCg5wcm90b3NfdmVyc2lvbhgKIAEoCVINcHJvdG9zVmVyc2lvbhIWCgZz'
+    'dGF0dXMYCyABKAlSBnN0YXR1cxIiCgxhcmNoaXRlY3R1cmUYDCABKAlSDGFyY2hpdGVjdHVyZR'
+    'I0CgVwZWVycxgNIAMoCzIeLmFwaWMuQ2xvdWRJbnN0YW5jZS5QZWVyc0VudHJ5UgVwZWVycxo4'
+    'CgpQZWVyc0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgJUgV2YWx1ZToCOA'
+    'E=');
+
+@$core.Deprecated('Use getInstancesRequestDescriptor instead')
+const GetInstancesRequest$json = {
+  '1': 'GetInstancesRequest',
+};
+
+/// Descriptor for `GetInstancesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstancesRequestDescriptor =
+    $convert.base64Decode('ChNHZXRJbnN0YW5jZXNSZXF1ZXN0');
+
+@$core.Deprecated('Use getInstancesResponseDescriptor instead')
+const GetInstancesResponse$json = {
+  '1': 'GetInstancesResponse',
+  '2': [
+    {
+      '1': 'instances',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CloudInstance',
+      '10': 'instances'
+    },
+  ],
+};
+
+/// Descriptor for `GetInstancesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstancesResponseDescriptor = $convert.base64Decode(
+    'ChRHZXRJbnN0YW5jZXNSZXNwb25zZRIxCglpbnN0YW5jZXMYASADKAsyEy5hcGljLkNsb3VkSW'
+    '5zdGFuY2VSCWluc3RhbmNlcw==');
+
+@$core.Deprecated('Use getInstanceRequestDescriptor instead')
+const GetInstanceRequest$json = {
+  '1': 'GetInstanceRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetInstanceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceRequestDescriptor = $convert
+    .base64Decode('ChJHZXRJbnN0YW5jZVJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use getInstanceResponseDescriptor instead')
+const GetInstanceResponse$json = {
+  '1': 'GetInstanceResponse',
+  '2': [
+    {
+      '1': 'instance',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudInstance',
+      '10': 'instance'
+    },
+  ],
+};
+
+/// Descriptor for `GetInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceResponseDescriptor = $convert.base64Decode(
+    'ChNHZXRJbnN0YW5jZVJlc3BvbnNlEi8KCGluc3RhbmNlGAEgASgLMhMuYXBpYy5DbG91ZEluc3'
+    'RhbmNlUghpbnN0YW5jZQ==');
+
+@$core.Deprecated('Use instanceDeployFieldOptionDescriptor instead')
+const InstanceDeployFieldOption$json = {
+  '1': 'InstanceDeployFieldOption',
+  '2': [
+    {'1': 'value', '3': 1, '4': 1, '5': 9, '10': 'value'},
+    {'1': 'label', '3': 2, '4': 1, '5': 9, '10': 'label'},
+    {'1': 'description', '3': 3, '4': 1, '5': 9, '10': 'description'},
+  ],
+};
+
+/// Descriptor for `InstanceDeployFieldOption`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List instanceDeployFieldOptionDescriptor =
+    $convert.base64Decode(
+        'ChlJbnN0YW5jZURlcGxveUZpZWxkT3B0aW9uEhQKBXZhbHVlGAEgASgJUgV2YWx1ZRIUCgVsYW'
+        'JlbBgCIAEoCVIFbGFiZWwSIAoLZGVzY3JpcHRpb24YAyABKAlSC2Rlc2NyaXB0aW9u');
+
+@$core.Deprecated('Use instanceDeployFieldDescriptor instead')
+const InstanceDeployField$json = {
+  '1': 'InstanceDeployField',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'label', '3': 2, '4': 1, '5': 9, '10': 'label'},
+    {'1': 'kind', '3': 3, '4': 1, '5': 9, '10': 'kind'},
+    {'1': 'required', '3': 4, '4': 1, '5': 8, '10': 'required'},
+    {'1': 'visible', '3': 5, '4': 1, '5': 8, '10': 'visible'},
+    {'1': 'value', '3': 6, '4': 1, '5': 9, '10': 'value'},
+    {'1': 'helper', '3': 7, '4': 1, '5': 9, '10': 'helper'},
+    {
+      '1': 'options',
+      '3': 8,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.InstanceDeployFieldOption',
+      '10': 'options'
+    },
+  ],
+};
+
+/// Descriptor for `InstanceDeployField`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List instanceDeployFieldDescriptor = $convert.base64Decode(
+    'ChNJbnN0YW5jZURlcGxveUZpZWxkEhIKBG5hbWUYASABKAlSBG5hbWUSFAoFbGFiZWwYAiABKA'
+    'lSBWxhYmVsEhIKBGtpbmQYAyABKAlSBGtpbmQSGgoIcmVxdWlyZWQYBCABKAhSCHJlcXVpcmVk'
+    'EhgKB3Zpc2libGUYBSABKAhSB3Zpc2libGUSFAoFdmFsdWUYBiABKAlSBXZhbHVlEhYKBmhlbH'
+    'BlchgHIAEoCVIGaGVscGVyEjkKB29wdGlvbnMYCCADKAsyHy5hcGljLkluc3RhbmNlRGVwbG95'
+    'RmllbGRPcHRpb25SB29wdGlvbnM=');
+
+@$core.Deprecated('Use getInstanceDeployOptionsRequestDescriptor instead')
+const GetInstanceDeployOptionsRequest$json = {
+  '1': 'GetInstanceDeployOptionsRequest',
+  '2': [
+    {'1': 'provisioner', '3': 1, '4': 1, '5': 9, '10': 'provisioner'},
+    {'1': 'location', '3': 2, '4': 1, '5': 9, '10': 'location'},
+  ],
+};
+
+/// Descriptor for `GetInstanceDeployOptionsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceDeployOptionsRequestDescriptor =
+    $convert.base64Decode(
+        'Ch9HZXRJbnN0YW5jZURlcGxveU9wdGlvbnNSZXF1ZXN0EiAKC3Byb3Zpc2lvbmVyGAEgASgJUg'
+        'twcm92aXNpb25lchIaCghsb2NhdGlvbhgCIAEoCVIIbG9jYXRpb24=');
+
+@$core.Deprecated('Use getInstanceDeployOptionsResponseDescriptor instead')
+const GetInstanceDeployOptionsResponse$json = {
+  '1': 'GetInstanceDeployOptionsResponse',
+  '2': [
+    {
+      '1': 'fields',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.InstanceDeployField',
+      '10': 'fields'
+    },
+  ],
+};
+
+/// Descriptor for `GetInstanceDeployOptionsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceDeployOptionsResponseDescriptor =
+    $convert.base64Decode(
+        'CiBHZXRJbnN0YW5jZURlcGxveU9wdGlvbnNSZXNwb25zZRIxCgZmaWVsZHMYASADKAsyGS5hcG'
+        'ljLkluc3RhbmNlRGVwbG95RmllbGRSBmZpZWxkcw==');
+
+@$core.Deprecated('Use deployInstanceRequestDescriptor instead')
+const DeployInstanceRequest$json = {
+  '1': 'DeployInstanceRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'cloud_name', '3': 2, '4': 1, '5': 9, '10': 'cloudName'},
+    {'1': 'cloud_location', '3': 3, '4': 1, '5': 9, '10': 'cloudLocation'},
+    {'1': 'machine_type', '3': 4, '4': 1, '5': 9, '10': 'machineType'},
+    {'1': 'protos_version', '3': 5, '4': 1, '5': 9, '10': 'protosVersion'},
+    {'1': 'dev_img', '3': 6, '4': 1, '5': 9, '10': 'devImg'},
+  ],
+};
+
+/// Descriptor for `DeployInstanceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List deployInstanceRequestDescriptor = $convert.base64Decode(
+    'ChVEZXBsb3lJbnN0YW5jZVJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZRIdCgpjbG91ZF9uYW'
+    '1lGAIgASgJUgljbG91ZE5hbWUSJQoOY2xvdWRfbG9jYXRpb24YAyABKAlSDWNsb3VkTG9jYXRp'
+    'b24SIQoMbWFjaGluZV90eXBlGAQgASgJUgttYWNoaW5lVHlwZRIlCg5wcm90b3NfdmVyc2lvbh'
+    'gFIAEoCVINcHJvdG9zVmVyc2lvbhIXCgdkZXZfaW1nGAYgASgJUgZkZXZJbWc=');
+
+@$core.Deprecated('Use deployInstanceResponseDescriptor instead')
+const DeployInstanceResponse$json = {
+  '1': 'DeployInstanceResponse',
+  '2': [
+    {
+      '1': 'instance',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudInstance',
+      '10': 'instance'
+    },
+  ],
+};
+
+/// Descriptor for `DeployInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List deployInstanceResponseDescriptor =
+    $convert.base64Decode(
+        'ChZEZXBsb3lJbnN0YW5jZVJlc3BvbnNlEi8KCGluc3RhbmNlGAEgASgLMhMuYXBpYy5DbG91ZE'
+        'luc3RhbmNlUghpbnN0YW5jZQ==');
+
+@$core.Deprecated('Use removeInstanceRequestDescriptor instead')
+const RemoveInstanceRequest$json = {
+  '1': 'RemoveInstanceRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'local_only', '3': 2, '4': 1, '5': 8, '10': 'localOnly'},
+  ],
+};
+
+/// Descriptor for `RemoveInstanceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeInstanceRequestDescriptor = $convert.base64Decode(
+    'ChVSZW1vdmVJbnN0YW5jZVJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZRIdCgpsb2NhbF9vbm'
+    'x5GAIgASgIUglsb2NhbE9ubHk=');
+
+@$core.Deprecated('Use removeInstanceResponseDescriptor instead')
+const RemoveInstanceResponse$json = {
+  '1': 'RemoveInstanceResponse',
+};
+
+/// Descriptor for `RemoveInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeInstanceResponseDescriptor =
+    $convert.base64Decode('ChZSZW1vdmVJbnN0YW5jZVJlc3BvbnNl');
+
+@$core.Deprecated('Use startInstanceRequestDescriptor instead')
+const StartInstanceRequest$json = {
+  '1': 'StartInstanceRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `StartInstanceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List startInstanceRequestDescriptor = $convert
+    .base64Decode('ChRTdGFydEluc3RhbmNlUmVxdWVzdBISCgRuYW1lGAEgASgJUgRuYW1l');
+
+@$core.Deprecated('Use startInstanceResponseDescriptor instead')
+const StartInstanceResponse$json = {
+  '1': 'StartInstanceResponse',
+};
+
+/// Descriptor for `StartInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List startInstanceResponseDescriptor =
+    $convert.base64Decode('ChVTdGFydEluc3RhbmNlUmVzcG9uc2U=');
+
+@$core.Deprecated('Use stopInstanceRequestDescriptor instead')
+const StopInstanceRequest$json = {
+  '1': 'StopInstanceRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `StopInstanceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List stopInstanceRequestDescriptor = $convert
+    .base64Decode('ChNTdG9wSW5zdGFuY2VSZXF1ZXN0EhIKBG5hbWUYASABKAlSBG5hbWU=');
+
+@$core.Deprecated('Use stopInstanceResponseDescriptor instead')
+const StopInstanceResponse$json = {
+  '1': 'StopInstanceResponse',
+};
+
+/// Descriptor for `StopInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List stopInstanceResponseDescriptor =
+    $convert.base64Decode('ChRTdG9wSW5zdGFuY2VSZXNwb25zZQ==');
+
+@$core.Deprecated('Use getInstanceKeyRequestDescriptor instead')
+const GetInstanceKeyRequest$json = {
+  '1': 'GetInstanceKeyRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetInstanceKeyRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceKeyRequestDescriptor =
+    $convert.base64Decode(
+        'ChVHZXRJbnN0YW5jZUtleVJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use getInstanceKeyResponseDescriptor instead')
+const GetInstanceKeyResponse$json = {
+  '1': 'GetInstanceKeyResponse',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+  ],
+};
+
+/// Descriptor for `GetInstanceKeyResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceKeyResponseDescriptor = $convert
+    .base64Decode('ChZHZXRJbnN0YW5jZUtleVJlc3BvbnNlEhAKA2tleRgBIAEoCVIDa2V5');
+
+@$core.Deprecated('Use getInstanceLogsRequestDescriptor instead')
+const GetInstanceLogsRequest$json = {
+  '1': 'GetInstanceLogsRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetInstanceLogsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceLogsRequestDescriptor =
+    $convert.base64Decode(
+        'ChZHZXRJbnN0YW5jZUxvZ3NSZXF1ZXN0EhIKBG5hbWUYASABKAlSBG5hbWU=');
+
+@$core.Deprecated('Use getInstanceLogsResponseDescriptor instead')
+const GetInstanceLogsResponse$json = {
+  '1': 'GetInstanceLogsResponse',
+  '2': [
+    {'1': 'logs', '3': 1, '4': 1, '5': 9, '10': 'logs'},
+  ],
+};
+
+/// Descriptor for `GetInstanceLogsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceLogsResponseDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRJbnN0YW5jZUxvZ3NSZXNwb25zZRISCgRsb2dzGAEgASgJUgRsb2dz');
+
+@$core.Deprecated('Use initInstanceRequestDescriptor instead')
+const InitInstanceRequest$json = {
+  '1': 'InitInstanceRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'ip', '3': 2, '4': 1, '5': 9, '10': 'ip'},
+  ],
+};
+
+/// Descriptor for `InitInstanceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List initInstanceRequestDescriptor = $convert.base64Decode(
+    'ChNJbml0SW5zdGFuY2VSZXF1ZXN0EhIKBG5hbWUYASABKAlSBG5hbWUSDgoCaXAYAiABKAlSAm'
+    'lw');
+
+@$core.Deprecated('Use initInstanceResponseDescriptor instead')
+const InitInstanceResponse$json = {
+  '1': 'InitInstanceResponse',
+};
+
+/// Descriptor for `InitInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List initInstanceResponseDescriptor =
+    $convert.base64Decode('ChRJbml0SW5zdGFuY2VSZXNwb25zZQ==');
+
+@$core.Deprecated('Use updateInstanceRequestDescriptor instead')
+const UpdateInstanceRequest$json = {
+  '1': 'UpdateInstanceRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'ip', '3': 2, '4': 1, '5': 9, '10': 'ip'},
+  ],
+};
+
+/// Descriptor for `UpdateInstanceRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List updateInstanceRequestDescriptor = $convert.base64Decode(
+    'ChVVcGRhdGVJbnN0YW5jZVJlcXVlc3QSDgoCaWQYASABKAlSAmlkEg4KAmlwGAIgASgJUgJpcA'
+    '==');
+
+@$core.Deprecated('Use updateInstanceResponseDescriptor instead')
+const UpdateInstanceResponse$json = {
+  '1': 'UpdateInstanceResponse',
+};
+
+/// Descriptor for `UpdateInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List updateInstanceResponseDescriptor =
+    $convert.base64Decode('ChZVcGRhdGVJbnN0YW5jZVJlc3BvbnNl');
+
+@$core.Deprecated('Use getNetworkStateRequestDescriptor instead')
+const GetNetworkStateRequest$json = {
+  '1': 'GetNetworkStateRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+  ],
+};
+
+/// Descriptor for `GetNetworkStateRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getNetworkStateRequestDescriptor =
+    $convert.base64Decode(
+        'ChZHZXROZXR3b3JrU3RhdGVSZXF1ZXN0EhoKCGluc3RhbmNlGAEgASgJUghpbnN0YW5jZQ==');
+
+@$core.Deprecated('Use getNetworkStateResponseDescriptor instead')
+const GetNetworkStateResponse$json = {
+  '1': 'GetNetworkStateResponse',
+  '2': [
+    {
+      '1': 'state',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.NetworkState',
+      '10': 'state'
+    },
+  ],
+};
+
+/// Descriptor for `GetNetworkStateResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getNetworkStateResponseDescriptor =
+    $convert.base64Decode(
+        'ChdHZXROZXR3b3JrU3RhdGVSZXNwb25zZRIoCgVzdGF0ZRgBIAEoCzISLmFwaWMuTmV0d29ya1'
+        'N0YXRlUgVzdGF0ZQ==');
+
+@$core.Deprecated('Use networkStateDescriptor instead')
+const NetworkState$json = {
+  '1': 'NetworkState',
+  '2': [
+    {'1': 'module', '3': 1, '4': 1, '5': 9, '10': 'module'},
+    {'1': 'up', '3': 2, '4': 1, '5': 8, '10': 'up'},
+    {'1': 'interface_name', '3': 3, '4': 1, '5': 9, '10': 'interfaceName'},
+    {
+      '1': 'addresses',
+      '3': 4,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.NetworkAddress',
+      '10': 'addresses'
+    },
+    {
+      '1': 'routes',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.NetworkRoute',
+      '10': 'routes'
+    },
+    {
+      '1': 'wireguard_peers',
+      '3': 6,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.WireGuardPeer',
+      '10': 'wireguardPeers'
+    },
+    {
+      '1': 'firewall_tables',
+      '3': 7,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.FirewallTable',
+      '10': 'firewallTables'
+    },
+    {'1': 'dns', '3': 8, '4': 3, '5': 11, '6': '.apic.DNSState', '10': 'dns'},
+    {'1': 'messages', '3': 9, '4': 3, '5': 9, '10': 'messages'},
+    {
+      '1': 'interfaces',
+      '3': 10,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.NetworkInterface',
+      '10': 'interfaces'
+    },
+  ],
+};
+
+/// Descriptor for `NetworkState`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List networkStateDescriptor = $convert.base64Decode(
+    'CgxOZXR3b3JrU3RhdGUSFgoGbW9kdWxlGAEgASgJUgZtb2R1bGUSDgoCdXAYAiABKAhSAnVwEi'
+    'UKDmludGVyZmFjZV9uYW1lGAMgASgJUg1pbnRlcmZhY2VOYW1lEjIKCWFkZHJlc3NlcxgEIAMo'
+    'CzIULmFwaWMuTmV0d29ya0FkZHJlc3NSCWFkZHJlc3NlcxIqCgZyb3V0ZXMYBSADKAsyEi5hcG'
+    'ljLk5ldHdvcmtSb3V0ZVIGcm91dGVzEjwKD3dpcmVndWFyZF9wZWVycxgGIAMoCzITLmFwaWMu'
+    'V2lyZUd1YXJkUGVlclIOd2lyZWd1YXJkUGVlcnMSPAoPZmlyZXdhbGxfdGFibGVzGAcgAygLMh'
+    'MuYXBpYy5GaXJld2FsbFRhYmxlUg5maXJld2FsbFRhYmxlcxIgCgNkbnMYCCADKAsyDi5hcGlj'
+    'LkROU1N0YXRlUgNkbnMSGgoIbWVzc2FnZXMYCSADKAlSCG1lc3NhZ2VzEjYKCmludGVyZmFjZX'
+    'MYCiADKAsyFi5hcGljLk5ldHdvcmtJbnRlcmZhY2VSCmludGVyZmFjZXM=');
+
+@$core.Deprecated('Use networkInterfaceDescriptor instead')
+const NetworkInterface$json = {
+  '1': 'NetworkInterface',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'type', '3': 2, '4': 1, '5': 9, '10': 'type'},
+    {'1': 'index', '3': 3, '4': 1, '5': 5, '10': 'index'},
+    {'1': 'mtu', '3': 4, '4': 1, '5': 5, '10': 'mtu'},
+    {'1': 'up', '3': 5, '4': 1, '5': 8, '10': 'up'},
+    {'1': 'master', '3': 6, '4': 1, '5': 9, '10': 'master'},
+    {'1': 'mac_address', '3': 7, '4': 1, '5': 9, '10': 'macAddress'},
+    {'1': 'kind', '3': 8, '4': 1, '5': 9, '10': 'kind'},
+  ],
+};
+
+/// Descriptor for `NetworkInterface`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List networkInterfaceDescriptor = $convert.base64Decode(
+    'ChBOZXR3b3JrSW50ZXJmYWNlEhIKBG5hbWUYASABKAlSBG5hbWUSEgoEdHlwZRgCIAEoCVIEdH'
+    'lwZRIUCgVpbmRleBgDIAEoBVIFaW5kZXgSEAoDbXR1GAQgASgFUgNtdHUSDgoCdXAYBSABKAhS'
+    'AnVwEhYKBm1hc3RlchgGIAEoCVIGbWFzdGVyEh8KC21hY19hZGRyZXNzGAcgASgJUgptYWNBZG'
+    'RyZXNzEhIKBGtpbmQYCCABKAlSBGtpbmQ=');
+
+@$core.Deprecated('Use networkAddressDescriptor instead')
+const NetworkAddress$json = {
+  '1': 'NetworkAddress',
+  '2': [
+    {'1': 'interface_name', '3': 1, '4': 1, '5': 9, '10': 'interfaceName'},
+    {'1': 'cidr', '3': 2, '4': 1, '5': 9, '10': 'cidr'},
+    {'1': 'scope', '3': 3, '4': 1, '5': 9, '10': 'scope'},
+  ],
+};
+
+/// Descriptor for `NetworkAddress`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List networkAddressDescriptor = $convert.base64Decode(
+    'Cg5OZXR3b3JrQWRkcmVzcxIlCg5pbnRlcmZhY2VfbmFtZRgBIAEoCVINaW50ZXJmYWNlTmFtZR'
+    'ISCgRjaWRyGAIgASgJUgRjaWRyEhQKBXNjb3BlGAMgASgJUgVzY29wZQ==');
+
+@$core.Deprecated('Use networkRouteDescriptor instead')
+const NetworkRoute$json = {
+  '1': 'NetworkRoute',
+  '2': [
+    {'1': 'interface_name', '3': 1, '4': 1, '5': 9, '10': 'interfaceName'},
+    {'1': 'destination', '3': 2, '4': 1, '5': 9, '10': 'destination'},
+    {'1': 'gateway', '3': 3, '4': 1, '5': 9, '10': 'gateway'},
+    {'1': 'source', '3': 4, '4': 1, '5': 9, '10': 'source'},
+    {'1': 'family', '3': 5, '4': 1, '5': 9, '10': 'family'},
+    {'1': 'table', '3': 6, '4': 1, '5': 9, '10': 'table'},
+    {'1': 'protocol', '3': 7, '4': 1, '5': 9, '10': 'protocol'},
+    {'1': 'scope', '3': 8, '4': 1, '5': 9, '10': 'scope'},
+    {'1': 'priority', '3': 9, '4': 1, '5': 9, '10': 'priority'},
+    {'1': 'kind', '3': 10, '4': 1, '5': 9, '10': 'kind'},
+  ],
+};
+
+/// Descriptor for `NetworkRoute`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List networkRouteDescriptor = $convert.base64Decode(
+    'CgxOZXR3b3JrUm91dGUSJQoOaW50ZXJmYWNlX25hbWUYASABKAlSDWludGVyZmFjZU5hbWUSIA'
+    'oLZGVzdGluYXRpb24YAiABKAlSC2Rlc3RpbmF0aW9uEhgKB2dhdGV3YXkYAyABKAlSB2dhdGV3'
+    'YXkSFgoGc291cmNlGAQgASgJUgZzb3VyY2USFgoGZmFtaWx5GAUgASgJUgZmYW1pbHkSFAoFdG'
+    'FibGUYBiABKAlSBXRhYmxlEhoKCHByb3RvY29sGAcgASgJUghwcm90b2NvbBIUCgVzY29wZRgI'
+    'IAEoCVIFc2NvcGUSGgoIcHJpb3JpdHkYCSABKAlSCHByaW9yaXR5EhIKBGtpbmQYCiABKAlSBG'
+    'tpbmQ=');
+
+@$core.Deprecated('Use wireGuardPeerDescriptor instead')
+const WireGuardPeer$json = {
+  '1': 'WireGuardPeer',
+  '2': [
+    {'1': 'public_key', '3': 1, '4': 1, '5': 9, '10': 'publicKey'},
+    {'1': 'endpoint', '3': 2, '4': 1, '5': 9, '10': 'endpoint'},
+    {'1': 'allowed_ips', '3': 3, '4': 3, '5': 9, '10': 'allowedIps'},
+    {'1': 'latest_handshake', '3': 4, '4': 1, '5': 9, '10': 'latestHandshake'},
+    {'1': 'rx_bytes', '3': 5, '4': 1, '5': 4, '10': 'rxBytes'},
+    {'1': 'tx_bytes', '3': 6, '4': 1, '5': 4, '10': 'txBytes'},
+  ],
+};
+
+/// Descriptor for `WireGuardPeer`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List wireGuardPeerDescriptor = $convert.base64Decode(
+    'Cg1XaXJlR3VhcmRQZWVyEh0KCnB1YmxpY19rZXkYASABKAlSCXB1YmxpY0tleRIaCghlbmRwb2'
+    'ludBgCIAEoCVIIZW5kcG9pbnQSHwoLYWxsb3dlZF9pcHMYAyADKAlSCmFsbG93ZWRJcHMSKQoQ'
+    'bGF0ZXN0X2hhbmRzaGFrZRgEIAEoCVIPbGF0ZXN0SGFuZHNoYWtlEhkKCHJ4X2J5dGVzGAUgAS'
+    'gEUgdyeEJ5dGVzEhkKCHR4X2J5dGVzGAYgASgEUgd0eEJ5dGVz');
+
+@$core.Deprecated('Use firewallTableDescriptor instead')
+const FirewallTable$json = {
+  '1': 'FirewallTable',
+  '2': [
+    {'1': 'family', '3': 1, '4': 1, '5': 9, '10': 'family'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'chains',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.FirewallChain',
+      '10': 'chains'
+    },
+  ],
+};
+
+/// Descriptor for `FirewallTable`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List firewallTableDescriptor = $convert.base64Decode(
+    'Cg1GaXJld2FsbFRhYmxlEhYKBmZhbWlseRgBIAEoCVIGZmFtaWx5EhIKBG5hbWUYAiABKAlSBG'
+    '5hbWUSKwoGY2hhaW5zGAMgAygLMhMuYXBpYy5GaXJld2FsbENoYWluUgZjaGFpbnM=');
+
+@$core.Deprecated('Use firewallChainDescriptor instead')
+const FirewallChain$json = {
+  '1': 'FirewallChain',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'type', '3': 2, '4': 1, '5': 9, '10': 'type'},
+    {'1': 'hook', '3': 3, '4': 1, '5': 9, '10': 'hook'},
+    {'1': 'priority', '3': 4, '4': 1, '5': 9, '10': 'priority'},
+    {
+      '1': 'rules',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.FirewallRule',
+      '10': 'rules'
+    },
+  ],
+};
+
+/// Descriptor for `FirewallChain`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List firewallChainDescriptor = $convert.base64Decode(
+    'Cg1GaXJld2FsbENoYWluEhIKBG5hbWUYASABKAlSBG5hbWUSEgoEdHlwZRgCIAEoCVIEdHlwZR'
+    'ISCgRob29rGAMgASgJUgRob29rEhoKCHByaW9yaXR5GAQgASgJUghwcmlvcml0eRIoCgVydWxl'
+    'cxgFIAMoCzISLmFwaWMuRmlyZXdhbGxSdWxlUgVydWxlcw==');
+
+@$core.Deprecated('Use firewallRuleDescriptor instead')
+const FirewallRule$json = {
+  '1': 'FirewallRule',
+  '2': [
+    {'1': 'expressions', '3': 1, '4': 3, '5': 9, '10': 'expressions'},
+    {'1': 'packets', '3': 2, '4': 1, '5': 4, '10': 'packets'},
+    {'1': 'bytes', '3': 3, '4': 1, '5': 4, '10': 'bytes'},
+  ],
+};
+
+/// Descriptor for `FirewallRule`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List firewallRuleDescriptor = $convert.base64Decode(
+    'CgxGaXJld2FsbFJ1bGUSIAoLZXhwcmVzc2lvbnMYASADKAlSC2V4cHJlc3Npb25zEhgKB3BhY2'
+    'tldHMYAiABKARSB3BhY2tldHMSFAoFYnl0ZXMYAyABKARSBWJ5dGVz');
+
+@$core.Deprecated('Use dNSStateDescriptor instead')
+const DNSState$json = {
+  '1': 'DNSState',
+  '2': [
+    {'1': 'scope', '3': 1, '4': 1, '5': 9, '10': 'scope'},
+    {'1': 'domain', '3': 2, '4': 1, '5': 9, '10': 'domain'},
+    {'1': 'servers', '3': 3, '4': 3, '5': 9, '10': 'servers'},
+    {'1': 'port', '3': 4, '4': 1, '5': 5, '10': 'port'},
+    {'1': 'active', '3': 5, '4': 1, '5': 8, '10': 'active'},
+    {'1': 'source', '3': 6, '4': 1, '5': 9, '10': 'source'},
+  ],
+};
+
+/// Descriptor for `DNSState`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dNSStateDescriptor = $convert.base64Decode(
+    'CghETlNTdGF0ZRIUCgVzY29wZRgBIAEoCVIFc2NvcGUSFgoGZG9tYWluGAIgASgJUgZkb21haW'
+    '4SGAoHc2VydmVycxgDIAMoCVIHc2VydmVycxISCgRwb3J0GAQgASgFUgRwb3J0EhYKBmFjdGl2'
+    'ZRgFIAEoCFIGYWN0aXZlEhYKBnNvdXJjZRgGIAEoCVIGc291cmNl');
+
+@$core.Deprecated('Use exitRouteDescriptor instead')
+const ExitRoute$json = {
+  '1': 'ExitRoute',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'device_id', '3': 2, '4': 1, '5': 9, '10': 'deviceId'},
+    {'1': 'instance_id', '3': 3, '4': 1, '5': 9, '10': 'instanceId'},
+    {'1': 'instance_name', '3': 4, '4': 1, '5': 9, '10': 'instanceName'},
+    {'1': 'public_ip', '3': 5, '4': 1, '5': 9, '10': 'publicIp'},
+    {'1': 'location', '3': 6, '4': 1, '5': 9, '10': 'location'},
+    {'1': 'status', '3': 7, '4': 1, '5': 9, '10': 'status'},
+    {'1': 'dns_server', '3': 8, '4': 1, '5': 9, '10': 'dnsServer'},
+    {'1': 'cidrs', '3': 9, '4': 3, '5': 9, '10': 'cidrs'},
+  ],
+};
+
+/// Descriptor for `ExitRoute`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List exitRouteDescriptor = $convert.base64Decode(
+    'CglFeGl0Um91dGUSDgoCaWQYASABKAlSAmlkEhsKCWRldmljZV9pZBgCIAEoCVIIZGV2aWNlSW'
+    'QSHwoLaW5zdGFuY2VfaWQYAyABKAlSCmluc3RhbmNlSWQSIwoNaW5zdGFuY2VfbmFtZRgEIAEo'
+    'CVIMaW5zdGFuY2VOYW1lEhsKCXB1YmxpY19pcBgFIAEoCVIIcHVibGljSXASGgoIbG9jYXRpb2'
+    '4YBiABKAlSCGxvY2F0aW9uEhYKBnN0YXR1cxgHIAEoCVIGc3RhdHVzEh0KCmRuc19zZXJ2ZXIY'
+    'CCABKAlSCWRuc1NlcnZlchIUCgVjaWRycxgJIAMoCVIFY2lkcnM=');
+
+@$core.Deprecated('Use getExitRoutesRequestDescriptor instead')
+const GetExitRoutesRequest$json = {
+  '1': 'GetExitRoutesRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+  ],
+};
+
+/// Descriptor for `GetExitRoutesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getExitRoutesRequestDescriptor =
+    $convert.base64Decode(
+        'ChRHZXRFeGl0Um91dGVzUmVxdWVzdBIaCghpbnN0YW5jZRgBIAEoCVIIaW5zdGFuY2U=');
+
+@$core.Deprecated('Use getExitRoutesResponseDescriptor instead')
+const GetExitRoutesResponse$json = {
+  '1': 'GetExitRoutesResponse',
+  '2': [
+    {
+      '1': 'routes',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.ExitRoute',
+      '10': 'routes'
+    },
+  ],
+};
+
+/// Descriptor for `GetExitRoutesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getExitRoutesResponseDescriptor = $convert.base64Decode(
+    'ChVHZXRFeGl0Um91dGVzUmVzcG9uc2USJwoGcm91dGVzGAEgAygLMg8uYXBpYy5FeGl0Um91dG'
+    'VSBnJvdXRlcw==');
+
+@$core.Deprecated('Use getRuntimeStateRequestDescriptor instead')
+const GetRuntimeStateRequest$json = {
+  '1': 'GetRuntimeStateRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+  ],
+};
+
+/// Descriptor for `GetRuntimeStateRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getRuntimeStateRequestDescriptor =
+    $convert.base64Decode(
+        'ChZHZXRSdW50aW1lU3RhdGVSZXF1ZXN0EhoKCGluc3RhbmNlGAEgASgJUghpbnN0YW5jZQ==');
+
+@$core.Deprecated('Use getRuntimeStateResponseDescriptor instead')
+const GetRuntimeStateResponse$json = {
+  '1': 'GetRuntimeStateResponse',
+  '2': [
+    {
+      '1': 'state',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.RuntimeState',
+      '10': 'state'
+    },
+  ],
+};
+
+/// Descriptor for `GetRuntimeStateResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getRuntimeStateResponseDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRSdW50aW1lU3RhdGVSZXNwb25zZRIoCgVzdGF0ZRgBIAEoCzISLmFwaWMuUnVudGltZV'
+        'N0YXRlUgVzdGF0ZQ==');
+
+@$core.Deprecated('Use watchChangesRequestDescriptor instead')
+const WatchChangesRequest$json = {
+  '1': 'WatchChangesRequest',
+  '2': [
+    {'1': 'include_snapshot', '3': 1, '4': 1, '5': 8, '10': 'includeSnapshot'},
+    {
+      '1': 'heartbeat_interval_ms',
+      '3': 2,
+      '4': 1,
+      '5': 13,
+      '10': 'heartbeatIntervalMs'
+    },
+  ],
+};
+
+/// Descriptor for `WatchChangesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List watchChangesRequestDescriptor = $convert.base64Decode(
+    'ChNXYXRjaENoYW5nZXNSZXF1ZXN0EikKEGluY2x1ZGVfc25hcHNob3QYASABKAhSD2luY2x1ZG'
+    'VTbmFwc2hvdBIyChVoZWFydGJlYXRfaW50ZXJ2YWxfbXMYAiABKA1SE2hlYXJ0YmVhdEludGVy'
+    'dmFsTXM=');
+
+@$core.Deprecated('Use watchChangesResponseDescriptor instead')
+const WatchChangesResponse$json = {
+  '1': 'WatchChangesResponse',
+  '2': [
+    {'1': 'sequence', '3': 1, '4': 1, '5': 4, '10': 'sequence'},
+    {'1': 'table_names', '3': 2, '4': 3, '5': 9, '10': 'tableNames'},
+    {'1': 'runtime_changed', '3': 3, '4': 1, '5': 8, '10': 'runtimeChanged'},
+    {'1': 'reason', '3': 4, '4': 1, '5': 9, '10': 'reason'},
+  ],
+};
+
+/// Descriptor for `WatchChangesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List watchChangesResponseDescriptor = $convert.base64Decode(
+    'ChRXYXRjaENoYW5nZXNSZXNwb25zZRIaCghzZXF1ZW5jZRgBIAEoBFIIc2VxdWVuY2USHwoLdG'
+    'FibGVfbmFtZXMYAiADKAlSCnRhYmxlTmFtZXMSJwoPcnVudGltZV9jaGFuZ2VkGAMgASgIUg5y'
+    'dW50aW1lQ2hhbmdlZBIWCgZyZWFzb24YBCABKAlSBnJlYXNvbg==');
+
+@$core.Deprecated('Use setExitRouteRequestDescriptor instead')
+const SetExitRouteRequest$json = {
+  '1': 'SetExitRouteRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+    {'1': 'device_id', '3': 2, '4': 1, '5': 9, '10': 'deviceId'},
+    {'1': 'dns_server', '3': 3, '4': 1, '5': 9, '10': 'dnsServer'},
+    {'1': 'cidrs', '3': 4, '4': 3, '5': 9, '10': 'cidrs'},
+  ],
+};
+
+/// Descriptor for `SetExitRouteRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setExitRouteRequestDescriptor = $convert.base64Decode(
+    'ChNTZXRFeGl0Um91dGVSZXF1ZXN0EhoKCGluc3RhbmNlGAEgASgJUghpbnN0YW5jZRIbCglkZX'
+    'ZpY2VfaWQYAiABKAlSCGRldmljZUlkEh0KCmRuc19zZXJ2ZXIYAyABKAlSCWRuc1NlcnZlchIU'
+    'CgVjaWRycxgEIAMoCVIFY2lkcnM=');
+
+@$core.Deprecated('Use setExitRouteResponseDescriptor instead')
+const SetExitRouteResponse$json = {
+  '1': 'SetExitRouteResponse',
+  '2': [
+    {
+      '1': 'route',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.ExitRoute',
+      '10': 'route'
+    },
+  ],
+};
+
+/// Descriptor for `SetExitRouteResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setExitRouteResponseDescriptor = $convert.base64Decode(
+    'ChRTZXRFeGl0Um91dGVSZXNwb25zZRIlCgVyb3V0ZRgBIAEoCzIPLmFwaWMuRXhpdFJvdXRlUg'
+    'Vyb3V0ZQ==');
+
+@$core.Deprecated('Use clearExitRouteRequestDescriptor instead')
+const ClearExitRouteRequest$json = {
+  '1': 'ClearExitRouteRequest',
+  '2': [
+    {'1': 'device_id', '3': 1, '4': 1, '5': 9, '10': 'deviceId'},
+  ],
+};
+
+/// Descriptor for `ClearExitRouteRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List clearExitRouteRequestDescriptor = $convert.base64Decode(
+    'ChVDbGVhckV4aXRSb3V0ZVJlcXVlc3QSGwoJZGV2aWNlX2lkGAEgASgJUghkZXZpY2VJZA==');
+
+@$core.Deprecated('Use clearExitRouteResponseDescriptor instead')
+const ClearExitRouteResponse$json = {
+  '1': 'ClearExitRouteResponse',
+};
+
+/// Descriptor for `ClearExitRouteResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List clearExitRouteResponseDescriptor =
+    $convert.base64Decode('ChZDbGVhckV4aXRSb3V0ZVJlc3BvbnNl');
+
+@$core.Deprecated('Use runtimeStateDescriptor instead')
+const RuntimeState$json = {
+  '1': 'RuntimeState',
+  '2': [
+    {'1': 'peer_id', '3': 1, '4': 1, '5': 9, '10': 'peerId'},
+    {'1': 'manifest_digest', '3': 2, '4': 1, '5': 9, '10': 'manifestDigest'},
+    {
+      '1': 'finalized_root_hash',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '10': 'finalizedRootHash'
+    },
+    {
+      '1': 'tentative_root_hash',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '10': 'tentativeRootHash'
+    },
+    {
+      '1': 'protocol_finalized_root_hash',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '10': 'protocolFinalizedRootHash'
+    },
+    {
+      '1': 'durable_main_root_hash',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '10': 'durableMainRootHash'
+    },
+    {'1': 'active_epoch_id', '3': 7, '4': 1, '5': 9, '10': 'activeEpochId'},
+    {
+      '1': 'active_witness_ids',
+      '3': 8,
+      '4': 3,
+      '5': 9,
+      '10': 'activeWitnessIds'
+    },
+    {
+      '1': 'eligible_witness_ids',
+      '3': 9,
+      '4': 3,
+      '5': 9,
+      '10': 'eligibleWitnessIds'
+    },
+    {'1': 'state_providers', '3': 10, '4': 3, '5': 9, '10': 'stateProviders'},
+    {'1': 'connected_peers', '3': 11, '4': 3, '5': 9, '10': 'connectedPeers'},
+    {'1': 'fatal_state', '3': 12, '4': 1, '5': 9, '10': 'fatalState'},
+    {
+      '1': 'runtime_refresh_pending',
+      '3': 13,
+      '4': 1,
+      '5': 8,
+      '10': 'runtimeRefreshPending'
+    },
+    {
+      '1': 'runtime_refresh_last_error',
+      '3': 14,
+      '4': 1,
+      '5': 9,
+      '10': 'runtimeRefreshLastError'
+    },
+    {
+      '1': 'runtime_finalized_pending',
+      '3': 15,
+      '4': 1,
+      '5': 8,
+      '10': 'runtimeFinalizedPending'
+    },
+    {
+      '1': 'runtime_finalized_last_error',
+      '3': 16,
+      '4': 1,
+      '5': 9,
+      '10': 'runtimeFinalizedLastError'
+    },
+    {
+      '1': 'runtime_materialization_policy',
+      '3': 17,
+      '4': 1,
+      '5': 9,
+      '10': 'runtimeMaterializationPolicy'
+    },
+    {
+      '1': 'peer_statuses',
+      '3': 18,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.RuntimePeerStatus',
+      '10': 'peerStatuses'
+    },
+    {
+      '1': 'compatibility',
+      '3': 19,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.RuntimeCompatibility',
+      '10': 'compatibility'
+    },
+    {
+      '1': 'content_sync_trace',
+      '3': 20,
+      '4': 3,
+      '5': 9,
+      '10': 'contentSyncTrace'
+    },
+  ],
+};
+
+/// Descriptor for `RuntimeState`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List runtimeStateDescriptor = $convert.base64Decode(
+    'CgxSdW50aW1lU3RhdGUSFwoHcGVlcl9pZBgBIAEoCVIGcGVlcklkEicKD21hbmlmZXN0X2RpZ2'
+    'VzdBgCIAEoCVIObWFuaWZlc3REaWdlc3QSLgoTZmluYWxpemVkX3Jvb3RfaGFzaBgDIAEoCVIR'
+    'ZmluYWxpemVkUm9vdEhhc2gSLgoTdGVudGF0aXZlX3Jvb3RfaGFzaBgEIAEoCVIRdGVudGF0aX'
+    'ZlUm9vdEhhc2gSPwoccHJvdG9jb2xfZmluYWxpemVkX3Jvb3RfaGFzaBgFIAEoCVIZcHJvdG9j'
+    'b2xGaW5hbGl6ZWRSb290SGFzaBIzChZkdXJhYmxlX21haW5fcm9vdF9oYXNoGAYgASgJUhNkdX'
+    'JhYmxlTWFpblJvb3RIYXNoEiYKD2FjdGl2ZV9lcG9jaF9pZBgHIAEoCVINYWN0aXZlRXBvY2hJ'
+    'ZBIsChJhY3RpdmVfd2l0bmVzc19pZHMYCCADKAlSEGFjdGl2ZVdpdG5lc3NJZHMSMAoUZWxpZ2'
+    'libGVfd2l0bmVzc19pZHMYCSADKAlSEmVsaWdpYmxlV2l0bmVzc0lkcxInCg9zdGF0ZV9wcm92'
+    'aWRlcnMYCiADKAlSDnN0YXRlUHJvdmlkZXJzEicKD2Nvbm5lY3RlZF9wZWVycxgLIAMoCVIOY2'
+    '9ubmVjdGVkUGVlcnMSHwoLZmF0YWxfc3RhdGUYDCABKAlSCmZhdGFsU3RhdGUSNgoXcnVudGlt'
+    'ZV9yZWZyZXNoX3BlbmRpbmcYDSABKAhSFXJ1bnRpbWVSZWZyZXNoUGVuZGluZxI7ChpydW50aW'
+    '1lX3JlZnJlc2hfbGFzdF9lcnJvchgOIAEoCVIXcnVudGltZVJlZnJlc2hMYXN0RXJyb3ISOgoZ'
+    'cnVudGltZV9maW5hbGl6ZWRfcGVuZGluZxgPIAEoCFIXcnVudGltZUZpbmFsaXplZFBlbmRpbm'
+    'cSPwoccnVudGltZV9maW5hbGl6ZWRfbGFzdF9lcnJvchgQIAEoCVIZcnVudGltZUZpbmFsaXpl'
+    'ZExhc3RFcnJvchJECh5ydW50aW1lX21hdGVyaWFsaXphdGlvbl9wb2xpY3kYESABKAlSHHJ1bn'
+    'RpbWVNYXRlcmlhbGl6YXRpb25Qb2xpY3kSPAoNcGVlcl9zdGF0dXNlcxgSIAMoCzIXLmFwaWMu'
+    'UnVudGltZVBlZXJTdGF0dXNSDHBlZXJTdGF0dXNlcxJACg1jb21wYXRpYmlsaXR5GBMgAygLMh'
+    'ouYXBpYy5SdW50aW1lQ29tcGF0aWJpbGl0eVINY29tcGF0aWJpbGl0eRIsChJjb250ZW50X3N5'
+    'bmNfdHJhY2UYFCADKAlSEGNvbnRlbnRTeW5jVHJhY2U=');
+
+@$core.Deprecated('Use runtimePeerStatusDescriptor instead')
+const RuntimePeerStatus$json = {
+  '1': 'RuntimePeerStatus',
+  '2': [
+    {'1': 'peer_id', '3': 1, '4': 1, '5': 9, '10': 'peerId'},
+    {'1': 'connected', '3': 2, '4': 1, '5': 8, '10': 'connected'},
+    {'1': 'dialable', '3': 3, '4': 1, '5': 8, '10': 'dialable'},
+    {'1': 'state_provider', '3': 4, '4': 1, '5': 8, '10': 'stateProvider'},
+    {'1': 'witness', '3': 5, '4': 1, '5': 8, '10': 'witness'},
+    {'1': 'eligible_witness', '3': 6, '4': 1, '5': 8, '10': 'eligibleWitness'},
+    {'1': 'compatible', '3': 7, '4': 1, '5': 8, '10': 'compatible'},
+    {'1': 'incompatible', '3': 8, '4': 1, '5': 8, '10': 'incompatible'},
+    {'1': 'ignored', '3': 9, '4': 1, '5': 8, '10': 'ignored'},
+    {'1': 'relay_only', '3': 10, '4': 1, '5': 8, '10': 'relayOnly'},
+    {'1': 'addresses', '3': 11, '4': 3, '5': 9, '10': 'addresses'},
+    {
+      '1': 'last_dial_errors',
+      '3': 12,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.RuntimePeerStatus.LastDialErrorsEntry',
+      '10': 'lastDialErrors'
+    },
+    {'1': 'reason', '3': 13, '4': 1, '5': 9, '10': 'reason'},
+  ],
+  '3': [RuntimePeerStatus_LastDialErrorsEntry$json],
+};
+
+@$core.Deprecated('Use runtimePeerStatusDescriptor instead')
+const RuntimePeerStatus_LastDialErrorsEntry$json = {
+  '1': 'LastDialErrorsEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `RuntimePeerStatus`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List runtimePeerStatusDescriptor = $convert.base64Decode(
+    'ChFSdW50aW1lUGVlclN0YXR1cxIXCgdwZWVyX2lkGAEgASgJUgZwZWVySWQSHAoJY29ubmVjdG'
+    'VkGAIgASgIUgljb25uZWN0ZWQSGgoIZGlhbGFibGUYAyABKAhSCGRpYWxhYmxlEiUKDnN0YXRl'
+    'X3Byb3ZpZGVyGAQgASgIUg1zdGF0ZVByb3ZpZGVyEhgKB3dpdG5lc3MYBSABKAhSB3dpdG5lc3'
+    'MSKQoQZWxpZ2libGVfd2l0bmVzcxgGIAEoCFIPZWxpZ2libGVXaXRuZXNzEh4KCmNvbXBhdGli'
+    'bGUYByABKAhSCmNvbXBhdGlibGUSIgoMaW5jb21wYXRpYmxlGAggASgIUgxpbmNvbXBhdGlibG'
+    'USGAoHaWdub3JlZBgJIAEoCFIHaWdub3JlZBIdCgpyZWxheV9vbmx5GAogASgIUglyZWxheU9u'
+    'bHkSHAoJYWRkcmVzc2VzGAsgAygJUglhZGRyZXNzZXMSVQoQbGFzdF9kaWFsX2Vycm9ycxgMIA'
+    'MoCzIrLmFwaWMuUnVudGltZVBlZXJTdGF0dXMuTGFzdERpYWxFcnJvcnNFbnRyeVIObGFzdERp'
+    'YWxFcnJvcnMSFgoGcmVhc29uGA0gASgJUgZyZWFzb24aQQoTTGFzdERpYWxFcnJvcnNFbnRyeR'
+    'IQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgB');
+
+@$core.Deprecated('Use runtimeCompatibilityDescriptor instead')
+const RuntimeCompatibility$json = {
+  '1': 'RuntimeCompatibility',
+  '2': [
+    {'1': 'peer_id', '3': 1, '4': 1, '5': 9, '10': 'peerId'},
+    {'1': 'local_digest', '3': 2, '4': 1, '5': 9, '10': 'localDigest'},
+    {'1': 'remote_digest', '3': 3, '4': 1, '5': 9, '10': 'remoteDigest'},
+    {'1': 'compatible', '3': 4, '4': 1, '5': 8, '10': 'compatible'},
+    {'1': 'blocking', '3': 5, '4': 1, '5': 8, '10': 'blocking'},
+    {'1': 'reason', '3': 6, '4': 1, '5': 9, '10': 'reason'},
+  ],
+};
+
+/// Descriptor for `RuntimeCompatibility`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List runtimeCompatibilityDescriptor = $convert.base64Decode(
+    'ChRSdW50aW1lQ29tcGF0aWJpbGl0eRIXCgdwZWVyX2lkGAEgASgJUgZwZWVySWQSIQoMbG9jYW'
+    'xfZGlnZXN0GAIgASgJUgtsb2NhbERpZ2VzdBIjCg1yZW1vdGVfZGlnZXN0GAMgASgJUgxyZW1v'
+    'dGVEaWdlc3QSHgoKY29tcGF0aWJsZRgEIAEoCFIKY29tcGF0aWJsZRIaCghibG9ja2luZxgFIA'
+    'EoCFIIYmxvY2tpbmcSFgoGcmVhc29uGAYgASgJUgZyZWFzb24=');
+
+@$core.Deprecated('Use cloudImageDescriptor instead')
+const CloudImage$json = {
+  '1': 'CloudImage',
+  '2': [
+    {'1': 'provider', '3': 1, '4': 1, '5': 9, '10': 'provider'},
+    {'1': 'url', '3': 2, '4': 1, '5': 9, '10': 'url'},
+    {'1': 'digest', '3': 3, '4': 1, '5': 9, '10': 'digest'},
+    {'1': 'release_date', '3': 4, '4': 1, '5': 3, '10': 'releaseDate'},
+  ],
+};
+
+/// Descriptor for `CloudImage`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cloudImageDescriptor = $convert.base64Decode(
+    'CgpDbG91ZEltYWdlEhoKCHByb3ZpZGVyGAEgASgJUghwcm92aWRlchIQCgN1cmwYAiABKAlSA3'
+    'VybBIWCgZkaWdlc3QYAyABKAlSBmRpZ2VzdBIhCgxyZWxlYXNlX2RhdGUYBCABKANSC3JlbGVh'
+    'c2VEYXRl');
+
+@$core.Deprecated('Use cloudSpecificImageDescriptor instead')
+const CloudSpecificImage$json = {
+  '1': 'CloudSpecificImage',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'location', '3': 3, '4': 1, '5': 9, '10': 'location'},
+  ],
+};
+
+/// Descriptor for `CloudSpecificImage`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cloudSpecificImageDescriptor = $convert.base64Decode(
+    'ChJDbG91ZFNwZWNpZmljSW1hZ2USDgoCaWQYASABKAlSAmlkEhIKBG5hbWUYAiABKAlSBG5hbW'
+    'USGgoIbG9jYXRpb24YAyABKAlSCGxvY2F0aW9u');
+
+@$core.Deprecated('Use releaseDescriptor instead')
+const Release$json = {
+  '1': 'Release',
+  '2': [
+    {
+      '1': 'cloud_images',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.Release.CloudImagesEntry',
+      '10': 'cloudImages'
+    },
+    {'1': 'version', '3': 2, '4': 1, '5': 9, '10': 'version'},
+    {'1': 'description', '3': 3, '4': 1, '5': 9, '10': 'description'},
+    {'1': 'release_date', '3': 4, '4': 1, '5': 3, '10': 'releaseDate'},
+  ],
+  '3': [Release_CloudImagesEntry$json],
+};
+
+@$core.Deprecated('Use releaseDescriptor instead')
+const Release_CloudImagesEntry$json = {
+  '1': 'CloudImagesEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {
+      '1': 'value',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudImage',
+      '10': 'value'
+    },
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `Release`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List releaseDescriptor = $convert.base64Decode(
+    'CgdSZWxlYXNlEkEKDGNsb3VkX2ltYWdlcxgBIAMoCzIeLmFwaWMuUmVsZWFzZS5DbG91ZEltYW'
+    'dlc0VudHJ5UgtjbG91ZEltYWdlcxIYCgd2ZXJzaW9uGAIgASgJUgd2ZXJzaW9uEiAKC2Rlc2Ny'
+    'aXB0aW9uGAMgASgJUgtkZXNjcmlwdGlvbhIhCgxyZWxlYXNlX2RhdGUYBCABKANSC3JlbGVhc2'
+    'VEYXRlGlAKEENsb3VkSW1hZ2VzRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSJgoFdmFsdWUYAiAB'
+    'KAsyEC5hcGljLkNsb3VkSW1hZ2VSBXZhbHVlOgI4AQ==');
+
+@$core.Deprecated('Use getProtosdReleasesRequestDescriptor instead')
+const GetProtosdReleasesRequest$json = {
+  '1': 'GetProtosdReleasesRequest',
+};
+
+/// Descriptor for `GetProtosdReleasesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProtosdReleasesRequestDescriptor =
+    $convert.base64Decode('ChlHZXRQcm90b3NkUmVsZWFzZXNSZXF1ZXN0');
+
+@$core.Deprecated('Use getProtosdReleasesResponseDescriptor instead')
+const GetProtosdReleasesResponse$json = {
+  '1': 'GetProtosdReleasesResponse',
+  '2': [
+    {
+      '1': 'releases',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.Release',
+      '10': 'releases'
+    },
+  ],
+};
+
+/// Descriptor for `GetProtosdReleasesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProtosdReleasesResponseDescriptor =
+    $convert.base64Decode(
+        'ChpHZXRQcm90b3NkUmVsZWFzZXNSZXNwb25zZRIpCghyZWxlYXNlcxgBIAMoCzINLmFwaWMuUm'
+        'VsZWFzZVIIcmVsZWFzZXM=');
+
+@$core.Deprecated('Use getCloudImagesRequestDescriptor instead')
+const GetCloudImagesRequest$json = {
+  '1': 'GetCloudImagesRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetCloudImagesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCloudImagesRequestDescriptor =
+    $convert.base64Decode(
+        'ChVHZXRDbG91ZEltYWdlc1JlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use getCloudImagesResponseDescriptor instead')
+const GetCloudImagesResponse$json = {
+  '1': 'GetCloudImagesResponse',
+  '2': [
+    {
+      '1': 'cloud_images',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.GetCloudImagesResponse.CloudImagesEntry',
+      '10': 'cloudImages'
+    },
+  ],
+  '3': [GetCloudImagesResponse_CloudImagesEntry$json],
+};
+
+@$core.Deprecated('Use getCloudImagesResponseDescriptor instead')
+const GetCloudImagesResponse_CloudImagesEntry$json = {
+  '1': 'CloudImagesEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {
+      '1': 'value',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudSpecificImage',
+      '10': 'value'
+    },
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `GetCloudImagesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCloudImagesResponseDescriptor = $convert.base64Decode(
+    'ChZHZXRDbG91ZEltYWdlc1Jlc3BvbnNlElAKDGNsb3VkX2ltYWdlcxgBIAMoCzItLmFwaWMuR2'
+    'V0Q2xvdWRJbWFnZXNSZXNwb25zZS5DbG91ZEltYWdlc0VudHJ5UgtjbG91ZEltYWdlcxpYChBD'
+    'bG91ZEltYWdlc0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5Ei4KBXZhbHVlGAIgASgLMhguYXBpYy'
+    '5DbG91ZFNwZWNpZmljSW1hZ2VSBXZhbHVlOgI4AQ==');
+
+@$core.Deprecated('Use getProvisionerImagesRequestDescriptor instead')
+const GetProvisionerImagesRequest$json = {
+  '1': 'GetProvisionerImagesRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `GetProvisionerImagesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProvisionerImagesRequestDescriptor =
+    $convert.base64Decode(
+        'ChtHZXRQcm92aXNpb25lckltYWdlc1JlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use getProvisionerImagesResponseDescriptor instead')
+const GetProvisionerImagesResponse$json = {
+  '1': 'GetProvisionerImagesResponse',
+  '2': [
+    {
+      '1': 'images',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.GetProvisionerImagesResponse.ImagesEntry',
+      '10': 'images'
+    },
+  ],
+  '3': [GetProvisionerImagesResponse_ImagesEntry$json],
+};
+
+@$core.Deprecated('Use getProvisionerImagesResponseDescriptor instead')
+const GetProvisionerImagesResponse_ImagesEntry$json = {
+  '1': 'ImagesEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {
+      '1': 'value',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CloudSpecificImage',
+      '10': 'value'
+    },
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `GetProvisionerImagesResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getProvisionerImagesResponseDescriptor = $convert.base64Decode(
+    'ChxHZXRQcm92aXNpb25lckltYWdlc1Jlc3BvbnNlEkYKBmltYWdlcxgBIAMoCzIuLmFwaWMuR2'
+    'V0UHJvdmlzaW9uZXJJbWFnZXNSZXNwb25zZS5JbWFnZXNFbnRyeVIGaW1hZ2VzGlMKC0ltYWdl'
+    'c0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5Ei4KBXZhbHVlGAIgASgLMhguYXBpYy5DbG91ZFNwZW'
+    'NpZmljSW1hZ2VSBXZhbHVlOgI4AQ==');
+
+@$core.Deprecated('Use uploadCloudImageRequestDescriptor instead')
+const UploadCloudImageRequest$json = {
+  '1': 'UploadCloudImageRequest',
+  '2': [
+    {'1': 'image_path', '3': 1, '4': 1, '5': 9, '10': 'imagePath'},
+    {'1': 'image_name', '3': 2, '4': 1, '5': 9, '10': 'imageName'},
+    {'1': 'cloud_name', '3': 3, '4': 1, '5': 9, '10': 'cloudName'},
+    {'1': 'cloud_location', '3': 4, '4': 1, '5': 9, '10': 'cloudLocation'},
+    {'1': 'timeout', '3': 5, '4': 1, '5': 5, '10': 'timeout'},
+  ],
+};
+
+/// Descriptor for `UploadCloudImageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadCloudImageRequestDescriptor = $convert.base64Decode(
+    'ChdVcGxvYWRDbG91ZEltYWdlUmVxdWVzdBIdCgppbWFnZV9wYXRoGAEgASgJUglpbWFnZVBhdG'
+    'gSHQoKaW1hZ2VfbmFtZRgCIAEoCVIJaW1hZ2VOYW1lEh0KCmNsb3VkX25hbWUYAyABKAlSCWNs'
+    'b3VkTmFtZRIlCg5jbG91ZF9sb2NhdGlvbhgEIAEoCVINY2xvdWRMb2NhdGlvbhIYCgd0aW1lb3'
+    'V0GAUgASgFUgd0aW1lb3V0');
+
+@$core.Deprecated('Use uploadCloudImageResponseDescriptor instead')
+const UploadCloudImageResponse$json = {
+  '1': 'UploadCloudImageResponse',
+};
+
+/// Descriptor for `UploadCloudImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadCloudImageResponseDescriptor =
+    $convert.base64Decode('ChhVcGxvYWRDbG91ZEltYWdlUmVzcG9uc2U=');
+
+@$core.Deprecated('Use uploadProvisionerImageRequestDescriptor instead')
+const UploadProvisionerImageRequest$json = {
+  '1': 'UploadProvisionerImageRequest',
+  '2': [
+    {'1': 'image_path', '3': 1, '4': 1, '5': 9, '10': 'imagePath'},
+    {'1': 'image_name', '3': 2, '4': 1, '5': 9, '10': 'imageName'},
+    {'1': 'provisioner_name', '3': 3, '4': 1, '5': 9, '10': 'provisionerName'},
+    {'1': 'location', '3': 4, '4': 1, '5': 9, '10': 'location'},
+    {'1': 'timeout', '3': 5, '4': 1, '5': 5, '10': 'timeout'},
+  ],
+};
+
+/// Descriptor for `UploadProvisionerImageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadProvisionerImageRequestDescriptor = $convert.base64Decode(
+    'Ch1VcGxvYWRQcm92aXNpb25lckltYWdlUmVxdWVzdBIdCgppbWFnZV9wYXRoGAEgASgJUglpbW'
+    'FnZVBhdGgSHQoKaW1hZ2VfbmFtZRgCIAEoCVIJaW1hZ2VOYW1lEikKEHByb3Zpc2lvbmVyX25h'
+    'bWUYAyABKAlSD3Byb3Zpc2lvbmVyTmFtZRIaCghsb2NhdGlvbhgEIAEoCVIIbG9jYXRpb24SGA'
+    'oHdGltZW91dBgFIAEoBVIHdGltZW91dA==');
+
+@$core.Deprecated('Use uploadProvisionerImageResponseDescriptor instead')
+const UploadProvisionerImageResponse$json = {
+  '1': 'UploadProvisionerImageResponse',
+};
+
+/// Descriptor for `UploadProvisionerImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadProvisionerImageResponseDescriptor =
+    $convert.base64Decode('Ch5VcGxvYWRQcm92aXNpb25lckltYWdlUmVzcG9uc2U=');
+
+@$core.Deprecated('Use removeCloudImageRequestDescriptor instead')
+const RemoveCloudImageRequest$json = {
+  '1': 'RemoveCloudImageRequest',
+  '2': [
+    {'1': 'image_name', '3': 2, '4': 1, '5': 9, '10': 'imageName'},
+    {'1': 'cloud_name', '3': 3, '4': 1, '5': 9, '10': 'cloudName'},
+    {'1': 'cloud_location', '3': 4, '4': 1, '5': 9, '10': 'cloudLocation'},
+  ],
+};
+
+/// Descriptor for `RemoveCloudImageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeCloudImageRequestDescriptor = $convert.base64Decode(
+    'ChdSZW1vdmVDbG91ZEltYWdlUmVxdWVzdBIdCgppbWFnZV9uYW1lGAIgASgJUglpbWFnZU5hbW'
+    'USHQoKY2xvdWRfbmFtZRgDIAEoCVIJY2xvdWROYW1lEiUKDmNsb3VkX2xvY2F0aW9uGAQgASgJ'
+    'Ug1jbG91ZExvY2F0aW9u');
+
+@$core.Deprecated('Use removeCloudImageResponseDescriptor instead')
+const RemoveCloudImageResponse$json = {
+  '1': 'RemoveCloudImageResponse',
+};
+
+/// Descriptor for `RemoveCloudImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeCloudImageResponseDescriptor =
+    $convert.base64Decode('ChhSZW1vdmVDbG91ZEltYWdlUmVzcG9uc2U=');
+
+@$core.Deprecated('Use removeProvisionerImageRequestDescriptor instead')
+const RemoveProvisionerImageRequest$json = {
+  '1': 'RemoveProvisionerImageRequest',
+  '2': [
+    {'1': 'image_name', '3': 1, '4': 1, '5': 9, '10': 'imageName'},
+    {'1': 'provisioner_name', '3': 2, '4': 1, '5': 9, '10': 'provisionerName'},
+    {'1': 'location', '3': 3, '4': 1, '5': 9, '10': 'location'},
+  ],
+};
+
+/// Descriptor for `RemoveProvisionerImageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeProvisionerImageRequestDescriptor =
+    $convert.base64Decode(
+        'Ch1SZW1vdmVQcm92aXNpb25lckltYWdlUmVxdWVzdBIdCgppbWFnZV9uYW1lGAEgASgJUglpbW'
+        'FnZU5hbWUSKQoQcHJvdmlzaW9uZXJfbmFtZRgCIAEoCVIPcHJvdmlzaW9uZXJOYW1lEhoKCGxv'
+        'Y2F0aW9uGAMgASgJUghsb2NhdGlvbg==');
+
+@$core.Deprecated('Use removeProvisionerImageResponseDescriptor instead')
+const RemoveProvisionerImageResponse$json = {
+  '1': 'RemoveProvisionerImageResponse',
+};
+
+/// Descriptor for `RemoveProvisionerImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List removeProvisionerImageResponseDescriptor =
+    $convert.base64Decode('Ch5SZW1vdmVQcm92aXNpb25lckltYWdlUmVzcG9uc2U=');
+
+@$core.Deprecated('Use coreEndpointDescriptor instead')
+const CoreEndpoint$json = {
+  '1': 'CoreEndpoint',
+  '2': [
+    {'1': 'kind', '3': 1, '4': 1, '5': 9, '10': 'kind'},
+    {'1': 'address', '3': 2, '4': 1, '5': 9, '10': 'address'},
+    {'1': 'active', '3': 3, '4': 1, '5': 8, '10': 'active'},
+    {'1': 'message', '3': 4, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `CoreEndpoint`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List coreEndpointDescriptor = $convert.base64Decode(
+    'CgxDb3JlRW5kcG9pbnQSEgoEa2luZBgBIAEoCVIEa2luZBIYCgdhZGRyZXNzGAIgASgJUgdhZG'
+    'RyZXNzEhYKBmFjdGl2ZRgDIAEoCFIGYWN0aXZlEhgKB21lc3NhZ2UYBCABKAlSB21lc3NhZ2U=');
+
+@$core.Deprecated('Use hostAgentConnectionStatusDescriptor instead')
+const HostAgentConnectionStatus$json = {
+  '1': 'HostAgentConnectionStatus',
+  '2': [
+    {'1': 'connected', '3': 1, '4': 1, '5': 8, '10': 'connected'},
+    {'1': 'socket', '3': 2, '4': 1, '5': 9, '10': 'socket'},
+    {'1': 'message', '3': 3, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `HostAgentConnectionStatus`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List hostAgentConnectionStatusDescriptor =
+    $convert.base64Decode(
+        'ChlIb3N0QWdlbnRDb25uZWN0aW9uU3RhdHVzEhwKCWNvbm5lY3RlZBgBIAEoCFIJY29ubmVjdG'
+        'VkEhYKBnNvY2tldBgCIAEoCVIGc29ja2V0EhgKB21lc3NhZ2UYAyABKAlSB21lc3NhZ2U=');
+
+@$core.Deprecated('Use systemStatusDescriptor instead')
+const SystemStatus$json = {
+  '1': 'SystemStatus',
+  '2': [
+    {'1': 'core_status', '3': 1, '4': 1, '5': 9, '10': 'coreStatus'},
+    {'1': 'work_dir', '3': 2, '4': 1, '5': 9, '10': 'workDir'},
+    {'1': 'capabilities', '3': 3, '4': 1, '5': 9, '10': 'capabilities'},
+    {'1': 'p2p_port', '3': 4, '4': 1, '5': 5, '10': 'p2pPort'},
+    {
+      '1': 'endpoints',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CoreEndpoint',
+      '10': 'endpoints'
+    },
+    {
+      '1': 'host_agent',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.HostAgentConnectionStatus',
+      '10': 'hostAgent'
+    },
+  ],
+};
+
+/// Descriptor for `SystemStatus`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List systemStatusDescriptor = $convert.base64Decode(
+    'CgxTeXN0ZW1TdGF0dXMSHwoLY29yZV9zdGF0dXMYASABKAlSCmNvcmVTdGF0dXMSGQoId29ya1'
+    '9kaXIYAiABKAlSB3dvcmtEaXISIgoMY2FwYWJpbGl0aWVzGAMgASgJUgxjYXBhYmlsaXRpZXMS'
+    'GQoIcDJwX3BvcnQYBCABKAVSB3AycFBvcnQSMAoJZW5kcG9pbnRzGAUgAygLMhIuYXBpYy5Db3'
+    'JlRW5kcG9pbnRSCWVuZHBvaW50cxI+Cgpob3N0X2FnZW50GAYgASgLMh8uYXBpYy5Ib3N0QWdl'
+    'bnRDb25uZWN0aW9uU3RhdHVzUglob3N0QWdlbnQ=');
+
+@$core.Deprecated('Use getSystemStatusRequestDescriptor instead')
+const GetSystemStatusRequest$json = {
+  '1': 'GetSystemStatusRequest',
+};
+
+/// Descriptor for `GetSystemStatusRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getSystemStatusRequestDescriptor =
+    $convert.base64Decode('ChZHZXRTeXN0ZW1TdGF0dXNSZXF1ZXN0');
+
+@$core.Deprecated('Use getSystemStatusResponseDescriptor instead')
+const GetSystemStatusResponse$json = {
+  '1': 'GetSystemStatusResponse',
+  '2': [
+    {
+      '1': 'status',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.SystemStatus',
+      '10': 'status'
+    },
+  ],
+};
+
+/// Descriptor for `GetSystemStatusResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getSystemStatusResponseDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRTeXN0ZW1TdGF0dXNSZXNwb25zZRIqCgZzdGF0dXMYASABKAsyEi5hcGljLlN5c3RlbV'
+        'N0YXR1c1IGc3RhdHVz');
+
+@$core.Deprecated('Use commitDescriptor instead')
+const Commit$json = {
+  '1': 'Commit',
+  '2': [
+    {'1': 'hash', '3': 1, '4': 1, '5': 9, '10': 'hash'},
+    {'1': 'committer', '3': 2, '4': 1, '5': 9, '10': 'committer'},
+    {'1': 'message', '3': 3, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'states', '3': 4, '4': 3, '5': 9, '10': 'states'},
+    {'1': 'date_unix', '3': 5, '4': 1, '5': 3, '10': 'dateUnix'},
+  ],
+};
+
+/// Descriptor for `Commit`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitDescriptor = $convert.base64Decode(
+    'CgZDb21taXQSEgoEaGFzaBgBIAEoCVIEaGFzaBIcCgljb21taXR0ZXIYAiABKAlSCWNvbW1pdH'
+    'RlchIYCgdtZXNzYWdlGAMgASgJUgdtZXNzYWdlEhYKBnN0YXRlcxgEIAMoCVIGc3RhdGVzEhsK'
+    'CWRhdGVfdW5peBgFIAEoA1IIZGF0ZVVuaXg=');
+
+@$core.Deprecated('Use getLocalCommitsRequestDescriptor instead')
+const GetLocalCommitsRequest$json = {
+  '1': 'GetLocalCommitsRequest',
+};
+
+/// Descriptor for `GetLocalCommitsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getLocalCommitsRequestDescriptor =
+    $convert.base64Decode('ChZHZXRMb2NhbENvbW1pdHNSZXF1ZXN0');
+
+@$core.Deprecated('Use getLocalCommitsResponseDescriptor instead')
+const GetLocalCommitsResponse$json = {
+  '1': 'GetLocalCommitsResponse',
+  '2': [
+    {
+      '1': 'commits',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.Commit',
+      '10': 'commits'
+    },
+  ],
+};
+
+/// Descriptor for `GetLocalCommitsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getLocalCommitsResponseDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRMb2NhbENvbW1pdHNSZXNwb25zZRImCgdjb21taXRzGAEgAygLMgwuYXBpYy5Db21taX'
+        'RSB2NvbW1pdHM=');
+
+@$core.Deprecated('Use getRemoteCommitsRequestDescriptor instead')
+const GetRemoteCommitsRequest$json = {
+  '1': 'GetRemoteCommitsRequest',
+  '2': [
+    {'1': 'remote', '3': 1, '4': 1, '5': 9, '10': 'remote'},
+  ],
+};
+
+/// Descriptor for `GetRemoteCommitsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getRemoteCommitsRequestDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRSZW1vdGVDb21taXRzUmVxdWVzdBIWCgZyZW1vdGUYASABKAlSBnJlbW90ZQ==');
+
+@$core.Deprecated('Use getRemoteCommitsResponseDescriptor instead')
+const GetRemoteCommitsResponse$json = {
+  '1': 'GetRemoteCommitsResponse',
+  '2': [
+    {
+      '1': 'commits',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.Commit',
+      '10': 'commits'
+    },
+  ],
+};
+
+/// Descriptor for `GetRemoteCommitsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getRemoteCommitsResponseDescriptor =
+    $convert.base64Decode(
+        'ChhHZXRSZW1vdGVDb21taXRzUmVzcG9uc2USJgoHY29tbWl0cxgBIAMoCzIMLmFwaWMuQ29tbW'
+        'l0Ugdjb21taXRz');
+
+@$core.Deprecated('Use sqlCellDescriptor instead')
+const SqlCell$json = {
+  '1': 'SqlCell',
+  '2': [
+    {'1': 'value', '3': 1, '4': 1, '5': 9, '10': 'value'},
+    {'1': 'is_null', '3': 2, '4': 1, '5': 8, '10': 'isNull'},
+  ],
+};
+
+/// Descriptor for `SqlCell`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List sqlCellDescriptor = $convert.base64Decode(
+    'CgdTcWxDZWxsEhQKBXZhbHVlGAEgASgJUgV2YWx1ZRIXCgdpc19udWxsGAIgASgIUgZpc051bG'
+    'w=');
+
+@$core.Deprecated('Use sqlRowDescriptor instead')
+const SqlRow$json = {
+  '1': 'SqlRow',
+  '2': [
+    {
+      '1': 'cells',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.SqlCell',
+      '10': 'cells'
+    },
+  ],
+};
+
+/// Descriptor for `SqlRow`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List sqlRowDescriptor = $convert.base64Decode(
+    'CgZTcWxSb3cSIwoFY2VsbHMYASADKAsyDS5hcGljLlNxbENlbGxSBWNlbGxz');
+
+@$core.Deprecated('Use executeSqlRequestDescriptor instead')
+const ExecuteSqlRequest$json = {
+  '1': 'ExecuteSqlRequest',
+  '2': [
+    {'1': 'sql', '3': 1, '4': 1, '5': 9, '10': 'sql'},
+    {'1': 'max_rows', '3': 2, '4': 1, '5': 5, '10': 'maxRows'},
+  ],
+};
+
+/// Descriptor for `ExecuteSqlRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List executeSqlRequestDescriptor = $convert.base64Decode(
+    'ChFFeGVjdXRlU3FsUmVxdWVzdBIQCgNzcWwYASABKAlSA3NxbBIZCghtYXhfcm93cxgCIAEoBV'
+    'IHbWF4Um93cw==');
+
+@$core.Deprecated('Use executeSqlResponseDescriptor instead')
+const ExecuteSqlResponse$json = {
+  '1': 'ExecuteSqlResponse',
+  '2': [
+    {'1': 'columns', '3': 1, '4': 3, '5': 9, '10': 'columns'},
+    {'1': 'rows', '3': 2, '4': 3, '5': 11, '6': '.apic.SqlRow', '10': 'rows'},
+    {'1': 'rows_affected', '3': 3, '4': 1, '5': 3, '10': 'rowsAffected'},
+    {'1': 'truncated', '3': 4, '4': 1, '5': 8, '10': 'truncated'},
+    {'1': 'message', '3': 5, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `ExecuteSqlResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List executeSqlResponseDescriptor = $convert.base64Decode(
+    'ChJFeGVjdXRlU3FsUmVzcG9uc2USGAoHY29sdW1ucxgBIAMoCVIHY29sdW1ucxIgCgRyb3dzGA'
+    'IgAygLMgwuYXBpYy5TcWxSb3dSBHJvd3MSIwoNcm93c19hZmZlY3RlZBgDIAEoA1IMcm93c0Fm'
+    'ZmVjdGVkEhwKCXRydW5jYXRlZBgEIAEoCFIJdHJ1bmNhdGVkEhgKB21lc3NhZ2UYBSABKAlSB2'
+    '1lc3NhZ2U=');
+
+const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
+  '1': 'ProtosClientApi',
+  '2': [
+    {'1': 'Init', '2': '.apic.InitRequest', '3': '.apic.InitResponse', '4': {}},
+    {
+      '1': 'GetUserDevices',
+      '2': '.apic.GetUserDevicesRequest',
+      '3': '.apic.GetUserDevicesResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetUserInfo',
+      '2': '.apic.GetUserInfoRequest',
+      '3': '.apic.GetUserInfoResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetLocalSSHKey',
+      '2': '.apic.GetLocalSSHKeyRequest',
+      '3': '.apic.GetLocalSSHKeyResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetApps',
+      '2': '.apic.GetAppsRequest',
+      '3': '.apic.GetAppsResponse',
+      '4': {}
+    },
+    {
+      '1': 'CreateApp',
+      '2': '.apic.CreateAppRequest',
+      '3': '.apic.CreateAppResponse',
+      '4': {}
+    },
+    {
+      '1': 'StartApp',
+      '2': '.apic.StartAppRequest',
+      '3': '.apic.StartAppResponse',
+      '4': {}
+    },
+    {
+      '1': 'StopApp',
+      '2': '.apic.StopAppRequest',
+      '3': '.apic.StopAppResponse',
+      '4': {}
+    },
+    {
+      '1': 'RemoveApp',
+      '2': '.apic.RemoveAppRequest',
+      '3': '.apic.RemoveAppResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetAppLogs',
+      '2': '.apic.GetAppLogsRequest',
+      '3': '.apic.GetAppLogsResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetSupportedCloudProviders',
+      '2': '.apic.GetSupportedCloudProvidersRequest',
+      '3': '.apic.GetSupportedCloudProvidersResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetCloudProviders',
+      '2': '.apic.GetCloudProvidersRequest',
+      '3': '.apic.GetCloudProvidersResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetCloudProvider',
+      '2': '.apic.GetCloudProviderRequest',
+      '3': '.apic.GetCloudProviderResponse',
+      '4': {}
+    },
+    {
+      '1': 'AddCloudProvider',
+      '2': '.apic.AddCloudProviderRequest',
+      '3': '.apic.AddCloudProviderResponse',
+      '4': {}
+    },
+    {
+      '1': 'RemoveCloudProvider',
+      '2': '.apic.RemoveCloudProviderRequest',
+      '3': '.apic.RemoveCloudProviderResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetSupportedProvisioners',
+      '2': '.apic.GetSupportedProvisionersRequest',
+      '3': '.apic.GetSupportedProvisionersResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetProvisioners',
+      '2': '.apic.GetProvisionersRequest',
+      '3': '.apic.GetProvisionersResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetProvisioner',
+      '2': '.apic.GetProvisionerRequest',
+      '3': '.apic.GetProvisionerResponse',
+      '4': {}
+    },
+    {
+      '1': 'AddProvisioner',
+      '2': '.apic.AddProvisionerRequest',
+      '3': '.apic.AddProvisionerResponse',
+      '4': {}
+    },
+    {
+      '1': 'RemoveProvisioner',
+      '2': '.apic.RemoveProvisionerRequest',
+      '3': '.apic.RemoveProvisionerResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetInstances',
+      '2': '.apic.GetInstancesRequest',
+      '3': '.apic.GetInstancesResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetInstance',
+      '2': '.apic.GetInstanceRequest',
+      '3': '.apic.GetInstanceResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetInstanceDeployOptions',
+      '2': '.apic.GetInstanceDeployOptionsRequest',
+      '3': '.apic.GetInstanceDeployOptionsResponse',
+      '4': {}
+    },
+    {
+      '1': 'DeployInstance',
+      '2': '.apic.DeployInstanceRequest',
+      '3': '.apic.DeployInstanceResponse',
+      '4': {}
+    },
+    {
+      '1': 'RemoveInstance',
+      '2': '.apic.RemoveInstanceRequest',
+      '3': '.apic.RemoveInstanceResponse',
+      '4': {}
+    },
+    {
+      '1': 'StartInstance',
+      '2': '.apic.StartInstanceRequest',
+      '3': '.apic.StartInstanceResponse',
+      '4': {}
+    },
+    {
+      '1': 'StopInstance',
+      '2': '.apic.StopInstanceRequest',
+      '3': '.apic.StopInstanceResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetInstanceKey',
+      '2': '.apic.GetInstanceKeyRequest',
+      '3': '.apic.GetInstanceKeyResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetInstanceLogs',
+      '2': '.apic.GetInstanceLogsRequest',
+      '3': '.apic.GetInstanceLogsResponse',
+      '4': {}
+    },
+    {
+      '1': 'InitInstance',
+      '2': '.apic.InitInstanceRequest',
+      '3': '.apic.InitInstanceResponse',
+      '4': {}
+    },
+    {
+      '1': 'UpdateInstance',
+      '2': '.apic.UpdateInstanceRequest',
+      '3': '.apic.UpdateInstanceResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetNetworkState',
+      '2': '.apic.GetNetworkStateRequest',
+      '3': '.apic.GetNetworkStateResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetExitRoutes',
+      '2': '.apic.GetExitRoutesRequest',
+      '3': '.apic.GetExitRoutesResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetRuntimeState',
+      '2': '.apic.GetRuntimeStateRequest',
+      '3': '.apic.GetRuntimeStateResponse',
+      '4': {}
+    },
+    {
+      '1': 'WatchChanges',
+      '2': '.apic.WatchChangesRequest',
+      '3': '.apic.WatchChangesResponse',
+      '4': {},
+      '6': true
+    },
+    {
+      '1': 'SetExitRoute',
+      '2': '.apic.SetExitRouteRequest',
+      '3': '.apic.SetExitRouteResponse',
+      '4': {}
+    },
+    {
+      '1': 'ClearExitRoute',
+      '2': '.apic.ClearExitRouteRequest',
+      '3': '.apic.ClearExitRouteResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetProtosdReleases',
+      '2': '.apic.GetProtosdReleasesRequest',
+      '3': '.apic.GetProtosdReleasesResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetCloudImages',
+      '2': '.apic.GetCloudImagesRequest',
+      '3': '.apic.GetCloudImagesResponse',
+      '4': {}
+    },
+    {
+      '1': 'UploadCloudImage',
+      '2': '.apic.UploadCloudImageRequest',
+      '3': '.apic.UploadCloudImageResponse',
+      '4': {}
+    },
+    {
+      '1': 'RemoveCloudImage',
+      '2': '.apic.RemoveCloudImageRequest',
+      '3': '.apic.RemoveCloudImageResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetProvisionerImages',
+      '2': '.apic.GetProvisionerImagesRequest',
+      '3': '.apic.GetProvisionerImagesResponse',
+      '4': {}
+    },
+    {
+      '1': 'UploadProvisionerImage',
+      '2': '.apic.UploadProvisionerImageRequest',
+      '3': '.apic.UploadProvisionerImageResponse',
+      '4': {}
+    },
+    {
+      '1': 'RemoveProvisionerImage',
+      '2': '.apic.RemoveProvisionerImageRequest',
+      '3': '.apic.RemoveProvisionerImageResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetSystemStatus',
+      '2': '.apic.GetSystemStatusRequest',
+      '3': '.apic.GetSystemStatusResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetLocalCommits',
+      '2': '.apic.GetLocalCommitsRequest',
+      '3': '.apic.GetLocalCommitsResponse',
+      '4': {}
+    },
+    {
+      '1': 'GetRemoteCommits',
+      '2': '.apic.GetRemoteCommitsRequest',
+      '3': '.apic.GetRemoteCommitsResponse',
+      '4': {}
+    },
+    {
+      '1': 'ExecuteSql',
+      '2': '.apic.ExecuteSqlRequest',
+      '3': '.apic.ExecuteSqlResponse',
+      '4': {}
+    },
+  ],
+};
+
+@$core.Deprecated('Use protosClientApiServiceDescriptor instead')
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+    ProtosClientApiServiceBase$messageJson = {
+  '.apic.InitRequest': InitRequest$json,
+  '.apic.InitResponse': InitResponse$json,
+  '.apic.GetUserDevicesRequest': GetUserDevicesRequest$json,
+  '.apic.GetUserDevicesResponse': GetUserDevicesResponse$json,
+  '.apic.UserDevice': UserDevice$json,
+  '.apic.GetUserInfoRequest': GetUserInfoRequest$json,
+  '.apic.GetUserInfoResponse': GetUserInfoResponse$json,
+  '.apic.GetLocalSSHKeyRequest': GetLocalSSHKeyRequest$json,
+  '.apic.GetLocalSSHKeyResponse': GetLocalSSHKeyResponse$json,
+  '.apic.GetAppsRequest': GetAppsRequest$json,
+  '.apic.GetAppsResponse': GetAppsResponse$json,
+  '.apic.App': App$json,
+  '.apic.CreateAppRequest': CreateAppRequest$json,
+  '.apic.CreateAppResponse': CreateAppResponse$json,
+  '.apic.StartAppRequest': StartAppRequest$json,
+  '.apic.StartAppResponse': StartAppResponse$json,
+  '.apic.StopAppRequest': StopAppRequest$json,
+  '.apic.StopAppResponse': StopAppResponse$json,
+  '.apic.RemoveAppRequest': RemoveAppRequest$json,
+  '.apic.RemoveAppResponse': RemoveAppResponse$json,
+  '.apic.GetAppLogsRequest': GetAppLogsRequest$json,
+  '.apic.GetAppLogsResponse': GetAppLogsResponse$json,
+  '.apic.GetSupportedCloudProvidersRequest':
+      GetSupportedCloudProvidersRequest$json,
+  '.apic.GetSupportedCloudProvidersResponse':
+      GetSupportedCloudProvidersResponse$json,
+  '.apic.CloudType': CloudType$json,
+  '.apic.GetCloudProvidersRequest': GetCloudProvidersRequest$json,
+  '.apic.GetCloudProvidersResponse': GetCloudProvidersResponse$json,
+  '.apic.CloudProvider': CloudProvider$json,
+  '.apic.CloudProvider.SupportedMachinesEntry':
+      CloudProvider_SupportedMachinesEntry$json,
+  '.apic.CloudMachineSpec': CloudMachineSpec$json,
+  '.apic.GetCloudProviderRequest': GetCloudProviderRequest$json,
+  '.apic.GetCloudProviderResponse': GetCloudProviderResponse$json,
+  '.apic.AddCloudProviderRequest': AddCloudProviderRequest$json,
+  '.apic.AddCloudProviderRequest.CredentialsEntry':
+      AddCloudProviderRequest_CredentialsEntry$json,
+  '.apic.AddCloudProviderResponse': AddCloudProviderResponse$json,
+  '.apic.RemoveCloudProviderRequest': RemoveCloudProviderRequest$json,
+  '.apic.RemoveCloudProviderResponse': RemoveCloudProviderResponse$json,
+  '.apic.GetSupportedProvisionersRequest': GetSupportedProvisionersRequest$json,
+  '.apic.GetSupportedProvisionersResponse':
+      GetSupportedProvisionersResponse$json,
+  '.apic.ProvisionerType': ProvisionerType$json,
+  '.apic.GetProvisionersRequest': GetProvisionersRequest$json,
+  '.apic.GetProvisionersResponse': GetProvisionersResponse$json,
+  '.apic.Provisioner': Provisioner$json,
+  '.apic.Provisioner.SupportedMachinesEntry':
+      Provisioner_SupportedMachinesEntry$json,
+  '.apic.ProvisionerMachineSpec': ProvisionerMachineSpec$json,
+  '.apic.GetProvisionerRequest': GetProvisionerRequest$json,
+  '.apic.GetProvisionerResponse': GetProvisionerResponse$json,
+  '.apic.AddProvisionerRequest': AddProvisionerRequest$json,
+  '.apic.AddProvisionerRequest.CredentialsEntry':
+      AddProvisionerRequest_CredentialsEntry$json,
+  '.apic.AddProvisionerResponse': AddProvisionerResponse$json,
+  '.apic.RemoveProvisionerRequest': RemoveProvisionerRequest$json,
+  '.apic.RemoveProvisionerResponse': RemoveProvisionerResponse$json,
+  '.apic.GetInstancesRequest': GetInstancesRequest$json,
+  '.apic.GetInstancesResponse': GetInstancesResponse$json,
+  '.apic.CloudInstance': CloudInstance$json,
+  '.apic.CloudInstance.PeersEntry': CloudInstance_PeersEntry$json,
+  '.apic.GetInstanceRequest': GetInstanceRequest$json,
+  '.apic.GetInstanceResponse': GetInstanceResponse$json,
+  '.apic.GetInstanceDeployOptionsRequest': GetInstanceDeployOptionsRequest$json,
+  '.apic.GetInstanceDeployOptionsResponse':
+      GetInstanceDeployOptionsResponse$json,
+  '.apic.InstanceDeployField': InstanceDeployField$json,
+  '.apic.InstanceDeployFieldOption': InstanceDeployFieldOption$json,
+  '.apic.DeployInstanceRequest': DeployInstanceRequest$json,
+  '.apic.DeployInstanceResponse': DeployInstanceResponse$json,
+  '.apic.RemoveInstanceRequest': RemoveInstanceRequest$json,
+  '.apic.RemoveInstanceResponse': RemoveInstanceResponse$json,
+  '.apic.StartInstanceRequest': StartInstanceRequest$json,
+  '.apic.StartInstanceResponse': StartInstanceResponse$json,
+  '.apic.StopInstanceRequest': StopInstanceRequest$json,
+  '.apic.StopInstanceResponse': StopInstanceResponse$json,
+  '.apic.GetInstanceKeyRequest': GetInstanceKeyRequest$json,
+  '.apic.GetInstanceKeyResponse': GetInstanceKeyResponse$json,
+  '.apic.GetInstanceLogsRequest': GetInstanceLogsRequest$json,
+  '.apic.GetInstanceLogsResponse': GetInstanceLogsResponse$json,
+  '.apic.InitInstanceRequest': InitInstanceRequest$json,
+  '.apic.InitInstanceResponse': InitInstanceResponse$json,
+  '.apic.UpdateInstanceRequest': UpdateInstanceRequest$json,
+  '.apic.UpdateInstanceResponse': UpdateInstanceResponse$json,
+  '.apic.GetNetworkStateRequest': GetNetworkStateRequest$json,
+  '.apic.GetNetworkStateResponse': GetNetworkStateResponse$json,
+  '.apic.NetworkState': NetworkState$json,
+  '.apic.NetworkAddress': NetworkAddress$json,
+  '.apic.NetworkRoute': NetworkRoute$json,
+  '.apic.WireGuardPeer': WireGuardPeer$json,
+  '.apic.FirewallTable': FirewallTable$json,
+  '.apic.FirewallChain': FirewallChain$json,
+  '.apic.FirewallRule': FirewallRule$json,
+  '.apic.DNSState': DNSState$json,
+  '.apic.NetworkInterface': NetworkInterface$json,
+  '.apic.GetExitRoutesRequest': GetExitRoutesRequest$json,
+  '.apic.GetExitRoutesResponse': GetExitRoutesResponse$json,
+  '.apic.ExitRoute': ExitRoute$json,
+  '.apic.GetRuntimeStateRequest': GetRuntimeStateRequest$json,
+  '.apic.GetRuntimeStateResponse': GetRuntimeStateResponse$json,
+  '.apic.RuntimeState': RuntimeState$json,
+  '.apic.RuntimePeerStatus': RuntimePeerStatus$json,
+  '.apic.RuntimePeerStatus.LastDialErrorsEntry':
+      RuntimePeerStatus_LastDialErrorsEntry$json,
+  '.apic.RuntimeCompatibility': RuntimeCompatibility$json,
+  '.apic.WatchChangesRequest': WatchChangesRequest$json,
+  '.apic.WatchChangesResponse': WatchChangesResponse$json,
+  '.apic.SetExitRouteRequest': SetExitRouteRequest$json,
+  '.apic.SetExitRouteResponse': SetExitRouteResponse$json,
+  '.apic.ClearExitRouteRequest': ClearExitRouteRequest$json,
+  '.apic.ClearExitRouteResponse': ClearExitRouteResponse$json,
+  '.apic.GetProtosdReleasesRequest': GetProtosdReleasesRequest$json,
+  '.apic.GetProtosdReleasesResponse': GetProtosdReleasesResponse$json,
+  '.apic.Release': Release$json,
+  '.apic.Release.CloudImagesEntry': Release_CloudImagesEntry$json,
+  '.apic.CloudImage': CloudImage$json,
+  '.apic.GetCloudImagesRequest': GetCloudImagesRequest$json,
+  '.apic.GetCloudImagesResponse': GetCloudImagesResponse$json,
+  '.apic.GetCloudImagesResponse.CloudImagesEntry':
+      GetCloudImagesResponse_CloudImagesEntry$json,
+  '.apic.CloudSpecificImage': CloudSpecificImage$json,
+  '.apic.UploadCloudImageRequest': UploadCloudImageRequest$json,
+  '.apic.UploadCloudImageResponse': UploadCloudImageResponse$json,
+  '.apic.RemoveCloudImageRequest': RemoveCloudImageRequest$json,
+  '.apic.RemoveCloudImageResponse': RemoveCloudImageResponse$json,
+  '.apic.GetProvisionerImagesRequest': GetProvisionerImagesRequest$json,
+  '.apic.GetProvisionerImagesResponse': GetProvisionerImagesResponse$json,
+  '.apic.GetProvisionerImagesResponse.ImagesEntry':
+      GetProvisionerImagesResponse_ImagesEntry$json,
+  '.apic.UploadProvisionerImageRequest': UploadProvisionerImageRequest$json,
+  '.apic.UploadProvisionerImageResponse': UploadProvisionerImageResponse$json,
+  '.apic.RemoveProvisionerImageRequest': RemoveProvisionerImageRequest$json,
+  '.apic.RemoveProvisionerImageResponse': RemoveProvisionerImageResponse$json,
+  '.apic.GetSystemStatusRequest': GetSystemStatusRequest$json,
+  '.apic.GetSystemStatusResponse': GetSystemStatusResponse$json,
+  '.apic.SystemStatus': SystemStatus$json,
+  '.apic.CoreEndpoint': CoreEndpoint$json,
+  '.apic.HostAgentConnectionStatus': HostAgentConnectionStatus$json,
+  '.apic.GetLocalCommitsRequest': GetLocalCommitsRequest$json,
+  '.apic.GetLocalCommitsResponse': GetLocalCommitsResponse$json,
+  '.apic.Commit': Commit$json,
+  '.apic.GetRemoteCommitsRequest': GetRemoteCommitsRequest$json,
+  '.apic.GetRemoteCommitsResponse': GetRemoteCommitsResponse$json,
+  '.apic.ExecuteSqlRequest': ExecuteSqlRequest$json,
+  '.apic.ExecuteSqlResponse': ExecuteSqlResponse$json,
+  '.apic.SqlRow': SqlRow$json,
+  '.apic.SqlCell': SqlCell$json,
+};
+
+/// Descriptor for `ProtosClientApi`. Decode as a `google.protobuf.ServiceDescriptorProto`.
+final $typed_data.Uint8List protosClientApiServiceDescriptor = $convert.base64Decode(
+    'Cg9Qcm90b3NDbGllbnRBcGkSLwoESW5pdBIRLmFwaWMuSW5pdFJlcXVlc3QaEi5hcGljLkluaX'
+    'RSZXNwb25zZSIAEk0KDkdldFVzZXJEZXZpY2VzEhsuYXBpYy5HZXRVc2VyRGV2aWNlc1JlcXVl'
+    'c3QaHC5hcGljLkdldFVzZXJEZXZpY2VzUmVzcG9uc2UiABJECgtHZXRVc2VySW5mbxIYLmFwaW'
+    'MuR2V0VXNlckluZm9SZXF1ZXN0GhkuYXBpYy5HZXRVc2VySW5mb1Jlc3BvbnNlIgASTQoOR2V0'
+    'TG9jYWxTU0hLZXkSGy5hcGljLkdldExvY2FsU1NIS2V5UmVxdWVzdBocLmFwaWMuR2V0TG9jYW'
+    'xTU0hLZXlSZXNwb25zZSIAEjgKB0dldEFwcHMSFC5hcGljLkdldEFwcHNSZXF1ZXN0GhUuYXBp'
+    'Yy5HZXRBcHBzUmVzcG9uc2UiABI+CglDcmVhdGVBcHASFi5hcGljLkNyZWF0ZUFwcFJlcXVlc3'
+    'QaFy5hcGljLkNyZWF0ZUFwcFJlc3BvbnNlIgASOwoIU3RhcnRBcHASFS5hcGljLlN0YXJ0QXBw'
+    'UmVxdWVzdBoWLmFwaWMuU3RhcnRBcHBSZXNwb25zZSIAEjgKB1N0b3BBcHASFC5hcGljLlN0b3'
+    'BBcHBSZXF1ZXN0GhUuYXBpYy5TdG9wQXBwUmVzcG9uc2UiABI+CglSZW1vdmVBcHASFi5hcGlj'
+    'LlJlbW92ZUFwcFJlcXVlc3QaFy5hcGljLlJlbW92ZUFwcFJlc3BvbnNlIgASQQoKR2V0QXBwTG'
+    '9ncxIXLmFwaWMuR2V0QXBwTG9nc1JlcXVlc3QaGC5hcGljLkdldEFwcExvZ3NSZXNwb25zZSIA'
+    'EnEKGkdldFN1cHBvcnRlZENsb3VkUHJvdmlkZXJzEicuYXBpYy5HZXRTdXBwb3J0ZWRDbG91ZF'
+    'Byb3ZpZGVyc1JlcXVlc3QaKC5hcGljLkdldFN1cHBvcnRlZENsb3VkUHJvdmlkZXJzUmVzcG9u'
+    'c2UiABJWChFHZXRDbG91ZFByb3ZpZGVycxIeLmFwaWMuR2V0Q2xvdWRQcm92aWRlcnNSZXF1ZX'
+    'N0Gh8uYXBpYy5HZXRDbG91ZFByb3ZpZGVyc1Jlc3BvbnNlIgASUwoQR2V0Q2xvdWRQcm92aWRl'
+    'chIdLmFwaWMuR2V0Q2xvdWRQcm92aWRlclJlcXVlc3QaHi5hcGljLkdldENsb3VkUHJvdmlkZX'
+    'JSZXNwb25zZSIAElMKEEFkZENsb3VkUHJvdmlkZXISHS5hcGljLkFkZENsb3VkUHJvdmlkZXJS'
+    'ZXF1ZXN0Gh4uYXBpYy5BZGRDbG91ZFByb3ZpZGVyUmVzcG9uc2UiABJcChNSZW1vdmVDbG91ZF'
+    'Byb3ZpZGVyEiAuYXBpYy5SZW1vdmVDbG91ZFByb3ZpZGVyUmVxdWVzdBohLmFwaWMuUmVtb3Zl'
+    'Q2xvdWRQcm92aWRlclJlc3BvbnNlIgASawoYR2V0U3VwcG9ydGVkUHJvdmlzaW9uZXJzEiUuYX'
+    'BpYy5HZXRTdXBwb3J0ZWRQcm92aXNpb25lcnNSZXF1ZXN0GiYuYXBpYy5HZXRTdXBwb3J0ZWRQ'
+    'cm92aXNpb25lcnNSZXNwb25zZSIAElAKD0dldFByb3Zpc2lvbmVycxIcLmFwaWMuR2V0UHJvdm'
+    'lzaW9uZXJzUmVxdWVzdBodLmFwaWMuR2V0UHJvdmlzaW9uZXJzUmVzcG9uc2UiABJNCg5HZXRQ'
+    'cm92aXNpb25lchIbLmFwaWMuR2V0UHJvdmlzaW9uZXJSZXF1ZXN0GhwuYXBpYy5HZXRQcm92aX'
+    'Npb25lclJlc3BvbnNlIgASTQoOQWRkUHJvdmlzaW9uZXISGy5hcGljLkFkZFByb3Zpc2lvbmVy'
+    'UmVxdWVzdBocLmFwaWMuQWRkUHJvdmlzaW9uZXJSZXNwb25zZSIAElYKEVJlbW92ZVByb3Zpc2'
+    'lvbmVyEh4uYXBpYy5SZW1vdmVQcm92aXNpb25lclJlcXVlc3QaHy5hcGljLlJlbW92ZVByb3Zp'
+    'c2lvbmVyUmVzcG9uc2UiABJHCgxHZXRJbnN0YW5jZXMSGS5hcGljLkdldEluc3RhbmNlc1JlcX'
+    'Vlc3QaGi5hcGljLkdldEluc3RhbmNlc1Jlc3BvbnNlIgASRAoLR2V0SW5zdGFuY2USGC5hcGlj'
+    'LkdldEluc3RhbmNlUmVxdWVzdBoZLmFwaWMuR2V0SW5zdGFuY2VSZXNwb25zZSIAEmsKGEdldE'
+    'luc3RhbmNlRGVwbG95T3B0aW9ucxIlLmFwaWMuR2V0SW5zdGFuY2VEZXBsb3lPcHRpb25zUmVx'
+    'dWVzdBomLmFwaWMuR2V0SW5zdGFuY2VEZXBsb3lPcHRpb25zUmVzcG9uc2UiABJNCg5EZXBsb3'
+    'lJbnN0YW5jZRIbLmFwaWMuRGVwbG95SW5zdGFuY2VSZXF1ZXN0GhwuYXBpYy5EZXBsb3lJbnN0'
+    'YW5jZVJlc3BvbnNlIgASTQoOUmVtb3ZlSW5zdGFuY2USGy5hcGljLlJlbW92ZUluc3RhbmNlUm'
+    'VxdWVzdBocLmFwaWMuUmVtb3ZlSW5zdGFuY2VSZXNwb25zZSIAEkoKDVN0YXJ0SW5zdGFuY2US'
+    'Gi5hcGljLlN0YXJ0SW5zdGFuY2VSZXF1ZXN0GhsuYXBpYy5TdGFydEluc3RhbmNlUmVzcG9uc2'
+    'UiABJHCgxTdG9wSW5zdGFuY2USGS5hcGljLlN0b3BJbnN0YW5jZVJlcXVlc3QaGi5hcGljLlN0'
+    'b3BJbnN0YW5jZVJlc3BvbnNlIgASTQoOR2V0SW5zdGFuY2VLZXkSGy5hcGljLkdldEluc3Rhbm'
+    'NlS2V5UmVxdWVzdBocLmFwaWMuR2V0SW5zdGFuY2VLZXlSZXNwb25zZSIAElAKD0dldEluc3Rh'
+    'bmNlTG9ncxIcLmFwaWMuR2V0SW5zdGFuY2VMb2dzUmVxdWVzdBodLmFwaWMuR2V0SW5zdGFuY2'
+    'VMb2dzUmVzcG9uc2UiABJHCgxJbml0SW5zdGFuY2USGS5hcGljLkluaXRJbnN0YW5jZVJlcXVl'
+    'c3QaGi5hcGljLkluaXRJbnN0YW5jZVJlc3BvbnNlIgASTQoOVXBkYXRlSW5zdGFuY2USGy5hcG'
+    'ljLlVwZGF0ZUluc3RhbmNlUmVxdWVzdBocLmFwaWMuVXBkYXRlSW5zdGFuY2VSZXNwb25zZSIA'
+    'ElAKD0dldE5ldHdvcmtTdGF0ZRIcLmFwaWMuR2V0TmV0d29ya1N0YXRlUmVxdWVzdBodLmFwaW'
+    'MuR2V0TmV0d29ya1N0YXRlUmVzcG9uc2UiABJKCg1HZXRFeGl0Um91dGVzEhouYXBpYy5HZXRF'
+    'eGl0Um91dGVzUmVxdWVzdBobLmFwaWMuR2V0RXhpdFJvdXRlc1Jlc3BvbnNlIgASUAoPR2V0Un'
+    'VudGltZVN0YXRlEhwuYXBpYy5HZXRSdW50aW1lU3RhdGVSZXF1ZXN0Gh0uYXBpYy5HZXRSdW50'
+    'aW1lU3RhdGVSZXNwb25zZSIAEkkKDFdhdGNoQ2hhbmdlcxIZLmFwaWMuV2F0Y2hDaGFuZ2VzUm'
+    'VxdWVzdBoaLmFwaWMuV2F0Y2hDaGFuZ2VzUmVzcG9uc2UiADABEkcKDFNldEV4aXRSb3V0ZRIZ'
+    'LmFwaWMuU2V0RXhpdFJvdXRlUmVxdWVzdBoaLmFwaWMuU2V0RXhpdFJvdXRlUmVzcG9uc2UiAB'
+    'JNCg5DbGVhckV4aXRSb3V0ZRIbLmFwaWMuQ2xlYXJFeGl0Um91dGVSZXF1ZXN0GhwuYXBpYy5D'
+    'bGVhckV4aXRSb3V0ZVJlc3BvbnNlIgASWQoSR2V0UHJvdG9zZFJlbGVhc2VzEh8uYXBpYy5HZX'
+    'RQcm90b3NkUmVsZWFzZXNSZXF1ZXN0GiAuYXBpYy5HZXRQcm90b3NkUmVsZWFzZXNSZXNwb25z'
+    'ZSIAEk0KDkdldENsb3VkSW1hZ2VzEhsuYXBpYy5HZXRDbG91ZEltYWdlc1JlcXVlc3QaHC5hcG'
+    'ljLkdldENsb3VkSW1hZ2VzUmVzcG9uc2UiABJTChBVcGxvYWRDbG91ZEltYWdlEh0uYXBpYy5V'
+    'cGxvYWRDbG91ZEltYWdlUmVxdWVzdBoeLmFwaWMuVXBsb2FkQ2xvdWRJbWFnZVJlc3BvbnNlIg'
+    'ASUwoQUmVtb3ZlQ2xvdWRJbWFnZRIdLmFwaWMuUmVtb3ZlQ2xvdWRJbWFnZVJlcXVlc3QaHi5h'
+    'cGljLlJlbW92ZUNsb3VkSW1hZ2VSZXNwb25zZSIAEl8KFEdldFByb3Zpc2lvbmVySW1hZ2VzEi'
+    'EuYXBpYy5HZXRQcm92aXNpb25lckltYWdlc1JlcXVlc3QaIi5hcGljLkdldFByb3Zpc2lvbmVy'
+    'SW1hZ2VzUmVzcG9uc2UiABJlChZVcGxvYWRQcm92aXNpb25lckltYWdlEiMuYXBpYy5VcGxvYW'
+    'RQcm92aXNpb25lckltYWdlUmVxdWVzdBokLmFwaWMuVXBsb2FkUHJvdmlzaW9uZXJJbWFnZVJl'
+    'c3BvbnNlIgASZQoWUmVtb3ZlUHJvdmlzaW9uZXJJbWFnZRIjLmFwaWMuUmVtb3ZlUHJvdmlzaW'
+    '9uZXJJbWFnZVJlcXVlc3QaJC5hcGljLlJlbW92ZVByb3Zpc2lvbmVySW1hZ2VSZXNwb25zZSIA'
+    'ElAKD0dldFN5c3RlbVN0YXR1cxIcLmFwaWMuR2V0U3lzdGVtU3RhdHVzUmVxdWVzdBodLmFwaW'
+    'MuR2V0U3lzdGVtU3RhdHVzUmVzcG9uc2UiABJQCg9HZXRMb2NhbENvbW1pdHMSHC5hcGljLkdl'
+    'dExvY2FsQ29tbWl0c1JlcXVlc3QaHS5hcGljLkdldExvY2FsQ29tbWl0c1Jlc3BvbnNlIgASUw'
+    'oQR2V0UmVtb3RlQ29tbWl0cxIdLmFwaWMuR2V0UmVtb3RlQ29tbWl0c1JlcXVlc3QaHi5hcGlj'
+    'LkdldFJlbW90ZUNvbW1pdHNSZXNwb25zZSIAEkEKCkV4ZWN1dGVTcWwSFy5hcGljLkV4ZWN1dG'
+    'VTcWxSZXF1ZXN0GhguYXBpYy5FeGVjdXRlU3FsUmVzcG9uc2UiAA==');

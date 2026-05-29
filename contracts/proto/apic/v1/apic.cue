@@ -155,6 +155,26 @@ package apicv1
 #GetInstancesResponse: instances?: [...#CloudInstance]
 #GetInstanceRequest: name?: string
 #GetInstanceResponse: instance?: #CloudInstance
+#InstanceDeployFieldOption: {
+	value?:       string
+	label?:       string
+	description?: string
+}
+#InstanceDeployField: {
+	name?:     string
+	label?:    string
+	kind?:     string
+	required?: bool
+	visible?:  bool
+	value?:    string
+	helper?:   string
+	options?:  [...#InstanceDeployFieldOption]
+}
+#GetInstanceDeployOptionsRequest: {
+	provisioner?: string
+	location?:    string
+}
+#GetInstanceDeployOptionsResponse: fields?: [...#InstanceDeployField]
 #DeployInstanceRequest: {
 	name?:            string
 	cloud_name?:      string
@@ -403,11 +423,50 @@ package apicv1
 	committer?: string
 	message?:   string
 	states?:    [...string]
+	date_unix?: int
 }
 #GetLocalCommitsRequest: {}
 #GetLocalCommitsResponse: commits?: [...#Commit]
 #GetRemoteCommitsRequest: remote?: string
 #GetRemoteCommitsResponse: commits?: [...#Commit]
+#SqlCell: {
+	value?:   string
+	is_null?: bool
+}
+#SqlRow: cells?: [...#SqlCell]
+#ExecuteSqlRequest: {
+	sql?:      string
+	max_rows?: int
+}
+#ExecuteSqlResponse: {
+	columns?:       [...string]
+	rows?:          [...#SqlRow]
+	rows_affected?: int
+	truncated?:     bool
+	message?:       string
+}
+
+#CoreEndpoint: {
+	kind?:    string
+	address?: string
+	active?:  bool
+	message?: string
+}
+#HostAgentConnectionStatus: {
+	connected?: bool
+	socket?:    string
+	message?:   string
+}
+#SystemStatus: {
+	core_status?:  string
+	work_dir?:     string
+	capabilities?: string
+	p2p_port?:     int
+	endpoints?:    [...#CoreEndpoint]
+	host_agent?:   #HostAgentConnectionStatus
+}
+#GetSystemStatusRequest: {}
+#GetSystemStatusResponse: status?: #SystemStatus
 
 contract: {
 	surface: "client-api-grpc"
@@ -449,6 +508,7 @@ contract: {
 				{name: "RemoveProvisioner", request: "RemoveProvisionerRequest", response: "RemoveProvisionerResponse"},
 				{name: "GetInstances", request: "GetInstancesRequest", response: "GetInstancesResponse"},
 				{name: "GetInstance", request: "GetInstanceRequest", response: "GetInstanceResponse"},
+				{name: "GetInstanceDeployOptions", request: "GetInstanceDeployOptionsRequest", response: "GetInstanceDeployOptionsResponse"},
 				{name: "DeployInstance", request: "DeployInstanceRequest", response: "DeployInstanceResponse"},
 				{name: "RemoveInstance", request: "RemoveInstanceRequest", response: "RemoveInstanceResponse"},
 				{name: "StartInstance", request: "StartInstanceRequest", response: "StartInstanceResponse"},
@@ -470,8 +530,10 @@ contract: {
 				{name: "GetProvisionerImages", request: "GetProvisionerImagesRequest", response: "GetProvisionerImagesResponse"},
 				{name: "UploadProvisionerImage", request: "UploadProvisionerImageRequest", response: "UploadProvisionerImageResponse"},
 				{name: "RemoveProvisionerImage", request: "RemoveProvisionerImageRequest", response: "RemoveProvisionerImageResponse"},
+				{name: "GetSystemStatus", request: "GetSystemStatusRequest", response: "GetSystemStatusResponse"},
 				{name: "GetLocalCommits", request: "GetLocalCommitsRequest", response: "GetLocalCommitsResponse"},
 				{name: "GetRemoteCommits", request: "GetRemoteCommitsRequest", response: "GetRemoteCommitsResponse"},
+				{name: "ExecuteSql", request: "ExecuteSqlRequest", response: "ExecuteSqlResponse"},
 			]
 		}]
 		declarations: [
@@ -631,6 +693,28 @@ contract: {
 			{kind: "message", name: "GetInstancesResponse", fields: [{rule: "repeated", type: "CloudInstance", name: "instances", number: 1}]},
 			{kind: "message", name: "GetInstanceRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "GetInstanceResponse", fields: [{type: "CloudInstance", name: "instance", number: 1}]},
+			{kind: "message", name: "InstanceDeployFieldOption", fields: [
+				{type: "string", name: "value", number: 1},
+				{type: "string", name: "label", number: 2},
+				{type: "string", name: "description", number: 3},
+			]},
+			{kind: "message", name: "InstanceDeployField", fields: [
+				{type: "string", name: "name", number: 1},
+				{type: "string", name: "label", number: 2},
+				{type: "string", name: "kind", number: 3},
+				{type: "bool", name: "required", number: 4},
+				{type: "bool", name: "visible", number: 5},
+				{type: "string", name: "value", number: 6},
+				{type: "string", name: "helper", number: 7},
+				{rule: "repeated", type: "InstanceDeployFieldOption", name: "options", number: 8},
+			]},
+			{kind: "message", name: "GetInstanceDeployOptionsRequest", fields: [
+				{type: "string", name: "provisioner", number: 1},
+				{type: "string", name: "location", number: 2},
+			]},
+			{kind: "message", name: "GetInstanceDeployOptionsResponse", fields: [
+				{rule: "repeated", type: "InstanceDeployField", name: "fields", number: 1},
+			]},
 			{kind: "message", name: "DeployInstanceRequest", fields: [
 				{type: "string", name: "name", number: 1},
 				{type: "string", name: "cloud_name", number: 2},
@@ -883,16 +967,58 @@ contract: {
 				{type: "string", name: "location", number: 3},
 			]},
 			{kind: "message", name: "RemoveProvisionerImageResponse", fields: []},
+			{kind: "message", name: "CoreEndpoint", fields: [
+				{type: "string", name: "kind", number: 1},
+				{type: "string", name: "address", number: 2},
+				{type: "bool", name: "active", number: 3},
+				{type: "string", name: "message", number: 4},
+			]},
+			{kind: "message", name: "HostAgentConnectionStatus", fields: [
+				{type: "bool", name: "connected", number: 1},
+				{type: "string", name: "socket", number: 2},
+				{type: "string", name: "message", number: 3},
+			]},
+			{kind: "message", name: "SystemStatus", fields: [
+				{type: "string", name: "core_status", number: 1},
+				{type: "string", name: "work_dir", number: 2},
+				{type: "string", name: "capabilities", number: 3},
+				{type: "int32", name: "p2p_port", number: 4},
+				{rule: "repeated", type: "CoreEndpoint", name: "endpoints", number: 5},
+				{type: "HostAgentConnectionStatus", name: "host_agent", number: 6},
+			]},
+			{kind: "message", name: "GetSystemStatusRequest", fields: []},
+			{kind: "message", name: "GetSystemStatusResponse", fields: [
+				{type: "SystemStatus", name: "status", number: 1},
+			]},
 			{kind: "message", name: "Commit", fields: [
 				{type: "string", name: "hash", number: 1},
 				{type: "string", name: "committer", number: 2},
 				{type: "string", name: "message", number: 3},
 				{rule: "repeated", type: "string", name: "states", number: 4},
+				{type: "int64", name: "date_unix", number: 5},
 			]},
 			{kind: "message", name: "GetLocalCommitsRequest", fields: []},
 			{kind: "message", name: "GetLocalCommitsResponse", fields: [{rule: "repeated", type: "Commit", name: "commits", number: 1}]},
 			{kind: "message", name: "GetRemoteCommitsRequest", fields: [{type: "string", name: "remote", number: 1}]},
 			{kind: "message", name: "GetRemoteCommitsResponse", fields: [{rule: "repeated", type: "Commit", name: "commits", number: 1}]},
+			{kind: "message", name: "SqlCell", fields: [
+				{type: "string", name: "value", number: 1},
+				{type: "bool", name: "is_null", number: 2},
+			]},
+			{kind: "message", name: "SqlRow", fields: [
+				{rule: "repeated", type: "SqlCell", name: "cells", number: 1},
+			]},
+			{kind: "message", name: "ExecuteSqlRequest", fields: [
+				{type: "string", name: "sql", number: 1},
+				{type: "int32", name: "max_rows", number: 2},
+			]},
+			{kind: "message", name: "ExecuteSqlResponse", fields: [
+				{rule: "repeated", type: "string", name: "columns", number: 1},
+				{rule: "repeated", type: "SqlRow", name: "rows", number: 2},
+				{type: "int64", name: "rows_affected", number: 3},
+				{type: "bool", name: "truncated", number: 4},
+				{type: "string", name: "message", number: 5},
+			]},
 		]
 	}
 }
@@ -960,6 +1086,10 @@ lineage: {
 			GetInstancesResponse?:                #GetInstancesResponse
 			GetInstanceRequest?:                  #GetInstanceRequest
 			GetInstanceResponse?:                 #GetInstanceResponse
+			InstanceDeployFieldOption?:           #InstanceDeployFieldOption
+			InstanceDeployField?:                 #InstanceDeployField
+			GetInstanceDeployOptionsRequest?:     #GetInstanceDeployOptionsRequest
+			GetInstanceDeployOptionsResponse?:    #GetInstanceDeployOptionsResponse
 			DeployInstanceRequest?:               #DeployInstanceRequest
 			DeployInstanceResponse?:              #DeployInstanceResponse
 			RemoveInstanceRequest?:               #RemoveInstanceRequest
@@ -1018,11 +1148,20 @@ lineage: {
 			RemoveCloudImageResponse?:            #RemoveCloudImageResponse
 			RemoveProvisionerImageRequest?:        #RemoveProvisionerImageRequest
 			RemoveProvisionerImageResponse?:       #RemoveProvisionerImageResponse
+			CoreEndpoint?:                         #CoreEndpoint
+			HostAgentConnectionStatus?:            #HostAgentConnectionStatus
+			SystemStatus?:                         #SystemStatus
+			GetSystemStatusRequest?:               #GetSystemStatusRequest
+			GetSystemStatusResponse?:              #GetSystemStatusResponse
 			Commit?:                              #Commit
 			GetLocalCommitsRequest?:              #GetLocalCommitsRequest
 			GetLocalCommitsResponse?:             #GetLocalCommitsResponse
 			GetRemoteCommitsRequest?:             #GetRemoteCommitsRequest
 			GetRemoteCommitsResponse?:            #GetRemoteCommitsResponse
+			SqlCell?:                             #SqlCell
+			SqlRow?:                              #SqlRow
+			ExecuteSqlRequest?:                   #ExecuteSqlRequest
+			ExecuteSqlResponse?:                  #ExecuteSqlResponse
 		}
 	}]
 	lenses: []

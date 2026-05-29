@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -400,6 +401,13 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 			Reason:          peerStatus.Reason,
 		})
 	}
+	if database, ok := reader.(*db.DB); ok {
+		peerIDs, err := db.GetPeerIDs(database)
+		if err != nil {
+			return nil, err
+		}
+		addKnownRuntimePeerStatuses(out, peerIDs)
+	}
 
 	compatibility, err := reader.SwarmionCompatibility(ctx)
 	if err != nil {
@@ -419,6 +427,72 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 		out.ContentSyncTrace = append([]string(nil), trace...)
 	}
 	return out, nil
+}
+
+func addKnownRuntimePeerStatuses(out *proto.RuntimeState, peerIDs map[string]struct{}) {
+	if out == nil {
+		return
+	}
+	wanted := make(map[string]struct{}, len(peerIDs)+1)
+	for peerID := range peerIDs {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			wanted[peerID] = struct{}{}
+		}
+	}
+	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
+		wanted[localPeerID] = struct{}{}
+	}
+	if len(wanted) == 0 {
+		return
+	}
+
+	existing := make(map[string]struct{}, len(out.GetPeerStatuses()))
+	for _, peerStatus := range out.GetPeerStatuses() {
+		peerID := strings.TrimSpace(peerStatus.GetPeerId())
+		if peerID != "" {
+			existing[peerID] = struct{}{}
+		}
+	}
+
+	missing := make([]string, 0, len(wanted))
+	for peerID := range wanted {
+		if _, found := existing[peerID]; !found {
+			missing = append(missing, peerID)
+		}
+	}
+	sort.Strings(missing)
+	for _, peerID := range missing {
+		out.PeerStatuses = append(out.PeerStatuses, knownRuntimePeerStatus(peerID, out))
+	}
+}
+
+func knownRuntimePeerStatus(peerID string, state *proto.RuntimeState) *proto.RuntimePeerStatus {
+	isSelf := peerID == strings.TrimSpace(state.GetPeerId())
+	status := &proto.RuntimePeerStatus{
+		PeerId:          peerID,
+		Connected:       isSelf || stringInList(peerID, state.GetConnectedPeers()),
+		Dialable:        isSelf,
+		StateProvider:   stringInList(peerID, state.GetStateProviders()),
+		Witness:         stringInList(peerID, state.GetActiveWitnessIds()),
+		EligibleWitness: stringInList(peerID, state.GetEligibleWitnessIds()),
+		Compatible:      isSelf,
+	}
+	if isSelf {
+		status.Reason = "self"
+	} else {
+		status.Reason = "known database peer"
+	}
+	return status
+}
+
+func stringInList(value string, values []string) bool {
+	for _, item := range values {
+		if strings.TrimSpace(item) == value {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneStringMap(values map[string]string) map[string]string {

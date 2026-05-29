@@ -41,6 +41,7 @@ const (
 	ProtosClientApi_RemoveProvisioner_FullMethodName          = "/apic.ProtosClientApi/RemoveProvisioner"
 	ProtosClientApi_GetInstances_FullMethodName               = "/apic.ProtosClientApi/GetInstances"
 	ProtosClientApi_GetInstance_FullMethodName                = "/apic.ProtosClientApi/GetInstance"
+	ProtosClientApi_GetInstanceDeployOptions_FullMethodName   = "/apic.ProtosClientApi/GetInstanceDeployOptions"
 	ProtosClientApi_DeployInstance_FullMethodName             = "/apic.ProtosClientApi/DeployInstance"
 	ProtosClientApi_RemoveInstance_FullMethodName             = "/apic.ProtosClientApi/RemoveInstance"
 	ProtosClientApi_StartInstance_FullMethodName              = "/apic.ProtosClientApi/StartInstance"
@@ -62,8 +63,10 @@ const (
 	ProtosClientApi_GetProvisionerImages_FullMethodName       = "/apic.ProtosClientApi/GetProvisionerImages"
 	ProtosClientApi_UploadProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/UploadProvisionerImage"
 	ProtosClientApi_RemoveProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/RemoveProvisionerImage"
+	ProtosClientApi_GetSystemStatus_FullMethodName            = "/apic.ProtosClientApi/GetSystemStatus"
 	ProtosClientApi_GetLocalCommits_FullMethodName            = "/apic.ProtosClientApi/GetLocalCommits"
 	ProtosClientApi_GetRemoteCommits_FullMethodName           = "/apic.ProtosClientApi/GetRemoteCommits"
+	ProtosClientApi_ExecuteSql_FullMethodName                 = "/apic.ProtosClientApi/ExecuteSql"
 )
 
 // ProtosClientApiClient is the client API for ProtosClientApi service.
@@ -92,6 +95,7 @@ type ProtosClientApiClient interface {
 	RemoveProvisioner(ctx context.Context, in *RemoveProvisionerRequest, opts ...grpc.CallOption) (*RemoveProvisionerResponse, error)
 	GetInstances(ctx context.Context, in *GetInstancesRequest, opts ...grpc.CallOption) (*GetInstancesResponse, error)
 	GetInstance(ctx context.Context, in *GetInstanceRequest, opts ...grpc.CallOption) (*GetInstanceResponse, error)
+	GetInstanceDeployOptions(ctx context.Context, in *GetInstanceDeployOptionsRequest, opts ...grpc.CallOption) (*GetInstanceDeployOptionsResponse, error)
 	DeployInstance(ctx context.Context, in *DeployInstanceRequest, opts ...grpc.CallOption) (*DeployInstanceResponse, error)
 	RemoveInstance(ctx context.Context, in *RemoveInstanceRequest, opts ...grpc.CallOption) (*RemoveInstanceResponse, error)
 	StartInstance(ctx context.Context, in *StartInstanceRequest, opts ...grpc.CallOption) (*StartInstanceResponse, error)
@@ -113,8 +117,10 @@ type ProtosClientApiClient interface {
 	GetProvisionerImages(ctx context.Context, in *GetProvisionerImagesRequest, opts ...grpc.CallOption) (*GetProvisionerImagesResponse, error)
 	UploadProvisionerImage(ctx context.Context, in *UploadProvisionerImageRequest, opts ...grpc.CallOption) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(ctx context.Context, in *RemoveProvisionerImageRequest, opts ...grpc.CallOption) (*RemoveProvisionerImageResponse, error)
+	GetSystemStatus(ctx context.Context, in *GetSystemStatusRequest, opts ...grpc.CallOption) (*GetSystemStatusResponse, error)
 	GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(ctx context.Context, in *GetRemoteCommitsRequest, opts ...grpc.CallOption) (*GetRemoteCommitsResponse, error)
+	ExecuteSql(ctx context.Context, in *ExecuteSqlRequest, opts ...grpc.CallOption) (*ExecuteSqlResponse, error)
 }
 
 type protosClientApiClient struct {
@@ -345,6 +351,16 @@ func (c *protosClientApiClient) GetInstance(ctx context.Context, in *GetInstance
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetInstanceDeployOptions(ctx context.Context, in *GetInstanceDeployOptionsRequest, opts ...grpc.CallOption) (*GetInstanceDeployOptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetInstanceDeployOptionsResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetInstanceDeployOptions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) DeployInstance(ctx context.Context, in *DeployInstanceRequest, opts ...grpc.CallOption) (*DeployInstanceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeployInstanceResponse)
@@ -564,6 +580,16 @@ func (c *protosClientApiClient) RemoveProvisionerImage(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetSystemStatus(ctx context.Context, in *GetSystemStatusRequest, opts ...grpc.CallOption) (*GetSystemStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSystemStatusResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetSystemStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetLocalCommitsResponse)
@@ -578,6 +604,16 @@ func (c *protosClientApiClient) GetRemoteCommits(ctx context.Context, in *GetRem
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetRemoteCommitsResponse)
 	err := c.cc.Invoke(ctx, ProtosClientApi_GetRemoteCommits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) ExecuteSql(ctx context.Context, in *ExecuteSqlRequest, opts ...grpc.CallOption) (*ExecuteSqlResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecuteSqlResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_ExecuteSql_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -610,6 +646,7 @@ type ProtosClientApiServer interface {
 	RemoveProvisioner(context.Context, *RemoveProvisionerRequest) (*RemoveProvisionerResponse, error)
 	GetInstances(context.Context, *GetInstancesRequest) (*GetInstancesResponse, error)
 	GetInstance(context.Context, *GetInstanceRequest) (*GetInstanceResponse, error)
+	GetInstanceDeployOptions(context.Context, *GetInstanceDeployOptionsRequest) (*GetInstanceDeployOptionsResponse, error)
 	DeployInstance(context.Context, *DeployInstanceRequest) (*DeployInstanceResponse, error)
 	RemoveInstance(context.Context, *RemoveInstanceRequest) (*RemoveInstanceResponse, error)
 	StartInstance(context.Context, *StartInstanceRequest) (*StartInstanceResponse, error)
@@ -631,8 +668,10 @@ type ProtosClientApiServer interface {
 	GetProvisionerImages(context.Context, *GetProvisionerImagesRequest) (*GetProvisionerImagesResponse, error)
 	UploadProvisionerImage(context.Context, *UploadProvisionerImageRequest) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error)
+	GetSystemStatus(context.Context, *GetSystemStatusRequest) (*GetSystemStatusResponse, error)
 	GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error)
+	ExecuteSql(context.Context, *ExecuteSqlRequest) (*ExecuteSqlResponse, error)
 }
 
 // UnimplementedProtosClientApiServer should be embedded to have
@@ -708,6 +747,9 @@ func (UnimplementedProtosClientApiServer) GetInstances(context.Context, *GetInst
 func (UnimplementedProtosClientApiServer) GetInstance(context.Context, *GetInstanceRequest) (*GetInstanceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetInstance not implemented")
 }
+func (UnimplementedProtosClientApiServer) GetInstanceDeployOptions(context.Context, *GetInstanceDeployOptionsRequest) (*GetInstanceDeployOptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetInstanceDeployOptions not implemented")
+}
 func (UnimplementedProtosClientApiServer) DeployInstance(context.Context, *DeployInstanceRequest) (*DeployInstanceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeployInstance not implemented")
 }
@@ -771,11 +813,17 @@ func (UnimplementedProtosClientApiServer) UploadProvisionerImage(context.Context
 func (UnimplementedProtosClientApiServer) RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveProvisionerImage not implemented")
 }
+func (UnimplementedProtosClientApiServer) GetSystemStatus(context.Context, *GetSystemStatusRequest) (*GetSystemStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSystemStatus not implemented")
+}
 func (UnimplementedProtosClientApiServer) GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLocalCommits not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRemoteCommits not implemented")
+}
+func (UnimplementedProtosClientApiServer) ExecuteSql(context.Context, *ExecuteSqlRequest) (*ExecuteSqlResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExecuteSql not implemented")
 }
 func (UnimplementedProtosClientApiServer) testEmbeddedByValue() {}
 
@@ -1193,6 +1241,24 @@ func _ProtosClientApi_GetInstance_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetInstanceDeployOptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstanceDeployOptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetInstanceDeployOptions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetInstanceDeployOptions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetInstanceDeployOptions(ctx, req.(*GetInstanceDeployOptionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_DeployInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeployInstanceRequest)
 	if err := dec(in); err != nil {
@@ -1564,6 +1630,24 @@ func _ProtosClientApi_RemoveProvisionerImage_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetSystemStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSystemStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetSystemStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetSystemStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetSystemStatus(ctx, req.(*GetSystemStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_GetLocalCommits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetLocalCommitsRequest)
 	if err := dec(in); err != nil {
@@ -1596,6 +1680,24 @@ func _ProtosClientApi_GetRemoteCommits_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProtosClientApiServer).GetRemoteCommits(ctx, req.(*GetRemoteCommitsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_ExecuteSql_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteSqlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).ExecuteSql(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_ExecuteSql_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).ExecuteSql(ctx, req.(*ExecuteSqlRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1696,6 +1798,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_GetInstance_Handler,
 		},
 		{
+			MethodName: "GetInstanceDeployOptions",
+			Handler:    _ProtosClientApi_GetInstanceDeployOptions_Handler,
+		},
+		{
 			MethodName: "DeployInstance",
 			Handler:    _ProtosClientApi_DeployInstance_Handler,
 		},
@@ -1776,12 +1882,20 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_RemoveProvisionerImage_Handler,
 		},
 		{
+			MethodName: "GetSystemStatus",
+			Handler:    _ProtosClientApi_GetSystemStatus_Handler,
+		},
+		{
 			MethodName: "GetLocalCommits",
 			Handler:    _ProtosClientApi_GetLocalCommits_Handler,
 		},
 		{
 			MethodName: "GetRemoteCommits",
 			Handler:    _ProtosClientApi_GetRemoteCommits_Handler,
+		},
+		{
+			MethodName: "ExecuteSql",
+			Handler:    _ProtosClientApi_ExecuteSql_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -25,6 +25,7 @@ func GetLogger(context string) *logrus.Entry {
 // WaitForPort is a utility method that waits until a specific port is open on a specific host
 func WaitForPort(host string, port string, maxTries int) error {
 	tries := 0
+	var lastErr error
 	for {
 		timeout := time.Second
 		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), timeout)
@@ -32,9 +33,15 @@ func WaitForPort(host string, port string, maxTries int) error {
 			conn.Close()
 			return nil
 		}
+		if err != nil {
+			lastErr = err
+		}
 		time.Sleep(3 * time.Second)
 		tries++
 		if tries == maxTries {
+			if lastErr != nil {
+				return fmt.Errorf("failed to connect to '%s:%s' after %d tries: %w", host, port, maxTries, lastErr)
+			}
 			return fmt.Errorf("failed to connect to '%s:%s' after %d tries", host, port, maxTries)
 		}
 	}

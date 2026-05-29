@@ -355,6 +355,9 @@ func (n *Node) APIServices() *apic.Services {
 		CloudManager:   n.CloudManager,
 		P2PManager:     n.P2PManager,
 		CanProvision:   n.capabilities.Provision,
+		WorkDir:        n.cfg.WorkDir,
+		Capabilities:   n.capabilities.String(),
+		P2PPort:        n.cfg.P2PPort,
 		InitFunc:       n.Init,
 		ReleaseFetch:   n.GetProtosAvailableReleases,
 	}
