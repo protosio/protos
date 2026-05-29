@@ -88,12 +88,15 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 		}
 
 		if p2p.externalDB.Initialized() {
-			_, found := p2p.machines.Get(conn.RemotePeer().String())
-			if !found {
+			if !p2p.peerKnownOrPending(conn.RemotePeer()) {
 				log.Warnf("new connection with peer '%s' with unknown machine. Closing connection", conn.RemotePeer().String())
 				conn.Close()
 				return
 			}
+		} else if !p2p.initPeerAllowed(conn.RemotePeer()) {
+			log.Warnf("new init connection with peer '%s' is not allowed. Closing connection", conn.RemotePeer().String())
+			conn.Close()
+			return
 		}
 
 		log.Debugf("new connection with peer %s. Creating client", conn.RemotePeer().String())

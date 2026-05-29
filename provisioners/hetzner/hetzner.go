@@ -156,7 +156,7 @@ func (hz *hetzner) SupportedMachines(location string) (map[string]provisioners.M
 	return vms, nil
 }
 
-func (hz *hetzner) NewInstance(name string, imageID string, pubKey string, machineType string, location string) (string, error) {
+func (hz *hetzner) NewInstance(name string, imageID string, originPublicKey string, machineType string, location string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -164,11 +164,6 @@ func (hz *hetzner) NewInstance(name string, imageID string, pubKey string, machi
 		return "", errors.Wrap(err, "Failed to retrieve Hetzner servers")
 	} else if existing != nil {
 		return "", errors.Errorf("There is already an instance with name '%s' on Hetzner", name)
-	}
-
-	sshKey, err := hz.createSSHKey(ctx, name, pubKey, map[string]string{hetznerLabelManaged: "true"})
-	if err != nil {
-		return "", err
 	}
 
 	image, err := hz.getImage(ctx, imageID)
@@ -192,7 +187,7 @@ func (hz *hetzner) NewInstance(name string, imageID string, pubKey string, machi
 
 	startAfterCreate := false
 	log.Infof("Deploying Hetzner VM using image '%s'", imageID)
-	userData, err := hetznerAuthorizedKeysUserData(pubKey)
+	userData, err := hetznerInitUserData(originPublicKey)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to build Hetzner user data")
 	}
@@ -200,7 +195,6 @@ func (hz *hetzner) NewInstance(name string, imageID string, pubKey string, machi
 		Name:             name,
 		ServerType:       serverType,
 		Image:            image,
-		SSHKeys:          []*hcloud.SSHKey{sshKey},
 		Location:         serverLocation,
 		UserData:         userData,
 		StartAfterCreate: &startAfterCreate,
@@ -1084,13 +1078,13 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
-func hetznerAuthorizedKeysUserData(pubKey string) (string, error) {
-	authorizedKeys := strings.TrimSpace(pubKey) + "\n"
+func hetznerInitUserData(originPublicKey string) (string, error) {
+	originPublicKey = strings.TrimSpace(originPublicKey) + "\n"
 	return fmt.Sprintf(`#!/bin/sh
 set -eu
-mkdir -p /run/config/ssh
-cat > /run/config/ssh/authorized_keys <<'PROTOS_AUTHORIZED_KEYS'
-%sPROTOS_AUTHORIZED_KEYS
-chmod 0600 /run/config/ssh/authorized_keys
-`, authorizedKeys), nil
+mkdir -p /run/config/protos
+cat > /run/config/protos/init_origin_public_key <<'PROTOS_INIT_ORIGIN_PUBLIC_KEY'
+%sPROTOS_INIT_ORIGIN_PUBLIC_KEY
+chmod 0600 /run/config/protos/init_origin_public_key
+`, originPublicKey), nil
 }

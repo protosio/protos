@@ -34,6 +34,7 @@ var log = util.GetLogger("p2p")
 
 const (
 	protosRPCProtocol         = "/protos/rpc/0.0.1"
+	swarmionBootstrapProtocol = "/protos/swarmion-bootstrap/0.0.1"
 	destinationStringTemplate = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
 	destinationIPv6Template   = "/ip6/%s/udp/%d/quic-v1/p2p/%s"
 	peerRetryInterval         = 10 * time.Second
@@ -119,8 +120,12 @@ type P2P struct {
 	grpcServer *grpc.Server
 	externalDB ExternalDB
 	network    NetworkInspector
+	p2pPort    int
 
 	restartServerSignal chan initMachine
+
+	initMu     sync.RWMutex
+	initPeerID peer.ID
 
 	// the index is the peer ID
 	machines *util.Map[string, Machine]
@@ -163,6 +168,21 @@ func (p2p *P2P) ListenAddresses() []string {
 		out = append(out, addr.String())
 	}
 	return out
+}
+
+func (p2p *P2P) listenPort() int {
+	if p2p != nil && p2p.p2pPort != 0 {
+		return p2p.p2pPort
+	}
+	return config.Get().P2PPort
+}
+
+func (p2p *P2P) swarmionPort() int {
+	port := p2p.listenPort()
+	if port <= 0 {
+		return 0
+	}
+	return port + 1
 }
 
 // GetPeerID adds a peer to the p2p manager
@@ -467,9 +487,9 @@ func (p2p *P2P) destinationStrings(peerIDString string, machine Machine) []strin
 
 	for _, ip := range p2p.knownPeerIPs(machine) {
 		if ip.To4() == nil {
-			add(fmt.Sprintf(destinationIPv6Template, ip.String(), config.Get().P2PPort, peerIDString))
+			add(fmt.Sprintf(destinationIPv6Template, ip.String(), p2p.listenPort(), peerIDString))
 		} else {
-			add(fmt.Sprintf(destinationStringTemplate, ip.String(), config.Get().P2PPort, peerIDString))
+			add(fmt.Sprintf(destinationStringTemplate, ip.String(), p2p.listenPort(), peerIDString))
 		}
 	}
 
@@ -811,6 +831,7 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 		appManager: appManager,
 		grpcServer: grpc.NewServer(p2pgrpc.WithP2PCredentials()),
 		externalDB: externalDB,
+		p2pPort:    p2pPort,
 
 		restartServerSignal: make(chan initMachine),
 
@@ -853,6 +874,7 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 	}
 
 	p2p.host = host
+	p2p.host.SetStreamHandler(swarmionBootstrapProtocol, p2p.handleSwarmionBootstrapStream)
 	nb := network.NotifyBundle{
 		ConnectedF:    p2p.newConnectionHandler,
 		DisconnectedF: p2p.closeConnectionHandler,

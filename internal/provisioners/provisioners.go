@@ -452,16 +452,14 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		}
 	}
 
-	// create SSH key used for instance
-	log.Info("Generating SSH key for the new VM instance")
-	instanceSSHKey, err := cm.sm.GenerateKey()
+	thisDevice, err := cm.um.GetCurrentDevice()
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
+		return InstanceInfo{}, fmt.Errorf("failed to get current device : %w", err)
 	}
 
 	// deploy a protos instance
 	log.Infof("Deploying instance '%s' of type '%s', using Protos version '%s' (image id '%s')", instanceName, machineType, release.Version, imageID)
-	vmID, err = computeProvider.NewInstance(instanceName, imageID, instanceSSHKey.AuthorizedKey(), machineType, cloudLocation)
+	vmID, err = computeProvider.NewInstance(instanceName, imageID, thisDevice.GetPublicKey(), machineType, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
@@ -482,11 +480,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		instanceInfo.KindID = provider.NameStr()
 	}
 	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
-
-	thisDevice, err := cm.um.GetCurrentDevice()
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to get current device : %w", err)
-	}
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
@@ -519,33 +512,15 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		instanceInfo.Status = instanceUpdate.Status
 	}
 
-	// wait for port 22 to be open
-	err = util.WaitForPort(instanceInfo.PublicIP, "22", 60)
+	discoverCtx, discoverCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	discoveredPeer, err := cm.p2p.DiscoverPeer(discoverCtx, instanceInfo.PublicIP)
+	discoverCancel()
 	if err != nil {
-		return InstanceInfo{}, deploymentFailureError(computeProvider, vmID, cloudLocation, fmt.Errorf("failed to deploy instance: %w", err))
+		return InstanceInfo{}, deploymentFailureError(computeProvider, vmID, cloudLocation, fmt.Errorf("failed to discover instance peer over libp2p: %w", err))
 	}
-
-	// connect via SSH
-	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", instanceSSHKey.SSHAuth(), 10)
-	if err != nil {
-		return InstanceInfo{}, err
-	}
-	defer sshCon.Close()
-
-	// retrieve instance public key via SSH
-	publicKeyPEM, err := waitForRemoteFile(sshCon, protosPublicKey, 2*time.Minute)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to retrieve public key from instance: %w", err)
-	}
-	publicKey, err := pcrypto.CreatePublicKeyFromPEM(publicKeyPEM)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to decode public key from instance: %w", err)
-	}
-	instanceInfo.PublicKey = publicKey.PublicKey()
-	instanceInfo.ID = publicKey.GetID()
-	if err := cm.saveInstanceSSHKey(instanceInfo.ID, instanceSSHKey); err != nil {
-		log.Warnf("failed to persist SSH key for instance '%s': %s", instanceInfo.Name, err.Error())
-	}
+	instanceInfo.PublicKey = discoveredPeer.PublicKey
+	instanceInfo.ID = discoveredPeer.ID
+	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
 
 	mm, cmm := createInstanceInsertMapper(instanceInfo)
 	if err := db.Insert(cm.db, mm, cmm, db.CreatePeerInsertMapper(instanceInfo.ID)); err != nil {
@@ -563,12 +538,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		return InstanceInfo{}, errors.New("failed to initialize instance: p2p client is nil")
 	}
 
-	originSwarmionAddrs, closeBootstrapTunnel, err := cm.originSwarmionBootstrapAddrsViaSSH(sshCon, thisDevice.GetPublicKey(), instanceInfo.PublicIP)
-	if err != nil {
-		_ = cm.p2p.RemovePeer(instanceInfo)
-		return InstanceInfo{}, fmt.Errorf("failed to create bootstrap tunnel: %w", err)
-	}
-	defer closeBootstrapTunnel()
+	originSwarmionAddrs := cm.originSwarmionBootstrapAddrs(thisDevice.GetPublicKey(), instanceInfo.PublicIP)
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
@@ -638,40 +608,20 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 		return fmt.Errorf("String '%s' is not a valid IP address", ipString)
 	}
 
-	localKey, err := cm.sm.GetLocalKey()
-	if err != nil {
-		return err
-	}
-
 	thisDevice, err := cm.um.GetCurrentDevice()
 	if err != nil {
 		return fmt.Errorf("failed to get current device : %w", err)
 	}
 
-	// wait for port 22 to be open
-	err = util.WaitForPort(instanceInfo.PublicIP, "22", 20)
+	discoverCtx, discoverCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	discoveredPeer, err := cm.p2p.DiscoverPeer(discoverCtx, instanceInfo.PublicIP)
+	discoverCancel()
 	if err != nil {
-		return fmt.Errorf("failure while waiting for port: %w", err)
+		return fmt.Errorf("failed to discover instance peer over libp2p: %w", err)
 	}
-
-	// connect via SSH
-	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", localKey.SSHAuth(), 10)
-	if err != nil {
-		return fmt.Errorf("failed to connect to dev instance over SSH: %w", err)
-	}
-	defer sshCon.Close()
-
-	// retrieve instance public key via SSH
-	publicKeyPEM, err := waitForRemoteFile(sshCon, path.Join("/var/lib/protos/", pcrypto.PublicKeyFileName), 2*time.Minute)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve public key from instance: %w", err)
-	}
-	publicKey, err := pcrypto.CreatePublicKeyFromPEM(publicKeyPEM)
-	if err != nil {
-		return fmt.Errorf("failed to decode public key from instance: %w", err)
-	}
-	instanceInfo.PublicKey = publicKey.PublicKey()
-	instanceInfo.ID = publicKey.GetID()
+	instanceInfo.PublicKey = discoveredPeer.PublicKey
+	instanceInfo.ID = discoveredPeer.ID
+	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
 
 	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
 	insertedInstance := false
@@ -695,11 +645,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 		return errors.New("failed to initialize instance: p2p client is nil")
 	}
 
-	originSwarmionAddrs, closeBootstrapTunnel, err := cm.originSwarmionBootstrapAddrsViaSSH(sshCon, thisDevice.GetPublicKey(), instanceInfo.PublicIP)
-	if err != nil {
-		return fmt.Errorf("failed to create bootstrap tunnel: %w", err)
-	}
-	defer closeBootstrapTunnel()
+	originSwarmionAddrs := cm.originSwarmionBootstrapAddrs(thisDevice.GetPublicKey(), instanceInfo.PublicIP)
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)

@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -44,7 +45,6 @@ const (
 	localMacOSDiagMaxBytes  = 8192
 
 	localMacOSNetworkInterface    = "eth0"
-	localMacOSNATBridgeInterface  = "bridge100"
 	localMacOSFallbackNetworkCIDR = "192.168.64.0/24"
 	localMacOSFallbackGateway     = "192.168.64.1"
 )
@@ -99,26 +99,26 @@ type localMacOSNetworkManifest struct {
 }
 
 type localMacOSInstanceManifest struct {
-	ID           string                     `json:"id"`
-	Name         string                     `json:"name"`
-	ImageID      string                     `json:"image_id"`
-	Location     string                     `json:"location"`
-	MachineType  string                     `json:"machine_type"`
-	Cores        uint32                     `json:"cores"`
-	MemoryMiB    uint32                     `json:"memory_mib"`
-	PublicKey    string                     `json:"public_key"`
-	PublicIP     string                     `json:"public_ip"`
-	MACAddress   string                     `json:"mac_address"`
-	Status       string                     `json:"status"`
-	PID          int                        `json:"pid,omitempty"`
-	KernelPath   string                     `json:"kernel_path"`
-	InitrdPath   string                     `json:"initrd_path"`
-	CmdlinePath  string                     `json:"cmdline_path"`
-	RootDiskPath string                     `json:"root_disk_path,omitempty"`
-	BootISOPath  string                     `json:"boot_iso_path,omitempty"`
-	MetadataISO  string                     `json:"metadata_iso,omitempty"`
-	Network      localMacOSNetworkManifest  `json:"network,omitempty"`
-	Volumes      []localMacOSAttachedVolume `json:"volumes,omitempty"`
+	ID                  string                     `json:"id"`
+	Name                string                     `json:"name"`
+	ImageID             string                     `json:"image_id"`
+	Location            string                     `json:"location"`
+	MachineType         string                     `json:"machine_type"`
+	Cores               uint32                     `json:"cores"`
+	MemoryMiB           uint32                     `json:"memory_mib"`
+	InitOriginPublicKey string                     `json:"init_origin_public_key"`
+	PublicIP            string                     `json:"public_ip"`
+	MACAddress          string                     `json:"mac_address"`
+	Status              string                     `json:"status"`
+	PID                 int                        `json:"pid,omitempty"`
+	KernelPath          string                     `json:"kernel_path"`
+	InitrdPath          string                     `json:"initrd_path"`
+	CmdlinePath         string                     `json:"cmdline_path"`
+	RootDiskPath        string                     `json:"root_disk_path,omitempty"`
+	BootISOPath         string                     `json:"boot_iso_path,omitempty"`
+	MetadataISO         string                     `json:"metadata_iso,omitempty"`
+	Network             localMacOSNetworkManifest  `json:"network,omitempty"`
+	Volumes             []localMacOSAttachedVolume `json:"volumes,omitempty"`
 }
 
 type localMacOSNATNetwork struct {
@@ -232,7 +232,7 @@ func (lm *localMacOS) SupportedMachines(location string) (map[string]provisioner
 	}, nil
 }
 
-func (lm *localMacOS) NewInstance(name string, imageID string, pubKey string, machineType string, location string) (string, error) {
+func (lm *localMacOS) NewInstance(name string, imageID string, originPublicKey string, machineType string, location string) (string, error) {
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return "", err
 	}
@@ -313,23 +313,23 @@ func (lm *localMacOS) NewInstance(name string, imageID string, pubKey string, ma
 	}
 
 	manifest := localMacOSInstanceManifest{
-		ID:           id,
-		Name:         name,
-		ImageID:      imageID,
-		Location:     localMacOSLocation,
-		MachineType:  machineType,
-		Cores:        machine.Cores,
-		MemoryMiB:    machine.Memory,
-		PublicKey:    strings.TrimSpace(pubKey),
-		PublicIP:     network.IPAddress,
-		MACAddress:   macAddress,
-		Status:       provisioners.ServerStateStopped,
-		KernelPath:   kernelPath,
-		InitrdPath:   initrdPath,
-		CmdlinePath:  cmdlinePath,
-		RootDiskPath: rootDiskPath,
-		BootISOPath:  bootISOPath,
-		Network:      network,
+		ID:                  id,
+		Name:                name,
+		ImageID:             imageID,
+		Location:            localMacOSLocation,
+		MachineType:         machineType,
+		Cores:               machine.Cores,
+		MemoryMiB:           machine.Memory,
+		InitOriginPublicKey: strings.TrimSpace(originPublicKey),
+		PublicIP:            network.IPAddress,
+		MACAddress:          macAddress,
+		Status:              provisioners.ServerStateStopped,
+		KernelPath:          kernelPath,
+		InitrdPath:          initrdPath,
+		CmdlinePath:         cmdlinePath,
+		RootDiskPath:        rootDiskPath,
+		BootISOPath:         bootISOPath,
+		Network:             network,
 	}
 	if err := lm.writeInstanceManifest(manifest); err != nil {
 		return "", err
@@ -375,7 +375,7 @@ func (lm *localMacOS) StartInstance(id string, location string) error {
 	manifest.PID = 0
 	manifest.PublicIP = manifest.Network.IPAddress
 	manifest.MetadataISO = filepath.Join(lm.instanceDir(manifest.ID), localMacOSMetadataISO)
-	if err := writeLocalMacOSMetadataISO(manifest.MetadataISO, manifest.Name, manifest.PublicKey, manifest.Network); err != nil {
+	if err := writeLocalMacOSMetadataISO(manifest.MetadataISO, manifest.Name, manifest.InitOriginPublicKey, manifest.Network); err != nil {
 		return fmt.Errorf("failed to write metadata ISO: %w", err)
 	}
 	if err := lm.writeInstanceManifest(manifest); err != nil {
@@ -1027,12 +1027,41 @@ func (lm *localMacOS) findInstanceByName(name string) (localMacOSInstanceManifes
 }
 
 func localMacOSCurrentNATNetwork() (localMacOSNATNetwork, error) {
-	if observed, err := localMacOSBridgeNATNetwork(localMacOSNATBridgeInterface); err == nil {
+	if observed, err := localMacOSPreferredVZNATNetwork(); err == nil {
 		return observed, nil
 	} else {
-		log.Debugf("failed to inspect local macOS NAT bridge '%s': %s", localMacOSNATBridgeInterface, err.Error())
+		log.Debugf("failed to inspect preferred local macOS VZ NAT network: %s", err.Error())
 	}
 	return localMacOSFallbackNATNetwork()
+}
+
+func localMacOSPreferredVZNATNetwork() (localMacOSNATNetwork, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return localMacOSNATNetwork{}, err
+	}
+	names := make([]string, 0, len(interfaces))
+	for _, iface := range interfaces {
+		if strings.HasPrefix(iface.Name, "bridge") {
+			names = append(names, iface.Name)
+		}
+	}
+	sort.Strings(names)
+
+	fallbackGateway := net.ParseIP(localMacOSFallbackGateway).To4()
+	if fallbackGateway == nil {
+		return localMacOSNATNetwork{}, fmt.Errorf("fallback gateway %q is not IPv4", localMacOSFallbackGateway)
+	}
+	for _, name := range names {
+		network, err := localMacOSBridgeNATNetwork(name)
+		if err != nil {
+			continue
+		}
+		if network.Gateway.Equal(fallbackGateway) || network.Network.Contains(fallbackGateway) {
+			return network, nil
+		}
+	}
+	return localMacOSNATNetwork{}, fmt.Errorf("no bridge interface matched preferred VZ NAT gateway %s", fallbackGateway.String())
 }
 
 func localMacOSBridgeNATNetwork(name string) (localMacOSNATNetwork, error) {
@@ -1344,7 +1373,7 @@ func firstNonEmptyLocalMacOSString(values ...string) string {
 	return ""
 }
 
-func writeLocalMacOSMetadataISO(path string, hostname string, authorizedKey string, network localMacOSNetworkManifest) error {
+func writeLocalMacOSMetadataISO(path string, hostname string, initOriginPublicKey string, network localMacOSNetworkManifest) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -1359,16 +1388,12 @@ func writeLocalMacOSMetadataISO(path string, hostname string, authorizedKey stri
 			Content: hostname + "\n",
 			Perm:    "0644",
 		},
-		"ssh": {
-			Entries: map[string]localMacOSMetadataEntry{
-				"authorized_keys": {
-					Content: strings.TrimSpace(authorizedKey) + "\n",
-					Perm:    "0600",
-				},
-			},
-		},
 		"protos": {
 			Entries: map[string]localMacOSMetadataEntry{
+				"init_origin_public_key": {
+					Content: strings.TrimSpace(initOriginPublicKey) + "\n",
+					Perm:    "0600",
+				},
 				"network": {
 					Entries: map[string]localMacOSMetadataEntry{
 						"interface": {

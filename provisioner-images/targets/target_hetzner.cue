@@ -35,20 +35,7 @@ init: #init_base
 }
 onboot: #onboot & list.FlattenN([#onboot_common, #metadata_hetzner, #format_hetzner, #mount, #rngd_boot], 1)
 
-//
-// services
-//
-#sshd_hetzner: #sshd & {
-	binds: [
-		"/run/config/ssh/authorized_keys:/root/.ssh/authorized_keys",
-		"/var/log:/var/log",
-		"/var/lib/protos:/var/lib/protos",
-	]
-	runtime: #runtime & {
-		mkdir: ["/var/log", "/var/lib/protos"]
-	}
-}
-services: #services & [#getty, #rngd_service, #sshd_hetzner, #protos]
+services: #services & [#getty, #rngd_service, #protos]
 
 #file_hetzner_metadata: #file & {
 	path: "/usr/bin/protos-hetzner-metadata"
@@ -102,7 +89,7 @@ services: #services & [#getty, #rngd_service, #sshd_hetzner, #protos]
           rm -f "$USERDATA"
         }
 
-        mkdir -p "$CONFIG_DIR/ssh"
+        mkdir -p "$CONFIG_DIR/ssh" "$CONFIG_DIR/protos"
 
         HOSTNAME=$(fetch_once "$BASE/metadata/hostname")
         if [ -n "$HOSTNAME" ]; then
@@ -120,13 +107,12 @@ services: #services & [#getty, #rngd_service, #sshd_hetzner, #protos]
           echo "$INSTANCE_ID" > "$CONFIG_DIR/instance_id"
         fi
 
-        write_public_keys || run_userdata
+        write_public_keys || true
+        run_userdata || true
 
-        if [ ! -s "$CONFIG_DIR/ssh/authorized_keys" ]; then
-          echo "Hetzner metadata did not provide authorized_keys" >&2
-          exit 1
+        if [ -s "$CONFIG_DIR/ssh/authorized_keys" ]; then
+          chmod 0600 "$CONFIG_DIR/ssh/authorized_keys"
         fi
-        chmod 0600 "$CONFIG_DIR/ssh/authorized_keys"
         """
 }
 

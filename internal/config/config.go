@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	ReleasesURL  = "https://releases.protos.io/releases.json"
-	LocalDNSPort = 10053
-	DBName       = "protos"
+	ReleasesURL             = "https://releases.protos.io/releases.json"
+	LocalDNSPort            = 10053
+	DBName                  = "protos"
+	InitOriginPublicKeyPath = "/run/config/protos/init_origin_public_key"
 )
 
 // Config is the main configuration struct

@@ -242,6 +242,17 @@ func (n *Node) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create p2p manager: %w", err)
 	}
+	if !n.DB.Initialized() {
+		initOriginPublicKey, err := readInitOriginPublicKey()
+		if err != nil {
+			return err
+		}
+		if initOriginPublicKey != "" {
+			if err := n.P2PManager.SetInitPeerPublicKey(initOriginPublicKey); err != nil {
+				return fmt.Errorf("failed to configure init peer: %w", err)
+			}
+		}
+	}
 	if n.NetworkManager != nil {
 		n.P2PManager.SetNetworkInspector(n.NetworkManager)
 	}
@@ -400,6 +411,17 @@ func (n *Node) GetProtosAvailableReleases() (release.Releases, error) {
 		return releases, errors.Errorf("Something went wrong. Parsed 0 releases from '%s'", config.ReleasesURL)
 	}
 	return releases, nil
+}
+
+func readInitOriginPublicKey() (string, error) {
+	data, err := os.ReadFile(config.InitOriginPublicKeyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to read init origin public key: %w", err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func (n *Node) Wait() {

@@ -508,6 +508,14 @@ func cloneStringMap(values map[string]string) map[string]string {
 
 // HandlerInit does the initialisation on the server side
 func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitResponse, error) {
+	if s.DB.Initialized() {
+		return nil, errors.New("initialisation RPC is disabled after database initialisation")
+	}
+
+	remotePeer, ok := p2pgrpc.RemotePeerFromContext(ctx)
+	if !ok {
+		return nil, errors.New("cannot perform initialization: missing remote peer identity")
+	}
 
 	validate := validator.New()
 	err := validate.Struct(req)
@@ -524,13 +532,28 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		id:        pubKey.GetID(),
 		publicKey: req.OriginDevicePublicKey,
 	}
+	if remotePeer.String() != im.GetID() {
+		return nil, fmt.Errorf("cannot perform initialization: request origin %s does not match authenticated peer %s", im.GetID(), remotePeer.String())
+	}
+	if !s.p2p.initPeerAllowed(remotePeer) {
+		return nil, fmt.Errorf("cannot perform initialization: peer %s is not the configured init peer", remotePeer.String())
+	}
 
 	_, err = s.p2p.AddPeer(&im)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
 
-	err = s.DB.InitFromPeer(im.GetID(), req.OriginSwarmionAddrs)
+	originSwarmionAddrs := append([]string(nil), req.OriginSwarmionAddrs...)
+	tunnelAddr, closeTunnel, tunnelErr := s.p2p.StartSwarmionBootstrapTunnel(ctx, im.GetID())
+	if tunnelErr != nil {
+		log.Warnf("failed to create libp2p Swarmion bootstrap tunnel: %v", tunnelErr)
+	} else {
+		defer closeTunnel()
+		originSwarmionAddrs = append([]string{tunnelAddr}, originSwarmionAddrs...)
+	}
+
+	err = s.DB.InitFromPeer(im.GetID(), originSwarmionAddrs)
 	if err != nil {
 		err = fmt.Errorf("failed to initialize database from peer %s(%s): %w", im.GetID(), pubKey.GetID(), err)
 		log.Error(err.Error())

@@ -95,7 +95,7 @@ type ProviderClient = Provisioner
 type ComputeProvisioner interface {
 	SupportedLocations() []string
 	SupportedMachines(location string) (map[string]MachineSpec, error)
-	NewInstance(name string, image string, pubKey string, machineType string, location string) (id string, err error)
+	NewInstance(name string, image string, originPublicKey string, machineType string, location string) (id string, err error)
 	DeleteInstance(id string, location string) error
 	StartInstance(id string, location string) error
 	StopInstance(id string, location string) error

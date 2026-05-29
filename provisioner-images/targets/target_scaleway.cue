@@ -27,19 +27,6 @@ init: #init_base
 }
 onboot: #onboot & list.FlattenN([#onboot_common, #metadata_scaleway, #format_scaleway, #mount, #rngd_boot], 1)
 
-//
-// services
-//
-#sshd_scaleway: #sshd & {
-	binds: [
-		"/run/config/ssh/authorized_keys:/root/.ssh/authorized_keys",
-		"/var/log:/var/log",
-		"/var/lib/protos:/var/lib/protos",
-	]
-	runtime: #runtime & {
-		mkdir: ["/var/log", "/var/lib/protos"]
-	}
-}
-services: #services & [#getty, #rngd_service, #sshd_scaleway, #protos]
+services: #services & [#getty, #rngd_service, #protos]
 
 files: #files

@@ -218,35 +218,12 @@ func (sw *scaleway) deleteSSHkey(name string) error {
 			return nil
 		}
 	}
-	return errors.Errorf("Could not find an SSH key named '%s'", name)
+	return nil
 }
 
 // NewInstance creates a new Protos instance on Scaleway
-func (sw *scaleway) NewInstance(name string, imageID string, pubKey string, machineType string, location string) (string, error) {
-
-	//
-	// create SSH key
-	//
-
-	keysResp, err := sw.iamAPI.ListSSHKeys(&iam.ListSSHKeysRequest{ProjectID: &sw.credentials.projectID}, scw.WithAllPages())
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to get SSH keys")
-	}
-	for _, k := range keysResp.SSHKeys {
-		if k.Name == name {
-			log.Infof("Found an SSH key with the same name as the instance (%s). Deleting it and creating a new key for the current instance.", name)
-			if err := sw.iamAPI.DeleteSSHKey(&iam.DeleteSSHKeyRequest{SSHKeyID: k.ID}); err != nil {
-				return "", errors.Wrapf(err, "Failed to delete existing SSH key '%s'", k.ID)
-			}
-		}
-	}
-
-	pubKey = strings.TrimSuffix(pubKey, "\n") + " root@protos.io"
-	_, err = sw.iamAPI.CreateSSHKey(&iam.CreateSSHKeyRequest{Name: name, ProjectID: sw.credentials.projectID, PublicKey: pubKey})
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to add SSH key for instance")
-	}
-	tags := []string{scalewayAuthorizedKeyTag(pubKey)}
+func (sw *scaleway) NewInstance(name string, imageID string, originPublicKey string, machineType string, location string) (string, error) {
+	var tags []string
 
 	//
 	// create server
@@ -287,7 +264,7 @@ func (sw *scaleway) NewInstance(name string, imageID string, pubKey string, mach
 	}
 	log.Infof("Created server '%s' (%s)", srvResp.Server.Name, srvResp.Server.ID)
 
-	if err := sw.setServerAuthorizedKeys(srvResp.Server.ID, pubKey, location); err != nil {
+	if err := sw.setServerInitMetadata(srvResp.Server.ID, originPublicKey, location); err != nil {
 		return "", err
 	}
 
@@ -874,8 +851,8 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
-func (sw *scaleway) setServerAuthorizedKeys(id string, pubKey string, location string) error {
-	userData, err := scalewayAuthorizedKeysUserData(pubKey)
+func (sw *scaleway) setServerInitMetadata(id string, originPublicKey string, location string) error {
+	userData, err := scalewayInitUserData(originPublicKey)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to build Scaleway cloud-init user data for instance '%s'", id)
 	}
@@ -890,19 +867,19 @@ func (sw *scaleway) setServerAuthorizedKeys(id string, pubKey string, location s
 	return nil
 }
 
-func scalewayAuthorizedKeysUserData(pubKey string) (string, error) {
+func scalewayInitUserData(originPublicKey string) (string, error) {
 	type entry struct {
 		Perm    string           `json:"perm,omitempty"`
 		Content *string          `json:"content,omitempty"`
 		Entries map[string]entry `json:"entries,omitempty"`
 	}
-	authorizedKeys := strings.TrimSpace(pubKey) + "\n"
+	initOriginPublicKey := strings.TrimSpace(originPublicKey) + "\n"
 	data := map[string]entry{
-		"ssh": {
+		"protos": {
 			Entries: map[string]entry{
-				"authorized_keys": {
+				"init_origin_public_key": {
 					Perm:    "0600",
-					Content: &authorizedKeys,
+					Content: &initOriginPublicKey,
 				},
 			},
 		},
@@ -976,10 +953,6 @@ func scalewayServerPublicIP(server *instance.Server) (string, error) {
 		}
 	}
 	return "", errors.Errorf("Scaleway server '%s' has no public IP", server.Name)
-}
-
-func scalewayAuthorizedKeyTag(pubKey string) string {
-	return "AUTHORIZED_KEY=" + strings.ReplaceAll(strings.TrimSpace(pubKey), " ", "_")
 }
 
 func (sw *scaleway) cleanImageSSHkeys(keyID string) {
