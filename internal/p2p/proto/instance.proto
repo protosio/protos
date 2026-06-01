@@ -171,6 +171,10 @@ message RuntimeState {
   repeated RuntimePeerStatus peer_statuses = 18;
   repeated RuntimeCompatibility compatibility = 19;
   repeated string content_sync_trace = 20;
+  repeated string known_epoch_ids = 21;
+  map<string, string> epoch_descriptor_digest_by_id = 22;
+  map<string, string> epoch_finalized_digest_by_id = 23;
+  string protocol_finalized_digest = 24;
 }
 
 message RuntimePeerStatus {

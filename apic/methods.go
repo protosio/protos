@@ -17,6 +17,7 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/release"
+	"github.com/protosio/protos/internal/tasks"
 )
 
 //
@@ -476,26 +477,16 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 
 	resp := pbApic.GetInstancesResponse{}
 	for _, instance := range instances {
-
-		wgPublicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
-		if err != nil {
-			log.Error(err.Error())
-		}
-
-		pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
-		if err != nil {
-			log.Error(err.Error())
-		}
-
+		internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
 		cloudName, cloudType := b.instanceProvisionerLabels(instance)
 		respInstance := pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
-			InternalIp:         pubKey.IPv6Address().StringExpanded(),
+			InternalIp:         internalIP,
 			VmId:               instance.ID,
 			Location:           instance.Location,
 			PublicKey:          instance.PublicKey,
-			PublicKeyWireguard: wgPublicKey.String(),
+			PublicKeyWireguard: wgPublicKey,
 			Architecture:       instance.Architecture,
 			Status:             instance.Status,
 			CloudName:          cloudName,
@@ -514,38 +505,33 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		return nil, fmt.Errorf("failed to retrieve instance '%s': %w", in.Name, err)
 	}
 
-	wgPublicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
-	if err != nil {
-		log.Error(err.Error())
-	}
-
-	pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
-	if err != nil {
-		log.Error(err.Error())
-	}
-
+	internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
 	var status string
 	peers := map[string]string{}
-	client, err := b.protosClient.P2PManager.GetClient(instance.Name)
-	if err != nil {
-		log.Error(err.Error())
-		if peerState, found := b.protosClient.P2PManager.GetPeerState(instance.Name); found {
-			status = fmt.Sprintf("%s (%s)", instance.Status, peerState.Reachability())
-			if peerState.LastError != "" {
-				log.Debugf("last p2p error for instance '%s': %s", instance.Name, peerState.LastError)
-			}
-		} else {
-			status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
-		}
+	if strings.TrimSpace(instance.PublicKey) == "" {
+		status = instance.Status
 	} else {
-		resp, err := client.GetPeers(context.TODO(), &p2pproto.GetPeersRequest{})
+		client, err := b.protosClient.P2PManager.GetClient(instance.Name)
 		if err != nil {
 			log.Error(err.Error())
-			status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
+			if peerState, found := b.protosClient.P2PManager.GetPeerState(instance.Name); found {
+				status = fmt.Sprintf("%s (%s)", instance.Status, peerState.Reachability())
+				if peerState.LastError != "" {
+					log.Debugf("last p2p error for instance '%s': %s", instance.Name, peerState.LastError)
+				}
+			} else {
+				status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
+			}
 		} else {
-			status = fmt.Sprintf("%s (%s)", instance.Status, "reachable")
-			for name, peer := range resp.Peers {
-				peers[name] = peer
+			resp, err := client.GetPeers(context.TODO(), &p2pproto.GetPeersRequest{})
+			if err != nil {
+				log.Error(err.Error())
+				status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
+			} else {
+				status = fmt.Sprintf("%s (%s)", instance.Status, "reachable")
+				for name, peer := range resp.Peers {
+					peers[name] = peer
+				}
 			}
 		}
 	}
@@ -555,11 +541,11 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		Instance: &pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
-			InternalIp:         pubKey.IPv6Address().StringExpanded(),
+			InternalIp:         internalIP,
 			VmId:               instance.ID,
 			Location:           instance.Location,
 			PublicKey:          instance.PublicKey,
-			PublicKeyWireguard: wgPublicKey.String(),
+			PublicKeyWireguard: wgPublicKey,
 			Status:             status,
 			Architecture:       instance.Architecture,
 			CloudName:          cloudName,
@@ -604,25 +590,17 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}
 
-	wgPublicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(instance.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
-	}
-
-	pubKey, err := pcrypto.CreatePublicKeyFromBase64(instance.PublicKey)
-	if err != nil {
-		log.Error(err.Error())
-	}
+	internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
 
 	resp := pbApic.DeployInstanceResponse{
 		Instance: &pbApic.CloudInstance{
 			Name:               instance.Name,
 			PublicIp:           instance.PublicIP,
-			InternalIp:         pubKey.IPv6Address().StringExpanded(),
+			InternalIp:         internalIP,
 			VmId:               instance.ID,
 			Location:           instance.Location,
 			PublicKey:          instance.PublicKey,
-			PublicKeyWireguard: wgPublicKey.String(),
+			PublicKeyWireguard: wgPublicKey,
 			Status:             instance.Status,
 		},
 	}
@@ -644,6 +622,25 @@ func (b *Backend) instanceProvisionerLabels(instance provisioners.InstanceInfo) 
 		return provisionerName, provisionerType
 	}
 	return provisioner.NameStr(), provisioner.TypeStr()
+}
+
+func instanceIdentityStrings(publicKey string) (internalIP string, wireGuardPublicKey string) {
+	publicKey = strings.TrimSpace(publicKey)
+	if publicKey == "" {
+		return "", ""
+	}
+	wgPublicKey, err := pcrypto.ConvertPublicEd25519ToCurve25519(publicKey)
+	if err != nil {
+		log.Error(err.Error())
+	} else {
+		wireGuardPublicKey = wgPublicKey.String()
+	}
+	pubKey, err := pcrypto.CreatePublicKeyFromBase64(publicKey)
+	if err != nil {
+		log.Error(err.Error())
+		return internalIP, wireGuardPublicKey
+	}
+	return pubKey.IPv6Address().StringExpanded(), wireGuardPublicKey
 }
 
 func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceRequest) (*pbApic.RemoveInstanceResponse, error) {
@@ -897,6 +894,116 @@ func (b *Backend) WatchChanges(in *pbApic.WatchChangesRequest, stream pbApic.Pro
 	}
 }
 
+func (b *Backend) GetTasks(ctx context.Context, in *pbApic.GetTasksRequest) (*pbApic.GetTasksResponse, error) {
+	manager, err := b.taskManager()
+	if err != nil {
+		return nil, err
+	}
+	maxResults := int(in.GetMaxResults())
+	if maxResults <= 0 {
+		maxResults = 200
+	}
+	if maxResults > 1000 {
+		maxResults = 1000
+	}
+	records, truncated, err := manager.List(tasks.ListOptions{
+		Stream:      in.GetStream(),
+		SubjectType: in.GetSubjectType(),
+		SubjectID:   in.GetSubjectId(),
+		Status:      tasks.Status(in.GetStatus()),
+		MaxResults:  maxResults,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve tasks: %w", err)
+	}
+	resp := &pbApic.GetTasksResponse{Truncated: truncated}
+	for _, record := range records {
+		resp.Tasks = append(resp.Tasks, taskRecordToProto(record))
+	}
+	return resp, nil
+}
+
+func (b *Backend) GetTask(ctx context.Context, in *pbApic.GetTaskRequest) (*pbApic.GetTaskResponse, error) {
+	manager, err := b.taskManager()
+	if err != nil {
+		return nil, err
+	}
+	record, err := manager.Get(in.GetId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve task '%s': %w", in.GetId(), err)
+	}
+	resp := &pbApic.GetTaskResponse{Task: taskRecordToProto(record)}
+	if in.GetIncludeEvents() {
+		events, err := manager.Events(record.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve task events for '%s': %w", record.ID, err)
+		}
+		for _, event := range events {
+			resp.Events = append(resp.Events, taskEventToProto(event))
+		}
+	}
+	return resp, nil
+}
+
+func (b *Backend) taskManager() (*tasks.Manager, error) {
+	if b.protosClient == nil || b.protosClient.CloudManager == nil {
+		return nil, fmt.Errorf("task manager is not configured")
+	}
+	manager := b.protosClient.CloudManager.TaskManager()
+	if manager == nil {
+		return nil, fmt.Errorf("task manager is not configured")
+	}
+	return manager, nil
+}
+
+func taskRecordToProto(record tasks.Record) *pbApic.Task {
+	return &pbApic.Task{
+		Id:           record.ID,
+		Stream:       record.Stream,
+		SubjectType:  record.SubjectType,
+		SubjectId:    record.SubjectID,
+		Status:       string(record.Status),
+		Title:        record.Title,
+		Message:      record.Message,
+		Progress:     int32(record.Progress),
+		PayloadJson:  rawJSONText(record.Payload),
+		ResultJson:   rawJSONText(record.Result),
+		ErrorMessage: record.ErrorMessage,
+		Attempts:     int32(record.Attempts),
+		MaxAttempts:  int32(record.MaxAttempts),
+		CreatedAt:    formatTaskTime(record.CreatedAt),
+		UpdatedAt:    formatTaskTime(record.UpdatedAt),
+		StartedAt:    formatTaskTime(record.StartedAt),
+		FinishedAt:   formatTaskTime(record.FinishedAt),
+	}
+}
+
+func taskEventToProto(event tasks.Event) *pbApic.TaskEvent {
+	return &pbApic.TaskEvent{
+		Id:          event.ID,
+		TaskId:      event.TaskID,
+		Status:      string(event.Status),
+		Message:     event.Message,
+		Progress:    int32(event.Progress),
+		DetailsJson: rawJSONText(event.Details),
+		CreatedAt:   formatTaskTime(event.CreatedAt),
+	}
+}
+
+func rawJSONText(raw []byte) string {
+	if len(raw) == 0 {
+		return "{}"
+	}
+	return string(raw)
+}
+
+func formatTaskTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339Nano)
+}
+
 func networkStateToProto(state networkmodule.State) *pbApic.NetworkState {
 	out := &pbApic.NetworkState{
 		Module:        state.Module,
@@ -1097,6 +1204,10 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 		RuntimeFinalizedPending:      status.RuntimeFinalizedMaterializePending,
 		RuntimeFinalizedLastError:    status.RuntimeFinalizedMaterializeLastError,
 		RuntimeMaterializationPolicy: status.RuntimeFinalizedMaterializationPolicy.String(),
+		KnownEpochIds:                append([]string(nil), status.KnownEpochIDs...),
+		EpochDescriptorDigestById:    cloneStringMap(status.EpochDescriptorDigestByID),
+		EpochFinalizedDigestById:     cloneStringMap(status.EpochFinalizedDigestByID),
+		ProtocolFinalizedDigest:      formatRuntimeDigest(status.ProtocolFinalizedDigest),
 	}
 	if status.Fatal != nil {
 		out.FatalState = status.Fatal.State
@@ -1129,6 +1240,7 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 	if err != nil {
 		return nil, err
 	}
+	filterRuntimePeerSurface(out, peerIDs)
 	addKnownRuntimePeerStatuses(out, peerIDs)
 	compatibility, err := b.protosClient.DB.SwarmionCompatibility(ctx)
 	if err != nil {
@@ -1148,6 +1260,75 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 		out.ContentSyncTrace = append([]string(nil), trace...)
 	}
 	return out, nil
+}
+
+func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struct{}) {
+	if out == nil {
+		return
+	}
+	allowed := make(map[string]struct{}, len(peerIDs)+1)
+	for peerID := range peerIDs {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			allowed[peerID] = struct{}{}
+		}
+	}
+	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
+		allowed[localPeerID] = struct{}{}
+	}
+	out.StateProviders = filterStringsBySet(out.GetStateProviders(), allowed)
+	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed)
+	providers := make(map[string]struct{}, len(out.GetStateProviders()))
+	for _, peerID := range out.GetStateProviders() {
+		providers[peerID] = struct{}{}
+	}
+	connected := make(map[string]struct{}, len(out.GetConnectedPeers())+1)
+	for _, peerID := range out.GetConnectedPeers() {
+		connected[peerID] = struct{}{}
+	}
+	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
+		connected[localPeerID] = struct{}{}
+	}
+	filteredStatuses := out.GetPeerStatuses()[:0]
+	for _, peerStatus := range out.GetPeerStatuses() {
+		if peerStatus == nil {
+			continue
+		}
+		peerID := strings.TrimSpace(peerStatus.GetPeerId())
+		if _, found := allowed[peerID]; !found {
+			continue
+		}
+		if _, found := providers[peerID]; !found {
+			peerStatus.StateProvider = false
+		}
+		_, isConnected := connected[peerID]
+		peerStatus.Connected = isConnected
+		if !isConnected {
+			peerStatus.Dialable = false
+		}
+		filteredStatuses = append(filteredStatuses, peerStatus)
+	}
+	out.PeerStatuses = filteredStatuses
+}
+
+func filterStringsBySet(values []string, allowed map[string]struct{}) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, found := allowed[value]; !found {
+			continue
+		}
+		if _, found := seen[value]; found {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState {
@@ -1173,6 +1354,10 @@ func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState
 		RuntimeFinalizedLastError:    state.GetRuntimeFinalizedLastError(),
 		RuntimeMaterializationPolicy: state.GetRuntimeMaterializationPolicy(),
 		ContentSyncTrace:             append([]string(nil), state.GetContentSyncTrace()...),
+		KnownEpochIds:                append([]string(nil), state.GetKnownEpochIds()...),
+		EpochDescriptorDigestById:    cloneStringMap(state.GetEpochDescriptorDigestById()),
+		EpochFinalizedDigestById:     cloneStringMap(state.GetEpochFinalizedDigestById()),
+		ProtocolFinalizedDigest:      state.GetProtocolFinalizedDigest(),
 	}
 	for _, peerStatus := range state.GetPeerStatuses() {
 		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
@@ -1279,6 +1464,13 @@ func cloneStringMap(values map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func formatRuntimeDigest(digest [32]byte) string {
+	if digest == ([32]byte{}) {
+		return ""
+	}
+	return fmt.Sprintf("%x", digest[:])
 }
 
 func (b *Backend) SetExitRoute(ctx context.Context, in *pbApic.SetExitRouteRequest) (*pbApic.SetExitRouteResponse, error) {
@@ -1597,6 +1789,8 @@ func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteComm
 }
 
 func (b *Backend) ExecuteSql(ctx context.Context, in *pbApic.ExecuteSqlRequest) (*pbApic.ExecuteSqlResponse, error) {
+	// This endpoint is only for the user-facing SQL console. Do not build
+	// internal product features on SQL as an ad hoc API surface.
 	log.Debug("Executing SQL from client API")
 	if b.protosClient == nil || b.protosClient.DB == nil {
 		return nil, fmt.Errorf("database is not configured")

@@ -5,24 +5,30 @@ package hostagentv1
 }
 
 #ApplyResponse: {
-	vms?:     [...#VMObservedState]
+	vms?: [...#VMObservedState]
 	network?: #NetworkObservedState
 	message?: string
 }
 
 #StatusRequest: {
-	vms?:     [...#VMRef]
+	vms?: [...#VMRef]
 	network?: bool
 }
 
 #StatusResponse: {
-	vms?:     [...#VMObservedState]
+	vms?: [...#VMObservedState]
 	network?: #NetworkObservedState
 	message?: string
 }
 
+#ShutdownRequest: {}
+
+#ShutdownResponse: {
+	message?: string
+}
+
 #HostDesiredState: {
-	vms?:     [...#VMDesiredState]
+	vms?: [...#VMDesiredState]
 	network?: #NetworkDesiredState
 }
 
@@ -47,13 +53,13 @@ package hostagentv1
 }
 
 #NetworkDesiredState: {
-	desired_state?:         string
-	config?:                #NetworkConfig
-	instances?:             [...#InstancePeer]
-	devices?:               [...#DevicePeer]
+	desired_state?: string
+	config?:        #NetworkConfig
+	instances?: [...#InstancePeer]
+	devices?: [...#DevicePeer]
 	namespaced_interfaces?: [...#NamespacedInterface]
-	reconcile_peers?:       bool
-	exit_routes?:           [...#ExitRoute]
+	reconcile_peers?: bool
+	exit_routes?: [...#ExitRoute]
 }
 
 #NetworkConfig: {
@@ -65,11 +71,11 @@ package hostagentv1
 }
 
 #InstancePeer: {
-	id?:           string
-	name?:         string
-	public_key?:   string
-	public_ip?:    string
-	routes?:       [...string]
+	id?:         string
+	name?:       string
+	public_key?: string
+	public_ip?:  string
+	routes?: [...string]
 	ipv4_address?: string
 }
 
@@ -89,7 +95,7 @@ package hostagentv1
 	id?:          string
 	device_id?:   string
 	instance_id?: string
-	cidrs?:       [...string]
+	cidrs?: [...string]
 }
 
 #NetworkObservedState: {
@@ -100,16 +106,16 @@ package hostagentv1
 }
 
 #NetworkState: {
-	module?:          string
-	up?:              bool
-	interface_name?:  string
-	interfaces?:      [...#NetworkInterface]
-	addresses?:       [...#NetworkAddress]
-	routes?:          [...#NetworkRoute]
+	module?:         string
+	up?:             bool
+	interface_name?: string
+	interfaces?: [...#NetworkInterface]
+	addresses?: [...#NetworkAddress]
+	routes?: [...#NetworkRoute]
 	wireguard_peers?: [...#WireGuardPeer]
 	firewall_tables?: [...#FirewallTable]
-	dns?:             [...#DNSState]
-	messages?:        [...string]
+	dns?: [...#DNSState]
+	messages?: [...string]
 }
 
 #NetworkInterface: {
@@ -143,9 +149,9 @@ package hostagentv1
 }
 
 #WireGuardPeer: {
-	public_key?:       string
-	endpoint?:         string
-	allowed_ips?:      [...string]
+	public_key?: string
+	endpoint?:   string
+	allowed_ips?: [...string]
 	latest_handshake?: string
 	rx_bytes?:         uint
 	tx_bytes?:         uint
@@ -162,22 +168,22 @@ package hostagentv1
 	type?:     string
 	hook?:     string
 	priority?: string
-	rules?:    [...#FirewallRule]
+	rules?: [...#FirewallRule]
 }
 
 #FirewallRule: {
 	expressions?: [...string]
-	packets?:     uint
-	bytes?:       uint
+	packets?: uint
+	bytes?:   uint
 }
 
 #DNSState: {
-	scope?:   string
-	domain?:  string
+	scope?:  string
+	domain?: string
 	servers?: [...string]
-	port?:    int
-	active?:  bool
-	source?:  string
+	port?:   int
+	active?: bool
+	source?: string
 }
 
 contract: {
@@ -200,6 +206,7 @@ contract: {
 			rpcs: [
 				{name: "Apply", request: "ApplyRequest", response: "ApplyResponse"},
 				{name: "Status", request: "StatusRequest", response: "StatusResponse"},
+				{name: "Shutdown", request: "ShutdownRequest", response: "ShutdownResponse"},
 			]
 		}]
 		declarations: [
@@ -219,6 +226,10 @@ contract: {
 				{rule: "repeated", type: "VMObservedState", name: "vms", number: 1},
 				{type: "NetworkObservedState", name: "network", number: 2},
 				{type: "string", name: "message", number: 3},
+			]},
+			{kind: "message", name: "ShutdownRequest", fields: []},
+			{kind: "message", name: "ShutdownResponse", fields: [
+				{type: "string", name: "message", number: 1},
 			]},
 			{kind: "message", name: "HostDesiredState", fields: [
 				{rule: "repeated", type: "VMDesiredState", name: "vms", number: 1},

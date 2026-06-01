@@ -75,6 +75,32 @@ func TestCombineCommitBranchesHidesPublishedTentativeHistory(t *testing.T) {
 	}
 }
 
+func TestCombineCommitBranchesCanHideTentativeWhenBranchesMatch(t *testing.T) {
+	t.Parallel()
+
+	finalized := []Commit{
+		{Hash: "finalized-new", Committer: "alice", Message: "new finalized"},
+	}
+	tentative := []Commit{
+		{Hash: "tentative-new", Committer: "carol", Message: "new tentative"},
+	}
+
+	got := combineCommitBranches(finalized, tentative, false)
+	wantHashes := []string{"finalized-new"}
+
+	if len(got) != len(wantHashes) {
+		t.Fatalf("combined length = %d, want %d: %#v", len(got), len(wantHashes), got)
+	}
+	for i := range wantHashes {
+		if got[i].Hash != wantHashes[i] {
+			t.Fatalf("combined[%d].Hash = %q, want %q", i, got[i].Hash, wantHashes[i])
+		}
+		if !sameStrings(got[i].States, []string{CommitStateFinalized}) {
+			t.Fatalf("combined[%d].States = %#v, want finalized", i, got[i].States)
+		}
+	}
+}
+
 func sameStrings(a []string, b []string) bool {
 	if len(a) != len(b) {
 		return false

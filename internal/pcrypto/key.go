@@ -6,7 +6,6 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -266,15 +265,6 @@ func GetLocalKey(workdir string) (*Key, error) {
 	}
 
 	return key, nil
-}
-
-func CreatePublicKeyFromPEM(pemString string) (Key, error) {
-	block, _ := pem.Decode([]byte(pemString))
-	if block == nil || block.Type != "PUBLIC KEY" {
-		return Key{}, errors.New("failed to decode public key")
-	}
-
-	return Key{Pub: block.Bytes}, nil
 }
 
 func CreatePublicKeyFromBase64(base64String string) (Key, error) {

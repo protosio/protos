@@ -49,6 +49,7 @@ type Server struct {
 	network   networkmodule.Module
 	networkUp bool
 	closed    bool
+	shutdown  func()
 }
 
 func NewServer(networkModules ...networkmodule.Module) *Server {
@@ -96,6 +97,28 @@ func (s *Server) Status(ctx context.Context, req *hostagentpb.StatusRequest) (*h
 		resp.Network = s.networkStatus("")
 	}
 	return resp, nil
+}
+
+func (s *Server) SetShutdownFunc(shutdown func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.shutdown = shutdown
+}
+
+func (s *Server) Shutdown(ctx context.Context, req *hostagentpb.ShutdownRequest) (*hostagentpb.ShutdownResponse, error) {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return &hostagentpb.ShutdownResponse{Message: "host agent is already shutting down"}, nil
+	}
+	shutdown := s.shutdown
+	s.mu.Unlock()
+
+	if shutdown == nil {
+		return &hostagentpb.ShutdownResponse{Message: "host agent shutdown is not configured"}, nil
+	}
+	go shutdown()
+	return &hostagentpb.ShutdownResponse{Message: "host agent shutdown requested"}, nil
 }
 
 func (s *Server) Close() error {

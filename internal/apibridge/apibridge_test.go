@@ -34,7 +34,11 @@ func TestBridgeCallsProtobufAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer bridge.Stop()
+	defer func() {
+		if err := bridge.Stop(); err != nil {
+			t.Errorf("stop bridge: %v", err)
+		}
+	}()
 
 	request, err := proto.Marshal(&pbApic.GetSupportedProvisionersRequest{})
 	if err != nil {
@@ -73,7 +77,7 @@ func TestBridgeCallsProtobufAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if watchResponse.Reason != "initial" || !watchResponse.RuntimeChanged {
-		t.Fatalf("unexpected watch response: %+v", watchResponse)
+		t.Fatalf("unexpected watch response: reason=%q runtime_changed=%v", watchResponse.Reason, watchResponse.RuntimeChanged)
 	}
 }
 

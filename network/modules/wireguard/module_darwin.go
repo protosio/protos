@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ import (
 
 const (
 	wireguardPort             = 10999
+	wireguardListenPortEnv    = "PROTOS_WIREGUARD_LISTEN_PORT"
 	domainDNSServer           = "127.0.0.1"
 	domainDNSServerPort       = 10053
 	peerKeepaliveSeconds      = 25
@@ -257,13 +259,14 @@ func (m *Module) applyBaseConfigLocked(config networkmodule.Config) error {
 	if err != nil {
 		return err
 	}
+	listenPort := wireGuardListenPort()
 
 	var b strings.Builder
 	if m.privateKeyHex != privateKeyHex {
 		fmt.Fprintf(&b, "private_key=%s\n", privateKeyHex)
 	}
-	if m.listenPort != wireguardPort {
-		fmt.Fprintf(&b, "listen_port=%d\n", wireguardPort)
+	if m.listenPort != listenPort {
+		fmt.Fprintf(&b, "listen_port=%d\n", listenPort)
 	}
 	if b.Len() == 0 {
 		return nil
@@ -275,8 +278,21 @@ func (m *Module) applyBaseConfigLocked(config networkmodule.Config) error {
 	}
 
 	m.privateKeyHex = privateKeyHex
-	m.listenPort = wireguardPort
+	m.listenPort = listenPort
 	return nil
+}
+
+func wireGuardListenPort() int {
+	value := strings.TrimSpace(os.Getenv(wireguardListenPortEnv))
+	if value == "" {
+		return wireguardPort
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 0 || port > 65535 {
+		log.Warnf("Ignoring invalid %s=%q; using %d", wireguardListenPortEnv, value, wireguardPort)
+		return wireguardPort
+	}
+	return port
 }
 
 func (m *Module) applyPeerConfigLocked(peers []declarativePeer) error {

@@ -127,6 +127,14 @@ func (am *Manager) Get(id string) (App, error) {
 	return am.bind(app), nil
 }
 
+func (am *Manager) GetAppID(name string) (string, error) {
+	app, err := am.Get(name)
+	if err != nil {
+		return "", err
+	}
+	return app.ID, nil
+}
+
 // GetAll returns a copy of all the applications
 func (am *Manager) GetAll() ([]App, error) {
 	apps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))

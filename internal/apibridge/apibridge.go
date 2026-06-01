@@ -86,7 +86,7 @@ func Start(ctx context.Context, rawConfig []byte) (*Bridge, error) {
 	listener := bufconn.Listen(defaultBufConnSize)
 	server := apic.NewGRPCServer(node.APIServices())
 	go func() {
-		if serveErr := server.Serve(listener); serveErr != nil && serveErr != grpc.ErrServerStopped {
+		if serveErr := server.Serve(listener); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
 			util.GetLogger("apibridge").Errorf("embedded API server stopped unexpectedly: %v", serveErr)
 		}
 	}()
@@ -175,8 +175,11 @@ func (b *Bridge) WatchChanges(ctx context.Context, request []byte, emit func([]b
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF || ctx.Err() != nil {
+			if errors.Is(err, io.EOF) {
 				return nil
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
 			}
 			return bridgeUserError(err)
 		}

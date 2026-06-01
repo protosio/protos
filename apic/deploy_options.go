@@ -145,7 +145,7 @@ func (b *Backend) GetInstanceDeployOptions(ctx context.Context, in *pbApic.GetIn
 			field.Visible = selectedProvisioner != "" && selectedLocation != ""
 			field.Options = machineOptions
 			if len(machineOptions) > 0 {
-				field.Value = machineOptions[0].GetValue()
+				field.Value = preferredInstanceDeployMachine(provisionerType, machineOptions)
 			}
 		case "protos_version":
 			field.Visible = selectedProvisioner != "" && len(releaseOptions) > 0
@@ -295,6 +295,20 @@ func instanceDeployMachineOptions(machines map[string]provisioners.MachineSpec) 
 		})
 	}
 	return options
+}
+
+func preferredInstanceDeployMachine(provisionerType string, options []*pbApic.InstanceDeployFieldOption) string {
+	if len(options) == 0 {
+		return ""
+	}
+	if provisionerType == "local_macos" {
+		for _, option := range options {
+			if option.GetValue() == "vz-2c-2g" {
+				return option.GetValue()
+			}
+		}
+	}
+	return options[0].GetValue()
 }
 
 func instanceDeployImageOptions(provisioner provisioners.Provisioner, location string) ([]*pbApic.InstanceDeployFieldOption, string) {

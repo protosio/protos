@@ -16,6 +16,18 @@ package p2pv1
 	status?: string
 }
 
+#ProbeAppHTTPRequest: {
+	app_name?:        string
+	url?:             string
+	timeout_seconds?: int32
+	max_bytes?:       int32
+}
+
+#ProbeAppHTTPResponse: {
+	body?:       bytes
+	bytes_read?: int32
+}
+
 contract: {
 	surface: "p2p-apps-grpc"
 	migration: {
@@ -36,6 +48,7 @@ contract: {
 			rpcs: [
 				{name: "GetAppLogs", request: "GetAppLogsRequest", response: "GetAppLogsResponse"},
 				{name: "GetAppStatus", request: "GetAppStatusRequest", response: "GetAppStatusResponse"},
+				{name: "ProbeAppHTTP", request: "ProbeAppHTTPRequest", response: "ProbeAppHTTPResponse"},
 			]
 		}]
 		declarations: [
@@ -51,6 +64,16 @@ contract: {
 			{kind: "message", name: "GetAppStatusResponse", fields: [
 				{type: "string", name: "status", number: 1},
 			]},
+			{kind: "message", name: "ProbeAppHTTPRequest", fields: [
+				{type: "string", name: "app_name", number: 1},
+				{type: "string", name: "url", number: 2},
+				{type: "int32", name: "timeout_seconds", number: 3},
+				{type: "int32", name: "max_bytes", number: 4},
+			]},
+			{kind: "message", name: "ProbeAppHTTPResponse", fields: [
+				{type: "bytes", name: "body", number: 1},
+				{type: "int32", name: "bytes_read", number: 2},
+			]},
 		]
 	}
 }
@@ -64,6 +87,8 @@ lineage: {
 			GetAppLogsResponse?:   #GetAppLogsResponse
 			GetAppStatusRequest?:  #GetAppStatusRequest
 			GetAppStatusResponse?: #GetAppStatusResponse
+			ProbeAppHTTPRequest?:  #ProbeAppHTTPRequest
+			ProbeAppHTTPResponse?: #ProbeAppHTTPResponse
 		}
 	}]
 	lenses: []

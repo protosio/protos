@@ -73,7 +73,7 @@ func TestDestinationStringsIncludeWireGuardIPv6WithoutPublicIP(t *testing.T) {
 	p2p := newTestP2P()
 
 	got := p2p.destinationStrings(peerID, machine)
-	want := fmt.Sprintf(destinationIPv6Template, internalIP, config.Get().P2PPort, peerID)
+	want := fmt.Sprintf(destinationTCPIPv6Template, internalIP, config.Get().P2PPort, peerID)
 	if !slices.Contains(got, want) {
 		t.Fatalf("destinationStrings() = %v, want %s", got, want)
 	}
@@ -86,9 +86,12 @@ func TestDestinationStringsIncludeMultipleKnownIPs(t *testing.T) {
 
 	got := p2p.destinationStrings(peerID, machine)
 	wants := []string{
-		fmt.Sprintf(destinationIPv6Template, machine.internalIP, config.Get().P2PPort, peerID),
-		fmt.Sprintf(destinationIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
-		fmt.Sprintf(destinationStringTemplate, machine.publicIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationTCPIPv6Template, machine.internalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv6Template, machine.internalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationTCPIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationTCPIPv4Template, machine.publicIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv4Template, machine.publicIP, config.Get().P2PPort, peerID),
 	}
 	for _, want := range wants {
 		if !slices.Contains(got, want) {
@@ -104,9 +107,12 @@ func TestDestinationStringsPreferWireGuardIPv6BeforePublicIP(t *testing.T) {
 
 	got := p2p.destinationStrings(peerID, machine)
 	want := []string{
-		fmt.Sprintf(destinationIPv6Template, machine.internalIP, config.Get().P2PPort, peerID),
-		fmt.Sprintf(destinationIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
-		fmt.Sprintf(destinationStringTemplate, machine.publicIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationTCPIPv6Template, machine.internalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv6Template, machine.internalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationTCPIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationTCPIPv4Template, machine.publicIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv4Template, machine.publicIP, config.Get().P2PPort, peerID),
 	}
 	if len(got) < len(want) {
 		t.Fatalf("destinationStrings() = %v, want at least %d destinations", got, len(want))
@@ -142,12 +148,20 @@ func TestDiscoverPeerAtLearnsRemoteIdentityWithFakePeerID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start local server: %v", err)
 	}
-	defer localStop()
+	defer func() {
+		if err := localStop(); err != nil {
+			t.Errorf("stop local server: %v", err)
+		}
+	}()
 	remoteStop, err := remote.StartServer()
 	if err != nil {
 		t.Fatalf("start remote server: %v", err)
 	}
-	defer remoteStop()
+	defer func() {
+		if err := remoteStop(); err != nil {
+			t.Errorf("stop remote server: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -163,6 +177,22 @@ func TestDiscoverPeerAtLearnsRemoteIdentityWithFakePeerID(t *testing.T) {
 	}
 	if discovered.Fingerprint == "" {
 		t.Fatal("expected non-empty fingerprint")
+	}
+}
+
+func TestTofuTransportAddrsPreferTCPBeforeQUIC(t *testing.T) {
+	p2p := &P2P{p2pPort: 1234}
+
+	got, err := p2p.tofuTransportAddrs("203.0.113.10")
+	if err != nil {
+		t.Fatalf("tofuTransportAddrs() error = %v", err)
+	}
+	want := []string{
+		"/ip4/203.0.113.10/tcp/1234",
+		"/ip4/203.0.113.10/udp/1234/quic-v1",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("tofuTransportAddrs() = %v, want %v", got, want)
 	}
 }
 

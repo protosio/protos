@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'generated/apic/proto/apic.pb.dart' as pb;
 import 'native/protos_bridge.dart';
 import 'protos_api.dart';
+import 'text_helpers.dart';
 
 enum SidebarSection {
   overview('Overview', Icons.speed_outlined),
   apps('Apps', Icons.inventory_2_outlined),
   provisioners('Provisioners', Icons.dns_outlined),
   instances('Instances', Icons.computer_outlined),
+  tasks('Tasks', Icons.task_alt_outlined),
   network('Network', Icons.hub_outlined),
   releases('Releases', Icons.arrow_circle_up_outlined),
   dvc('P2P DVC', Icons.account_tree_outlined),
@@ -70,6 +72,9 @@ class AppModel extends ChangeNotifier {
   List<pb.ProvisionerType> supportedProvisioners = [];
   List<pb.Provisioner> provisioners = [];
   List<pb.CloudInstance> instances = [];
+  List<pb.Task> tasks = [];
+  String selectedTaskId = '';
+  List<pb.TaskEvent> selectedTaskEvents = [];
   pb.NetworkState? networkState;
   List<pb.ExitRoute> exitRoutes = [];
   List<pb.Release> releases = [];
@@ -108,6 +113,8 @@ class AppModel extends ChangeNotifier {
           unawaited(run(refreshDvc));
         case SidebarSection.status:
           unawaited(run(refreshStatus));
+        case SidebarSection.tasks:
+          unawaited(run(refreshTasks));
         case SidebarSection.overview:
         case SidebarSection.apps:
         case SidebarSection.provisioners:
@@ -170,6 +177,7 @@ class AppModel extends ChangeNotifier {
     final provisionerTypeList = _optional(api.supportedProvisioners());
     final provisionerList = _optional(api.provisioners());
     final instanceList = _optional(api.instances());
+    final taskList = _optional(api.tasks(maxResults: 200));
     final network = _optional(api.networkState());
     final routeList = _optional(api.exitRoutes());
     final runtime = _optional(api.runtimeState());
@@ -186,6 +194,8 @@ class AppModel extends ChangeNotifier {
     provisioners =
         (await provisionerList)?.provisioners.toList(growable: false) ?? [];
     instances = (await instanceList)?.instances.toList(growable: false) ?? [];
+    tasks = (await taskList)?.tasks.toList(growable: false) ?? [];
+    _pruneSelectedTask();
     final networkResponse = await network;
     networkState = networkResponse?.hasState() == true
         ? networkResponse!.state
@@ -214,6 +224,58 @@ class AppModel extends ChangeNotifier {
   Future<void> refreshInstances() async {
     instances = (await api.instances()).instances.toList(growable: false);
     notifyListeners();
+  }
+
+  Future<void> refreshTasks() async {
+    final response = await api.tasks(maxResults: 200);
+    tasks = response.tasks.toList(growable: false);
+    _pruneSelectedTask();
+    if (selectedTaskId.nonEmpty != null) {
+      await refreshSelectedTaskDetail(notify: false);
+    }
+    notifyListeners();
+  }
+
+  Future<void> selectTask(String id) async {
+    selectedTaskId = id.trim();
+    selectedTaskEvents = [];
+    notifyListeners();
+    if (selectedTaskId.nonEmpty == null) {
+      return;
+    }
+    await refreshSelectedTaskDetail();
+  }
+
+  Future<void> refreshSelectedTaskDetail({bool notify = true}) async {
+    final id = selectedTaskId.nonEmpty;
+    if (id == null) {
+      selectedTaskEvents = [];
+      if (notify) {
+        notifyListeners();
+      }
+      return;
+    }
+    final response = await api.task(id, includeEvents: true);
+    if (response.hasTask()) {
+      _upsertTask(response.task);
+    }
+    selectedTaskEvents = response.events.toList(growable: false);
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  pb.Task? get selectedTask {
+    final id = selectedTaskId.nonEmpty;
+    if (id == null) {
+      return null;
+    }
+    for (final task in tasks) {
+      if (task.id == id) {
+        return task;
+      }
+    }
+    return null;
   }
 
   Future<void> refreshInstanceDeployOptions({
@@ -326,7 +388,8 @@ class AppModel extends ChangeNotifier {
     }
     if (change.reason == 'heartbeat' &&
         selectedSection != SidebarSection.dvc &&
-        selectedSection != SidebarSection.status) {
+        selectedSection != SidebarSection.status &&
+        selectedSection != SidebarSection.tasks) {
       return;
     }
     _pendingLiveTables.addAll(change.tableNames);
@@ -401,6 +464,13 @@ class AppModel extends ChangeNotifier {
           return;
         }
         await refreshInstances();
+      case SidebarSection.tasks:
+        if (heartbeat ||
+            runtimeChanged ||
+            tables.contains('tasks') ||
+            tables.contains('task_events')) {
+          await refreshTasks();
+        }
       case SidebarSection.network:
         if (heartbeat) {
           return;
@@ -448,6 +518,9 @@ class AppModel extends ChangeNotifier {
     supportedProvisioners = [];
     provisioners = [];
     instances = [];
+    tasks = [];
+    selectedTaskId = '';
+    selectedTaskEvents = [];
     networkState = null;
     exitRoutes = [];
     releases = [];
@@ -488,6 +561,30 @@ class AppModel extends ChangeNotifier {
     } catch (_) {
       // Stay in the guided setup flow until initialization completes.
     }
+  }
+
+  void _pruneSelectedTask() {
+    final id = selectedTaskId.nonEmpty;
+    if (id == null) {
+      selectedTaskEvents = [];
+      return;
+    }
+    if (tasks.any((task) => task.id == id)) {
+      return;
+    }
+    selectedTaskId = '';
+    selectedTaskEvents = [];
+  }
+
+  void _upsertTask(pb.Task task) {
+    final index = tasks.indexWhere((existing) => existing.id == task.id);
+    if (index < 0) {
+      tasks = [task, ...tasks];
+      return;
+    }
+    final next = tasks.toList(growable: true);
+    next[index] = task;
+    tasks = next;
   }
 }
 

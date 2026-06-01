@@ -39,6 +39,8 @@ const (
 	swarmionNamespaceTemplate      = "/protos/db/%s"
 	swarmionAdminNamespaceTemplate = "/protos/db/%s/admin"
 	swarmionPortOffset             = 1
+
+	committedWriteMaxAttempts = 3
 )
 
 type Signer interface {
@@ -468,7 +470,36 @@ func (db *DB) AddPeer(string, *grpc.ClientConn) error {
 	return nil
 }
 
-func (db *DB) RemovePeer(string) error {
+func (db *DB) RemovePeer(peerID string) error {
+	peerID = strings.TrimSpace(peerID)
+	if db == nil || peerID == "" {
+		return nil
+	}
+	if !db.Initialized() {
+		return nil
+	}
+
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil
+	}
+	if peerID == app.PeerID() {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := app.EvictPeer(ctx, peerID); err != nil {
+		errText := err.Error()
+		if strings.Contains(errText, "still an active witness") ||
+			strings.Contains(errText, "still witness-eligible") ||
+			strings.Contains(errText, "cannot evict local peer") {
+			return nil
+		}
+		return fmt.Errorf("evict swarmion peer %s: %w", peerID, err)
+	}
 	return nil
 }
 
@@ -931,55 +962,45 @@ func Insert(db *DB, mappers ...InsertMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	db.opMu.Lock()
-	defer db.opMu.Unlock()
-
-	sqldb := db.GetSqlDB()
-	if sqldb == nil {
-		return fmt.Errorf("db is not initialized")
-	}
-	for _, mapper := range mappers {
-		if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
-			return fmt.Errorf("failed to insert: %w", err)
+	return db.committedWrite("insert", "insert", false, func(sqldb *sql.DB) error {
+		for _, mapper := range mappers {
+			if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return err
+			}
 		}
-	}
-
-	_, err := db.commitStaged(context.Background(), "insert", false)
-	if err != nil {
-		return fmt.Errorf("failed to insert: %w", err)
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func Update(db *DB, mappers ...UpdateMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	db.opMu.Lock()
-	defer db.opMu.Unlock()
-
-	sqldb := db.GetSqlDB()
-	if sqldb == nil {
-		return fmt.Errorf("db is not initialized")
-	}
-	for _, mapper := range mappers {
-		if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
-			return fmt.Errorf("failed to update: %w", err)
+	return db.committedWrite("update", "update", true, func(sqldb *sql.DB) error {
+		for _, mapper := range mappers {
+			if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return err
+			}
 		}
-	}
-	_, err := db.commitStaged(context.Background(), "update", true)
-	if err != nil {
-		return fmt.Errorf("failed to update: %w", err)
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func Delete(db *DB, mappers ...DeleteMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
+	return db.committedWrite("delete", "delete", true, func(sqldb *sql.DB) error {
+		for _, mapper := range mappers {
+			if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (db *DB) committedWrite(operation string, commitMessage string, allowNoop bool, apply func(*sql.DB) error) error {
 	db.opMu.Lock()
 	defer db.opMu.Unlock()
 
@@ -987,18 +1008,58 @@ func Delete(db *DB, mappers ...DeleteMapper) error {
 	if sqldb == nil {
 		return fmt.Errorf("db is not initialized")
 	}
-	for _, mapper := range mappers {
-		if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
-			return fmt.Errorf("failed to delete: %w", err)
+
+	var lastErr error
+	for attempt := 1; attempt <= committedWriteMaxAttempts; attempt++ {
+		if err := apply(sqldb); err != nil {
+			return fmt.Errorf("failed to %s: %w", operation, err)
 		}
+
+		_, err := db.commitStaged(context.Background(), commitMessage, allowNoop)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt == committedWriteMaxAttempts || !isRetryableCommittedWriteError(err) {
+			return fmt.Errorf("failed to %s: %w", operation, err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		resetErr := db.resetWorkingSet(ctx)
+		catchUpErr := db.CatchUpFinalized(ctx, operation+" retry after stale write")
+		cancel()
+		if resetErr != nil {
+			return fmt.Errorf("failed to %s: %w", operation, errors.Join(lastErr, resetErr))
+		}
+		if catchUpErr != nil {
+			lastErr = errors.Join(lastErr, catchUpErr)
+		}
+		time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
 	}
 
-	_, err := db.commitStaged(context.Background(), "delete", false)
-	if err != nil {
-		return fmt.Errorf("failed to delete: %w", err)
-	}
+	return fmt.Errorf("failed to %s: %w", operation, lastErr)
+}
 
+func (db *DB) resetWorkingSet(ctx context.Context) error {
+	sqldb := db.GetSqlDB()
+	if sqldb == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	if _, err := sqldb.ExecContext(ctx, "CALL DOLT_RESET('--hard')"); err != nil {
+		return fmt.Errorf("reset failed write: %w", err)
+	}
 	return nil
+}
+
+func isRetryableCommittedWriteError(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "stale write context") ||
+		strings.Contains(lower, "replay-base conflict") ||
+		strings.Contains(lower, "finalized target changed before catch-up") ||
+		strings.Contains(lower, "conflicts with protocol root")
 }
 
 func execWriteMapper(sqldb *sql.DB, query sq.Query) error {

@@ -54,6 +54,8 @@ const (
 	ProtosClientApi_GetExitRoutes_FullMethodName              = "/apic.ProtosClientApi/GetExitRoutes"
 	ProtosClientApi_GetRuntimeState_FullMethodName            = "/apic.ProtosClientApi/GetRuntimeState"
 	ProtosClientApi_WatchChanges_FullMethodName               = "/apic.ProtosClientApi/WatchChanges"
+	ProtosClientApi_GetTasks_FullMethodName                   = "/apic.ProtosClientApi/GetTasks"
+	ProtosClientApi_GetTask_FullMethodName                    = "/apic.ProtosClientApi/GetTask"
 	ProtosClientApi_SetExitRoute_FullMethodName               = "/apic.ProtosClientApi/SetExitRoute"
 	ProtosClientApi_ClearExitRoute_FullMethodName             = "/apic.ProtosClientApi/ClearExitRoute"
 	ProtosClientApi_GetProtosdReleases_FullMethodName         = "/apic.ProtosClientApi/GetProtosdReleases"
@@ -108,6 +110,8 @@ type ProtosClientApiClient interface {
 	GetExitRoutes(ctx context.Context, in *GetExitRoutesRequest, opts ...grpc.CallOption) (*GetExitRoutesResponse, error)
 	GetRuntimeState(ctx context.Context, in *GetRuntimeStateRequest, opts ...grpc.CallOption) (*GetRuntimeStateResponse, error)
 	WatchChanges(ctx context.Context, in *WatchChangesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchChangesResponse], error)
+	GetTasks(ctx context.Context, in *GetTasksRequest, opts ...grpc.CallOption) (*GetTasksResponse, error)
+	GetTask(ctx context.Context, in *GetTaskRequest, opts ...grpc.CallOption) (*GetTaskResponse, error)
 	SetExitRoute(ctx context.Context, in *SetExitRouteRequest, opts ...grpc.CallOption) (*SetExitRouteResponse, error)
 	ClearExitRoute(ctx context.Context, in *ClearExitRouteRequest, opts ...grpc.CallOption) (*ClearExitRouteResponse, error)
 	GetProtosdReleases(ctx context.Context, in *GetProtosdReleasesRequest, opts ...grpc.CallOption) (*GetProtosdReleasesResponse, error)
@@ -490,6 +494,26 @@ func (c *protosClientApiClient) WatchChanges(ctx context.Context, in *WatchChang
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ProtosClientApi_WatchChangesClient = grpc.ServerStreamingClient[WatchChangesResponse]
 
+func (c *protosClientApiClient) GetTasks(ctx context.Context, in *GetTasksRequest, opts ...grpc.CallOption) (*GetTasksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTasksResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetTasks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) GetTask(ctx context.Context, in *GetTaskRequest, opts ...grpc.CallOption) (*GetTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTaskResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) SetExitRoute(ctx context.Context, in *SetExitRouteRequest, opts ...grpc.CallOption) (*SetExitRouteResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetExitRouteResponse)
@@ -659,6 +683,8 @@ type ProtosClientApiServer interface {
 	GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error)
 	GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error)
 	WatchChanges(*WatchChangesRequest, grpc.ServerStreamingServer[WatchChangesResponse]) error
+	GetTasks(context.Context, *GetTasksRequest) (*GetTasksResponse, error)
+	GetTask(context.Context, *GetTaskRequest) (*GetTaskResponse, error)
 	SetExitRoute(context.Context, *SetExitRouteRequest) (*SetExitRouteResponse, error)
 	ClearExitRoute(context.Context, *ClearExitRouteRequest) (*ClearExitRouteResponse, error)
 	GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error)
@@ -785,6 +811,12 @@ func (UnimplementedProtosClientApiServer) GetRuntimeState(context.Context, *GetR
 }
 func (UnimplementedProtosClientApiServer) WatchChanges(*WatchChangesRequest, grpc.ServerStreamingServer[WatchChangesResponse]) error {
 	return status.Error(codes.Unimplemented, "method WatchChanges not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetTasks(context.Context, *GetTasksRequest) (*GetTasksResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTasks not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetTask(context.Context, *GetTaskRequest) (*GetTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTask not implemented")
 }
 func (UnimplementedProtosClientApiServer) SetExitRoute(context.Context, *SetExitRouteRequest) (*SetExitRouteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetExitRoute not implemented")
@@ -1468,6 +1500,42 @@ func _ProtosClientApi_WatchChanges_Handler(srv interface{}, stream grpc.ServerSt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ProtosClientApi_WatchChangesServer = grpc.ServerStreamingServer[WatchChangesResponse]
 
+func _ProtosClientApi_GetTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTasksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetTasks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetTasks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetTasks(ctx, req.(*GetTasksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_GetTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetTask(ctx, req.(*GetTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_SetExitRoute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetExitRouteRequest)
 	if err := dec(in); err != nil {
@@ -1844,6 +1912,14 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRuntimeState",
 			Handler:    _ProtosClientApi_GetRuntimeState_Handler,
+		},
+		{
+			MethodName: "GetTasks",
+			Handler:    _ProtosClientApi_GetTasks_Handler,
+		},
+		{
+			MethodName: "GetTask",
+			Handler:    _ProtosClientApi_GetTask_Handler,
 		},
 		{
 			MethodName: "SetExitRoute",

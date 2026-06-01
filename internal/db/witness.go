@@ -159,6 +159,142 @@ func (db *DB) ReconcileWitnesses(ctx context.Context, candidates []WitnessCandid
 	return db.applyWitnessCandidates(ctx, app, status, witnessCandidates)
 }
 
+func (db *DB) RemoveWitnessEligibility(ctx context.Context, peerID string, remainingCandidates []WitnessCandidate) error {
+	peerID = strings.TrimSpace(peerID)
+	if db == nil || peerID == "" {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < 4; attempt++ {
+		attemptCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		err := removeWitnessEligibilityWithApp(attemptCtx, app, peerID, remainingCandidates)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		if !retryablePeerRemovalError(err) {
+			return err
+		}
+		lastErr = err
+		notifyLog.Debugf("retrying swarmion peer removal for %s after transient state change: %s", peerID, err.Error())
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+	return lastErr
+}
+
+func removeWitnessEligibilityWithApp(ctx context.Context, app *swarmionapp.App, peerID string, remainingCandidates []WitnessCandidate) error {
+	if _, err := app.CatchUpFinalized(ctx, "remove Protos witness eligibility"); err != nil {
+		return fmt.Errorf("catch up swarmion finalized state for witness removal: %w", err)
+	}
+	status := app.Status()
+	if status.Fatal != nil {
+		return fmt.Errorf("swarmion fatal state blocks witness removal: %s", status.Fatal.State)
+	}
+	if err := blockOnIncompatiblePeers(ctx, app); err != nil {
+		return err
+	}
+
+	if !setHas(stringSet(status.ActiveWitnessIDs), peerID) && !setHas(stringSet(status.EligibleWitnessIDs), peerID) {
+		if err := app.EvictPeer(ctx, peerID); err != nil {
+			notifyLog.Debugf("failed to evict non-witness swarmion peer %s: %s", peerID, err.Error())
+		}
+		if err := assertSwarmionPeerNotWitness(app.Status(), peerID); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	removal, err := app.PreparePeerRemoval(ctx, swarmionapp.PeerRemovalRequest{
+		PeerID:              peerID,
+		RemainingCandidates: peerRemovalRemainingCandidates(status, remainingCandidates),
+		Reason:              "remove Protos peer before instance deletion",
+	})
+	if err != nil {
+		return fmt.Errorf("prepare swarmion peer removal for %s: %w", peerID, err)
+	}
+	if !removal.SafeToRemove {
+		return fmt.Errorf(
+			"swarmion peer %s is not safe to remove: active_after=%t eligible_after=%t blockers=%v",
+			peerID,
+			removal.ActiveAfter,
+			removal.EligibleAfter,
+			removal.BlockerCodes,
+		)
+	}
+	if err := app.EvictPeer(ctx, peerID); err != nil {
+		return fmt.Errorf("evict swarmion peer %s after removal: %w", peerID, err)
+	}
+	if err := assertSwarmionPeerNotWitness(app.Status(), peerID); err != nil {
+		return err
+	}
+	notifyLog.Infof(
+		"prepared swarmion peer removal for %s: active_before=%t eligible_before=%t tombstone=%s finalized_root=%s",
+		peerID,
+		removal.ActiveBefore,
+		removal.EligibleBefore,
+		removal.TombstoneEventID,
+		removal.TombstoneFinalizedRootHash,
+	)
+	return nil
+}
+
+func retryablePeerRemovalError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "witness_transition_rejected") ||
+		strings.Contains(message, "witness_transition_not_active") ||
+		strings.Contains(message, "finalized target changed before catch-up") ||
+		strings.Contains(message, "still witness-eligible") ||
+		strings.Contains(message, "call preparepeerremoval first") ||
+		strings.Contains(message, "stale write context") ||
+		strings.Contains(message, "replay-base conflict") ||
+		strings.Contains(message, "conflicts with protocol root") ||
+		strings.Contains(message, "context deadline exceeded")
+}
+
+func assertSwarmionPeerNotWitness(status swarmionapp.Status, peerID string) error {
+	if setHas(stringSet(status.ActiveWitnessIDs), peerID) {
+		return fmt.Errorf("swarmion peer %s is still active witness after removal", peerID)
+	}
+	if setHas(stringSet(status.EligibleWitnessIDs), peerID) {
+		return fmt.Errorf("swarmion peer %s is still witness-eligible after removal", peerID)
+	}
+	return nil
+}
+
+func peerRemovalRemainingCandidates(status swarmionapp.Status, candidates []WitnessCandidate) swarmionapp.WitnessCandidates {
+	ranked := rankedWitnessCandidates(candidates)
+	if len(ranked) == 0 {
+		return swarmionapp.WitnessCandidates{}
+	}
+	witnessCandidates := witnessCandidateSetForApply(ranked)
+	if len(witnessCandidates) == 0 {
+		return swarmionapp.WitnessCandidates{}
+	}
+	return swarmionapp.WitnessCandidates{
+		Candidates: swarmionWitnessCandidates(witnessCandidates),
+		Source:     swarmionWitnessCandidateSource(status),
+		Reason:     "remove Protos peer before instance deletion",
+	}
+}
+
 func WitnessFormationInStatus(status swarmionapp.Status, formation []string) ([]string, string, bool) {
 	if witnessSetEquals(status.ActiveWitnessIDs, formation) {
 		return append([]string(nil), status.ActiveWitnessIDs...), status.ActiveEpochID, true

@@ -19,6 +19,7 @@ import (
 	"github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
+	"github.com/protosio/protos/internal/tasks"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
 	"golang.org/x/crypto/ssh"
@@ -42,9 +43,12 @@ func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
-	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, provisioners: newProvisionerRegistry()}
+	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, provisioners: newProvisionerRegistry(), tasks: tasks.NewManager(db)}
 	for _, provisioner := range provisioners {
 		manager.RegisterProvisioner(provisioner)
+	}
+	if err := manager.registerTaskStreams(); err != nil {
+		return nil, err
 	}
 
 	return manager, nil
@@ -57,6 +61,7 @@ type Manager struct {
 	sm           *pcrypto.Manager
 	p2p          *p2p.P2P
 	provisioners *provisionerRegistry
+	tasks        *tasks.Manager
 }
 
 const instanceSSHKeysDir = "instance-ssh-keys"
@@ -72,23 +77,6 @@ func instanceSSHKeyPath(instanceID string) (string, error) {
 	return path.Join(config.Get().WorkDir, instanceSSHKeysDir, instanceID), nil
 }
 
-func (cm *Manager) saveInstanceSSHKey(instanceID string, key *pcrypto.Key) error {
-	if key == nil {
-		return fmt.Errorf("instance SSH key is nil")
-	}
-	keyPath, err := instanceSSHKeyPath(instanceID)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(path.Dir(keyPath), 0700); err != nil {
-		return fmt.Errorf("create instance SSH key directory: %w", err)
-	}
-	if err := os.WriteFile(keyPath, []byte(key.EncodePrivateKeytoPEM()), 0600); err != nil {
-		return fmt.Errorf("write instance SSH key: %w", err)
-	}
-	return nil
-}
-
 // GetInstanceSSHKey returns the locally persisted private SSH key used for
 // provisioning an instance.
 func (cm *Manager) GetInstanceSSHKey(id string) (string, error) {
@@ -101,10 +89,17 @@ func (cm *Manager) GetInstanceSSHKey(id string) (string, error) {
 		return "", err
 	}
 	key, err := os.ReadFile(keyPath)
-	if err != nil {
+	if err == nil {
+		return string(key), nil
+	}
+	if !os.IsNotExist(err) {
 		return "", fmt.Errorf("read SSH key for instance '%s': %w", instance.Name, err)
 	}
-	return string(key), nil
+	localKey, localErr := cm.sm.GetLocalKey()
+	if localErr != nil {
+		return "", fmt.Errorf("read SSH key for instance '%s': %w; failed to load local SSH key: %w", instance.Name, err, localErr)
+	}
+	return localKey.EncodePrivateKeytoPEM(), nil
 }
 
 func (cm *Manager) deleteInstanceSSHKey(instanceID string) error {
@@ -365,7 +360,73 @@ func (cm *Manager) findProviderRecordsByID(id string) ([]ProviderRecord, error) 
 
 // DeployInstance deploys an instance on the provided cloud
 func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, err error) {
+	provider, err := cm.ensureProviderForDeployment(cloudName)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
+	}
+	if _, err := requireComputeProvisioner(provider); err != nil {
+		return InstanceInfo{}, err
+	}
+	if _, err := requireImageProvisioner(provider); err != nil {
+		return InstanceInfo{}, err
+	}
+	if _, err := requireVolumeProvisioner(provider); err != nil {
+		return InstanceInfo{}, err
+	}
+	if existing, existingErr := db.SelectOne(cm.db, createInstanceQueryByNameMapper(instanceName)); existingErr == nil && existing.ID != "" {
+		return InstanceInfo{}, fmt.Errorf("instance '%s' already exists", instanceName)
+	}
+
+	pendingID := newPendingInstanceID()
+	instance := InstanceInfo{
+		ID:            pendingID,
+		Name:          instanceName,
+		Kind:          KindCloudVM,
+		KindID:        provider.NameStr(),
+		DesiredStatus: ServerStateRunning,
+		WitnessRank:   db.DefaultWitnessRankForMachine(KindCloudVM, provider.NameStr()),
+		Location:      cloudLocation,
+		Status:        ServerStateChanging,
+	}
+	mm, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(cm.db, mm, cmm); err != nil {
+		return InstanceInfo{}, fmt.Errorf("failed to save desired instance '%s': %w", instanceName, err)
+	}
+
+	task, err := tasks.Enqueue(cm.tasks, tasks.EnqueueOptions[deployInstanceTaskPayload]{
+		Stream:      InstanceDeploymentTaskStream,
+		SubjectType: taskSubjectInstance,
+		SubjectID:   pendingID,
+		Title:       fmt.Sprintf("Deploy instance %s", instanceName),
+		Message:     "queued",
+		Payload: deployInstanceTaskPayload{
+			PendingInstanceID: pendingID,
+			InstanceName:      instanceName,
+			CloudName:         cloudName,
+			CloudLocation:     cloudLocation,
+			Release:           release,
+			MachineType:       machineType,
+		},
+	})
+	if err != nil {
+		im, cmmd := createInstanceDeleteMapper(pendingID)
+		_ = db.Delete(cm.db, im, cmmd)
+		return InstanceInfo{}, fmt.Errorf("failed to queue deployment for instance '%s': %w", instanceName, err)
+	}
+	instance.Status = fmt.Sprintf("%s: %s", task.Status, task.Message)
+	log.Infof("Queued deployment task '%s' for desired instance '%s'", task.ID, instanceName)
+	return instance, nil
+}
+
+func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(int, string, any) error, pendingInstanceID string, instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if progress == nil {
+		progress = func(int, string, any) error { return nil }
+	}
 	// init cloud
+	_ = progress(5, "initializing provisioner", nil)
 	provider, err := cm.ensureProviderForDeployment(cloudName)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
@@ -389,7 +450,6 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	var vmID string
 	var volumeID string
 	var instanceInfo InstanceInfo
-	var persistedInstance bool
 	defer func() {
 		if err == nil || vmID == "" {
 			return
@@ -398,25 +458,22 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		if instanceInfo.ID != "" {
 			_ = cm.p2p.RemovePeer(instanceInfo)
 			_ = cm.deleteInstanceSSHKey(instanceInfo.ID)
-			if persistedInstance {
-				im, cmmd := createInstanceDeleteMapper(instanceInfo.ID)
-				_ = db.Delete(cm.db, db.CreatePeerDeleteMapper(instanceInfo.ID), im, cmmd)
-			}
 		}
 		if stopErr := computeProvider.StopInstance(vmID, cloudLocation); stopErr != nil {
 			log.Debugf("failed to stop partially deployed instance '%s' (%s): %s", instanceName, vmID, stopErr.Error())
-		}
-		if deleteErr := computeProvider.DeleteInstance(vmID, cloudLocation); deleteErr != nil {
-			log.Warnf("failed to delete partially deployed instance '%s' (%s): %s", instanceName, vmID, deleteErr.Error())
 		}
 		if volumeID != "" {
 			if deleteErr := volumeProvider.DeleteVolume(volumeID, cloudLocation); deleteErr != nil {
 				log.Warnf("failed to delete partially deployed instance volume '%s' for '%s': %s", volumeID, instanceName, deleteErr.Error())
 			}
 		}
+		if deleteErr := computeProvider.DeleteInstance(vmID, cloudLocation); deleteErr != nil {
+			log.Warnf("failed to delete partially deployed instance '%s' (%s): %s", instanceName, vmID, deleteErr.Error())
+		}
 	}()
 
 	// validate machine type
+	_ = progress(10, "validating machine type", nil)
 	supportedMachineTypes, err := computeProvider.SupportedMachines(cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, err
@@ -426,6 +483,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	// add image
+	_ = progress(20, "resolving image", nil)
 	imageID := ""
 	images, err := imageProvider.GetImages()
 	if err != nil {
@@ -443,6 +501,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		// upload protos image
 		if image, found := release.CloudImages[provider.TypeStr()]; found {
 			log.Infof("Protos image version '%s' not in your infra cloud account. Adding it.", release.Version)
+			_ = progress(25, "uploading image", map[string]string{"version": release.Version})
 			imageID, err = imageProvider.AddImage(image.URL, image.Digest, release.Version, cloudLocation)
 			if err != nil {
 				return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
@@ -459,6 +518,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// deploy a protos instance
 	log.Infof("Deploying instance '%s' of type '%s', using Protos version '%s' (image id '%s')", instanceName, machineType, release.Version, imageID)
+	_ = progress(35, "creating VM", map[string]string{"image_id": imageID})
 	vmID, err = computeProvider.NewInstance(instanceName, imageID, thisDevice.GetPublicKey(), machineType, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
@@ -480,15 +540,28 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		instanceInfo.KindID = provider.NameStr()
 	}
 	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
+	if pendingInstanceID != "" {
+		pendingUpdate := instanceInfo
+		pendingUpdate.ID = pendingInstanceID
+		pendingUpdate.PublicKey = ""
+		pendingUpdate.Architecture = ""
+		pendingUpdate.DesiredStatus = ServerStateRunning
+		pendingUpdate.WitnessRank = db.DefaultWitnessRankForMachine(pendingUpdate.Kind, pendingUpdate.KindID)
+		if updateErr := cm.updateDeploymentPlaceholder(pendingUpdate); updateErr != nil {
+			return InstanceInfo{}, updateErr
+		}
+	}
 
 	// create protos data volume
 	log.Infof("creating data volume for Protos instance '%s'", instanceName)
+	_ = progress(45, "creating data volume", nil)
 	volumeID, err = volumeProvider.NewVolume(instanceName, 30000, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to create data volume: %w", err)
 	}
 
 	// attach volume to instance
+	_ = progress(55, "attaching data volume", map[string]string{"volume_id": volumeID})
 	err = volumeProvider.AttachVolume(volumeID, vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to attach volume to instance '%s': %w", instanceName, err)
@@ -496,6 +569,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// start protos instance
 	log.Infof("Starting instance '%s'", instanceName)
+	_ = progress(65, "starting VM", nil)
 	err = computeProvider.StartInstance(vmID, cloudLocation)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to start instance: %w", err)
@@ -511,8 +585,19 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	if instanceUpdate.Status != "" {
 		instanceInfo.Status = instanceUpdate.Status
 	}
+	if pendingInstanceID != "" {
+		pendingUpdate := instanceInfo
+		pendingUpdate.ID = pendingInstanceID
+		pendingUpdate.PublicKey = ""
+		pendingUpdate.Architecture = ""
+		pendingUpdate.DesiredStatus = ServerStateRunning
+		if updateErr := cm.updateDeploymentPlaceholder(pendingUpdate); updateErr != nil {
+			return InstanceInfo{}, updateErr
+		}
+	}
 
-	discoverCtx, discoverCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	_ = progress(75, "discovering VM identity", map[string]string{"public_ip": instanceInfo.PublicIP})
+	discoverCtx, discoverCancel := context.WithTimeout(ctx, 5*time.Minute)
 	discoveredPeer, err := cm.p2p.DiscoverPeer(discoverCtx, instanceInfo.PublicIP)
 	discoverCancel()
 	if err != nil {
@@ -522,12 +607,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.ID = discoveredPeer.ID
 	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
 
-	mm, cmm := createInstanceInsertMapper(instanceInfo)
-	if err := db.Insert(cm.db, mm, cmm, db.CreatePeerInsertMapper(instanceInfo.ID)); err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
-	}
-	persistedInstance = true
-
+	_ = progress(85, "initializing VM", map[string]string{"peer_id": instanceInfo.ID})
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		_ = cm.p2p.RemovePeer(instanceInfo)
@@ -542,7 +622,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{
+	resp, err := p2pClient.Init(ctx, &proto.InitRequest{
 		OriginDevice:          thisDevice.GetName(),
 		OriginDevicePublicKey: thisDevice.GetPublicKey(),
 		OriginSwarmionAddrs:   originSwarmionAddrs,
@@ -569,6 +649,13 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	instanceInfo.Status = instanceUpdate.Status
 	instanceInfo.DesiredStatus = ServerStateRunning
 	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
+
+	_ = progress(95, "saving VM identity", map[string]string{"peer_id": instanceInfo.ID})
+	if pendingInstanceID != "" {
+		if err := cm.completeDeploymentInstance(pendingInstanceID, instanceInfo); err != nil {
+			return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+		}
+	}
 
 	log.Infof("Instance '%s' at '%s' is ready", instanceName, instanceInfo.PublicIP)
 
@@ -672,31 +759,6 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	return nil
 }
 
-func waitForRemoteFile(sshCon *ssh.Client, remotePath string, timeout time.Duration) (string, error) {
-	deadline := time.Now().Add(timeout)
-	var lastErr error
-	var lastOutput string
-
-	for time.Now().Before(deadline) {
-		output, err := pcrypto.ExecuteCommand(fmt.Sprintf("cat %s", remotePath), sshCon)
-		if err == nil && strings.TrimSpace(output) != "" {
-			return strings.TrimSpace(output), nil
-		}
-		lastErr = err
-		lastOutput = strings.TrimSpace(output)
-		time.Sleep(2 * time.Second)
-	}
-
-	diagnostics, _ := pcrypto.ExecuteCommand(
-		"ls -la /var/lib /var/lib/protos /var/log 2>&1; cat /var/log/protos.log 2>&1 || true; ctr -n services.linuxkit tasks ls 2>&1 || true; ctr -n services.linuxkit containers ls 2>&1 || true",
-		sshCon,
-	)
-	if lastErr != nil {
-		return "", fmt.Errorf("timed out waiting for %s; last output: %q; last error: %w; diagnostics: %s", remotePath, lastOutput, lastErr, diagnostics)
-	}
-	return "", fmt.Errorf("timed out waiting for %s; last output: %q; diagnostics: %s", remotePath, lastOutput, diagnostics)
-}
-
 func (cm *Manager) originSwarmionBootstrapAddrs(originPublicKey string, peerPublicIP string) []string {
 	ips := originBootstrapIPs(originPublicKey, peerPublicIP)
 	addrs := cm.db.DialableListenMultiaddrs(ips)
@@ -704,36 +766,6 @@ func (cm *Manager) originSwarmionBootstrapAddrs(originPublicKey string, peerPubl
 		return cm.db.ListenMultiaddrs()
 	}
 	return addrs
-}
-
-func (cm *Manager) originSwarmionBootstrapAddrsViaSSH(sshCon *ssh.Client, originPublicKey string, peerPublicIP string) ([]string, func(), error) {
-	addrs := cm.originSwarmionBootstrapAddrs(originPublicKey, peerPublicIP)
-	noop := func() {}
-	if sshCon == nil {
-		return addrs, noop, nil
-	}
-	if config.Get().P2PPort <= 0 {
-		return addrs, noop, nil
-	}
-	originKey, err := pcrypto.CreatePublicKeyFromBase64(originPublicKey)
-	if err != nil {
-		return addrs, noop, err
-	}
-
-	target := fmt.Sprintf("127.0.0.1:%d", config.Get().P2PPort+1)
-	tunnel := pcrypto.NewReverseTunnel(sshCon, target)
-	remotePort, err := tunnel.Start("127.0.0.1:0")
-	if err != nil {
-		return addrs, noop, err
-	}
-
-	tunnelAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", remotePort, originKey.GetID())
-	log.Debugf("Created bootstrap reverse SSH tunnel for Swarmion at '%s'", tunnelAddr)
-	return append([]string{tunnelAddr}, addrs...), func() {
-		if err := tunnel.Close(); err != nil {
-			log.Warnf("Failed to close bootstrap reverse SSH tunnel: %s", err)
-		}
-	}, nil
 }
 
 func originBootstrapIPs(originPublicKey string, peerPublicIP string) []string {
@@ -860,6 +892,28 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
+	if strings.TrimSpace(instance.PublicKey) == "" && cm.tasks != nil {
+		if task, found, taskErr := cm.tasks.LatestForSubject(InstanceDeploymentTaskStream, taskSubjectInstance, instance.ID); taskErr == nil && found {
+			if cancelErr := cm.tasks.Cancel(task.ID, "instance removed"); cancelErr != nil {
+				log.Warnf("failed to cancel deployment task for instance '%s': %s", instance.Name, cancelErr.Error())
+			}
+		}
+	}
+
+	if err := cm.markInstanceDeleting(instance); err != nil {
+		return err
+	}
+	instance.DesiredStatus = ServerStateDeleting
+
+	if err := cm.deleteAppsForInstance(instance.ID); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(instance.PublicKey) != "" {
+		if err := cm.removeInstanceWitnessEligibility(instance); err != nil {
+			return err
+		}
+	}
 
 	if !localOnly && (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) {
 		provider, err := cm.GetProvider(instance.KindID)
@@ -882,7 +936,9 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 		found := true
 		vmInfo, providerInstanceID, err := getProviderInstanceInfo(computeProvider, instance)
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if instance.Kind == KindLocalVM && errors.Is(err, os.ErrNotExist) {
+				vmInfo = InstanceInfo{ProviderResourceID: providerInstanceID}
+			} else if strings.Contains(strings.ToLower(err.Error()), "not found") {
 				found = false
 			} else {
 				return fmt.Errorf("failed to get details for instance '%s': %w", id, err)
@@ -895,7 +951,7 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 				log.Infof("Stopping instance '%s' (%s)", instance.Name, providerInstanceID)
 				err = computeProvider.StopInstance(providerInstanceID, instance.Location)
 				if err != nil {
-					return fmt.Errorf("could not stop instance '%s': %w", id, err)
+					log.Warnf("failed to stop instance '%s' before delete; attempting provider delete anyway: %s", id, err.Error())
 				}
 			}
 			log.Infof("Deleting instance '%s' (%s)", instance.Name, providerInstanceID)
@@ -913,14 +969,17 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 		}
 	}
 
-	err = cm.p2p.RemovePeer(instance)
-	if err != nil {
-		return fmt.Errorf("failed to remove peer: %w", err)
+	if strings.TrimSpace(instance.PublicKey) != "" {
+		err = cm.p2p.RemovePeer(instance)
+		if err != nil {
+			return fmt.Errorf("failed to remove peer: %w", err)
+		}
+		if err := cm.removeInstanceWitnessEligibility(instance); err != nil {
+			return err
+		}
 	}
 
-	im, cmmd := createInstanceDeleteMapper(instance.ID)
-	err = db.Delete(cm.db, db.CreatePeerDeleteMapper(instance.ID), im, cmmd)
-	if err != nil {
+	if err := cm.deleteInstanceRecords(instance); err != nil {
 		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
 	}
 	if err := cm.deleteInstanceSSHKey(instance.ID); err != nil {
@@ -928,6 +987,215 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 	}
 
 	return nil
+}
+
+func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
+	if cm == nil || cm.db == nil {
+		return fmt.Errorf("provisioner manager database is not configured")
+	}
+	if strings.TrimSpace(instance.ID) == "" {
+		return fmt.Errorf("instance ID is empty")
+	}
+
+	var lastErr error
+	deadline := time.Now().Add(10 * time.Minute)
+	for attempt := 1; time.Now().Before(deadline); attempt++ {
+		im, cmmd := createInstanceDeleteMapper(instance.ID)
+		err := db.Delete(cm.db, db.CreatePeerDeleteMapper(instance.ID), createAppDeleteByInstanceMapper(instance.ID), im, cmmd)
+		if err == nil {
+			err = cm.assertInstancePeerRemoved(instance.ID)
+		}
+		if err == nil {
+			if verifyErr := cm.waitForInstanceDeleteFinalized(instance.ID); verifyErr == nil {
+				return nil
+			} else {
+				err = verifyErr
+			}
+		}
+		lastErr = err
+		sleep := time.Duration(attempt*2) * time.Second
+		if sleep > 15*time.Second {
+			sleep = 15 * time.Second
+		}
+		time.Sleep(sleep)
+	}
+
+	return fmt.Errorf("instance '%s' removed but residual peer state remains: %w", instance.Name, lastErr)
+}
+
+func (cm *Manager) waitForInstanceDeleteFinalized(peerID string) error {
+	deadline := time.Now().Add(2 * time.Minute)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		catchUpErr := cm.db.CatchUpFinalized(ctx, "verify instance delete finalized")
+		cancel()
+		if catchUpErr != nil {
+			lastErr = catchUpErr
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		status, ok := cm.db.SwarmionStatus()
+		if !ok {
+			if err := cm.assertInstancePeerRemoved(peerID); err != nil {
+				return err
+			}
+			return nil
+		}
+		finalized := status.FinalizedRootHash.String()
+		durable := status.DurableMainRootHash.String()
+		if finalized == "" ||
+			status.TentativeRootHash.String() != finalized ||
+			(durable != "" && durable != finalized) {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		if err := cm.assertInstancePeerRemoved(peerID); err != nil {
+			return err
+		}
+		return nil
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return fmt.Errorf("timed out waiting for finalized delete of peer %s", peerID)
+}
+
+func (cm *Manager) markInstanceDeleting(instance InstanceInfo) error {
+	if cm == nil || cm.db == nil || strings.TrimSpace(instance.ID) == "" || IsDeletingInstance(instance) {
+		return nil
+	}
+	instance.DesiredStatus = ServerStateDeleting
+	im, _ := createInstanceUpdateMapper(instance)
+	if err := db.Update(cm.db, im); err != nil {
+		return fmt.Errorf("failed to mark instance '%s' as deleting: %w", instance.Name, err)
+	}
+	return nil
+}
+
+func (cm *Manager) deleteAppsForInstance(instanceID string) error {
+	instanceID = strings.TrimSpace(instanceID)
+	if cm == nil || cm.db == nil || instanceID == "" {
+		return nil
+	}
+	if err := db.Delete(cm.db, createAppDeleteByInstanceMapper(instanceID)); err != nil {
+		return fmt.Errorf("failed to delete apps for instance '%s': %w", instanceID, err)
+	}
+	return nil
+}
+
+func (cm *Manager) assertInstancePeerRemoved(peerID string) error {
+	peerID = strings.TrimSpace(peerID)
+	if cm == nil || cm.db == nil || peerID == "" {
+		return nil
+	}
+	peerIDs, err := db.GetPeerIDs(cm.db)
+	if err != nil {
+		return err
+	}
+	if _, found := peerIDs[peerID]; found {
+		return fmt.Errorf("peer table still contains %s", peerID)
+	}
+	status, ok := cm.db.SwarmionStatus()
+	if !ok {
+		return nil
+	}
+	if containsString(status.ActiveWitnessIDs, peerID) {
+		return fmt.Errorf("swarmion active witnesses still contain %s", peerID)
+	}
+	if containsString(status.EligibleWitnessIDs, peerID) {
+		return fmt.Errorf("swarmion eligible witnesses still contain %s", peerID)
+	}
+	if rank, found := status.EligibleWitnessRanks[peerID]; found && rank > 0 {
+		return fmt.Errorf("swarmion eligible witness rank for %s is still %d", peerID, rank)
+	}
+	if containsString(status.StateProviders, peerID) {
+		return fmt.Errorf("swarmion state providers still contain %s", peerID)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	peerStatuses, err := cm.db.SwarmionPeerStatus(ctx)
+	if err != nil {
+		return fmt.Errorf("read swarmion peer status: %w", err)
+	}
+	for _, peerStatus := range peerStatuses {
+		if strings.TrimSpace(peerStatus.PeerID) != peerID {
+			continue
+		}
+		if peerStatus.Witness || peerStatus.EligibleWitness || peerStatus.StateProvider {
+			return fmt.Errorf(
+				"swarmion peer status still marks %s as witness=%t eligible=%t state_provider=%t",
+				peerID,
+				peerStatus.Witness,
+				peerStatus.EligibleWitness,
+				peerStatus.StateProvider,
+			)
+		}
+	}
+	return nil
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func (cm *Manager) removeInstanceWitnessEligibility(instance InstanceInfo) error {
+	if cm == nil || cm.db == nil {
+		return nil
+	}
+	candidates, err := cm.witnessCandidatesExcluding(instance.ID)
+	if err != nil {
+		return fmt.Errorf("build remaining witness candidates for instance '%s': %w", instance.Name, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	if err := cm.db.RemoveWitnessEligibility(ctx, instance.ID, candidates); err != nil {
+		return fmt.Errorf("remove swarmion witness eligibility for instance '%s': %w", instance.Name, err)
+	}
+	return nil
+}
+
+func (cm *Manager) witnessCandidatesExcluding(peerID string) ([]db.WitnessCandidate, error) {
+	peerID = strings.TrimSpace(peerID)
+	instances, err := cm.GetInstances(false)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]db.WitnessCandidate, 0, len(instances)+1)
+	for _, instance := range instances {
+		if strings.TrimSpace(instance.ID) == "" || instance.ID == peerID || strings.TrimSpace(instance.PublicKey) == "" || IsDeletingInstance(instance) {
+			continue
+		}
+		candidates = append(candidates, db.WitnessCandidate{
+			PeerID:     instance.ID,
+			DeviceType: db.WitnessDeviceTypeForMachine(instance.Kind, instance.KindID),
+			Rank:       instance.WitnessRank,
+		})
+	}
+	if cm.um == nil {
+		return candidates, nil
+	}
+	devices, err := cm.um.GetAllDevices(false)
+	if err != nil {
+		return nil, err
+	}
+	for _, device := range devices {
+		if strings.TrimSpace(device.ID) == "" || device.ID == peerID {
+			continue
+		}
+		candidates = append(candidates, db.WitnessCandidate{
+			PeerID:     device.ID,
+			DeviceType: db.WitnessDeviceTypeForUserDeviceName(device.Name),
+			Rank:       device.WitnessRank,
+		})
+	}
+	return candidates, nil
 }
 
 // StartInstance starts an instance
@@ -1050,6 +1318,16 @@ func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 		instance = instanceByName
 	}
 
+	if IsDeletingInstance(instance) {
+		instance.Status = ServerStateDeleting
+		return instance, nil
+	}
+
+	if strings.TrimSpace(instance.PublicKey) == "" {
+		instance.Status = cm.pendingInstanceStatus(instance)
+		return instance, nil
+	}
+
 	// if not local, we update the instance status
 	if instance.Kind != KindLocalVM {
 		provider, err := cm.GetProvider(instance.KindID)
@@ -1130,6 +1408,14 @@ func (cm *Manager) GetInstancesWithUpdatedStatus() ([]InstanceInfo, error) {
 	}
 
 	for i, instance := range instances {
+		if IsDeletingInstance(instance) {
+			instances[i].Status = ServerStateDeleting
+			continue
+		}
+		if strings.TrimSpace(instance.PublicKey) == "" {
+			instances[i].Status = cm.pendingInstanceStatus(instance)
+			continue
+		}
 		status, err := cm.retrieveInstanceStatus(instance)
 		if err != nil {
 			log.Warn(err.Error())
@@ -1151,8 +1437,11 @@ func (cm *Manager) ReconcileDesiredInstances() error {
 
 	var failures []string
 	for _, instance := range instances {
+		if IsDeletingInstance(instance) {
+			continue
+		}
 		desiredStatus := normalizeDesiredInstanceStatus(instance.DesiredStatus)
-		if desiredStatus == "" || instance.Kind == KindLocalVM {
+		if desiredStatus == "" || instance.Kind == KindLocalVM || strings.TrimSpace(instance.PublicKey) == "" {
 			continue
 		}
 
@@ -1187,6 +1476,28 @@ func (cm *Manager) ReconcileDesiredInstances() error {
 	return nil
 }
 
+func (cm *Manager) pendingInstanceStatus(instance InstanceInfo) string {
+	if cm == nil || cm.tasks == nil {
+		return ServerStateChanging
+	}
+	task, found, err := cm.tasks.LatestForSubject(InstanceDeploymentTaskStream, taskSubjectInstance, instance.ID)
+	if err != nil {
+		log.Debugf("failed to load deployment task for pending instance '%s': %s", instance.Name, err.Error())
+		return ServerStateChanging
+	}
+	if !found {
+		return ServerStateChanging
+	}
+	status := string(task.Status)
+	if task.Message != "" {
+		status += ": " + task.Message
+	}
+	if task.ErrorMessage != "" {
+		status += ": " + task.ErrorMessage
+	}
+	return status
+}
+
 func reconcileProvisionerInstance(provisioner Provisioner, instance InstanceInfo) (InstanceInfo, error) {
 	if reconciler, ok := provisioner.(InstanceReconciler); ok {
 		return reconciler.ReconcileInstance(instance)
@@ -1202,6 +1513,10 @@ func reconcileComputeInstance(provider ComputeProvisioner, instance InstanceInfo
 	current, providerInstanceID, err := getProviderInstanceInfo(provider, instance)
 	if err != nil {
 		return InstanceInfo{}, err
+	}
+	if current.Status == ServerStateChanging {
+		current.DesiredStatus = instance.DesiredStatus
+		return current, nil
 	}
 	switch strings.ToLower(strings.TrimSpace(instance.DesiredStatus)) {
 	case ServerStateRunning:

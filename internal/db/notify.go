@@ -53,10 +53,6 @@ func getTableName(model any) string {
 	return tag
 }
 
-func notifyAsync(notifier Notifier) {
-	notifyChangeAsync(notifier, nil)
-}
-
 func notifyChangeAsync(notifier Notifier, tableNames []string) {
 	go func() {
 		defer func() {

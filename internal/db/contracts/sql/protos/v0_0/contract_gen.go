@@ -84,6 +84,40 @@ var Version = schema.VersionDefinition{
 				},
 			},
 			{
+				Name: "tasks",
+				Columns: []schema.SQLColumn{
+					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "task_stream", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "subject_type", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "subject_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "status", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
+					{Name: "title", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "message", Type: "TEXT", PrimaryKey: false, NotNull: true},
+					{Name: "progress", Type: "INT", PrimaryKey: false, NotNull: true},
+					{Name: "payload", Type: "JSON", PrimaryKey: false, NotNull: true},
+					{Name: "result", Type: "JSON", PrimaryKey: false, NotNull: false},
+					{Name: "error_message", Type: "TEXT", PrimaryKey: false, NotNull: false},
+					{Name: "attempts", Type: "INT", PrimaryKey: false, NotNull: true},
+					{Name: "max_attempts", Type: "INT", PrimaryKey: false, NotNull: true},
+					{Name: "created_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
+					{Name: "updated_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
+					{Name: "started_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: false},
+					{Name: "finished_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: false},
+				},
+			},
+			{
+				Name: "task_events",
+				Columns: []schema.SQLColumn{
+					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "task_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "status", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
+					{Name: "message", Type: "TEXT", PrimaryKey: false, NotNull: true},
+					{Name: "progress", Type: "INT", PrimaryKey: false, NotNull: true},
+					{Name: "details", Type: "JSON", PrimaryKey: false, NotNull: false},
+					{Name: "created_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
+				},
+			},
+			{
 				Name: "exit_routes",
 				Columns: []schema.SQLColumn{
 					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
@@ -152,6 +186,34 @@ var CreateSQL = []string{
 )`,
 	`CREATE TABLE peers (
   id VARCHAR(255) NOT NULL PRIMARY KEY
+)`,
+	`CREATE TABLE tasks (
+  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  task_stream VARCHAR(255) NOT NULL,
+  subject_type VARCHAR(255) NOT NULL,
+  subject_id VARCHAR(255) NOT NULL,
+  status VARCHAR(64) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  progress INT NOT NULL,
+  payload JSON NOT NULL,
+  result JSON,
+  error_message TEXT,
+  attempts INT NOT NULL,
+  max_attempts INT NOT NULL,
+  created_at VARCHAR(64) NOT NULL,
+  updated_at VARCHAR(64) NOT NULL,
+  started_at VARCHAR(64),
+  finished_at VARCHAR(64)
+)`,
+	`CREATE TABLE task_events (
+  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  task_id VARCHAR(255) NOT NULL,
+  status VARCHAR(64) NOT NULL,
+  message TEXT NOT NULL,
+  progress INT NOT NULL,
+  details JSON,
+  created_at VARCHAR(64) NOT NULL
 )`,
 	`CREATE TABLE exit_routes (
   id VARCHAR(255) NOT NULL PRIMARY KEY,

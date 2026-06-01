@@ -272,15 +272,26 @@ func (sw *scaleway) NewInstance(name string, imageID string, originPublicKey str
 }
 
 func (sw *scaleway) DeleteInstance(id string, location string) error {
-	info, err := sw.GetInstanceInfo(id, location)
+	resp, err := sw.instanceAPI.GetServer(&instance.GetServerRequest{ServerID: id, Zone: scw.Zone(location)})
 	if err != nil {
 		return errors.Wrapf(err, "Failed to retrieve instance '%s'", id)
 	}
-	err = sw.instanceAPI.DeleteServer(&instance.DeleteServerRequest{Zone: scw.Zone(location), ServerID: id})
+
+	server := resp.Server
+	switch server.State {
+	case instance.ServerStateStopped, instance.ServerStateStoppedInPlace:
+		err = sw.instanceAPI.DeleteServer(&instance.DeleteServerRequest{Zone: scw.Zone(location), ServerID: id})
+	default:
+		_, err = sw.instanceAPI.ServerAction(&instance.ServerActionRequest{
+			Zone:     scw.Zone(location),
+			ServerID: id,
+			Action:   instance.ServerActionTerminate,
+		})
+	}
 	if err != nil {
 		return errors.Wrapf(err, "Failed to delete instance '%s'", id)
 	}
-	err = sw.deleteSSHkey(info.Name)
+	err = sw.deleteSSHkey(server.Name)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to delete SSH key for instance '%s'", id)
 	}

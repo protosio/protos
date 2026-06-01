@@ -2,6 +2,38 @@ package cloudkit
 
 import "list"
 
+#protosImage: #imageContract & {
+	provider: "hetzner"
+	boot: {
+		firmware: "bios"
+		notes: [
+			"Hetzner server snapshots boot as disks through a BIOS-style path.",
+			"Use LinuxKit raw-bios here: iso-efi snapshots are treated like an unreadable CD-ROM, and raw-efi currently lands in an EFI shell with no bootable filesystem mapping.",
+		]
+	}
+	linuxkit: {
+		arch: "amd64"
+		formats: ["raw-bios"]
+		outputFiles: ["hetzner-bios.img"]
+	}
+	devices: {
+		root: "/dev/sda"
+		data: "/dev/sdb"
+	}
+	upload: {
+		kind: "hetzner-server-snapshot"
+		preferredLocations: ["ash"]
+		preferSmallestSnapshotDisk: true
+		targetSnapshotDiskGiB: 40
+		notes: [
+			"Hetzner snapshots inherit the upload helper server disk size.",
+			"The upload helper must be an available x86 server type with a disk no larger than 40 GiB.",
+			"If the selected location only has larger x86 helpers available, fail the upload instead of creating an oversized snapshot.",
+			"Keep helper selection ordered by disk size before price so deployable snapshots do not grow silently.",
+		]
+	}
+}
+
 //
 // kernel
 //

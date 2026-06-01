@@ -69,6 +69,38 @@ type PEER struct {
 	ID             sq.StringField `ddl:"notnull primarykey"`
 }
 
+type TASK struct {
+	sq.TableStruct `sq:"tasks"`
+	ID             sq.StringField `ddl:"notnull primarykey"`
+	TASK_STREAM    sq.StringField `ddl:"notnull index"`
+	SUBJECT_TYPE   sq.StringField `ddl:"notnull index"`
+	SUBJECT_ID     sq.StringField `ddl:"notnull index"`
+	STATUS         sq.StringField `ddl:"notnull index"`
+	TITLE          sq.StringField `ddl:"notnull"`
+	MESSAGE        sq.StringField `ddl:"notnull"`
+	PROGRESS       sq.NumberField `ddl:"notnull"`
+	PAYLOAD        sq.JSONField   `ddl:"notnull"`
+	RESULT         sq.JSONField
+	ERROR_MESSAGE  sq.StringField
+	ATTEMPTS       sq.NumberField `ddl:"notnull"`
+	MAX_ATTEMPTS   sq.NumberField `ddl:"notnull"`
+	CREATED_AT     sq.StringField `ddl:"notnull"`
+	UPDATED_AT     sq.StringField `ddl:"notnull"`
+	STARTED_AT     sq.StringField
+	FINISHED_AT    sq.StringField
+}
+
+type TASK_EVENT struct {
+	sq.TableStruct `sq:"task_events"`
+	ID             sq.StringField `ddl:"notnull primarykey"`
+	TASK_ID        sq.StringField `ddl:"notnull index"`
+	STATUS         sq.StringField `ddl:"notnull index"`
+	MESSAGE        sq.StringField `ddl:"notnull"`
+	PROGRESS       sq.NumberField `ddl:"notnull"`
+	DETAILS        sq.JSONField
+	CREATED_AT     sq.StringField `ddl:"notnull"`
+}
+
 type EXIT_ROUTE struct {
 	sq.TableStruct `sq:"exit_routes"`
 	ID             sq.StringField `ddl:"notnull primarykey"`

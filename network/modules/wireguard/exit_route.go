@@ -9,11 +9,6 @@ import (
 	networkmodule "github.com/protosio/protos/internal/network/module"
 )
 
-const (
-	exitTunnelIPv4CIDR = "100.64.0.0/10"
-	exitTunnelIPv6CIDR = "0200::/8"
-)
-
 var (
 	defaultExitRouteCIDRs = []string{
 		"0.0.0.0/0",
@@ -33,24 +28,6 @@ func localExitRoute(config networkmodule.Config, peerSet networkmodule.Peers) (n
 		}
 	}
 	return networkmodule.ExitRoute{}, false
-}
-
-func exitGatewayRouteCIDRsByDevice(config networkmodule.Config, peerSet networkmodule.Peers) (map[string][]string, error) {
-	routesByDevice := map[string][]string{}
-	if config.LocalPeerID == "" {
-		return routesByDevice, nil
-	}
-	for _, route := range peerSet.ExitRoutes {
-		if route.InstanceID != config.LocalPeerID || route.DeviceID == "" {
-			continue
-		}
-		cidrs, err := normalizedExitRouteCIDRs(route)
-		if err != nil {
-			return nil, err
-		}
-		routesByDevice[route.DeviceID] = appendUniqueStrings(routesByDevice[route.DeviceID], cidrs...)
-	}
-	return routesByDevice, nil
 }
 
 func normalizedExitRouteCIDRs(route networkmodule.ExitRoute) ([]string, error) {
@@ -133,39 +110,4 @@ func netipAddrFromIP(ip net.IP) (netip.Addr, bool) {
 	var octets [16]byte
 	copy(octets[:], ipv6)
 	return netip.AddrFrom16(octets), true
-}
-
-func ipNetFromAddr(addr netip.Addr, bits int) *net.IPNet {
-	if !addr.IsValid() {
-		return nil
-	}
-	ip := net.IP(addr.AsSlice())
-	return &net.IPNet{
-		IP:   ip,
-		Mask: net.CIDRMask(bits, bits),
-	}
-}
-
-func routePrefix(value string) (*net.IPNet, error) {
-	ip, network, err := net.ParseCIDR(value)
-	if err != nil {
-		return nil, fmt.Errorf("invalid route prefix %q: %w", value, err)
-	}
-	network.IP = ip
-	return network, nil
-}
-
-func appendUniqueStrings(values []string, additions ...string) []string {
-	seen := make(map[string]struct{}, len(values)+len(additions))
-	for _, value := range values {
-		seen[value] = struct{}{}
-	}
-	for _, value := range additions {
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		values = append(values, value)
-	}
-	return values
 }

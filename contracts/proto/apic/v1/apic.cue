@@ -308,6 +308,53 @@ package apicv1
 	runtime_changed?: bool
 	reason?:          string
 }
+#Task: {
+	id?:            string
+	stream?:        string
+	subject_type?:  string
+	subject_id?:    string
+	status?:        string
+	title?:         string
+	message?:       string
+	progress?:      int
+	payload_json?:  string
+	result_json?:   string
+	error_message?: string
+	attempts?:      int
+	max_attempts?:  int
+	created_at?:    string
+	updated_at?:    string
+	started_at?:    string
+	finished_at?:   string
+}
+#TaskEvent: {
+	id?:           string
+	task_id?:      string
+	status?:       string
+	message?:      string
+	progress?:     int
+	details_json?: string
+	created_at?:   string
+}
+#GetTasksRequest: {
+	status?:       string
+	stream?:       string
+	subject_type?: string
+	subject_id?:   string
+	max_results?:  int
+}
+#GetTasksResponse: {
+	tasks?:     [...#Task]
+	truncated?: bool
+}
+#GetTaskRequest: {
+	id?:             string
+	include_events?: bool
+}
+#GetTaskResponse: {
+	task?:   #Task
+	events?: [...#TaskEvent]
+}
 #SetExitRouteRequest: {
 	instance?:   string
 	device_id?:  string
@@ -341,6 +388,10 @@ package apicv1
 	peer_statuses?:                  [...#RuntimePeerStatus]
 	compatibility?:                  [...#RuntimeCompatibility]
 	content_sync_trace?:              [...string]
+	known_epoch_ids?:                 [...string]
+	epoch_descriptor_digest_by_id?:   [string]: string
+	epoch_finalized_digest_by_id?:    [string]: string
+	protocol_finalized_digest?:       string
 }
 #RuntimePeerStatus: {
 	peer_id?:          string
@@ -521,6 +572,8 @@ contract: {
 				{name: "GetExitRoutes", request: "GetExitRoutesRequest", response: "GetExitRoutesResponse"},
 				{name: "GetRuntimeState", request: "GetRuntimeStateRequest", response: "GetRuntimeStateResponse"},
 				{name: "WatchChanges", request: "WatchChangesRequest", response: "WatchChangesResponse", response_stream: true},
+				{name: "GetTasks", request: "GetTasksRequest", response: "GetTasksResponse"},
+				{name: "GetTask", request: "GetTaskRequest", response: "GetTaskResponse"},
 				{name: "SetExitRoute", request: "SetExitRouteRequest", response: "SetExitRouteResponse"},
 				{name: "ClearExitRoute", request: "ClearExitRouteRequest", response: "ClearExitRouteResponse"},
 				{name: "GetProtosdReleases", request: "GetProtosdReleasesRequest", response: "GetProtosdReleasesResponse"},
@@ -858,6 +911,53 @@ contract: {
 				{type: "bool", name: "runtime_changed", number: 3},
 				{type: "string", name: "reason", number: 4},
 			]},
+			{kind: "message", name: "Task", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "stream", number: 2},
+				{type: "string", name: "subject_type", number: 3},
+				{type: "string", name: "subject_id", number: 4},
+				{type: "string", name: "status", number: 5},
+				{type: "string", name: "title", number: 6},
+				{type: "string", name: "message", number: 7},
+				{type: "int32", name: "progress", number: 8},
+				{type: "string", name: "payload_json", number: 9},
+				{type: "string", name: "result_json", number: 10},
+				{type: "string", name: "error_message", number: 11},
+				{type: "int32", name: "attempts", number: 12},
+				{type: "int32", name: "max_attempts", number: 13},
+				{type: "string", name: "created_at", number: 14},
+				{type: "string", name: "updated_at", number: 15},
+				{type: "string", name: "started_at", number: 16},
+				{type: "string", name: "finished_at", number: 17},
+			]},
+			{kind: "message", name: "TaskEvent", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "task_id", number: 2},
+				{type: "string", name: "status", number: 3},
+				{type: "string", name: "message", number: 4},
+				{type: "int32", name: "progress", number: 5},
+				{type: "string", name: "details_json", number: 6},
+				{type: "string", name: "created_at", number: 7},
+			]},
+			{kind: "message", name: "GetTasksRequest", fields: [
+				{type: "string", name: "status", number: 1},
+				{type: "string", name: "stream", number: 2},
+				{type: "string", name: "subject_type", number: 3},
+				{type: "string", name: "subject_id", number: 4},
+				{type: "int32", name: "max_results", number: 5},
+			]},
+			{kind: "message", name: "GetTasksResponse", fields: [
+				{rule: "repeated", type: "Task", name: "tasks", number: 1},
+				{type: "bool", name: "truncated", number: 2},
+			]},
+			{kind: "message", name: "GetTaskRequest", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "bool", name: "include_events", number: 2},
+			]},
+			{kind: "message", name: "GetTaskResponse", fields: [
+				{type: "Task", name: "task", number: 1},
+				{rule: "repeated", type: "TaskEvent", name: "events", number: 2},
+			]},
 			{kind: "message", name: "SetExitRouteRequest", fields: [
 				{type: "string", name: "instance", number: 1},
 				{type: "string", name: "device_id", number: 2},
@@ -892,6 +992,10 @@ contract: {
 				{rule: "repeated", type: "RuntimePeerStatus", name: "peer_statuses", number: 18},
 				{rule: "repeated", type: "RuntimeCompatibility", name: "compatibility", number: 19},
 				{rule: "repeated", type: "string", name: "content_sync_trace", number: 20},
+				{rule: "repeated", type: "string", name: "known_epoch_ids", number: 21},
+				{type: "map<string, string>", name: "epoch_descriptor_digest_by_id", number: 22},
+				{type: "map<string, string>", name: "epoch_finalized_digest_by_id", number: 23},
+				{type: "string", name: "protocol_finalized_digest", number: 24},
 			]},
 			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
@@ -1124,6 +1228,12 @@ lineage: {
 			GetRuntimeStateResponse?:             #GetRuntimeStateResponse
 			WatchChangesRequest?:                 #WatchChangesRequest
 			WatchChangesResponse?:                #WatchChangesResponse
+			Task?:                                #Task
+			TaskEvent?:                           #TaskEvent
+			GetTasksRequest?:                     #GetTasksRequest
+			GetTasksResponse?:                    #GetTasksResponse
+			GetTaskRequest?:                      #GetTaskRequest
+			GetTaskResponse?:                     #GetTaskResponse
 			RuntimeState?:                        #RuntimeState
 			RuntimePeerStatus?:                   #RuntimePeerStatus
 			RuntimeCompatibility?:                #RuntimeCompatibility

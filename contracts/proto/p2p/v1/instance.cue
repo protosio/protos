@@ -130,6 +130,10 @@ package p2pv1
 	peer_statuses?:                  [...#RuntimePeerStatus]
 	compatibility?:                  [...#RuntimeCompatibility]
 	content_sync_trace?:              [...string]
+	known_epoch_ids?:                 [...string]
+	epoch_descriptor_digest_by_id?:   [string]: string
+	epoch_finalized_digest_by_id?:    [string]: string
+	protocol_finalized_digest?:       string
 }
 #RuntimePeerStatus: {
 	peer_id?:          string
@@ -312,6 +316,10 @@ contract: {
 				{rule: "repeated", type: "RuntimePeerStatus", name: "peer_statuses", number: 18},
 				{rule: "repeated", type: "RuntimeCompatibility", name: "compatibility", number: 19},
 				{rule: "repeated", type: "string", name: "content_sync_trace", number: 20},
+				{rule: "repeated", type: "string", name: "known_epoch_ids", number: 21},
+				{type: "map<string, string>", name: "epoch_descriptor_digest_by_id", number: 22},
+				{type: "map<string, string>", name: "epoch_finalized_digest_by_id", number: 23},
+				{type: "string", name: "protocol_finalized_digest", number: 24},
 			]},
 			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},

@@ -373,6 +373,10 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 		RuntimeFinalizedPending:      status.RuntimeFinalizedMaterializePending,
 		RuntimeFinalizedLastError:    status.RuntimeFinalizedMaterializeLastError,
 		RuntimeMaterializationPolicy: status.RuntimeFinalizedMaterializationPolicy.String(),
+		KnownEpochIds:                append([]string(nil), status.KnownEpochIDs...),
+		EpochDescriptorDigestById:    cloneStringMap(status.EpochDescriptorDigestByID),
+		EpochFinalizedDigestById:     cloneStringMap(status.EpochFinalizedDigestByID),
+		ProtocolFinalizedDigest:      formatRuntimeDigest(status.ProtocolFinalizedDigest),
 	}
 	if status.Fatal != nil {
 		out.FatalState = status.Fatal.State
@@ -406,6 +410,7 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 		if err != nil {
 			return nil, err
 		}
+		filterRuntimePeerSurface(out, peerIDs)
 		addKnownRuntimePeerStatuses(out, peerIDs)
 	}
 
@@ -427,6 +432,75 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 		out.ContentSyncTrace = append([]string(nil), trace...)
 	}
 	return out, nil
+}
+
+func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct{}) {
+	if out == nil {
+		return
+	}
+	allowed := make(map[string]struct{}, len(peerIDs)+1)
+	for peerID := range peerIDs {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			allowed[peerID] = struct{}{}
+		}
+	}
+	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
+		allowed[localPeerID] = struct{}{}
+	}
+	out.StateProviders = filterStringsBySet(out.GetStateProviders(), allowed)
+	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed)
+	providers := make(map[string]struct{}, len(out.GetStateProviders()))
+	for _, peerID := range out.GetStateProviders() {
+		providers[peerID] = struct{}{}
+	}
+	connected := make(map[string]struct{}, len(out.GetConnectedPeers())+1)
+	for _, peerID := range out.GetConnectedPeers() {
+		connected[peerID] = struct{}{}
+	}
+	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
+		connected[localPeerID] = struct{}{}
+	}
+	filteredStatuses := out.GetPeerStatuses()[:0]
+	for _, peerStatus := range out.GetPeerStatuses() {
+		if peerStatus == nil {
+			continue
+		}
+		peerID := strings.TrimSpace(peerStatus.GetPeerId())
+		if _, found := allowed[peerID]; !found {
+			continue
+		}
+		if _, found := providers[peerID]; !found {
+			peerStatus.StateProvider = false
+		}
+		_, isConnected := connected[peerID]
+		peerStatus.Connected = isConnected
+		if !isConnected {
+			peerStatus.Dialable = false
+		}
+		filteredStatuses = append(filteredStatuses, peerStatus)
+	}
+	out.PeerStatuses = filteredStatuses
+}
+
+func filterStringsBySet(values []string, allowed map[string]struct{}) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, found := allowed[value]; !found {
+			continue
+		}
+		if _, found := seen[value]; found {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func addKnownRuntimePeerStatuses(out *proto.RuntimeState, peerIDs map[string]struct{}) {
@@ -504,6 +578,13 @@ func cloneStringMap(values map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func formatRuntimeDigest(digest [32]byte) string {
+	if digest == ([32]byte{}) {
+		return ""
+	}
+	return fmt.Sprintf("%x", digest[:])
 }
 
 // HandlerInit does the initialisation on the server side
@@ -591,4 +672,40 @@ func (s *Server) GetAppStatus(ctx context.Context, req *proto.GetAppStatusReques
 	}
 
 	return &proto.GetAppStatusResponse{Status: status}, nil
+}
+
+func (s *Server) ProbeAppHTTP(ctx context.Context, req *proto.ProbeAppHTTPRequest) (*proto.ProbeAppHTTPResponse, error) {
+	if s == nil || s.p2p == nil || s.p2p.appManager == nil {
+		return nil, fmt.Errorf("app manager is not configured")
+	}
+	appName := strings.TrimSpace(req.GetAppName())
+	if appName == "" {
+		return nil, fmt.Errorf("app name is required")
+	}
+	appID, err := s.p2p.appManager.GetAppID(appName)
+	if err != nil {
+		return nil, fmt.Errorf("load app %q: %w", appName, err)
+	}
+	timeout := time.Duration(req.GetTimeoutSeconds()) * time.Second
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	if timeout > 30*time.Second {
+		timeout = 30 * time.Second
+	}
+	maxBytes := int(req.GetMaxBytes())
+	if maxBytes <= 0 {
+		maxBytes = 256 * 1024
+	}
+	if maxBytes > 1024*1024 {
+		maxBytes = 1024 * 1024
+	}
+	body, err := probeAppHTTPFromSandbox(ctx, appID, req.GetUrl(), timeout, maxBytes)
+	if err != nil {
+		return nil, err
+	}
+	return &proto.ProbeAppHTTPResponse{
+		Body:      body,
+		BytesRead: int32(len(body)),
+	}, nil
 }

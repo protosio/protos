@@ -228,7 +228,7 @@ func withIOCTLSocket(family int, fn func(fd int) error) error {
 }
 
 func ioctlDarwin(fd int, req uint, data unsafe.Pointer) error {
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(data))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(data)) //nolint:staticcheck // Darwin interface ioctls here require raw request numbers.
 	if errno != 0 {
 		return errno
 	}

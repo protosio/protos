@@ -55,6 +55,7 @@ func main() {
 			cmdInspect,
 			cmdRelease,
 			cmdDvc,
+			cmdTask,
 		},
 	}
 

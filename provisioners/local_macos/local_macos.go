@@ -343,15 +343,26 @@ func (lm *localMacOS) DeleteInstance(id string, location string) error {
 	}
 	manifest, err := lm.readInstanceManifestByIDOrName(id)
 	if err != nil {
-		return err
-	}
-	if _, err := lm.applyHostAgentVM(manifest.ID, "deleted"); err != nil {
-		if manifest.PID != 0 && localMacOSProcessAlive(manifest.PID) {
+		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		log.Debugf("Skipping host agent delete for stopped local macOS VM '%s': %v", manifest.ID, err)
+		return lm.deleteInstanceArtifacts(id, 0)
 	}
-	if err := removeLocalMacOSDir(lm.instanceDir(manifest.ID)); err != nil {
+	return lm.deleteInstanceArtifacts(manifest.ID, manifest.PID)
+}
+
+func (lm *localMacOS) deleteInstanceArtifacts(id string, pid int) error {
+	instanceID, err := sanitizeLocalMacOSName(id)
+	if err != nil {
+		return err
+	}
+	if _, err := lm.applyHostAgentVM(instanceID, "deleted"); err != nil {
+		if pid != 0 && localMacOSProcessAlive(pid) {
+			return err
+		}
+		log.Debugf("Skipping host agent delete for stopped local macOS VM '%s': %v", instanceID, err)
+	}
+	if err := removeLocalMacOSDir(lm.instanceDir(instanceID)); err != nil {
 		return fmt.Errorf("failed to remove local macOS VM '%s': %w", id, err)
 	}
 	return nil

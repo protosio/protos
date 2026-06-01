@@ -1,17 +1,22 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/protosio/protos/internal/config"
+	hostagentclient "github.com/protosio/protos/internal/hostagent/client"
 	hostagentdaemon "github.com/protosio/protos/internal/hostagent/daemon"
 	hostagentipc "github.com/protosio/protos/internal/hostagent/ipc"
 	hostagentpb "github.com/protosio/protos/internal/hostagent/proto"
@@ -35,8 +40,10 @@ func main() {
 		socketGID    int
 		workDir      string
 		logLevel     string
+		stopExisting bool
 	)
 	flag.BoolVar(&runVM, "run-vm", false, "run one VM from a manifest and block until it exits")
+	flag.BoolVar(&stopExisting, "stop-existing", false, "stop existing host agent daemon processes and exit")
 	flag.StringVar(&manifestPath, "manifest", "", "path to a local macOS VM manifest")
 	flag.StringVar(&hostSocket, "socket", hostagentipc.SocketPath(), "Unix socket path for host agent IPC")
 	flag.StringVar(&workDir, "work-dir", defaultWorkDir(), "root-owned host agent state directory")
@@ -51,6 +58,13 @@ func main() {
 		log.Fatal(err)
 	}
 	util.SetLogLevel(level)
+
+	if stopExisting {
+		if err := stopExistingDaemons(hostSocket); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	if manifestPath != "" {
 		if !runVM {
@@ -67,6 +81,127 @@ func main() {
 	}
 }
 
+func stopExistingDaemons(hostSocket string) error {
+	if err := requestExistingDaemonShutdown(hostSocket); err == nil {
+		if waitForNoHostAgentDaemons(5 * time.Second) {
+			log.Info("Stopped host agent daemon via shutdown RPC")
+			return nil
+		}
+		log.Warn("Host agent shutdown RPC did not stop all daemon processes; falling back to signal")
+	} else {
+		log.Debugf("Host agent shutdown RPC unavailable: %s", err.Error())
+	}
+
+	pids, err := hostAgentDaemonPIDs()
+	if err != nil {
+		return err
+	}
+	if len(pids) == 0 {
+		log.Info("No existing host agent daemons found")
+		return nil
+	}
+
+	for _, pid := range pids {
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			return fmt.Errorf("find host agent process %d: %w", pid, err)
+		}
+		log.Infof("Stopping host agent daemon pid=%d", pid)
+		if err := process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("stop host agent process %d: %w", pid, err)
+		}
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for _, pid := range pids {
+		for time.Now().Before(deadline) {
+			if !processExists(pid) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if processExists(pid) {
+			process, err := os.FindProcess(pid)
+			if err != nil {
+				return fmt.Errorf("find host agent process %d for force stop: %w", pid, err)
+			}
+			log.Warnf("Force stopping host agent daemon pid=%d", pid)
+			if err := process.Signal(syscall.SIGKILL); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				return fmt.Errorf("force stop host agent process %d: %w", pid, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func requestExistingDaemonShutdown(hostSocket string) error {
+	if strings.TrimSpace(hostSocket) == "" {
+		return fmt.Errorf("host agent socket path is empty")
+	}
+	client, err := hostagentclient.NewWithSocket(hostSocket)
+	if err != nil {
+		return fmt.Errorf("connect to host agent: %w", err)
+	}
+	defer client.Close()
+	return client.Shutdown()
+}
+
+func waitForNoHostAgentDaemons(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		pids, err := hostAgentDaemonPIDs()
+		if err != nil {
+			return false
+		}
+		if len(pids) == 0 {
+			return true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	pids, err := hostAgentDaemonPIDs()
+	return err == nil && len(pids) == 0
+}
+
+func hostAgentDaemonPIDs() ([]int, error) {
+	out, err := exec.Command("/bin/ps", "-axo", "pid=,command=").Output()
+	if err != nil {
+		return nil, fmt.Errorf("list processes: %w", err)
+	}
+
+	self := os.Getpid()
+	var pids []int
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil || pid == self {
+			continue
+		}
+		command := strings.Join(fields[1:], " ")
+		exe := filepath.Base(fields[1])
+		if exe != "protos-hostagent" {
+			continue
+		}
+		if strings.Contains(command, "--run-vm") || strings.Contains(command, "-manifest") || strings.Contains(command, "--stop-existing") {
+			continue
+		}
+		pids = append(pids, pid)
+	}
+	return pids, nil
+}
+
+func processExists(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
+}
+
 func runDaemon(hostSocket, socketMode string, socketUID, socketGID int, workDir string) error {
 	if err := os.MkdirAll(workDir, 0700); err != nil {
 		return fmt.Errorf("create work dir %s: %w", workDir, err)
@@ -79,6 +214,13 @@ func runDaemon(hostSocket, socketMode string, socketUID, socketGID int, workDir 
 	}
 
 	hostServer := hostagentdaemon.NewServer(networkServer)
+	shutdownCh := make(chan struct{}, 1)
+	hostServer.SetShutdownFunc(func() {
+		select {
+		case shutdownCh <- struct{}{}:
+		default:
+		}
+	})
 	defer func() {
 		if err := hostServer.Close(); err != nil {
 			log.Warnf("Host agent cleanup failed: %v", err)
@@ -125,16 +267,22 @@ func runDaemon(hostSocket, socketMode string, socketUID, socketGID int, workDir 
 			endpoint.server.Stop()
 		}
 		return hostServer.Close()
+	case <-shutdownCh:
+		log.Info("Shutdown RPC requested, stopping")
+		for _, endpoint := range endpoints {
+			endpoint.server.Stop()
+		}
+		return hostServer.Close()
 	case err := <-errCh:
 		for _, endpoint := range endpoints {
 			endpoint.server.Stop()
 		}
 		cleanupErr := hostServer.Close()
-		if err == grpc.ErrServerStopped {
+		if errors.Is(err, grpc.ErrServerStopped) {
 			err = nil
 		}
 		if err != nil && cleanupErr != nil {
-			return fmt.Errorf("%w; cleanup failed: %v", err, cleanupErr)
+			return fmt.Errorf("%w; cleanup failed: %w", err, cleanupErr)
 		}
 		if cleanupErr != nil {
 			return cleanupErr

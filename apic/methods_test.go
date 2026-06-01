@@ -40,6 +40,21 @@ func TestInstanceDeployImageLessPrefersNewestUpdatedAt(t *testing.T) {
 	}
 }
 
+func TestPreferredInstanceDeployMachineUsesLocalMacOS2GBDefault(t *testing.T) {
+	t.Parallel()
+
+	options := []*pbApic.InstanceDeployFieldOption{
+		{Value: "vz-1c-1g"},
+		{Value: "vz-2c-2g"},
+	}
+	if got := preferredInstanceDeployMachine("local_macos", options); got != "vz-2c-2g" {
+		t.Fatalf("preferred local macOS machine = %q, want vz-2c-2g", got)
+	}
+	if got := preferredInstanceDeployMachine("hetzner", options); got != "vz-1c-1g" {
+		t.Fatalf("preferred non-local machine = %q, want first option", got)
+	}
+}
+
 func TestIsPublicExitIP(t *testing.T) {
 	t.Parallel()
 
@@ -112,5 +127,36 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 	}
 	if connected := statuses["connected-peer"]; connected == nil || !connected.GetConnected() {
 		t.Fatalf("connected status = %#v, want existing connected status preserved", connected)
+	}
+}
+
+func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
+	t.Parallel()
+
+	state := &pbApic.RuntimeState{
+		PeerId:         "local-peer",
+		StateProviders: []string{"provider-peer", "deleted-peer", "provider-peer"},
+		ConnectedPeers: []string{"provider-peer", "deleted-peer", "provider-peer"},
+		PeerStatuses: []*pbApic.RuntimePeerStatus{
+			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true},
+			{PeerId: "deleted-peer", Connected: true, Dialable: true, StateProvider: true},
+		},
+	}
+
+	filterRuntimePeerSurface(state, map[string]struct{}{
+		"provider-peer": {},
+	})
+
+	if got, want := state.GetStateProviders(), []string{"provider-peer"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("state providers = %#v, want %#v", got, want)
+	}
+	if got, want := state.GetConnectedPeers(), []string{"provider-peer"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("connected peers = %#v, want %#v", got, want)
+	}
+	if !state.GetPeerStatuses()[0].GetStateProvider() {
+		t.Fatal("known provider lost provider flag")
+	}
+	if len(state.GetPeerStatuses()) != 1 {
+		t.Fatalf("peer statuses count = %d, want 1", len(state.GetPeerStatuses()))
 	}
 }

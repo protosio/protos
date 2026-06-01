@@ -331,6 +331,8 @@ func (n *Node) Start() error {
 		{model: db.CLOUD_MACHINE_METADATA{}, notifier: dbNotifier},
 		{model: db.MACHINE{}, notifier: dbNotifier},
 		{model: db.PEER{}, notifier: dbNotifier},
+		{model: db.TASK{}, notifier: dbNotifier},
+		{model: db.TASK_EVENT{}, notifier: dbNotifier},
 		{model: db.EXIT_ROUTE{}, notifier: dbNotifier},
 		{model: db.USER{}, notifier: dbNotifier},
 		{model: db.USER_DEVICE_METADATA{}, notifier: dbNotifier},
@@ -344,6 +346,9 @@ func (n *Node) Start() error {
 		if err := n.DB.RegisterNotifier(db.APP{}, n.AppManager); err != nil {
 			return fmt.Errorf("failed to register app notifier: %w", err)
 		}
+	}
+	if n.capabilities.Provision {
+		n.stoppers["task-runner"] = n.CloudManager.StartTaskRunner(context.Background(), 2*time.Second)
 	}
 
 	log.Info("Started all servers successfully")
@@ -540,6 +545,7 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 	instances = membership.FilterInstances(instances, peerIDs)
+	instances = provisioners.ActiveInstances(instances)
 
 	witnessInstances, err := dbn.cm.GetInstances(false)
 	if err != nil {
@@ -547,6 +553,7 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 	witnessInstances = membership.FilterInstances(witnessInstances, peerIDs)
+	witnessInstances = provisioners.ActiveInstances(witnessInstances)
 
 	userDevices, err := dbn.um.GetAllDevices(false)
 	if err != nil {
@@ -557,6 +564,10 @@ func (dbn *DBNotifier) Notify() {
 
 	appRoutes := []network.AppRoute{}
 	if dbn.am != nil {
+		activeInstanceIDs := make(map[string]struct{}, len(instances))
+		for _, instance := range instances {
+			activeInstanceIDs[instance.ID] = struct{}{}
+		}
 		apps, err := dbn.am.GetAll()
 		if err != nil {
 			log.Error(fmt.Errorf("failed to retrieve apps for network routing: %w", err))
@@ -564,6 +575,9 @@ func (dbn *DBNotifier) Notify() {
 		}
 		for _, application := range apps {
 			if application.IP == nil {
+				continue
+			}
+			if _, found := activeInstanceIDs[application.InstanceID]; !found {
 				continue
 			}
 			appRoutes = append(appRoutes, network.AppRoute{

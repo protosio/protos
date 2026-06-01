@@ -8,8 +8,40 @@ LinuxKit based provisioner image creator for Protos.
 task mactest
 task macdev
 task scaleway
+task hetzner
+task cloud
+task image-contracts
 task pkg
 ```
+
+Use `Taskfile.yml` for image builds. Do not run `linuxkit build` directly for
+cloud images, because the Taskfile reads the provider boot contract from CUE
+and verifies the LinuxKit format before building.
+
+The cloud boot choices are encoded in the target CUE files:
+
+| Target | Firmware | LinuxKit format | Artifact |
+| --- | --- | --- | --- |
+| Scaleway | UEFI | `iso-efi` | `targets/output/scaleway/scaleway-efi.iso` |
+| Hetzner | BIOS | `raw-bios` | `targets/output/hetzner/hetzner-bios.img` |
+
+The Hetzner upload path creates a server snapshot, and Hetzner snapshots inherit
+the upload helper server disk size. The provisioner therefore chooses the
+smallest available x86 helper disk in the selected location before considering
+price, and refuses to upload when that helper would be larger than 40 GB. This
+keeps Protos snapshots bootable on Hetzner's smallest x86 VM sizes. The LinuxKit
+raw BIOS artifact itself remains compact. The 5-10 GB target applies to local
+Protos-managed disks and to raw artifacts where the provider does not impose a
+larger minimum.
+
+Hetzner must use `raw-bios` with the current server-snapshot upload flow:
+`iso-efi` snapshots are presented as an unreadable CD-ROM, and `raw-efi` lands
+in an EFI shell without a bootable filesystem mapping. Keep those observations
+encoded in CUE before changing the target format again.
+
+Local macOS test and development disks are fixed at 10 GB by the CUE contract
+and the Taskfile. Increase that only when the VM workload actually needs more
+space.
 
 The macOS targets emit `kernel+initrd` files for direct boot experiments and
 an EFI initrd ISO for the local macOS provisioner. The provisioner prefers the

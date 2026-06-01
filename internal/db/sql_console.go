@@ -29,6 +29,8 @@ type SQLResult struct {
 	Message      string
 }
 
+// ExecuteSQL exists only for the user-facing SQL console. Do not use it as an
+// internal ad hoc API surface; application code must use typed domain methods.
 func (db *DB) ExecuteSQL(ctx context.Context, statement string, maxRows int) (SQLResult, error) {
 	if db == nil {
 		return SQLResult{}, fmt.Errorf("db is not initialized")

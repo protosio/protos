@@ -167,6 +167,34 @@ class ProtosApi {
     );
   }
 
+  Future<pb.GetTasksResponse> tasks({
+    String status = '',
+    String stream = '',
+    String subjectType = '',
+    String subjectId = '',
+    int maxResults = 200,
+  }) {
+    return bridge.call(
+      'GetTasks',
+      pb.GetTasksRequest(
+        status: status,
+        stream: stream,
+        subjectType: subjectType,
+        subjectId: subjectId,
+        maxResults: maxResults,
+      ),
+      pb.GetTasksResponse.create,
+    );
+  }
+
+  Future<pb.GetTaskResponse> task(String id, {bool includeEvents = true}) {
+    return bridge.call(
+      'GetTask',
+      pb.GetTaskRequest(id: id, includeEvents: includeEvents),
+      pb.GetTaskResponse.create,
+    );
+  }
+
   Future<pb.GetInstanceDeployOptionsResponse> instanceDeployOptions({
     String provisioner = '',
     String location = '',

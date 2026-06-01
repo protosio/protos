@@ -53,6 +53,36 @@ package protos
 	id: string
 }
 
+#Task: {
+	id:            string
+	task_stream:   string
+	subject_type:  string
+	subject_id:    string
+	status:        string
+	title:         string
+	message:       string
+	progress:      int
+	payload:       _
+	result?:       _
+	error_message?: string
+	attempts:      int
+	max_attempts:  int
+	created_at:    string
+	updated_at:    string
+	started_at?:   string
+	finished_at?:  string
+}
+
+#TaskEvent: {
+	id:         string
+	task_id:    string
+	status:     string
+	message:    string
+	progress:   int
+	details?:   _
+	created_at: string
+}
+
 #ExitRoute: {
 	id:             string
 	device_id:      string
@@ -163,6 +193,52 @@ contract: {
 					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
 				]
 				indexes: []
+			},
+			{
+				name: "tasks"
+				go: name: "TASK"
+				columns: [
+					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "task_stream", type: "VARCHAR(255)", not_null: true, go: {name: "TASK_STREAM", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "subject_type", type: "VARCHAR(255)", not_null: true, go: {name: "SUBJECT_TYPE", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "subject_id", type: "VARCHAR(255)", not_null: true, go: {name: "SUBJECT_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "status", type: "VARCHAR(64)", not_null: true, go: {name: "STATUS", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "title", type: "VARCHAR(255)", not_null: true, go: {name: "TITLE", sq_type: "StringField", ddl: "notnull"}},
+					{name: "message", type: "TEXT", not_null: true, go: {name: "MESSAGE", sq_type: "StringField", ddl: "notnull"}},
+					{name: "progress", type: "INT", not_null: true, go: {name: "PROGRESS", sq_type: "NumberField", ddl: "notnull"}},
+					{name: "payload", type: "JSON", not_null: true, go: {name: "PAYLOAD", sq_type: "JSONField", ddl: "notnull"}},
+					{name: "result", type: "JSON", go: {name: "RESULT", sq_type: "JSONField"}},
+					{name: "error_message", type: "TEXT", go: {name: "ERROR_MESSAGE", sq_type: "StringField"}},
+					{name: "attempts", type: "INT", not_null: true, go: {name: "ATTEMPTS", sq_type: "NumberField", ddl: "notnull"}},
+					{name: "max_attempts", type: "INT", not_null: true, go: {name: "MAX_ATTEMPTS", sq_type: "NumberField", ddl: "notnull"}},
+					{name: "created_at", type: "VARCHAR(64)", not_null: true, go: {name: "CREATED_AT", sq_type: "StringField", ddl: "notnull"}},
+					{name: "updated_at", type: "VARCHAR(64)", not_null: true, go: {name: "UPDATED_AT", sq_type: "StringField", ddl: "notnull"}},
+					{name: "started_at", type: "VARCHAR(64)", go: {name: "STARTED_AT", sq_type: "StringField"}},
+					{name: "finished_at", type: "VARCHAR(64)", go: {name: "FINISHED_AT", sq_type: "StringField"}},
+				]
+				indexes: [
+					{name: "tasks_task_stream_idx", columns: ["task_stream"]},
+					{name: "tasks_subject_type_idx", columns: ["subject_type"]},
+					{name: "tasks_subject_id_idx", columns: ["subject_id"]},
+					{name: "tasks_status_idx", columns: ["status"]},
+				]
+			},
+			{
+				name: "task_events"
+				go: name: "TASK_EVENT"
+				columns: [
+					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "task_id", type: "VARCHAR(255)", not_null: true, go: {name: "TASK_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "status", type: "VARCHAR(64)", not_null: true, go: {name: "STATUS", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "message", type: "TEXT", not_null: true, go: {name: "MESSAGE", sq_type: "StringField", ddl: "notnull"}},
+					{name: "progress", type: "INT", not_null: true, go: {name: "PROGRESS", sq_type: "NumberField", ddl: "notnull"}},
+					{name: "details", type: "JSON", go: {name: "DETAILS", sq_type: "JSONField"}},
+					{name: "created_at", type: "VARCHAR(64)", not_null: true, go: {name: "CREATED_AT", sq_type: "StringField", ddl: "notnull"}},
+				]
+				indexes: [
+					{name: "task_events_task_id_idx", columns: ["task_id"]},
+					{name: "task_events_status_idx", columns: ["status"]},
+				]
 			},
 			{
 				name: "exit_routes"

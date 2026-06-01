@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HostAgent_Apply_FullMethodName  = "/hostagent.HostAgent/Apply"
-	HostAgent_Status_FullMethodName = "/hostagent.HostAgent/Status"
+	HostAgent_Apply_FullMethodName    = "/hostagent.HostAgent/Apply"
+	HostAgent_Status_FullMethodName   = "/hostagent.HostAgent/Status"
+	HostAgent_Shutdown_FullMethodName = "/hostagent.HostAgent/Shutdown"
 )
 
 // HostAgentClient is the client API for HostAgent service.
@@ -29,6 +30,7 @@ const (
 type HostAgentClient interface {
 	Apply(ctx context.Context, in *ApplyRequest, opts ...grpc.CallOption) (*ApplyResponse, error)
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
+	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
 }
 
 type hostAgentClient struct {
@@ -59,12 +61,23 @@ func (c *hostAgentClient) Status(ctx context.Context, in *StatusRequest, opts ..
 	return out, nil
 }
 
+func (c *hostAgentClient) Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ShutdownResponse)
+	err := c.cc.Invoke(ctx, HostAgent_Shutdown_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostAgentServer is the server API for HostAgent service.
 // All implementations should embed UnimplementedHostAgentServer
 // for forward compatibility.
 type HostAgentServer interface {
 	Apply(context.Context, *ApplyRequest) (*ApplyResponse, error)
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
+	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
 }
 
 // UnimplementedHostAgentServer should be embedded to have
@@ -79,6 +92,9 @@ func (UnimplementedHostAgentServer) Apply(context.Context, *ApplyRequest) (*Appl
 }
 func (UnimplementedHostAgentServer) Status(context.Context, *StatusRequest) (*StatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Status not implemented")
+}
+func (UnimplementedHostAgentServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Shutdown not implemented")
 }
 func (UnimplementedHostAgentServer) testEmbeddedByValue() {}
 
@@ -136,6 +152,24 @@ func _HostAgent_Status_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostAgent_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShutdownRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostAgentServer).Shutdown(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostAgent_Shutdown_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostAgentServer).Shutdown(ctx, req.(*ShutdownRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostAgent_ServiceDesc is the grpc.ServiceDesc for HostAgent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -150,6 +184,10 @@ var HostAgent_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Status",
 			Handler:    _HostAgent_Status_Handler,
+		},
+		{
+			MethodName: "Shutdown",
+			Handler:    _HostAgent_Shutdown_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

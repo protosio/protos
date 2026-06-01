@@ -12,6 +12,20 @@ vars:
   WORKDIR: ./targets/output
 
 tasks:
+  image-contracts:
+    desc: Print provider image build contracts from CUE.
+    cmds:
+      - cue export --out yaml -e '#protosImage' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_scaleway.cue
+      - cue export --out yaml -e '#protosImage' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_hetzner.cue
+      - cue export --out yaml -e '#protosImage' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_mactest.cue
+      - cue export --out yaml -e '#protosImage' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_macdev.cue
+
+  cloud:
+    desc: Build cloud images in the canonical provider order.
+    cmds:
+      - task scaleway
+      - task hetzner
+
   output-dir:
     internal: true
     cmds:
@@ -71,11 +85,22 @@ tasks:
       - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/cue {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
       - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/declarative {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
       - |
+        if [ "{{.PROTOS_IMAGE_PLATFORM}}" = "linux/amd64" ]; then
+          mkdir -p {{.DOCKER_CONTEXT}}/backend/bin
+          cd ..
+          env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" \
+            go build -ldflags '-w' -o {{.DOCKER_CONTEXT}}/backend/bin/protosd ./cmd/protosd
+        fi
+      - |
         platform_args=""
+        prebuilt_args=""
         if [ -n "{{.PROTOS_IMAGE_PLATFORM}}" ]; then
           platform_args="--platform {{.PROTOS_IMAGE_PLATFORM}}"
         fi
-        docker build $platform_args -f {{.DOCKER_CONTEXT}}/backend/Dockerfile --build-arg PROTOS_BUILD_DIR=backend --build-arg PROTOS_NATIVE_GO_TAGS={{.NATIVE_GO_TAGS}} -t {{.PROTOS_IMAGE}} {{.DOCKER_CONTEXT}}
+        if [ "{{.PROTOS_IMAGE_PLATFORM}}" = "linux/amd64" ]; then
+          prebuilt_args="--build-arg PROTOS_USE_PREBUILT=1"
+        fi
+        docker build $platform_args -f {{.DOCKER_CONTEXT}}/backend/Dockerfile --build-arg PROTOS_BUILD_DIR=backend --build-arg PROTOS_NATIVE_GO_TAGS={{.NATIVE_GO_TAGS}} $prebuilt_args -t {{.PROTOS_IMAGE}} {{.DOCKER_CONTEXT}}
 
   macdev:
     desc: Build the local macOS development kernel+initrd and EFI initrd ISO images.
@@ -85,9 +110,12 @@ tasks:
       - mkdir {{.WORKDIR}}/macdev
       - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_macdev.cue > {{.WORKDIR}}/macdev/macdev.yaml
       - |
+        arch="$(cue export --out text -e '#protosImage.linuxkit.arch' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_macdev.cue)"
+        format_a="$(cue export --out text -e '#protosImage.linuxkit.formats[0]' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_macdev.cue)"
+        format_b="$(cue export --out text -e '#protosImage.linuxkit.formats[1]' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_macdev.cue)"
         HOST_HOME="$HOME"
-        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch arm64 --format kernel+initrd --format iso-efi-initrd --dir {{.WORKDIR}}/macdev {{.WORKDIR}}/macdev/macdev.yaml
-      - truncate -s 30G {{.WORKDIR}}/macdev/macdev-disk.img
+        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch "$arch" --format "$format_a" --format "$format_b" --dir {{.WORKDIR}}/macdev {{.WORKDIR}}/macdev/macdev.yaml
+      - truncate -s "$(cue export --out text -e '#protosImage.linuxkit.imageSize' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_macdev.cue)" {{.WORKDIR}}/macdev/macdev-disk.img
 
   mactest:
     desc: Build the local macOS test kernel+initrd and EFI initrd ISO images.
@@ -97,9 +125,12 @@ tasks:
       - mkdir {{.WORKDIR}}/mactest
       - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_mactest.cue > {{.WORKDIR}}/mactest/mactest.yaml
       - |
+        arch="$(cue export --out text -e '#protosImage.linuxkit.arch' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_mactest.cue)"
+        format_a="$(cue export --out text -e '#protosImage.linuxkit.formats[0]' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_mactest.cue)"
+        format_b="$(cue export --out text -e '#protosImage.linuxkit.formats[1]' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_mactest.cue)"
         HOST_HOME="$HOME"
-        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch arm64 --format kernel+initrd --format iso-efi-initrd --dir {{.WORKDIR}}/mactest {{.WORKDIR}}/mactest/mactest.yaml
-      - truncate -s 30G {{.WORKDIR}}/mactest/mactest-disk.img
+        DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch "$arch" --format "$format_a" --format "$format_b" --dir {{.WORKDIR}}/mactest {{.WORKDIR}}/mactest/mactest.yaml
+      - truncate -s "$(cue export --out text -e '#protosImage.linuxkit.imageSize' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_mactest.cue)" {{.WORKDIR}}/mactest/mactest-disk.img
 
   scaleway:
     desc: Build the Scaleway AMD64 EFI ISO image.
@@ -110,11 +141,18 @@ tasks:
       - mkdir {{.WORKDIR}}/scaleway
       - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_scaleway.cue > {{.WORKDIR}}/scaleway/scaleway.yaml
       - |
+        arch="$(cue export --out text -e '#protosImage.linuxkit.arch' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_scaleway.cue)"
+        format="$(cue export --out text -e '#protosImage.linuxkit.formats[0]' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_scaleway.cue)"
+        firmware="$(cue export --out text -e '#protosImage.boot.firmware' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_scaleway.cue)"
+        if [ "$firmware:$format" != "uefi:iso-efi" ]; then
+          echo "Scaleway image contract must be uefi:iso-efi, got $firmware:$format" >&2
+          exit 1
+        fi
         HOST_HOME="$HOME"
-        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format iso-efi --dir {{.WORKDIR}}/scaleway {{.WORKDIR}}/scaleway/scaleway.yaml
+        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch "$arch" --format "$format" --dir {{.WORKDIR}}/scaleway {{.WORKDIR}}/scaleway/scaleway.yaml
 
   hetzner:
-    desc: Build the Hetzner AMD64 BIOS disk image.
+    desc: Build the Hetzner AMD64 BIOS raw disk image.
     deps: [output-dir]
     cmds:
       - task protosd-image PROTOS_IMAGE_PLATFORM=linux/amd64
@@ -122,8 +160,15 @@ tasks:
       - mkdir {{.WORKDIR}}/hetzner
       - cue export --out yaml {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_hetzner.cue > {{.WORKDIR}}/hetzner/hetzner.yaml
       - |
+        arch="$(cue export --out text -e '#protosImage.linuxkit.arch' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_hetzner.cue)"
+        format="$(cue export --out text -e '#protosImage.linuxkit.formats[0]' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_hetzner.cue)"
+        firmware="$(cue export --out text -e '#protosImage.boot.firmware' {{.TARGETS}}/target_common.cue {{.TARGETS}}/target_hetzner.cue)"
+        if [ "$firmware:$format" != "bios:raw-bios" ]; then
+          echo "Hetzner image contract must be bios:raw-bios, got $firmware:$format" >&2
+          exit 1
+        fi
         HOST_HOME="$HOME"
-        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch amd64 --format raw-bios --dir {{.WORKDIR}}/hetzner {{.WORKDIR}}/hetzner/hetzner.yaml
+        DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_CONFIG={{.DOCKER_CONFIG}} HOME={{.DOCKER_HOME}} LINUXKIT_CACHE="${LINUXKIT_CACHE:-$HOST_HOME/.linuxkit/cache}" {{.LINUXKIT}} build --docker --arch "$arch" --format "$format" --dir {{.WORKDIR}}/hetzner {{.WORKDIR}}/hetzner/hetzner.yaml
 
   syncstart:
     desc: Start a Mutagen sync session into the local VM.

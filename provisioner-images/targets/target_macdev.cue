@@ -2,6 +2,23 @@ package cloudkit
 
 import "list"
 
+#protosImage: #imageContract & {
+	provider: "local-macos-dev"
+	boot: {
+		firmware: "direct-kernel"
+		notes: ["The local development VM uses kernel+initrd directly, with an EFI initrd ISO available for fallback."]
+	}
+	linuxkit: {
+		arch: "arm64"
+		formats: ["kernel+initrd", "iso-efi-initrd"]
+		imageSize: "10G"
+		outputFiles: ["macdev-kernel", "macdev-initrd.img", "macdev-efi-initrd.iso", "macdev-disk.img"]
+	}
+	devices: {
+		root: "/dev/vda"
+	}
+}
+
 //
 // kernel
 //

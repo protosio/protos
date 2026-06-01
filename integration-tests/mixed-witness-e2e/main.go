@@ -30,12 +30,15 @@ import (
 	"github.com/protosio/protos/provisioners/hetzner"
 	"github.com/protosio/protos/provisioners/local_macos"
 	"github.com/protosio/protos/provisioners/scaleway"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/status"
 	swarmionapp "swarmion.dev/runtime/app"
 )
 
 type noopAppManager struct{}
+
+func (noopAppManager) GetAppID(string) (string, error) {
+	return "", fmt.Errorf("apps are not available in the e2e harness local p2p manager")
+}
 
 func (noopAppManager) GetLogs(string) ([]byte, error) {
 	return nil, fmt.Errorf("logs are not available in the e2e harness")
@@ -66,9 +69,9 @@ func main() {
 	timeout := flag.Duration("timeout", 45*time.Minute, "overall verification timeout")
 	imageUploadTimeout := flag.Duration("image-upload-timeout", 30*time.Minute, "per-provider cloud image upload timeout")
 	localMachine := flag.String("local-machine", "vz-2c-2g", "local macOS machine type")
-	hetznerImage := flag.String("hetzner-image", "provisioner-images/targets/output/hetzner/hetzner-bios.img", "Hetzner BIOS disk image to upload")
-	hetznerMachine := flag.String("hetzner-machine", "cpx22", "Hetzner machine type")
-	hetznerLocation := flag.String("hetzner-location", "hel1", "Hetzner location")
+	hetznerImage := flag.String("hetzner-image", "provisioner-images/targets/output/hetzner/hetzner-bios.img", "Hetzner BIOS raw disk image to upload")
+	hetznerMachine := flag.String("hetzner-machine", "cpx11", "Hetzner machine type")
+	hetznerLocation := flag.String("hetzner-location", "ash", "Hetzner location")
 	hetznerEnv := flag.String("hetzner-env", ".env-hetzner", "Hetzner credential env file")
 	scalewayImage := flag.String("scaleway-image", "provisioner-images/targets/output/scaleway/scaleway-efi.iso", "Scaleway EFI image to upload")
 	scalewayMachine := flag.String("scaleway-machine", "DEV1-S", "Scaleway machine type")
@@ -226,6 +229,10 @@ func run(cfg harnessConfig) error {
 	if err != nil {
 		return fmt.Errorf("create provisioner manager: %w", err)
 	}
+	taskStop := cloudManager.StartTaskRunner(context.Background(), 500*time.Millisecond)
+	defer func() {
+		_ = taskStop()
+	}()
 
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	localProviderName := "local-e2e-" + suffix
@@ -248,6 +255,15 @@ func run(cfg harnessConfig) error {
 			_ = cloudManager.DeleteProvisioner(providerName)
 		}
 	}()
+	removeCleanupInstance := func(name string) {
+		for i, cleanupName := range cleanupInstances {
+			if cleanupName != name {
+				continue
+			}
+			cleanupInstances = append(cleanupInstances[:i], cleanupInstances[i+1:]...)
+			return
+		}
+	}
 
 	if err := cloudManager.AddProvisioner(localProviderName, localmacos.Type.String(), map[string]string{"VM_DIR": vmDir}); err != nil {
 		return fmt.Errorf("add local macOS provisioner: %w", err)
@@ -307,11 +323,14 @@ func run(cfg harnessConfig) error {
 
 	var deployed []provisioners.InstanceInfo
 	deploy := func(name string, provider string, location string, machine string) (provisioners.InstanceInfo, error) {
-		instance, err := cloudManager.DeployInstance(name, provider, location, rel, machine)
-		if err != nil {
+		if _, err := cloudManager.DeployInstance(name, provider, location, rel, machine); err != nil {
 			return provisioners.InstanceInfo{}, err
 		}
 		cleanupInstances = append(cleanupInstances, name)
+		instance, err := waitForInstanceReady(deadline, cloudManager, name)
+		if err != nil {
+			return provisioners.InstanceInfo{}, err
+		}
 		deployed = append(deployed, instance)
 		fmt.Printf("deployed instance: name=%s id=%s kind=%s provider=%s ip=%s arch=%s status=%s\n", instance.Name, instance.ID, instance.Kind, provider, instance.PublicIP, instance.Architecture, instance.Status)
 		return instance, nil
@@ -426,7 +445,81 @@ func run(cfg harnessConfig) error {
 	if err := waitForAllRemoteHeads(deadline, store, clients, deployed); err != nil {
 		return err
 	}
-	if err := verifyCloudAppConnectivity(deadline, cloudManager, clients, hetznerVM, scalewayVM, appPair); err != nil {
+	if err := verifyCloudAppConnectivity(deadline, clients, hetznerVM, scalewayVM, appPair); err != nil {
+		return err
+	}
+
+	if err := deleteInstanceAndVerify(deadline, store, cloudManager, userManager, p2pManager, networkManager, localVM1, removeCleanupInstance); err != nil {
+		return err
+	}
+	if err := waitForWitnessState(deadline, store, cloudManager, userManager, p2pManager, networkManager, witnessExpectation{
+		label:         "cloud witness pair remains after first local VM deletion",
+		required:      []string{hetznerVM.ID, scalewayVM.ID},
+		allowed:       []string{hetznerVM.ID, scalewayVM.ID},
+		count:         2,
+		requireActive: true,
+		ranks: map[string]int{
+			localKey.GetID(): localClientRank,
+			localVM2.ID:      localVMRank,
+			hetznerVM.ID:     cloudVMRank,
+			scalewayVM.ID:    cloudVMRank,
+		},
+	}); err != nil {
+		return err
+	}
+
+	if err := deleteInstanceAndVerify(deadline, store, cloudManager, userManager, p2pManager, networkManager, localVM2, removeCleanupInstance); err != nil {
+		return err
+	}
+	if err := waitForWitnessState(deadline, store, cloudManager, userManager, p2pManager, networkManager, witnessExpectation{
+		label:         "cloud witness pair remains after second local VM deletion",
+		required:      []string{hetznerVM.ID, scalewayVM.ID},
+		allowed:       []string{hetznerVM.ID, scalewayVM.ID},
+		count:         2,
+		requireActive: true,
+		ranks: map[string]int{
+			localKey.GetID(): localClientRank,
+			hetznerVM.ID:     cloudVMRank,
+			scalewayVM.ID:    cloudVMRank,
+		},
+	}); err != nil {
+		return err
+	}
+
+	if err := deleteInstanceAndVerify(deadline, store, cloudManager, userManager, p2pManager, networkManager, hetznerVM, removeCleanupInstance); err != nil {
+		return err
+	}
+	if err := waitForWitnessState(deadline, store, cloudManager, userManager, p2pManager, networkManager, witnessExpectation{
+		label:    "single remaining cloud VM falls back behind laptop after Hetzner deletion",
+		required: []string{localKey.GetID()},
+		allowed:  []string{localKey.GetID(), scalewayVM.ID},
+		count:    1,
+		ranks: map[string]int{
+			localKey.GetID(): localClientRank,
+			scalewayVM.ID:    cloudVMRank,
+		},
+	}); err != nil {
+		return err
+	}
+
+	if err := deleteInstanceAndVerify(deadline, store, cloudManager, userManager, p2pManager, networkManager, scalewayVM, removeCleanupInstance); err != nil {
+		return err
+	}
+	if err := waitForWitnessState(deadline, store, cloudManager, userManager, p2pManager, networkManager, witnessExpectation{
+		label:    "local laptop remains after all VM deletion",
+		required: []string{localKey.GetID()},
+		allowed:  []string{localKey.GetID()},
+		count:    1,
+		ranks: map[string]int{
+			localKey.GetID(): localClientRank,
+		},
+	}); err != nil {
+		return err
+	}
+	if err := waitForNoInstances(deadline, cloudManager); err != nil {
+		return err
+	}
+	if err := waitForNoApps(deadline, store); err != nil {
 		return err
 	}
 
@@ -708,7 +801,7 @@ func reconcileTopology(
 		return nil, nil, err
 	}
 	if networkManager != nil {
-		routes, err := appRoutes(store)
+		routes, err := appRoutes(store, instances)
 		if err != nil {
 			return nil, nil, fmt.Errorf("load app routes: %w", err)
 		}
@@ -725,14 +818,21 @@ func reconcileTopology(
 	return instances, devices, nil
 }
 
-func appRoutes(store *db.DB) ([]protosnetwork.AppRoute, error) {
+func appRoutes(store *db.DB, instances []provisioners.InstanceInfo) ([]protosnetwork.AppRoute, error) {
 	apps, err := protosapp.CreateManager("", nil, store).GetAll()
 	if err != nil {
 		return nil, err
 	}
+	activeInstanceIDs := make(map[string]struct{}, len(instances))
+	for _, instance := range instances {
+		activeInstanceIDs[instance.ID] = struct{}{}
+	}
 	routes := make([]protosnetwork.AppRoute, 0, len(apps))
 	for _, app := range apps {
 		if app.IP == nil || strings.TrimSpace(app.InstanceID) == "" {
+			continue
+		}
+		if _, found := activeInstanceIDs[app.InstanceID]; !found {
 			continue
 		}
 		routes = append(routes, protosnetwork.AppRoute{
@@ -796,6 +896,225 @@ func describeExpectation(expect witnessExpectation) string {
 	return fmt.Sprintf("expectation %q count=%d required=%v allowed=%v", expect.label, expect.count, expect.required, expect.allowed)
 }
 
+func waitForInstanceReady(deadline time.Time, cloudManager *provisioners.Manager, name string) (provisioners.InstanceInfo, error) {
+	var lastStatus string
+	for time.Now().Before(deadline) {
+		instance, err := cloudManager.GetInstance(name)
+		if err == nil {
+			lastStatus = instance.Status
+			if strings.TrimSpace(instance.PublicKey) != "" && !strings.HasPrefix(instance.ID, "pending-") {
+				return instance, nil
+			}
+			if strings.Contains(strings.ToLower(instance.Status), "failed") || strings.Contains(strings.ToLower(instance.Status), "cancelled") {
+				return provisioners.InstanceInfo{}, fmt.Errorf("deployment for %s ended with status %q", name, instance.Status)
+			}
+		} else {
+			lastStatus = err.Error()
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return provisioners.InstanceInfo{}, fmt.Errorf("instance %s did not become ready before deadline; last status: %s", name, lastStatus)
+}
+
+func deleteInstanceAndVerify(
+	deadline time.Time,
+	store *db.DB,
+	cloudManager *provisioners.Manager,
+	userManager *user.Manager,
+	p2pManager *p2p.P2P,
+	networkManager *protosnetwork.Manager,
+	instance provisioners.InstanceInfo,
+	removeCleanup func(string),
+) error {
+	fmt.Printf("deleting instance: name=%s id=%s kind=%s provider=%s\n", instance.Name, instance.ID, instance.Kind, instance.KindID)
+	if err := cloudManager.DeleteInstance(instance.Name); err != nil {
+		return fmt.Errorf("delete instance %s: %w", instance.Name, err)
+	}
+	if removeCleanup != nil {
+		removeCleanup(instance.Name)
+	}
+	if err := waitForInstanceAbsent(deadline, cloudManager, instance); err != nil {
+		return err
+	}
+	if err := waitForNoAppsForInstance(deadline, store, instance.ID); err != nil {
+		return err
+	}
+	if _, _, err := reconcileTopology(store, cloudManager, userManager, p2pManager, networkManager); err != nil {
+		return err
+	}
+	if err := waitForSwarmionPeerRemoved(deadline, store, instance.ID); err != nil {
+		return err
+	}
+	fmt.Printf("delete assertion ok: name=%s id=%s\n", instance.Name, instance.ID)
+	return nil
+}
+
+func waitForInstanceAbsent(deadline time.Time, cloudManager *provisioners.Manager, instance provisioners.InstanceInfo) error {
+	var lastErr error
+	for time.Now().Before(deadline) {
+		nameAbsent, nameErr := instanceLookupAbsent(cloudManager, instance.Name)
+		idAbsent, idErr := instanceLookupAbsent(cloudManager, instance.ID)
+		if nameAbsent && idAbsent {
+			return nil
+		}
+		lastErr = fmt.Errorf("instance still present by name err=%q by id err=%q", nameErr, idErr)
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("instance %s remained in the declarative DB after deletion: %w", instance.Name, lastErr)
+}
+
+func instanceLookupAbsent(cloudManager *provisioners.Manager, id string) (bool, string) {
+	_, err := cloudManager.GetInstance(id)
+	if err == nil {
+		return false, "<nil>"
+	}
+	return true, err.Error()
+}
+
+func waitForNoAppsForInstance(deadline time.Time, store *db.DB, instanceID string) error {
+	var lastErr error
+	for time.Now().Before(deadline) {
+		apps, err := protosapp.CreateManager("", nil, store).GetAll()
+		if err != nil {
+			lastErr = err
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		var names []string
+		for _, app := range apps {
+			if app.InstanceID == instanceID {
+				names = append(names, app.Name)
+			}
+		}
+		if len(names) == 0 {
+			return nil
+		}
+		lastErr = fmt.Errorf("apps still reference instance %s: %v", instanceID, names)
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("apps remained after instance %s deletion: %w", instanceID, lastErr)
+}
+
+func waitForSwarmionPeerRemoved(deadline time.Time, store *db.DB, peerID string) error {
+	var lastErr error
+	var lastReport time.Time
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		catchUpErr := store.CatchUpFinalized(ctx, "mixed e2e verify deprovision")
+		peerStatuses, peerStatusErr := store.SwarmionPeerStatus(ctx)
+		cancel()
+		if catchUpErr != nil {
+			lastErr = catchUpErr
+		} else if peerStatusErr != nil {
+			lastErr = peerStatusErr
+		} else if err := assertPeerAbsentFromPeerTable(store, peerID); err != nil {
+			lastErr = err
+		} else {
+			status, ok := store.SwarmionStatus()
+			if !ok {
+				lastErr = fmt.Errorf("swarmion status is unavailable")
+			} else if err := assertPeerAbsentFromSwarmionStatus(status, peerStatuses, peerID); err != nil {
+				lastErr = err
+			} else {
+				return nil
+			}
+		}
+		if time.Since(lastReport) >= 30*time.Second {
+			lastReport = time.Now()
+			if status, ok := store.SwarmionStatus(); ok {
+				fmt.Printf("waiting for swarmion peer removal: peer=%s err=%v active=%v eligible=%v providers=%v connected=%v\n", peerID, lastErr, status.ActiveWitnessIDs, status.EligibleWitnessIDs, status.StateProviders, status.ConnectedPeers)
+			} else {
+				fmt.Printf("waiting for swarmion peer removal: peer=%s err=%v\n", peerID, lastErr)
+			}
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return fmt.Errorf("swarmion peer %s remained after deletion: %w", peerID, lastErr)
+}
+
+func assertPeerAbsentFromPeerTable(store *db.DB, peerID string) error {
+	peerIDs, err := db.GetPeerIDs(store)
+	if err != nil {
+		return err
+	}
+	if _, found := peerIDs[peerID]; found {
+		return fmt.Errorf("peer table still contains %s", peerID)
+	}
+	return nil
+}
+
+func assertPeerAbsentFromSwarmionStatus(status swarmionapp.Status, peerStatuses []swarmionapp.PeerStatus, peerID string) error {
+	if stringSet(status.ActiveWitnessIDs)[peerID] {
+		return fmt.Errorf("active witnesses still contain %s", peerID)
+	}
+	if stringSet(status.EligibleWitnessIDs)[peerID] {
+		return fmt.Errorf("eligible witnesses still contain %s", peerID)
+	}
+	if rank, found := status.EligibleWitnessRanks[peerID]; found && rank > 0 {
+		return fmt.Errorf("eligible witness rank for %s is still %d", peerID, rank)
+	}
+	if stringSet(status.StateProviders)[peerID] {
+		return fmt.Errorf("state providers still contain %s", peerID)
+	}
+	if stringSet(status.ConnectedPeers)[peerID] {
+		return fmt.Errorf("connected peers still contain %s", peerID)
+	}
+	for _, peerStatus := range peerStatuses {
+		if peerStatus.PeerID != peerID {
+			continue
+		}
+		if peerStatus.Connected || peerStatus.Dialable || peerStatus.StateProvider || peerStatus.Witness || peerStatus.EligibleWitness {
+			return fmt.Errorf("swarmion peer status still has active flags for %s: connected=%t dialable=%t provider=%t witness=%t eligible=%t", peerID, peerStatus.Connected, peerStatus.Dialable, peerStatus.StateProvider, peerStatus.Witness, peerStatus.EligibleWitness)
+		}
+		return fmt.Errorf("swarmion peer status still contains %s without active flags", peerID)
+	}
+	return nil
+}
+
+func waitForNoInstances(deadline time.Time, cloudManager *provisioners.Manager) error {
+	var lastErr error
+	for time.Now().Before(deadline) {
+		instances, err := cloudManager.GetInstancesWithUpdatedStatus()
+		if err != nil {
+			lastErr = err
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		if len(instances) == 0 {
+			return nil
+		}
+		names := make([]string, 0, len(instances))
+		for _, instance := range instances {
+			names = append(names, instance.Name)
+		}
+		lastErr = fmt.Errorf("instances still present: %v", names)
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("instances remained after e2e deprovision: %w", lastErr)
+}
+
+func waitForNoApps(deadline time.Time, store *db.DB) error {
+	var lastErr error
+	for time.Now().Before(deadline) {
+		apps, err := protosapp.CreateManager("", nil, store).GetAll()
+		if err != nil {
+			lastErr = err
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		if len(apps) == 0 {
+			return nil
+		}
+		names := make([]string, 0, len(apps))
+		for _, app := range apps {
+			names = append(names, app.Name)
+		}
+		lastErr = fmt.Errorf("apps still present: %v", names)
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("apps remained after e2e deprovision: %w", lastErr)
+}
+
 func stringSet(values []string) map[string]bool {
 	out := make(map[string]bool, len(values))
 	for _, value := range values {
@@ -852,6 +1171,7 @@ func declarativePeers(store *db.DB, cloudManager *provisioners.Manager, userMana
 		return nil, nil, err
 	}
 	instances = membership.FilterInstances(instances, peerIDs)
+	instances = provisioners.ActiveInstances(instances)
 	devices, err := userManager.GetAllDevices(false)
 	if err != nil {
 		return nil, nil, err
@@ -996,7 +1316,6 @@ func createCloudAppConnectivityPair(
 
 func verifyCloudAppConnectivity(
 	deadline time.Time,
-	cloudManager *provisioners.Manager,
 	clients map[string]*p2p.Client,
 	hetznerVM provisioners.InstanceInfo,
 	scalewayVM provisioners.InstanceInfo,
@@ -1015,10 +1334,10 @@ func verifyCloudAppConnectivity(
 		return err
 	}
 
-	if err := waitForContainerHTTPToApp(deadline, cloudManager, hetznerVM, hetznerApp, scalewayApp); err != nil {
+	if err := waitForContainerHTTPToApp(deadline, hetznerVM, clients[hetznerVM.Name], hetznerApp, scalewayApp); err != nil {
 		return err
 	}
-	if err := waitForContainerHTTPToApp(deadline, cloudManager, scalewayVM, scalewayApp, hetznerApp); err != nil {
+	if err := waitForContainerHTTPToApp(deadline, scalewayVM, clients[scalewayVM.Name], scalewayApp, hetznerApp); err != nil {
 		return err
 	}
 	return nil
@@ -1063,13 +1382,16 @@ func waitForRemoteAppStatus(deadline time.Time, client *p2p.Client, instanceName
 
 func waitForContainerHTTPToApp(
 	deadline time.Time,
-	cloudManager *provisioners.Manager,
 	source provisioners.InstanceInfo,
+	client *p2p.Client,
 	sourceApp *protosapp.App,
 	targetApp *protosapp.App,
 ) error {
 	if sourceApp == nil || targetApp == nil {
 		return fmt.Errorf("source and target apps are required")
+	}
+	if client == nil {
+		return fmt.Errorf("missing p2p client for %s", source.Name)
 	}
 	if targetApp.IP == nil {
 		return fmt.Errorf("target app %s has no overlay IP", targetApp.Name)
@@ -1078,21 +1400,24 @@ func waitForContainerHTTPToApp(
 	var lastReport time.Time
 	for time.Now().Before(deadline) {
 		url := fmt.Sprintf("http://[%s]/", targetApp.IP.String())
-		inner := fmt.Sprintf("wget -q -T 8 -O - %s", shellQuote(url))
-		pidFile := fmt.Sprintf("/run/containerd/io.containerd.runtime.v2.task/protos/%s/init.pid", sourceApp.ID)
-		hostInner := fmt.Sprintf(
-			"pid=$(cat %s 2>/dev/null) && [ -n \"$pid\" ] && nsenter -t \"$pid\" -m -n /bin/sh -lc %s",
-			shellQuote(pidFile),
-			shellQuote(inner),
-		)
-		command := fmt.Sprintf("nsenter -t 1 -m -- /bin/sh -lc %s", shellQuote(hostInner))
-		output, err := runSSHCommandOnInstance(cloudManager, source, command)
-		if err == nil && strings.TrimSpace(output) != "" {
-			fmt.Printf("app connectivity ok: source_instance=%s source_app=%s target_app=%s target_ip=%s bytes=%d\n", source.Name, sourceApp.Name, targetApp.Name, targetApp.IP.String(), len(output))
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		resp, err := client.ProbeAppHTTP(ctx, &p2pproto.ProbeAppHTTPRequest{
+			AppName:        sourceApp.Name,
+			Url:            url,
+			TimeoutSeconds: 8,
+			MaxBytes:       4096,
+		})
+		cancel()
+		if err == nil && len(resp.GetBody()) > 0 {
+			fmt.Printf("app connectivity ok: source_instance=%s source_app=%s target_app=%s target_ip=%s bytes=%d\n", source.Name, sourceApp.Name, targetApp.Name, targetApp.IP.String(), len(resp.GetBody()))
 			return nil
 		}
 		if err != nil {
-			lastErr = fmt.Errorf("%w: %s", err, strings.TrimSpace(output))
+			if st, ok := status.FromError(err); ok {
+				lastErr = fmt.Errorf("%s", st.Message())
+			} else {
+				lastErr = err
+			}
 		} else {
 			lastErr = fmt.Errorf("empty HTTP response from %s", url)
 		}
@@ -1103,27 +1428,6 @@ func waitForContainerHTTPToApp(
 		time.Sleep(5 * time.Second)
 	}
 	return fmt.Errorf("app %s on %s could not reach app %s over the overlay: %w", sourceApp.Name, source.Name, targetApp.Name, lastErr)
-}
-
-func runSSHCommandOnInstance(cloudManager *provisioners.Manager, instance provisioners.InstanceInfo, command string) (string, error) {
-	privateKey, err := cloudManager.GetInstanceSSHKey(instance.ID)
-	if err != nil {
-		return "", fmt.Errorf("load SSH key for %s: %w", instance.Name, err)
-	}
-	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
-	if err != nil {
-		return "", fmt.Errorf("parse SSH key for %s: %w", instance.Name, err)
-	}
-	conn, err := pcrypto.NewConnection(instance.PublicIP, "root", ssh.PublicKeys(signer), 10)
-	if err != nil {
-		return "", fmt.Errorf("connect to %s over SSH: %w", instance.Name, err)
-	}
-	defer conn.Close()
-	return pcrypto.ExecuteCommand(command, conn)
-}
-
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func instanceNames(instances []provisioners.InstanceInfo) []string {

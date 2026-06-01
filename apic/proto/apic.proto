@@ -41,6 +41,8 @@ service ProtosClientApi {
   rpc GetExitRoutes(GetExitRoutesRequest) returns (GetExitRoutesResponse) {}
   rpc GetRuntimeState(GetRuntimeStateRequest) returns (GetRuntimeStateResponse) {}
   rpc WatchChanges(WatchChangesRequest) returns (stream WatchChangesResponse) {}
+  rpc GetTasks(GetTasksRequest) returns (GetTasksResponse) {}
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {}
   rpc SetExitRoute(SetExitRouteRequest) returns (SetExitRouteResponse) {}
   rpc ClearExitRoute(ClearExitRouteRequest) returns (ClearExitRouteResponse) {}
   rpc GetProtosdReleases(GetProtosdReleasesRequest) returns (GetProtosdReleasesResponse) {}
@@ -552,6 +554,59 @@ message WatchChangesResponse {
   string reason = 4;
 }
 
+message Task {
+  string id = 1;
+  string stream = 2;
+  string subject_type = 3;
+  string subject_id = 4;
+  string status = 5;
+  string title = 6;
+  string message = 7;
+  int32 progress = 8;
+  string payload_json = 9;
+  string result_json = 10;
+  string error_message = 11;
+  int32 attempts = 12;
+  int32 max_attempts = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  string started_at = 16;
+  string finished_at = 17;
+}
+
+message TaskEvent {
+  string id = 1;
+  string task_id = 2;
+  string status = 3;
+  string message = 4;
+  int32 progress = 5;
+  string details_json = 6;
+  string created_at = 7;
+}
+
+message GetTasksRequest {
+  string status = 1;
+  string stream = 2;
+  string subject_type = 3;
+  string subject_id = 4;
+  int32 max_results = 5;
+}
+
+message GetTasksResponse {
+  repeated Task tasks = 1;
+  bool truncated = 2;
+}
+
+message GetTaskRequest {
+  string id = 1;
+  bool include_events = 2;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+  repeated TaskEvent events = 2;
+}
+
 message SetExitRouteRequest {
   string instance = 1;
   string device_id = 2;
@@ -591,6 +646,10 @@ message RuntimeState {
   repeated RuntimePeerStatus peer_statuses = 18;
   repeated RuntimeCompatibility compatibility = 19;
   repeated string content_sync_trace = 20;
+  repeated string known_epoch_ids = 21;
+  map<string, string> epoch_descriptor_digest_by_id = 22;
+  map<string, string> epoch_finalized_digest_by_id = 23;
+  string protocol_finalized_digest = 24;
 }
 
 message RuntimePeerStatus {

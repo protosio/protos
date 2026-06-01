@@ -538,6 +538,7 @@ class SectionBody extends StatelessWidget {
       SidebarSection.apps => const AppsView(),
       SidebarSection.provisioners => const ProvisionersView(),
       SidebarSection.instances => const InstancesView(),
+      SidebarSection.tasks => const TasksView(),
       SidebarSection.network => const NetworkView(),
       SidebarSection.releases => const ReleasesView(),
       SidebarSection.dvc => const DvcView(),
@@ -1555,6 +1556,178 @@ class InstanceDetailPanel extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class TasksView extends StatelessWidget {
+  const TasksView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final model = AppScope.of(context);
+
+    return DetailScroll(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: SectionHeading('Background Tasks')),
+              OutlinedButton.icon(
+                onPressed: model.isBusy
+                    ? null
+                    : () => unawaited(model.run(model.refreshTasks)),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+            ],
+          ),
+          RowsPanel<pb.Task>(
+            rows: model.tasks,
+            emptyTitle: 'No tasks',
+            height: 280,
+            selectedId: model.selectedTaskId,
+            onSelect: (id) => unawaited(model.run(() => model.selectTask(id))),
+            idForRow: (row) => row.id,
+            columns: [
+              RowColumn('Title', _taskTitle, flex: 2),
+              RowColumn('Status', _taskStatusText),
+              RowColumn('Progress', (row) => _taskProgressLabel(row.progress)),
+              RowColumn(
+                'Updated',
+                (row) => _taskDateLabel(row.updatedAt),
+                flex: 2,
+              ),
+              RowColumn('Message', (row) => row.message, flex: 2),
+            ],
+          ),
+          const SectionGap(),
+          TaskDetailPanel(
+            task: model.selectedTask,
+            events: model.selectedTaskEvents,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TaskDetailPanel extends StatelessWidget {
+  const TaskDetailPanel({required this.task, required this.events, super.key});
+
+  final pb.Task? task;
+  final List<pb.TaskEvent> events;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = task;
+    if (selected == null) {
+      return MonoPane(
+        text: 'Select a task to inspect its progress and details.',
+        minHeight: 64,
+      );
+    }
+
+    final messageLines = [
+      ?selected.message.nonEmpty,
+      if (selected.errorMessage.nonEmpty != null)
+        'Error: ${selected.errorMessage}',
+    ].join('\n');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: SectionHeading(_taskTitle(selected))),
+            TaskStatusBadge(status: selected.status),
+          ],
+        ),
+        const SizedBox(height: 2),
+        LinearProgressIndicator(value: _taskProgressValue(selected.progress)),
+        const SizedBox(height: 12),
+        KeyValueWrap(
+          items: [
+            KeyValueItem('ID', selected.id),
+            KeyValueItem('Stream', selected.stream),
+            KeyValueItem('Subject', _taskSubjectLabel(selected)),
+            KeyValueItem('Status', _taskStatusText(selected)),
+            KeyValueItem('Progress', _taskProgressLabel(selected.progress)),
+            KeyValueItem('Attempts', _taskAttemptsLabel(selected)),
+            KeyValueItem('Created', _taskDateLabel(selected.createdAt)),
+            KeyValueItem('Updated', _taskDateLabel(selected.updatedAt)),
+            KeyValueItem('Started', _taskDateLabel(selected.startedAt)),
+            KeyValueItem('Finished', _taskDateLabel(selected.finishedAt)),
+          ],
+        ),
+        if (messageLines.nonEmpty != null) ...[
+          const SizedBox(height: 18),
+          const SectionHeading('Message'),
+          MonoPane(text: messageLines, minHeight: 72),
+        ],
+        const SizedBox(height: 18),
+        ResponsivePair(
+          first: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeading('Payload'),
+              MonoPane(text: _taskJson(selected.payloadJson), minHeight: 92),
+            ],
+          ),
+          second: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeading('Result'),
+              MonoPane(text: _taskJson(selected.resultJson), minHeight: 92),
+            ],
+          ),
+        ),
+        const SectionGap(),
+        const SectionHeading('Events'),
+        RowsPanel<pb.TaskEvent>(
+          rows: events,
+          emptyTitle: 'No events',
+          height: 240,
+          idForRow: (row) =>
+              '${row.createdAt}|${row.status}|${row.progress}|${row.message}',
+          columns: [
+            RowColumn('Status', _taskEventStatusText),
+            RowColumn('Progress', (row) => _taskProgressLabel(row.progress)),
+            RowColumn(
+              'Created',
+              (row) => _taskDateLabel(row.createdAt),
+              flex: 2,
+            ),
+            RowColumn('Message', (row) => row.message, flex: 2),
+            RowColumn('Details', (row) => row.detailsJson, flex: 2),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class TaskStatusBadge extends StatelessWidget {
+  const TaskStatusBadge({required this.status, super.key});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = _taskStatusColor(scheme, status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.38)),
+      ),
+      child: Text(
+        _taskStatusValue(status),
+        style: TextStyle(color: color, fontWeight: FontWeight.w800),
+      ),
     );
   }
 }
@@ -2906,6 +3079,84 @@ class ResponsivePair extends StatelessWidget {
       },
     );
   }
+}
+
+String _taskTitle(pb.Task task) {
+  return task.title.nonEmpty ?? task.stream.nonEmpty ?? task.id;
+}
+
+String _taskStatusText(pb.Task task) {
+  return _taskStatusValue(task.status);
+}
+
+String _taskEventStatusText(pb.TaskEvent event) {
+  return _taskStatusValue(event.status);
+}
+
+String _taskSubjectLabel(pb.Task task) {
+  final type = task.subjectType.nonEmpty;
+  final id = task.subjectId.nonEmpty;
+  if (type == null) {
+    return id ?? '';
+  }
+  if (id == null) {
+    return type;
+  }
+  return '$type $id';
+}
+
+String _taskAttemptsLabel(pb.Task task) {
+  if (task.maxAttempts <= 0) {
+    return '${task.attempts}';
+  }
+  return '${task.attempts}/${task.maxAttempts}';
+}
+
+String _taskProgressLabel(int progress) => '$progress%';
+
+String _taskStatusValue(String status) {
+  final value = status.nonEmpty;
+  if (value == null) {
+    return 'n/a';
+  }
+  return '${value[0].toUpperCase()}${value.substring(1)}';
+}
+
+Color _taskStatusColor(ColorScheme scheme, String status) {
+  return switch (status.toLowerCase()) {
+    'succeeded' => Colors.green.shade700,
+    'running' => scheme.primary,
+    'pending' => Colors.orange.shade800,
+    'failed' => scheme.error,
+    'cancelled' => scheme.onSurfaceVariant,
+    _ => scheme.onSurfaceVariant,
+  };
+}
+
+double _taskProgressValue(int progress) {
+  return progress.clamp(0, 100).toDouble() / 100;
+}
+
+String _taskDateLabel(String value) {
+  final trimmed = value.nonEmpty;
+  if (trimmed == null) {
+    return 'n/a';
+  }
+  final parsed = DateTime.tryParse(trimmed);
+  if (parsed == null) {
+    return trimmed;
+  }
+  final local = parsed.toLocal();
+  final y = local.year.toString().padLeft(4, '0');
+  final m = local.month.toString().padLeft(2, '0');
+  final d = local.day.toString().padLeft(2, '0');
+  final h = local.hour.toString().padLeft(2, '0');
+  final min = local.minute.toString().padLeft(2, '0');
+  return '$y-$m-$d $h:$min';
+}
+
+String _taskJson(String value) {
+  return value.nonEmpty ?? 'n/a';
 }
 
 String? _statusText(String? status) {

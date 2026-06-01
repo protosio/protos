@@ -66,7 +66,7 @@ class ProtosBridgeConfig {
   const ProtosBridgeConfig({
     this.configFile = 'protos.yaml',
     this.dataDir = '',
-    this.capabilities = 'default,no-network',
+    this.capabilities = 'default',
     this.logLevel = 'info',
   });
 

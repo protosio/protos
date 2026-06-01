@@ -62,14 +62,25 @@ func (p2p *P2P) DiscoverPeer(ctx context.Context, target string) (*DiscoveredPee
 		return nil, err
 	}
 	var lastErr error
+	learnedPeers := map[string]peer.ID{}
 	delay := 2 * time.Second
 	for {
 		for _, addr := range addrs {
 			attemptCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			discovered, err := p2p.DiscoverPeerAt(attemptCtx, addr)
+			var discovered *DiscoveredPeer
+			var err error
+			if learnedPeer, ok := learnedPeers[addr]; ok {
+				discovered, err = p2p.connectKnownPeerAt(attemptCtx, addr, learnedPeer)
+			} else {
+				discovered, err = p2p.DiscoverPeerAt(attemptCtx, addr)
+			}
 			cancel()
 			if err == nil {
 				return discovered, nil
+			}
+			var learnedErr *discoveredPeerDialError
+			if errors.As(err, &learnedErr) {
+				learnedPeers[addr] = learnedErr.peerID
 			}
 			lastErr = err
 		}
@@ -111,25 +122,56 @@ func (p2p *P2P) DiscoverPeerAt(ctx context.Context, transportAddr string) (*Disc
 	if err != nil {
 		return nil, err
 	}
-	defer p2p.forgetPeer(fakeID)
 
 	p2p.addPeerAddr(fakeID, addr)
 	if err := p2p.host.Connect(ctx, peer.AddrInfo{ID: fakeID, Addrs: []ma.Multiaddr{addr}}); err == nil {
+		defer p2p.forgetPeer(fakeID)
 		return p2p.discoveredPeer(fakeID, addr.String())
 	} else {
+		p2p.forgetPeer(fakeID)
 		var mismatch sec.ErrPeerIDMismatch
 		if !errors.As(err, &mismatch) || mismatch.Actual == "" {
 			return nil, err
 		}
 		actualID := mismatch.Actual
-		p2p.pendingPeers.Set(actualID.String(), true)
-		p2p.addPeerAddr(actualID, addr)
-		if err := p2p.host.Connect(ctx, peer.AddrInfo{ID: actualID, Addrs: []ma.Multiaddr{addr}}); err != nil {
-			p2p.pendingPeers.Delete(actualID.String())
-			return nil, err
+		discovered, err := p2p.connectKnownPeerAt(ctx, addr.String(), actualID)
+		if err != nil {
+			return nil, &discoveredPeerDialError{peerID: actualID, addr: addr.String(), err: err}
 		}
-		return p2p.discoveredPeer(actualID, addr.String())
+		return discovered, nil
 	}
+}
+
+type discoveredPeerDialError struct {
+	peerID peer.ID
+	addr   string
+	err    error
+}
+
+func (e *discoveredPeerDialError) Error() string {
+	return fmt.Sprintf("discovered peer %s at %s but follow-up dial failed: %v", e.peerID.String(), e.addr, e.err)
+}
+
+func (e *discoveredPeerDialError) Unwrap() error {
+	return e.err
+}
+
+func (p2p *P2P) connectKnownPeerAt(ctx context.Context, transportAddr string, peerID peer.ID) (*DiscoveredPeer, error) {
+	addr, err := ma.NewMultiaddr(strings.TrimSpace(transportAddr))
+	if err != nil {
+		return nil, fmt.Errorf("parse bootstrap address: %w", err)
+	}
+	addr, _ = peer.SplitAddr(addr)
+	if addr == nil {
+		return nil, fmt.Errorf("bootstrap address %q has no transport component", transportAddr)
+	}
+	p2p.pendingPeers.Set(peerID.String(), true)
+	p2p.addPeerAddr(peerID, addr)
+	if err := p2p.host.Connect(ctx, peer.AddrInfo{ID: peerID, Addrs: []ma.Multiaddr{addr}}); err != nil {
+		p2p.pendingPeers.Delete(peerID.String())
+		return nil, err
+	}
+	return p2p.discoveredPeer(peerID, addr.String())
 }
 
 func (p2p *P2P) discoveredPeer(peerID peer.ID, addr string) (*DiscoveredPeer, error) {
@@ -161,6 +203,10 @@ func (p2p *P2P) remotePublicKey(peerID peer.ID) crypto.PubKey {
 			_ = p2p.host.Peerstore().AddPubKey(peerID, pubKey)
 			return pubKey
 		}
+	}
+	if pubKey, err := peerID.ExtractPublicKey(); err == nil {
+		_ = p2p.host.Peerstore().AddPubKey(peerID, pubKey)
+		return pubKey
 	}
 	return nil
 }
@@ -231,11 +277,20 @@ func (p2p *P2P) tofuTransportAddrs(target string) ([]string, error) {
 		return nil, fmt.Errorf("p2p port is not configured")
 	}
 
+	addTCPAddrs := func(prefix string) []string {
+		return []string{fmt.Sprintf("%s/tcp/%d", prefix, port)}
+	}
 	if ip := net.ParseIP(host); ip != nil {
 		if ip.To4() == nil {
-			return []string{fmt.Sprintf("/ip6/%s/udp/%d/quic-v1", ip.String(), port)}, nil
+			addrs := addTCPAddrs(fmt.Sprintf("/ip6/%s", ip.String()))
+			addrs = append(addrs, fmt.Sprintf("/ip6/%s/udp/%d/quic-v1", ip.String(), port))
+			return addrs, nil
 		}
-		return []string{fmt.Sprintf("/ip4/%s/udp/%d/quic-v1", ip.String(), port)}, nil
+		addrs := addTCPAddrs(fmt.Sprintf("/ip4/%s", ip.String()))
+		addrs = append(addrs, fmt.Sprintf("/ip4/%s/udp/%d/quic-v1", ip.String(), port))
+		return addrs, nil
 	}
-	return []string{fmt.Sprintf("/dns4/%s/udp/%d/quic-v1", host, port)}, nil
+	addrs := addTCPAddrs(fmt.Sprintf("/dns4/%s", host))
+	addrs = append(addrs, fmt.Sprintf("/dns4/%s/udp/%d/quic-v1", host, port))
+	return addrs, nil
 }

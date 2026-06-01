@@ -72,6 +72,36 @@ func createInstanceUpdateMapper(instance InstanceInfo) (db.UpdateMapper, db.Upda
 	return machineMapper, cloudMachineMetadataMapper
 }
 
+func createInstanceFinalizeMapper(pendingID string, instance InstanceInfo) (db.UpdateMapper, db.UpdateMapper) {
+	machineMapper := func() sq.UpdateQuery {
+		m := sq.New[db.MACHINE]("")
+		mapper := func(col *sq.Column) {
+			col.SetString(m.ID, instance.ID)
+			col.SetString(m.NAME, instance.Name)
+			col.SetString(m.KIND, instance.Kind)
+			col.SetString(m.DESIRED_STATUS, instance.DesiredStatus)
+			col.SetInt(m.WITNESS_RANK, instance.WitnessRank)
+		}
+		return sq.Update(m).SetFunc(mapper).Where(m.ID.EqString(pendingID))
+	}
+
+	cloudMachineMetadataMapper := func() sq.UpdateQuery {
+		m := sq.New[db.CLOUD_MACHINE_METADATA]("")
+		mapper := func(col *sq.Column) {
+			col.SetString(m.ID, instance.ID)
+			col.SetString(m.CLOUD_ID, instance.KindID)
+			col.SetString(m.PROVIDER_RESOURCE_ID, instance.ProviderResourceID)
+			col.SetString(m.PUBLIC_IP, instance.PublicIP)
+			col.SetString(m.LOCATION, instance.Location)
+			col.SetString(m.ARCHITECTURE, instance.Architecture)
+			col.SetString(m.PUBLIC_KEY, instance.PublicKey)
+		}
+		return sq.Update(m).SetFunc(mapper).Where(m.ID.EqString(pendingID))
+	}
+
+	return machineMapper, cloudMachineMetadataMapper
+}
+
 func createInstanceQueryMapper(id string) db.QueryMapper[InstanceInfo] {
 	m := sq.New[db.MACHINE]("")
 	cmm := sq.New[db.CLOUD_MACHINE_METADATA]("")
@@ -174,6 +204,13 @@ func createInstanceDeleteMapper(id string) (db.DeleteMapper, db.DeleteMapper) {
 	}
 
 	return mDelete, cmmDelete
+}
+
+func createAppDeleteByInstanceMapper(instanceID string) db.DeleteMapper {
+	return func() sq.DeleteQuery {
+		a := sq.New[db.APP]("")
+		return sq.DeleteFrom(a).Where(a.INSTANCE_ID.EqString(instanceID))
+	}
 }
 
 //

@@ -12,4 +12,8 @@ DROP TABLE IF EXISTS user_devices_metadata;
 
 DROP TABLE IF EXISTS peers;
 
+DROP TABLE IF EXISTS tasks;
+
+DROP TABLE IF EXISTS task_events;
+
 DROP TABLE IF EXISTS exit_routes;

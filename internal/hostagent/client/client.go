@@ -20,7 +20,10 @@ type Client struct {
 }
 
 func New() (*Client, error) {
-	socket := hostagentipc.SocketPath()
+	return NewWithSocket(hostagentipc.SocketPath())
+}
+
+func NewWithSocket(socket string) (*Client, error) {
 	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("host agent ipc: %w", err)
@@ -86,4 +89,14 @@ func (c *Client) VMStatus(id string, manifestPath string) (*hostagentpb.VMObserv
 		return nil, fmt.Errorf("host agent status via %s returned no VM state", c.socket)
 	}
 	return resp.GetVms()[0], nil
+}
+
+func (c *Client) Shutdown() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if _, err := c.client.Shutdown(ctx, &hostagentpb.ShutdownRequest{}); err != nil {
+		return fmt.Errorf("host agent shutdown via %s: %w", c.socket, err)
+	}
+	return nil
 }

@@ -28,7 +28,7 @@ const (
 
 	hetznerUploadSSHKeyName    = "protos-upload-key"
 	hetznerUploadServerName    = "protos-image-uploader"
-	hetznerUploadServerType    = "cpx11"
+	hetznerUploadTargetDiskGB  = 40
 	hetznerUploadBaseImageName = "ubuntu-24.04"
 
 	hetznerLabelManaged       = "protos-managed"
@@ -224,8 +224,14 @@ func (hz *hetzner) DeleteInstance(id string, location string) error {
 		return errors.Errorf("Hetzner instance '%s' not found", id)
 	}
 
-	if _, _, err := hz.client.Server.DeleteWithResult(ctx, server); err != nil {
+	result, _, err := hz.client.Server.DeleteWithResult(ctx, server)
+	if err != nil {
 		return errors.Wrapf(err, "Failed to delete Hetzner instance '%s'", id)
+	}
+	if result != nil && result.Action != nil {
+		if err := hz.waitForActions(ctx, result.Action); err != nil {
+			return errors.Wrapf(err, "Failed waiting for Hetzner instance '%s' delete", id)
+		}
 	}
 	if err := hz.deleteSSHKeysByName(ctx, server.Name); err != nil {
 		log.Warnf("Failed to delete Hetzner SSH key for instance '%s': %s", server.Name, err.Error())
@@ -730,16 +736,19 @@ func (hz *hetzner) createImageUploadServer(location string) (*pcrypto.Key, *hclo
 }
 
 func (hz *hetzner) selectUploadServerType(ctx context.Context, location string) (*hcloud.ServerType, error) {
-	if serverType, _, err := hz.client.ServerType.Get(ctx, hetznerUploadServerType); err == nil && serverType != nil && hetznerServerTypeAvailableIn(serverType, location) {
-		return serverType, nil
-	}
-
 	serverTypes, err := hz.client.ServerType.All(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to retrieve Hetzner server types")
 	}
+	return selectHetznerUploadServerType(serverTypes, location)
+}
+
+func selectHetznerUploadServerType(serverTypes []*hcloud.ServerType, location string) (*hcloud.ServerType, error) {
 	candidates := make([]*hcloud.ServerType, 0, len(serverTypes))
 	for _, serverType := range serverTypes {
+		if serverType == nil {
+			continue
+		}
 		if serverType.Architecture != hcloud.ArchitectureX86 {
 			continue
 		}
@@ -749,6 +758,9 @@ func (hz *hetzner) selectUploadServerType(ctx context.Context, location string) 
 		candidates = append(candidates, serverType)
 	}
 	sort.Slice(candidates, func(i int, j int) bool {
+		if candidates[i].Disk != candidates[j].Disk {
+			return candidates[i].Disk < candidates[j].Disk
+		}
 		iPrice := hetznerMonthlyPrice(candidates[i], location)
 		jPrice := hetznerMonthlyPrice(candidates[j], location)
 		if iPrice != jPrice {
@@ -762,8 +774,12 @@ func (hz *hetzner) selectUploadServerType(ctx context.Context, location string) 
 	if len(candidates) == 0 {
 		return nil, errors.Errorf("No available x86 Hetzner server type found in location '%s'", location)
 	}
-	log.Infof("Using Hetzner upload server type '%s' in '%s'", candidates[0].Name, location)
-	return candidates[0], nil
+	selected := candidates[0]
+	if selected.Disk > hetznerUploadTargetDiskGB {
+		return nil, errors.Errorf("No Hetzner upload server type with <= %d GB disk is available in location '%s'; smallest available x86 type is '%s' with %d GB disk, which would create an oversized snapshot", hetznerUploadTargetDiskGB, location, selected.Name, selected.Disk)
+	}
+	log.Infof("Using Hetzner upload server type '%s' in '%s' with %d GB disk", selected.Name, location, selected.Disk)
+	return selected, nil
 }
 
 func (hz *hetzner) connectImageUploadServer(server *hcloud.Server, key *pcrypto.Key) (*ssh.Client, error) {

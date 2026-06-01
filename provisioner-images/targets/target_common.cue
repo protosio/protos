@@ -53,6 +53,37 @@ package cloudkit
 }
 #files: [...#file]
 
+#imageContract: {
+	provider: string
+	boot: {
+		firmware: "bios" | "uefi" | "direct-kernel"
+		notes: [...string]
+	}
+	linuxkit: {
+		arch: "amd64" | "arm64"
+		formats: [...string]
+		// imageSize is passed to linuxkit --size when the target needs a fixed
+		// backing disk. Empty means the LinuxKit format controls its own size.
+		imageSize: *"" | string
+		outputFiles: [...string]
+	}
+	devices: {
+		root: string
+		data?: string
+	}
+	upload?: {
+		kind: string
+		preferredLocations?: [...string]
+		// Some clouds derive snapshot size from an upload helper VM rather than
+		// the raw artifact. Use the smallest available helper disk for those.
+		preferSmallestSnapshotDisk: bool | *false
+		targetSnapshotDiskGiB?: int
+		notes: [...string]
+	}
+}
+
+#protosImage: #imageContract
+
 //
 // init base
 //

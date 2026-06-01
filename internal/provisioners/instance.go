@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -15,11 +16,10 @@ const (
 	ServerStateStopped  = "stopped"
 	ServerStateOther    = "other"
 	ServerStateChanging = "changing"
+	ServerStateDeleting = "deleting"
 
 	KindLocalVM = "local_vm"
 	KindCloudVM = "cloud_vm"
-
-	protosPublicKey = "/var/lib/protos/protos.pub"
 )
 
 // VolumeInfo holds information about a data volume
@@ -87,6 +87,21 @@ func (i InstanceInfo) GetInternalIP() string {
 
 func (i InstanceInfo) GetName() string {
 	return i.Name
+}
+
+func IsDeletingInstance(instance InstanceInfo) bool {
+	return strings.EqualFold(strings.TrimSpace(instance.DesiredStatus), ServerStateDeleting)
+}
+
+func ActiveInstances(instances []InstanceInfo) []InstanceInfo {
+	active := make([]InstanceInfo, 0, len(instances))
+	for _, instance := range instances {
+		if IsDeletingInstance(instance) {
+			continue
+		}
+		active = append(active, instance)
+	}
+	return active
 }
 
 func catchSignals(sigs chan os.Signal, quit chan interface{}) {

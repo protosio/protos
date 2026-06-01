@@ -1395,6 +1395,10 @@ type RuntimeState struct {
 	PeerStatuses                 []*RuntimePeerStatus    `protobuf:"bytes,18,rep,name=peer_statuses,json=peerStatuses,proto3" json:"peer_statuses,omitempty"`
 	Compatibility                []*RuntimeCompatibility `protobuf:"bytes,19,rep,name=compatibility,proto3" json:"compatibility,omitempty"`
 	ContentSyncTrace             []string                `protobuf:"bytes,20,rep,name=content_sync_trace,json=contentSyncTrace,proto3" json:"content_sync_trace,omitempty"`
+	KnownEpochIds                []string                `protobuf:"bytes,21,rep,name=known_epoch_ids,json=knownEpochIds,proto3" json:"known_epoch_ids,omitempty"`
+	EpochDescriptorDigestById    map[string]string       `protobuf:"bytes,22,rep,name=epoch_descriptor_digest_by_id,json=epochDescriptorDigestById,proto3" json:"epoch_descriptor_digest_by_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	EpochFinalizedDigestById     map[string]string       `protobuf:"bytes,23,rep,name=epoch_finalized_digest_by_id,json=epochFinalizedDigestById,proto3" json:"epoch_finalized_digest_by_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProtocolFinalizedDigest      string                  `protobuf:"bytes,24,opt,name=protocol_finalized_digest,json=protocolFinalizedDigest,proto3" json:"protocol_finalized_digest,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -1567,6 +1571,34 @@ func (x *RuntimeState) GetContentSyncTrace() []string {
 		return x.ContentSyncTrace
 	}
 	return nil
+}
+
+func (x *RuntimeState) GetKnownEpochIds() []string {
+	if x != nil {
+		return x.KnownEpochIds
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetEpochDescriptorDigestById() map[string]string {
+	if x != nil {
+		return x.EpochDescriptorDigestById
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetEpochFinalizedDigestById() map[string]string {
+	if x != nil {
+		return x.EpochFinalizedDigestById
+	}
+	return nil
+}
+
+func (x *RuntimeState) GetProtocolFinalizedDigest() string {
+	if x != nil {
+		return x.ProtocolFinalizedDigest
+	}
+	return ""
 }
 
 type RuntimePeerStatus struct {
@@ -1902,7 +1934,7 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1d\n" +
 	"\n" +
 	"dns_server\x18\x05 \x01(\tR\tdnsServer\x12\x14\n" +
-	"\x05cidrs\x18\x06 \x03(\tR\x05cidrs\"\x89\b\n" +
+	"\x05cidrs\x18\x06 \x03(\tR\x05cidrs\"\xf1\v\n" +
 	"\fRuntimeState\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12'\n" +
 	"\x0fmanifest_digest\x18\x02 \x01(\tR\x0emanifestDigest\x12.\n" +
@@ -1925,7 +1957,17 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x1eruntime_materialization_policy\x18\x11 \x01(\tR\x1cruntimeMaterializationPolicy\x12=\n" +
 	"\rpeer_statuses\x18\x12 \x03(\v2\x18.proto.RuntimePeerStatusR\fpeerStatuses\x12A\n" +
 	"\rcompatibility\x18\x13 \x03(\v2\x1b.proto.RuntimeCompatibilityR\rcompatibility\x12,\n" +
-	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\"\xa0\x04\n" +
+	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\x12&\n" +
+	"\x0fknown_epoch_ids\x18\x15 \x03(\tR\rknownEpochIds\x12t\n" +
+	"\x1depoch_descriptor_digest_by_id\x18\x16 \x03(\v22.proto.RuntimeState.EpochDescriptorDigestByIdEntryR\x19epochDescriptorDigestById\x12q\n" +
+	"\x1cepoch_finalized_digest_by_id\x18\x17 \x03(\v21.proto.RuntimeState.EpochFinalizedDigestByIdEntryR\x18epochFinalizedDigestById\x12:\n" +
+	"\x19protocol_finalized_digest\x18\x18 \x01(\tR\x17protocolFinalizedDigest\x1aL\n" +
+	"\x1eEpochDescriptorDigestByIdEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aK\n" +
+	"\x1dEpochFinalizedDigestByIdEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x04\n" +
 	"\x11RuntimePeerStatus\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1c\n" +
 	"\tconnected\x18\x02 \x01(\bR\tconnected\x12\x1a\n" +
@@ -1976,7 +2018,7 @@ func file_internal_p2p_proto_instance_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_instance_proto_rawDescData
 }
 
-var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_internal_p2p_proto_instance_proto_goTypes = []any{
 	(*InitRequest)(nil),             // 0: proto.InitRequest
 	(*InitResponse)(nil),            // 1: proto.InitResponse
@@ -2004,7 +2046,9 @@ var file_internal_p2p_proto_instance_proto_goTypes = []any{
 	(*RuntimePeerStatus)(nil),       // 23: proto.RuntimePeerStatus
 	(*RuntimeCompatibility)(nil),    // 24: proto.RuntimeCompatibility
 	nil,                             // 25: proto.GetPeersResponse.PeersEntry
-	nil,                             // 26: proto.RuntimePeerStatus.LastDialErrorsEntry
+	nil,                             // 26: proto.RuntimeState.EpochDescriptorDigestByIdEntry
+	nil,                             // 27: proto.RuntimeState.EpochFinalizedDigestByIdEntry
+	nil,                             // 28: proto.RuntimePeerStatus.LastDialErrorsEntry
 }
 var file_internal_p2p_proto_instance_proto_depIdxs = []int32{
 	25, // 0: proto.GetPeersResponse.peers:type_name -> proto.GetPeersResponse.PeersEntry
@@ -2021,24 +2065,26 @@ var file_internal_p2p_proto_instance_proto_depIdxs = []int32{
 	19, // 11: proto.FirewallChain.rules:type_name -> proto.FirewallRule
 	23, // 12: proto.RuntimeState.peer_statuses:type_name -> proto.RuntimePeerStatus
 	24, // 13: proto.RuntimeState.compatibility:type_name -> proto.RuntimeCompatibility
-	26, // 14: proto.RuntimePeerStatus.last_dial_errors:type_name -> proto.RuntimePeerStatus.LastDialErrorsEntry
-	0,  // 15: proto.Instance.Init:input_type -> proto.InitRequest
-	2,  // 16: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
-	4,  // 17: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
-	6,  // 18: proto.Instance.GetNetworkState:input_type -> proto.GetNetworkStateRequest
-	8,  // 19: proto.Instance.GetExitRoutes:input_type -> proto.GetExitRoutesRequest
-	10, // 20: proto.Instance.GetRuntimeState:input_type -> proto.GetRuntimeStateRequest
-	1,  // 21: proto.Instance.Init:output_type -> proto.InitResponse
-	3,  // 22: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
-	5,  // 23: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
-	7,  // 24: proto.Instance.GetNetworkState:output_type -> proto.GetNetworkStateResponse
-	9,  // 25: proto.Instance.GetExitRoutes:output_type -> proto.GetExitRoutesResponse
-	11, // 26: proto.Instance.GetRuntimeState:output_type -> proto.GetRuntimeStateResponse
-	21, // [21:27] is the sub-list for method output_type
-	15, // [15:21] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	26, // 14: proto.RuntimeState.epoch_descriptor_digest_by_id:type_name -> proto.RuntimeState.EpochDescriptorDigestByIdEntry
+	27, // 15: proto.RuntimeState.epoch_finalized_digest_by_id:type_name -> proto.RuntimeState.EpochFinalizedDigestByIdEntry
+	28, // 16: proto.RuntimePeerStatus.last_dial_errors:type_name -> proto.RuntimePeerStatus.LastDialErrorsEntry
+	0,  // 17: proto.Instance.Init:input_type -> proto.InitRequest
+	2,  // 18: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
+	4,  // 19: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
+	6,  // 20: proto.Instance.GetNetworkState:input_type -> proto.GetNetworkStateRequest
+	8,  // 21: proto.Instance.GetExitRoutes:input_type -> proto.GetExitRoutesRequest
+	10, // 22: proto.Instance.GetRuntimeState:input_type -> proto.GetRuntimeStateRequest
+	1,  // 23: proto.Instance.Init:output_type -> proto.InitResponse
+	3,  // 24: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
+	5,  // 25: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
+	7,  // 26: proto.Instance.GetNetworkState:output_type -> proto.GetNetworkStateResponse
+	9,  // 27: proto.Instance.GetExitRoutes:output_type -> proto.GetExitRoutesResponse
+	11, // 28: proto.Instance.GetRuntimeState:output_type -> proto.GetRuntimeStateResponse
+	23, // [23:29] is the sub-list for method output_type
+	17, // [17:23] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_internal_p2p_proto_instance_proto_init() }
@@ -2052,7 +2098,7 @@ func file_internal_p2p_proto_instance_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_instance_proto_rawDesc), len(file_internal_p2p_proto_instance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

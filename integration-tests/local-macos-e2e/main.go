@@ -30,6 +30,10 @@ import (
 
 type noopAppManager struct{}
 
+func (noopAppManager) GetAppID(string) (string, error) {
+	return "", fmt.Errorf("apps are not available in the e2e harness local p2p manager")
+}
+
 func (noopAppManager) GetLogs(string) ([]byte, error) {
 	return nil, fmt.Errorf("logs are not available in the e2e harness")
 }
@@ -148,6 +152,10 @@ func run(imagePath string, workDir string, keep bool, timeout time.Duration, mac
 	if err != nil {
 		return fmt.Errorf("create provisioner manager: %w", err)
 	}
+	taskStop := cloudManager.StartTaskRunner(context.Background(), 500*time.Millisecond)
+	defer func() {
+		_ = taskStop()
+	}()
 
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	providerName := "local-e2e-" + suffix
@@ -188,11 +196,14 @@ func run(imagePath string, workDir string, keep bool, timeout time.Duration, mac
 	var deployed []provisioners.InstanceInfo
 	for i := 0; i < instanceCount; i++ {
 		instanceName := fmt.Sprintf("vm-e2e-%s-%d", suffix, i+1)
-		instance, err := cloudManager.DeployInstance(instanceName, providerName, "local", rel, machineType)
-		if err != nil {
+		if _, err := cloudManager.DeployInstance(instanceName, providerName, "local", rel, machineType); err != nil {
 			return fmt.Errorf("deploy local macOS instance %s: %w", instanceName, err)
 		}
 		cleanupInstances = append(cleanupInstances, instanceName)
+		instance, err := waitForInstanceReady(deadline, cloudManager, instanceName)
+		if err != nil {
+			return err
+		}
 		deployed = append(deployed, instance)
 		fmt.Printf("deployed instance: name=%s id=%s ip=%s wg=%s arch=%s status=%s\n", instance.Name, instance.ID, instance.PublicIP, wireGuardIPv6(instance), instance.Architecture, instance.Status)
 
@@ -232,6 +243,26 @@ func run(imagePath string, workDir string, keep bool, timeout time.Duration, mac
 	}
 
 	return nil
+}
+
+func waitForInstanceReady(deadline time.Time, cloudManager *provisioners.Manager, name string) (provisioners.InstanceInfo, error) {
+	var lastStatus string
+	for time.Now().Before(deadline) {
+		instance, err := cloudManager.GetInstance(name)
+		if err == nil {
+			lastStatus = instance.Status
+			if strings.TrimSpace(instance.PublicKey) != "" && !strings.HasPrefix(instance.ID, "pending-") {
+				return instance, nil
+			}
+			if strings.Contains(strings.ToLower(instance.Status), "failed") || strings.Contains(strings.ToLower(instance.Status), "cancelled") {
+				return provisioners.InstanceInfo{}, fmt.Errorf("deployment for %s ended with status %q", name, instance.Status)
+			}
+		} else {
+			lastStatus = err.Error()
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return provisioners.InstanceInfo{}, fmt.Errorf("instance %s did not become ready before deadline; last status: %s", name, lastStatus)
 }
 
 func reconnectPeersUntil(deadline time.Time, store *db.DB, cloudManager *provisioners.Manager, userManager *user.Manager, p2pManager *p2p.P2P, networkManager *protosnetwork.Manager, wantNames []string) (map[string]*p2p.Client, error) {

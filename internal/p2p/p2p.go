@@ -21,6 +21,7 @@ import (
 	relayclient "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 	noise "github.com/libp2p/go-libp2p/p2p/security/noise"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic"
+	tcp "github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/protosio/protos/internal/config"
 	networkmodule "github.com/protosio/protos/internal/network/module"
@@ -33,15 +34,18 @@ import (
 var log = util.GetLogger("p2p")
 
 const (
-	protosRPCProtocol         = "/protos/rpc/0.0.1"
-	swarmionBootstrapProtocol = "/protos/swarmion-bootstrap/0.0.1"
-	destinationStringTemplate = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
-	destinationIPv6Template   = "/ip6/%s/udp/%d/quic-v1/p2p/%s"
-	peerRetryInterval         = 10 * time.Second
-	peerRetryMaxBackoff       = time.Minute
+	protosRPCProtocol           = "/protos/rpc/0.0.1"
+	swarmionBootstrapProtocol   = "/protos/swarmion-bootstrap/0.0.1"
+	destinationQUICIPv4Template = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
+	destinationQUICIPv6Template = "/ip6/%s/udp/%d/quic-v1/p2p/%s"
+	destinationTCPIPv4Template  = "/ip4/%s/tcp/%d/p2p/%s"
+	destinationTCPIPv6Template  = "/ip6/%s/tcp/%d/p2p/%s"
+	peerRetryInterval           = 10 * time.Second
+	peerRetryMaxBackoff         = time.Minute
 )
 
 type AppManager interface {
+	GetAppID(name string) (string, error)
 	GetLogs(name string) ([]byte, error)
 	GetStatus(name string) (string, error)
 }
@@ -175,6 +179,15 @@ func (p2p *P2P) listenPort() int {
 		return p2p.p2pPort
 	}
 	return config.Get().P2PPort
+}
+
+func listenAddrsForPort(port int) []string {
+	return []string{
+		fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port),
+		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", port),
+		fmt.Sprintf("/ip6/::/tcp/%d", port),
+		fmt.Sprintf("/ip6/::/udp/%d/quic-v1", port),
+	}
 }
 
 func (p2p *P2P) swarmionPort() int {
@@ -487,9 +500,11 @@ func (p2p *P2P) destinationStrings(peerIDString string, machine Machine) []strin
 
 	for _, ip := range p2p.knownPeerIPs(machine) {
 		if ip.To4() == nil {
-			add(fmt.Sprintf(destinationIPv6Template, ip.String(), p2p.listenPort(), peerIDString))
+			add(fmt.Sprintf(destinationTCPIPv6Template, ip.String(), p2p.listenPort(), peerIDString))
+			add(fmt.Sprintf(destinationQUICIPv6Template, ip.String(), p2p.listenPort(), peerIDString))
 		} else {
-			add(fmt.Sprintf(destinationStringTemplate, ip.String(), p2p.listenPort(), peerIDString))
+			add(fmt.Sprintf(destinationTCPIPv4Template, ip.String(), p2p.listenPort(), peerIDString))
+			add(fmt.Sprintf(destinationQUICIPv4Template, ip.String(), p2p.listenPort(), peerIDString))
 		}
 	}
 
@@ -858,11 +873,9 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 
 	host, err := libp2p.New(
 		libp2p.Identity(prvKey),
-		libp2p.ListenAddrStrings(
-			fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", p2pPort),
-			fmt.Sprintf("/ip6/::/udp/%d/quic-v1", p2pPort),
-		),
+		libp2p.ListenAddrStrings(listenAddrsForPort(p2pPort)...),
 		libp2p.Security(noise.ID, noise.New),
+		libp2p.Transport(tcp.NewTCPTransport),
 		libp2p.Transport(quic.NewTransport),
 		libp2p.ConnectionManager(con),
 		libp2p.EnableRelay(),

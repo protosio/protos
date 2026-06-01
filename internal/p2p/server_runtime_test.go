@@ -51,3 +51,34 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 		t.Fatalf("connected status = %#v, want existing connected status preserved", connected)
 	}
 }
+
+func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
+	t.Parallel()
+
+	state := &proto.RuntimeState{
+		PeerId:         "local-peer",
+		StateProviders: []string{"provider-peer", "deleted-peer", "provider-peer"},
+		ConnectedPeers: []string{"provider-peer", "deleted-peer", "provider-peer"},
+		PeerStatuses: []*proto.RuntimePeerStatus{
+			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true},
+			{PeerId: "deleted-peer", Connected: true, Dialable: true, StateProvider: true},
+		},
+	}
+
+	filterRuntimePeerSurface(state, map[string]struct{}{
+		"provider-peer": {},
+	})
+
+	if got, want := state.GetStateProviders(), []string{"provider-peer"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("state providers = %#v, want %#v", got, want)
+	}
+	if got, want := state.GetConnectedPeers(), []string{"provider-peer"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("connected peers = %#v, want %#v", got, want)
+	}
+	if !state.GetPeerStatuses()[0].GetStateProvider() {
+		t.Fatal("known provider lost provider flag")
+	}
+	if len(state.GetPeerStatuses()) != 1 {
+		t.Fatalf("peer statuses count = %d, want 1", len(state.GetPeerStatuses()))
+	}
+}

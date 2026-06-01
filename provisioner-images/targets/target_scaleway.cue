@@ -2,6 +2,27 @@ package cloudkit
 
 import "list"
 
+#protosImage: #imageContract & {
+	provider: "scaleway"
+	boot: {
+		firmware: "uefi"
+		notes: ["Scaleway Protos images are uploaded as EFI ISO images."]
+	}
+	linuxkit: {
+		arch: "amd64"
+		formats: ["iso-efi"]
+		outputFiles: ["scaleway-efi.iso"]
+	}
+	devices: {
+		root: "/dev/vda"
+		data: "/dev/sda"
+	}
+	upload: {
+		kind: "scaleway-image-from-iso"
+		notes: ["The ISO artifact is compact; Scaleway owns the final image size after import."]
+	}
+}
+
 //
 // kernel
 //
