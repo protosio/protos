@@ -122,7 +122,9 @@ class _ProtosShellState extends State<ProtosShell> {
     if (compact) {
       return Scaffold(
         backgroundColor: scheme.surface,
-        drawer: const Drawer(child: Sidebar(width: double.infinity)),
+        drawer: const Drawer(
+          child: Sidebar(width: double.infinity, closeOnSelect: true),
+        ),
         body: Column(
           children: [
             const HeaderBar(showMenuButton: true),
@@ -157,9 +159,10 @@ class _ProtosShellState extends State<ProtosShell> {
 }
 
 class Sidebar extends StatelessWidget {
-  const Sidebar({this.width = 232, super.key});
+  const Sidebar({this.width = 232, this.closeOnSelect = false, super.key});
 
   final double width;
+  final bool closeOnSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +224,7 @@ class Sidebar extends StatelessWidget {
                       child: _SidebarButton(
                         section: section,
                         selected: model.selectedSection == section,
+                        closeOnSelect: closeOnSelect,
                       ),
                     ),
                 ],
@@ -275,10 +279,15 @@ class SidebarConnectionStatus extends StatelessWidget {
 }
 
 class _SidebarButton extends StatelessWidget {
-  const _SidebarButton({required this.section, required this.selected});
+  const _SidebarButton({
+    required this.section,
+    required this.selected,
+    required this.closeOnSelect,
+  });
 
   final SidebarSection section;
   final bool selected;
+  final bool closeOnSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -289,7 +298,12 @@ class _SidebarButton extends StatelessWidget {
       message: section.label,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => model.selectedSection = section,
+        onTap: () {
+          model.selectedSection = section;
+          if (closeOnSelect) {
+            Scaffold.of(context).closeDrawer();
+          }
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           height: 42,
