@@ -1,0 +1,4 @@
+interface:
+  display_name: "Swarmion Integration Tests"
+  short_description: "Run reusable Docker-backed Swarmion tests"
+  default_prompt: "Use $swarmion-integration-tests to run Swarmion integration tests on a local or reusable remote Docker host."
