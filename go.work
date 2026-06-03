@@ -1,0 +1,9 @@
+go 1.26.3
+
+use (
+	./clients/cli
+	./core
+	./core/network/modules/ipc
+	./core/network/modules/networkextension
+	./core/network/modules/wireguard
+)

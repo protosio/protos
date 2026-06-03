@@ -57,9 +57,9 @@ tmp/
 .tmp-contracts.*
 local-macos-vms/
 **/local-macos-vms/
-provisioner-images/targets/output/
-provisioner-images/**/output/
-provisioner-images/**/.cache/
+cloud-provisioning/targets/output/
+cloud-provisioning/**/output/
+cloud-provisioning/**/.cache/
 *.raw
 *.img
 *.iso

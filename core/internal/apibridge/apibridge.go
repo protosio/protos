@@ -1,0 +1,309 @@
+package apibridge
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/Masterminds/semver/v3"
+	"github.com/protosio/protos/apic"
+	pbApic "github.com/protosio/protos/apic/proto"
+	"github.com/protosio/protos/internal/protosd"
+	"github.com/protosio/protos/internal/util"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
+)
+
+const (
+	DefaultVersion      = "0.1.0-dev.23"
+	defaultBufConnSize  = 16 * 1024 * 1024
+	defaultCapabilities = "default,no-api,no-network"
+	envDoltRootPath     = "DOLT_ROOT_PATH"
+)
+
+type StartConfig struct {
+	ConfigFile   string `json:"config_file"`
+	DataDir      string `json:"data_dir"`
+	Capabilities string `json:"capabilities"`
+	LogLevel     string `json:"log_level"`
+}
+
+type Bridge struct {
+	mu       sync.Mutex
+	node     *protosd.Node
+	server   *grpc.Server
+	listener *bufconn.Listener
+	conn     *grpc.ClientConn
+	restore  func()
+}
+
+func Start(ctx context.Context, rawConfig []byte) (*Bridge, error) {
+	var cfg StartConfig
+	if len(rawConfig) > 0 && strings.TrimSpace(string(rawConfig)) != "" {
+		if err := json.Unmarshal(rawConfig, &cfg); err != nil {
+			return nil, fmt.Errorf("decode bridge config: %w", err)
+		}
+	}
+	if strings.TrimSpace(cfg.ConfigFile) == "" {
+		cfg.ConfigFile = "protos.yaml"
+	}
+	if strings.TrimSpace(cfg.Capabilities) == "" {
+		cfg.Capabilities = defaultCapabilities
+	}
+	if strings.TrimSpace(cfg.LogLevel) != "" {
+		level, err := logrus.ParseLevel(cfg.LogLevel)
+		if err != nil {
+			return nil, err
+		}
+		util.SetLogLevel(level)
+	}
+	restoreEnv, err := configureDoltRootPath(cfg.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if restoreEnv != nil {
+			restoreEnv()
+		}
+	}()
+
+	version, err := semver.NewVersion(DefaultVersion)
+	if err != nil {
+		return nil, err
+	}
+	node, err := protosd.NewNode(cfg.ConfigFile, version, protosd.Options{
+		DataDir:      cfg.DataDir,
+		Capabilities: cfg.Capabilities,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := node.Start(); err != nil {
+		node.Close()
+		return nil, err
+	}
+
+	listener := bufconn.Listen(defaultBufConnSize)
+	server := apic.NewGRPCServer(node.APIServices())
+	go func() {
+		if serveErr := server.Serve(listener); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
+			util.GetLogger("apibridge").Errorf("embedded API server stopped unexpectedly: %v", serveErr)
+		}
+	}()
+
+	conn, err := grpc.NewClient(
+		"passthrough:///protos-embedded",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+			return listener.Dial()
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		server.Stop()
+		_ = listener.Close()
+		node.Close()
+		return nil, err
+	}
+
+	bridgeRestore := restoreEnv
+	restoreEnv = nil
+	return &Bridge{
+		node:     node,
+		server:   server,
+		listener: listener,
+		conn:     conn,
+		restore:  bridgeRestore,
+	}, nil
+}
+
+func configureDoltRootPath(dataDir string) (func(), error) {
+	dataDir = strings.TrimSpace(dataDir)
+	if dataDir == "" {
+		return func() {}, nil
+	}
+	absDataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve Dolt root path: %w", err)
+	}
+	previous, hadPrevious := os.LookupEnv(envDoltRootPath)
+	if err := os.Setenv(envDoltRootPath, absDataDir); err != nil {
+		return nil, fmt.Errorf("set Dolt root path: %w", err)
+	}
+	return func() {
+		if hadPrevious {
+			_ = os.Setenv(envDoltRootPath, previous)
+		} else {
+			_ = os.Unsetenv(envDoltRootPath)
+		}
+	}, nil
+}
+
+func (b *Bridge) Call(ctx context.Context, method string, request []byte) ([]byte, error) {
+	if b == nil {
+		return nil, fmt.Errorf("bridge is not started")
+	}
+	methodDesc, fullMethod, err := resolveMethod(method)
+	if err != nil {
+		return nil, err
+	}
+
+	req := dynamicpb.NewMessage(methodDesc.Input())
+	if len(request) > 0 {
+		if err := proto.Unmarshal(request, req); err != nil {
+			return nil, fmt.Errorf("decode %s request: %w", methodDesc.Name(), err)
+		}
+	}
+
+	resp := dynamicpb.NewMessage(methodDesc.Output())
+	b.mu.Lock()
+	conn := b.conn
+	b.mu.Unlock()
+	if conn == nil {
+		return nil, fmt.Errorf("bridge is stopped")
+	}
+	if err := conn.Invoke(ctx, fullMethod, req, resp); err != nil {
+		return nil, bridgeUserError(err)
+	}
+	encoded, err := proto.Marshal(resp)
+	if err != nil {
+		return nil, fmt.Errorf("encode %s response: %w", methodDesc.Name(), err)
+	}
+	return encoded, nil
+}
+
+func (b *Bridge) WatchChanges(ctx context.Context, request []byte, emit func([]byte) bool) error {
+	if b == nil {
+		return fmt.Errorf("bridge is not started")
+	}
+	if emit == nil {
+		return fmt.Errorf("watch callback is required")
+	}
+
+	var req pbApic.WatchChangesRequest
+	if len(request) > 0 {
+		if err := proto.Unmarshal(request, &req); err != nil {
+			return fmt.Errorf("decode WatchChanges request: %w", err)
+		}
+	}
+
+	b.mu.Lock()
+	conn := b.conn
+	b.mu.Unlock()
+	if conn == nil {
+		return fmt.Errorf("bridge is stopped")
+	}
+
+	stream, err := pbApic.NewProtosClientApiClient(conn).WatchChanges(ctx, &req)
+	if err != nil {
+		return bridgeUserError(err)
+	}
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			return bridgeUserError(err)
+		}
+		encoded, err := proto.Marshal(resp)
+		if err != nil {
+			return fmt.Errorf("encode WatchChanges response: %w", err)
+		}
+		if !emit(encoded) {
+			return nil
+		}
+	}
+}
+
+func bridgeUserError(err error) error {
+	if err == nil {
+		return nil
+	}
+	st, ok := grpcstatus.FromError(err)
+	if !ok {
+		return err
+	}
+	message := strings.TrimSpace(st.Message())
+	if message == "" {
+		return err
+	}
+	return errors.New(message)
+}
+
+func (b *Bridge) Stop() error {
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	conn := b.conn
+	server := b.server
+	listener := b.listener
+	node := b.node
+	restore := b.restore
+	b.conn = nil
+	b.server = nil
+	b.listener = nil
+	b.node = nil
+	b.restore = nil
+	b.mu.Unlock()
+
+	if conn != nil {
+		_ = conn.Close()
+	}
+	if server != nil {
+		server.GracefulStop()
+	}
+	if listener != nil {
+		_ = listener.Close()
+	}
+	if node != nil {
+		node.Close()
+	}
+	if restore != nil {
+		restore()
+	}
+	return nil
+}
+
+func resolveMethod(method string) (protoreflect.MethodDescriptor, string, error) {
+	method = strings.TrimSpace(method)
+	if method == "" {
+		return nil, "", fmt.Errorf("API method is required")
+	}
+	parts := strings.Split(method, "/")
+	methodName := parts[len(parts)-1]
+	if methodName == "" && len(parts) > 1 {
+		methodName = parts[len(parts)-2]
+	}
+	methodName = strings.TrimSpace(methodName)
+	if dot := strings.LastIndex(methodName, "."); dot >= 0 {
+		methodName = methodName[dot+1:]
+	}
+
+	service := pbApic.File_apic_proto_apic_proto.Services().ByName("ProtosClientApi")
+	if service == nil {
+		return nil, "", fmt.Errorf("ProtosClientApi descriptor is unavailable")
+	}
+	methodDesc := service.Methods().ByName(protoreflect.Name(methodName))
+	if methodDesc == nil {
+		return nil, "", fmt.Errorf("unknown Protos API method %q", method)
+	}
+	fullMethod := fmt.Sprintf("/%s.%s/%s", service.ParentFile().Package(), service.Name(), methodDesc.Name())
+	return methodDesc, fullMethod, nil
+}

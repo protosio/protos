@@ -1,0 +1,7 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+macos/Flutter/GeneratedPluginRegistrant.swift
+macos/Flutter/ephemeral/
+macos/Runner/Frameworks/

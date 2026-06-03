@@ -2,7 +2,7 @@
 
 ## Provisioner Images
 
-Build provisioner images only through `/Users/al3x/code/protos/code/backend/provisioner-images/Taskfile.yml`.
+Build provisioner images only through `/Users/al3x/code/protos/code/backend/cloud-provisioning/Taskfile.yml`.
 Do not invoke `linuxkit build` directly for cloud images.
 
 The provider boot settings are encoded in the CUE target contracts and consumed
@@ -12,8 +12,8 @@ by the Taskfile:
 - Hetzner: BIOS, LinuxKit `raw-bios`, output `hetzner-bios.img`.
 - Local macOS dev/test: direct kernel boot plus EFI initrd ISO, 10 GB local disk.
 
-Use `task -t provisioner-images/Taskfile.yml image-contracts` to inspect the
-current contracts, and `task -t provisioner-images/Taskfile.yml cloud` to build
+Use `task -t cloud-provisioning/Taskfile.yml image-contracts` to inspect the
+current contracts, and `task -t cloud-provisioning/Taskfile.yml cloud` to build
 cloud images in the canonical order.
 
 Hetzner server snapshots inherit the temporary upload server disk size. The

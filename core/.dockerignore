@@ -1,0 +1,14 @@
+.git
+.gitignore
+
+local-macos-vms
+**/local-macos-vms
+
+tmp
+**/tmp
+
+*.raw
+*.img
+*.iso
+*.log
+.env

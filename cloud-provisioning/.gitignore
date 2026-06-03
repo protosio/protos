@@ -1,0 +1,7 @@
+targets/output/
+**/output/
+**/.cache/
+*.raw
+*.img
+*.iso
+*.log
