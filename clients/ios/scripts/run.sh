@@ -26,5 +26,5 @@ flutter pub get --directory "${CLIENT_DIR}"
 
 (
 	cd "${CLIENT_DIR}"
-	"${SCRIPT_DIR}/with-tunnel-mode.sh" "${tunnel_args[@]}" -- flutter build ios "${flutter_args[@]}"
+	"${SCRIPT_DIR}/with-tunnel-mode.sh" "${tunnel_args[@]}" -- flutter run "${flutter_args[@]}"
 )

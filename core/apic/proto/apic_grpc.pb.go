@@ -52,6 +52,7 @@ const (
 	ProtosClientApi_UpdateInstance_FullMethodName             = "/apic.ProtosClientApi/UpdateInstance"
 	ProtosClientApi_GetNetworkState_FullMethodName            = "/apic.ProtosClientApi/GetNetworkState"
 	ProtosClientApi_GetExitRoutes_FullMethodName              = "/apic.ProtosClientApi/GetExitRoutes"
+	ProtosClientApi_GetMobileTunnelConfig_FullMethodName      = "/apic.ProtosClientApi/GetMobileTunnelConfig"
 	ProtosClientApi_GetRuntimeState_FullMethodName            = "/apic.ProtosClientApi/GetRuntimeState"
 	ProtosClientApi_WatchChanges_FullMethodName               = "/apic.ProtosClientApi/WatchChanges"
 	ProtosClientApi_GetTasks_FullMethodName                   = "/apic.ProtosClientApi/GetTasks"
@@ -108,6 +109,7 @@ type ProtosClientApiClient interface {
 	UpdateInstance(ctx context.Context, in *UpdateInstanceRequest, opts ...grpc.CallOption) (*UpdateInstanceResponse, error)
 	GetNetworkState(ctx context.Context, in *GetNetworkStateRequest, opts ...grpc.CallOption) (*GetNetworkStateResponse, error)
 	GetExitRoutes(ctx context.Context, in *GetExitRoutesRequest, opts ...grpc.CallOption) (*GetExitRoutesResponse, error)
+	GetMobileTunnelConfig(ctx context.Context, in *GetMobileTunnelConfigRequest, opts ...grpc.CallOption) (*GetMobileTunnelConfigResponse, error)
 	GetRuntimeState(ctx context.Context, in *GetRuntimeStateRequest, opts ...grpc.CallOption) (*GetRuntimeStateResponse, error)
 	WatchChanges(ctx context.Context, in *WatchChangesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchChangesResponse], error)
 	GetTasks(ctx context.Context, in *GetTasksRequest, opts ...grpc.CallOption) (*GetTasksResponse, error)
@@ -465,6 +467,16 @@ func (c *protosClientApiClient) GetExitRoutes(ctx context.Context, in *GetExitRo
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetMobileTunnelConfig(ctx context.Context, in *GetMobileTunnelConfigRequest, opts ...grpc.CallOption) (*GetMobileTunnelConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMobileTunnelConfigResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetMobileTunnelConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) GetRuntimeState(ctx context.Context, in *GetRuntimeStateRequest, opts ...grpc.CallOption) (*GetRuntimeStateResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetRuntimeStateResponse)
@@ -681,6 +693,7 @@ type ProtosClientApiServer interface {
 	UpdateInstance(context.Context, *UpdateInstanceRequest) (*UpdateInstanceResponse, error)
 	GetNetworkState(context.Context, *GetNetworkStateRequest) (*GetNetworkStateResponse, error)
 	GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error)
+	GetMobileTunnelConfig(context.Context, *GetMobileTunnelConfigRequest) (*GetMobileTunnelConfigResponse, error)
 	GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error)
 	WatchChanges(*WatchChangesRequest, grpc.ServerStreamingServer[WatchChangesResponse]) error
 	GetTasks(context.Context, *GetTasksRequest) (*GetTasksResponse, error)
@@ -805,6 +818,9 @@ func (UnimplementedProtosClientApiServer) GetNetworkState(context.Context, *GetN
 }
 func (UnimplementedProtosClientApiServer) GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetExitRoutes not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetMobileTunnelConfig(context.Context, *GetMobileTunnelConfigRequest) (*GetMobileTunnelConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMobileTunnelConfig not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRuntimeState not implemented")
@@ -1471,6 +1487,24 @@ func _ProtosClientApi_GetExitRoutes_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetMobileTunnelConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMobileTunnelConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetMobileTunnelConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetMobileTunnelConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetMobileTunnelConfig(ctx, req.(*GetMobileTunnelConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_GetRuntimeState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetRuntimeStateRequest)
 	if err := dec(in); err != nil {
@@ -1908,6 +1942,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetExitRoutes",
 			Handler:    _ProtosClientApi_GetExitRoutes_Handler,
+		},
+		{
+			MethodName: "GetMobileTunnelConfig",
+			Handler:    _ProtosClientApi_GetMobileTunnelConfig_Handler,
 		},
 		{
 			MethodName: "GetRuntimeState",

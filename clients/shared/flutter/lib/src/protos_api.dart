@@ -305,6 +305,24 @@ class ProtosApi {
     );
   }
 
+  Future<pb.GetMobileTunnelConfigResponse> mobileTunnelConfig({
+    String instance = '',
+    String deviceId = '',
+    String dnsServer = '',
+    List<String> cidrs = const [],
+  }) {
+    return bridge.call(
+      'GetMobileTunnelConfig',
+      pb.GetMobileTunnelConfigRequest(
+        instance: instance,
+        deviceId: deviceId,
+        dnsServer: dnsServer,
+        cidrs: cidrs,
+      ),
+      pb.GetMobileTunnelConfigResponse.create,
+    );
+  }
+
   Future<pb.SetExitRouteResponse> setExitRoute({
     required String instance,
     String deviceId = '',

@@ -5,8 +5,14 @@ import 'package:flutter/material.dart';
 
 import 'generated/apic/proto/apic.pb.dart' as pb;
 import 'native/protos_bridge.dart';
+import 'native/protos_tunnel_bridge.dart';
 import 'protos_api.dart';
 import 'text_helpers.dart';
+
+const _iosTunnelBuildEnabled = bool.fromEnvironment(
+  'PROTOS_IOS_TUNNEL',
+  defaultValue: true,
+);
 
 enum SidebarSection {
   overview('Overview', Icons.speed_outlined),
@@ -52,12 +58,14 @@ class DaemonState {
 }
 
 class AppModel extends ChangeNotifier {
-  AppModel({NativeProtosBridge? bridge})
-    : bridge = bridge ?? NativeProtosBridge() {
+  AppModel({NativeProtosBridge? bridge, ProtosTunnelBridge? tunnelBridge})
+    : bridge = bridge ?? NativeProtosBridge(),
+      tunnelBridge = tunnelBridge ?? ProtosTunnelBridge() {
     api = ProtosApi(this.bridge);
   }
 
   final NativeProtosBridge bridge;
+  final ProtosTunnelBridge tunnelBridge;
   late final ProtosApi api;
 
   DaemonState daemonState = DaemonState.starting;
@@ -85,6 +93,8 @@ class AppModel extends ChangeNotifier {
   List<pb.RuntimePeerStatus> runtimePeers = [];
   List<pb.Commit> localCommits = [];
   pb.SystemStatus? systemStatus;
+  MobileTunnelStatus mobileTunnelStatus =
+      const MobileTunnelStatus.unsupported();
   pb.GetInstanceDeployOptionsResponse? instanceDeployOptions;
   String outputText = '';
 
@@ -99,6 +109,9 @@ class AppModel extends ChangeNotifier {
 
   SidebarSection get selectedSection => _selectedSection;
   bool get supportsNetwork => !Platform.isIOS;
+  bool get supportsHostAgent => !Platform.isIOS;
+  bool get supportsMobileTunnel =>
+      Platform.isIOS && _iosTunnelBuildEnabled && tunnelBridge.isSupported;
 
   set selectedSection(SidebarSection section) {
     if (needsInitialization && section != SidebarSection.overview) {
@@ -189,6 +202,9 @@ class AppModel extends ChangeNotifier {
     final runtime = _optional(api.runtimeState());
     final commitList = _optional(api.localCommits());
     final status = _optional(api.systemStatus());
+    final tunnelStatus = supportsMobileTunnel
+        ? _optional(tunnelBridge.tunnelStatus())
+        : Future<MobileTunnelStatus?>.value();
 
     userInfo = await user;
     devices = (await deviceList)?.devices.toList(growable: false) ?? [];
@@ -216,6 +232,8 @@ class AppModel extends ChangeNotifier {
     systemStatus = statusResponse?.hasStatus() == true
         ? statusResponse!.status
         : null;
+    mobileTunnelStatus =
+        await tunnelStatus ?? const MobileTunnelStatus.unsupported();
     if (notify) {
       notifyListeners();
     }
@@ -258,6 +276,9 @@ class AppModel extends ChangeNotifier {
     if (!supportsNetwork) {
       networkState = null;
       exitRoutes = [];
+      if (supportsMobileTunnel) {
+        await refreshMobileTunnelStatus(notify: false);
+      }
       if (notify) {
         notifyListeners();
       }
@@ -358,11 +379,64 @@ class AppModel extends ChangeNotifier {
   }
 
   Future<void> refreshStatus({bool notify = true}) async {
-    final response = await api.systemStatus();
+    final responseFuture = api.systemStatus();
+    final tunnelStatus = supportsMobileTunnel
+        ? _optional(tunnelBridge.tunnelStatus())
+        : Future<MobileTunnelStatus?>.value();
+    final response = await responseFuture;
     systemStatus = response.hasStatus() ? response.status : null;
+    mobileTunnelStatus =
+        await tunnelStatus ?? const MobileTunnelStatus.unsupported();
     if (notify) {
       notifyListeners();
     }
+  }
+
+  Future<void> refreshMobileTunnelStatus({bool notify = true}) async {
+    mobileTunnelStatus = supportsMobileTunnel
+        ? await tunnelBridge.tunnelStatus()
+        : const MobileTunnelStatus.unsupported();
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> installOrUpdateMobileTunnel({
+    required String instance,
+    String dnsServer = '',
+    List<String> cidrs = const [],
+  }) async {
+    if (!supportsMobileTunnel) {
+      throw UnsupportedError('The Protos mobile tunnel is iOS-only.');
+    }
+    final response = await api.mobileTunnelConfig(
+      instance: instance,
+      dnsServer: dnsServer,
+      cidrs: cidrs,
+    );
+    if (!response.hasConfig()) {
+      throw StateError('The embedded core did not return a tunnel config.');
+    }
+    await tunnelBridge.installOrUpdateTunnel(response.config);
+    mobileTunnelStatus = await tunnelBridge.tunnelStatus();
+    outputText =
+        'Mobile tunnel profile installed for ${response.config.instanceName}.';
+  }
+
+  Future<void> startMobileTunnel() async {
+    if (!supportsMobileTunnel) {
+      throw UnsupportedError('The Protos mobile tunnel is iOS-only.');
+    }
+    await tunnelBridge.startTunnel();
+    mobileTunnelStatus = await tunnelBridge.tunnelStatus();
+  }
+
+  Future<void> stopMobileTunnel() async {
+    if (!supportsMobileTunnel) {
+      throw UnsupportedError('The Protos mobile tunnel is iOS-only.');
+    }
+    await tunnelBridge.stopTunnel();
+    mobileTunnelStatus = await tunnelBridge.tunnelStatus();
   }
 
   void setProvisionerImages(
@@ -603,6 +677,7 @@ class AppModel extends ChangeNotifier {
     runtimePeers = [];
     localCommits = [];
     systemStatus = null;
+    mobileTunnelStatus = const MobileTunnelStatus.unsupported();
     instanceDeployOptions = null;
     outputText = '';
   }

@@ -296,6 +296,31 @@ package apicv1
 }
 #GetExitRoutesRequest: instance?: string
 #GetExitRoutesResponse: routes?: [...#ExitRoute]
+#GetMobileTunnelConfigRequest: {
+	instance?:   string
+	device_id?:  string
+	dns_server?: string
+	cidrs?:      [...string]
+}
+#MobileTunnelConfig: {
+	config_id?:                    string
+	generated_at_unix?:            int64
+	instance_id?:                  string
+	instance_name?:                string
+	peer_public_key?:              string
+	peer_endpoint?:                string
+	interface_addresses?:          [...string]
+	dns_servers?:                  [...string]
+	included_routes?:              [...string]
+	excluded_routes?:              [...string]
+	mtu?:                          int
+	allowed_ips?:                  [...string]
+	persistent_keepalive_seconds?: int
+	keychain_access_group?:        string
+	keychain_account?:             string
+	wireguard_private_key?:        string
+}
+#GetMobileTunnelConfigResponse: config?: #MobileTunnelConfig
 #GetRuntimeStateRequest: instance?: string
 #GetRuntimeStateResponse: state?: #RuntimeState
 #WatchChangesRequest: {
@@ -570,6 +595,7 @@ contract: {
 				{name: "UpdateInstance", request: "UpdateInstanceRequest", response: "UpdateInstanceResponse"},
 				{name: "GetNetworkState", request: "GetNetworkStateRequest", response: "GetNetworkStateResponse"},
 				{name: "GetExitRoutes", request: "GetExitRoutesRequest", response: "GetExitRoutesResponse"},
+				{name: "GetMobileTunnelConfig", request: "GetMobileTunnelConfigRequest", response: "GetMobileTunnelConfigResponse"},
 				{name: "GetRuntimeState", request: "GetRuntimeStateRequest", response: "GetRuntimeStateResponse"},
 				{name: "WatchChanges", request: "WatchChangesRequest", response: "WatchChangesResponse", response_stream: true},
 				{name: "GetTasks", request: "GetTasksRequest", response: "GetTasksResponse"},
@@ -894,6 +920,33 @@ contract: {
 			]},
 			{kind: "message", name: "GetExitRoutesResponse", fields: [
 				{rule: "repeated", type: "ExitRoute", name: "routes", number: 1},
+			]},
+			{kind: "message", name: "GetMobileTunnelConfigRequest", fields: [
+				{type: "string", name: "instance", number: 1},
+				{type: "string", name: "device_id", number: 2},
+				{type: "string", name: "dns_server", number: 3},
+				{rule: "repeated", type: "string", name: "cidrs", number: 4},
+			]},
+			{kind: "message", name: "MobileTunnelConfig", fields: [
+				{type: "string", name: "config_id", number: 1},
+				{type: "int64", name: "generated_at_unix", number: 2},
+				{type: "string", name: "instance_id", number: 3},
+				{type: "string", name: "instance_name", number: 4},
+				{type: "string", name: "peer_public_key", number: 5},
+				{type: "string", name: "peer_endpoint", number: 6},
+				{rule: "repeated", type: "string", name: "interface_addresses", number: 7},
+				{rule: "repeated", type: "string", name: "dns_servers", number: 8},
+				{rule: "repeated", type: "string", name: "included_routes", number: 9},
+				{rule: "repeated", type: "string", name: "excluded_routes", number: 10},
+				{type: "int32", name: "mtu", number: 11},
+				{rule: "repeated", type: "string", name: "allowed_ips", number: 12},
+				{type: "int32", name: "persistent_keepalive_seconds", number: 13},
+				{type: "string", name: "keychain_access_group", number: 14},
+				{type: "string", name: "keychain_account", number: 15},
+				{type: "string", name: "wireguard_private_key", number: 16},
+			]},
+			{kind: "message", name: "GetMobileTunnelConfigResponse", fields: [
+				{type: "MobileTunnelConfig", name: "config", number: 1},
 			]},
 			{kind: "message", name: "GetRuntimeStateRequest", fields: [
 				{type: "string", name: "instance", number: 1},
@@ -1224,6 +1277,9 @@ lineage: {
 			ExitRoute?:                          #ExitRoute
 			GetExitRoutesRequest?:                #GetExitRoutesRequest
 			GetExitRoutesResponse?:               #GetExitRoutesResponse
+			GetMobileTunnelConfigRequest?:        #GetMobileTunnelConfigRequest
+			MobileTunnelConfig?:                  #MobileTunnelConfig
+			GetMobileTunnelConfigResponse?:       #GetMobileTunnelConfigResponse
 			GetRuntimeStateRequest?:              #GetRuntimeStateRequest
 			GetRuntimeStateResponse?:             #GetRuntimeStateResponse
 			WatchChangesRequest?:                 #WatchChangesRequest

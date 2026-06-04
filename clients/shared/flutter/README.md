@@ -44,15 +44,22 @@ bundling frameworks, so `flutter run` also rebuilds the embedded Go dylib.
 
 ## iOS Build
 
-```sh
-cd clients/ios
-flutter build ios --debug --no-codesign
-```
-
-To install on a physical iPhone, Xcode needs a valid Apple Development signing
-identity and provisioning team, and the iPhone must be unlocked, trusted by this
-Mac, and have Developer Mode enabled. Once signing is configured:
+The default iOS build includes the Packet Tunnel Network Extension. That build
+requires Apple provisioning that supports Network Extensions:
 
 ```sh
-flutter run -d <device-id>
+task -t clients/ios/Taskfile.yml build -- --no-codesign
 ```
+
+For personal Apple teams or basic app testing without VPN support, build or run
+without the Packet Tunnel extension:
+
+```sh
+task -t clients/ios/Taskfile.yml build:no-tunnel
+DEVICE=<device-id> task -t clients/ios/Taskfile.yml run:no-tunnel -- --no-resident
+```
+
+To install the full tunnel-capable app on a physical iPhone, Xcode needs a valid
+Apple Development signing identity, a provisioning team with the Network
+Extensions capability, and an unlocked/trusted iPhone with Developer Mode
+enabled.

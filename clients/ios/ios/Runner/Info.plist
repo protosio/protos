@@ -26,6 +26,17 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_protos._tcp</string>
+		<string>_protos._udp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Protos discovers nearby Protos peers on your local network.</string>
+	<key>ProtosAppGroup</key>
+	<string>group.io.protos.protosFlutter</string>
+	<key>ProtosKeychainAccessGroup</key>
+	<string>$(AppIdentifierPrefix)io.protos.protosFlutter</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

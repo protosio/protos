@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
@@ -23,7 +24,9 @@ func (b *Backend) GetSystemStatus(ctx context.Context, _ *pbApic.GetSystemStatus
 		WorkDir:      services.WorkDir,
 		Capabilities: services.Capabilities,
 		P2PPort:      int32(services.P2PPort),
-		HostAgent:    hostAgentConnectionStatus(ctx),
+	}
+	if shouldReportHostAgent(runtime.GOOS) {
+		status.HostAgent = hostAgentConnectionStatus(ctx)
 	}
 
 	if services.WorkDir != "" {
@@ -61,6 +64,10 @@ func (b *Backend) GetSystemStatus(ctx context.Context, _ *pbApic.GetSystemStatus
 	}
 
 	return &pbApic.GetSystemStatusResponse{Status: status}, nil
+}
+
+func shouldReportHostAgent(goos string) bool {
+	return goos != "ios"
 }
 
 func socketEndpoint(kind string, path string) *pbApic.CoreEndpoint {

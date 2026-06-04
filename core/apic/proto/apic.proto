@@ -39,6 +39,7 @@ service ProtosClientApi {
   rpc UpdateInstance(UpdateInstanceRequest) returns (UpdateInstanceResponse) {}
   rpc GetNetworkState(GetNetworkStateRequest) returns (GetNetworkStateResponse) {}
   rpc GetExitRoutes(GetExitRoutesRequest) returns (GetExitRoutesResponse) {}
+  rpc GetMobileTunnelConfig(GetMobileTunnelConfigRequest) returns (GetMobileTunnelConfigResponse) {}
   rpc GetRuntimeState(GetRuntimeStateRequest) returns (GetRuntimeStateResponse) {}
   rpc WatchChanges(WatchChangesRequest) returns (stream WatchChangesResponse) {}
   rpc GetTasks(GetTasksRequest) returns (GetTasksResponse) {}
@@ -532,6 +533,36 @@ message GetExitRoutesRequest {
 
 message GetExitRoutesResponse {
   repeated ExitRoute routes = 1;
+}
+
+message GetMobileTunnelConfigRequest {
+  string instance = 1;
+  string device_id = 2;
+  string dns_server = 3;
+  repeated string cidrs = 4;
+}
+
+message MobileTunnelConfig {
+  string config_id = 1;
+  int64 generated_at_unix = 2;
+  string instance_id = 3;
+  string instance_name = 4;
+  string peer_public_key = 5;
+  string peer_endpoint = 6;
+  repeated string interface_addresses = 7;
+  repeated string dns_servers = 8;
+  repeated string included_routes = 9;
+  repeated string excluded_routes = 10;
+  int32 mtu = 11;
+  repeated string allowed_ips = 12;
+  int32 persistent_keepalive_seconds = 13;
+  string keychain_access_group = 14;
+  string keychain_account = 15;
+  string wireguard_private_key = 16;
+}
+
+message GetMobileTunnelConfigResponse {
+  MobileTunnelConfig config = 1;
 }
 
 message GetRuntimeStateRequest {

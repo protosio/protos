@@ -6128,6 +6128,362 @@ class GetExitRoutesResponse extends $pb.GeneratedMessage {
   $pb.PbList<ExitRoute> get routes => $_getList(0);
 }
 
+class GetMobileTunnelConfigRequest extends $pb.GeneratedMessage {
+  factory GetMobileTunnelConfigRequest({
+    $core.String? instance,
+    $core.String? deviceId,
+    $core.String? dnsServer,
+    $core.Iterable<$core.String>? cidrs,
+  }) {
+    final result = create();
+    if (instance != null) result.instance = instance;
+    if (deviceId != null) result.deviceId = deviceId;
+    if (dnsServer != null) result.dnsServer = dnsServer;
+    if (cidrs != null) result.cidrs.addAll(cidrs);
+    return result;
+  }
+
+  GetMobileTunnelConfigRequest._();
+
+  factory GetMobileTunnelConfigRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetMobileTunnelConfigRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetMobileTunnelConfigRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'instance')
+    ..aOS(2, _omitFieldNames ? '' : 'deviceId')
+    ..aOS(3, _omitFieldNames ? '' : 'dnsServer')
+    ..pPS(4, _omitFieldNames ? '' : 'cidrs')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetMobileTunnelConfigRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetMobileTunnelConfigRequest copyWith(
+          void Function(GetMobileTunnelConfigRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as GetMobileTunnelConfigRequest))
+          as GetMobileTunnelConfigRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetMobileTunnelConfigRequest create() =>
+      GetMobileTunnelConfigRequest._();
+  @$core.override
+  GetMobileTunnelConfigRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetMobileTunnelConfigRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetMobileTunnelConfigRequest>(create);
+  static GetMobileTunnelConfigRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get instance => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set instance($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasInstance() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearInstance() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get deviceId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set deviceId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDeviceId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDeviceId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get dnsServer => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set dnsServer($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDnsServer() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDnsServer() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $pb.PbList<$core.String> get cidrs => $_getList(3);
+}
+
+class MobileTunnelConfig extends $pb.GeneratedMessage {
+  factory MobileTunnelConfig({
+    $core.String? configId,
+    $fixnum.Int64? generatedAtUnix,
+    $core.String? instanceId,
+    $core.String? instanceName,
+    $core.String? peerPublicKey,
+    $core.String? peerEndpoint,
+    $core.Iterable<$core.String>? interfaceAddresses,
+    $core.Iterable<$core.String>? dnsServers,
+    $core.Iterable<$core.String>? includedRoutes,
+    $core.Iterable<$core.String>? excludedRoutes,
+    $core.int? mtu,
+    $core.Iterable<$core.String>? allowedIps,
+    $core.int? persistentKeepaliveSeconds,
+    $core.String? keychainAccessGroup,
+    $core.String? keychainAccount,
+    $core.String? wireguardPrivateKey,
+  }) {
+    final result = create();
+    if (configId != null) result.configId = configId;
+    if (generatedAtUnix != null) result.generatedAtUnix = generatedAtUnix;
+    if (instanceId != null) result.instanceId = instanceId;
+    if (instanceName != null) result.instanceName = instanceName;
+    if (peerPublicKey != null) result.peerPublicKey = peerPublicKey;
+    if (peerEndpoint != null) result.peerEndpoint = peerEndpoint;
+    if (interfaceAddresses != null)
+      result.interfaceAddresses.addAll(interfaceAddresses);
+    if (dnsServers != null) result.dnsServers.addAll(dnsServers);
+    if (includedRoutes != null) result.includedRoutes.addAll(includedRoutes);
+    if (excludedRoutes != null) result.excludedRoutes.addAll(excludedRoutes);
+    if (mtu != null) result.mtu = mtu;
+    if (allowedIps != null) result.allowedIps.addAll(allowedIps);
+    if (persistentKeepaliveSeconds != null)
+      result.persistentKeepaliveSeconds = persistentKeepaliveSeconds;
+    if (keychainAccessGroup != null)
+      result.keychainAccessGroup = keychainAccessGroup;
+    if (keychainAccount != null) result.keychainAccount = keychainAccount;
+    if (wireguardPrivateKey != null)
+      result.wireguardPrivateKey = wireguardPrivateKey;
+    return result;
+  }
+
+  MobileTunnelConfig._();
+
+  factory MobileTunnelConfig.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MobileTunnelConfig.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MobileTunnelConfig',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'configId')
+    ..aInt64(2, _omitFieldNames ? '' : 'generatedAtUnix')
+    ..aOS(3, _omitFieldNames ? '' : 'instanceId')
+    ..aOS(4, _omitFieldNames ? '' : 'instanceName')
+    ..aOS(5, _omitFieldNames ? '' : 'peerPublicKey')
+    ..aOS(6, _omitFieldNames ? '' : 'peerEndpoint')
+    ..pPS(7, _omitFieldNames ? '' : 'interfaceAddresses')
+    ..pPS(8, _omitFieldNames ? '' : 'dnsServers')
+    ..pPS(9, _omitFieldNames ? '' : 'includedRoutes')
+    ..pPS(10, _omitFieldNames ? '' : 'excludedRoutes')
+    ..aI(11, _omitFieldNames ? '' : 'mtu')
+    ..pPS(12, _omitFieldNames ? '' : 'allowedIps')
+    ..aI(13, _omitFieldNames ? '' : 'persistentKeepaliveSeconds')
+    ..aOS(14, _omitFieldNames ? '' : 'keychainAccessGroup')
+    ..aOS(15, _omitFieldNames ? '' : 'keychainAccount')
+    ..aOS(16, _omitFieldNames ? '' : 'wireguardPrivateKey')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MobileTunnelConfig clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MobileTunnelConfig copyWith(void Function(MobileTunnelConfig) updates) =>
+      super.copyWith((message) => updates(message as MobileTunnelConfig))
+          as MobileTunnelConfig;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MobileTunnelConfig create() => MobileTunnelConfig._();
+  @$core.override
+  MobileTunnelConfig createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MobileTunnelConfig getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MobileTunnelConfig>(create);
+  static MobileTunnelConfig? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get configId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set configId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConfigId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfigId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get generatedAtUnix => $_getI64(1);
+  @$pb.TagNumber(2)
+  set generatedAtUnix($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasGeneratedAtUnix() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGeneratedAtUnix() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get instanceId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set instanceId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasInstanceId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearInstanceId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get instanceName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set instanceName($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasInstanceName() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearInstanceName() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get peerPublicKey => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set peerPublicKey($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPeerPublicKey() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPeerPublicKey() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get peerEndpoint => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set peerEndpoint($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasPeerEndpoint() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearPeerEndpoint() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $pb.PbList<$core.String> get interfaceAddresses => $_getList(6);
+
+  @$pb.TagNumber(8)
+  $pb.PbList<$core.String> get dnsServers => $_getList(7);
+
+  @$pb.TagNumber(9)
+  $pb.PbList<$core.String> get includedRoutes => $_getList(8);
+
+  @$pb.TagNumber(10)
+  $pb.PbList<$core.String> get excludedRoutes => $_getList(9);
+
+  @$pb.TagNumber(11)
+  $core.int get mtu => $_getIZ(10);
+  @$pb.TagNumber(11)
+  set mtu($core.int value) => $_setSignedInt32(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasMtu() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearMtu() => $_clearField(11);
+
+  @$pb.TagNumber(12)
+  $pb.PbList<$core.String> get allowedIps => $_getList(11);
+
+  @$pb.TagNumber(13)
+  $core.int get persistentKeepaliveSeconds => $_getIZ(12);
+  @$pb.TagNumber(13)
+  set persistentKeepaliveSeconds($core.int value) =>
+      $_setSignedInt32(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasPersistentKeepaliveSeconds() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearPersistentKeepaliveSeconds() => $_clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.String get keychainAccessGroup => $_getSZ(13);
+  @$pb.TagNumber(14)
+  set keychainAccessGroup($core.String value) => $_setString(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasKeychainAccessGroup() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearKeychainAccessGroup() => $_clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get keychainAccount => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set keychainAccount($core.String value) => $_setString(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasKeychainAccount() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearKeychainAccount() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.String get wireguardPrivateKey => $_getSZ(15);
+  @$pb.TagNumber(16)
+  set wireguardPrivateKey($core.String value) => $_setString(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasWireguardPrivateKey() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearWireguardPrivateKey() => $_clearField(16);
+}
+
+class GetMobileTunnelConfigResponse extends $pb.GeneratedMessage {
+  factory GetMobileTunnelConfigResponse({
+    MobileTunnelConfig? config,
+  }) {
+    final result = create();
+    if (config != null) result.config = config;
+    return result;
+  }
+
+  GetMobileTunnelConfigResponse._();
+
+  factory GetMobileTunnelConfigResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetMobileTunnelConfigResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetMobileTunnelConfigResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOM<MobileTunnelConfig>(1, _omitFieldNames ? '' : 'config',
+        subBuilder: MobileTunnelConfig.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetMobileTunnelConfigResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetMobileTunnelConfigResponse copyWith(
+          void Function(GetMobileTunnelConfigResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as GetMobileTunnelConfigResponse))
+          as GetMobileTunnelConfigResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetMobileTunnelConfigResponse create() =>
+      GetMobileTunnelConfigResponse._();
+  @$core.override
+  GetMobileTunnelConfigResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetMobileTunnelConfigResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetMobileTunnelConfigResponse>(create);
+  static GetMobileTunnelConfigResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  MobileTunnelConfig get config => $_getN(0);
+  @$pb.TagNumber(1)
+  set config(MobileTunnelConfig value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConfig() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfig() => $_clearField(1);
+  @$pb.TagNumber(1)
+  MobileTunnelConfig ensureConfig() => $_ensure(0);
+}
+
 class GetRuntimeStateRequest extends $pb.GeneratedMessage {
   factory GetRuntimeStateRequest({
     $core.String? instance,
@@ -10081,6 +10437,10 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetExitRoutesRequest request) =>
       _client.invoke<GetExitRoutesResponse>(ctx, 'ProtosClientApi',
           'GetExitRoutes', request, GetExitRoutesResponse());
+  $async.Future<GetMobileTunnelConfigResponse> getMobileTunnelConfig(
+          $pb.ClientContext? ctx, GetMobileTunnelConfigRequest request) =>
+      _client.invoke<GetMobileTunnelConfigResponse>(ctx, 'ProtosClientApi',
+          'GetMobileTunnelConfig', request, GetMobileTunnelConfigResponse());
   $async.Future<GetRuntimeStateResponse> getRuntimeState(
           $pb.ClientContext? ctx, GetRuntimeStateRequest request) =>
       _client.invoke<GetRuntimeStateResponse>(ctx, 'ProtosClientApi',

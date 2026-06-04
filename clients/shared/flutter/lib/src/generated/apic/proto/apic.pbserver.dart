@@ -88,6 +88,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.GetNetworkStateRequest request);
   $async.Future<$0.GetExitRoutesResponse> getExitRoutes(
       $pb.ServerContext ctx, $0.GetExitRoutesRequest request);
+  $async.Future<$0.GetMobileTunnelConfigResponse> getMobileTunnelConfig(
+      $pb.ServerContext ctx, $0.GetMobileTunnelConfigRequest request);
   $async.Future<$0.GetRuntimeStateResponse> getRuntimeState(
       $pb.ServerContext ctx, $0.GetRuntimeStateRequest request);
   $async.Future<$0.WatchChangesResponse> watchChanges(
@@ -191,6 +193,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.GetNetworkStateRequest();
       case 'GetExitRoutes':
         return $0.GetExitRoutesRequest();
+      case 'GetMobileTunnelConfig':
+        return $0.GetMobileTunnelConfigRequest();
       case 'GetRuntimeState':
         return $0.GetRuntimeStateRequest();
       case 'WatchChanges':
@@ -303,6 +307,9 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return getNetworkState(ctx, request as $0.GetNetworkStateRequest);
       case 'GetExitRoutes':
         return getExitRoutes(ctx, request as $0.GetExitRoutesRequest);
+      case 'GetMobileTunnelConfig':
+        return getMobileTunnelConfig(
+            ctx, request as $0.GetMobileTunnelConfigRequest);
       case 'GetRuntimeState':
         return getRuntimeState(ctx, request as $0.GetRuntimeStateRequest);
       case 'WatchChanges':

@@ -1647,6 +1647,108 @@ final $typed_data.Uint8List getExitRoutesResponseDescriptor = $convert.base64Dec
     'ChVHZXRFeGl0Um91dGVzUmVzcG9uc2USJwoGcm91dGVzGAEgAygLMg8uYXBpYy5FeGl0Um91dG'
     'VSBnJvdXRlcw==');
 
+@$core.Deprecated('Use getMobileTunnelConfigRequestDescriptor instead')
+const GetMobileTunnelConfigRequest$json = {
+  '1': 'GetMobileTunnelConfigRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+    {'1': 'device_id', '3': 2, '4': 1, '5': 9, '10': 'deviceId'},
+    {'1': 'dns_server', '3': 3, '4': 1, '5': 9, '10': 'dnsServer'},
+    {'1': 'cidrs', '3': 4, '4': 3, '5': 9, '10': 'cidrs'},
+  ],
+};
+
+/// Descriptor for `GetMobileTunnelConfigRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getMobileTunnelConfigRequestDescriptor =
+    $convert.base64Decode(
+        'ChxHZXRNb2JpbGVUdW5uZWxDb25maWdSZXF1ZXN0EhoKCGluc3RhbmNlGAEgASgJUghpbnN0YW'
+        '5jZRIbCglkZXZpY2VfaWQYAiABKAlSCGRldmljZUlkEh0KCmRuc19zZXJ2ZXIYAyABKAlSCWRu'
+        'c1NlcnZlchIUCgVjaWRycxgEIAMoCVIFY2lkcnM=');
+
+@$core.Deprecated('Use mobileTunnelConfigDescriptor instead')
+const MobileTunnelConfig$json = {
+  '1': 'MobileTunnelConfig',
+  '2': [
+    {'1': 'config_id', '3': 1, '4': 1, '5': 9, '10': 'configId'},
+    {'1': 'generated_at_unix', '3': 2, '4': 1, '5': 3, '10': 'generatedAtUnix'},
+    {'1': 'instance_id', '3': 3, '4': 1, '5': 9, '10': 'instanceId'},
+    {'1': 'instance_name', '3': 4, '4': 1, '5': 9, '10': 'instanceName'},
+    {'1': 'peer_public_key', '3': 5, '4': 1, '5': 9, '10': 'peerPublicKey'},
+    {'1': 'peer_endpoint', '3': 6, '4': 1, '5': 9, '10': 'peerEndpoint'},
+    {
+      '1': 'interface_addresses',
+      '3': 7,
+      '4': 3,
+      '5': 9,
+      '10': 'interfaceAddresses'
+    },
+    {'1': 'dns_servers', '3': 8, '4': 3, '5': 9, '10': 'dnsServers'},
+    {'1': 'included_routes', '3': 9, '4': 3, '5': 9, '10': 'includedRoutes'},
+    {'1': 'excluded_routes', '3': 10, '4': 3, '5': 9, '10': 'excludedRoutes'},
+    {'1': 'mtu', '3': 11, '4': 1, '5': 5, '10': 'mtu'},
+    {'1': 'allowed_ips', '3': 12, '4': 3, '5': 9, '10': 'allowedIps'},
+    {
+      '1': 'persistent_keepalive_seconds',
+      '3': 13,
+      '4': 1,
+      '5': 5,
+      '10': 'persistentKeepaliveSeconds'
+    },
+    {
+      '1': 'keychain_access_group',
+      '3': 14,
+      '4': 1,
+      '5': 9,
+      '10': 'keychainAccessGroup'
+    },
+    {'1': 'keychain_account', '3': 15, '4': 1, '5': 9, '10': 'keychainAccount'},
+    {
+      '1': 'wireguard_private_key',
+      '3': 16,
+      '4': 1,
+      '5': 9,
+      '10': 'wireguardPrivateKey'
+    },
+  ],
+};
+
+/// Descriptor for `MobileTunnelConfig`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List mobileTunnelConfigDescriptor = $convert.base64Decode(
+    'ChJNb2JpbGVUdW5uZWxDb25maWcSGwoJY29uZmlnX2lkGAEgASgJUghjb25maWdJZBIqChFnZW'
+    '5lcmF0ZWRfYXRfdW5peBgCIAEoA1IPZ2VuZXJhdGVkQXRVbml4Eh8KC2luc3RhbmNlX2lkGAMg'
+    'ASgJUgppbnN0YW5jZUlkEiMKDWluc3RhbmNlX25hbWUYBCABKAlSDGluc3RhbmNlTmFtZRImCg'
+    '9wZWVyX3B1YmxpY19rZXkYBSABKAlSDXBlZXJQdWJsaWNLZXkSIwoNcGVlcl9lbmRwb2ludBgG'
+    'IAEoCVIMcGVlckVuZHBvaW50Ei8KE2ludGVyZmFjZV9hZGRyZXNzZXMYByADKAlSEmludGVyZm'
+    'FjZUFkZHJlc3NlcxIfCgtkbnNfc2VydmVycxgIIAMoCVIKZG5zU2VydmVycxInCg9pbmNsdWRl'
+    'ZF9yb3V0ZXMYCSADKAlSDmluY2x1ZGVkUm91dGVzEicKD2V4Y2x1ZGVkX3JvdXRlcxgKIAMoCV'
+    'IOZXhjbHVkZWRSb3V0ZXMSEAoDbXR1GAsgASgFUgNtdHUSHwoLYWxsb3dlZF9pcHMYDCADKAlS'
+    'CmFsbG93ZWRJcHMSQAoccGVyc2lzdGVudF9rZWVwYWxpdmVfc2Vjb25kcxgNIAEoBVIacGVyc2'
+    'lzdGVudEtlZXBhbGl2ZVNlY29uZHMSMgoVa2V5Y2hhaW5fYWNjZXNzX2dyb3VwGA4gASgJUhNr'
+    'ZXljaGFpbkFjY2Vzc0dyb3VwEikKEGtleWNoYWluX2FjY291bnQYDyABKAlSD2tleWNoYWluQW'
+    'Njb3VudBIyChV3aXJlZ3VhcmRfcHJpdmF0ZV9rZXkYECABKAlSE3dpcmVndWFyZFByaXZhdGVL'
+    'ZXk=');
+
+@$core.Deprecated('Use getMobileTunnelConfigResponseDescriptor instead')
+const GetMobileTunnelConfigResponse$json = {
+  '1': 'GetMobileTunnelConfigResponse',
+  '2': [
+    {
+      '1': 'config',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.MobileTunnelConfig',
+      '10': 'config'
+    },
+  ],
+};
+
+/// Descriptor for `GetMobileTunnelConfigResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getMobileTunnelConfigResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1HZXRNb2JpbGVUdW5uZWxDb25maWdSZXNwb25zZRIwCgZjb25maWcYASABKAsyGC5hcGljLk'
+        '1vYmlsZVR1bm5lbENvbmZpZ1IGY29uZmln');
+
 @$core.Deprecated('Use getRuntimeStateRequestDescriptor instead')
 const GetRuntimeStateRequest$json = {
   '1': 'GetRuntimeStateRequest',
@@ -2926,6 +3028,12 @@ const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
       '4': {}
     },
     {
+      '1': 'GetMobileTunnelConfig',
+      '2': '.apic.GetMobileTunnelConfigRequest',
+      '3': '.apic.GetMobileTunnelConfigResponse',
+      '4': {}
+    },
+    {
       '1': 'GetRuntimeState',
       '2': '.apic.GetRuntimeStateRequest',
       '3': '.apic.GetRuntimeStateResponse',
@@ -3134,6 +3242,9 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.GetExitRoutesRequest': GetExitRoutesRequest$json,
   '.apic.GetExitRoutesResponse': GetExitRoutesResponse$json,
   '.apic.ExitRoute': ExitRoute$json,
+  '.apic.GetMobileTunnelConfigRequest': GetMobileTunnelConfigRequest$json,
+  '.apic.GetMobileTunnelConfigResponse': GetMobileTunnelConfigResponse$json,
+  '.apic.MobileTunnelConfig': MobileTunnelConfig$json,
   '.apic.GetRuntimeStateRequest': GetRuntimeStateRequest$json,
   '.apic.GetRuntimeStateResponse': GetRuntimeStateResponse$json,
   '.apic.RuntimeState': RuntimeState$json,
@@ -3243,29 +3354,31 @@ final $typed_data.Uint8List protosClientApiServiceDescriptor = $convert.base64De
     'ljLlVwZGF0ZUluc3RhbmNlUmVxdWVzdBocLmFwaWMuVXBkYXRlSW5zdGFuY2VSZXNwb25zZSIA'
     'ElAKD0dldE5ldHdvcmtTdGF0ZRIcLmFwaWMuR2V0TmV0d29ya1N0YXRlUmVxdWVzdBodLmFwaW'
     'MuR2V0TmV0d29ya1N0YXRlUmVzcG9uc2UiABJKCg1HZXRFeGl0Um91dGVzEhouYXBpYy5HZXRF'
-    'eGl0Um91dGVzUmVxdWVzdBobLmFwaWMuR2V0RXhpdFJvdXRlc1Jlc3BvbnNlIgASUAoPR2V0Un'
-    'VudGltZVN0YXRlEhwuYXBpYy5HZXRSdW50aW1lU3RhdGVSZXF1ZXN0Gh0uYXBpYy5HZXRSdW50'
-    'aW1lU3RhdGVSZXNwb25zZSIAEkkKDFdhdGNoQ2hhbmdlcxIZLmFwaWMuV2F0Y2hDaGFuZ2VzUm'
-    'VxdWVzdBoaLmFwaWMuV2F0Y2hDaGFuZ2VzUmVzcG9uc2UiADABEjsKCEdldFRhc2tzEhUuYXBp'
-    'Yy5HZXRUYXNrc1JlcXVlc3QaFi5hcGljLkdldFRhc2tzUmVzcG9uc2UiABI4CgdHZXRUYXNrEh'
-    'QuYXBpYy5HZXRUYXNrUmVxdWVzdBoVLmFwaWMuR2V0VGFza1Jlc3BvbnNlIgASRwoMU2V0RXhp'
-    'dFJvdXRlEhkuYXBpYy5TZXRFeGl0Um91dGVSZXF1ZXN0GhouYXBpYy5TZXRFeGl0Um91dGVSZX'
-    'Nwb25zZSIAEk0KDkNsZWFyRXhpdFJvdXRlEhsuYXBpYy5DbGVhckV4aXRSb3V0ZVJlcXVlc3Qa'
-    'HC5hcGljLkNsZWFyRXhpdFJvdXRlUmVzcG9uc2UiABJZChJHZXRQcm90b3NkUmVsZWFzZXMSHy'
-    '5hcGljLkdldFByb3Rvc2RSZWxlYXNlc1JlcXVlc3QaIC5hcGljLkdldFByb3Rvc2RSZWxlYXNl'
-    'c1Jlc3BvbnNlIgASTQoOR2V0Q2xvdWRJbWFnZXMSGy5hcGljLkdldENsb3VkSW1hZ2VzUmVxdW'
-    'VzdBocLmFwaWMuR2V0Q2xvdWRJbWFnZXNSZXNwb25zZSIAElMKEFVwbG9hZENsb3VkSW1hZ2US'
-    'HS5hcGljLlVwbG9hZENsb3VkSW1hZ2VSZXF1ZXN0Gh4uYXBpYy5VcGxvYWRDbG91ZEltYWdlUm'
-    'VzcG9uc2UiABJTChBSZW1vdmVDbG91ZEltYWdlEh0uYXBpYy5SZW1vdmVDbG91ZEltYWdlUmVx'
-    'dWVzdBoeLmFwaWMuUmVtb3ZlQ2xvdWRJbWFnZVJlc3BvbnNlIgASXwoUR2V0UHJvdmlzaW9uZX'
-    'JJbWFnZXMSIS5hcGljLkdldFByb3Zpc2lvbmVySW1hZ2VzUmVxdWVzdBoiLmFwaWMuR2V0UHJv'
-    'dmlzaW9uZXJJbWFnZXNSZXNwb25zZSIAEmUKFlVwbG9hZFByb3Zpc2lvbmVySW1hZ2USIy5hcG'
-    'ljLlVwbG9hZFByb3Zpc2lvbmVySW1hZ2VSZXF1ZXN0GiQuYXBpYy5VcGxvYWRQcm92aXNpb25l'
-    'ckltYWdlUmVzcG9uc2UiABJlChZSZW1vdmVQcm92aXNpb25lckltYWdlEiMuYXBpYy5SZW1vdm'
-    'VQcm92aXNpb25lckltYWdlUmVxdWVzdBokLmFwaWMuUmVtb3ZlUHJvdmlzaW9uZXJJbWFnZVJl'
-    'c3BvbnNlIgASUAoPR2V0U3lzdGVtU3RhdHVzEhwuYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXF1ZX'
-    'N0Gh0uYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXNwb25zZSIAElAKD0dldExvY2FsQ29tbWl0cxIc'
-    'LmFwaWMuR2V0TG9jYWxDb21taXRzUmVxdWVzdBodLmFwaWMuR2V0TG9jYWxDb21taXRzUmVzcG'
-    '9uc2UiABJTChBHZXRSZW1vdGVDb21taXRzEh0uYXBpYy5HZXRSZW1vdGVDb21taXRzUmVxdWVz'
-    'dBoeLmFwaWMuR2V0UmVtb3RlQ29tbWl0c1Jlc3BvbnNlIgASQQoKRXhlY3V0ZVNxbBIXLmFwaW'
-    'MuRXhlY3V0ZVNxbFJlcXVlc3QaGC5hcGljLkV4ZWN1dGVTcWxSZXNwb25zZSIA');
+    'eGl0Um91dGVzUmVxdWVzdBobLmFwaWMuR2V0RXhpdFJvdXRlc1Jlc3BvbnNlIgASYgoVR2V0TW'
+    '9iaWxlVHVubmVsQ29uZmlnEiIuYXBpYy5HZXRNb2JpbGVUdW5uZWxDb25maWdSZXF1ZXN0GiMu'
+    'YXBpYy5HZXRNb2JpbGVUdW5uZWxDb25maWdSZXNwb25zZSIAElAKD0dldFJ1bnRpbWVTdGF0ZR'
+    'IcLmFwaWMuR2V0UnVudGltZVN0YXRlUmVxdWVzdBodLmFwaWMuR2V0UnVudGltZVN0YXRlUmVz'
+    'cG9uc2UiABJJCgxXYXRjaENoYW5nZXMSGS5hcGljLldhdGNoQ2hhbmdlc1JlcXVlc3QaGi5hcG'
+    'ljLldhdGNoQ2hhbmdlc1Jlc3BvbnNlIgAwARI7CghHZXRUYXNrcxIVLmFwaWMuR2V0VGFza3NS'
+    'ZXF1ZXN0GhYuYXBpYy5HZXRUYXNrc1Jlc3BvbnNlIgASOAoHR2V0VGFzaxIULmFwaWMuR2V0VG'
+    'Fza1JlcXVlc3QaFS5hcGljLkdldFRhc2tSZXNwb25zZSIAEkcKDFNldEV4aXRSb3V0ZRIZLmFw'
+    'aWMuU2V0RXhpdFJvdXRlUmVxdWVzdBoaLmFwaWMuU2V0RXhpdFJvdXRlUmVzcG9uc2UiABJNCg'
+    '5DbGVhckV4aXRSb3V0ZRIbLmFwaWMuQ2xlYXJFeGl0Um91dGVSZXF1ZXN0GhwuYXBpYy5DbGVh'
+    'ckV4aXRSb3V0ZVJlc3BvbnNlIgASWQoSR2V0UHJvdG9zZFJlbGVhc2VzEh8uYXBpYy5HZXRQcm'
+    '90b3NkUmVsZWFzZXNSZXF1ZXN0GiAuYXBpYy5HZXRQcm90b3NkUmVsZWFzZXNSZXNwb25zZSIA'
+    'Ek0KDkdldENsb3VkSW1hZ2VzEhsuYXBpYy5HZXRDbG91ZEltYWdlc1JlcXVlc3QaHC5hcGljLk'
+    'dldENsb3VkSW1hZ2VzUmVzcG9uc2UiABJTChBVcGxvYWRDbG91ZEltYWdlEh0uYXBpYy5VcGxv'
+    'YWRDbG91ZEltYWdlUmVxdWVzdBoeLmFwaWMuVXBsb2FkQ2xvdWRJbWFnZVJlc3BvbnNlIgASUw'
+    'oQUmVtb3ZlQ2xvdWRJbWFnZRIdLmFwaWMuUmVtb3ZlQ2xvdWRJbWFnZVJlcXVlc3QaHi5hcGlj'
+    'LlJlbW92ZUNsb3VkSW1hZ2VSZXNwb25zZSIAEl8KFEdldFByb3Zpc2lvbmVySW1hZ2VzEiEuYX'
+    'BpYy5HZXRQcm92aXNpb25lckltYWdlc1JlcXVlc3QaIi5hcGljLkdldFByb3Zpc2lvbmVySW1h'
+    'Z2VzUmVzcG9uc2UiABJlChZVcGxvYWRQcm92aXNpb25lckltYWdlEiMuYXBpYy5VcGxvYWRQcm'
+    '92aXNpb25lckltYWdlUmVxdWVzdBokLmFwaWMuVXBsb2FkUHJvdmlzaW9uZXJJbWFnZVJlc3Bv'
+    'bnNlIgASZQoWUmVtb3ZlUHJvdmlzaW9uZXJJbWFnZRIjLmFwaWMuUmVtb3ZlUHJvdmlzaW9uZX'
+    'JJbWFnZVJlcXVlc3QaJC5hcGljLlJlbW92ZVByb3Zpc2lvbmVySW1hZ2VSZXNwb25zZSIAElAK'
+    'D0dldFN5c3RlbVN0YXR1cxIcLmFwaWMuR2V0U3lzdGVtU3RhdHVzUmVxdWVzdBodLmFwaWMuR2'
+    'V0U3lzdGVtU3RhdHVzUmVzcG9uc2UiABJQCg9HZXRMb2NhbENvbW1pdHMSHC5hcGljLkdldExv'
+    'Y2FsQ29tbWl0c1JlcXVlc3QaHS5hcGljLkdldExvY2FsQ29tbWl0c1Jlc3BvbnNlIgASUwoQR2'
+    'V0UmVtb3RlQ29tbWl0cxIdLmFwaWMuR2V0UmVtb3RlQ29tbWl0c1JlcXVlc3QaHi5hcGljLkdl'
+    'dFJlbW90ZUNvbW1pdHNSZXNwb25zZSIAEkEKCkV4ZWN1dGVTcWwSFy5hcGljLkV4ZWN1dGVTcW'
+    'xSZXF1ZXN0GhguYXBpYy5FeGVjdXRlU3FsUmVzcG9uc2UiAA==');

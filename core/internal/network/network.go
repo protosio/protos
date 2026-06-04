@@ -39,7 +39,7 @@ type AppRoute struct {
 func (m *Manager) Init(key *pcrypto.Key, domain string) error {
 	m.config = networkmodule.Config{
 		IPv6Address:         key.IPv6Address(),
-		IPv4Address:         tunnelIPv4ForPublicKey(key.PublicString()),
+		IPv4Address:         TunnelIPv4ForPublicKey(key.PublicString()),
 		LocalPeerID:         key.GetID(),
 		WireGuardPrivateKey: key.PrivateWG().String(),
 		Domain:              domain,
@@ -84,7 +84,7 @@ func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices 
 			Name:        instance.Name,
 			PublicKey:   instance.PublicKey,
 			PublicIP:    instance.PublicIP,
-			IPv4Address: tunnelIPv4ForPublicKey(instance.PublicKey),
+			IPv4Address: TunnelIPv4ForPublicKey(instance.PublicKey),
 			Routes:      routesByInstance[instance.ID],
 		})
 	}
@@ -94,7 +94,7 @@ func (m *Manager) ConfigurePeers(instances []provisioners.InstanceInfo, devices 
 			ID:          device.ID,
 			Name:        device.Name,
 			PublicKey:   device.PublicKey,
-			IPv4Address: tunnelIPv4ForPublicKey(device.PublicKey),
+			IPv4Address: TunnelIPv4ForPublicKey(device.PublicKey),
 		})
 	}
 
@@ -132,7 +132,7 @@ func (m *Manager) CreateNamespacedInterface(netNSpath string, ip net.IP) error {
 	return namespacedModule.CreateNamespacedInterface(m.config, netNSpath, ip)
 }
 
-func tunnelIPv4ForPublicKey(publicKey string) netip.Addr {
+func TunnelIPv4ForPublicKey(publicKey string) netip.Addr {
 	sum := sha256.Sum256([]byte(publicKey))
 	return netip.AddrFrom4([4]byte{
 		100,

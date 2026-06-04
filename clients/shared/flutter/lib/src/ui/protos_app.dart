@@ -1848,6 +1848,9 @@ class _NetworkViewState extends State<NetworkView> {
   @override
   Widget build(BuildContext context) {
     final model = AppScope.of(context);
+    if (model.supportsMobileTunnel && !model.supportsNetwork) {
+      return _buildMobileTunnelView(context, model);
+    }
 
     return DetailScroll(
       child: Column(
@@ -2053,6 +2056,98 @@ class _NetworkViewState extends State<NetworkView> {
               RowColumn('Handshake', (row) => row.latestHandshake),
               RowColumn('RX', (row) => '${row.rxBytes}'),
               RowColumn('TX', (row) => '${row.txBytes}'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          OutputPane(
+            text: model.outputText,
+            onChanged: (value) => model.outputText = value,
+            minHeight: 100,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileTunnelView(BuildContext context, AppModel model) {
+    final status = model.mobileTunnelStatus;
+    return DetailScroll(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeading('Mobile Tunnel'),
+          KeyValueWrap(
+            items: [
+              KeyValueItem('Profile', status.installed ? 'Installed' : null),
+              KeyValueItem('Status', status.label),
+              KeyValueItem('Config', shortHash(status.configId, length: 18)),
+              KeyValueItem('Message', status.detail),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FormWrap(
+            children: [
+              FieldBox(
+                width: 180,
+                child: TextField(
+                  controller: routeInstance,
+                  decoration: textField('Instance'),
+                ),
+              ),
+              FieldBox(
+                width: 150,
+                child: TextField(
+                  controller: dnsServer,
+                  decoration: textField('DNS server'),
+                ),
+              ),
+              FieldBox(
+                width: 280,
+                child: TextField(
+                  controller: cidrs,
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: textField('CIDRs'),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: routeInstance.text.nonEmpty == null
+                    ? null
+                    : () => unawaited(
+                        model.run(
+                          () => model.installOrUpdateMobileTunnel(
+                            instance: routeInstance.text,
+                            dnsServer: dnsServer.text.nonEmpty ?? '',
+                            cidrs: cidrs.text.routeCidrs,
+                          ),
+                        ),
+                      ),
+                icon: const Icon(Icons.tune),
+                label: const Text('Install'),
+              ),
+              FilledButton.icon(
+                onPressed: status.installed
+                    ? () => unawaited(model.run(model.startMobileTunnel))
+                    : null,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start'),
+              ),
+              OutlinedButton.icon(
+                onPressed: status.installed
+                    ? () => unawaited(model.run(model.stopMobileTunnel))
+                    : null,
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => unawaited(
+                  model.run(
+                    () => model.refreshMobileTunnelStatus(notify: false),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -2669,7 +2764,9 @@ class StatusView extends StatelessWidget {
   Widget build(BuildContext context) {
     final model = AppScope.of(context);
     final status = model.systemStatus;
-    final hostAgent = status?.hasHostAgent() == true ? status!.hostAgent : null;
+    final hostAgent = model.supportsHostAgent && status?.hasHostAgent() == true
+        ? status!.hostAgent
+        : null;
 
     return DetailScroll(
       child: Column(
@@ -2703,20 +2800,40 @@ class StatusView extends StatelessWidget {
               RowColumn('Message', (row) => row.message, flex: 2),
             ],
           ),
-          const SectionGap(),
-          const SectionHeading('Host Agent'),
-          KeyValueWrap(
-            items: [
-              KeyValueItem(
-                'Connectivity',
-                hostAgent == null
-                    ? null
-                    : (hostAgent.connected ? 'Connected' : 'Disconnected'),
-              ),
-              KeyValueItem('Socket', hostAgent?.socket),
-              KeyValueItem('Message', hostAgent?.message),
-            ],
-          ),
+          if (model.supportsHostAgent) ...[
+            const SectionGap(),
+            const SectionHeading('Host Agent'),
+            KeyValueWrap(
+              items: [
+                KeyValueItem(
+                  'Connectivity',
+                  hostAgent == null
+                      ? null
+                      : (hostAgent.connected ? 'Connected' : 'Disconnected'),
+                ),
+                KeyValueItem('Socket', hostAgent?.socket),
+                KeyValueItem('Message', hostAgent?.message),
+              ],
+            ),
+          ],
+          if (model.supportsMobileTunnel) ...[
+            const SectionGap(),
+            const SectionHeading('Mobile Tunnel'),
+            KeyValueWrap(
+              items: [
+                KeyValueItem(
+                  'Profile',
+                  model.mobileTunnelStatus.installed ? 'Installed' : null,
+                ),
+                KeyValueItem('Status', model.mobileTunnelStatus.label),
+                KeyValueItem(
+                  'Config',
+                  shortHash(model.mobileTunnelStatus.configId, length: 18),
+                ),
+                KeyValueItem('Message', model.mobileTunnelStatus.detail),
+              ],
+            ),
+          ],
         ],
       ),
     );

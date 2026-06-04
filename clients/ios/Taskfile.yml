@@ -1,0 +1,55 @@
+version: "3"
+
+vars:
+  BUILD_ARGS: '{{.BUILD_ARGS | default "--debug"}}'
+  RUN_ARGS: '{{.RUN_ARGS | default "--debug"}}'
+  DEVICE: '{{.DEVICE | default ""}}'
+
+tasks:
+  build:
+    desc: Build the iOS app with the Packet Tunnel extension enabled
+    cmds:
+      - ./scripts/build.sh --with-tunnel {{.BUILD_ARGS}} {{.CLI_ARGS}}
+
+  build:no-tunnel:
+    desc: Build the iOS app without the Packet Tunnel extension for personal-team device installs
+    cmds:
+      - ./scripts/build.sh --without-tunnel {{.BUILD_ARGS}} {{.CLI_ARGS}}
+
+  run:
+    desc: Run the iOS app with the Packet Tunnel extension enabled
+    cmds:
+      - |
+        set -e
+        args=({{.RUN_ARGS}})
+        if [ -n "{{.DEVICE}}" ]; then
+          args=(-d "{{.DEVICE}}" "${args[@]}")
+        fi
+        ./scripts/run.sh --with-tunnel "${args[@]}" {{.CLI_ARGS}}
+
+  run:no-tunnel:
+    desc: Run the iOS app without the Packet Tunnel extension for personal-team device installs
+    cmds:
+      - |
+        set -e
+        args=({{.RUN_ARGS}})
+        if [ -n "{{.DEVICE}}" ]; then
+          args=(-d "{{.DEVICE}}" "${args[@]}")
+        fi
+        ./scripts/run.sh --without-tunnel "${args[@]}" {{.CLI_ARGS}}
+
+  analyze:
+    desc: Analyze the iOS Flutter app
+    cmds:
+      - flutter analyze
+
+  test:
+    desc: Run shared Flutter tests used by the iOS client
+    dir: ../shared/flutter
+    cmds:
+      - flutter test
+
+  default:
+    desc: Show available iOS tasks
+    cmds:
+      - task --list
