@@ -48,6 +48,13 @@ type APP struct {
 	PUBLIC_KEY     sq.StringField  `ddl:"notnull index"`
 }
 
+type ORGANISATION struct {
+	sq.TableStruct `sq:"organisations"`
+	ID             sq.StringField `ddl:"notnull primarykey"`
+	NAME           sq.StringField `ddl:"notnull index"`
+	CREATED_AT     sq.StringField `ddl:"notnull"`
+}
+
 type USER struct {
 	sq.TableStruct `sq:"users"`
 	USERNAME       sq.StringField `ddl:"notnull primarykey"`

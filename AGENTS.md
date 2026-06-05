@@ -1,5 +1,35 @@
 # Protos Backend Agent Notes
 
+## Thin Clients
+
+Keep client code, including Flutter, CLI, iOS, macOS, and future Android
+clients, as thin shells around the Go core. Product behavior, platform
+orchestration, host-agent control, networking policy, persistence rules, and
+cross-client workflows should live in `core/` behind Go APIs. Clients should
+mostly collect user intent, render state returned by the core, and call core
+APIs. Do not add client-only logic paths for behavior that must work across
+multiple clients; implement one canonical core path and have each client call it.
+
+## Build And Run Entry Points
+
+Use Taskfiles as the canonical entry point for builds, launches, installs, and
+device cleanup. Do not invoke `flutter run`, `flutter build`, `xcodebuild`, or
+`xcrun devicectl` app install/launch commands directly during normal work. If a
+needed workflow is missing or inconsistent, add or fix the Taskfile task first,
+then run that task.
+
+For local client work use:
+
+- macOS: `task -t clients/macos/Taskfile.yml run` or `task -t
+  clients/macos/Taskfile.yml build`.
+- iOS without Network Extension provisioning: `task -t clients/ios/Taskfile.yml
+  run:no-tunnel DEVICE=<device-id>` or `task -t clients/ios/Taskfile.yml
+  build:no-tunnel`.
+- iOS with the Packet Tunnel extension: use `task -t
+  clients/ios/Taskfile.yml run ALLOW_TUNNEL=1` or `task -t
+  clients/ios/Taskfile.yml build ALLOW_TUNNEL=1` only when the Apple team has
+  Network Extensions provisioning.
+
 ## Provisioner Images
 
 Build provisioner images only through `/Users/al3x/code/protos/code/backend/cloud-provisioning/Taskfile.yml`.

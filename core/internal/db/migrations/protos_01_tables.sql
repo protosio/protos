@@ -43,6 +43,14 @@ CREATE INDEX apps_name_idx ON apps (name);
 
 CREATE INDEX apps_public_key_idx ON apps (public_key);
 
+CREATE TABLE organisations (
+    id VARCHAR(64) NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    created_at VARCHAR(64) NOT NULL
+);
+
+CREATE INDEX organisations_name_idx ON organisations (name);
+
 CREATE TABLE users (
     username VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255),

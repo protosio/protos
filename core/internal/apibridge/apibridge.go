@@ -30,7 +30,7 @@ import (
 const (
 	DefaultVersion      = "0.1.0-dev.23"
 	defaultBufConnSize  = 16 * 1024 * 1024
-	defaultCapabilities = "default,no-api,no-network"
+	defaultCapabilities = "default,no-api"
 	envDoltRootPath     = "DOLT_ROOT_PATH"
 )
 

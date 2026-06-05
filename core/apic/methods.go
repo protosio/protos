@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/netip"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/invitations"
 	"github.com/protosio/protos/internal/network"
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
@@ -18,6 +21,9 @@ import (
 	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/tasks"
+	"github.com/protosio/protos/internal/user"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 //
@@ -33,7 +39,7 @@ func (b *Backend) requireProvisionerCapability(action string) error {
 
 func (b *Backend) Init(ctx context.Context, in *pbApic.InitRequest) (*pbApic.InitResponse, error) {
 
-	err := b.protosClient.Init(in.Username, in.Name, in.Organization)
+	err := b.protosClient.Init(in.Username, in.Name, in.Organisation)
 	if err != nil {
 		return nil, fmt.Errorf("failed to do local init: %w", err)
 	}
@@ -79,14 +85,272 @@ func (b *Backend) GetUserInfo(ctx context.Context, in *pbApic.GetUserInfoRequest
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve user info: %w", err)
 	}
+	organisation, err := db.EnsureOrganisation(b.protosClient.DB, db.DefaultOrganisationName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve organisation info: %w", err)
+	}
 
 	resp := pbApic.GetUserInfoResponse{
-		Username: adminUser.Username,
-		Name:     adminUser.Name,
-		IsAdmin:  adminUser.IsAdmin(),
+		Username:         adminUser.Username,
+		Name:             adminUser.Name,
+		IsAdmin:          adminUser.IsAdmin(),
+		OrganisationId:   organisation.ID,
+		OrganisationName: organisation.Name,
 	}
 
 	return &resp, nil
+}
+
+func (b *Backend) ListOrganisations(ctx context.Context, in *pbApic.ListOrganisationsRequest) (*pbApic.ListOrganisationsResponse, error) {
+	log.Debugf("Listing organisations")
+	if _, err := db.EnsureOrganisation(b.protosClient.DB, db.DefaultOrganisationName); err != nil {
+		return nil, fmt.Errorf("failed to ensure organisation info: %w", err)
+	}
+	organisations, err := db.ListOrganisations(b.protosClient.DB)
+	if err != nil {
+		return nil, err
+	}
+	resp := pbApic.ListOrganisationsResponse{}
+	for _, organisation := range organisations {
+		resp.Organisations = append(resp.Organisations, protoOrganisation(organisation))
+	}
+	return &resp, nil
+}
+
+func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceInviteRequest) (*pbApic.StartDeviceInviteResponse, error) {
+	if b.protosClient == nil || b.protosClient.Invites == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "local invite channels are not available")
+	}
+	if b.protosClient.DB == nil || !b.protosClient.DB.Initialized() {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "Protos must be initialized before inviting a device")
+	}
+	if b.protosClient.KeyManager == nil || b.protosClient.Manager == nil || b.protosClient.P2PManager == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "local peer identity is not available")
+	}
+
+	organisation, err := b.organisationForInvite(in.GetOrganisationId())
+	if err != nil {
+		return nil, err
+	}
+	localKey, err := b.protosClient.KeyManager.GetLocalKey()
+	if err != nil {
+		return nil, fmt.Errorf("load local key: %w", err)
+	}
+	peerID := strings.TrimSpace(b.protosClient.P2PManager.PeerID())
+	if peerID == "" {
+		peerID = localKey.GetID()
+	}
+	deviceName := localDeviceName(b.protosClient.Manager)
+	localIPs := localInviteIPs()
+	swarmionAddrs := b.protosClient.DB.DialableListenMultiaddrs(localIPs)
+	if len(swarmionAddrs) == 0 {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "no local database bootstrap addresses are available")
+	}
+	invite, err := b.protosClient.Invites.StartInvite(ctx, in.GetChannel(), invitations.Invite{
+		OrganisationID:   organisation.ID,
+		OrganisationName: organisation.Name,
+		DeviceName:       deviceName,
+		PeerID:           peerID,
+		PublicKey:        localKey.PublicString(),
+		Port:             b.protosClient.P2PPort,
+		P2PAddrs:         p2pListenAddrsWithPeerID(b.protosClient.P2PManager.ListenAddresses(), peerID),
+		SwarmionAddrs:    swarmionAddrs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pbApic.StartDeviceInviteResponse{
+		InviteId:         invite.InviteID,
+		ExpiresAtUnix:    invite.ExpiresAt.Unix(),
+		AdvertiseName:    invite.AdvertiseName,
+		AdvertiseService: invite.AdvertiseService,
+		Channel:          invite.Channel,
+	}, nil
+}
+
+func (b *Backend) ListNearbyOrganisations(ctx context.Context, in *pbApic.ListNearbyOrganisationsRequest) (*pbApic.ListNearbyOrganisationsResponse, error) {
+	if b.protosClient == nil || b.protosClient.Invites == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "local invite channels are not available")
+	}
+	nearby, err := b.protosClient.Invites.Browse(ctx, in.GetChannel(), 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	localPeerID := ""
+	if b.protosClient.P2PManager != nil {
+		localPeerID = strings.TrimSpace(b.protosClient.P2PManager.PeerID())
+	}
+	resp := pbApic.ListNearbyOrganisationsResponse{}
+	for _, item := range nearby {
+		if item.PeerID == localPeerID {
+			continue
+		}
+		resp.Organisations = append(resp.Organisations, &pbApic.NearbyOrganisation{
+			OrganisationId:   item.OrganisationID,
+			OrganisationName: item.OrganisationName,
+			DeviceName:       item.DeviceName,
+			PeerId:           item.PeerID,
+			InviteId:         item.InviteID,
+			Channel:          item.Channel,
+		})
+	}
+	return &resp, nil
+}
+
+func (b *Backend) JoinOrganisation(ctx context.Context, in *pbApic.JoinOrganisationRequest) (*pbApic.JoinOrganisationResponse, error) {
+	if b.protosClient == nil || b.protosClient.Invites == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "local invite channels are not available")
+	}
+	if b.protosClient.DB == nil || b.protosClient.Manager == nil || b.protosClient.KeyManager == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "local initialization services are not available")
+	}
+	if b.protosClient.DB.Initialized() {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "this device is already initialized")
+	}
+	nearby, err := b.protosClient.Invites.Find(ctx, in.GetChannel(), in.GetOrganisationId(), in.GetPeerId(), in.GetInviteId())
+	if err != nil {
+		return nil, err
+	}
+	if err := b.protosClient.DB.InitFromPeer(nearby.PeerID, nearby.SwarmionAddrs); err != nil {
+		return nil, fmt.Errorf("join organisation from %s: %w", nearby.PeerID, err)
+	}
+	if err := b.ensureJoinedUserDevice(in.GetUsername(), in.GetName()); err != nil {
+		return nil, err
+	}
+	b.protosClient.MarkInitializedIfNeeded()
+	return &pbApic.JoinOrganisationResponse{}, nil
+}
+
+func protoOrganisation(organisation db.Organisation) *pbApic.Organisation {
+	return &pbApic.Organisation{
+		Id:        organisation.ID,
+		Name:      organisation.Name,
+		CreatedAt: organisation.CreatedAt,
+	}
+}
+
+func (b *Backend) organisationForInvite(id string) (db.Organisation, error) {
+	id = strings.TrimSpace(id)
+	organisations, err := db.ListOrganisations(b.protosClient.DB)
+	if err != nil {
+		return db.Organisation{}, fmt.Errorf("list organisations: %w", err)
+	}
+	if id != "" {
+		for _, organisation := range organisations {
+			if organisation.ID == id {
+				return organisation, nil
+			}
+		}
+		return db.Organisation{}, grpcstatus.Errorf(codes.NotFound, "organisation %s was not found", id)
+	}
+	if len(organisations) == 0 {
+		return db.EnsureOrganisation(b.protosClient.DB, db.DefaultOrganisationName)
+	}
+	sort.Slice(organisations, func(i, j int) bool {
+		return organisations[i].CreatedAt < organisations[j].CreatedAt
+	})
+	return organisations[0], nil
+}
+
+func (b *Backend) ensureJoinedUserDevice(username string, name string) error {
+	username = strings.TrimSpace(username)
+	name = strings.TrimSpace(name)
+	if username == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "username is required")
+	}
+	if name == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "name is required")
+	}
+	if _, err := b.protosClient.Manager.GetUser(username); err != nil {
+		if _, err := b.protosClient.Manager.CreateUser(username, name, false); err != nil {
+			return fmt.Errorf("create joined user: %w", err)
+		}
+	}
+	if _, found, err := b.protosClient.Manager.GetCurrentDeviceIfExists(); err != nil {
+		return err
+	} else if found {
+		return nil
+	}
+	localKey, err := b.protosClient.KeyManager.GetLocalKey()
+	if err != nil {
+		return fmt.Errorf("load local key: %w", err)
+	}
+	return b.protosClient.Manager.AddDevice(username, localDeviceName(b.protosClient.Manager), localKey)
+}
+
+func localDeviceName(manager *user.Manager) string {
+	if manager != nil {
+		if device, found, err := manager.GetCurrentDeviceIfExists(); err == nil && found && strings.TrimSpace(device.GetName()) != "" {
+			return strings.TrimSpace(device.GetName())
+		}
+	}
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		return "device"
+	}
+	return strings.TrimSpace(hostname)
+}
+
+func localInviteIPs() []string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	var ips []string
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch value := addr.(type) {
+			case *net.IPNet:
+				ip = value.IP
+			case *net.IPAddr:
+				ip = value.IP
+			}
+			if ip == nil || ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
+				continue
+			}
+			ipString := ip.String()
+			if _, found := seen[ipString]; found {
+				continue
+			}
+			seen[ipString] = struct{}{}
+			ips = append(ips, ipString)
+		}
+	}
+	sort.Strings(ips)
+	return ips
+}
+
+func p2pListenAddrsWithPeerID(addrs []string, peerID string) []string {
+	peerID = strings.TrimSpace(peerID)
+	if peerID == "" {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue
+		}
+		if !strings.Contains(addr, "/p2p/") {
+			addr += "/p2p/" + peerID
+		}
+		if _, found := seen[addr]; found {
+			continue
+		}
+		seen[addr] = struct{}{}
+		out = append(out, addr)
+	}
+	return out
 }
 
 func (b *Backend) GetLocalSSHKey(ctx context.Context, in *pbApic.GetLocalSSHKeyRequest) (*pbApic.GetLocalSSHKeyResponse, error) {
@@ -753,10 +1017,14 @@ func (b *Backend) UpdateInstance(ctx context.Context, in *pbApic.UpdateInstanceR
 func (b *Backend) GetNetworkState(ctx context.Context, in *pbApic.GetNetworkStateRequest) (*pbApic.GetNetworkStateResponse, error) {
 	instanceName := in.GetInstance()
 	if instanceName == "" || instanceName == "local" {
-		if b.protosClient.NetworkManager == nil {
-			return nil, fmt.Errorf("network manager is not configured")
+		if b.protosClient.NetworkControl == nil {
+			return &pbApic.GetNetworkStateResponse{State: networkStateToProto(networkmodule.State{
+				Module:   "none",
+				Up:       false,
+				Messages: []string{"network control is not available"},
+			})}, nil
 		}
-		state, err := b.protosClient.NetworkManager.State()
+		state, err := b.protosClient.NetworkControl.NetworkState(ctx)
 		if err != nil {
 			return nil, err
 		}

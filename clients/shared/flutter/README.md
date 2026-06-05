@@ -25,7 +25,7 @@ The clients use the shared protobuf API surface and load the Go bridge through
 ## macOS Build
 
 ```sh
-clients/macos/scripts/build.sh
+task -t clients/macos/Taskfile.yml build
 ```
 
 The script regenerates Dart protobuf models from
@@ -35,12 +35,11 @@ prints the app bundle path.
 For iterative development:
 
 ```sh
-cd clients/macos
-flutter run -d macos
+task -t clients/macos/Taskfile.yml run
 ```
 
 The macOS Xcode target runs the shared `scripts/build-native.sh` before
-bundling frameworks, so `flutter run` also rebuilds the embedded Go dylib.
+bundling frameworks, so the macOS run task also rebuilds the embedded Go dylib.
 
 ## iOS Build
 
@@ -48,7 +47,7 @@ The default iOS build includes the Packet Tunnel Network Extension. That build
 requires Apple provisioning that supports Network Extensions:
 
 ```sh
-task -t clients/ios/Taskfile.yml build -- --no-codesign
+task -t clients/ios/Taskfile.yml build ALLOW_TUNNEL=1 -- --no-codesign
 ```
 
 For personal Apple teams or basic app testing without VPN support, build or run

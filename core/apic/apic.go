@@ -12,7 +12,9 @@ import (
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/app"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/invitations"
 	"github.com/protosio/protos/internal/network"
+	networkmodule "github.com/protosio/protos/internal/network/module"
 	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
@@ -40,22 +42,47 @@ type Services struct {
 	KeyManager     *pcrypto.Manager
 	AppManager     *app.Manager
 	NetworkManager *network.Manager
+	NetworkControl NetworkController
 	CloudManager   *provisioners.Manager
 	P2PManager     *p2p.P2P
+	Invites        *invitations.Manager
 	CanProvision   bool
 	WorkDir        string
 	Capabilities   string
 	P2PPort        int
 
-	InitFunc     func(username string, name string, organization string) error
-	ReleaseFetch func() (release.Releases, error)
+	InitFunc        func(username string, name string, organisation string) error
+	MarkInitialized func()
+	ReleaseFetch    func() (release.Releases, error)
 }
 
-func (s *Services) Init(username string, name string, organization string) error {
+type NetworkController interface {
+	EnableNetwork(context.Context) error
+	DisableNetwork(context.Context) error
+	NetworkRuntimeStatus(context.Context) NetworkRuntimeStatus
+	NetworkState(context.Context) (networkmodule.State, error)
+}
+
+type NetworkRuntimeStatus struct {
+	Supported      bool
+	DesiredEnabled bool
+	Enabled        bool
+	State          string
+	Message        string
+	NetworkState   *networkmodule.State
+}
+
+func (s *Services) Init(username string, name string, organisation string) error {
 	if s.InitFunc == nil {
 		return fmt.Errorf("init is not available")
 	}
-	return s.InitFunc(username, name, organization)
+	return s.InitFunc(username, name, organisation)
+}
+
+func (s *Services) MarkInitializedIfNeeded() {
+	if s.MarkInitialized != nil {
+		s.MarkInitialized()
+	}
 }
 
 func (s *Services) GetProtosAvailableReleases() (release.Releases, error) {

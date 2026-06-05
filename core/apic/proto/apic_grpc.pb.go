@@ -22,6 +22,10 @@ const (
 	ProtosClientApi_Init_FullMethodName                       = "/apic.ProtosClientApi/Init"
 	ProtosClientApi_GetUserDevices_FullMethodName             = "/apic.ProtosClientApi/GetUserDevices"
 	ProtosClientApi_GetUserInfo_FullMethodName                = "/apic.ProtosClientApi/GetUserInfo"
+	ProtosClientApi_ListOrganisations_FullMethodName          = "/apic.ProtosClientApi/ListOrganisations"
+	ProtosClientApi_StartDeviceInvite_FullMethodName          = "/apic.ProtosClientApi/StartDeviceInvite"
+	ProtosClientApi_ListNearbyOrganisations_FullMethodName    = "/apic.ProtosClientApi/ListNearbyOrganisations"
+	ProtosClientApi_JoinOrganisation_FullMethodName           = "/apic.ProtosClientApi/JoinOrganisation"
 	ProtosClientApi_GetLocalSSHKey_FullMethodName             = "/apic.ProtosClientApi/GetLocalSSHKey"
 	ProtosClientApi_GetApps_FullMethodName                    = "/apic.ProtosClientApi/GetApps"
 	ProtosClientApi_CreateApp_FullMethodName                  = "/apic.ProtosClientApi/CreateApp"
@@ -51,6 +55,7 @@ const (
 	ProtosClientApi_InitInstance_FullMethodName               = "/apic.ProtosClientApi/InitInstance"
 	ProtosClientApi_UpdateInstance_FullMethodName             = "/apic.ProtosClientApi/UpdateInstance"
 	ProtosClientApi_GetNetworkState_FullMethodName            = "/apic.ProtosClientApi/GetNetworkState"
+	ProtosClientApi_SetNetworkEnabled_FullMethodName          = "/apic.ProtosClientApi/SetNetworkEnabled"
 	ProtosClientApi_GetExitRoutes_FullMethodName              = "/apic.ProtosClientApi/GetExitRoutes"
 	ProtosClientApi_GetMobileTunnelConfig_FullMethodName      = "/apic.ProtosClientApi/GetMobileTunnelConfig"
 	ProtosClientApi_GetRuntimeState_FullMethodName            = "/apic.ProtosClientApi/GetRuntimeState"
@@ -67,6 +72,8 @@ const (
 	ProtosClientApi_UploadProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/UploadProvisionerImage"
 	ProtosClientApi_RemoveProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/RemoveProvisionerImage"
 	ProtosClientApi_GetSystemStatus_FullMethodName            = "/apic.ProtosClientApi/GetSystemStatus"
+	ProtosClientApi_StartHostAgent_FullMethodName             = "/apic.ProtosClientApi/StartHostAgent"
+	ProtosClientApi_StopHostAgent_FullMethodName              = "/apic.ProtosClientApi/StopHostAgent"
 	ProtosClientApi_GetLocalCommits_FullMethodName            = "/apic.ProtosClientApi/GetLocalCommits"
 	ProtosClientApi_GetRemoteCommits_FullMethodName           = "/apic.ProtosClientApi/GetRemoteCommits"
 	ProtosClientApi_ExecuteSql_FullMethodName                 = "/apic.ProtosClientApi/ExecuteSql"
@@ -79,6 +86,10 @@ type ProtosClientApiClient interface {
 	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	GetUserDevices(ctx context.Context, in *GetUserDevicesRequest, opts ...grpc.CallOption) (*GetUserDevicesResponse, error)
 	GetUserInfo(ctx context.Context, in *GetUserInfoRequest, opts ...grpc.CallOption) (*GetUserInfoResponse, error)
+	ListOrganisations(ctx context.Context, in *ListOrganisationsRequest, opts ...grpc.CallOption) (*ListOrganisationsResponse, error)
+	StartDeviceInvite(ctx context.Context, in *StartDeviceInviteRequest, opts ...grpc.CallOption) (*StartDeviceInviteResponse, error)
+	ListNearbyOrganisations(ctx context.Context, in *ListNearbyOrganisationsRequest, opts ...grpc.CallOption) (*ListNearbyOrganisationsResponse, error)
+	JoinOrganisation(ctx context.Context, in *JoinOrganisationRequest, opts ...grpc.CallOption) (*JoinOrganisationResponse, error)
 	GetLocalSSHKey(ctx context.Context, in *GetLocalSSHKeyRequest, opts ...grpc.CallOption) (*GetLocalSSHKeyResponse, error)
 	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
 	CreateApp(ctx context.Context, in *CreateAppRequest, opts ...grpc.CallOption) (*CreateAppResponse, error)
@@ -108,6 +119,7 @@ type ProtosClientApiClient interface {
 	InitInstance(ctx context.Context, in *InitInstanceRequest, opts ...grpc.CallOption) (*InitInstanceResponse, error)
 	UpdateInstance(ctx context.Context, in *UpdateInstanceRequest, opts ...grpc.CallOption) (*UpdateInstanceResponse, error)
 	GetNetworkState(ctx context.Context, in *GetNetworkStateRequest, opts ...grpc.CallOption) (*GetNetworkStateResponse, error)
+	SetNetworkEnabled(ctx context.Context, in *SetNetworkEnabledRequest, opts ...grpc.CallOption) (*SetNetworkEnabledResponse, error)
 	GetExitRoutes(ctx context.Context, in *GetExitRoutesRequest, opts ...grpc.CallOption) (*GetExitRoutesResponse, error)
 	GetMobileTunnelConfig(ctx context.Context, in *GetMobileTunnelConfigRequest, opts ...grpc.CallOption) (*GetMobileTunnelConfigResponse, error)
 	GetRuntimeState(ctx context.Context, in *GetRuntimeStateRequest, opts ...grpc.CallOption) (*GetRuntimeStateResponse, error)
@@ -124,6 +136,8 @@ type ProtosClientApiClient interface {
 	UploadProvisionerImage(ctx context.Context, in *UploadProvisionerImageRequest, opts ...grpc.CallOption) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(ctx context.Context, in *RemoveProvisionerImageRequest, opts ...grpc.CallOption) (*RemoveProvisionerImageResponse, error)
 	GetSystemStatus(ctx context.Context, in *GetSystemStatusRequest, opts ...grpc.CallOption) (*GetSystemStatusResponse, error)
+	StartHostAgent(ctx context.Context, in *StartHostAgentRequest, opts ...grpc.CallOption) (*StartHostAgentResponse, error)
+	StopHostAgent(ctx context.Context, in *StopHostAgentRequest, opts ...grpc.CallOption) (*StopHostAgentResponse, error)
 	GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(ctx context.Context, in *GetRemoteCommitsRequest, opts ...grpc.CallOption) (*GetRemoteCommitsResponse, error)
 	ExecuteSql(ctx context.Context, in *ExecuteSqlRequest, opts ...grpc.CallOption) (*ExecuteSqlResponse, error)
@@ -161,6 +175,46 @@ func (c *protosClientApiClient) GetUserInfo(ctx context.Context, in *GetUserInfo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUserInfoResponse)
 	err := c.cc.Invoke(ctx, ProtosClientApi_GetUserInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) ListOrganisations(ctx context.Context, in *ListOrganisationsRequest, opts ...grpc.CallOption) (*ListOrganisationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrganisationsResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_ListOrganisations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) StartDeviceInvite(ctx context.Context, in *StartDeviceInviteRequest, opts ...grpc.CallOption) (*StartDeviceInviteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartDeviceInviteResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_StartDeviceInvite_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) ListNearbyOrganisations(ctx context.Context, in *ListNearbyOrganisationsRequest, opts ...grpc.CallOption) (*ListNearbyOrganisationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListNearbyOrganisationsResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_ListNearbyOrganisations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) JoinOrganisation(ctx context.Context, in *JoinOrganisationRequest, opts ...grpc.CallOption) (*JoinOrganisationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JoinOrganisationResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_JoinOrganisation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -457,6 +511,16 @@ func (c *protosClientApiClient) GetNetworkState(ctx context.Context, in *GetNetw
 	return out, nil
 }
 
+func (c *protosClientApiClient) SetNetworkEnabled(ctx context.Context, in *SetNetworkEnabledRequest, opts ...grpc.CallOption) (*SetNetworkEnabledResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetNetworkEnabledResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_SetNetworkEnabled_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) GetExitRoutes(ctx context.Context, in *GetExitRoutesRequest, opts ...grpc.CallOption) (*GetExitRoutesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetExitRoutesResponse)
@@ -626,6 +690,26 @@ func (c *protosClientApiClient) GetSystemStatus(ctx context.Context, in *GetSyst
 	return out, nil
 }
 
+func (c *protosClientApiClient) StartHostAgent(ctx context.Context, in *StartHostAgentRequest, opts ...grpc.CallOption) (*StartHostAgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartHostAgentResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_StartHostAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *protosClientApiClient) StopHostAgent(ctx context.Context, in *StopHostAgentRequest, opts ...grpc.CallOption) (*StopHostAgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StopHostAgentResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_StopHostAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetLocalCommitsResponse)
@@ -663,6 +747,10 @@ type ProtosClientApiServer interface {
 	Init(context.Context, *InitRequest) (*InitResponse, error)
 	GetUserDevices(context.Context, *GetUserDevicesRequest) (*GetUserDevicesResponse, error)
 	GetUserInfo(context.Context, *GetUserInfoRequest) (*GetUserInfoResponse, error)
+	ListOrganisations(context.Context, *ListOrganisationsRequest) (*ListOrganisationsResponse, error)
+	StartDeviceInvite(context.Context, *StartDeviceInviteRequest) (*StartDeviceInviteResponse, error)
+	ListNearbyOrganisations(context.Context, *ListNearbyOrganisationsRequest) (*ListNearbyOrganisationsResponse, error)
+	JoinOrganisation(context.Context, *JoinOrganisationRequest) (*JoinOrganisationResponse, error)
 	GetLocalSSHKey(context.Context, *GetLocalSSHKeyRequest) (*GetLocalSSHKeyResponse, error)
 	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
 	CreateApp(context.Context, *CreateAppRequest) (*CreateAppResponse, error)
@@ -692,6 +780,7 @@ type ProtosClientApiServer interface {
 	InitInstance(context.Context, *InitInstanceRequest) (*InitInstanceResponse, error)
 	UpdateInstance(context.Context, *UpdateInstanceRequest) (*UpdateInstanceResponse, error)
 	GetNetworkState(context.Context, *GetNetworkStateRequest) (*GetNetworkStateResponse, error)
+	SetNetworkEnabled(context.Context, *SetNetworkEnabledRequest) (*SetNetworkEnabledResponse, error)
 	GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error)
 	GetMobileTunnelConfig(context.Context, *GetMobileTunnelConfigRequest) (*GetMobileTunnelConfigResponse, error)
 	GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error)
@@ -708,6 +797,8 @@ type ProtosClientApiServer interface {
 	UploadProvisionerImage(context.Context, *UploadProvisionerImageRequest) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error)
 	GetSystemStatus(context.Context, *GetSystemStatusRequest) (*GetSystemStatusResponse, error)
+	StartHostAgent(context.Context, *StartHostAgentRequest) (*StartHostAgentResponse, error)
+	StopHostAgent(context.Context, *StopHostAgentRequest) (*StopHostAgentResponse, error)
 	GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error)
 	ExecuteSql(context.Context, *ExecuteSqlRequest) (*ExecuteSqlResponse, error)
@@ -728,6 +819,18 @@ func (UnimplementedProtosClientApiServer) GetUserDevices(context.Context, *GetUs
 }
 func (UnimplementedProtosClientApiServer) GetUserInfo(context.Context, *GetUserInfoRequest) (*GetUserInfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserInfo not implemented")
+}
+func (UnimplementedProtosClientApiServer) ListOrganisations(context.Context, *ListOrganisationsRequest) (*ListOrganisationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOrganisations not implemented")
+}
+func (UnimplementedProtosClientApiServer) StartDeviceInvite(context.Context, *StartDeviceInviteRequest) (*StartDeviceInviteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartDeviceInvite not implemented")
+}
+func (UnimplementedProtosClientApiServer) ListNearbyOrganisations(context.Context, *ListNearbyOrganisationsRequest) (*ListNearbyOrganisationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListNearbyOrganisations not implemented")
+}
+func (UnimplementedProtosClientApiServer) JoinOrganisation(context.Context, *JoinOrganisationRequest) (*JoinOrganisationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method JoinOrganisation not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetLocalSSHKey(context.Context, *GetLocalSSHKeyRequest) (*GetLocalSSHKeyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLocalSSHKey not implemented")
@@ -816,6 +919,9 @@ func (UnimplementedProtosClientApiServer) UpdateInstance(context.Context, *Updat
 func (UnimplementedProtosClientApiServer) GetNetworkState(context.Context, *GetNetworkStateRequest) (*GetNetworkStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNetworkState not implemented")
 }
+func (UnimplementedProtosClientApiServer) SetNetworkEnabled(context.Context, *SetNetworkEnabledRequest) (*SetNetworkEnabledResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetNetworkEnabled not implemented")
+}
 func (UnimplementedProtosClientApiServer) GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetExitRoutes not implemented")
 }
@@ -863,6 +969,12 @@ func (UnimplementedProtosClientApiServer) RemoveProvisionerImage(context.Context
 }
 func (UnimplementedProtosClientApiServer) GetSystemStatus(context.Context, *GetSystemStatusRequest) (*GetSystemStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSystemStatus not implemented")
+}
+func (UnimplementedProtosClientApiServer) StartHostAgent(context.Context, *StartHostAgentRequest) (*StartHostAgentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartHostAgent not implemented")
+}
+func (UnimplementedProtosClientApiServer) StopHostAgent(context.Context, *StopHostAgentRequest) (*StopHostAgentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StopHostAgent not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLocalCommits not implemented")
@@ -943,6 +1055,78 @@ func _ProtosClientApi_GetUserInfo_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProtosClientApiServer).GetUserInfo(ctx, req.(*GetUserInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_ListOrganisations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOrganisationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).ListOrganisations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_ListOrganisations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).ListOrganisations(ctx, req.(*ListOrganisationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_StartDeviceInvite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartDeviceInviteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).StartDeviceInvite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_StartDeviceInvite_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).StartDeviceInvite(ctx, req.(*StartDeviceInviteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_ListNearbyOrganisations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNearbyOrganisationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).ListNearbyOrganisations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_ListNearbyOrganisations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).ListNearbyOrganisations(ctx, req.(*ListNearbyOrganisationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_JoinOrganisation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinOrganisationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).JoinOrganisation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_JoinOrganisation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).JoinOrganisation(ctx, req.(*JoinOrganisationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1469,6 +1653,24 @@ func _ProtosClientApi_GetNetworkState_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_SetNetworkEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetNetworkEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).SetNetworkEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_SetNetworkEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).SetNetworkEnabled(ctx, req.(*SetNetworkEnabledRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_GetExitRoutes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetExitRoutesRequest)
 	if err := dec(in); err != nil {
@@ -1750,6 +1952,42 @@ func _ProtosClientApi_GetSystemStatus_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_StartHostAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartHostAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).StartHostAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_StartHostAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).StartHostAgent(ctx, req.(*StartHostAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProtosClientApi_StopHostAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopHostAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).StopHostAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_StopHostAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).StopHostAgent(ctx, req.(*StopHostAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_GetLocalCommits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetLocalCommitsRequest)
 	if err := dec(in); err != nil {
@@ -1822,6 +2060,22 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserInfo",
 			Handler:    _ProtosClientApi_GetUserInfo_Handler,
+		},
+		{
+			MethodName: "ListOrganisations",
+			Handler:    _ProtosClientApi_ListOrganisations_Handler,
+		},
+		{
+			MethodName: "StartDeviceInvite",
+			Handler:    _ProtosClientApi_StartDeviceInvite_Handler,
+		},
+		{
+			MethodName: "ListNearbyOrganisations",
+			Handler:    _ProtosClientApi_ListNearbyOrganisations_Handler,
+		},
+		{
+			MethodName: "JoinOrganisation",
+			Handler:    _ProtosClientApi_JoinOrganisation_Handler,
 		},
 		{
 			MethodName: "GetLocalSSHKey",
@@ -1940,6 +2194,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_GetNetworkState_Handler,
 		},
 		{
+			MethodName: "SetNetworkEnabled",
+			Handler:    _ProtosClientApi_SetNetworkEnabled_Handler,
+		},
+		{
 			MethodName: "GetExitRoutes",
 			Handler:    _ProtosClientApi_GetExitRoutes_Handler,
 		},
@@ -1998,6 +2256,14 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSystemStatus",
 			Handler:    _ProtosClientApi_GetSystemStatus_Handler,
+		},
+		{
+			MethodName: "StartHostAgent",
+			Handler:    _ProtosClientApi_StartHostAgent_Handler,
+		},
+		{
+			MethodName: "StopHostAgent",
+			Handler:    _ProtosClientApi_StopHostAgent_Handler,
 		},
 		{
 			MethodName: "GetLocalCommits",

@@ -35,6 +35,12 @@ package protos
 	public_key:     string
 }
 
+#Organisation: {
+	id:         string
+	name:       string
+	created_at: string
+}
+
 #User: {
 	username:    string
 	name?:       string
@@ -160,6 +166,16 @@ contract: {
 					{name: "apps_name_idx", columns: ["name"]},
 					{name: "apps_public_key_idx", columns: ["public_key"]},
 				]
+			},
+			{
+				name: "organisations"
+				go: name: "ORGANISATION"
+				columns: [
+					{name: "id", type: "VARCHAR(64)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "created_at", type: "VARCHAR(64)", not_null: true, go: {name: "CREATED_AT", sq_type: "StringField", ddl: "notnull"}},
+				]
+				indexes: [{name: "organisations_name_idx", columns: ["name"]}]
 			},
 			{
 				name: "users"

@@ -8,21 +8,23 @@ class ProtosApi {
 
   final NativeProtosBridge bridge;
 
-  Future<void> start() => bridge.start();
+  Future<void> start({
+    ProtosBridgeConfig config = const ProtosBridgeConfig(),
+  }) => bridge.start(config: config);
 
   Future<void> stop() => bridge.stop();
 
   Future<void> initUser({
     required String username,
     required String name,
-    required String organization,
+    required String organisation,
   }) async {
     await bridge.call(
       'Init',
       pb.InitRequest(
         username: username,
         name: name,
-        organization: organization,
+        organisation: organisation,
       ),
       pb.InitResponse.create,
     );
@@ -33,6 +35,60 @@ class ProtosApi {
       'GetUserInfo',
       pb.GetUserInfoRequest(),
       pb.GetUserInfoResponse.create,
+    );
+  }
+
+  Future<pb.ListOrganisationsResponse> organisations() {
+    return bridge.call(
+      'ListOrganisations',
+      pb.ListOrganisationsRequest(),
+      pb.ListOrganisationsResponse.create,
+    );
+  }
+
+  Future<pb.ListNearbyOrganisationsResponse> nearbyOrganisations({
+    String channel = 'mdns',
+  }) {
+    return bridge.call(
+      'ListNearbyOrganisations',
+      pb.ListNearbyOrganisationsRequest(channel: channel),
+      pb.ListNearbyOrganisationsResponse.create,
+    );
+  }
+
+  Future<pb.StartDeviceInviteResponse> startDeviceInvite({
+    required String organisationId,
+    String channel = 'mdns',
+  }) {
+    return bridge.call(
+      'StartDeviceInvite',
+      pb.StartDeviceInviteRequest(
+        organisationId: organisationId,
+        channel: channel,
+      ),
+      pb.StartDeviceInviteResponse.create,
+    );
+  }
+
+  Future<void> joinOrganisation({
+    required String organisationId,
+    required String peerId,
+    required String username,
+    required String name,
+    String inviteId = '',
+    String channel = 'mdns',
+  }) async {
+    await bridge.call(
+      'JoinOrganisation',
+      pb.JoinOrganisationRequest(
+        organisationId: organisationId,
+        peerId: peerId,
+        inviteId: inviteId,
+        username: username,
+        name: name,
+        channel: channel,
+      ),
+      pb.JoinOrganisationResponse.create,
     );
   }
 
@@ -435,6 +491,22 @@ class ProtosApi {
       'GetSystemStatus',
       pb.GetSystemStatusRequest(),
       pb.GetSystemStatusResponse.create,
+    );
+  }
+
+  Future<pb.StartHostAgentResponse> startHostAgent() {
+    return bridge.call(
+      'StartHostAgent',
+      pb.StartHostAgentRequest(),
+      pb.StartHostAgentResponse.create,
+    );
+  }
+
+  Future<pb.StopHostAgentResponse> stopHostAgent() {
+    return bridge.call(
+      'StopHostAgent',
+      pb.StopHostAgentRequest(),
+      pb.StopHostAgentResponse.create,
     );
   }
 

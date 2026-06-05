@@ -9,6 +9,10 @@ service ProtosClientApi {
   rpc Init(InitRequest) returns (InitResponse) {}
   rpc GetUserDevices(GetUserDevicesRequest) returns (GetUserDevicesResponse) {}
   rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {}
+  rpc ListOrganisations(ListOrganisationsRequest) returns (ListOrganisationsResponse) {}
+  rpc StartDeviceInvite(StartDeviceInviteRequest) returns (StartDeviceInviteResponse) {}
+  rpc ListNearbyOrganisations(ListNearbyOrganisationsRequest) returns (ListNearbyOrganisationsResponse) {}
+  rpc JoinOrganisation(JoinOrganisationRequest) returns (JoinOrganisationResponse) {}
   rpc GetLocalSSHKey(GetLocalSSHKeyRequest) returns (GetLocalSSHKeyResponse) {}
   rpc GetApps(GetAppsRequest) returns (GetAppsResponse) {}
   rpc CreateApp(CreateAppRequest) returns (CreateAppResponse) {}
@@ -38,6 +42,7 @@ service ProtosClientApi {
   rpc InitInstance(InitInstanceRequest) returns (InitInstanceResponse) {}
   rpc UpdateInstance(UpdateInstanceRequest) returns (UpdateInstanceResponse) {}
   rpc GetNetworkState(GetNetworkStateRequest) returns (GetNetworkStateResponse) {}
+  rpc SetNetworkEnabled(SetNetworkEnabledRequest) returns (SetNetworkEnabledResponse) {}
   rpc GetExitRoutes(GetExitRoutesRequest) returns (GetExitRoutesResponse) {}
   rpc GetMobileTunnelConfig(GetMobileTunnelConfigRequest) returns (GetMobileTunnelConfigResponse) {}
   rpc GetRuntimeState(GetRuntimeStateRequest) returns (GetRuntimeStateResponse) {}
@@ -54,6 +59,8 @@ service ProtosClientApi {
   rpc UploadProvisionerImage(UploadProvisionerImageRequest) returns (UploadProvisionerImageResponse) {}
   rpc RemoveProvisionerImage(RemoveProvisionerImageRequest) returns (RemoveProvisionerImageResponse) {}
   rpc GetSystemStatus(GetSystemStatusRequest) returns (GetSystemStatusResponse) {}
+  rpc StartHostAgent(StartHostAgentRequest) returns (StartHostAgentResponse) {}
+  rpc StopHostAgent(StopHostAgentRequest) returns (StopHostAgentResponse) {}
   rpc GetLocalCommits(GetLocalCommitsRequest) returns (GetLocalCommitsResponse) {}
   rpc GetRemoteCommits(GetRemoteCommitsRequest) returns (GetRemoteCommitsResponse) {}
   rpc ExecuteSql(ExecuteSqlRequest) returns (ExecuteSqlResponse) {}
@@ -62,7 +69,7 @@ service ProtosClientApi {
 message InitRequest {
   string username = 1;
   string name = 2;
-  string organization = 3;
+  string organisation = 3;
 }
 
 message InitResponse {
@@ -89,6 +96,63 @@ message GetUserInfoResponse {
   string username = 1;
   string name = 2;
   bool is_admin = 3;
+  string organisation_id = 4;
+  string organisation_name = 5;
+}
+
+message Organisation {
+  string id = 1;
+  string name = 2;
+  string created_at = 3;
+}
+
+message ListOrganisationsRequest {
+}
+
+message ListOrganisationsResponse {
+  repeated Organisation organisations = 1;
+}
+
+message StartDeviceInviteRequest {
+  string organisation_id = 1;
+  string channel = 2;
+}
+
+message StartDeviceInviteResponse {
+  string invite_id = 1;
+  int64 expires_at_unix = 2;
+  string advertise_name = 3;
+  string advertise_service = 4;
+  string channel = 5;
+}
+
+message NearbyOrganisation {
+  string organisation_id = 1;
+  string organisation_name = 2;
+  string device_name = 3;
+  string peer_id = 4;
+  string invite_id = 5;
+  string channel = 6;
+}
+
+message ListNearbyOrganisationsRequest {
+  string channel = 1;
+}
+
+message ListNearbyOrganisationsResponse {
+  repeated NearbyOrganisation organisations = 1;
+}
+
+message JoinOrganisationRequest {
+  string organisation_id = 1;
+  string peer_id = 2;
+  string invite_id = 3;
+  string username = 4;
+  string name = 5;
+  string channel = 6;
+}
+
+message JoinOrganisationResponse {
 }
 
 message GetLocalSSHKeyRequest {
@@ -432,6 +496,23 @@ message GetNetworkStateRequest {
 
 message GetNetworkStateResponse {
   NetworkState state = 1;
+}
+
+message SetNetworkEnabledRequest {
+  bool enabled = 1;
+}
+
+message SetNetworkEnabledResponse {
+  NetworkRuntimeStatus status = 1;
+}
+
+message NetworkRuntimeStatus {
+  bool supported = 1;
+  bool desired_enabled = 2;
+  bool enabled = 3;
+  string state = 4;
+  string message = 5;
+  NetworkState network_state = 6;
 }
 
 message NetworkState {
@@ -811,6 +892,9 @@ message SystemStatus {
   int32 p2p_port = 4;
   repeated CoreEndpoint endpoints = 5;
   HostAgentConnectionStatus host_agent = 6;
+  bool network_enabled = 7;
+  bool host_agent_supported = 8;
+  NetworkRuntimeStatus network = 9;
 }
 
 message GetSystemStatusRequest {
@@ -818,6 +902,20 @@ message GetSystemStatusRequest {
 
 message GetSystemStatusResponse {
   SystemStatus status = 1;
+}
+
+message StartHostAgentRequest {
+}
+
+message StartHostAgentResponse {
+  HostAgentConnectionStatus status = 1;
+}
+
+message StopHostAgentRequest {
+}
+
+message StopHostAgentResponse {
+  HostAgentConnectionStatus status = 1;
 }
 
 message Commit {

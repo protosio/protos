@@ -9,6 +9,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLIENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROJECT_FILE="${CLIENT_DIR}/ios/Runner.xcodeproj/project.pbxproj"
 
+if [ "${PROTOS_IOS_TASK_ENTRY:-}" != "1" ] && [ "${PROTOS_ALLOW_DIRECT_CLIENT_SCRIPT:-}" != "1" ]; then
+	printf 'Use task -t clients/ios/Taskfile.yml build/run tasks from the repo root.\n' >&2
+	exit 2
+fi
+
 tunnel_mode="${PROTOS_IOS_TUNNEL:-with}"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -64,6 +69,17 @@ clean_no_tunnel_app_bundles() {
 		"${CLIENT_DIR}/ios/build/Release-iphoneos/Protos.app"
 }
 
+assert_no_tunnel_runner_links() {
+	if grep -Eq '^[[:space:]]*C0DE20312F00000100000001 /\* Embed App Extensions \*/,[[:space:]]*$' "${PROJECT_FILE}"; then
+		printf 'no-tunnel build still embeds the Packet Tunnel extension\n' >&2
+		exit 1
+	fi
+	if grep -Eq '^[[:space:]]*C0DE20812F00000100000001 /\* PBXTargetDependency \*/,[[:space:]]*$' "${PROJECT_FILE}"; then
+		printf 'no-tunnel build still depends on the Packet Tunnel target\n' >&2
+		exit 1
+	fi
+}
+
 backup_file=""
 restore_project() {
 	if [ -n "${backup_file}" ] && [ -f "${backup_file}" ]; then
@@ -80,11 +96,14 @@ if [ "${tunnel_mode}" = "without" ]; then
 	backup_file="$(mktemp)"
 	cp "${PROJECT_FILE}" "${backup_file}"
 	trap cleanup_and_restore EXIT
-	clean_no_tunnel_app_bundles
+	if [ "${PROTOS_IOS_SKIP_NO_TUNNEL_CLEAN:-}" != "1" ]; then
+		clean_no_tunnel_app_bundles
+	fi
 	perl -0pi -e '
 		s/\n\t\t\t\tC0DE20312F00000100000001 \/\* Embed App Extensions \*\/,//;
 		s/\n\t\t\t\tC0DE20812F00000100000001 \/\* PBXTargetDependency \*\/,//;
 	' "${PROJECT_FILE}"
+	assert_no_tunnel_runner_links
 fi
 
 cmd=("$@")

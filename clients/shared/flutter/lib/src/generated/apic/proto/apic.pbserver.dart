@@ -27,6 +27,14 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.GetUserDevicesRequest request);
   $async.Future<$0.GetUserInfoResponse> getUserInfo(
       $pb.ServerContext ctx, $0.GetUserInfoRequest request);
+  $async.Future<$0.ListOrganisationsResponse> listOrganisations(
+      $pb.ServerContext ctx, $0.ListOrganisationsRequest request);
+  $async.Future<$0.StartDeviceInviteResponse> startDeviceInvite(
+      $pb.ServerContext ctx, $0.StartDeviceInviteRequest request);
+  $async.Future<$0.ListNearbyOrganisationsResponse> listNearbyOrganisations(
+      $pb.ServerContext ctx, $0.ListNearbyOrganisationsRequest request);
+  $async.Future<$0.JoinOrganisationResponse> joinOrganisation(
+      $pb.ServerContext ctx, $0.JoinOrganisationRequest request);
   $async.Future<$0.GetLocalSSHKeyResponse> getLocalSSHKey(
       $pb.ServerContext ctx, $0.GetLocalSSHKeyRequest request);
   $async.Future<$0.GetAppsResponse> getApps(
@@ -86,6 +94,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.UpdateInstanceRequest request);
   $async.Future<$0.GetNetworkStateResponse> getNetworkState(
       $pb.ServerContext ctx, $0.GetNetworkStateRequest request);
+  $async.Future<$0.SetNetworkEnabledResponse> setNetworkEnabled(
+      $pb.ServerContext ctx, $0.SetNetworkEnabledRequest request);
   $async.Future<$0.GetExitRoutesResponse> getExitRoutes(
       $pb.ServerContext ctx, $0.GetExitRoutesRequest request);
   $async.Future<$0.GetMobileTunnelConfigResponse> getMobileTunnelConfig(
@@ -118,6 +128,10 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.RemoveProvisionerImageRequest request);
   $async.Future<$0.GetSystemStatusResponse> getSystemStatus(
       $pb.ServerContext ctx, $0.GetSystemStatusRequest request);
+  $async.Future<$0.StartHostAgentResponse> startHostAgent(
+      $pb.ServerContext ctx, $0.StartHostAgentRequest request);
+  $async.Future<$0.StopHostAgentResponse> stopHostAgent(
+      $pb.ServerContext ctx, $0.StopHostAgentRequest request);
   $async.Future<$0.GetLocalCommitsResponse> getLocalCommits(
       $pb.ServerContext ctx, $0.GetLocalCommitsRequest request);
   $async.Future<$0.GetRemoteCommitsResponse> getRemoteCommits(
@@ -133,6 +147,14 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.GetUserDevicesRequest();
       case 'GetUserInfo':
         return $0.GetUserInfoRequest();
+      case 'ListOrganisations':
+        return $0.ListOrganisationsRequest();
+      case 'StartDeviceInvite':
+        return $0.StartDeviceInviteRequest();
+      case 'ListNearbyOrganisations':
+        return $0.ListNearbyOrganisationsRequest();
+      case 'JoinOrganisation':
+        return $0.JoinOrganisationRequest();
       case 'GetLocalSSHKey':
         return $0.GetLocalSSHKeyRequest();
       case 'GetApps':
@@ -191,6 +213,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.UpdateInstanceRequest();
       case 'GetNetworkState':
         return $0.GetNetworkStateRequest();
+      case 'SetNetworkEnabled':
+        return $0.SetNetworkEnabledRequest();
       case 'GetExitRoutes':
         return $0.GetExitRoutesRequest();
       case 'GetMobileTunnelConfig':
@@ -223,6 +247,10 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.RemoveProvisionerImageRequest();
       case 'GetSystemStatus':
         return $0.GetSystemStatusRequest();
+      case 'StartHostAgent':
+        return $0.StartHostAgentRequest();
+      case 'StopHostAgent':
+        return $0.StopHostAgentRequest();
       case 'GetLocalCommits':
         return $0.GetLocalCommitsRequest();
       case 'GetRemoteCommits':
@@ -243,6 +271,15 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return getUserDevices(ctx, request as $0.GetUserDevicesRequest);
       case 'GetUserInfo':
         return getUserInfo(ctx, request as $0.GetUserInfoRequest);
+      case 'ListOrganisations':
+        return listOrganisations(ctx, request as $0.ListOrganisationsRequest);
+      case 'StartDeviceInvite':
+        return startDeviceInvite(ctx, request as $0.StartDeviceInviteRequest);
+      case 'ListNearbyOrganisations':
+        return listNearbyOrganisations(
+            ctx, request as $0.ListNearbyOrganisationsRequest);
+      case 'JoinOrganisation':
+        return joinOrganisation(ctx, request as $0.JoinOrganisationRequest);
       case 'GetLocalSSHKey':
         return getLocalSSHKey(ctx, request as $0.GetLocalSSHKeyRequest);
       case 'GetApps':
@@ -305,6 +342,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return updateInstance(ctx, request as $0.UpdateInstanceRequest);
       case 'GetNetworkState':
         return getNetworkState(ctx, request as $0.GetNetworkStateRequest);
+      case 'SetNetworkEnabled':
+        return setNetworkEnabled(ctx, request as $0.SetNetworkEnabledRequest);
       case 'GetExitRoutes':
         return getExitRoutes(ctx, request as $0.GetExitRoutesRequest);
       case 'GetMobileTunnelConfig':
@@ -341,6 +380,10 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
             ctx, request as $0.RemoveProvisionerImageRequest);
       case 'GetSystemStatus':
         return getSystemStatus(ctx, request as $0.GetSystemStatusRequest);
+      case 'StartHostAgent':
+        return startHostAgent(ctx, request as $0.StartHostAgentRequest);
+      case 'StopHostAgent':
+        return stopHostAgent(ctx, request as $0.StopHostAgentRequest);
       case 'GetLocalCommits':
         return getLocalCommits(ctx, request as $0.GetLocalCommitsRequest);
       case 'GetRemoteCommits':

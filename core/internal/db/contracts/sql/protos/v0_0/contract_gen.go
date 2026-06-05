@@ -60,6 +60,14 @@ var Version = schema.VersionDefinition{
 				},
 			},
 			{
+				Name: "organisations",
+				Columns: []schema.SQLColumn{
+					{Name: "id", Type: "VARCHAR(64)", PrimaryKey: true, NotNull: true},
+					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "created_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
+				},
+			},
+			{
 				Name: "users",
 				Columns: []schema.SQLColumn{
 					{Name: "username", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
@@ -171,6 +179,11 @@ var CreateSQL = []string{
   desired_status VARCHAR(255) NOT NULL,
   persistence TINYINT(1) NOT NULL,
   public_key VARCHAR(255) NOT NULL
+)`,
+	`CREATE TABLE organisations (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  created_at VARCHAR(64) NOT NULL
 )`,
 	`CREATE TABLE users (
   username VARCHAR(255) NOT NULL PRIMARY KEY,

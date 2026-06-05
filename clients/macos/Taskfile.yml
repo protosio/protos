@@ -1,0 +1,41 @@
+version: "3"
+
+vars:
+  RUN_ARGS: '{{.RUN_ARGS | default ""}}'
+  BUILD_ARGS: '{{.BUILD_ARGS | default "--debug"}}'
+
+tasks:
+  run:
+    desc: Run the macOS Flutter app using ~/.protos
+    env:
+      PROTOS_MACOS_TASK_ENTRY: "1"
+    cmds:
+      - ./scripts/run.sh {{.RUN_ARGS}} {{.CLI_ARGS}}
+
+  build:
+    desc: Build the macOS Flutter app
+    env:
+      PROTOS_MACOS_TASK_ENTRY: "1"
+    cmds:
+      - ./scripts/build.sh {{.BUILD_ARGS}} {{.CLI_ARGS}}
+
+  clean:data:
+    desc: Remove ~/.protos
+    cmds:
+      - rm -rf ~/.protos
+
+  analyze:
+    desc: Analyze the macOS Flutter app
+    cmds:
+      - flutter analyze
+
+  test:
+    desc: Run shared Flutter tests used by the macOS client
+    dir: ../shared/flutter
+    cmds:
+      - flutter test
+
+  default:
+    desc: Show available macOS tasks
+    cmds:
+      - task --list

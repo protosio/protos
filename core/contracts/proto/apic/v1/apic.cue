@@ -3,7 +3,7 @@ package apicv1
 #InitRequest: {
 	username?:     string
 	name?:         string
-	organization?: string
+	organisation?: string
 }
 #InitResponse: {}
 
@@ -17,10 +17,49 @@ package apicv1
 #GetUserDevicesResponse: devices?: [...#UserDevice]
 #GetUserInfoRequest: {}
 #GetUserInfoResponse: {
-	username?: string
-	name?:     string
-	is_admin?: bool
+	username?:      string
+	name?:          string
+	is_admin?:      bool
+	organisation_id?:   string
+	organisation_name?: string
 }
+#Organisation: {
+	id?:         string
+	name?:       string
+	created_at?: string
+}
+#ListOrganisationsRequest: {}
+#ListOrganisationsResponse: organisations?: [...#Organisation]
+#StartDeviceInviteRequest: {
+	organisation_id?: string
+	channel?:         string
+}
+#StartDeviceInviteResponse: {
+	invite_id?:        string
+	expires_at_unix?:  int64
+	advertise_name?:   string
+	advertise_service?: string
+	channel?:          string
+}
+#NearbyOrganisation: {
+	organisation_id?:   string
+	organisation_name?: string
+	device_name?:   string
+	peer_id?:       string
+	invite_id?:     string
+	channel?:       string
+}
+#ListNearbyOrganisationsRequest: channel?: string
+#ListNearbyOrganisationsResponse: organisations?: [...#NearbyOrganisation]
+#JoinOrganisationRequest: {
+	organisation_id?: string
+	peer_id?:     string
+	invite_id?:   string
+	username?:    string
+	name?:        string
+	channel?:     string
+}
+#JoinOrganisationResponse: {}
 #GetLocalSSHKeyRequest: {}
 #GetLocalSSHKeyResponse: {
 	public?:  string
@@ -210,6 +249,16 @@ package apicv1
 
 #GetNetworkStateRequest: instance?: string
 #GetNetworkStateResponse: state?: #NetworkState
+#SetNetworkEnabledRequest: enabled?: bool
+#SetNetworkEnabledResponse: status?: #NetworkRuntimeStatus
+#NetworkRuntimeStatus: {
+	supported?:       bool
+	desired_enabled?: bool
+	enabled?:         bool
+	state?:           string
+	message?:         string
+	network_state?:   #NetworkState
+}
 #NetworkState: {
 	module?:          string
 	up?:              bool
@@ -540,9 +589,16 @@ package apicv1
 	p2p_port?:     int
 	endpoints?:    [...#CoreEndpoint]
 	host_agent?:   #HostAgentConnectionStatus
+	network_enabled?: bool
+	host_agent_supported?: bool
+	network?: #NetworkRuntimeStatus
 }
 #GetSystemStatusRequest: {}
 #GetSystemStatusResponse: status?: #SystemStatus
+#StartHostAgentRequest: {}
+#StartHostAgentResponse: status?: #HostAgentConnectionStatus
+#StopHostAgentRequest: {}
+#StopHostAgentResponse: status?: #HostAgentConnectionStatus
 
 contract: {
 	surface: "client-api-grpc"
@@ -565,6 +621,10 @@ contract: {
 				{name: "Init", request: "InitRequest", response: "InitResponse"},
 				{name: "GetUserDevices", request: "GetUserDevicesRequest", response: "GetUserDevicesResponse"},
 				{name: "GetUserInfo", request: "GetUserInfoRequest", response: "GetUserInfoResponse"},
+				{name: "ListOrganisations", request: "ListOrganisationsRequest", response: "ListOrganisationsResponse"},
+				{name: "StartDeviceInvite", request: "StartDeviceInviteRequest", response: "StartDeviceInviteResponse"},
+				{name: "ListNearbyOrganisations", request: "ListNearbyOrganisationsRequest", response: "ListNearbyOrganisationsResponse"},
+				{name: "JoinOrganisation", request: "JoinOrganisationRequest", response: "JoinOrganisationResponse"},
 				{name: "GetLocalSSHKey", request: "GetLocalSSHKeyRequest", response: "GetLocalSSHKeyResponse"},
 				{name: "GetApps", request: "GetAppsRequest", response: "GetAppsResponse"},
 				{name: "CreateApp", request: "CreateAppRequest", response: "CreateAppResponse"},
@@ -594,6 +654,7 @@ contract: {
 				{name: "InitInstance", request: "InitInstanceRequest", response: "InitInstanceResponse"},
 				{name: "UpdateInstance", request: "UpdateInstanceRequest", response: "UpdateInstanceResponse"},
 				{name: "GetNetworkState", request: "GetNetworkStateRequest", response: "GetNetworkStateResponse"},
+				{name: "SetNetworkEnabled", request: "SetNetworkEnabledRequest", response: "SetNetworkEnabledResponse"},
 				{name: "GetExitRoutes", request: "GetExitRoutesRequest", response: "GetExitRoutesResponse"},
 				{name: "GetMobileTunnelConfig", request: "GetMobileTunnelConfigRequest", response: "GetMobileTunnelConfigResponse"},
 				{name: "GetRuntimeState", request: "GetRuntimeStateRequest", response: "GetRuntimeStateResponse"},
@@ -610,6 +671,8 @@ contract: {
 				{name: "UploadProvisionerImage", request: "UploadProvisionerImageRequest", response: "UploadProvisionerImageResponse"},
 				{name: "RemoveProvisionerImage", request: "RemoveProvisionerImageRequest", response: "RemoveProvisionerImageResponse"},
 				{name: "GetSystemStatus", request: "GetSystemStatusRequest", response: "GetSystemStatusResponse"},
+				{name: "StartHostAgent", request: "StartHostAgentRequest", response: "StartHostAgentResponse"},
+				{name: "StopHostAgent", request: "StopHostAgentRequest", response: "StopHostAgentResponse"},
 				{name: "GetLocalCommits", request: "GetLocalCommitsRequest", response: "GetLocalCommitsResponse"},
 				{name: "GetRemoteCommits", request: "GetRemoteCommitsRequest", response: "GetRemoteCommitsResponse"},
 				{name: "ExecuteSql", request: "ExecuteSqlRequest", response: "ExecuteSqlResponse"},
@@ -619,7 +682,7 @@ contract: {
 			{kind: "message", name: "InitRequest", fields: [
 				{type: "string", name: "username", number: 1},
 				{type: "string", name: "name", number: 2},
-				{type: "string", name: "organization", number: 3},
+				{type: "string", name: "organisation", number: 3},
 			]},
 			{kind: "message", name: "InitResponse", fields: []},
 			{kind: "message", name: "UserDevice", fields: [
@@ -637,7 +700,52 @@ contract: {
 				{type: "string", name: "username", number: 1},
 				{type: "string", name: "name", number: 2},
 				{type: "bool", name: "is_admin", number: 3},
+				{type: "string", name: "organisation_id", number: 4},
+				{type: "string", name: "organisation_name", number: 5},
 			]},
+			{kind: "message", name: "Organisation", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "name", number: 2},
+				{type: "string", name: "created_at", number: 3},
+			]},
+			{kind: "message", name: "ListOrganisationsRequest", fields: []},
+			{kind: "message", name: "ListOrganisationsResponse", fields: [
+				{rule: "repeated", type: "Organisation", name: "organisations", number: 1},
+			]},
+			{kind: "message", name: "StartDeviceInviteRequest", fields: [
+				{type: "string", name: "organisation_id", number: 1},
+				{type: "string", name: "channel", number: 2},
+			]},
+			{kind: "message", name: "StartDeviceInviteResponse", fields: [
+				{type: "string", name: "invite_id", number: 1},
+				{type: "int64", name: "expires_at_unix", number: 2},
+				{type: "string", name: "advertise_name", number: 3},
+				{type: "string", name: "advertise_service", number: 4},
+				{type: "string", name: "channel", number: 5},
+			]},
+			{kind: "message", name: "NearbyOrganisation", fields: [
+				{type: "string", name: "organisation_id", number: 1},
+				{type: "string", name: "organisation_name", number: 2},
+				{type: "string", name: "device_name", number: 3},
+				{type: "string", name: "peer_id", number: 4},
+				{type: "string", name: "invite_id", number: 5},
+				{type: "string", name: "channel", number: 6},
+			]},
+			{kind: "message", name: "ListNearbyOrganisationsRequest", fields: [
+				{type: "string", name: "channel", number: 1},
+			]},
+			{kind: "message", name: "ListNearbyOrganisationsResponse", fields: [
+				{rule: "repeated", type: "NearbyOrganisation", name: "organisations", number: 1},
+			]},
+			{kind: "message", name: "JoinOrganisationRequest", fields: [
+				{type: "string", name: "organisation_id", number: 1},
+				{type: "string", name: "peer_id", number: 2},
+				{type: "string", name: "invite_id", number: 3},
+				{type: "string", name: "username", number: 4},
+				{type: "string", name: "name", number: 5},
+				{type: "string", name: "channel", number: 6},
+			]},
+			{kind: "message", name: "JoinOrganisationResponse", fields: []},
 			{kind: "message", name: "GetLocalSSHKeyRequest", fields: []},
 			{kind: "message", name: "GetLocalSSHKeyResponse", fields: [
 				{type: "string", name: "public", number: 1},
@@ -831,6 +939,20 @@ contract: {
 			]},
 			{kind: "message", name: "GetNetworkStateResponse", fields: [
 				{type: "NetworkState", name: "state", number: 1},
+			]},
+			{kind: "message", name: "SetNetworkEnabledRequest", fields: [
+				{type: "bool", name: "enabled", number: 1},
+			]},
+			{kind: "message", name: "SetNetworkEnabledResponse", fields: [
+				{type: "NetworkRuntimeStatus", name: "status", number: 1},
+			]},
+			{kind: "message", name: "NetworkRuntimeStatus", fields: [
+				{type: "bool", name: "supported", number: 1},
+				{type: "bool", name: "desired_enabled", number: 2},
+				{type: "bool", name: "enabled", number: 3},
+				{type: "string", name: "state", number: 4},
+				{type: "string", name: "message", number: 5},
+				{type: "NetworkState", name: "network_state", number: 6},
 			]},
 			{kind: "message", name: "NetworkState", fields: [
 				{type: "string", name: "module", number: 1},
@@ -1142,10 +1264,21 @@ contract: {
 				{type: "int32", name: "p2p_port", number: 4},
 				{rule: "repeated", type: "CoreEndpoint", name: "endpoints", number: 5},
 				{type: "HostAgentConnectionStatus", name: "host_agent", number: 6},
+				{type: "bool", name: "network_enabled", number: 7},
+				{type: "bool", name: "host_agent_supported", number: 8},
+				{type: "NetworkRuntimeStatus", name: "network", number: 9},
 			]},
 			{kind: "message", name: "GetSystemStatusRequest", fields: []},
 			{kind: "message", name: "GetSystemStatusResponse", fields: [
 				{type: "SystemStatus", name: "status", number: 1},
+			]},
+			{kind: "message", name: "StartHostAgentRequest", fields: []},
+			{kind: "message", name: "StartHostAgentResponse", fields: [
+				{type: "HostAgentConnectionStatus", name: "status", number: 1},
+			]},
+			{kind: "message", name: "StopHostAgentRequest", fields: []},
+			{kind: "message", name: "StopHostAgentResponse", fields: [
+				{type: "HostAgentConnectionStatus", name: "status", number: 1},
 			]},
 			{kind: "message", name: "Commit", fields: [
 				{type: "string", name: "hash", number: 1},
@@ -1192,6 +1325,16 @@ lineage: {
 			GetUserDevicesResponse?:              #GetUserDevicesResponse
 			GetUserInfoRequest?:                  #GetUserInfoRequest
 			GetUserInfoResponse?:                 #GetUserInfoResponse
+			Organisation?:                            #Organisation
+			ListOrganisationsRequest?:                #ListOrganisationsRequest
+			ListOrganisationsResponse?:               #ListOrganisationsResponse
+			StartDeviceInviteRequest?:            #StartDeviceInviteRequest
+			StartDeviceInviteResponse?:           #StartDeviceInviteResponse
+			NearbyOrganisation?:                      #NearbyOrganisation
+			ListNearbyOrganisationsRequest?:          #ListNearbyOrganisationsRequest
+			ListNearbyOrganisationsResponse?:         #ListNearbyOrganisationsResponse
+			JoinOrganisationRequest?:                 #JoinOrganisationRequest
+			JoinOrganisationResponse?:                #JoinOrganisationResponse
 			GetLocalSSHKeyRequest?:               #GetLocalSSHKeyRequest
 			GetLocalSSHKeyResponse?:              #GetLocalSSHKeyResponse
 			App?:                                 #App
@@ -1265,6 +1408,9 @@ lineage: {
 			UpdateInstanceResponse?:              #UpdateInstanceResponse
 			GetNetworkStateRequest?:              #GetNetworkStateRequest
 			GetNetworkStateResponse?:             #GetNetworkStateResponse
+			SetNetworkEnabledRequest?:            #SetNetworkEnabledRequest
+			SetNetworkEnabledResponse?:           #SetNetworkEnabledResponse
+			NetworkRuntimeStatus?:                #NetworkRuntimeStatus
 			NetworkState?:                        #NetworkState
 			NetworkInterface?:                    #NetworkInterface
 			NetworkAddress?:                      #NetworkAddress
@@ -1319,6 +1465,10 @@ lineage: {
 			SystemStatus?:                         #SystemStatus
 			GetSystemStatusRequest?:               #GetSystemStatusRequest
 			GetSystemStatusResponse?:              #GetSystemStatusResponse
+			StartHostAgentRequest?:                #StartHostAgentRequest
+			StartHostAgentResponse?:               #StartHostAgentResponse
+			StopHostAgentRequest?:                 #StopHostAgentRequest
+			StopHostAgentResponse?:                #StopHostAgentResponse
 			Commit?:                              #Commit
 			GetLocalCommitsRequest?:              #GetLocalCommitsRequest
 			GetLocalCommitsResponse?:             #GetLocalCommitsResponse

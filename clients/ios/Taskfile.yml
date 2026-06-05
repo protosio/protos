@@ -4,24 +4,72 @@ vars:
   BUILD_ARGS: '{{.BUILD_ARGS | default "--debug"}}'
   RUN_ARGS: '{{.RUN_ARGS | default "--debug"}}'
   DEVICE: '{{.DEVICE | default ""}}'
+  DEVICE_CONNECTION: '{{.DEVICE_CONNECTION | default ""}}'
+  DEVICE_TIMEOUT: '{{.DEVICE_TIMEOUT | default "60"}}'
+  BUNDLE_ID: '{{.BUNDLE_ID | default "io.protos.protosFlutter"}}'
+  APP_PATH: '{{.APP_PATH | default "build/ios/iphoneos/Protos.app"}}'
+  ALLOW_TUNNEL: '{{.ALLOW_TUNNEL | default ""}}'
 
 tasks:
+  _guard:tunnel:
+    internal: true
+    cmds:
+      - |
+        set -e
+        if [ "${PROTOS_ALLOW_IOS_TUNNEL:-{{.ALLOW_TUNNEL}}}" != "1" ]; then
+          echo "The tunnel-enabled iOS task signs the Packet Tunnel extension." >&2
+          echo "That requires an Apple team with Network Extensions provisioning." >&2
+          echo "Use run:no-tunnel/build:no-tunnel for personal-team device installs." >&2
+          echo "If tunnel provisioning is available, rerun with ALLOW_TUNNEL=1." >&2
+          exit 2
+        fi
+
+  _guard:no-tunnel:
+    internal: true
+    vars:
+      TASK_ARGS: '{{.TASK_ARGS | default ""}}'
+    cmds:
+      - |
+        set -e
+        case "{{.TASK_ARGS}}" in
+          *"--with-tunnel"*|*"PROTOS_IOS_TUNNEL=true"*|*"--dart-define=PROTOS_IOS_TUNNEL=true"*)
+            echo "This is a no-tunnel task, but tunnel-enabled arguments were supplied." >&2
+            exit 2
+            ;;
+        esac
+
   build:
     desc: Build the iOS app with the Packet Tunnel extension enabled
+    env:
+      PROTOS_IOS_TASK_ENTRY: "1"
     cmds:
+      - task: _guard:tunnel
       - ./scripts/build.sh --with-tunnel {{.BUILD_ARGS}} {{.CLI_ARGS}}
 
   build:no-tunnel:
     desc: Build the iOS app without the Packet Tunnel extension for personal-team device installs
+    env:
+      PROTOS_IOS_TASK_ENTRY: "1"
+      PROTOS_IOS_TUNNEL: "without"
+      PROTOS_IOS_STRICT_NO_TUNNEL: "1"
     cmds:
+      - task: _guard:no-tunnel
+        vars:
+          TASK_ARGS: '{{.BUILD_ARGS}} {{.CLI_ARGS}}'
       - ./scripts/build.sh --without-tunnel {{.BUILD_ARGS}} {{.CLI_ARGS}}
 
   run:
     desc: Run the iOS app with the Packet Tunnel extension enabled
+    env:
+      PROTOS_IOS_TASK_ENTRY: "1"
     cmds:
+      - task: _guard:tunnel
       - |
         set -e
         args=({{.RUN_ARGS}})
+        if [ -n "{{.DEVICE_CONNECTION}}" ]; then
+          args=(--device-connection "{{.DEVICE_CONNECTION}}" "${args[@]}")
+        fi
         if [ -n "{{.DEVICE}}" ]; then
           args=(-d "{{.DEVICE}}" "${args[@]}")
         fi
@@ -29,14 +77,83 @@ tasks:
 
   run:no-tunnel:
     desc: Run the iOS app without the Packet Tunnel extension for personal-team device installs
+    env:
+      PROTOS_IOS_TASK_ENTRY: "1"
+      PROTOS_IOS_TUNNEL: "without"
+      PROTOS_IOS_STRICT_NO_TUNNEL: "1"
     cmds:
+      - task: _guard:no-tunnel
+        vars:
+          TASK_ARGS: '{{.RUN_ARGS}} {{.CLI_ARGS}}'
       - |
         set -e
         args=({{.RUN_ARGS}})
+        if [ -n "{{.DEVICE_CONNECTION}}" ]; then
+          args=(--device-connection "{{.DEVICE_CONNECTION}}" "${args[@]}")
+        fi
         if [ -n "{{.DEVICE}}" ]; then
           args=(-d "{{.DEVICE}}" "${args[@]}")
         fi
         ./scripts/run.sh --without-tunnel "${args[@]}" {{.CLI_ARGS}}
+
+  uninstall:
+    desc: Uninstall the iOS app from a connected device
+    cmds:
+      - |
+        set -e
+        if [ -z "{{.DEVICE}}" ]; then
+          echo "DEVICE=<device-id> is required." >&2
+          exit 2
+        fi
+        xcrun devicectl device uninstall app --device "{{.DEVICE}}" "{{.BUNDLE_ID}}" --timeout "{{.DEVICE_TIMEOUT}}"
+
+  install:built:
+    desc: Install the already-built iOS app bundle on a connected device
+    cmds:
+      - |
+        set -e
+        if [ -z "{{.DEVICE}}" ]; then
+          echo "DEVICE=<device-id> is required." >&2
+          exit 2
+        fi
+        if [ ! -d "{{.APP_PATH}}" ]; then
+          echo "Built app bundle not found at {{.APP_PATH}}. Run build:no-tunnel or build first." >&2
+          exit 1
+        fi
+        xcrun devicectl device install app --device "{{.DEVICE}}" "{{.APP_PATH}}" --timeout "{{.DEVICE_TIMEOUT}}"
+
+  launch:
+    desc: Launch the installed iOS app on a connected device without Flutter debugger attachment
+    cmds:
+      - |
+        set -e
+        if [ -z "{{.DEVICE}}" ]; then
+          echo "DEVICE=<device-id> is required." >&2
+          exit 2
+        fi
+        xcrun devicectl device process launch --device "{{.DEVICE}}" --terminate-existing "{{.BUNDLE_ID}}" --timeout "{{.DEVICE_TIMEOUT}}"
+
+  launch:console:
+    desc: Launch the installed iOS app with device console attached, without Flutter debugger attachment
+    cmds:
+      - |
+        set -e
+        if [ -z "{{.DEVICE}}" ]; then
+          echo "DEVICE=<device-id> is required." >&2
+          exit 2
+        fi
+        xcrun devicectl device process launch --device "{{.DEVICE}}" --terminate-existing --console "{{.BUNDLE_ID}}" --timeout "{{.DEVICE_TIMEOUT}}"
+
+  install-launch:built:
+    desc: Install the already-built iOS app and launch it without Flutter debugger attachment
+    cmds:
+      - task: install:built
+      - task: launch
+
+  devices:
+    desc: List available iOS devices
+    cmds:
+      - xcrun devicectl list devices
 
   analyze:
     desc: Analyze the iOS Flutter app

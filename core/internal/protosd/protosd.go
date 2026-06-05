@@ -23,6 +23,8 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/dns"
+	"github.com/protosio/protos/internal/invitations"
+	"github.com/protosio/protos/internal/invitations/mdns"
 	"github.com/protosio/protos/internal/membership"
 	"github.com/protosio/protos/internal/network"
 	"github.com/protosio/protos/internal/p2p"
@@ -148,6 +150,16 @@ type Node struct {
 	CloudManager   *provisioners.Manager
 	P2PManager     *p2p.P2P
 	appRuntime     appruntime.RuntimePlatform
+
+	networkMu          sync.Mutex
+	networkDesired     bool
+	networkEnabled     bool
+	networkState       string
+	networkMessage     string
+	networkExternalDNS string
+	networkDNSStopper  func() error
+	dbNotifier         *DBNotifier
+	inviteManager      *invitations.Manager
 }
 
 func StartUp(configFile string, version *semver.Version, opts Options) {
@@ -210,16 +222,27 @@ func NewNode(configFile string, version *semver.Version, opts Options) (*Node, e
 
 	keyManager := pcrypto.CreateManager(dbcli)
 	userManager := user.CreateManager(dbcli, keyManager)
+	inviteManager, err := invitations.NewManager(mdns.NewChannel())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invite manager: %w", err)
+	}
 	node := &Node{
-		cfg:          cfg,
-		version:      version.String(),
-		capabilities: caps,
-		stoppers:     map[string]func() error{},
-		localKey:     lkey,
-		initCh:       make(chan struct{}),
-		DB:           dbcli,
-		KeyManager:   keyManager,
-		Manager:      userManager,
+		cfg:            cfg,
+		version:        version.String(),
+		capabilities:   caps,
+		stoppers:       map[string]func() error{},
+		localKey:       lkey,
+		initCh:         make(chan struct{}),
+		DB:             dbcli,
+		KeyManager:     keyManager,
+		Manager:        userManager,
+		networkDesired: caps.Network,
+		inviteManager:  inviteManager,
+	}
+	if caps.Network {
+		node.networkState = networkRuntimeStateDisabled
+	} else {
+		node.networkState = networkRuntimeStateUnsupported
 	}
 	if dbcli.Initialized() {
 		node.markInitialized()
@@ -257,8 +280,8 @@ func (n *Node) Start() error {
 			}
 		}
 	}
-	if n.NetworkManager != nil {
-		n.P2PManager.SetNetworkInspector(n.NetworkManager)
+	if n.capabilities.Network {
+		n.P2PManager.SetNetworkInspector(n)
 	}
 
 	n.CloudManager, err = provisioners.CreateManager(
@@ -281,6 +304,12 @@ func (n *Node) Start() error {
 		}
 		n.stoppers["api"] = apiStopper
 	}
+	n.stoppers["invitations"] = func() error {
+		if n.inviteManager != nil {
+			n.inviteManager.Stop()
+		}
+		return nil
+	}
 
 	p2pStopper, err := n.P2PManager.StartServer()
 	if err != nil {
@@ -288,23 +317,16 @@ func (n *Node) Start() error {
 	}
 	n.stoppers["p2p"] = p2pStopper
 
-	externalDNS := ""
 	if n.capabilities.Network {
-		if err := n.NetworkManager.Init(n.localKey, n.cfg.InternalDomain); err != nil {
-			return fmt.Errorf("failed to initialize network reconciler: %w", err)
-		}
-		n.stoppers["network"] = func() error {
-			log.Info("bringing down network")
-			return n.NetworkManager.Down()
-		}
 		normalizedDNS, err := network.NormalizeDNSServer(n.cfg.ExternalDNS)
 		if err != nil {
 			return fmt.Errorf("invalid external DNS server %q: %w", n.cfg.ExternalDNS, err)
 		}
-		externalDNS = normalizedDNS
-		dnsStopper := dns.StartServer(n.localKey, n.dnsPort(), externalDNS, n.cfg.InternalDomain, n.AppManager)
-		n.stoppers["dns"] = dnsStopper
-		if err := n.configureLocalResolver(); err != nil {
+		n.networkExternalDNS = normalizedDNS
+		n.stoppers["network"] = func() error {
+			return n.DisableNetwork(context.Background())
+		}
+		if err := n.enableNetworkAtStartup(context.Background()); err != nil {
 			return err
 		}
 	}
@@ -323,11 +345,12 @@ func (n *Node) Start() error {
 		cm:           n.CloudManager,
 		um:           n.Manager,
 		am:           n.AppManager,
-		nm:           n.NetworkManager,
+		network:      n,
 		p2pm:         n.P2PManager,
 		capabilities: n.capabilities,
-		externalDNS:  externalDNS,
+		externalDNS:  n.networkExternalDNS,
 	}
+	n.dbNotifier = dbNotifier
 	for _, registration := range []struct {
 		model    any
 		notifier db.Notifier
@@ -367,23 +390,26 @@ func (n *Node) Start() error {
 
 func (n *Node) APIServices() *apic.Services {
 	return &apic.Services{
-		DB:             n.DB,
-		Manager:        n.Manager,
-		KeyManager:     n.KeyManager,
-		AppManager:     n.AppManager,
-		NetworkManager: n.NetworkManager,
-		CloudManager:   n.CloudManager,
-		P2PManager:     n.P2PManager,
-		CanProvision:   n.capabilities.Provision,
-		WorkDir:        n.cfg.WorkDir,
-		Capabilities:   n.capabilities.String(),
-		P2PPort:        n.cfg.P2PPort,
-		InitFunc:       n.Init,
-		ReleaseFetch:   n.GetProtosAvailableReleases,
+		DB:              n.DB,
+		Manager:         n.Manager,
+		KeyManager:      n.KeyManager,
+		AppManager:      n.AppManager,
+		NetworkManager:  n.NetworkManager,
+		NetworkControl:  n,
+		CloudManager:    n.CloudManager,
+		P2PManager:      n.P2PManager,
+		Invites:         n.inviteManager,
+		CanProvision:    n.capabilities.Provision,
+		WorkDir:         n.cfg.WorkDir,
+		Capabilities:    n.capabilities.String(),
+		P2PPort:         n.cfg.P2PPort,
+		InitFunc:        n.Init,
+		MarkInitialized: n.markInitialized,
+		ReleaseFetch:    n.GetProtosAvailableReleases,
 	}
 }
 
-func (n *Node) Init(username string, name string, organization string) error {
+func (n *Node) Init(username string, name string, organisation string) error {
 	log.Debug("Performing initialization")
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -391,6 +417,9 @@ func (n *Node) Init(username string, name string, organization string) error {
 	}
 	if err := n.DB.Init(); err != nil {
 		return fmt.Errorf("failed to init. Error while initializing db: %w", err)
+	}
+	if _, err := db.EnsureOrganisation(n.DB, organisation); err != nil {
+		return fmt.Errorf("failed to create organisation: %w", err)
 	}
 
 	adminUser, err := n.Manager.CreateUser(username, name, true)
@@ -508,11 +537,16 @@ type DBNotifier struct {
 	cm           *provisioners.Manager
 	um           *user.Manager
 	am           *app.Manager
-	nm           *network.Manager
+	network      networkRuntime
 	p2pm         *p2p.P2P
 	capabilities Capabilities
 	externalDNS  string
 	mu           sync.Mutex
+}
+
+type networkRuntime interface {
+	NetworkEnabled() bool
+	ConfigureNetworkPeers([]provisioners.InstanceInfo, []user.UserDevice, []network.AppRoute, []network.ExitRoute) error
 }
 
 func (dbn *DBNotifier) Notify() {
@@ -596,12 +630,12 @@ func (dbn *DBNotifier) Notify() {
 		log.Error(fmt.Errorf("failed to retrieve exit routes: %w", err))
 		return
 	}
-	if dbn.capabilities.Network {
+	if dbn.capabilities.Network && dbn.network != nil && dbn.network.NetworkEnabled() {
 		dbn.configureDNSForwarder(exitRoutes)
 	}
 
-	if dbn.capabilities.Network && dbn.nm != nil {
-		if err := dbn.nm.ConfigurePeers(instances, userDevices, appRoutes, exitRoutes); err != nil {
+	if dbn.capabilities.Network && dbn.network != nil && dbn.network.NetworkEnabled() {
+		if err := dbn.network.ConfigureNetworkPeers(instances, userDevices, appRoutes, exitRoutes); err != nil {
 			log.Error(fmt.Errorf("failed to configure network peers: %w", err))
 			return
 		}

@@ -58,14 +58,20 @@ class DaemonState {
 }
 
 class AppModel extends ChangeNotifier {
-  AppModel({NativeProtosBridge? bridge, ProtosTunnelBridge? tunnelBridge})
-    : bridge = bridge ?? NativeProtosBridge(),
-      tunnelBridge = tunnelBridge ?? ProtosTunnelBridge() {
+  AppModel({
+    NativeProtosBridge? bridge,
+    ProtosTunnelBridge? tunnelBridge,
+    this.bridgeConfig = const ProtosBridgeConfig(),
+    this.onDaemonStartFailed,
+  }) : bridge = bridge ?? NativeProtosBridge(),
+       tunnelBridge = tunnelBridge ?? ProtosTunnelBridge() {
     api = ProtosApi(this.bridge);
   }
 
   final NativeProtosBridge bridge;
   final ProtosTunnelBridge tunnelBridge;
+  final ProtosBridgeConfig bridgeConfig;
+  final void Function(Object error)? onDaemonStartFailed;
   late final ProtosApi api;
 
   DaemonState daemonState = DaemonState.starting;
@@ -75,6 +81,9 @@ class AppModel extends ChangeNotifier {
   var needsInitialization = false;
 
   pb.GetUserInfoResponse? userInfo;
+  pb.StartDeviceInviteResponse? deviceInvite;
+  List<pb.Organisation> organisations = [];
+  List<pb.NearbyOrganisation> nearbyOrganisations = [];
   List<pb.UserDevice> devices = [];
   pb.GetLocalSSHKeyResponse? sshKey;
   List<pb.App> apps = [];
@@ -108,13 +117,24 @@ class AppModel extends ChangeNotifier {
   var _pendingHeartbeat = false;
 
   SidebarSection get selectedSection => _selectedSection;
-  bool get supportsNetwork => !Platform.isIOS;
-  bool get supportsHostAgent => !Platform.isIOS;
+  pb.NetworkRuntimeStatus? get networkRuntimeStatus =>
+      systemStatus?.hasNetwork() == true ? systemStatus!.network : null;
+  bool get supportsCoreNetwork =>
+      networkRuntimeStatus?.supported == true ||
+      systemStatus?.networkEnabled == true;
+  bool get supportsNetwork => supportsCoreNetwork || supportsMobileTunnel;
+  bool get isNetworkEnabled =>
+      networkRuntimeStatus?.enabled == true ||
+      systemStatus?.networkEnabled == true;
+  bool get supportsHostAgent => systemStatus?.hostAgentSupported == true;
   bool get supportsMobileTunnel =>
       Platform.isIOS && _iosTunnelBuildEnabled && tunnelBridge.isSupported;
 
   set selectedSection(SidebarSection section) {
     if (needsInitialization && section != SidebarSection.overview) {
+      return;
+    }
+    if (section == SidebarSection.network && !supportsNetwork) {
       return;
     }
     if (_selectedSection == section) {
@@ -148,7 +168,7 @@ class AppModel extends ChangeNotifier {
     _hasStarted = true;
     await run(
       () async {
-        await api.start();
+        await api.start(config: bridgeConfig);
         daemonState = DaemonState.running;
         try {
           userInfo = await api.userInfo();
@@ -162,6 +182,7 @@ class AppModel extends ChangeNotifier {
       },
       onError: (error) {
         daemonState = DaemonState.failed(error.toString());
+        onDaemonStartFailed?.call(error);
       },
     );
   }
@@ -169,12 +190,12 @@ class AppModel extends ChangeNotifier {
   Future<void> initializeUser({
     required String username,
     required String name,
-    required String organization,
+    required String organisation,
   }) async {
     await api.initUser(
       username: username,
       name: name,
-      organization: organization,
+      organisation: organisation,
     );
     await _leaveInitializationMode();
   }
@@ -184,8 +205,41 @@ class AppModel extends ChangeNotifier {
     await _leaveInitializationMode();
   }
 
+  Future<void> scanNearbyOrganisations({bool notify = true}) async {
+    final response = await api.nearbyOrganisations();
+    nearbyOrganisations = response.organisations.toList(growable: false);
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> startDeviceInvite({required String organisationId}) async {
+    deviceInvite = await api.startDeviceInvite(organisationId: organisationId);
+  }
+
+  Future<void> joinOrganisation({
+    required String organisationId,
+    required String peerId,
+    required String inviteId,
+    required String channel,
+    required String username,
+    required String name,
+  }) async {
+    await api.joinOrganisation(
+      organisationId: organisationId,
+      peerId: peerId,
+      inviteId: inviteId,
+      channel: channel,
+      username: username,
+      name: name,
+    );
+    await _leaveInitializationMode();
+  }
+
   Future<void> refreshAll({bool notify = true}) async {
+    final status = _optional(api.systemStatus());
     final user = _optional(api.userInfo());
+    final organisationList = _optional(api.organisations());
     final deviceList = _optional(api.userDevices());
     final key = _optional(api.localSshKey());
     final appList = _optional(api.apps());
@@ -193,7 +247,11 @@ class AppModel extends ChangeNotifier {
     final provisionerList = _optional(api.provisioners());
     final instanceList = _optional(api.instances());
     final taskList = _optional(api.tasks(maxResults: 200));
-    final network = supportsNetwork
+    final statusResponse = await status;
+    systemStatus = statusResponse?.hasStatus() == true
+        ? statusResponse!.status
+        : null;
+    final network = isNetworkEnabled
         ? _optional(api.networkState())
         : Future<pb.GetNetworkStateResponse?>.value();
     final routeList = supportsNetwork
@@ -201,12 +259,13 @@ class AppModel extends ChangeNotifier {
         : Future<pb.GetExitRoutesResponse?>.value();
     final runtime = _optional(api.runtimeState());
     final commitList = _optional(api.localCommits());
-    final status = _optional(api.systemStatus());
     final tunnelStatus = supportsMobileTunnel
         ? _optional(tunnelBridge.tunnelStatus())
         : Future<MobileTunnelStatus?>.value();
 
     userInfo = await user;
+    organisations =
+        (await organisationList)?.organisations.toList(growable: false) ?? [];
     devices = (await deviceList)?.devices.toList(growable: false) ?? [];
     sshKey = await key;
     apps = (await appList)?.apps.toList(growable: false) ?? [];
@@ -228,10 +287,6 @@ class AppModel extends ChangeNotifier {
       runtimeResponse?.hasState() == true ? runtimeResponse!.state : null,
     );
     localCommits = (await commitList)?.commits.toList(growable: false) ?? [];
-    final statusResponse = await status;
-    systemStatus = statusResponse?.hasStatus() == true
-        ? statusResponse!.status
-        : null;
     mobileTunnelStatus =
         await tunnelStatus ?? const MobileTunnelStatus.unsupported();
     if (notify) {
@@ -241,9 +296,12 @@ class AppModel extends ChangeNotifier {
 
   Future<void> refreshOverview({bool notify = true}) async {
     final user = _optional(api.userInfo());
+    final organisationList = _optional(api.organisations());
     final deviceList = _optional(api.userDevices());
     final key = _optional(api.localSshKey());
     userInfo = await user;
+    organisations =
+        (await organisationList)?.organisations.toList(growable: false) ?? [];
     devices = (await deviceList)?.devices.toList(growable: false) ?? [];
     sshKey = await key;
     if (notify) {
@@ -273,7 +331,7 @@ class AppModel extends ChangeNotifier {
     String instance = '',
     bool notify = true,
   }) async {
-    if (!supportsNetwork) {
+    if (!supportsNetwork || !isNetworkEnabled) {
       networkState = null;
       exitRoutes = [];
       if (supportsMobileTunnel) {
@@ -399,6 +457,23 @@ class AppModel extends ChangeNotifier {
     if (notify) {
       notifyListeners();
     }
+  }
+
+  Future<void> startHostAgent() async {
+    if (!supportsHostAgent) {
+      throw UnsupportedError('The Host Agent is only available on macOS.');
+    }
+    await api.startHostAgent();
+    await refreshStatus(notify: false);
+  }
+
+  Future<void> stopHostAgent() async {
+    if (!supportsHostAgent) {
+      throw UnsupportedError('The Host Agent is only available on macOS.');
+    }
+    await api.stopHostAgent();
+    await refreshStatus(notify: false);
+    networkState = null;
   }
 
   Future<void> installOrUpdateMobileTunnel({

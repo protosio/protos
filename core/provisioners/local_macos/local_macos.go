@@ -1222,7 +1222,7 @@ func (lm *localMacOS) applyHostAgentVM(id string, desiredState string) (*hostage
 
 	state, err := client.ApplyVM(id, lm.instanceManifestPath(id), desiredState)
 	if err != nil {
-		return nil, fmt.Errorf("host agent is unavailable; start it with sudo protos-hostagent: %w", err)
+		return nil, fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
 	}
 	if state.GetStatus() == "error" {
 		return nil, fmt.Errorf("host agent failed to apply state '%s' for VM '%s': %s", desiredState, id, state.GetMessage())
@@ -1239,7 +1239,7 @@ func (lm *localMacOS) hostAgentVMStatus(id string) (*hostagentpb.VMObservedState
 
 	state, err := client.VMStatus(id, lm.instanceManifestPath(id))
 	if err != nil {
-		return nil, fmt.Errorf("host agent is unavailable; start it with sudo protos-hostagent: %w", err)
+		return nil, fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
 	}
 	return state, nil
 }

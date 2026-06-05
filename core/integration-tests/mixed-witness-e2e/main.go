@@ -566,11 +566,11 @@ func waitForLocalHeadFinalized(deadline time.Time, store *db.DB, label string) e
 func ensureHostAgentAvailable() error {
 	socket := hostagentipc.SocketPath()
 	if _, err := os.Stat(socket); err != nil {
-		return fmt.Errorf("host agent socket %s is not available; start protos-hostagent locally with sudo before running this harness: %w", socket, err)
+		return fmt.Errorf("host agent socket %s is not available; start the host agent through the Protos StartHostAgent API before running this harness: %w", socket, err)
 	}
 	conn, err := net.DialTimeout("unix", socket, 2*time.Second)
 	if err != nil {
-		return fmt.Errorf("host agent socket %s is not reachable; start or restart protos-hostagent locally with sudo before running this harness: %w", socket, err)
+		return fmt.Errorf("host agent socket %s is not reachable; start or restart the host agent through the Protos StartHostAgent API before running this harness: %w", socket, err)
 	}
 	return conn.Close()
 }

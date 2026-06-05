@@ -22,12 +22,12 @@ class InitRequest extends $pb.GeneratedMessage {
   factory InitRequest({
     $core.String? username,
     $core.String? name,
-    $core.String? organization,
+    $core.String? organisation,
   }) {
     final result = create();
     if (username != null) result.username = username;
     if (name != null) result.name = name;
-    if (organization != null) result.organization = organization;
+    if (organisation != null) result.organisation = organisation;
     return result;
   }
 
@@ -46,7 +46,7 @@ class InitRequest extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'username')
     ..aOS(2, _omitFieldNames ? '' : 'name')
-    ..aOS(3, _omitFieldNames ? '' : 'organization')
+    ..aOS(3, _omitFieldNames ? '' : 'organisation')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -87,13 +87,13 @@ class InitRequest extends $pb.GeneratedMessage {
   void clearName() => $_clearField(2);
 
   @$pb.TagNumber(3)
-  $core.String get organization => $_getSZ(2);
+  $core.String get organisation => $_getSZ(2);
   @$pb.TagNumber(3)
-  set organization($core.String value) => $_setString(2, value);
+  set organisation($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
-  $core.bool hasOrganization() => $_has(2);
+  $core.bool hasOrganisation() => $_has(2);
   @$pb.TagNumber(3)
-  void clearOrganization() => $_clearField(3);
+  void clearOrganisation() => $_clearField(3);
 }
 
 class InitResponse extends $pb.GeneratedMessage {
@@ -356,11 +356,15 @@ class GetUserInfoResponse extends $pb.GeneratedMessage {
     $core.String? username,
     $core.String? name,
     $core.bool? isAdmin,
+    $core.String? organisationId,
+    $core.String? organisationName,
   }) {
     final result = create();
     if (username != null) result.username = username;
     if (name != null) result.name = name;
     if (isAdmin != null) result.isAdmin = isAdmin;
+    if (organisationId != null) result.organisationId = organisationId;
+    if (organisationName != null) result.organisationName = organisationName;
     return result;
   }
 
@@ -380,6 +384,8 @@ class GetUserInfoResponse extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'username')
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..aOB(3, _omitFieldNames ? '' : 'isAdmin')
+    ..aOS(4, _omitFieldNames ? '' : 'organisationId')
+    ..aOS(5, _omitFieldNames ? '' : 'organisationName')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -427,6 +433,739 @@ class GetUserInfoResponse extends $pb.GeneratedMessage {
   $core.bool hasIsAdmin() => $_has(2);
   @$pb.TagNumber(3)
   void clearIsAdmin() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get organisationId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set organisationId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasOrganisationId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearOrganisationId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get organisationName => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set organisationName($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOrganisationName() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOrganisationName() => $_clearField(5);
+}
+
+class Organisation extends $pb.GeneratedMessage {
+  factory Organisation({
+    $core.String? id,
+    $core.String? name,
+    $core.String? createdAt,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (name != null) result.name = name;
+    if (createdAt != null) result.createdAt = createdAt;
+    return result;
+  }
+
+  Organisation._();
+
+  factory Organisation.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory Organisation.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Organisation',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'name')
+    ..aOS(3, _omitFieldNames ? '' : 'createdAt')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Organisation clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Organisation copyWith(void Function(Organisation) updates) =>
+      super.copyWith((message) => updates(message as Organisation))
+          as Organisation;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static Organisation create() => Organisation._();
+  @$core.override
+  Organisation createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static Organisation getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Organisation>(create);
+  static Organisation? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get name => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set name($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearName() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get createdAt => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set createdAt($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCreatedAt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCreatedAt() => $_clearField(3);
+}
+
+class ListOrganisationsRequest extends $pb.GeneratedMessage {
+  factory ListOrganisationsRequest() => create();
+
+  ListOrganisationsRequest._();
+
+  factory ListOrganisationsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListOrganisationsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListOrganisationsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOrganisationsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOrganisationsRequest copyWith(
+          void Function(ListOrganisationsRequest) updates) =>
+      super.copyWith((message) => updates(message as ListOrganisationsRequest))
+          as ListOrganisationsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListOrganisationsRequest create() => ListOrganisationsRequest._();
+  @$core.override
+  ListOrganisationsRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListOrganisationsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListOrganisationsRequest>(create);
+  static ListOrganisationsRequest? _defaultInstance;
+}
+
+class ListOrganisationsResponse extends $pb.GeneratedMessage {
+  factory ListOrganisationsResponse({
+    $core.Iterable<Organisation>? organisations,
+  }) {
+    final result = create();
+    if (organisations != null) result.organisations.addAll(organisations);
+    return result;
+  }
+
+  ListOrganisationsResponse._();
+
+  factory ListOrganisationsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListOrganisationsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListOrganisationsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..pPM<Organisation>(1, _omitFieldNames ? '' : 'organisations',
+        subBuilder: Organisation.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOrganisationsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOrganisationsResponse copyWith(
+          void Function(ListOrganisationsResponse) updates) =>
+      super.copyWith((message) => updates(message as ListOrganisationsResponse))
+          as ListOrganisationsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListOrganisationsResponse create() => ListOrganisationsResponse._();
+  @$core.override
+  ListOrganisationsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListOrganisationsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListOrganisationsResponse>(create);
+  static ListOrganisationsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<Organisation> get organisations => $_getList(0);
+}
+
+class StartDeviceInviteRequest extends $pb.GeneratedMessage {
+  factory StartDeviceInviteRequest({
+    $core.String? organisationId,
+    $core.String? channel,
+  }) {
+    final result = create();
+    if (organisationId != null) result.organisationId = organisationId;
+    if (channel != null) result.channel = channel;
+    return result;
+  }
+
+  StartDeviceInviteRequest._();
+
+  factory StartDeviceInviteRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory StartDeviceInviteRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StartDeviceInviteRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'organisationId')
+    ..aOS(2, _omitFieldNames ? '' : 'channel')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartDeviceInviteRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartDeviceInviteRequest copyWith(
+          void Function(StartDeviceInviteRequest) updates) =>
+      super.copyWith((message) => updates(message as StartDeviceInviteRequest))
+          as StartDeviceInviteRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static StartDeviceInviteRequest create() => StartDeviceInviteRequest._();
+  @$core.override
+  StartDeviceInviteRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static StartDeviceInviteRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StartDeviceInviteRequest>(create);
+  static StartDeviceInviteRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get organisationId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set organisationId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasOrganisationId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOrganisationId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get channel => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set channel($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasChannel() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChannel() => $_clearField(2);
+}
+
+class StartDeviceInviteResponse extends $pb.GeneratedMessage {
+  factory StartDeviceInviteResponse({
+    $core.String? inviteId,
+    $fixnum.Int64? expiresAtUnix,
+    $core.String? advertiseName,
+    $core.String? advertiseService,
+    $core.String? channel,
+  }) {
+    final result = create();
+    if (inviteId != null) result.inviteId = inviteId;
+    if (expiresAtUnix != null) result.expiresAtUnix = expiresAtUnix;
+    if (advertiseName != null) result.advertiseName = advertiseName;
+    if (advertiseService != null) result.advertiseService = advertiseService;
+    if (channel != null) result.channel = channel;
+    return result;
+  }
+
+  StartDeviceInviteResponse._();
+
+  factory StartDeviceInviteResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory StartDeviceInviteResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StartDeviceInviteResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'inviteId')
+    ..aInt64(2, _omitFieldNames ? '' : 'expiresAtUnix')
+    ..aOS(3, _omitFieldNames ? '' : 'advertiseName')
+    ..aOS(4, _omitFieldNames ? '' : 'advertiseService')
+    ..aOS(5, _omitFieldNames ? '' : 'channel')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartDeviceInviteResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartDeviceInviteResponse copyWith(
+          void Function(StartDeviceInviteResponse) updates) =>
+      super.copyWith((message) => updates(message as StartDeviceInviteResponse))
+          as StartDeviceInviteResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static StartDeviceInviteResponse create() => StartDeviceInviteResponse._();
+  @$core.override
+  StartDeviceInviteResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static StartDeviceInviteResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StartDeviceInviteResponse>(create);
+  static StartDeviceInviteResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get inviteId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set inviteId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasInviteId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearInviteId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get expiresAtUnix => $_getI64(1);
+  @$pb.TagNumber(2)
+  set expiresAtUnix($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasExpiresAtUnix() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearExpiresAtUnix() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get advertiseName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set advertiseName($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAdvertiseName() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAdvertiseName() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get advertiseService => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set advertiseService($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasAdvertiseService() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearAdvertiseService() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get channel => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set channel($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasChannel() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearChannel() => $_clearField(5);
+}
+
+class NearbyOrganisation extends $pb.GeneratedMessage {
+  factory NearbyOrganisation({
+    $core.String? organisationId,
+    $core.String? organisationName,
+    $core.String? deviceName,
+    $core.String? peerId,
+    $core.String? inviteId,
+    $core.String? channel,
+  }) {
+    final result = create();
+    if (organisationId != null) result.organisationId = organisationId;
+    if (organisationName != null) result.organisationName = organisationName;
+    if (deviceName != null) result.deviceName = deviceName;
+    if (peerId != null) result.peerId = peerId;
+    if (inviteId != null) result.inviteId = inviteId;
+    if (channel != null) result.channel = channel;
+    return result;
+  }
+
+  NearbyOrganisation._();
+
+  factory NearbyOrganisation.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory NearbyOrganisation.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NearbyOrganisation',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'organisationId')
+    ..aOS(2, _omitFieldNames ? '' : 'organisationName')
+    ..aOS(3, _omitFieldNames ? '' : 'deviceName')
+    ..aOS(4, _omitFieldNames ? '' : 'peerId')
+    ..aOS(5, _omitFieldNames ? '' : 'inviteId')
+    ..aOS(6, _omitFieldNames ? '' : 'channel')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NearbyOrganisation clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NearbyOrganisation copyWith(void Function(NearbyOrganisation) updates) =>
+      super.copyWith((message) => updates(message as NearbyOrganisation))
+          as NearbyOrganisation;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static NearbyOrganisation create() => NearbyOrganisation._();
+  @$core.override
+  NearbyOrganisation createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static NearbyOrganisation getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<NearbyOrganisation>(create);
+  static NearbyOrganisation? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get organisationId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set organisationId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasOrganisationId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOrganisationId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get organisationName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set organisationName($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasOrganisationName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearOrganisationName() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get deviceName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set deviceName($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDeviceName() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDeviceName() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get peerId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set peerId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPeerId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPeerId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get inviteId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set inviteId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasInviteId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearInviteId() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get channel => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set channel($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasChannel() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearChannel() => $_clearField(6);
+}
+
+class ListNearbyOrganisationsRequest extends $pb.GeneratedMessage {
+  factory ListNearbyOrganisationsRequest({
+    $core.String? channel,
+  }) {
+    final result = create();
+    if (channel != null) result.channel = channel;
+    return result;
+  }
+
+  ListNearbyOrganisationsRequest._();
+
+  factory ListNearbyOrganisationsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListNearbyOrganisationsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListNearbyOrganisationsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'channel')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNearbyOrganisationsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNearbyOrganisationsRequest copyWith(
+          void Function(ListNearbyOrganisationsRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as ListNearbyOrganisationsRequest))
+          as ListNearbyOrganisationsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListNearbyOrganisationsRequest create() =>
+      ListNearbyOrganisationsRequest._();
+  @$core.override
+  ListNearbyOrganisationsRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListNearbyOrganisationsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListNearbyOrganisationsRequest>(create);
+  static ListNearbyOrganisationsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get channel => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set channel($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasChannel() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearChannel() => $_clearField(1);
+}
+
+class ListNearbyOrganisationsResponse extends $pb.GeneratedMessage {
+  factory ListNearbyOrganisationsResponse({
+    $core.Iterable<NearbyOrganisation>? organisations,
+  }) {
+    final result = create();
+    if (organisations != null) result.organisations.addAll(organisations);
+    return result;
+  }
+
+  ListNearbyOrganisationsResponse._();
+
+  factory ListNearbyOrganisationsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListNearbyOrganisationsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListNearbyOrganisationsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..pPM<NearbyOrganisation>(1, _omitFieldNames ? '' : 'organisations',
+        subBuilder: NearbyOrganisation.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNearbyOrganisationsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNearbyOrganisationsResponse copyWith(
+          void Function(ListNearbyOrganisationsResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as ListNearbyOrganisationsResponse))
+          as ListNearbyOrganisationsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListNearbyOrganisationsResponse create() =>
+      ListNearbyOrganisationsResponse._();
+  @$core.override
+  ListNearbyOrganisationsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListNearbyOrganisationsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListNearbyOrganisationsResponse>(
+          create);
+  static ListNearbyOrganisationsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<NearbyOrganisation> get organisations => $_getList(0);
+}
+
+class JoinOrganisationRequest extends $pb.GeneratedMessage {
+  factory JoinOrganisationRequest({
+    $core.String? organisationId,
+    $core.String? peerId,
+    $core.String? inviteId,
+    $core.String? username,
+    $core.String? name,
+    $core.String? channel,
+  }) {
+    final result = create();
+    if (organisationId != null) result.organisationId = organisationId;
+    if (peerId != null) result.peerId = peerId;
+    if (inviteId != null) result.inviteId = inviteId;
+    if (username != null) result.username = username;
+    if (name != null) result.name = name;
+    if (channel != null) result.channel = channel;
+    return result;
+  }
+
+  JoinOrganisationRequest._();
+
+  factory JoinOrganisationRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory JoinOrganisationRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'JoinOrganisationRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'organisationId')
+    ..aOS(2, _omitFieldNames ? '' : 'peerId')
+    ..aOS(3, _omitFieldNames ? '' : 'inviteId')
+    ..aOS(4, _omitFieldNames ? '' : 'username')
+    ..aOS(5, _omitFieldNames ? '' : 'name')
+    ..aOS(6, _omitFieldNames ? '' : 'channel')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  JoinOrganisationRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  JoinOrganisationRequest copyWith(
+          void Function(JoinOrganisationRequest) updates) =>
+      super.copyWith((message) => updates(message as JoinOrganisationRequest))
+          as JoinOrganisationRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static JoinOrganisationRequest create() => JoinOrganisationRequest._();
+  @$core.override
+  JoinOrganisationRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static JoinOrganisationRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<JoinOrganisationRequest>(create);
+  static JoinOrganisationRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get organisationId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set organisationId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasOrganisationId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOrganisationId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get peerId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set peerId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPeerId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPeerId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get inviteId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set inviteId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasInviteId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearInviteId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get username => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set username($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasUsername() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUsername() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get name => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set name($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasName() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearName() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get channel => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set channel($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasChannel() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearChannel() => $_clearField(6);
+}
+
+class JoinOrganisationResponse extends $pb.GeneratedMessage {
+  factory JoinOrganisationResponse() => create();
+
+  JoinOrganisationResponse._();
+
+  factory JoinOrganisationResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory JoinOrganisationResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'JoinOrganisationResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  JoinOrganisationResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  JoinOrganisationResponse copyWith(
+          void Function(JoinOrganisationResponse) updates) =>
+      super.copyWith((message) => updates(message as JoinOrganisationResponse))
+          as JoinOrganisationResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static JoinOrganisationResponse create() => JoinOrganisationResponse._();
+  @$core.override
+  JoinOrganisationResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static JoinOrganisationResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<JoinOrganisationResponse>(create);
+  static JoinOrganisationResponse? _defaultInstance;
 }
 
 class GetLocalSSHKeyRequest extends $pb.GeneratedMessage {
@@ -4914,6 +5653,236 @@ class GetNetworkStateResponse extends $pb.GeneratedMessage {
   void clearState() => $_clearField(1);
   @$pb.TagNumber(1)
   NetworkState ensureState() => $_ensure(0);
+}
+
+class SetNetworkEnabledRequest extends $pb.GeneratedMessage {
+  factory SetNetworkEnabledRequest({
+    $core.bool? enabled,
+  }) {
+    final result = create();
+    if (enabled != null) result.enabled = enabled;
+    return result;
+  }
+
+  SetNetworkEnabledRequest._();
+
+  factory SetNetworkEnabledRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SetNetworkEnabledRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SetNetworkEnabledRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'enabled')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetNetworkEnabledRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetNetworkEnabledRequest copyWith(
+          void Function(SetNetworkEnabledRequest) updates) =>
+      super.copyWith((message) => updates(message as SetNetworkEnabledRequest))
+          as SetNetworkEnabledRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetNetworkEnabledRequest create() => SetNetworkEnabledRequest._();
+  @$core.override
+  SetNetworkEnabledRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SetNetworkEnabledRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SetNetworkEnabledRequest>(create);
+  static SetNetworkEnabledRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get enabled => $_getBF(0);
+  @$pb.TagNumber(1)
+  set enabled($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEnabled() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEnabled() => $_clearField(1);
+}
+
+class SetNetworkEnabledResponse extends $pb.GeneratedMessage {
+  factory SetNetworkEnabledResponse({
+    NetworkRuntimeStatus? status,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    return result;
+  }
+
+  SetNetworkEnabledResponse._();
+
+  factory SetNetworkEnabledResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SetNetworkEnabledResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SetNetworkEnabledResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOM<NetworkRuntimeStatus>(1, _omitFieldNames ? '' : 'status',
+        subBuilder: NetworkRuntimeStatus.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetNetworkEnabledResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetNetworkEnabledResponse copyWith(
+          void Function(SetNetworkEnabledResponse) updates) =>
+      super.copyWith((message) => updates(message as SetNetworkEnabledResponse))
+          as SetNetworkEnabledResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetNetworkEnabledResponse create() => SetNetworkEnabledResponse._();
+  @$core.override
+  SetNetworkEnabledResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SetNetworkEnabledResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SetNetworkEnabledResponse>(create);
+  static SetNetworkEnabledResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  NetworkRuntimeStatus get status => $_getN(0);
+  @$pb.TagNumber(1)
+  set status(NetworkRuntimeStatus value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+  @$pb.TagNumber(1)
+  NetworkRuntimeStatus ensureStatus() => $_ensure(0);
+}
+
+class NetworkRuntimeStatus extends $pb.GeneratedMessage {
+  factory NetworkRuntimeStatus({
+    $core.bool? supported,
+    $core.bool? desiredEnabled,
+    $core.bool? enabled,
+    $core.String? state,
+    $core.String? message,
+    NetworkState? networkState,
+  }) {
+    final result = create();
+    if (supported != null) result.supported = supported;
+    if (desiredEnabled != null) result.desiredEnabled = desiredEnabled;
+    if (enabled != null) result.enabled = enabled;
+    if (state != null) result.state = state;
+    if (message != null) result.message = message;
+    if (networkState != null) result.networkState = networkState;
+    return result;
+  }
+
+  NetworkRuntimeStatus._();
+
+  factory NetworkRuntimeStatus.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory NetworkRuntimeStatus.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NetworkRuntimeStatus',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'supported')
+    ..aOB(2, _omitFieldNames ? '' : 'desiredEnabled')
+    ..aOB(3, _omitFieldNames ? '' : 'enabled')
+    ..aOS(4, _omitFieldNames ? '' : 'state')
+    ..aOS(5, _omitFieldNames ? '' : 'message')
+    ..aOM<NetworkState>(6, _omitFieldNames ? '' : 'networkState',
+        subBuilder: NetworkState.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NetworkRuntimeStatus clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NetworkRuntimeStatus copyWith(void Function(NetworkRuntimeStatus) updates) =>
+      super.copyWith((message) => updates(message as NetworkRuntimeStatus))
+          as NetworkRuntimeStatus;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static NetworkRuntimeStatus create() => NetworkRuntimeStatus._();
+  @$core.override
+  NetworkRuntimeStatus createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static NetworkRuntimeStatus getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<NetworkRuntimeStatus>(create);
+  static NetworkRuntimeStatus? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get supported => $_getBF(0);
+  @$pb.TagNumber(1)
+  set supported($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSupported() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSupported() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get desiredEnabled => $_getBF(1);
+  @$pb.TagNumber(2)
+  set desiredEnabled($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDesiredEnabled() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDesiredEnabled() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get enabled => $_getBF(2);
+  @$pb.TagNumber(3)
+  set enabled($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasEnabled() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearEnabled() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get state => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set state($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasState() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearState() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get message => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set message($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasMessage() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearMessage() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  NetworkState get networkState => $_getN(5);
+  @$pb.TagNumber(6)
+  set networkState(NetworkState value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasNetworkState() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearNetworkState() => $_clearField(6);
+  @$pb.TagNumber(6)
+  NetworkState ensureNetworkState() => $_ensure(5);
 }
 
 class NetworkState extends $pb.GeneratedMessage {
@@ -9529,6 +10498,9 @@ class SystemStatus extends $pb.GeneratedMessage {
     $core.int? p2pPort,
     $core.Iterable<CoreEndpoint>? endpoints,
     HostAgentConnectionStatus? hostAgent,
+    $core.bool? networkEnabled,
+    $core.bool? hostAgentSupported,
+    NetworkRuntimeStatus? network,
   }) {
     final result = create();
     if (coreStatus != null) result.coreStatus = coreStatus;
@@ -9537,6 +10509,10 @@ class SystemStatus extends $pb.GeneratedMessage {
     if (p2pPort != null) result.p2pPort = p2pPort;
     if (endpoints != null) result.endpoints.addAll(endpoints);
     if (hostAgent != null) result.hostAgent = hostAgent;
+    if (networkEnabled != null) result.networkEnabled = networkEnabled;
+    if (hostAgentSupported != null)
+      result.hostAgentSupported = hostAgentSupported;
+    if (network != null) result.network = network;
     return result;
   }
 
@@ -9561,6 +10537,10 @@ class SystemStatus extends $pb.GeneratedMessage {
         subBuilder: CoreEndpoint.create)
     ..aOM<HostAgentConnectionStatus>(6, _omitFieldNames ? '' : 'hostAgent',
         subBuilder: HostAgentConnectionStatus.create)
+    ..aOB(7, _omitFieldNames ? '' : 'networkEnabled')
+    ..aOB(8, _omitFieldNames ? '' : 'hostAgentSupported')
+    ..aOM<NetworkRuntimeStatus>(9, _omitFieldNames ? '' : 'network',
+        subBuilder: NetworkRuntimeStatus.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9631,6 +10611,35 @@ class SystemStatus extends $pb.GeneratedMessage {
   void clearHostAgent() => $_clearField(6);
   @$pb.TagNumber(6)
   HostAgentConnectionStatus ensureHostAgent() => $_ensure(5);
+
+  @$pb.TagNumber(7)
+  $core.bool get networkEnabled => $_getBF(6);
+  @$pb.TagNumber(7)
+  set networkEnabled($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasNetworkEnabled() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearNetworkEnabled() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get hostAgentSupported => $_getBF(7);
+  @$pb.TagNumber(8)
+  set hostAgentSupported($core.bool value) => $_setBool(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasHostAgentSupported() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearHostAgentSupported() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  NetworkRuntimeStatus get network => $_getN(8);
+  @$pb.TagNumber(9)
+  set network(NetworkRuntimeStatus value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasNetwork() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearNetwork() => $_clearField(9);
+  @$pb.TagNumber(9)
+  NetworkRuntimeStatus ensureNetwork() => $_ensure(8);
 }
 
 class GetSystemStatusRequest extends $pb.GeneratedMessage {
@@ -9728,6 +10737,199 @@ class GetSystemStatusResponse extends $pb.GeneratedMessage {
   void clearStatus() => $_clearField(1);
   @$pb.TagNumber(1)
   SystemStatus ensureStatus() => $_ensure(0);
+}
+
+class StartHostAgentRequest extends $pb.GeneratedMessage {
+  factory StartHostAgentRequest() => create();
+
+  StartHostAgentRequest._();
+
+  factory StartHostAgentRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory StartHostAgentRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StartHostAgentRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartHostAgentRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartHostAgentRequest copyWith(
+          void Function(StartHostAgentRequest) updates) =>
+      super.copyWith((message) => updates(message as StartHostAgentRequest))
+          as StartHostAgentRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static StartHostAgentRequest create() => StartHostAgentRequest._();
+  @$core.override
+  StartHostAgentRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static StartHostAgentRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StartHostAgentRequest>(create);
+  static StartHostAgentRequest? _defaultInstance;
+}
+
+class StartHostAgentResponse extends $pb.GeneratedMessage {
+  factory StartHostAgentResponse({
+    HostAgentConnectionStatus? status,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    return result;
+  }
+
+  StartHostAgentResponse._();
+
+  factory StartHostAgentResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory StartHostAgentResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StartHostAgentResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOM<HostAgentConnectionStatus>(1, _omitFieldNames ? '' : 'status',
+        subBuilder: HostAgentConnectionStatus.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartHostAgentResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StartHostAgentResponse copyWith(
+          void Function(StartHostAgentResponse) updates) =>
+      super.copyWith((message) => updates(message as StartHostAgentResponse))
+          as StartHostAgentResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static StartHostAgentResponse create() => StartHostAgentResponse._();
+  @$core.override
+  StartHostAgentResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static StartHostAgentResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StartHostAgentResponse>(create);
+  static StartHostAgentResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  HostAgentConnectionStatus get status => $_getN(0);
+  @$pb.TagNumber(1)
+  set status(HostAgentConnectionStatus value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+  @$pb.TagNumber(1)
+  HostAgentConnectionStatus ensureStatus() => $_ensure(0);
+}
+
+class StopHostAgentRequest extends $pb.GeneratedMessage {
+  factory StopHostAgentRequest() => create();
+
+  StopHostAgentRequest._();
+
+  factory StopHostAgentRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory StopHostAgentRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StopHostAgentRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StopHostAgentRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StopHostAgentRequest copyWith(void Function(StopHostAgentRequest) updates) =>
+      super.copyWith((message) => updates(message as StopHostAgentRequest))
+          as StopHostAgentRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static StopHostAgentRequest create() => StopHostAgentRequest._();
+  @$core.override
+  StopHostAgentRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static StopHostAgentRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StopHostAgentRequest>(create);
+  static StopHostAgentRequest? _defaultInstance;
+}
+
+class StopHostAgentResponse extends $pb.GeneratedMessage {
+  factory StopHostAgentResponse({
+    HostAgentConnectionStatus? status,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    return result;
+  }
+
+  StopHostAgentResponse._();
+
+  factory StopHostAgentResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory StopHostAgentResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StopHostAgentResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOM<HostAgentConnectionStatus>(1, _omitFieldNames ? '' : 'status',
+        subBuilder: HostAgentConnectionStatus.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StopHostAgentResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StopHostAgentResponse copyWith(
+          void Function(StopHostAgentResponse) updates) =>
+      super.copyWith((message) => updates(message as StopHostAgentResponse))
+          as StopHostAgentResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static StopHostAgentResponse create() => StopHostAgentResponse._();
+  @$core.override
+  StopHostAgentResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static StopHostAgentResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StopHostAgentResponse>(create);
+  static StopHostAgentResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  HostAgentConnectionStatus get status => $_getN(0);
+  @$pb.TagNumber(1)
+  set status(HostAgentConnectionStatus value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+  @$pb.TagNumber(1)
+  HostAgentConnectionStatus ensureStatus() => $_ensure(0);
 }
 
 class Commit extends $pb.GeneratedMessage {
@@ -10305,6 +11507,26 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetUserInfoRequest request) =>
       _client.invoke<GetUserInfoResponse>(ctx, 'ProtosClientApi', 'GetUserInfo',
           request, GetUserInfoResponse());
+  $async.Future<ListOrganisationsResponse> listOrganisations(
+          $pb.ClientContext? ctx, ListOrganisationsRequest request) =>
+      _client.invoke<ListOrganisationsResponse>(ctx, 'ProtosClientApi',
+          'ListOrganisations', request, ListOrganisationsResponse());
+  $async.Future<StartDeviceInviteResponse> startDeviceInvite(
+          $pb.ClientContext? ctx, StartDeviceInviteRequest request) =>
+      _client.invoke<StartDeviceInviteResponse>(ctx, 'ProtosClientApi',
+          'StartDeviceInvite', request, StartDeviceInviteResponse());
+  $async.Future<ListNearbyOrganisationsResponse> listNearbyOrganisations(
+          $pb.ClientContext? ctx, ListNearbyOrganisationsRequest request) =>
+      _client.invoke<ListNearbyOrganisationsResponse>(
+          ctx,
+          'ProtosClientApi',
+          'ListNearbyOrganisations',
+          request,
+          ListNearbyOrganisationsResponse());
+  $async.Future<JoinOrganisationResponse> joinOrganisation(
+          $pb.ClientContext? ctx, JoinOrganisationRequest request) =>
+      _client.invoke<JoinOrganisationResponse>(ctx, 'ProtosClientApi',
+          'JoinOrganisation', request, JoinOrganisationResponse());
   $async.Future<GetLocalSSHKeyResponse> getLocalSSHKey(
           $pb.ClientContext? ctx, GetLocalSSHKeyRequest request) =>
       _client.invoke<GetLocalSSHKeyResponse>(ctx, 'ProtosClientApi',
@@ -10433,6 +11655,10 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetNetworkStateRequest request) =>
       _client.invoke<GetNetworkStateResponse>(ctx, 'ProtosClientApi',
           'GetNetworkState', request, GetNetworkStateResponse());
+  $async.Future<SetNetworkEnabledResponse> setNetworkEnabled(
+          $pb.ClientContext? ctx, SetNetworkEnabledRequest request) =>
+      _client.invoke<SetNetworkEnabledResponse>(ctx, 'ProtosClientApi',
+          'SetNetworkEnabled', request, SetNetworkEnabledResponse());
   $async.Future<GetExitRoutesResponse> getExitRoutes(
           $pb.ClientContext? ctx, GetExitRoutesRequest request) =>
       _client.invoke<GetExitRoutesResponse>(ctx, 'ProtosClientApi',
@@ -10497,6 +11723,14 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetSystemStatusRequest request) =>
       _client.invoke<GetSystemStatusResponse>(ctx, 'ProtosClientApi',
           'GetSystemStatus', request, GetSystemStatusResponse());
+  $async.Future<StartHostAgentResponse> startHostAgent(
+          $pb.ClientContext? ctx, StartHostAgentRequest request) =>
+      _client.invoke<StartHostAgentResponse>(ctx, 'ProtosClientApi',
+          'StartHostAgent', request, StartHostAgentResponse());
+  $async.Future<StopHostAgentResponse> stopHostAgent(
+          $pb.ClientContext? ctx, StopHostAgentRequest request) =>
+      _client.invoke<StopHostAgentResponse>(ctx, 'ProtosClientApi',
+          'StopHostAgent', request, StopHostAgentResponse());
   $async.Future<GetLocalCommitsResponse> getLocalCommits(
           $pb.ClientContext? ctx, GetLocalCommitsRequest request) =>
       _client.invoke<GetLocalCommitsResponse>(ctx, 'ProtosClientApi',

@@ -7,17 +7,28 @@ import 'package:flutter/services.dart';
 
 import '../app_model.dart';
 import '../generated/apic/proto/apic.pb.dart' as pb;
+import '../native/protos_bridge.dart';
 import '../text_helpers.dart';
 
 class ProtosFlutterApp extends StatefulWidget {
-  const ProtosFlutterApp({super.key});
+  const ProtosFlutterApp({
+    this.bridgeConfig = const ProtosBridgeConfig(),
+    this.onDaemonStartFailed,
+    super.key,
+  });
+
+  final ProtosBridgeConfig bridgeConfig;
+  final void Function(Object error)? onDaemonStartFailed;
 
   @override
   State<ProtosFlutterApp> createState() => _ProtosFlutterAppState();
 }
 
 class _ProtosFlutterAppState extends State<ProtosFlutterApp> {
-  late final AppModel model = AppModel();
+  late final AppModel model = AppModel(
+    bridgeConfig: widget.bridgeConfig,
+    onDaemonStartFailed: widget.onDaemonStartFailed,
+  );
 
   @override
   void dispose() {
@@ -219,14 +230,16 @@ class Sidebar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 children: [
                   for (final section in SidebarSection.values)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: _SidebarButton(
-                        section: section,
-                        selected: model.selectedSection == section,
-                        closeOnSelect: closeOnSelect,
+                    if (section != SidebarSection.network ||
+                        model.supportsNetwork)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: _SidebarButton(
+                          section: section,
+                          selected: model.selectedSection == section,
+                          closeOnSelect: closeOnSelect,
+                        ),
                       ),
-                    ),
                 ],
               ),
             ),
@@ -444,6 +457,8 @@ class MessageBar extends StatelessWidget {
   }
 }
 
+enum _InitializationMode { create, join }
+
 class InitializationView extends StatefulWidget {
   const InitializationView({super.key});
 
@@ -454,14 +469,16 @@ class InitializationView extends StatefulWidget {
 class _InitializationViewState extends State<InitializationView> {
   final username = TextEditingController();
   final name = TextEditingController();
-  final organization = TextEditingController(text: 'home');
+  final organisation = TextEditingController(text: 'home');
+  var mode = _InitializationMode.create;
+  var selectedNearbyId = '';
 
   @override
   void initState() {
     super.initState();
     username.addListener(_refreshControls);
     name.addListener(_refreshControls);
-    organization.addListener(_refreshControls);
+    organisation.addListener(_refreshControls);
   }
 
   void _refreshControls() => setState(() {});
@@ -470,7 +487,7 @@ class _InitializationViewState extends State<InitializationView> {
   void dispose() {
     username.dispose();
     name.dispose();
-    organization.dispose();
+    organisation.dispose();
     super.dispose();
   }
 
@@ -478,9 +495,17 @@ class _InitializationViewState extends State<InitializationView> {
   Widget build(BuildContext context) {
     final model = AppScope.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final canSubmit =
+    final canCreate =
         username.text.nonEmpty != null &&
         name.text.nonEmpty != null &&
+        organisation.text.nonEmpty != null &&
+        model.daemonState.isRunning &&
+        !model.isBusy;
+    final selectedNearby = _selectedNearby(model);
+    final canJoin =
+        username.text.nonEmpty != null &&
+        name.text.nonEmpty != null &&
+        selectedNearby != null &&
         model.daemonState.isRunning &&
         !model.isBusy;
 
@@ -502,19 +527,48 @@ class _InitializationViewState extends State<InitializationView> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Initialize the local database',
+                  'Set up Protos',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Create the first local user before continuing.',
+                  'Create an organisation here or join one nearby.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 18),
+                SegmentedButton<_InitializationMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _InitializationMode.create,
+                      label: Text('Create'),
+                      icon: Icon(Icons.add_circle_outline),
+                    ),
+                    ButtonSegment(
+                      value: _InitializationMode.join,
+                      label: Text('Join'),
+                      icon: Icon(Icons.wifi_find),
+                    ),
+                  ],
+                  selected: {mode},
+                  onSelectionChanged: model.isBusy
+                      ? null
+                      : (selection) {
+                          setState(() {
+                            mode = selection.first;
+                            selectedNearbyId = '';
+                          });
+                          if (mode == _InitializationMode.join) {
+                            unawaited(
+                              model.run(() => model.scanNearbyOrganisations()),
+                            );
+                          }
+                        },
+                ),
+                const SizedBox(height: 18),
                 TextField(
                   controller: username,
                   textInputAction: TextInputAction.next,
@@ -523,29 +577,37 @@ class _InitializationViewState extends State<InitializationView> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: name,
-                  textInputAction: TextInputAction.next,
+                  textInputAction: mode == _InitializationMode.create
+                      ? TextInputAction.next
+                      : TextInputAction.done,
                   decoration: textField('Name'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: organization,
-                  textInputAction: TextInputAction.done,
-                  decoration: textField('Organization'),
                   onSubmitted: (_) {
-                    if (canSubmit) {
-                      _submit(model);
+                    if (mode == _InitializationMode.join && canJoin) {
+                      _join(model, selectedNearby);
                     }
                   },
                 ),
-                const SizedBox(height: 18),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: canSubmit ? () => _submit(model) : null,
-                    icon: const Icon(Icons.person_add_alt),
-                    label: const Text('Initialize'),
+                const SizedBox(height: 12),
+                if (mode == _InitializationMode.create)
+                  _CreateOrganisationControls(
+                    organisation: organisation,
+                    canCreate: canCreate,
+                    onSubmit: () => _create(model),
+                  )
+                else
+                  _JoinOrganisationControls(
+                    rows: model.nearbyOrganisations,
+                    selectedId: selectedNearbyId,
+                    canScan: model.daemonState.isRunning && !model.isBusy,
+                    canJoin: canJoin,
+                    onSelect: (id) => setState(() => selectedNearbyId = id),
+                    onScan: () => unawaited(
+                      model.run(() => model.scanNearbyOrganisations()),
+                    ),
+                    onJoin: selectedNearby == null
+                        ? null
+                        : () => _join(model, selectedNearby),
                   ),
-                ),
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -565,17 +627,146 @@ class _InitializationViewState extends State<InitializationView> {
     );
   }
 
-  void _submit(AppModel model) {
+  pb.NearbyOrganisation? _selectedNearby(AppModel model) {
+    for (final organisation in model.nearbyOrganisations) {
+      if (_nearbyRowId(organisation) == selectedNearbyId) {
+        return organisation;
+      }
+    }
+    return null;
+  }
+
+  void _create(AppModel model) {
     unawaited(
       model.run(
         () => model.initializeUser(
           username: username.text.trim(),
           name: name.text.trim(),
-          organization: organization.text.trim(),
+          organisation: organisation.text.trim(),
         ),
       ),
     );
   }
+
+  void _join(AppModel model, pb.NearbyOrganisation organisation) {
+    unawaited(
+      model.run(
+        () => model.joinOrganisation(
+          organisationId: organisation.organisationId,
+          peerId: organisation.peerId,
+          inviteId: organisation.inviteId,
+          channel: organisation.channel.nonEmpty ?? 'mdns',
+          username: username.text.trim(),
+          name: name.text.trim(),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateOrganisationControls extends StatelessWidget {
+  const _CreateOrganisationControls({
+    required this.organisation,
+    required this.canCreate,
+    required this.onSubmit,
+  });
+
+  final TextEditingController organisation;
+  final bool canCreate;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: organisation,
+          textInputAction: TextInputAction.done,
+          decoration: textField('Organisation'),
+          onSubmitted: (_) {
+            if (canCreate) {
+              onSubmit();
+            }
+          },
+        ),
+        const SizedBox(height: 18),
+        FilledButton.icon(
+          onPressed: canCreate ? onSubmit : null,
+          icon: const Icon(Icons.add_circle_outline),
+          label: const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+class _JoinOrganisationControls extends StatelessWidget {
+  const _JoinOrganisationControls({
+    required this.rows,
+    required this.selectedId,
+    required this.canScan,
+    required this.canJoin,
+    required this.onSelect,
+    required this.onScan,
+    required this.onJoin,
+  });
+
+  final List<pb.NearbyOrganisation> rows;
+  final String selectedId;
+  final bool canScan;
+  final bool canJoin;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onScan;
+  final VoidCallback? onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RowsPanel<pb.NearbyOrganisation>(
+          rows: rows,
+          emptyTitle: 'No nearby organisations',
+          selectedId: selectedId,
+          onSelect: onSelect,
+          idForRow: _nearbyRowId,
+          height: 170,
+          columns: [
+            RowColumn('Organisation', (row) => row.organisationName),
+            RowColumn('Device', (row) => row.deviceName),
+            RowColumn('Channel', (row) => row.channel.nonEmpty ?? 'mdns'),
+            RowColumn('Peer', (row) => row.peerId, flex: 2),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: canScan ? onScan : null,
+              icon: const Icon(Icons.wifi_find),
+              label: const Text('Scan'),
+            ),
+            FilledButton.icon(
+              onPressed: canJoin && onJoin != null ? onJoin : null,
+              icon: const Icon(Icons.login),
+              label: const Text('Join'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+String _nearbyRowId(pb.NearbyOrganisation organisation) {
+  final channel = organisation.channel.nonEmpty ?? 'mdns';
+  final organisationID = organisation.organisationId.nonEmpty ?? 'unknown';
+  final peerID = organisation.peerId.nonEmpty ?? 'peer';
+  final inviteID = organisation.inviteId.nonEmpty ?? 'invite';
+  return '$channel/$organisationID/$peerID/$inviteID';
 }
 
 class SectionBody extends StatelessWidget {
@@ -620,6 +811,8 @@ class _OverviewViewState extends State<OverviewView> {
             items: [
               KeyValueItem('Username', model.userInfo?.username),
               KeyValueItem('Name', model.userInfo?.name),
+              KeyValueItem('Organisation', model.userInfo?.organisationName),
+              KeyValueItem('Organisation ID', model.userInfo?.organisationId),
               KeyValueItem(
                 'Role',
                 model.userInfo == null
@@ -630,6 +823,29 @@ class _OverviewViewState extends State<OverviewView> {
           ),
           const SectionGap(),
           const SectionHeading('Devices'),
+          CommandBar(
+            children: [
+              CommandButton(
+                label: 'Invite device',
+                icon: Icons.person_add_alt_1_outlined,
+                enabled:
+                    model.userInfo?.organisationId.nonEmpty != null &&
+                    !model.isBusy,
+                refresh: false,
+                action: (model) async {
+                  await model.startDeviceInvite(
+                    organisationId: model.userInfo?.organisationId ?? '',
+                  );
+                },
+              ),
+              if (model.deviceInvite != null)
+                Text(
+                  'Invite active',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
           RowsPanel<pb.UserDevice>(
             rows: model.devices,
             emptyTitle: 'No devices',
@@ -1848,8 +2064,25 @@ class _NetworkViewState extends State<NetworkView> {
   @override
   Widget build(BuildContext context) {
     final model = AppScope.of(context);
-    if (model.supportsMobileTunnel && !model.supportsNetwork) {
+    if (model.supportsMobileTunnel && !model.supportsCoreNetwork) {
       return _buildMobileTunnelView(context, model);
+    }
+    final runtime = model.networkRuntimeStatus;
+    if (model.supportsNetwork && !model.isNetworkEnabled) {
+      return DetailScroll(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeading('Network'),
+            KeyValueWrap(
+              items: [
+                KeyValueItem('Status', runtime?.state),
+                KeyValueItem('Message', runtime?.message),
+              ],
+            ),
+          ],
+        ),
+      );
     }
 
     return DetailScroll(
@@ -2767,6 +3000,7 @@ class StatusView extends StatelessWidget {
     final hostAgent = model.supportsHostAgent && status?.hasHostAgent() == true
         ? status!.hostAgent
         : null;
+    final network = model.networkRuntimeStatus;
 
     return DetailScroll(
       child: Column(
@@ -2784,6 +3018,20 @@ class StatusView extends StatelessWidget {
                     ? null
                     : '${status.p2pPort}',
               ),
+            ],
+          ),
+          const SectionGap(),
+          const SectionHeading('Network'),
+          KeyValueWrap(
+            items: [
+              KeyValueItem(
+                'Support',
+                network == null
+                    ? null
+                    : (network.supported ? 'Available' : null),
+              ),
+              KeyValueItem('Status', network?.state),
+              KeyValueItem('Message', network?.message),
             ],
           ),
           const SectionGap(),
@@ -2813,6 +3061,36 @@ class StatusView extends StatelessWidget {
                 ),
                 KeyValueItem('Socket', hostAgent?.socket),
                 KeyValueItem('Message', hostAgent?.message),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: hostAgent?.connected == false && !model.isBusy
+                      ? () => unawaited(model.run(() => model.startHostAgent()))
+                      : null,
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('Start Host Agent'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: hostAgent?.connected == true && !model.isBusy
+                      ? () => unawaited(model.run(() => model.stopHostAgent()))
+                      : null,
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  label: const Text('Stop Host Agent'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: model.isBusy
+                      ? null
+                      : () => unawaited(
+                          model.run(() => model.refreshStatus(notify: false)),
+                        ),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
               ],
             ),
           ],

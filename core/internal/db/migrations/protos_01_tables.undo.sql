@@ -6,6 +6,8 @@ DROP TABLE IF EXISTS cloud_providers;
 
 DROP TABLE IF EXISTS apps;
 
+DROP TABLE IF EXISTS organisations;
+
 DROP TABLE IF EXISTS users;
 
 DROP TABLE IF EXISTS user_devices_metadata;

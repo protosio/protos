@@ -19,9 +19,10 @@ Flutter UI with the Go FFI bridge in `core/cmd/protos-ffi-bridge`.
 ```sh
 go test ./clients/cli
 go test ./core/...
-clients/macos/scripts/build.sh
-task -t clients/ios/Taskfile.yml build -- --no-codesign
+task -t clients/macos/Taskfile.yml build
+task -t clients/macos/Taskfile.yml run
 task -t clients/ios/Taskfile.yml build:no-tunnel
+task -t clients/ios/Taskfile.yml run:no-tunnel DEVICE=<device-id>
 task -t cloud-provisioning/Taskfile.yml image-contracts
 ```
 
