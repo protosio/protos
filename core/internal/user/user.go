@@ -140,6 +140,29 @@ func (um *Manager) GetUser(username string) (*User, error) {
 	return &user, nil
 }
 
+func (um *Manager) GetUserByID(id string) (*User, error) {
+	if _, err := db.UUIDBytes(id); err != nil {
+		return nil, errors.Wrap(err, "invalid user id")
+	}
+	userModel := sq.New[db.USER]("")
+	user, err := db.SelectOne(um.db, createUserQueryMapper([]sq.Predicate{db.UUIDEq(userModel.ID, id)}))
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve user '%s': %w", id, err)
+	}
+	return &user, nil
+}
+
+func (um *Manager) GetCurrentUser() (*User, error) {
+	device, found, err := um.GetCurrentDeviceIfExists()
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("current peer is not a user device")
+	}
+	return um.GetUserByID(device.UserID)
+}
+
 // GetAdmin returns the admin username. Only one admin is allowed at the moment
 func (um *Manager) GetAdmin() (User, error) {
 	users, err := db.SelectMultiple(um.db, createUserQueryMapper([]sq.Predicate{}))

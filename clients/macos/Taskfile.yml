@@ -3,6 +3,7 @@ version: "3"
 vars:
   RUN_ARGS: '{{.RUN_ARGS | default ""}}'
   BUILD_ARGS: '{{.BUILD_ARGS | default "--debug"}}'
+  APP_PATH: '{{.APP_PATH | default "build/macos/Build/Products/Debug/ProtosFlutter.app"}}'
 
 tasks:
   run:
@@ -18,6 +19,18 @@ tasks:
       PROTOS_MACOS_TASK_ENTRY: "1"
     cmds:
       - ./scripts/build.sh {{.BUILD_ARGS}} {{.CLI_ARGS}}
+
+  launch:built:
+    desc: Launch the already-built macOS app bundle
+    cmds:
+      - |
+        set -e
+        app_path="{{.APP_PATH}}"
+        if [ ! -d "$app_path" ]; then
+          echo "Built app bundle not found at $app_path. Run build first." >&2
+          exit 1
+        fi
+        open -n "$app_path"
 
   clean:data:
     desc: Remove ~/.protos

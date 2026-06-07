@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../app_model.dart';
 import '../generated/apic/proto/apic.pb.dart' as pb;
+import '../join_modes.dart';
 import '../native/protos_bridge.dart';
 import '../text_helpers.dart';
 
@@ -459,6 +460,8 @@ class MessageBar extends StatelessWidget {
 
 enum _InitializationMode { create, join }
 
+enum _JoinIntent { newDevice, newUser }
+
 class InitializationView extends StatefulWidget {
   const InitializationView({super.key});
 
@@ -472,6 +475,7 @@ class _InitializationViewState extends State<InitializationView> {
   final organisation = TextEditingController(text: 'home');
   final verificationCode = TextEditingController();
   var mode = _InitializationMode.create;
+  var joinIntent = _JoinIntent.newDevice;
   var selectedNearbyId = '';
 
   @override
@@ -498,16 +502,33 @@ class _InitializationViewState extends State<InitializationView> {
   Widget build(BuildContext context) {
     final model = AppScope.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final requestedJoinMode = _joinModeForIntent(joinIntent);
+    final nearbyRows = mode == _InitializationMode.join
+        ? model.nearbyOrganisations
+              .where(
+                (organisation) => protosJoinModeMatches(
+                  inviteMode: organisation.joinMode,
+                  requestedMode: requestedJoinMode,
+                ),
+              )
+              .toList(growable: false)
+        : const <pb.NearbyOrganisation>[];
+    final selectedNearby = _selectedNearby(nearbyRows);
+    final requiresUsername =
+        mode == _InitializationMode.create ||
+        (mode == _InitializationMode.join && joinIntent == _JoinIntent.newUser);
+    final requiresName =
+        mode == _InitializationMode.create ||
+        (mode == _InitializationMode.join && joinIntent == _JoinIntent.newUser);
     final canCreate =
         username.text.nonEmpty != null &&
         name.text.nonEmpty != null &&
         organisation.text.nonEmpty != null &&
         model.daemonState.isRunning &&
         !model.isBusy;
-    final selectedNearby = _selectedNearby(model);
     final canJoin =
-        username.text.nonEmpty != null &&
-        name.text.nonEmpty != null &&
+        (!requiresUsername || username.text.nonEmpty != null) &&
+        (!requiresName || name.text.nonEmpty != null) &&
         verificationCode.text.nonEmpty != null &&
         selectedNearby != null &&
         model.daemonState.isRunning &&
@@ -573,25 +594,31 @@ class _InitializationViewState extends State<InitializationView> {
                         },
                 ),
                 const SizedBox(height: 18),
-                TextField(
-                  controller: username,
-                  textInputAction: TextInputAction.next,
-                  decoration: textField('Username'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: name,
-                  textInputAction: mode == _InitializationMode.create
-                      ? TextInputAction.next
-                      : TextInputAction.done,
-                  decoration: textField('Name'),
-                  onSubmitted: (_) {
-                    if (mode == _InitializationMode.join && canJoin) {
-                      _join(model, selectedNearby);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
+                if (requiresUsername) ...[
+                  TextField(
+                    controller: username,
+                    textInputAction: TextInputAction.next,
+                    decoration: textField(
+                      _usernameFieldLabel(mode, joinIntent),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (requiresName) ...[
+                  TextField(
+                    controller: name,
+                    textInputAction: mode == _InitializationMode.create
+                        ? TextInputAction.next
+                        : TextInputAction.done,
+                    decoration: textField('Name'),
+                    onSubmitted: (_) {
+                      if (mode == _InitializationMode.join && canJoin) {
+                        _join(model, selectedNearby, joinIntent);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (mode == _InitializationMode.create)
                   _CreateOrganisationControls(
                     organisation: organisation,
@@ -600,18 +627,23 @@ class _InitializationViewState extends State<InitializationView> {
                   )
                 else
                   _JoinOrganisationControls(
-                    rows: model.nearbyOrganisations,
+                    rows: nearbyRows,
                     selectedId: selectedNearbyId,
+                    joinIntent: joinIntent,
                     canScan: model.daemonState.isRunning && !model.isBusy,
                     canJoin: canJoin,
                     verificationCode: verificationCode,
                     onSelect: (id) => setState(() => selectedNearbyId = id),
+                    onJoinIntentChanged: (intent) => setState(() {
+                      joinIntent = intent;
+                      selectedNearbyId = '';
+                    }),
                     onScan: () => unawaited(
                       model.run(() => model.scanNearbyOrganisations()),
                     ),
                     onJoin: selectedNearby == null
                         ? null
-                        : () => _join(model, selectedNearby),
+                        : () => _join(model, selectedNearby, joinIntent),
                   ),
                 const SizedBox(height: 8),
                 Align(
@@ -632,8 +664,8 @@ class _InitializationViewState extends State<InitializationView> {
     );
   }
 
-  pb.NearbyOrganisation? _selectedNearby(AppModel model) {
-    for (final organisation in model.nearbyOrganisations) {
+  pb.NearbyOrganisation? _selectedNearby(List<pb.NearbyOrganisation> rows) {
+    for (final organisation in rows) {
       if (_nearbyRowId(organisation) == selectedNearbyId) {
         return organisation;
       }
@@ -653,7 +685,12 @@ class _InitializationViewState extends State<InitializationView> {
     );
   }
 
-  void _join(AppModel model, pb.NearbyOrganisation organisation) {
+  void _join(
+    AppModel model,
+    pb.NearbyOrganisation organisation,
+    _JoinIntent intent,
+  ) {
+    final joinMode = _joinModeForIntent(intent);
     unawaited(
       model.run(
         () => model.joinOrganisation(
@@ -661,13 +698,31 @@ class _InitializationViewState extends State<InitializationView> {
           peerId: organisation.peerId,
           inviteId: organisation.inviteId,
           channel: organisation.channel.nonEmpty ?? 'mdns',
-          username: username.text.trim(),
-          name: name.text.trim(),
+          username: intent == _JoinIntent.newUser ? username.text.trim() : '',
+          name: intent == _JoinIntent.newUser ? name.text.trim() : '',
           verificationCode: verificationCode.text.trim(),
+          joinMode: joinMode,
         ),
       ),
     );
   }
+}
+
+String _joinModeForIntent(_JoinIntent intent) {
+  return switch (intent) {
+    _JoinIntent.newDevice => protosJoinModeNewDevice,
+    _JoinIntent.newUser => protosJoinModeNewUser,
+  };
+}
+
+String _usernameFieldLabel(_InitializationMode mode, _JoinIntent joinIntent) {
+  if (mode != _InitializationMode.join) {
+    return 'Username';
+  }
+  return switch (joinIntent) {
+    _JoinIntent.newDevice => 'Existing username',
+    _JoinIntent.newUser => 'New username',
+  };
 }
 
 class _CreateOrganisationControls extends StatelessWidget {
@@ -711,20 +766,24 @@ class _JoinOrganisationControls extends StatelessWidget {
   const _JoinOrganisationControls({
     required this.rows,
     required this.selectedId,
+    required this.joinIntent,
     required this.canScan,
     required this.canJoin,
     required this.verificationCode,
     required this.onSelect,
+    required this.onJoinIntentChanged,
     required this.onScan,
     required this.onJoin,
   });
 
   final List<pb.NearbyOrganisation> rows;
   final String selectedId;
+  final _JoinIntent joinIntent;
   final bool canScan;
   final bool canJoin;
   final TextEditingController verificationCode;
   final ValueChanged<String> onSelect;
+  final ValueChanged<_JoinIntent> onJoinIntentChanged;
   final VoidCallback onScan;
   final VoidCallback? onJoin;
 
@@ -733,9 +792,28 @@ class _JoinOrganisationControls extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        SegmentedButton<_JoinIntent>(
+          segments: const [
+            ButtonSegment(
+              value: _JoinIntent.newDevice,
+              label: Text('New device'),
+              icon: Icon(Icons.devices_other_outlined),
+            ),
+            ButtonSegment(
+              value: _JoinIntent.newUser,
+              label: Text('New user'),
+              icon: Icon(Icons.person_add_alt_1_outlined),
+            ),
+          ],
+          selected: {joinIntent},
+          onSelectionChanged: (selection) {
+            onJoinIntentChanged(selection.first);
+          },
+        ),
+        const SizedBox(height: 12),
         RowsPanel<pb.NearbyOrganisation>(
           rows: rows,
-          emptyTitle: 'No nearby organisations',
+          emptyTitle: 'No matching invites',
           selectedId: selectedId,
           onSelect: onSelect,
           idForRow: _nearbyRowId,
@@ -743,6 +821,7 @@ class _JoinOrganisationControls extends StatelessWidget {
           columns: [
             RowColumn('Organisation', (row) => row.organisationName),
             RowColumn('Device', (row) => row.deviceName),
+            RowColumn('Type', (row) => protosJoinModeLabel(row.joinMode)),
             RowColumn('Channel', (row) => row.channel.nonEmpty ?? 'mdns'),
             RowColumn('Peer', (row) => row.peerId, flex: 2),
           ],
@@ -792,10 +871,16 @@ String _nearbyRowId(pb.NearbyOrganisation organisation) {
 
 String _inviteActiveText(pb.StartDeviceInviteResponse invite) {
   final code = invite.verificationCode.nonEmpty;
+  final mode = protosJoinModeLabel(_inviteMode(invite));
   if (code == null) {
-    return 'Invite active';
+    return '$mode invite active';
   }
-  return 'Invite code $code';
+  return '$mode invite code $code';
+}
+
+String _inviteMode(pb.StartDeviceInviteResponse invite) {
+  final mode = normalizeProtosJoinMode(invite.joinMode);
+  return mode.isEmpty ? protosJoinModeNewDevice : mode;
 }
 
 class SectionBody extends StatelessWidget {
@@ -850,12 +935,11 @@ class _OverviewViewState extends State<OverviewView> {
               ),
             ],
           ),
-          const SectionGap(),
-          const SectionHeading('Devices'),
+          const SizedBox(height: 12),
           CommandBar(
             children: [
               CommandButton(
-                label: 'Invite device',
+                label: 'Invite user',
                 icon: Icons.person_add_alt_1_outlined,
                 enabled:
                     model.userInfo?.organisationId.nonEmpty != null &&
@@ -864,10 +948,38 @@ class _OverviewViewState extends State<OverviewView> {
                 action: (model) async {
                   await model.startDeviceInvite(
                     organisationId: model.userInfo?.organisationId ?? '',
+                    joinMode: protosJoinModeNewUser,
                   );
                 },
               ),
-              if (model.deviceInvite != null)
+              if (model.deviceInvite != null &&
+                  _inviteMode(model.deviceInvite!) == protosJoinModeNewUser)
+                Text(
+                  _inviteActiveText(model.deviceInvite!),
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+            ],
+          ),
+          const SectionGap(),
+          const SectionHeading('Devices'),
+          CommandBar(
+            children: [
+              CommandButton(
+                label: 'Invite device',
+                icon: Icons.devices_other_outlined,
+                enabled:
+                    model.userInfo?.organisationId.nonEmpty != null &&
+                    !model.isBusy,
+                refresh: false,
+                action: (model) async {
+                  await model.startDeviceInvite(
+                    organisationId: model.userInfo?.organisationId ?? '',
+                    joinMode: protosJoinModeNewDevice,
+                  );
+                },
+              ),
+              if (model.deviceInvite != null &&
+                  _inviteMode(model.deviceInvite!) == protosJoinModeNewDevice)
                 Text(
                   _inviteActiveText(model.deviceInvite!),
                   style: Theme.of(context).textTheme.labelLarge,

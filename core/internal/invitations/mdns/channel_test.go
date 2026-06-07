@@ -21,6 +21,8 @@ func TestInviteTXTRoundTrip(t *testing.T) {
 		DeviceName:       "macbook",
 		PeerID:           "peer-1",
 		PublicKey:        "public-key",
+		JoinMode:         invitations.InviteJoinModeNewDevice,
+		TargetUserID:     "user-1",
 		VerificationCode: "12345678",
 		VerificationHash: "verification-hash",
 		Port:             10501,
@@ -65,6 +67,12 @@ func TestInviteTXTRoundTrip(t *testing.T) {
 	if got.PublicKey != invite.PublicKey {
 		t.Fatalf("PublicKey = %q, want %q", got.PublicKey, invite.PublicKey)
 	}
+	if got.JoinMode != invite.JoinMode {
+		t.Fatalf("JoinMode = %q, want %q", got.JoinMode, invite.JoinMode)
+	}
+	if got.TargetUserID != invite.TargetUserID {
+		t.Fatalf("TargetUserID = %q, want %q", got.TargetUserID, invite.TargetUserID)
+	}
 	if got.VerificationHash == "" {
 		t.Fatal("VerificationHash is empty")
 	}
@@ -90,6 +98,7 @@ func TestInviteTXTIncludesBootstrapAndOmitsVerificationCode(t *testing.T) {
 		DeviceName:       "macbook",
 		PeerID:           "peer-1",
 		PublicKey:        "public-key",
+		JoinMode:         invitations.InviteJoinModeNewUser,
 		VerificationHash: "verification-hash",
 		Port:             10500,
 		P2PAddrs:         []string{"/ip4/192.168.1.10/tcp/10500/p2p/peer-1"},
@@ -113,6 +122,38 @@ func TestInviteTXTIncludesBootstrapAndOmitsVerificationCode(t *testing.T) {
 	}
 	if !hasSwarmionAddr {
 		t.Fatal("TXT does not contain indexed swarmion_addr")
+	}
+	hasJoinMode := false
+	for _, value := range txt {
+		if value == "join_mode=new_user" {
+			hasJoinMode = true
+		}
+	}
+	if !hasJoinMode {
+		t.Fatal("TXT does not contain join_mode")
+	}
+}
+
+func TestFilterNearbyKeepsNewestInviteForPeerAndMode(t *testing.T) {
+	oldInvite := invitations.NearbyInvite{
+		InviteID:       "invite-old",
+		Channel:        invitations.ChannelMDNS,
+		OrganisationID: "org-1",
+		PeerID:         "peer-1",
+		JoinMode:       invitations.InviteJoinModeNewDevice,
+		ExpiresAt:      time.Now().Add(5 * time.Minute),
+	}
+	newInvite := oldInvite
+	newInvite.InviteID = "invite-new"
+	newInvite.ExpiresAt = time.Now().Add(10 * time.Minute)
+
+	got := filterNearby([]invitations.NearbyInvite{oldInvite, newInvite})
+
+	if len(got) != 1 {
+		t.Fatalf("filtered invites = %d, want 1: %#v", len(got), got)
+	}
+	if got[0].InviteID != newInvite.InviteID {
+		t.Fatalf("filtered invite = %q, want %q", got[0].InviteID, newInvite.InviteID)
 	}
 }
 

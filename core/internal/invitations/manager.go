@@ -10,7 +10,13 @@ import (
 	"time"
 )
 
-const ChannelMDNS = "mdns"
+const (
+	ChannelMDNS = "mdns"
+
+	InviteJoinModeAny       = "any"
+	InviteJoinModeNewUser   = "new_user"
+	InviteJoinModeNewDevice = "new_device"
+)
 
 type Invite struct {
 	InviteID         string
@@ -20,6 +26,8 @@ type Invite struct {
 	DeviceName       string
 	PeerID           string
 	PublicKey        string
+	JoinMode         string
+	TargetUserID     string
 	VerificationCode string
 	VerificationHash string
 	Port             int
@@ -38,6 +46,8 @@ type NearbyInvite struct {
 	DeviceName       string
 	PeerID           string
 	PublicKey        string
+	JoinMode         string
+	TargetUserID     string
 	VerificationHash string
 	P2PAddrs         []string
 	SwarmionAddrs    []string
@@ -95,6 +105,10 @@ func (m *Manager) StartInvite(ctx context.Context, channelName string, invite In
 	if err != nil {
 		return Invite{}, err
 	}
+	invite.JoinMode = NormalizeInviteJoinMode(invite.JoinMode)
+	if !ValidInviteJoinMode(invite.JoinMode) {
+		return Invite{}, fmt.Errorf("invalid invite join mode %q", invite.JoinMode)
+	}
 	invite.Channel = channel.Name()
 	started, err := channel.StartInvite(ctx, invite)
 	if err != nil {
@@ -103,7 +117,37 @@ func (m *Manager) StartInvite(ctx context.Context, channelName string, invite In
 	if strings.TrimSpace(started.Channel) == "" {
 		started.Channel = channel.Name()
 	}
+	if strings.TrimSpace(started.JoinMode) == "" {
+		started.JoinMode = invite.JoinMode
+	} else {
+		started.JoinMode = NormalizeInviteJoinMode(started.JoinMode)
+	}
 	return started, nil
+}
+
+func NormalizeInviteJoinMode(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	mode = strings.ReplaceAll(mode, "-", "_")
+	mode = strings.ReplaceAll(mode, " ", "_")
+	switch mode {
+	case "", InviteJoinModeAny:
+		return InviteJoinModeAny
+	case "user", "newuser", "new_user":
+		return InviteJoinModeNewUser
+	case "device", "newdevice", "new_device":
+		return InviteJoinModeNewDevice
+	default:
+		return mode
+	}
+}
+
+func ValidInviteJoinMode(mode string) bool {
+	switch NormalizeInviteJoinMode(mode) {
+	case InviteJoinModeAny, InviteJoinModeNewUser, InviteJoinModeNewDevice:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Manager) Browse(ctx context.Context, channelName string, timeout time.Duration) ([]NearbyInvite, error) {
@@ -123,10 +167,15 @@ func (m *Manager) Browse(ctx context.Context, channelName string, timeout time.D
 			if strings.TrimSpace(item.Channel) == "" {
 				item.Channel = channel.Name()
 			}
+			item.JoinMode = NormalizeInviteJoinMode(item.JoinMode)
 			if item.ExpiresAt.Before(time.Now()) {
 				continue
 			}
-			nearby[item.cacheKey()] = item
+			key := item.cacheKey()
+			if existing, found := nearby[key]; found && !item.ExpiresAt.After(existing.ExpiresAt) {
+				continue
+			}
+			nearby[key] = item
 		}
 	}
 	if len(nearby) == 0 && len(browseErrs) > 0 {
@@ -277,5 +326,5 @@ func normalizeChannel(channelName string) string {
 }
 
 func (item NearbyInvite) cacheKey() string {
-	return item.Channel + "/" + item.OrganisationID + "/" + item.PeerID + "/" + item.InviteID
+	return item.Channel + "/" + item.OrganisationID + "/" + item.PeerID + "/" + NormalizeInviteJoinMode(item.JoinMode)
 }

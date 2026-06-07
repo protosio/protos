@@ -40,17 +40,23 @@ void main() {
           peerId: 'peer-1',
           inviteId: 'invite-1',
           channel: 'mdns',
+          joinMode: 'new_user',
         ),
       ],
     );
 
     await tester.tap(find.text('Join').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('New user'));
+    await tester.pumpAndSettle();
 
     expect(harness.bridge.calls, contains('ListNearbyOrganisations'));
     expect(find.text('Home Lab'), findsOneWidget);
     expect(find.text('MacBook'), findsOneWidget);
-    await tester.enterText(find.widgetWithText(TextField, 'Username'), 'alex');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New username'),
+      'alex',
+    );
     await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Alex');
     await tester.enterText(
       find.widgetWithText(TextField, 'Invite code'),
@@ -66,6 +72,46 @@ void main() {
     expect(harness.bridge.joinRequest?.inviteId, 'invite-1');
     expect(harness.bridge.joinRequest?.channel, 'mdns');
     expect(harness.bridge.joinRequest?.verificationCode, '12345678');
+    expect(harness.bridge.joinRequest?.joinMode, 'new_user');
+  });
+
+  testWidgets('join onboarding can add a device for an existing user', (
+    tester,
+  ) async {
+    final harness = await _pumpOnboarding(
+      tester,
+      nearbyOrganisations: [
+        pb.NearbyOrganisation(
+          organisationId: 'org-1',
+          organisationName: 'Home Lab',
+          deviceName: 'MacBook',
+          peerId: 'peer-1',
+          inviteId: 'invite-1',
+          channel: 'mdns',
+          joinMode: 'new_device',
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('Join').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Home Lab'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Name'), findsNothing);
+    expect(find.widgetWithText(TextField, 'Existing username'), findsNothing);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Invite code'),
+      '12345678',
+    );
+    await tester.tap(find.text('Home Lab'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+    await tester.pumpAndSettle();
+
+    expect(harness.bridge.joinRequest?.organisationId, 'org-1');
+    expect(harness.bridge.joinRequest?.username, '');
+    expect(harness.bridge.joinRequest?.name, '');
+    expect(harness.bridge.joinRequest?.joinMode, 'new_device');
   });
 
   testWidgets('overview starts a device invite', (tester) async {
@@ -78,8 +124,22 @@ void main() {
 
     expect(harness.bridge.inviteRequest?.organisationId, 'org-1');
     expect(harness.bridge.inviteRequest?.channel, 'mdns');
+    expect(harness.bridge.inviteRequest?.joinMode, 'new_device');
     expect(harness.model.deviceInvite?.inviteId, 'invite-1');
-    expect(find.text('Invite code 12345678'), findsOneWidget);
+    expect(find.text('New device invite code 12345678'), findsOneWidget);
+  });
+
+  testWidgets('overview starts a user invite', (tester) async {
+    final harness = await _pumpOverview(tester);
+
+    final invite = find.widgetWithText(OutlinedButton, 'Invite user');
+    await tester.ensureVisible(invite);
+    await tester.tap(invite);
+    await tester.pumpAndSettle();
+
+    expect(harness.bridge.inviteRequest?.organisationId, 'org-1');
+    expect(harness.bridge.inviteRequest?.joinMode, 'new_user');
+    expect(find.text('New user invite code 12345678'), findsOneWidget);
   });
 }
 
@@ -226,6 +286,7 @@ class _FakeNativeProtosBridge implements NativeProtosBridge {
             advertiseService: '_protos._tcp',
             channel: 'mdns',
             verificationCode: '12345678',
+            joinMode: inviteRequest?.joinMode ?? 'new_device',
           ),
         );
       case 'JoinOrganisation':

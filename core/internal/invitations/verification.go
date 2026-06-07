@@ -24,11 +24,11 @@ func GenerateVerificationCode() (string, error) {
 }
 
 func InviteVerificationHash(invite Invite, code string) string {
-	return verificationHash(invite.InviteID, invite.OrganisationID, invite.PeerID, invite.PublicKey, invite.SwarmionAddrs, code)
+	return verificationHash(invite.InviteID, invite.OrganisationID, invite.PeerID, invite.PublicKey, invite.JoinMode, invite.TargetUserID, invite.SwarmionAddrs, code)
 }
 
 func NearbyInviteVerificationHash(invite NearbyInvite, code string) string {
-	return verificationHash(invite.InviteID, invite.OrganisationID, invite.PeerID, invite.PublicKey, invite.SwarmionAddrs, code)
+	return verificationHash(invite.InviteID, invite.OrganisationID, invite.PeerID, invite.PublicKey, invite.JoinMode, invite.TargetUserID, invite.SwarmionAddrs, code)
 }
 
 func VerifyNearbyInviteCode(invite NearbyInvite, code string) error {
@@ -52,7 +52,7 @@ func NormalizeVerificationCode(value string) string {
 	return builder.String()
 }
 
-func verificationHash(inviteID string, organisationID string, peerID string, publicKey string, swarmionAddrs []string, code string) string {
+func verificationHash(inviteID string, organisationID string, peerID string, publicKey string, joinMode string, targetUserID string, swarmionAddrs []string, code string) string {
 	normalizedCode := NormalizeVerificationCode(code)
 	fields := []string{
 		"protos-local-invite-v1",
@@ -60,6 +60,12 @@ func verificationHash(inviteID string, organisationID string, peerID string, pub
 		strings.TrimSpace(organisationID),
 		strings.TrimSpace(peerID),
 		strings.TrimSpace(publicKey),
+	}
+	if normalizedJoinMode := NormalizeInviteJoinMode(joinMode); normalizedJoinMode != InviteJoinModeAny {
+		fields = append(fields, normalizedJoinMode)
+	}
+	if normalizedTargetUserID := strings.TrimSpace(targetUserID); normalizedTargetUserID != "" {
+		fields = append(fields, normalizedTargetUserID)
 	}
 	fields = append(fields, normalizedStrings(swarmionAddrs)...)
 	fields = append(fields, normalizedCode)

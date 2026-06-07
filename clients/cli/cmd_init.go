@@ -44,7 +44,7 @@ func protosUserinit() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := client.Init(ctx, &apic.InitRequest{Username: username, Name: name, Organization: organization})
+	_, err := client.Init(ctx, &apic.InitRequest{Username: username, Name: name, Organisation: organization})
 	if err != nil {
 		return err
 	}

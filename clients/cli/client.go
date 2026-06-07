@@ -48,6 +48,7 @@ func main() {
 		Commands: []*cli.Command{
 			cmdInfo,
 			cmdInit,
+			cmdOrg,
 			cmdApp,
 			cmdCloud,
 			cmdInstance,

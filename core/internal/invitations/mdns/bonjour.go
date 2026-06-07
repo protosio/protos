@@ -17,7 +17,11 @@ func filterNearby(items []invitations.NearbyInvite) []invitations.NearbyInvite {
 		if item.ExpiresAt.Before(time.Now()) {
 			continue
 		}
-		nearby[cacheKey(item)] = item
+		key := cacheKey(item)
+		if existing, found := nearby[key]; found && !item.ExpiresAt.After(existing.ExpiresAt) {
+			continue
+		}
+		nearby[key] = item
 	}
 	out := make([]invitations.NearbyInvite, 0, len(nearby))
 	for _, item := range nearby {

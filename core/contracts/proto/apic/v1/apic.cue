@@ -33,33 +33,38 @@ package apicv1
 #StartDeviceInviteRequest: {
 	organisation_id?: string
 	channel?:         string
+	join_mode?:       string
+	username?:        string
 }
 #StartDeviceInviteResponse: {
 	invite_id?:        string
-		expires_at_unix?:  int64
-		advertise_name?:   string
-		advertise_service?: string
-		channel?:          string
-		verification_code?: string
+	expires_at_unix?:  int64
+	advertise_name?:   string
+	advertise_service?: string
+	channel?:          string
+	verification_code?: string
+	join_mode?:         string
 }
 #NearbyOrganisation: {
 	organisation_id?:   string
 	organisation_name?: string
-	device_name?:   string
-	peer_id?:       string
-	invite_id?:     string
-	channel?:       string
+	device_name?:       string
+	peer_id?:           string
+	invite_id?:         string
+	channel?:           string
+	join_mode?:         string
 }
 #ListNearbyOrganisationsRequest: channel?: string
 #ListNearbyOrganisationsResponse: organisations?: [...#NearbyOrganisation]
 #JoinOrganisationRequest: {
-	organisation_id?: string
-	peer_id?:     string
-	invite_id?:   string
-		username?:    string
-		name?:        string
-		channel?:     string
-		verification_code?: string
+	organisation_id?:   string
+	peer_id?:           string
+	invite_id?:         string
+	username?:          string
+	name?:              string
+	channel?:           string
+	verification_code?: string
+	join_mode?:         string
 }
 #JoinOrganisationResponse: {}
 #GetLocalSSHKeyRequest: {}
@@ -717,6 +722,8 @@ contract: {
 			{kind: "message", name: "StartDeviceInviteRequest", fields: [
 				{type: "string", name: "organisation_id", number: 1},
 				{type: "string", name: "channel", number: 2},
+				{type: "string", name: "join_mode", number: 3},
+				{type: "string", name: "username", number: 4},
 			]},
 			{kind: "message", name: "StartDeviceInviteResponse", fields: [
 				{type: "string", name: "invite_id", number: 1},
@@ -725,6 +732,7 @@ contract: {
 				{type: "string", name: "advertise_service", number: 4},
 				{type: "string", name: "channel", number: 5},
 				{type: "string", name: "verification_code", number: 6},
+				{type: "string", name: "join_mode", number: 7},
 			]},
 			{kind: "message", name: "NearbyOrganisation", fields: [
 				{type: "string", name: "organisation_id", number: 1},
@@ -733,6 +741,7 @@ contract: {
 				{type: "string", name: "peer_id", number: 4},
 				{type: "string", name: "invite_id", number: 5},
 				{type: "string", name: "channel", number: 6},
+				{type: "string", name: "join_mode", number: 7},
 			]},
 			{kind: "message", name: "ListNearbyOrganisationsRequest", fields: [
 				{type: "string", name: "channel", number: 1},
@@ -748,6 +757,7 @@ contract: {
 				{type: "string", name: "name", number: 5},
 				{type: "string", name: "channel", number: 6},
 				{type: "string", name: "verification_code", number: 7},
+				{type: "string", name: "join_mode", number: 8},
 			]},
 			{kind: "message", name: "JoinOrganisationResponse", fields: []},
 			{kind: "message", name: "GetLocalSSHKeyRequest", fields: []},

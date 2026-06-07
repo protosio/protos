@@ -59,6 +59,10 @@ func (c *Channel) StartInvite(_ context.Context, invite invitations.Invite) (inv
 	if len(invite.SwarmionAddrs) == 0 {
 		return invitations.Invite{}, fmt.Errorf("at least one Swarmion bootstrap address is required")
 	}
+	invite.JoinMode = invitations.NormalizeInviteJoinMode(invite.JoinMode)
+	if !invitations.ValidInviteJoinMode(invite.JoinMode) {
+		return invitations.Invite{}, fmt.Errorf("invalid invite join mode %q", invite.JoinMode)
+	}
 	if strings.TrimSpace(invite.InviteID) == "" {
 		invite.InviteID = xid.New().String()
 	}
@@ -184,6 +188,8 @@ func inviteTXT(invite invitations.Invite) []string {
 		"device_name=" + invite.DeviceName,
 		"peer_id=" + invite.PeerID,
 		"public_key=" + invite.PublicKey,
+		"join_mode=" + invite.JoinMode,
+		"target_user_id=" + invite.TargetUserID,
 		"verification_hash=" + invite.VerificationHash,
 		"expires_at=" + strconv.FormatInt(invite.ExpiresAt.Unix(), 10),
 		"p2p_port=" + strconv.Itoa(invite.Port),
@@ -220,6 +226,8 @@ func parseTXTEntry(txt []string, hostName string, port int, ips []string) (invit
 		DeviceName:       first(values, "device_name"),
 		PeerID:           first(values, "peer_id"),
 		PublicKey:        first(values, "public_key"),
+		JoinMode:         invitations.NormalizeInviteJoinMode(first(values, "join_mode")),
+		TargetUserID:     first(values, "target_user_id"),
 		VerificationHash: first(values, "verification_hash"),
 		P2PAddrs:         dedupeStrings(values["p2p_addr"]),
 		SwarmionAddrs:    swarmionAddrsFromTXT(values),
@@ -227,6 +235,9 @@ func parseTXTEntry(txt []string, hostName string, port int, ips []string) (invit
 		HostName:         hostName,
 		Port:             port,
 		IPs:              dedupeStrings(ips),
+	}
+	if !invitations.ValidInviteJoinMode(item.JoinMode) {
+		return invitations.NearbyInvite{}, false
 	}
 	if item.InviteID == "" ||
 		item.OrganisationID == "" ||
@@ -284,7 +295,7 @@ func parseInt(value string) int64 {
 }
 
 func cacheKey(item invitations.NearbyInvite) string {
-	return item.Channel + "/" + item.OrganisationID + "/" + item.PeerID + "/" + item.InviteID
+	return item.Channel + "/" + item.OrganisationID + "/" + item.PeerID + "/" + invitations.NormalizeInviteJoinMode(item.JoinMode)
 }
 
 func inviteInstanceName(invite invitations.Invite) string {

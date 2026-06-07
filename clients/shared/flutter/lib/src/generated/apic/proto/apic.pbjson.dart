@@ -177,14 +177,16 @@ const StartDeviceInviteRequest$json = {
   '2': [
     {'1': 'organisation_id', '3': 1, '4': 1, '5': 9, '10': 'organisationId'},
     {'1': 'channel', '3': 2, '4': 1, '5': 9, '10': 'channel'},
+    {'1': 'join_mode', '3': 3, '4': 1, '5': 9, '10': 'joinMode'},
+    {'1': 'username', '3': 4, '4': 1, '5': 9, '10': 'username'},
   ],
 };
 
 /// Descriptor for `StartDeviceInviteRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List startDeviceInviteRequestDescriptor =
-    $convert.base64Decode(
-        'ChhTdGFydERldmljZUludml0ZVJlcXVlc3QSJwoPb3JnYW5pc2F0aW9uX2lkGAEgASgJUg5vcm'
-        'dhbmlzYXRpb25JZBIYCgdjaGFubmVsGAIgASgJUgdjaGFubmVs');
+final $typed_data.Uint8List startDeviceInviteRequestDescriptor = $convert.base64Decode(
+    'ChhTdGFydERldmljZUludml0ZVJlcXVlc3QSJwoPb3JnYW5pc2F0aW9uX2lkGAEgASgJUg5vcm'
+    'dhbmlzYXRpb25JZBIYCgdjaGFubmVsGAIgASgJUgdjaGFubmVsEhsKCWpvaW5fbW9kZRgDIAEo'
+    'CVIIam9pbk1vZGUSGgoIdXNlcm5hbWUYBCABKAlSCHVzZXJuYW1l');
 
 @$core.Deprecated('Use startDeviceInviteResponseDescriptor instead')
 const StartDeviceInviteResponse$json = {
@@ -208,6 +210,7 @@ const StartDeviceInviteResponse$json = {
       '5': 9,
       '10': 'verificationCode'
     },
+    {'1': 'join_mode', '3': 7, '4': 1, '5': 9, '10': 'joinMode'},
   ],
 };
 
@@ -217,7 +220,8 @@ final $typed_data.Uint8List startDeviceInviteResponseDescriptor = $convert.base6
     'QSJgoPZXhwaXJlc19hdF91bml4GAIgASgDUg1leHBpcmVzQXRVbml4EiUKDmFkdmVydGlzZV9u'
     'YW1lGAMgASgJUg1hZHZlcnRpc2VOYW1lEisKEWFkdmVydGlzZV9zZXJ2aWNlGAQgASgJUhBhZH'
     'ZlcnRpc2VTZXJ2aWNlEhgKB2NoYW5uZWwYBSABKAlSB2NoYW5uZWwSKwoRdmVyaWZpY2F0aW9u'
-    'X2NvZGUYBiABKAlSEHZlcmlmaWNhdGlvbkNvZGU=');
+    'X2NvZGUYBiABKAlSEHZlcmlmaWNhdGlvbkNvZGUSGwoJam9pbl9tb2RlGAcgASgJUghqb2luTW'
+    '9kZQ==');
 
 @$core.Deprecated('Use nearbyOrganisationDescriptor instead')
 const NearbyOrganisation$json = {
@@ -235,6 +239,7 @@ const NearbyOrganisation$json = {
     {'1': 'peer_id', '3': 4, '4': 1, '5': 9, '10': 'peerId'},
     {'1': 'invite_id', '3': 5, '4': 1, '5': 9, '10': 'inviteId'},
     {'1': 'channel', '3': 6, '4': 1, '5': 9, '10': 'channel'},
+    {'1': 'join_mode', '3': 7, '4': 1, '5': 9, '10': 'joinMode'},
   ],
 };
 
@@ -243,7 +248,8 @@ final $typed_data.Uint8List nearbyOrganisationDescriptor = $convert.base64Decode
     'ChJOZWFyYnlPcmdhbmlzYXRpb24SJwoPb3JnYW5pc2F0aW9uX2lkGAEgASgJUg5vcmdhbmlzYX'
     'Rpb25JZBIrChFvcmdhbmlzYXRpb25fbmFtZRgCIAEoCVIQb3JnYW5pc2F0aW9uTmFtZRIfCgtk'
     'ZXZpY2VfbmFtZRgDIAEoCVIKZGV2aWNlTmFtZRIXCgdwZWVyX2lkGAQgASgJUgZwZWVySWQSGw'
-    'oJaW52aXRlX2lkGAUgASgJUghpbnZpdGVJZBIYCgdjaGFubmVsGAYgASgJUgdjaGFubmVs');
+    'oJaW52aXRlX2lkGAUgASgJUghpbnZpdGVJZBIYCgdjaGFubmVsGAYgASgJUgdjaGFubmVsEhsK'
+    'CWpvaW5fbW9kZRgHIAEoCVIIam9pbk1vZGU=');
 
 @$core.Deprecated('Use listNearbyOrganisationsRequestDescriptor instead')
 const ListNearbyOrganisationsRequest$json = {
@@ -297,6 +303,7 @@ const JoinOrganisationRequest$json = {
       '5': 9,
       '10': 'verificationCode'
     },
+    {'1': 'join_mode', '3': 8, '4': 1, '5': 9, '10': 'joinMode'},
   ],
 };
 
@@ -306,7 +313,7 @@ final $typed_data.Uint8List joinOrganisationRequestDescriptor = $convert.base64D
     'FuaXNhdGlvbklkEhcKB3BlZXJfaWQYAiABKAlSBnBlZXJJZBIbCglpbnZpdGVfaWQYAyABKAlS'
     'CGludml0ZUlkEhoKCHVzZXJuYW1lGAQgASgJUgh1c2VybmFtZRISCgRuYW1lGAUgASgJUgRuYW'
     '1lEhgKB2NoYW5uZWwYBiABKAlSB2NoYW5uZWwSKwoRdmVyaWZpY2F0aW9uX2NvZGUYByABKAlS'
-    'EHZlcmlmaWNhdGlvbkNvZGU=');
+    'EHZlcmlmaWNhdGlvbkNvZGUSGwoJam9pbl9tb2RlGAggASgJUghqb2luTW9kZQ==');
 
 @$core.Deprecated('Use joinOrganisationResponseDescriptor instead')
 const JoinOrganisationResponse$json = {

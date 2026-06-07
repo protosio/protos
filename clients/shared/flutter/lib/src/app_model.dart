@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 
 import 'generated/apic/proto/apic.pb.dart' as pb;
+import 'join_modes.dart';
 import 'native/protos_bridge.dart';
 import 'native/protos_tunnel_bridge.dart';
 import 'protos_api.dart';
@@ -213,8 +214,14 @@ class AppModel extends ChangeNotifier {
     }
   }
 
-  Future<void> startDeviceInvite({required String organisationId}) async {
-    deviceInvite = await api.startDeviceInvite(organisationId: organisationId);
+  Future<void> startDeviceInvite({
+    required String organisationId,
+    String joinMode = protosJoinModeNewDevice,
+  }) async {
+    deviceInvite = await api.startDeviceInvite(
+      organisationId: organisationId,
+      joinMode: joinMode,
+    );
   }
 
   Future<void> joinOrganisation({
@@ -225,6 +232,7 @@ class AppModel extends ChangeNotifier {
     required String username,
     required String name,
     required String verificationCode,
+    required String joinMode,
   }) async {
     await api.joinOrganisation(
       organisationId: organisationId,
@@ -234,6 +242,7 @@ class AppModel extends ChangeNotifier {
       username: username,
       name: name,
       verificationCode: verificationCode,
+      joinMode: joinMode,
     );
     await _leaveInitializationMode();
   }

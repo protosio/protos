@@ -521,6 +521,8 @@ type StartDeviceInviteRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	OrganisationId string                 `protobuf:"bytes,1,opt,name=organisation_id,json=organisationId,proto3" json:"organisation_id,omitempty"`
 	Channel        string                 `protobuf:"bytes,2,opt,name=channel,proto3" json:"channel,omitempty"`
+	JoinMode       string                 `protobuf:"bytes,3,opt,name=join_mode,json=joinMode,proto3" json:"join_mode,omitempty"`
+	Username       string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -569,6 +571,20 @@ func (x *StartDeviceInviteRequest) GetChannel() string {
 	return ""
 }
 
+func (x *StartDeviceInviteRequest) GetJoinMode() string {
+	if x != nil {
+		return x.JoinMode
+	}
+	return ""
+}
+
+func (x *StartDeviceInviteRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
 type StartDeviceInviteResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	InviteId         string                 `protobuf:"bytes,1,opt,name=invite_id,json=inviteId,proto3" json:"invite_id,omitempty"`
@@ -577,6 +593,7 @@ type StartDeviceInviteResponse struct {
 	AdvertiseService string                 `protobuf:"bytes,4,opt,name=advertise_service,json=advertiseService,proto3" json:"advertise_service,omitempty"`
 	Channel          string                 `protobuf:"bytes,5,opt,name=channel,proto3" json:"channel,omitempty"`
 	VerificationCode string                 `protobuf:"bytes,6,opt,name=verification_code,json=verificationCode,proto3" json:"verification_code,omitempty"`
+	JoinMode         string                 `protobuf:"bytes,7,opt,name=join_mode,json=joinMode,proto3" json:"join_mode,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -653,6 +670,13 @@ func (x *StartDeviceInviteResponse) GetVerificationCode() string {
 	return ""
 }
 
+func (x *StartDeviceInviteResponse) GetJoinMode() string {
+	if x != nil {
+		return x.JoinMode
+	}
+	return ""
+}
+
 type NearbyOrganisation struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	OrganisationId   string                 `protobuf:"bytes,1,opt,name=organisation_id,json=organisationId,proto3" json:"organisation_id,omitempty"`
@@ -661,6 +685,7 @@ type NearbyOrganisation struct {
 	PeerId           string                 `protobuf:"bytes,4,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
 	InviteId         string                 `protobuf:"bytes,5,opt,name=invite_id,json=inviteId,proto3" json:"invite_id,omitempty"`
 	Channel          string                 `protobuf:"bytes,6,opt,name=channel,proto3" json:"channel,omitempty"`
+	JoinMode         string                 `protobuf:"bytes,7,opt,name=join_mode,json=joinMode,proto3" json:"join_mode,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -733,6 +758,13 @@ func (x *NearbyOrganisation) GetInviteId() string {
 func (x *NearbyOrganisation) GetChannel() string {
 	if x != nil {
 		return x.Channel
+	}
+	return ""
+}
+
+func (x *NearbyOrganisation) GetJoinMode() string {
+	if x != nil {
+		return x.JoinMode
 	}
 	return ""
 }
@@ -834,6 +866,7 @@ type JoinOrganisationRequest struct {
 	Name             string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
 	Channel          string                 `protobuf:"bytes,6,opt,name=channel,proto3" json:"channel,omitempty"`
 	VerificationCode string                 `protobuf:"bytes,7,opt,name=verification_code,json=verificationCode,proto3" json:"verification_code,omitempty"`
+	JoinMode         string                 `protobuf:"bytes,8,opt,name=join_mode,json=joinMode,proto3" json:"join_mode,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -913,6 +946,13 @@ func (x *JoinOrganisationRequest) GetChannel() string {
 func (x *JoinOrganisationRequest) GetVerificationCode() string {
 	if x != nil {
 		return x.VerificationCode
+	}
+	return ""
+}
+
+func (x *JoinOrganisationRequest) GetJoinMode() string {
+	if x != nil {
+		return x.JoinMode
 	}
 	return ""
 }
@@ -9167,17 +9207,20 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"created_at\x18\x03 \x01(\tR\tcreatedAt\"\x1a\n" +
 	"\x18ListOrganisationsRequest\"U\n" +
 	"\x19ListOrganisationsResponse\x128\n" +
-	"\rorganisations\x18\x01 \x03(\v2\x12.apic.OrganisationR\rorganisations\"]\n" +
+	"\rorganisations\x18\x01 \x03(\v2\x12.apic.OrganisationR\rorganisations\"\x96\x01\n" +
 	"\x18StartDeviceInviteRequest\x12'\n" +
 	"\x0forganisation_id\x18\x01 \x01(\tR\x0eorganisationId\x12\x18\n" +
-	"\achannel\x18\x02 \x01(\tR\achannel\"\xfb\x01\n" +
+	"\achannel\x18\x02 \x01(\tR\achannel\x12\x1b\n" +
+	"\tjoin_mode\x18\x03 \x01(\tR\bjoinMode\x12\x1a\n" +
+	"\busername\x18\x04 \x01(\tR\busername\"\x98\x02\n" +
 	"\x19StartDeviceInviteResponse\x12\x1b\n" +
 	"\tinvite_id\x18\x01 \x01(\tR\binviteId\x12&\n" +
 	"\x0fexpires_at_unix\x18\x02 \x01(\x03R\rexpiresAtUnix\x12%\n" +
 	"\x0eadvertise_name\x18\x03 \x01(\tR\radvertiseName\x12+\n" +
 	"\x11advertise_service\x18\x04 \x01(\tR\x10advertiseService\x12\x18\n" +
 	"\achannel\x18\x05 \x01(\tR\achannel\x12+\n" +
-	"\x11verification_code\x18\x06 \x01(\tR\x10verificationCode\"\xdb\x01\n" +
+	"\x11verification_code\x18\x06 \x01(\tR\x10verificationCode\x12\x1b\n" +
+	"\tjoin_mode\x18\a \x01(\tR\bjoinMode\"\xf8\x01\n" +
 	"\x12NearbyOrganisation\x12'\n" +
 	"\x0forganisation_id\x18\x01 \x01(\tR\x0eorganisationId\x12+\n" +
 	"\x11organisation_name\x18\x02 \x01(\tR\x10organisationName\x12\x1f\n" +
@@ -9185,11 +9228,12 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"deviceName\x12\x17\n" +
 	"\apeer_id\x18\x04 \x01(\tR\x06peerId\x12\x1b\n" +
 	"\tinvite_id\x18\x05 \x01(\tR\binviteId\x12\x18\n" +
-	"\achannel\x18\x06 \x01(\tR\achannel\":\n" +
+	"\achannel\x18\x06 \x01(\tR\achannel\x12\x1b\n" +
+	"\tjoin_mode\x18\a \x01(\tR\bjoinMode\":\n" +
 	"\x1eListNearbyOrganisationsRequest\x12\x18\n" +
 	"\achannel\x18\x01 \x01(\tR\achannel\"a\n" +
 	"\x1fListNearbyOrganisationsResponse\x12>\n" +
-	"\rorganisations\x18\x01 \x03(\v2\x18.apic.NearbyOrganisationR\rorganisations\"\xef\x01\n" +
+	"\rorganisations\x18\x01 \x03(\v2\x18.apic.NearbyOrganisationR\rorganisations\"\x8c\x02\n" +
 	"\x17JoinOrganisationRequest\x12'\n" +
 	"\x0forganisation_id\x18\x01 \x01(\tR\x0eorganisationId\x12\x17\n" +
 	"\apeer_id\x18\x02 \x01(\tR\x06peerId\x12\x1b\n" +
@@ -9197,7 +9241,8 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\busername\x18\x04 \x01(\tR\busername\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12\x18\n" +
 	"\achannel\x18\x06 \x01(\tR\achannel\x12+\n" +
-	"\x11verification_code\x18\a \x01(\tR\x10verificationCode\"\x1a\n" +
+	"\x11verification_code\x18\a \x01(\tR\x10verificationCode\x12\x1b\n" +
+	"\tjoin_mode\x18\b \x01(\tR\bjoinMode\"\x1a\n" +
 	"\x18JoinOrganisationResponse\"\x17\n" +
 	"\x15GetLocalSSHKeyRequest\"J\n" +
 	"\x16GetLocalSSHKeyResponse\x12\x16\n" +

@@ -132,6 +132,14 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 	if err != nil {
 		return nil, err
 	}
+	joinMode, err := startInviteJoinMode(in.GetJoinMode())
+	if err != nil {
+		return nil, err
+	}
+	targetUserID, err := b.inviteTargetUserID(joinMode, in.GetUsername())
+	if err != nil {
+		return nil, err
+	}
 	localKey, err := b.protosClient.KeyManager.GetLocalKey()
 	if err != nil {
 		return nil, fmt.Errorf("load local key: %w", err)
@@ -147,7 +155,8 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "no local database bootstrap addresses are available")
 	}
 	log.Infof(
-		"starting device invite for organisation %q via channel %q with %d local IPs and %d bootstrap addresses",
+		"starting %s invite for organisation %q via channel %q with %d local IPs and %d bootstrap addresses",
+		joinMode,
 		organisation.ID,
 		in.GetChannel(),
 		len(localIPs),
@@ -159,6 +168,8 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 		DeviceName:       deviceName,
 		PeerID:           peerID,
 		PublicKey:        localKey.PublicString(),
+		JoinMode:         joinMode,
+		TargetUserID:     targetUserID,
 		Port:             b.protosClient.P2PPort,
 		P2PAddrs:         p2pListenAddrsWithPeerID(b.protosClient.P2PManager.ListenAddresses(), peerID),
 		SwarmionAddrs:    swarmionAddrs,
@@ -180,6 +191,7 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 		AdvertiseService: invite.AdvertiseService,
 		Channel:          invite.Channel,
 		VerificationCode: invite.VerificationCode,
+		JoinMode:         invite.JoinMode,
 	}, nil
 }
 
@@ -207,6 +219,7 @@ func (b *Backend) ListNearbyOrganisations(ctx context.Context, in *pbApic.ListNe
 			PeerId:           item.PeerID,
 			InviteId:         item.InviteID,
 			Channel:          item.Channel,
+			JoinMode:         item.JoinMode,
 		})
 	}
 	return &resp, nil
@@ -232,14 +245,80 @@ func (b *Backend) JoinOrganisation(ctx context.Context, in *pbApic.JoinOrganisat
 	if err := verifyInvitePeerKey(nearby); err != nil {
 		return nil, grpcstatus.Error(codes.InvalidArgument, err.Error())
 	}
+	joinMode, err := effectiveJoinMode(nearby.JoinMode, in.GetJoinMode())
+	if err != nil {
+		return nil, err
+	}
 	if err := b.protosClient.DB.InitFromPeer(nearby.PeerID, nearby.SwarmionAddrs); err != nil {
 		return nil, fmt.Errorf("join organisation from %s: %w", nearby.PeerID, err)
 	}
-	if err := b.ensureJoinedUserDevice(in.GetUsername(), in.GetName()); err != nil {
+	if err := b.protosClient.DB.CatchUpFinalized(ctx, "join organisation user/device registration"); err != nil {
+		return nil, fmt.Errorf("sync organisation state after joining: %w", err)
+	}
+	if err := b.ensureJoinedUserDevice(in.GetUsername(), in.GetName(), joinMode, nearby.TargetUserID); err != nil {
 		return nil, err
 	}
 	b.protosClient.MarkInitializedIfNeeded()
 	return &pbApic.JoinOrganisationResponse{}, nil
+}
+
+func startInviteJoinMode(rawMode string) (string, error) {
+	joinMode := invitations.NormalizeInviteJoinMode(rawMode)
+	if strings.TrimSpace(rawMode) == "" {
+		joinMode = invitations.InviteJoinModeNewDevice
+	}
+	switch joinMode {
+	case invitations.InviteJoinModeNewUser, invitations.InviteJoinModeNewDevice:
+		return joinMode, nil
+	default:
+		return "", grpcstatus.Errorf(codes.InvalidArgument, "invite join mode must be %q or %q", invitations.InviteJoinModeNewUser, invitations.InviteJoinModeNewDevice)
+	}
+}
+
+func effectiveJoinMode(inviteMode string, requestMode string) (string, error) {
+	inviteMode = invitations.NormalizeInviteJoinMode(inviteMode)
+	if !invitations.ValidInviteJoinMode(inviteMode) {
+		return "", grpcstatus.Errorf(codes.InvalidArgument, "invite advertised invalid join mode %q", inviteMode)
+	}
+	requestMode = strings.TrimSpace(requestMode)
+	if requestMode != "" {
+		requestMode = invitations.NormalizeInviteJoinMode(requestMode)
+		if !invitations.ValidInviteJoinMode(requestMode) {
+			return "", grpcstatus.Errorf(codes.InvalidArgument, "join mode must be %q or %q", invitations.InviteJoinModeNewUser, invitations.InviteJoinModeNewDevice)
+		}
+	}
+	if inviteMode != invitations.InviteJoinModeAny {
+		if requestMode != "" && requestMode != invitations.InviteJoinModeAny && requestMode != inviteMode {
+			return "", grpcstatus.Errorf(codes.InvalidArgument, "invite is for %s, not %s", inviteMode, requestMode)
+		}
+		return inviteMode, nil
+	}
+	if requestMode != "" {
+		return requestMode, nil
+	}
+	return invitations.InviteJoinModeAny, nil
+}
+
+func (b *Backend) inviteTargetUserID(joinMode string, username string) (string, error) {
+	if joinMode != invitations.InviteJoinModeNewDevice {
+		return "", nil
+	}
+	username = strings.TrimSpace(username)
+	if username != "" {
+		targetUser, err := b.protosClient.Manager.GetUser(username)
+		if err != nil {
+			return "", grpcstatus.Errorf(codes.InvalidArgument, "user %q does not exist", username)
+		}
+		return targetUser.ID, nil
+	}
+	if currentUser, err := b.protosClient.Manager.GetCurrentUser(); err == nil {
+		return currentUser.ID, nil
+	}
+	adminUser, err := b.protosClient.Manager.GetAdmin()
+	if err != nil {
+		return "", fmt.Errorf("resolve target user for device invite: %w", err)
+	}
+	return adminUser.ID, nil
 }
 
 func protoOrganisation(organisation db.Organisation) *pbApic.Organisation {
@@ -273,20 +352,71 @@ func (b *Backend) organisationForInvite(id string) (db.Organisation, error) {
 	return organisations[0], nil
 }
 
-func (b *Backend) ensureJoinedUserDevice(username string, name string) error {
+func (b *Backend) ensureJoinedUserDevice(username string, name string, joinMode string, targetUserID string) error {
 	username = strings.TrimSpace(username)
 	name = strings.TrimSpace(name)
-	if username == "" {
-		return grpcstatus.Error(codes.InvalidArgument, "username is required")
+	targetUserID = strings.TrimSpace(targetUserID)
+	joinMode = invitations.NormalizeInviteJoinMode(joinMode)
+	if !invitations.ValidInviteJoinMode(joinMode) {
+		return grpcstatus.Errorf(codes.InvalidArgument, "join mode must be %q or %q", invitations.InviteJoinModeNewUser, invitations.InviteJoinModeNewDevice)
 	}
-	if name == "" {
-		return grpcstatus.Error(codes.InvalidArgument, "name is required")
-	}
-	if _, err := b.protosClient.Manager.GetUser(username); err != nil {
-		if _, err := b.protosClient.Manager.CreateUser(username, name, false); err != nil {
+	switch joinMode {
+	case invitations.InviteJoinModeNewUser:
+		if username == "" {
+			return grpcstatus.Error(codes.InvalidArgument, "username is required")
+		}
+		if name == "" {
+			return grpcstatus.Error(codes.InvalidArgument, "name is required")
+		}
+		if _, err := b.protosClient.Manager.GetUser(username); err == nil {
+			return grpcstatus.Errorf(codes.InvalidArgument, "user %q already exists", username)
+		}
+		createdUser, err := b.protosClient.Manager.CreateUser(username, name, false)
+		if err != nil {
 			return fmt.Errorf("create joined user: %w", err)
 		}
+		return b.addJoinedLocalDevice(createdUser.ID)
+	case invitations.InviteJoinModeNewDevice:
+		if targetUserID != "" {
+			targetUser, err := b.protosClient.Manager.GetUserByID(targetUserID)
+			if err != nil {
+				return grpcstatus.Errorf(codes.InvalidArgument, "target user for device invite does not exist")
+			}
+			if username != "" && username != targetUser.Username {
+				return grpcstatus.Errorf(codes.InvalidArgument, "invite is for user %q, not %q", targetUser.Username, username)
+			}
+			return b.addJoinedLocalDevice(targetUser.ID)
+		}
+		if username == "" {
+			return grpcstatus.Error(codes.InvalidArgument, "username is required")
+		}
+		existingUser, err := b.protosClient.Manager.GetUser(username)
+		if err != nil {
+			return grpcstatus.Errorf(codes.InvalidArgument, "user %q does not exist", username)
+		}
+		return b.addJoinedLocalDevice(existingUser.ID)
+	default:
+		if username == "" {
+			return grpcstatus.Error(codes.InvalidArgument, "username is required")
+		}
+		userRef := username
+		if existingUser, err := b.protosClient.Manager.GetUser(username); err == nil {
+			userRef = existingUser.ID
+		} else {
+			if name == "" {
+				return grpcstatus.Error(codes.InvalidArgument, "name is required")
+			}
+			createdUser, err := b.protosClient.Manager.CreateUser(username, name, false)
+			if err != nil {
+				return fmt.Errorf("create joined user: %w", err)
+			}
+			userRef = createdUser.ID
+		}
+		return b.addJoinedLocalDevice(userRef)
 	}
+}
+
+func (b *Backend) addJoinedLocalDevice(userRef string) error {
 	if _, found, err := b.protosClient.Manager.GetCurrentDeviceIfExists(); err != nil {
 		return err
 	} else if found {
@@ -296,7 +426,7 @@ func (b *Backend) ensureJoinedUserDevice(username string, name string) error {
 	if err != nil {
 		return fmt.Errorf("load local key: %w", err)
 	}
-	return b.protosClient.Manager.AddDevice(username, localDeviceName(b.protosClient.Manager), localKey)
+	return b.protosClient.Manager.AddDevice(userRef, localDeviceName(b.protosClient.Manager), localKey)
 }
 
 func verifyInvitePeerKey(nearby invitations.NearbyInvite) error {

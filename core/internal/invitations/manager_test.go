@@ -28,6 +28,9 @@ func TestManagerStartInviteDefaultsToMDNSChannel(t *testing.T) {
 	if len(channel.started) != 1 {
 		t.Fatalf("started invites = %d, want 1", len(channel.started))
 	}
+	if channel.started[0].JoinMode != InviteJoinModeAny {
+		t.Fatalf("started invite JoinMode = %q, want %q", channel.started[0].JoinMode, InviteJoinModeAny)
+	}
 }
 
 func TestManagerBrowseAndFindUsesChannelCache(t *testing.T) {

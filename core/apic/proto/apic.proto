@@ -116,6 +116,8 @@ message ListOrganisationsResponse {
 message StartDeviceInviteRequest {
   string organisation_id = 1;
   string channel = 2;
+  string join_mode = 3;
+  string username = 4;
 }
 
 message StartDeviceInviteResponse {
@@ -125,6 +127,7 @@ message StartDeviceInviteResponse {
   string advertise_service = 4;
   string channel = 5;
   string verification_code = 6;
+  string join_mode = 7;
 }
 
 message NearbyOrganisation {
@@ -134,6 +137,7 @@ message NearbyOrganisation {
   string peer_id = 4;
   string invite_id = 5;
   string channel = 6;
+  string join_mode = 7;
 }
 
 message ListNearbyOrganisationsRequest {
@@ -152,6 +156,7 @@ message JoinOrganisationRequest {
   string name = 5;
   string channel = 6;
   string verification_code = 7;
+  string join_mode = 8;
 }
 
 message JoinOrganisationResponse {

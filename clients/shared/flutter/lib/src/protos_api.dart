@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'generated/apic/proto/apic.pb.dart' as pb;
+import 'join_modes.dart';
 import 'native/protos_bridge.dart';
 
 class ProtosApi {
@@ -58,13 +59,17 @@ class ProtosApi {
 
   Future<pb.StartDeviceInviteResponse> startDeviceInvite({
     required String organisationId,
+    String joinMode = protosJoinModeNewDevice,
     String channel = 'mdns',
+    String username = '',
   }) {
     return bridge.call(
       'StartDeviceInvite',
       pb.StartDeviceInviteRequest(
         organisationId: organisationId,
         channel: channel,
+        joinMode: joinMode,
+        username: username,
       ),
       pb.StartDeviceInviteResponse.create,
     );
@@ -76,6 +81,7 @@ class ProtosApi {
     required String username,
     required String name,
     required String verificationCode,
+    required String joinMode,
     String inviteId = '',
     String channel = 'mdns',
   }) async {
@@ -89,6 +95,7 @@ class ProtosApi {
         name: name,
         channel: channel,
         verificationCode: verificationCode,
+        joinMode: joinMode,
       ),
       pb.JoinOrganisationResponse.create,
     );
