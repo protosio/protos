@@ -38,7 +38,7 @@ func createTaskUpdateMapper(record Record) db.UpdateMapper {
 		t := sq.New[db.TASK]("")
 		return sq.Update(t).SetFunc(func(col *sq.Column) {
 			setTaskColumns(col, t, record)
-		}).Where(t.ID.EqString(record.ID))
+		}).Where(db.UUIDEq(t.ID, record.ID))
 	}
 }
 
@@ -46,8 +46,8 @@ func createTaskEventInsertMapper(event Event) db.InsertMapper {
 	return func() sq.InsertQuery {
 		e := sq.New[db.TASK_EVENT]("")
 		return sq.InsertInto(e).ColumnValues(func(col *sq.Column) {
-			col.SetString(e.ID, event.ID)
-			col.SetString(e.TASK_ID, event.TaskID)
+			col.SetBytes(e.ID, db.MustUUIDBytes(event.ID))
+			col.SetBytes(e.TASK_ID, db.MustUUIDBytes(event.TaskID))
 			col.SetString(e.STATUS, string(event.Status))
 			col.SetString(e.MESSAGE, event.Message)
 			col.SetInt(e.PROGRESS, event.Progress)
@@ -80,7 +80,12 @@ func selectTaskRecords(database *db.DB, filters taskQueryFilters, includeDetails
 
 	for _, id := range filters.IDs {
 		if id = strings.TrimSpace(id); id != "" {
-			addPredicate("id = ?", id)
+			idBytes, err := db.UUIDBytes(id)
+			if err != nil {
+				addPredicate("1 = ?", 0)
+			} else {
+				addPredicate("id = ?", idBytes)
+			}
 			break
 		}
 	}
@@ -118,10 +123,14 @@ func selectTaskRecords(database *db.DB, filters taskQueryFilters, includeDetails
 }
 
 func selectTaskEvents(database *db.DB, taskID string) ([]Event, error) {
+	taskIDBytes, err := db.UUIDBytes(strings.TrimSpace(taskID))
+	if err != nil {
+		return nil, nil
+	}
 	rows, err := database.QueryContext(
 		context.Background(),
 		"SELECT "+taskEventSelectColumns+" FROM task_events WHERE task_id = ?",
-		strings.TrimSpace(taskID),
+		taskIDBytes,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("select task events: %w", err)
@@ -144,10 +153,11 @@ func selectTaskEvents(database *db.DB, taskID string) ([]Event, error) {
 
 func scanTaskRow(rows *stdsql.Rows) (Record, error) {
 	var record Record
+	var id []byte
 	var payload, result stdsql.NullString
 	var createdAt, updatedAt, startedAt, finishedAt string
 	if err := rows.Scan(
-		&record.ID,
+		&id,
 		&record.Stream,
 		&record.SubjectType,
 		&record.SubjectID,
@@ -167,6 +177,7 @@ func scanTaskRow(rows *stdsql.Rows) (Record, error) {
 	); err != nil {
 		return Record{}, fmt.Errorf("scan task: %w", err)
 	}
+	record.ID = db.UUIDString(id)
 	record.Payload = rawJSON(payload)
 	record.Result = rawJSON(result)
 	record.CreatedAt = parseTime(createdAt)
@@ -178,11 +189,12 @@ func scanTaskRow(rows *stdsql.Rows) (Record, error) {
 
 func scanTaskEventRow(rows *stdsql.Rows) (Event, error) {
 	var event Event
+	var id, taskID []byte
 	var details stdsql.NullString
 	var createdAt string
 	if err := rows.Scan(
-		&event.ID,
-		&event.TaskID,
+		&id,
+		&taskID,
 		&event.Status,
 		&event.Message,
 		&event.Progress,
@@ -191,13 +203,15 @@ func scanTaskEventRow(rows *stdsql.Rows) (Event, error) {
 	); err != nil {
 		return Event{}, fmt.Errorf("scan task event: %w", err)
 	}
+	event.ID = db.UUIDString(id)
+	event.TaskID = db.UUIDString(taskID)
 	event.Details = rawJSON(details)
 	event.CreatedAt = parseTime(createdAt)
 	return event, nil
 }
 
 func setTaskColumns(col *sq.Column, t db.TASK, record Record) {
-	col.SetString(t.ID, record.ID)
+	col.SetBytes(t.ID, db.MustUUIDBytes(record.ID))
 	col.SetString(t.TASK_STREAM, record.Stream)
 	col.SetString(t.SUBJECT_TYPE, record.SubjectType)
 	col.SetString(t.SUBJECT_ID, record.SubjectID)

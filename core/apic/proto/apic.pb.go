@@ -576,6 +576,7 @@ type StartDeviceInviteResponse struct {
 	AdvertiseName    string                 `protobuf:"bytes,3,opt,name=advertise_name,json=advertiseName,proto3" json:"advertise_name,omitempty"`
 	AdvertiseService string                 `protobuf:"bytes,4,opt,name=advertise_service,json=advertiseService,proto3" json:"advertise_service,omitempty"`
 	Channel          string                 `protobuf:"bytes,5,opt,name=channel,proto3" json:"channel,omitempty"`
+	VerificationCode string                 `protobuf:"bytes,6,opt,name=verification_code,json=verificationCode,proto3" json:"verification_code,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -641,6 +642,13 @@ func (x *StartDeviceInviteResponse) GetAdvertiseService() string {
 func (x *StartDeviceInviteResponse) GetChannel() string {
 	if x != nil {
 		return x.Channel
+	}
+	return ""
+}
+
+func (x *StartDeviceInviteResponse) GetVerificationCode() string {
+	if x != nil {
+		return x.VerificationCode
 	}
 	return ""
 }
@@ -818,15 +826,16 @@ func (x *ListNearbyOrganisationsResponse) GetOrganisations() []*NearbyOrganisati
 }
 
 type JoinOrganisationRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	OrganisationId string                 `protobuf:"bytes,1,opt,name=organisation_id,json=organisationId,proto3" json:"organisation_id,omitempty"`
-	PeerId         string                 `protobuf:"bytes,2,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	InviteId       string                 `protobuf:"bytes,3,opt,name=invite_id,json=inviteId,proto3" json:"invite_id,omitempty"`
-	Username       string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
-	Name           string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
-	Channel        string                 `protobuf:"bytes,6,opt,name=channel,proto3" json:"channel,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	OrganisationId   string                 `protobuf:"bytes,1,opt,name=organisation_id,json=organisationId,proto3" json:"organisation_id,omitempty"`
+	PeerId           string                 `protobuf:"bytes,2,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	InviteId         string                 `protobuf:"bytes,3,opt,name=invite_id,json=inviteId,proto3" json:"invite_id,omitempty"`
+	Username         string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
+	Name             string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	Channel          string                 `protobuf:"bytes,6,opt,name=channel,proto3" json:"channel,omitempty"`
+	VerificationCode string                 `protobuf:"bytes,7,opt,name=verification_code,json=verificationCode,proto3" json:"verification_code,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *JoinOrganisationRequest) Reset() {
@@ -897,6 +906,13 @@ func (x *JoinOrganisationRequest) GetName() string {
 func (x *JoinOrganisationRequest) GetChannel() string {
 	if x != nil {
 		return x.Channel
+	}
+	return ""
+}
+
+func (x *JoinOrganisationRequest) GetVerificationCode() string {
+	if x != nil {
+		return x.VerificationCode
 	}
 	return ""
 }
@@ -9154,13 +9170,14 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\rorganisations\x18\x01 \x03(\v2\x12.apic.OrganisationR\rorganisations\"]\n" +
 	"\x18StartDeviceInviteRequest\x12'\n" +
 	"\x0forganisation_id\x18\x01 \x01(\tR\x0eorganisationId\x12\x18\n" +
-	"\achannel\x18\x02 \x01(\tR\achannel\"\xce\x01\n" +
+	"\achannel\x18\x02 \x01(\tR\achannel\"\xfb\x01\n" +
 	"\x19StartDeviceInviteResponse\x12\x1b\n" +
 	"\tinvite_id\x18\x01 \x01(\tR\binviteId\x12&\n" +
 	"\x0fexpires_at_unix\x18\x02 \x01(\x03R\rexpiresAtUnix\x12%\n" +
 	"\x0eadvertise_name\x18\x03 \x01(\tR\radvertiseName\x12+\n" +
 	"\x11advertise_service\x18\x04 \x01(\tR\x10advertiseService\x12\x18\n" +
-	"\achannel\x18\x05 \x01(\tR\achannel\"\xdb\x01\n" +
+	"\achannel\x18\x05 \x01(\tR\achannel\x12+\n" +
+	"\x11verification_code\x18\x06 \x01(\tR\x10verificationCode\"\xdb\x01\n" +
 	"\x12NearbyOrganisation\x12'\n" +
 	"\x0forganisation_id\x18\x01 \x01(\tR\x0eorganisationId\x12+\n" +
 	"\x11organisation_name\x18\x02 \x01(\tR\x10organisationName\x12\x1f\n" +
@@ -9172,14 +9189,15 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x1eListNearbyOrganisationsRequest\x12\x18\n" +
 	"\achannel\x18\x01 \x01(\tR\achannel\"a\n" +
 	"\x1fListNearbyOrganisationsResponse\x12>\n" +
-	"\rorganisations\x18\x01 \x03(\v2\x18.apic.NearbyOrganisationR\rorganisations\"\xc2\x01\n" +
+	"\rorganisations\x18\x01 \x03(\v2\x18.apic.NearbyOrganisationR\rorganisations\"\xef\x01\n" +
 	"\x17JoinOrganisationRequest\x12'\n" +
 	"\x0forganisation_id\x18\x01 \x01(\tR\x0eorganisationId\x12\x17\n" +
 	"\apeer_id\x18\x02 \x01(\tR\x06peerId\x12\x1b\n" +
 	"\tinvite_id\x18\x03 \x01(\tR\binviteId\x12\x1a\n" +
 	"\busername\x18\x04 \x01(\tR\busername\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12\x18\n" +
-	"\achannel\x18\x06 \x01(\tR\achannel\"\x1a\n" +
+	"\achannel\x18\x06 \x01(\tR\achannel\x12+\n" +
+	"\x11verification_code\x18\a \x01(\tR\x10verificationCode\"\x1a\n" +
 	"\x18JoinOrganisationResponse\"\x17\n" +
 	"\x15GetLocalSSHKeyRequest\"J\n" +
 	"\x16GetLocalSSHKeyResponse\x12\x16\n" +

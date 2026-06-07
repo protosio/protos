@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-func TestGenerateOrganisationIDReturnsUUIDV4(t *testing.T) {
+func TestGenerateOrganisationIDReturnsUUIDV7(t *testing.T) {
 	id, err := GenerateOrganisationID()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	pattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 	if !pattern.MatchString(id) {
-		t.Fatalf("GenerateOrganisationID() = %q, want UUID v4", id)
+		t.Fatalf("GenerateOrganisationID() = %q, want UUID v7", id)
 	}
 }
 

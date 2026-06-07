@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
 )
 
@@ -71,6 +72,10 @@ func (i InstanceInfo) GetID() string {
 
 func (i InstanceInfo) GetPublicKey() string {
 	return i.PublicKey
+}
+
+func (i InstanceInfo) GetPeerID() (string, error) {
+	return db.PeerIDFromPublicKeyString(i.PublicKey)
 }
 
 func (i InstanceInfo) GetPublicIP() string {

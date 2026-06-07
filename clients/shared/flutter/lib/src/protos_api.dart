@@ -75,6 +75,7 @@ class ProtosApi {
     required String peerId,
     required String username,
     required String name,
+    required String verificationCode,
     String inviteId = '',
     String channel = 'mdns',
   }) async {
@@ -87,6 +88,7 @@ class ProtosApi {
         username: username,
         name: name,
         channel: channel,
+        verificationCode: verificationCode,
       ),
       pb.JoinOrganisationResponse.create,
     );

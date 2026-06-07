@@ -11,18 +11,18 @@ type QueryMapper[T any] func() (sq.SelectQuery, func(row *sq.Row) T)
 
 type MACHINE struct {
 	sq.TableStruct `sq:"machines"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
 	NAME           sq.StringField `ddl:"notnull index"`
-	KIND           sq.StringField `ddl:"notnull"`
-	DESIRED_STATUS sq.StringField
+	KIND           sq.StringField `ddl:"notnull index"`
+	DESIRED_STATUS sq.StringField `ddl:"index"`
 	WITNESS_RANK   sq.NumberField `ddl:"notnull"`
 }
 
 type CLOUD_MACHINE_METADATA struct {
 	sq.TableStruct       `sq:"cloud_machines_metadata"`
-	ID                   sq.StringField `ddl:"notnull primarykey"`
-	CLOUD_ID             sq.StringField `ddl:"notnull"`
-	PROVIDER_RESOURCE_ID sq.StringField
+	ID                   sq.BinaryField `ddl:"notnull primarykey"`
+	CLOUD_ID             sq.StringField `ddl:"notnull index"`
+	PROVIDER_RESOURCE_ID sq.StringField `ddl:"index"`
 	PUBLIC_IP            sq.StringField `ddl:"notnull"`
 	LOCATION             sq.StringField `ddl:"notnull"`
 	ARCHITECTURE         sq.StringField `ddl:"notnull"`
@@ -31,18 +31,18 @@ type CLOUD_MACHINE_METADATA struct {
 
 type CLOUD_PROVIDER struct {
 	sq.TableStruct `sq:"cloud_providers"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
 	NAME           sq.StringField `ddl:"notnull index"`
-	TYPE           sq.StringField `ddl:"notnull"`
+	TYPE           sq.StringField `ddl:"notnull index"`
 	AUTH           sq.JSONField   `ddl:"notnull"`
 }
 
 type APP struct {
 	sq.TableStruct `sq:"apps"`
-	ID             sq.StringField  `ddl:"notnull primarykey"`
+	ID             sq.BinaryField  `ddl:"notnull primarykey"`
 	NAME           sq.StringField  `ddl:"notnull index"`
 	INSTALLER_REF  sq.StringField  `ddl:"notnull"`
-	INSTANCE_ID    sq.StringField  `ddl:"notnull"`
+	INSTANCE_ID    sq.StringField  `ddl:"notnull index"`
 	DESIRED_STATUS sq.StringField  `ddl:"notnull"`
 	PERSISTENCE    sq.BooleanField `ddl:"notnull"`
 	PUBLIC_KEY     sq.StringField  `ddl:"notnull index"`
@@ -50,35 +50,37 @@ type APP struct {
 
 type ORGANISATION struct {
 	sq.TableStruct `sq:"organisations"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
 	NAME           sq.StringField `ddl:"notnull index"`
 	CREATED_AT     sq.StringField `ddl:"notnull"`
 }
 
 type USER struct {
 	sq.TableStruct `sq:"users"`
-	USERNAME       sq.StringField `ddl:"notnull primarykey"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
+	USERNAME       sq.StringField `ddl:"notnull index"`
 	NAME           sq.StringField
 	IS_DISABLED    sq.BooleanField `ddl:"notnull"`
 }
 
 type USER_DEVICE_METADATA struct {
 	sq.TableStruct `sq:"user_devices_metadata"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
 	PUBLIC_KEY     sq.StringField `ddl:"notnull index"`
-	USER_ID        sq.StringField `ddl:"notnull index"`
+	USER_ID        sq.BinaryField `ddl:"notnull index"`
 	NAME           sq.StringField `ddl:"notnull"`
 	WITNESS_RANK   sq.NumberField `ddl:"notnull"`
 }
 
 type PEER struct {
 	sq.TableStruct `sq:"peers"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
+	PUBLIC_KEY     sq.StringField `ddl:"notnull index"`
 }
 
 type TASK struct {
 	sq.TableStruct `sq:"tasks"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
 	TASK_STREAM    sq.StringField `ddl:"notnull index"`
 	SUBJECT_TYPE   sq.StringField `ddl:"notnull index"`
 	SUBJECT_ID     sq.StringField `ddl:"notnull index"`
@@ -99,8 +101,8 @@ type TASK struct {
 
 type TASK_EVENT struct {
 	sq.TableStruct `sq:"task_events"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
-	TASK_ID        sq.StringField `ddl:"notnull index"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
+	TASK_ID        sq.BinaryField `ddl:"notnull index"`
 	STATUS         sq.StringField `ddl:"notnull index"`
 	MESSAGE        sq.StringField `ddl:"notnull"`
 	PROGRESS       sq.NumberField `ddl:"notnull"`
@@ -110,9 +112,9 @@ type TASK_EVENT struct {
 
 type EXIT_ROUTE struct {
 	sq.TableStruct `sq:"exit_routes"`
-	ID             sq.StringField `ddl:"notnull primarykey"`
-	DEVICE_ID      sq.StringField `ddl:"notnull index"`
-	INSTANCE_ID    sq.StringField `ddl:"notnull index"`
+	ID             sq.BinaryField `ddl:"notnull primarykey"`
+	DEVICE_ID      sq.BinaryField `ddl:"notnull index"`
+	INSTANCE_ID    sq.BinaryField `ddl:"notnull index"`
 	DESIRED_STATUS sq.StringField `ddl:"notnull"`
 	DNS_SERVER     sq.StringField `ddl:"notnull"`
 	CIDRS          sq.StringField `ddl:"notnull"`

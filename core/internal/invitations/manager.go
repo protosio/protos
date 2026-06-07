@@ -20,6 +20,8 @@ type Invite struct {
 	DeviceName       string
 	PeerID           string
 	PublicKey        string
+	VerificationCode string
+	VerificationHash string
 	Port             int
 	P2PAddrs         []string
 	SwarmionAddrs    []string
@@ -36,6 +38,7 @@ type NearbyInvite struct {
 	DeviceName       string
 	PeerID           string
 	PublicKey        string
+	VerificationHash string
 	P2PAddrs         []string
 	SwarmionAddrs    []string
 	ExpiresAt        time.Time

@@ -4,6 +4,17 @@ vars:
   TIMEOUT: '{{.TIMEOUT | default "5m"}}'
   GO_TEST_CACHE: '{{.GO_TEST_CACHE | default "/tmp/protos-gocache"}}'
   NATIVE_GO_TAGS: '{{.NATIVE_GO_TAGS | default "dolt_purego_zstd,gms_pure_go"}}'
+  E2E_PROBE_IMAGE: '{{.E2E_PROBE_IMAGE | default "docker.io/protosio/protos-e2e-probe:latest"}}'
+  E2E_IMAGE_REGISTRY_IMAGE: '{{.E2E_IMAGE_REGISTRY_IMAGE | default "docker.io/library/nginx:alpine"}}'
+  E2E_PROBE_IMAGE_PLATFORM: '{{.E2E_PROBE_IMAGE_PLATFORM | default "linux/amd64"}}'
+  E2E_PROBE_IMAGE_PLATFORMS: '{{.E2E_PROBE_IMAGE_PLATFORMS | default "linux/amd64,linux/arm64"}}'
+  E2E_PROBE_IMAGE_ARCHIVE: '{{.E2E_PROBE_IMAGE_ARCHIVE | default ".tmp/protos-e2e-probe.tar.gz"}}'
+  E2E_HETZNER_ENV: '{{.E2E_HETZNER_ENV | default "../.env-hetzner"}}'
+  E2E_SCALEWAY_ENV: '{{.E2E_SCALEWAY_ENV | default "../.env-scaleway"}}'
+  E2E_PROBE_SMOKE_PORT: '{{.E2E_PROBE_SMOKE_PORT | default "18080"}}'
+  E2E_PROBE_BUILDER: '{{.E2E_PROBE_BUILDER | default "protos-e2e-probe-builder"}}'
+  IMAGE_ARCHIVE: '{{.IMAGE_ARCHIVE | default ""}}'
+  IMAGE_REF: '{{.IMAGE_REF | default ""}}'
 
 tasks:
   generate:
@@ -88,6 +99,97 @@ tasks:
           - network/modules/networkextension
           - network/modules/wireguard
         cmd: cd {{.ITEM}} && env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
+
+  image:load:
+    desc: Load a local image tar or tar.gz into the Protos app runtime
+    cmds:
+      - |
+        set -e
+        if [ -z "{{.IMAGE_ARCHIVE}}" ]; then
+          echo "IMAGE_ARCHIVE is required" >&2
+          exit 2
+        fi
+        ref_arg=""
+        if [ -n "{{.IMAGE_REF}}" ]; then
+          ref_arg="--ref {{.IMAGE_REF}}"
+        fi
+        env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./cmd/protosd image load $ref_arg "{{.IMAGE_ARCHIVE}}"
+
+  e2e:local-macos:
+    desc: Run the local macOS VM E2E harness
+    cmds:
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/local-macos-e2e {{.CLI_ARGS}}
+
+  e2e:local-macos:image-registry:
+    desc: Run the local macOS VM E2E harness with Protos P2P app-image resolution enabled
+    cmds:
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/local-macos-e2e --instances 2 --app-image {{.E2E_IMAGE_REGISTRY_IMAGE}} {{.CLI_ARGS}}
+
+  e2e:mixed-witness:
+    desc: Run the mixed local plus Hetzner plus Scaleway cloud VM E2E harness
+    deps:
+      - e2e:probe-image:archive
+    cmds:
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/mixed-witness-e2e --hetzner-env {{.E2E_HETZNER_ENV}} --scaleway-env {{.E2E_SCALEWAY_ENV}} --app-image {{.E2E_PROBE_IMAGE}} --seed-image-archive {{.E2E_PROBE_IMAGE_ARCHIVE}} {{.CLI_ARGS}}
+
+  e2e:probe-image:build:
+    desc: Build the Protos E2E app probe container image locally
+    cmds:
+      - docker buildx build --platform {{.E2E_PROBE_IMAGE_PLATFORM}} --load -f cmd/protos-e2e-probe/Dockerfile -t {{.E2E_PROBE_IMAGE}} .
+
+  e2e:probe-image:archive:
+    desc: Build and save the Protos E2E app probe image as a local tar.gz archive
+    deps:
+      - e2e:probe-image:build
+    cmds:
+      - |
+        set -e
+        mkdir -p "$(dirname "{{.E2E_PROBE_IMAGE_ARCHIVE}}")"
+        docker save {{.E2E_PROBE_IMAGE}} | gzip -c > "{{.E2E_PROBE_IMAGE_ARCHIVE}}"
+        test -s "{{.E2E_PROBE_IMAGE_ARCHIVE}}"
+
+  e2e:probe-image:push:
+    desc: Build and push the Protos E2E app probe container image to Docker Hub
+    cmds:
+      - |
+        set -e
+        if ! docker buildx inspect {{.E2E_PROBE_BUILDER}} >/dev/null 2>&1; then
+          docker buildx create --name {{.E2E_PROBE_BUILDER}} --driver docker-container --bootstrap >/dev/null
+        fi
+        docker buildx build --builder {{.E2E_PROBE_BUILDER}} --platform {{.E2E_PROBE_IMAGE_PLATFORMS}} --push -f cmd/protos-e2e-probe/Dockerfile -t {{.E2E_PROBE_IMAGE}} .
+
+  e2e:probe-image:smoke:
+    desc: Smoke test the local Protos E2E app probe container image
+    deps:
+      - e2e:probe-image:build
+    cmds:
+      - |
+        set -e
+        name="protos-e2e-probe-smoke-$$"
+        cleanup() {
+          docker rm -f "$name" >/dev/null 2>&1 || true
+        }
+        trap cleanup EXIT
+        docker run --platform {{.E2E_PROBE_IMAGE_PLATFORM}} --rm -d --name "$name" -p 127.0.0.1:{{.E2E_PROBE_SMOKE_PORT}}:8080 {{.E2E_PROBE_IMAGE}} >/dev/null
+        for attempt in $(seq 1 30); do
+          if curl -fsS "http://127.0.0.1:{{.E2E_PROBE_SMOKE_PORT}}/healthz" >/dev/null 2>&1; then
+            break
+          fi
+          if [ "$attempt" -eq 30 ]; then
+            echo "probe image did not become healthy" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+        body="$(curl -fsS "http://127.0.0.1:{{.E2E_PROBE_SMOKE_PORT}}/probe?target=http%3A%2F%2F127.0.0.1%3A8080%2F")"
+        case "$body" in
+          *'"ok":true'*)
+            ;;
+          *)
+            echo "probe image self-check failed: $body" >&2
+            exit 1
+            ;;
+        esac
 
   default:
     desc: Show available tasks

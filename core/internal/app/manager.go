@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	"github.com/protosio/protos/internal/runtime"
 
 	"github.com/pkg/errors"
-	"github.com/rs/xid"
 )
 
 const (
@@ -21,10 +21,15 @@ const (
 
 // Manager keeps track of all the apps
 type Manager struct {
-	ptype    string
-	db       *db.DB
-	runtime  runtime.RuntimePlatform
-	notifyMu sync.Mutex
+	ptype         string
+	db            *db.DB
+	runtime       runtime.RuntimePlatform
+	imageResolver ImageResolver
+	notifyMu      sync.Mutex
+}
+
+type ImageResolver interface {
+	ResolveImage(ctx context.Context, imageRef string) error
 }
 
 //
@@ -37,6 +42,13 @@ func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB) *Ma
 	manager := &Manager{ptype: ptype, db: db, runtime: runtime}
 
 	return manager
+}
+
+func (am *Manager) SetImageResolver(resolver ImageResolver) {
+	if am == nil {
+		return
+	}
+	am.imageResolver = resolver
 }
 
 func (am *Manager) bind(app App) App {
@@ -71,14 +83,17 @@ func (am *Manager) Create(installer string, name string, instanceName string, pe
 		return nil, fmt.Errorf("failed to generate application key: %w", err)
 	}
 
-	guid := xid.New()
-	log.Debugf("Creating application %s(%s), based on installer %s", guid.String(), name, installer)
+	appID, err := db.NewUUIDv7()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate application id: %w", err)
+	}
+	log.Debugf("Creating application %s(%s), based on installer %s", appID, name, installer)
 	app = &App{
 		access: &sync.Mutex{},
 		mgr:    am,
 
 		Name:          name,
-		ID:            guid.String(),
+		ID:            appID,
 		InstallerRef:  installer,
 		InstanceID:    instanceName,
 		DesiredStatus: statusStopped,
@@ -92,7 +107,7 @@ func (am *Manager) Create(installer string, name string, instanceName string, pe
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
 	}
 
-	log.Debug("Created application ", name, "[", guid.String(), "]")
+	log.Debug("Created application ", name, "[", appID, "]")
 	return app, nil
 }
 
@@ -103,7 +118,7 @@ func (am *Manager) Create(installer string, name string, instanceName string, pe
 // GetByID returns an application based on its id
 func (am *Manager) GetByID(id string) (App, error) {
 	appModel := sq.New[db.APP]("")
-	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.ID.EqString(id)}))
+	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{db.UUIDEq(appModel.ID, id)}))
 	if err != nil {
 		return app, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
@@ -114,7 +129,7 @@ func (am *Manager) GetByID(id string) (App, error) {
 // Get returns a copy of an application based on its name or id
 func (am *Manager) Get(id string) (App, error) {
 	appModel := sq.New[db.APP]("")
-	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.ID.EqString(id)}))
+	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{db.UUIDEq(appModel.ID, id)}))
 	if err == nil {
 		return am.bind(app), nil
 	}
@@ -125,14 +140,6 @@ func (am *Manager) Get(id string) (App, error) {
 	}
 
 	return am.bind(app), nil
-}
-
-func (am *Manager) GetAppID(name string) (string, error) {
-	app, err := am.Get(name)
-	if err != nil {
-		return "", err
-	}
-	return app.ID, nil
 }
 
 // GetAll returns a copy of all the applications
@@ -219,7 +226,28 @@ func (am *Manager) Notify() {
 
 func (am *Manager) shouldReconcile(app App) bool {
 	instanceID := strings.TrimSpace(app.InstanceID)
-	return instanceID == "n/a" || instanceID == am.ptype
+	if instanceID == "n/a" {
+		return true
+	}
+	if instanceID == "" || strings.TrimSpace(am.ptype) == "" {
+		return false
+	}
+	if _, err := db.UUIDBytes(instanceID); err != nil {
+		log.Debugf("Skipping app '%s': assigned instance id %q is not a UUID", app.Name, instanceID)
+		return false
+	}
+
+	publicKey, err := db.SelectOne(am.db, createAppInstancePublicKeyQueryMapper(instanceID))
+	if err != nil {
+		log.Debugf("Skipping app '%s': assigned instance %q could not be resolved: %s", app.Name, instanceID, err.Error())
+		return false
+	}
+	peerID, err := db.PeerIDFromPublicKeyString(publicKey)
+	if err != nil {
+		log.Debugf("Skipping app '%s': assigned instance %q has invalid public key: %s", app.Name, instanceID, err.Error())
+		return false
+	}
+	return peerID == am.ptype
 }
 
 // Start sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance

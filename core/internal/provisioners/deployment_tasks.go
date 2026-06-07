@@ -8,7 +8,6 @@ import (
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/tasks"
-	"github.com/rs/xid"
 )
 
 const (
@@ -56,7 +55,7 @@ func (cm *Manager) TaskManager() *tasks.Manager {
 }
 
 func newPendingInstanceID() string {
-	return "pending-" + xid.New().String()
+	return db.MustNewUUIDv7()
 }
 
 func (cm *Manager) runDeployInstanceTask(ctx context.Context, task *tasks.RunContext[deployInstanceTaskPayload]) (deployInstanceTaskResult, error) {
@@ -89,11 +88,12 @@ func (cm *Manager) completeDeploymentInstance(pendingID string, instance Instanc
 	if _, err := db.SelectOne(cm.db, createInstanceQueryMapper(pendingID)); err != nil {
 		return fmt.Errorf("pending instance '%s' no longer exists: %w", pendingID, err)
 	}
+	instance.ID = pendingID
 	im, cmm := createInstanceFinalizeMapper(pendingID, instance)
 	if err := db.Update(cm.db, im, cmm); err != nil {
 		return err
 	}
-	if err := db.Insert(cm.db, db.CreatePeerInsertMapper(instance.ID)); err != nil {
+	if err := db.Insert(cm.db, db.CreatePeerInsertMapper(instance.PublicKey)); err != nil {
 		return err
 	}
 	return nil

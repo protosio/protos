@@ -176,8 +176,8 @@ var (
 	srvMu      sync.Mutex
 )
 
-// StartServer starts a DNS server used for resolving internal Protos addresses
-func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, appManager *app.Manager) func() error {
+// StartServer starts a DNS server used for resolving internal Protos addresses.
+func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, appManager *app.Manager) (func() error, error) {
 	listenAddr := key.IPv6Address().String()
 	if port != 53 {
 		listenAddr = "127.0.0.1"
@@ -194,7 +194,12 @@ func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, ap
 	handler := &handler{listenAddr: listenAddr, domain: domain, appManager: appManager}
 	handler.setExternalServer(dnsServer)
 
-	server := &dns.Server{Addr: net.JoinHostPort(listenAddr, strconv.Itoa(port)), Net: "udp"}
+	addr := net.JoinHostPort(listenAddr, strconv.Itoa(port))
+	packetConn, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to start DNS UDP listener %s", addr)
+	}
+	server := &dns.Server{PacketConn: packetConn, Net: "udp"}
 	server.Handler = handler
 
 	srvMu.Lock()
@@ -202,15 +207,15 @@ func StartServer(key *pcrypto.Key, port int, dnsServer string, domain string, ap
 	srvHandler = handler
 	srvMu.Unlock()
 	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			log.Fatalf("Failed to start DNS UDP listener %s\n", err.Error())
+		if err := server.ActivateAndServe(); err != nil {
+			log.Errorf("DNS UDP listener stopped unexpectedly: %s", err.Error())
 		}
 	}()
 
 	stopper := func() error {
 		return StopServer()
 	}
-	return stopper
+	return stopper, nil
 }
 
 func SetExternalServer(dnsServer string) {

@@ -65,7 +65,7 @@ func TestTaskManagerRunsRegisteredStream(t *testing.T) {
 	}
 
 	var eventCount int
-	rows, err := store.QueryContext(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", queued.ID)
+	rows, err := store.QueryContext(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", db.MustUUIDBytes(queued.ID))
 	if err != nil {
 		t.Fatal(err)
 	}

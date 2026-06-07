@@ -31,6 +31,7 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 		PingerClient:   p2pproto.NewPingerClient(conn),
 		PeerDBClient:   p2pproto.NewPeerDBClient(conn),
 		AppsClient:     p2pproto.NewAppsClient(conn),
+		ImagesClient:   p2pproto.NewImagesClient(conn),
 		InstanceClient: p2pproto.NewInstanceClient(conn),
 	}
 

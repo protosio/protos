@@ -32,6 +32,7 @@ type UserDevice struct {
 // User represents a Protos user
 type User struct {
 	// Public members
+	ID         string `json:"id"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
 	IsDisabled bool   `json:"isdisabled"`
@@ -114,6 +115,7 @@ func CreateManager(db *db.DB, sm *pcrypto.Manager) *Manager {
 func (um *Manager) CreateUser(username string, name string, isadmin bool) (User, error) {
 
 	user := User{
+		ID:         db.MustNewUUIDv7(),
 		Username:   username,
 		Name:       name,
 		IsDisabled: false,
@@ -172,20 +174,39 @@ func (um *Manager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, error) 
 
 // AddDevice adds a device to the user
 func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error {
+	user, err := um.resolveUserRef(userID)
+	if err != nil {
+		return err
+	}
 	ud := UserDevice{
-		ID:          key.GetID(),
+		ID:          db.MustNewUUIDv7(),
 		Name:        name,
 		PublicKey:   key.PublicString(),
-		UserID:      userID,
+		UserID:      user.ID,
 		WitnessRank: db.DefaultWitnessRankForUserDeviceName(name),
 	}
 
-	err := db.Insert(um.db, createUserDeviceInsertMapper(ud), db.CreatePeerInsertMapper(ud.ID))
+	err = db.Insert(um.db, createUserDeviceInsertMapper(ud), db.CreatePeerInsertMapper(ud.PublicKey))
 	if err != nil {
 		return errors.Wrapf(err, "Could not insert user device '%s'", name)
 	}
 
 	return nil
+}
+
+func (um *Manager) resolveUserRef(ref string) (User, error) {
+	if _, err := db.UUIDBytes(ref); err == nil {
+		userModel := sq.New[db.USER]("")
+		user, selectErr := db.SelectOne(um.db, createUserQueryMapper([]sq.Predicate{db.UUIDEq(userModel.ID, ref)}))
+		if selectErr == nil {
+			return user, nil
+		}
+	}
+	user, err := getUser(ref, um.db)
+	if err != nil {
+		return User{}, fmt.Errorf("could not retrieve user '%s': %w", ref, err)
+	}
+	return user, nil
 }
 
 // GetCurrentDevice returns the device that Protos is running on currently

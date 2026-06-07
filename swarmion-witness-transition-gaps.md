@@ -36,7 +36,7 @@ The mixed witness e2e now performs this sequence:
 3. Add one Hetzner VM.
 4. Add one Scaleway VM.
 5. Verify witness-set transitions after each phase.
-6. Deploy two app/container rows using `docker.io/library/nginx:alpine`.
+6. Deploy two app/container rows using `docker.io/protosio/protos-e2e-probe:latest`.
 7. Verify app status reaches `running` on both cloud VMs.
 8. Verify container-to-container HTTP connectivity in both directions.
 9. Destroy local/cloud resources and verify no leftovers.

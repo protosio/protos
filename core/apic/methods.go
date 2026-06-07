@@ -146,6 +146,13 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 	if len(swarmionAddrs) == 0 {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "no local database bootstrap addresses are available")
 	}
+	log.Infof(
+		"starting device invite for organisation %q via channel %q with %d local IPs and %d bootstrap addresses",
+		organisation.ID,
+		in.GetChannel(),
+		len(localIPs),
+		len(swarmionAddrs),
+	)
 	invite, err := b.protosClient.Invites.StartInvite(ctx, in.GetChannel(), invitations.Invite{
 		OrganisationID:   organisation.ID,
 		OrganisationName: organisation.Name,
@@ -159,12 +166,20 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 	if err != nil {
 		return nil, err
 	}
+	log.Infof(
+		"device invite %q active via %q as %q with verification code %q",
+		invite.InviteID,
+		invite.Channel,
+		invite.AdvertiseName,
+		invite.VerificationCode,
+	)
 	return &pbApic.StartDeviceInviteResponse{
 		InviteId:         invite.InviteID,
 		ExpiresAtUnix:    invite.ExpiresAt.Unix(),
 		AdvertiseName:    invite.AdvertiseName,
 		AdvertiseService: invite.AdvertiseService,
 		Channel:          invite.Channel,
+		VerificationCode: invite.VerificationCode,
 	}, nil
 }
 
@@ -210,6 +225,12 @@ func (b *Backend) JoinOrganisation(ctx context.Context, in *pbApic.JoinOrganisat
 	nearby, err := b.protosClient.Invites.Find(ctx, in.GetChannel(), in.GetOrganisationId(), in.GetPeerId(), in.GetInviteId())
 	if err != nil {
 		return nil, err
+	}
+	if err := invitations.VerifyNearbyInviteCode(nearby, in.GetVerificationCode()); err != nil {
+		return nil, grpcstatus.Error(codes.InvalidArgument, err.Error())
+	}
+	if err := verifyInvitePeerKey(nearby); err != nil {
+		return nil, grpcstatus.Error(codes.InvalidArgument, err.Error())
 	}
 	if err := b.protosClient.DB.InitFromPeer(nearby.PeerID, nearby.SwarmionAddrs); err != nil {
 		return nil, fmt.Errorf("join organisation from %s: %w", nearby.PeerID, err)
@@ -276,6 +297,17 @@ func (b *Backend) ensureJoinedUserDevice(username string, name string) error {
 		return fmt.Errorf("load local key: %w", err)
 	}
 	return b.protosClient.Manager.AddDevice(username, localDeviceName(b.protosClient.Manager), localKey)
+}
+
+func verifyInvitePeerKey(nearby invitations.NearbyInvite) error {
+	derivedPeerID, err := pcrypto.PeerIDFromPublicKeyString(nearby.PublicKey)
+	if err != nil {
+		return fmt.Errorf("invalid invite public key: %w", err)
+	}
+	if derivedPeerID != nearby.PeerID {
+		return fmt.Errorf("invite public key does not match peer id")
+	}
+	return nil
 }
 
 func localDeviceName(manager *user.Manager) string {
@@ -383,16 +415,23 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 	resp := pbApic.GetAppsResponse{}
 	for _, app := range apps {
 		status := "n/a"
-		client, err := b.protosClient.P2PManager.GetClient(app.InstanceID)
+		instanceName := app.InstanceID
+		peerID, instance, err := b.appInstancePeerID(app.InstanceID)
 		if err != nil {
-			log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
+			log.Errorf("Failed to resolve instance for app '%s': %s", app.Name, err.Error())
 		} else {
-			// FIXME: run this in parallel for all apps
-			resp, err := client.GetAppStatus(context.TODO(), &p2pproto.GetAppStatusRequest{AppName: app.Name})
+			instanceName = instance.Name
+			client, err := b.protosClient.P2PManager.GetClient(peerID)
 			if err != nil {
 				log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
 			} else {
-				status = resp.Status
+				// FIXME: run this in parallel for all apps
+				resp, err := client.GetAppStatus(context.TODO(), &p2pproto.GetAppStatusRequest{AppName: app.Name})
+				if err != nil {
+					log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
+				} else {
+					status = resp.Status
+				}
 			}
 		}
 
@@ -401,7 +440,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 			Name:         app.Name,
 			Version:      app.GetVersion(),
 			Status:       fmt.Sprintf("%s (%s)", status, app.DesiredStatus),
-			InstanceName: app.InstanceID,
+			InstanceName: instanceName,
 			Ip:           app.IPString(),
 			Installer:    app.InstallerRef,
 			Persistence:  app.Persistence,
@@ -467,7 +506,11 @@ func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) 
 		return nil, fmt.Errorf("could not retrieve logs for app '%s': %w", in.Name, err)
 	}
 
-	client, err := b.protosClient.P2PManager.GetClient(app.InstanceID)
+	peerID, _, err := b.appInstancePeerID(app.InstanceID)
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve instance for app '%s': %w", in.Name, err)
+	}
+	client, err := b.protosClient.P2PManager.GetClient(peerID)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve logs for app '%s': %w", in.Name, err)
 	}
@@ -483,6 +526,21 @@ func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) 
 	}
 
 	return &pbApic.GetAppLogsResponse{Logs: []byte(base64Logs)}, nil
+}
+
+func (b *Backend) appInstancePeerID(instanceID string) (string, provisioners.InstanceInfo, error) {
+	if b.protosClient == nil || b.protosClient.CloudManager == nil {
+		return "", provisioners.InstanceInfo{}, fmt.Errorf("cloud manager is not available")
+	}
+	instance, err := b.protosClient.CloudManager.GetInstance(instanceID)
+	if err != nil {
+		return "", provisioners.InstanceInfo{}, err
+	}
+	peerID, err := instance.GetPeerID()
+	if err != nil {
+		return "", provisioners.InstanceInfo{}, fmt.Errorf("derive peer id for instance %s: %w", instance.Name, err)
+	}
+	return peerID, instance, nil
 }
 
 //

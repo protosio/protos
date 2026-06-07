@@ -3,7 +3,6 @@ package mdns
 import (
 	"net"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +21,8 @@ func TestInviteTXTRoundTrip(t *testing.T) {
 		DeviceName:       "macbook",
 		PeerID:           "peer-1",
 		PublicKey:        "public-key",
+		VerificationCode: "12345678",
+		VerificationHash: "verification-hash",
 		Port:             10501,
 		P2PAddrs: []string{
 			"/ip4/192.168.1.10/tcp/10501/p2p/peer-1",
@@ -29,6 +30,7 @@ func TestInviteTXTRoundTrip(t *testing.T) {
 		},
 		SwarmionAddrs: []string{
 			"/ip4/192.168.1.10/tcp/10502/p2p/peer-1",
+			"/ip4/192.168.1.11/tcp/10502/p2p/peer-1",
 		},
 		ExpiresAt: expiresAt,
 	}
@@ -63,10 +65,14 @@ func TestInviteTXTRoundTrip(t *testing.T) {
 	if got.PublicKey != invite.PublicKey {
 		t.Fatalf("PublicKey = %q, want %q", got.PublicKey, invite.PublicKey)
 	}
+	if got.VerificationHash == "" {
+		t.Fatal("VerificationHash is empty")
+	}
 	if len(got.P2PAddrs) != 0 {
 		t.Fatalf("P2PAddrs = %#v, want none", got.P2PAddrs)
 	}
 	wantSwarmionAddrs := []string{"/ip4/192.168.1.10/tcp/10502/p2p/peer-1"}
+	wantSwarmionAddrs = append(wantSwarmionAddrs, "/ip4/192.168.1.11/tcp/10502/p2p/peer-1")
 	if !reflect.DeepEqual(got.SwarmionAddrs, wantSwarmionAddrs) {
 		t.Fatalf("SwarmionAddrs = %#v, want %#v", got.SwarmionAddrs, wantSwarmionAddrs)
 	}
@@ -75,7 +81,7 @@ func TestInviteTXTRoundTrip(t *testing.T) {
 	}
 }
 
-func TestInviteTXTOmitsBulkAddresses(t *testing.T) {
+func TestInviteTXTIncludesBootstrapAndOmitsVerificationCode(t *testing.T) {
 	txt := inviteTXT(invitations.Invite{
 		InviteID:         "invite-1",
 		Channel:          invitations.ChannelMDNS,
@@ -84,22 +90,33 @@ func TestInviteTXTOmitsBulkAddresses(t *testing.T) {
 		DeviceName:       "macbook",
 		PeerID:           "peer-1",
 		PublicKey:        "public-key",
+		VerificationHash: "verification-hash",
 		Port:             10500,
 		P2PAddrs:         []string{"/ip4/192.168.1.10/tcp/10500/p2p/peer-1"},
 		SwarmionAddrs:    []string{"/ip4/192.168.1.10/tcp/10501/p2p/peer-1"},
 		ExpiresAt:        time.Now().Add(time.Hour),
 	})
+	hasSwarmionAddr := false
 	for _, value := range txt {
 		if strings.HasPrefix(value, "p2p_addr=") {
 			t.Fatalf("TXT contains p2p_addr entry: %q", value)
 		}
 		if strings.HasPrefix(value, "swarmion_addr=") {
-			t.Fatalf("TXT contains swarmion_addr entry: %q", value)
+			t.Fatalf("TXT contains dictionary-unsafe swarmion_addr entry: %q", value)
 		}
+		if strings.HasPrefix(value, "swarmion_addr_0=") {
+			hasSwarmionAddr = true
+		}
+		if strings.HasPrefix(value, "verification_code=") {
+			t.Fatalf("TXT contains verification_code entry: %q", value)
+		}
+	}
+	if !hasSwarmionAddr {
+		t.Fatal("TXT does not contain indexed swarmion_addr")
 	}
 }
 
-func TestParseEntryBuildsFallbackSwarmionAddress(t *testing.T) {
+func TestParseEntryRejectsMissingExplicitSwarmionAddress(t *testing.T) {
 	got, ok := parseEntry(&zeroconf.ServiceEntry{
 		HostName: "macbook.local.",
 		Port:     10501,
@@ -110,15 +127,13 @@ func TestParseEntryBuildsFallbackSwarmionAddress(t *testing.T) {
 			"org_name=home",
 			"device_name=macbook",
 			"peer_id=peer-1",
-			"expires_at=" + strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10),
+			"public_key=public-key",
+			"verification_hash=verification-hash",
+			"expires_at=1790000000",
 		},
 		AddrIPv4: []net.IP{net.ParseIP("192.168.1.10")},
 	})
-	if !ok {
-		t.Fatal("parseEntry returned ok=false")
-	}
-	want := []string{"/ip4/192.168.1.10/tcp/10502/p2p/peer-1"}
-	if !reflect.DeepEqual(got.SwarmionAddrs, want) {
-		t.Fatalf("SwarmionAddrs = %#v, want %#v", got.SwarmionAddrs, want)
+	if ok {
+		t.Fatalf("parseEntry returned ok=true with %#v", got)
 	}
 }

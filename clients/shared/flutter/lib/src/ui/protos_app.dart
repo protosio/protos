@@ -470,6 +470,7 @@ class _InitializationViewState extends State<InitializationView> {
   final username = TextEditingController();
   final name = TextEditingController();
   final organisation = TextEditingController(text: 'home');
+  final verificationCode = TextEditingController();
   var mode = _InitializationMode.create;
   var selectedNearbyId = '';
 
@@ -479,6 +480,7 @@ class _InitializationViewState extends State<InitializationView> {
     username.addListener(_refreshControls);
     name.addListener(_refreshControls);
     organisation.addListener(_refreshControls);
+    verificationCode.addListener(_refreshControls);
   }
 
   void _refreshControls() => setState(() {});
@@ -488,6 +490,7 @@ class _InitializationViewState extends State<InitializationView> {
     username.dispose();
     name.dispose();
     organisation.dispose();
+    verificationCode.dispose();
     super.dispose();
   }
 
@@ -505,6 +508,7 @@ class _InitializationViewState extends State<InitializationView> {
     final canJoin =
         username.text.nonEmpty != null &&
         name.text.nonEmpty != null &&
+        verificationCode.text.nonEmpty != null &&
         selectedNearby != null &&
         model.daemonState.isRunning &&
         !model.isBusy;
@@ -600,6 +604,7 @@ class _InitializationViewState extends State<InitializationView> {
                     selectedId: selectedNearbyId,
                     canScan: model.daemonState.isRunning && !model.isBusy,
                     canJoin: canJoin,
+                    verificationCode: verificationCode,
                     onSelect: (id) => setState(() => selectedNearbyId = id),
                     onScan: () => unawaited(
                       model.run(() => model.scanNearbyOrganisations()),
@@ -658,6 +663,7 @@ class _InitializationViewState extends State<InitializationView> {
           channel: organisation.channel.nonEmpty ?? 'mdns',
           username: username.text.trim(),
           name: name.text.trim(),
+          verificationCode: verificationCode.text.trim(),
         ),
       ),
     );
@@ -707,6 +713,7 @@ class _JoinOrganisationControls extends StatelessWidget {
     required this.selectedId,
     required this.canScan,
     required this.canJoin,
+    required this.verificationCode,
     required this.onSelect,
     required this.onScan,
     required this.onJoin,
@@ -716,6 +723,7 @@ class _JoinOrganisationControls extends StatelessWidget {
   final String selectedId;
   final bool canScan;
   final bool canJoin;
+  final TextEditingController verificationCode;
   final ValueChanged<String> onSelect;
   final VoidCallback onScan;
   final VoidCallback? onJoin;
@@ -738,6 +746,19 @@ class _JoinOrganisationControls extends StatelessWidget {
             RowColumn('Channel', (row) => row.channel.nonEmpty ?? 'mdns'),
             RowColumn('Peer', (row) => row.peerId, flex: 2),
           ],
+        ),
+        const SizedBox(height: 18),
+        TextField(
+          controller: verificationCode,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.done,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: textField('Invite code'),
+          onSubmitted: (_) {
+            if (canJoin) {
+              onJoin?.call();
+            }
+          },
         ),
         const SizedBox(height: 18),
         Wrap(
@@ -767,6 +788,14 @@ String _nearbyRowId(pb.NearbyOrganisation organisation) {
   final peerID = organisation.peerId.nonEmpty ?? 'peer';
   final inviteID = organisation.inviteId.nonEmpty ?? 'invite';
   return '$channel/$organisationID/$peerID/$inviteID';
+}
+
+String _inviteActiveText(pb.StartDeviceInviteResponse invite) {
+  final code = invite.verificationCode.nonEmpty;
+  if (code == null) {
+    return 'Invite active';
+  }
+  return 'Invite code $code';
 }
 
 class SectionBody extends StatelessWidget {
@@ -840,7 +869,7 @@ class _OverviewViewState extends State<OverviewView> {
               ),
               if (model.deviceInvite != null)
                 Text(
-                  'Invite active',
+                  _inviteActiveText(model.deviceInvite!),
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
             ],

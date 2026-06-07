@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package proto;
+
+
+option go_package = "./proto";
+
+service Images {
+  rpc DescribeImage(DescribeImageRequest) returns (DescribeImageResponse) {}
+  rpc GetImageContent(GetImageContentRequest) returns (GetImageContentResponse) {}
+  rpc GetImageBlobChunk(GetImageBlobChunkRequest) returns (GetImageBlobChunkResponse) {}
+  rpc LoadImageArchive(LoadImageArchiveRequest) returns (LoadImageArchiveResponse) {}
+  rpc UploadImageArchiveChunk(UploadImageArchiveChunkRequest) returns (UploadImageArchiveChunkResponse) {}
+}
+
+message DescribeImageRequest {
+  string image_ref = 1;
+}
+
+message DescribeImageResponse {
+  bool found = 1;
+  string image_ref = 2;
+  string target_digest = 3;
+  string platform = 4;
+  map<string, string> labels = 5;
+}
+
+message ImageContentDescriptor {
+  string media_type = 1;
+  string digest = 2;
+  uint64 size_bytes = 3;
+  string platform = 4;
+  map<string, string> annotations = 5;
+}
+
+message GetImageContentRequest {
+  string image_ref = 1;
+}
+
+message GetImageContentResponse {
+  bool found = 1;
+  string image_ref = 2;
+  ImageContentDescriptor target = 3;
+  string platform = 4;
+  map<string, string> labels = 5;
+  repeated ImageContentDescriptor descriptors = 6;
+}
+
+message GetImageBlobChunkRequest {
+  string digest = 1;
+  uint64 offset = 2;
+  uint64 length = 3;
+}
+
+message GetImageBlobChunkResponse {
+  string digest = 1;
+  uint64 offset = 2;
+  bytes data = 3;
+  bool eof = 4;
+}
+
+message LoadImageArchiveRequest {
+  string archive_path = 1;
+  string image_ref = 2;
+}
+
+message LoadImageArchiveResponse {
+  string image_ref = 1;
+  string target_digest = 2;
+  string platform = 3;
+}
+
+message UploadImageArchiveChunkRequest {
+  string upload_id = 1;
+  string image_ref = 2;
+  uint64 offset = 3;
+  bytes data = 4;
+  bool eof = 5;
+}
+
+message UploadImageArchiveChunkResponse {
+  uint64 received_bytes = 1;
+  bool loaded = 2;
+  string image_ref = 3;
+  string target_digest = 4;
+  string platform = 5;
+}

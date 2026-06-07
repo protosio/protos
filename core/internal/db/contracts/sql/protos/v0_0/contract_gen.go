@@ -19,7 +19,7 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "machines",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "kind", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "desired_status", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
@@ -29,7 +29,7 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "cloud_machines_metadata",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "cloud_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "provider_resource_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
 					{Name: "public_ip", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -41,7 +41,7 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "cloud_providers",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "type", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "auth", Type: "JSON", PrimaryKey: false, NotNull: true},
@@ -50,7 +50,7 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "apps",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "installer_ref", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "instance_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -62,7 +62,7 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "organisations",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(64)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "created_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
 				},
@@ -70,7 +70,8 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "users",
 				Columns: []schema.SQLColumn{
-					{Name: "username", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
+					{Name: "username", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
 					{Name: "is_disabled", Type: "TINYINT(1)", PrimaryKey: false, NotNull: true},
 				},
@@ -78,9 +79,9 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "user_devices_metadata",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "public_key", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
-					{Name: "user_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "user_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "witness_rank", Type: "INT", PrimaryKey: false, NotNull: true},
 				},
@@ -88,13 +89,14 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "peers",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
+					{Name: "public_key", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 				},
 			},
 			{
 				Name: "tasks",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "task_stream", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "subject_type", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "subject_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -116,8 +118,8 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "task_events",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
-					{Name: "task_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
+					{Name: "task_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
 					{Name: "status", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
 					{Name: "message", Type: "TEXT", PrimaryKey: false, NotNull: true},
 					{Name: "progress", Type: "INT", PrimaryKey: false, NotNull: true},
@@ -128,9 +130,9 @@ var Version = schema.VersionDefinition{
 			{
 				Name: "exit_routes",
 				Columns: []schema.SQLColumn{
-					{Name: "id", Type: "VARCHAR(255)", PrimaryKey: true, NotNull: true},
-					{Name: "device_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
-					{Name: "instance_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
+					{Name: "device_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
+					{Name: "instance_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
 					{Name: "desired_status", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "dns_server", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "cidrs", Type: "TEXT", PrimaryKey: false, NotNull: true},
@@ -150,14 +152,14 @@ var Transition = schema.TransitionDefinition{
 
 var CreateSQL = []string{
 	`CREATE TABLE machines (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   kind VARCHAR(255) NOT NULL,
   desired_status VARCHAR(255),
   witness_rank INT NOT NULL
 )`,
 	`CREATE TABLE cloud_machines_metadata (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
   cloud_id VARCHAR(255) NOT NULL,
   provider_resource_id VARCHAR(255),
   public_ip VARCHAR(255) NOT NULL,
@@ -166,13 +168,13 @@ var CreateSQL = []string{
   public_key VARCHAR(255) NOT NULL
 )`,
 	`CREATE TABLE cloud_providers (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   type VARCHAR(255) NOT NULL,
   auth JSON NOT NULL
 )`,
 	`CREATE TABLE apps (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   installer_ref VARCHAR(255) NOT NULL,
   instance_id VARCHAR(255) NOT NULL,
@@ -181,27 +183,29 @@ var CreateSQL = []string{
   public_key VARCHAR(255) NOT NULL
 )`,
 	`CREATE TABLE organisations (
-  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   created_at VARCHAR(64) NOT NULL
 )`,
 	`CREATE TABLE users (
-  username VARCHAR(255) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
+  username VARCHAR(255) NOT NULL,
   name VARCHAR(255),
   is_disabled TINYINT(1) NOT NULL
 )`,
 	`CREATE TABLE user_devices_metadata (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
   public_key VARCHAR(255) NOT NULL,
-  user_id VARCHAR(255) NOT NULL,
+  user_id BINARY(16) NOT NULL,
   name VARCHAR(255) NOT NULL,
   witness_rank INT NOT NULL
 )`,
 	`CREATE TABLE peers (
-  id VARCHAR(255) NOT NULL PRIMARY KEY
+  id BINARY(16) NOT NULL PRIMARY KEY,
+  public_key VARCHAR(255) NOT NULL
 )`,
 	`CREATE TABLE tasks (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  id BINARY(16) NOT NULL PRIMARY KEY,
   task_stream VARCHAR(255) NOT NULL,
   subject_type VARCHAR(255) NOT NULL,
   subject_id VARCHAR(255) NOT NULL,
@@ -220,8 +224,8 @@ var CreateSQL = []string{
   finished_at VARCHAR(64)
 )`,
 	`CREATE TABLE task_events (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
-  task_id VARCHAR(255) NOT NULL,
+  id BINARY(16) NOT NULL PRIMARY KEY,
+  task_id BINARY(16) NOT NULL,
   status VARCHAR(64) NOT NULL,
   message TEXT NOT NULL,
   progress INT NOT NULL,
@@ -229,9 +233,9 @@ var CreateSQL = []string{
   created_at VARCHAR(64) NOT NULL
 )`,
 	`CREATE TABLE exit_routes (
-  id VARCHAR(255) NOT NULL PRIMARY KEY,
-  device_id VARCHAR(255) NOT NULL,
-  instance_id VARCHAR(255) NOT NULL,
+  id BINARY(16) NOT NULL PRIMARY KEY,
+  device_id BINARY(16) NOT NULL,
+  instance_id BINARY(16) NOT NULL,
   desired_status VARCHAR(255) NOT NULL,
   dns_server VARCHAR(255) NOT NULL,
   cidrs TEXT NOT NULL

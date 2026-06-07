@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"net"
 	"testing"
 
+	"github.com/bokwoon95/sq"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -12,16 +14,20 @@ import (
 
 func TestNotifyDoesNotRemoveSandboxForAppOutsideLocalScope(t *testing.T) {
 	store := newTestAppDB(t)
-	insertTestApp(t, store, "local-app", "local-app", "local-node", statusStopped)
-	insertTestApp(t, store, "remote-app", "remote-app", "remote-instance", statusRunning)
+	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
+	remoteInstanceID, _ := insertTestMachine(t, store, "remote-instance")
+	localAppID := db.MustNewUUIDv7()
+	remoteAppID := db.MustNewUUIDv7()
+	insertTestApp(t, store, localAppID, "local-app", localInstanceID, statusStopped)
+	insertTestApp(t, store, remoteAppID, "remote-app", remoteInstanceID, statusRunning)
 
-	remoteSandbox := &fakeRuntimeSandbox{id: "remote-app", status: statusRunning}
+	remoteSandbox := &fakeRuntimeSandbox{id: remoteAppID, status: statusRunning}
 	runtime := &fakeRuntimePlatform{
 		sandboxes: map[string]*fakeRuntimeSandbox{
-			"remote-app": remoteSandbox,
+			remoteAppID: remoteSandbox,
 		},
 	}
-	manager := CreateManager("local-node", runtime, store)
+	manager := CreateManager(localPeerID, runtime, store)
 
 	manager.Notify()
 
@@ -35,15 +41,16 @@ func TestNotifyDoesNotRemoveSandboxForAppOutsideLocalScope(t *testing.T) {
 
 func TestGetReturnsAppWithInstanceID(t *testing.T) {
 	store := newTestAppDB(t)
-	insertTestApp(t, store, "app-id", "app", "vm-id", statusStopped)
+	appID := db.MustNewUUIDv7()
+	insertTestApp(t, store, appID, "app", "vm-id", statusStopped)
 	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store)
 
-	got, err := manager.Get("app-id")
+	got, err := manager.Get(appID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ID != "app-id" {
-		t.Fatalf("ID = %q, want app-id", got.ID)
+	if got.ID != appID {
+		t.Fatalf("ID = %q, want %s", got.ID, appID)
 	}
 	if got.InstanceID != "vm-id" {
 		t.Fatalf("InstanceID = %q, want vm-id", got.InstanceID)
@@ -53,14 +60,14 @@ func TestGetReturnsAppWithInstanceID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ID != "app-id" {
-		t.Fatalf("name lookup ID = %q, want app-id", got.ID)
+	if got.ID != appID {
+		t.Fatalf("name lookup ID = %q, want %s", got.ID, appID)
 	}
 }
 
 func TestGetStatusForHydratedAppUsesManagerRuntime(t *testing.T) {
 	store := newTestAppDB(t)
-	insertTestApp(t, store, "app-id", "app", "vm-id", statusStopped)
+	insertTestApp(t, store, db.MustNewUUIDv7(), "app", "vm-id", statusStopped)
 	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store)
 
 	status, err := manager.GetStatus("app")
@@ -101,10 +108,11 @@ func TestCreateAssignsAppPublicKeyAndOverlayIP(t *testing.T) {
 
 func TestStartPullsMissingImage(t *testing.T) {
 	store := newTestAppDB(t)
+	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
 	runtime := &fakeRuntimePlatform{imageExists: false}
-	manager := CreateManager("local-node", runtime, store)
+	manager := CreateManager(localPeerID, runtime, store)
 
-	created, err := manager.Create("docker.io/library/busybox:latest", "app", "local-node", false, nil)
+	created, err := manager.Create("docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,17 +128,46 @@ func TestStartPullsMissingImage(t *testing.T) {
 	}
 }
 
+func TestStartResolvesMissingImageFromPeersBeforePull(t *testing.T) {
+	store := newTestAppDB(t)
+	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
+	runtime := &fakeRuntimePlatform{imageExists: false}
+	manager := CreateManager(localPeerID, runtime, store)
+	manager.SetImageResolver(fakeImageResolver{
+		resolve: func(context.Context, string) error {
+			runtime.imageExists = true
+			return nil
+		},
+	})
+
+	created, err := manager.Create("docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Start(created.Name); err != nil {
+		t.Fatal(err)
+	}
+	manager.Notify()
+	if runtime.pullImageCalls != 0 {
+		t.Fatalf("pullImageCalls = %d, want 0", runtime.pullImageCalls)
+	}
+	if runtime.newSandboxCalls != 1 {
+		t.Fatalf("newSandboxCalls = %d, want 1", runtime.newSandboxCalls)
+	}
+}
+
 func TestNotifyRepairsAlreadyRunningLocalApp(t *testing.T) {
 	store := newTestAppDB(t)
+	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
 	key, err := pcrypto.CreateManager(store).GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 	app := App{
-		ID:            "app-id",
+		ID:            db.MustNewUUIDv7(),
 		Name:          "app",
 		InstallerRef:  "installer",
-		InstanceID:    "local-node",
+		InstanceID:    localInstanceID,
 		DesiredStatus: statusRunning,
 		IP:            appIPFromPublicKey(key.PublicString()),
 		PublicKey:     key.PublicString(),
@@ -139,11 +176,11 @@ func TestNotifyRepairsAlreadyRunningLocalApp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sandbox := &fakeRuntimeSandbox{id: "app-id", status: statusRunning}
+	sandbox := &fakeRuntimeSandbox{id: app.ID, status: statusRunning}
 	runtime := &fakeRuntimePlatform{
-		sandboxes: map[string]*fakeRuntimeSandbox{"app-id": sandbox},
+		sandboxes: map[string]*fakeRuntimeSandbox{app.ID: sandbox},
 	}
-	manager := CreateManager("local-node", runtime, store)
+	manager := CreateManager(localPeerID, runtime, store)
 
 	manager.Notify()
 
@@ -199,11 +236,60 @@ func insertTestApp(t *testing.T, store *db.DB, id string, name string, instanceI
 	}
 }
 
+func insertTestMachine(t *testing.T, store *db.DB, name string) (string, string) {
+	t.Helper()
+	key, err := pcrypto.CreateManager(store).GenerateKey()
+	if err != nil {
+		t.Fatalf("generate machine key: %v", err)
+	}
+	peerID, err := db.PeerIDFromPublicKeyString(key.PublicString())
+	if err != nil {
+		t.Fatalf("derive peer id: %v", err)
+	}
+	instanceID := db.MustNewUUIDv7()
+	machineInsert := func() sq.InsertQuery {
+		m := sq.New[db.MACHINE]("")
+		mapper := func(col *sq.Column) {
+			col.SetBytes(m.ID, db.MustUUIDBytes(instanceID))
+			col.SetString(m.NAME, name)
+			col.SetString(m.KIND, "cloud_vm")
+			col.SetString(m.DESIRED_STATUS, "running")
+			col.SetInt(m.WITNESS_RANK, 100)
+		}
+		return sq.InsertInto(m).ColumnValues(mapper)
+	}
+	metadataInsert := func() sq.InsertQuery {
+		cmm := sq.New[db.CLOUD_MACHINE_METADATA]("")
+		mapper := func(col *sq.Column) {
+			col.SetBytes(cmm.ID, db.MustUUIDBytes(instanceID))
+			col.SetString(cmm.CLOUD_ID, "test-provider")
+			col.SetString(cmm.PROVIDER_RESOURCE_ID, name)
+			col.SetString(cmm.PUBLIC_IP, "127.0.0.1")
+			col.SetString(cmm.LOCATION, "test")
+			col.SetString(cmm.ARCHITECTURE, "amd64")
+			col.SetString(cmm.PUBLIC_KEY, key.PublicString())
+		}
+		return sq.InsertInto(cmm).ColumnValues(mapper)
+	}
+	if err := db.Insert(store, machineInsert, metadataInsert); err != nil {
+		t.Fatalf("insert machine %s: %v", name, err)
+	}
+	return instanceID, peerID
+}
+
 type fakeRuntimePlatform struct {
 	sandboxes       map[string]*fakeRuntimeSandbox
 	newSandboxCalls int
 	imageExists     bool
 	pullImageCalls  int
+}
+
+type fakeImageResolver struct {
+	resolve func(context.Context, string) error
+}
+
+func (f fakeImageResolver) ResolveImage(ctx context.Context, imageRef string) error {
+	return f.resolve(ctx, imageRef)
 }
 
 func (f *fakeRuntimePlatform) Init() error {

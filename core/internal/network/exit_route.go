@@ -35,6 +35,12 @@ func SetExitRoute(database *db.DB, deviceID string, instanceID string, dnsServer
 	if instanceID == "" {
 		return ExitRoute{}, fmt.Errorf("instance id is required")
 	}
+	if _, err := db.UUIDBytes(deviceID); err != nil {
+		return ExitRoute{}, fmt.Errorf("device id must be a UUID: %w", err)
+	}
+	if _, err := db.UUIDBytes(instanceID); err != nil {
+		return ExitRoute{}, fmt.Errorf("instance id must be a UUID: %w", err)
+	}
 	normalizedDNSServer, err := NormalizeDNSServer(dnsServer)
 	if err != nil {
 		return ExitRoute{}, err
@@ -44,8 +50,12 @@ func SetExitRoute(database *db.DB, deviceID string, instanceID string, dnsServer
 		return ExitRoute{}, err
 	}
 
+	routeID, err := db.NewUUIDv7()
+	if err != nil {
+		return ExitRoute{}, err
+	}
 	route := ExitRoute{
-		ID:            exitRouteID(deviceID),
+		ID:            routeID,
 		DeviceID:      deviceID,
 		InstanceID:    instanceID,
 		DesiredStatus: ExitRouteStatusActive,
@@ -63,6 +73,7 @@ func SetExitRoute(database *db.DB, deviceID string, instanceID string, dnsServer
 		}
 		return route, nil
 	}
+	route.ID = existing[0].ID
 	if err := db.Update(database, createExitRouteUpdateMapper(route)); err != nil {
 		return ExitRoute{}, err
 	}
@@ -81,7 +92,11 @@ func ClearExitRoute(database *db.DB, deviceID string) error {
 	if len(existing) == 0 {
 		return nil
 	}
-	return db.Delete(database, createExitRouteDeleteMapper(exitRouteID(deviceID)))
+	deletes := make([]db.DeleteMapper, 0, len(existing))
+	for _, route := range existing {
+		deletes = append(deletes, createExitRouteDeleteMapper(route.ID))
+	}
+	return db.Delete(database, deletes...)
 }
 
 func GetExitRoutes(database *db.DB) ([]ExitRoute, error) {
@@ -95,15 +110,11 @@ func GetExitRoutes(database *db.DB) ([]ExitRoute, error) {
 func GetExitRoutesForDevice(database *db.DB, deviceID string) ([]ExitRoute, error) {
 	deviceID = strings.TrimSpace(deviceID)
 	model := sq.New[db.EXIT_ROUTE]("")
-	routes, err := db.SelectMultiple(database, createExitRouteQueryMapper([]sq.Predicate{model.DEVICE_ID.EqString(deviceID)}))
+	routes, err := db.SelectMultiple(database, createExitRouteQueryMapper([]sq.Predicate{db.UUIDEq(model.DEVICE_ID, deviceID)}))
 	if err != nil {
 		return nil, fmt.Errorf("retrieve exit route for device %s: %w", deviceID, err)
 	}
 	return normalizeExitRouteRows(routes)
-}
-
-func exitRouteID(deviceID string) string {
-	return strings.TrimSpace(deviceID)
 }
 
 func NormalizeExitRouteStatus(status string) string {
@@ -207,9 +218,9 @@ func createExitRouteInsertMapper(route ExitRoute) db.InsertMapper {
 	return func() sq.InsertQuery {
 		m := sq.New[db.EXIT_ROUTE]("")
 		mapper := func(col *sq.Column) {
-			col.SetString(m.ID, route.ID)
-			col.SetString(m.DEVICE_ID, route.DeviceID)
-			col.SetString(m.INSTANCE_ID, route.InstanceID)
+			col.SetBytes(m.ID, db.MustUUIDBytes(route.ID))
+			col.SetBytes(m.DEVICE_ID, db.MustUUIDBytes(route.DeviceID))
+			col.SetBytes(m.INSTANCE_ID, db.MustUUIDBytes(route.InstanceID))
 			col.SetString(m.DESIRED_STATUS, NormalizeExitRouteStatus(route.DesiredStatus))
 			col.SetString(m.DNS_SERVER, route.DNSServer)
 			col.SetString(m.CIDRS, encodeExitRouteCIDRs(route.CIDRs))
@@ -222,20 +233,20 @@ func createExitRouteUpdateMapper(route ExitRoute) db.UpdateMapper {
 	return func() sq.UpdateQuery {
 		m := sq.New[db.EXIT_ROUTE]("")
 		mapper := func(col *sq.Column) {
-			col.SetString(m.DEVICE_ID, route.DeviceID)
-			col.SetString(m.INSTANCE_ID, route.InstanceID)
+			col.SetBytes(m.DEVICE_ID, db.MustUUIDBytes(route.DeviceID))
+			col.SetBytes(m.INSTANCE_ID, db.MustUUIDBytes(route.InstanceID))
 			col.SetString(m.DESIRED_STATUS, NormalizeExitRouteStatus(route.DesiredStatus))
 			col.SetString(m.DNS_SERVER, route.DNSServer)
 			col.SetString(m.CIDRS, encodeExitRouteCIDRs(route.CIDRs))
 		}
-		return sq.Update(m).SetFunc(mapper).Where(m.ID.EqString(route.ID))
+		return sq.Update(m).SetFunc(mapper).Where(db.UUIDEq(m.ID, route.ID))
 	}
 }
 
 func createExitRouteDeleteMapper(id string) db.DeleteMapper {
 	return func() sq.DeleteQuery {
 		m := sq.New[db.EXIT_ROUTE]("")
-		return sq.DeleteFrom(m).Where(m.ID.EqString(id))
+		return sq.DeleteFrom(m).Where(db.UUIDEq(m.ID, id))
 	}
 }
 
@@ -249,9 +260,9 @@ func createExitRouteQueryMapper(predicates []sq.Predicate) db.QueryMapper[ExitRo
 	return func() (sq.SelectQuery, func(row *sq.Row) ExitRoute) {
 		mapper := func(row *sq.Row) ExitRoute {
 			return ExitRoute{
-				ID:            row.StringField(m.ID),
-				DeviceID:      row.StringField(m.DEVICE_ID),
-				InstanceID:    row.StringField(m.INSTANCE_ID),
+				ID:            db.UUIDString(row.BytesField(m.ID)),
+				DeviceID:      db.UUIDString(row.BytesField(m.DEVICE_ID)),
+				InstanceID:    db.UUIDString(row.BytesField(m.INSTANCE_ID)),
 				DesiredStatus: row.StringField(m.DESIRED_STATUS),
 				DNSServer:     row.StringField(m.DNS_SERVER),
 				cidrsJSON:     row.StringField(m.CIDRS),

@@ -11,7 +11,6 @@ import (
 
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/util"
-	"github.com/rs/xid"
 )
 
 var log = util.GetLogger("tasks")
@@ -189,7 +188,11 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 		opts.Title = opts.Stream
 	}
 	if opts.ID == "" {
-		opts.ID = xid.New().String()
+		id, err := db.NewUUIDv7()
+		if err != nil {
+			return Record{}, err
+		}
+		opts.ID = id
 	}
 	if opts.MaxAttempts <= 0 {
 		opts.MaxAttempts = 1
@@ -483,7 +486,7 @@ func taskEvent(record Record, details json.RawMessage) Event {
 		details = json.RawMessage("{}")
 	}
 	return Event{
-		ID:        xid.New().String(),
+		ID:        db.MustNewUUIDv7(),
 		TaskID:    record.ID,
 		Status:    record.Status,
 		Message:   record.Message,

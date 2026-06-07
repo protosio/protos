@@ -3,7 +3,6 @@ package mdns
 import (
 	"context"
 	"fmt"
-	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/rs/xid"
 
 	"github.com/protosio/protos/internal/invitations"
+	"github.com/protosio/protos/internal/util"
 )
 
 const (
@@ -22,6 +22,8 @@ const (
 	defaultInviteTTL = 10 * time.Minute
 	txtVersion       = "1"
 )
+
+var log = util.GetLogger("inviteMDNS")
 
 type Channel struct {
 	mu           sync.Mutex
@@ -64,18 +66,38 @@ func (c *Channel) StartInvite(_ context.Context, invite invitations.Invite) (inv
 	if invite.ExpiresAt.IsZero() {
 		invite.ExpiresAt = time.Now().Add(defaultInviteTTL)
 	}
+	invite.P2PAddrs = dedupeStrings(invite.P2PAddrs)
+	invite.SwarmionAddrs = dedupeStrings(invite.SwarmionAddrs)
+	if strings.TrimSpace(invite.VerificationCode) == "" {
+		code, err := invitations.GenerateVerificationCode()
+		if err != nil {
+			return invitations.Invite{}, err
+		}
+		invite.VerificationCode = code
+	}
+	invite.VerificationHash = invitations.InviteVerificationHash(invite, invite.VerificationCode)
 	if strings.TrimSpace(invite.AdvertiseName) == "" {
 		invite.AdvertiseName = invite.OrganisationName
 	}
 	invite.AdvertiseService = ServiceTCP
-	invite.P2PAddrs = dedupeStrings(invite.P2PAddrs)
-	invite.SwarmionAddrs = dedupeStrings(invite.SwarmionAddrs)
 
 	instanceName := inviteInstanceName(invite)
-	advertise, err := startBonjourAdvertisement(instanceName, ServiceTCP, ServiceDomain, invite.Port, inviteTXT(invite))
+	txt := inviteTXT(invite)
+	log.Infof(
+		"publishing mDNS invite %q instance=%q service=%q domain=%q port=%d txt_records=%d swarmion_addrs=%d",
+		invite.InviteID,
+		instanceName,
+		ServiceTCP,
+		ServiceDomain,
+		invite.Port,
+		len(txt),
+		len(invite.SwarmionAddrs),
+	)
+	advertise, err := startBonjourAdvertisement(instanceName, ServiceTCP, ServiceDomain, invite.Port, txt)
 	if err != nil {
 		return invitations.Invite{}, fmt.Errorf("start Bonjour advertisement: %w", err)
 	}
+	log.Infof("published mDNS invite %q instance=%q", invite.InviteID, instanceName)
 
 	inviteCtx, cancel := context.WithCancel(context.Background())
 	c.mu.Lock()
@@ -109,6 +131,7 @@ func (c *Channel) Browse(ctx context.Context, timeout time.Duration) ([]invitati
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("mDNS invite browse completed with %d candidate(s)", len(out))
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].OrganisationName != out[j].OrganisationName {
 			return out[i].OrganisationName < out[j].OrganisationName
@@ -161,8 +184,12 @@ func inviteTXT(invite invitations.Invite) []string {
 		"device_name=" + invite.DeviceName,
 		"peer_id=" + invite.PeerID,
 		"public_key=" + invite.PublicKey,
+		"verification_hash=" + invite.VerificationHash,
 		"expires_at=" + strconv.FormatInt(invite.ExpiresAt.Unix(), 10),
 		"p2p_port=" + strconv.Itoa(invite.Port),
+	}
+	for i, addr := range invite.SwarmionAddrs {
+		txt = append(txt, fmt.Sprintf("swarmion_addr_%d=%s", i, addr))
 	}
 	return txt
 }
@@ -193,43 +220,50 @@ func parseTXTEntry(txt []string, hostName string, port int, ips []string) (invit
 		DeviceName:       first(values, "device_name"),
 		PeerID:           first(values, "peer_id"),
 		PublicKey:        first(values, "public_key"),
+		VerificationHash: first(values, "verification_hash"),
 		P2PAddrs:         dedupeStrings(values["p2p_addr"]),
-		SwarmionAddrs:    dedupeStrings(values["swarmion_addr"]),
+		SwarmionAddrs:    swarmionAddrsFromTXT(values),
 		ExpiresAt:        expiresAt,
 		HostName:         hostName,
 		Port:             port,
 		IPs:              dedupeStrings(ips),
 	}
-	if item.InviteID == "" || item.OrganisationID == "" || item.OrganisationName == "" || item.PeerID == "" {
+	if item.InviteID == "" ||
+		item.OrganisationID == "" ||
+		item.OrganisationName == "" ||
+		item.PeerID == "" ||
+		item.PublicKey == "" ||
+		item.VerificationHash == "" ||
+		len(item.SwarmionAddrs) == 0 {
 		return invitations.NearbyInvite{}, false
 	}
-	if len(item.SwarmionAddrs) == 0 {
-		item.SwarmionAddrs = swarmionAddrsFromEntry(item)
-	}
-	return item, len(item.SwarmionAddrs) > 0
+	return item, true
 }
 
-func swarmionAddrsFromEntry(item invitations.NearbyInvite) []string {
-	if item.Port <= 0 || item.PeerID == "" {
-		return nil
+func swarmionAddrsFromTXT(values map[string][]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		if strings.HasPrefix(key, "swarmion_addr_") {
+			keys = append(keys, key)
+		}
 	}
-	return peerAddrs(item.PeerID, item.IPs, item.Port+1)
+	sort.Slice(keys, func(i, j int) bool {
+		return txtIndex(keys[i], "swarmion_addr_") < txtIndex(keys[j], "swarmion_addr_")
+	})
+	var addrs []string
+	for _, key := range keys {
+		addrs = append(addrs, values[key]...)
+	}
+	return dedupeStrings(addrs)
 }
 
-func peerAddrs(peerID string, ips []string, port int) []string {
-	var out []string
-	for _, rawIP := range ips {
-		ip := net.ParseIP(strings.TrimSpace(rawIP))
-		if ip == nil {
-			continue
-		}
-		if ip.To4() == nil {
-			out = append(out, fmt.Sprintf("/ip6/%s/tcp/%d/p2p/%s", ip.String(), port, peerID))
-		} else {
-			out = append(out, fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, peerID))
-		}
+func txtIndex(key string, prefix string) int {
+	value := strings.TrimPrefix(key, prefix)
+	index, err := strconv.Atoi(value)
+	if err != nil {
+		return 1 << 30
 	}
-	return dedupeStrings(out)
+	return index
 }
 
 func first(values map[string][]string, key string) string {

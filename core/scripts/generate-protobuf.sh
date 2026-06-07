@@ -15,6 +15,7 @@ generate_proto_contract() {
 generate_proto_contract contracts/proto/apic/v1/apic.cue apic/proto/apic.proto
 generate_proto_contract contracts/proto/hostagent/v1/hostagent.cue internal/hostagent/proto/hostagent.proto
 generate_proto_contract contracts/proto/p2p/v1/app.cue internal/p2p/proto/app.proto
+generate_proto_contract contracts/proto/p2p/v1/image.cue internal/p2p/proto/image.proto
 generate_proto_contract contracts/proto/p2p/v1/instance.cue internal/p2p/proto/instance.proto
 generate_proto_contract contracts/proto/p2p/v1/peerdb.cue internal/p2p/proto/peerDB.proto
 generate_proto_contract contracts/proto/p2p/v1/pinger.cue internal/p2p/proto/pinger.proto
@@ -24,6 +25,7 @@ protoc --go_out=. --go_opt=paths=source_relative \
   apic/proto/apic.proto \
   internal/hostagent/proto/hostagent.proto \
   internal/p2p/proto/app.proto \
+  internal/p2p/proto/image.proto \
   internal/p2p/proto/instance.proto \
   internal/p2p/proto/peerDB.proto \
   internal/p2p/proto/pinger.proto

@@ -124,6 +124,7 @@ message StartDeviceInviteResponse {
   string advertise_name = 3;
   string advertise_service = 4;
   string channel = 5;
+  string verification_code = 6;
 }
 
 message NearbyOrganisation {
@@ -150,6 +151,7 @@ message JoinOrganisationRequest {
   string username = 4;
   string name = 5;
   string channel = 6;
+  string verification_code = 7;
 }
 
 message JoinOrganisationResponse {

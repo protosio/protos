@@ -49,6 +49,9 @@ func (n *Node) EnableNetwork(ctx context.Context) error {
 }
 
 func (n *Node) enableNetwork(ctx context.Context, startHostAgent bool) error {
+	n.networkLifecycleMu.Lock()
+	defer n.networkLifecycleMu.Unlock()
+
 	if !n.capabilities.Network {
 		err := fmt.Errorf("network capability is not available")
 		n.setNetworkRuntimeStatus(false, false, networkRuntimeStateUnsupported, err.Error())
@@ -95,7 +98,12 @@ func (n *Node) enableNetwork(ctx context.Context, startHostAgent bool) error {
 		return err
 	}
 
-	dnsStopper := dns.StartServer(n.localKey, n.dnsPort(), n.networkExternalDNS, n.cfg.InternalDomain, n.AppManager)
+	dnsStopper, err := dns.StartServer(n.localKey, n.dnsPort(), n.networkExternalDNS, n.cfg.InternalDomain, n.AppManager)
+	if err != nil {
+		_ = manager.Down()
+		n.setNetworkRuntimeStatus(true, false, networkRuntimeStateError, err.Error())
+		return err
+	}
 	if err := n.configureLocalResolver(); err != nil {
 		_ = dnsStopper()
 		_ = manager.Down()
@@ -121,6 +129,9 @@ func (n *Node) enableNetwork(ctx context.Context, startHostAgent bool) error {
 }
 
 func (n *Node) DisableNetwork(context.Context) error {
+	n.networkLifecycleMu.Lock()
+	defer n.networkLifecycleMu.Unlock()
+
 	if !n.capabilities.Network {
 		n.setNetworkRuntimeStatus(false, false, networkRuntimeStateUnsupported, "network capability is not available")
 		return nil

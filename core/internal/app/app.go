@@ -1,10 +1,12 @@
 package app
 
 import (
+	"context"
 	"crypto/ed25519"
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -63,6 +65,21 @@ func (app *App) createSandbox() (runtime.RuntimeSandbox, error) {
 	exists, err := app.mgr.runtime.ImageExistsLocally(app.InstallerRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check image for app '%s': %w", app.ID, err)
+	}
+	if !exists {
+		if app.mgr.imageResolver != nil {
+			resolveCtx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			resolveErr := app.mgr.imageResolver.ResolveImage(resolveCtx, app.InstallerRef)
+			cancel()
+			if resolveErr != nil {
+				log.Infof("Image '%s' for app '%s' is not available from Protos peers: %v", app.InstallerRef, app.ID, resolveErr)
+			} else {
+				exists, err = app.mgr.runtime.ImageExistsLocally(app.InstallerRef)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check resolved image for app '%s': %w", app.ID, err)
+				}
+			}
+		}
 	}
 	if !exists {
 		log.Infof("Pulling image '%s' for app '%s'", app.InstallerRef, app.ID)

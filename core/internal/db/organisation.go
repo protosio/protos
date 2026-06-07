@@ -1,7 +1,6 @@
 package db
 
 import (
-	"crypto/rand"
 	"fmt"
 	"strings"
 	"time"
@@ -53,13 +52,7 @@ func ListOrganisations(database *DB) ([]Organisation, error) {
 }
 
 func GenerateOrganisationID() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", fmt.Errorf("generate organisation id: %w", err)
-	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+	return NewUUIDv7()
 }
 
 func normalizeOrganisationName(name string) string {
@@ -74,7 +67,7 @@ func createOrganisationInsertMapper(organisation Organisation) InsertMapper {
 	return func() sq.InsertQuery {
 		u := sq.New[ORGANISATION]("")
 		mapper := func(col *sq.Column) {
-			col.SetString(u.ID, organisation.ID)
+			col.SetBytes(u.ID, MustUUIDBytes(organisation.ID))
 			col.SetString(u.NAME, organisation.Name)
 			col.SetString(u.CREATED_AT, organisation.CreatedAt)
 		}
@@ -92,7 +85,7 @@ func createOrganisationQueryMapper(predicates []sq.Predicate) QueryMapper[Organi
 	return func() (sq.SelectQuery, func(row *sq.Row) Organisation) {
 		mapper := func(row *sq.Row) Organisation {
 			return Organisation{
-				ID:        row.StringField(u.ID),
+				ID:        UUIDString(row.BytesField(u.ID)),
 				Name:      row.StringField(u.NAME),
 				CreatedAt: row.StringField(u.CREATED_AT),
 			}

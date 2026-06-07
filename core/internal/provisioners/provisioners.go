@@ -293,9 +293,6 @@ func (cm *Manager) provisionerDeps() ProvisionerDeps {
 
 func (cm *Manager) newProvisioner(record ProvisionerRecord) (Provisioner, error) {
 	record = record.normalized()
-	if record.ID == "" {
-		return nil, fmt.Errorf("cloud provider id is empty")
-	}
 	if record.Name == "" {
 		return nil, fmt.Errorf("cloud provider name is empty")
 	}
@@ -308,14 +305,29 @@ func (cm *Manager) newProvisioner(record ProvisionerRecord) (Provisioner, error)
 
 func (cm *Manager) saveProviderRecord(record ProviderRecord) error {
 	record = record.normalized()
-	records, err := cm.findProviderRecordsByID(record.ID)
+	if record.Name == "" {
+		return fmt.Errorf("cloud provider name is empty")
+	}
+
+	cpModel := sq.New[db.CLOUD_PROVIDER]("")
+	records, err := db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.NAME.EqString(record.Name)}))
 	if err != nil {
 		return err
 	}
-	if len(records) == 0 {
-		return db.Insert(cm.db, createCloudProviderInsertMapper(record))
+	if len(records) > 1 {
+		return fmt.Errorf("found multiple cloud providers named '%s'", record.Name)
 	}
-	return db.Update(cm.db, createCloudProviderUpdateMapper(record))
+	if len(records) == 1 {
+		record.ID = records[0].ID
+		return db.Update(cm.db, createCloudProviderUpdateMapper(record))
+	}
+
+	if strings.TrimSpace(record.ID) == "" {
+		record.ID = db.MustNewUUIDv7()
+	} else if _, err := db.UUIDBytes(record.ID); err != nil {
+		return fmt.Errorf("cloud provider id must be a UUID: %w", err)
+	}
+	return db.Insert(cm.db, createCloudProviderInsertMapper(record))
 }
 
 func (cm *Manager) findProviderRecord(ref string) (ProviderRecord, bool, error) {
@@ -324,19 +336,21 @@ func (cm *Manager) findProviderRecord(ref string) (ProviderRecord, bool, error) 
 		return ProviderRecord{}, false, fmt.Errorf("cloud provider name is empty")
 	}
 
-	records, err := cm.findProviderRecordsByID(ref)
-	if err != nil {
-		return ProviderRecord{}, false, err
-	}
-	if len(records) == 1 {
-		return records[0], true, nil
-	}
-	if len(records) > 1 {
-		return ProviderRecord{}, false, fmt.Errorf("found multiple cloud providers with id '%s'", ref)
+	if _, parseErr := db.UUIDBytes(ref); parseErr == nil {
+		records, err := cm.findProviderRecordsByID(ref)
+		if err != nil {
+			return ProviderRecord{}, false, err
+		}
+		if len(records) == 1 {
+			return records[0], true, nil
+		}
+		if len(records) > 1 {
+			return ProviderRecord{}, false, fmt.Errorf("found multiple cloud providers with id '%s'", ref)
+		}
 	}
 
 	cpModel := sq.New[db.CLOUD_PROVIDER]("")
-	records, err = db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.NAME.EqString(ref)}))
+	records, err := db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.NAME.EqString(ref)}))
 	if err != nil {
 		return ProviderRecord{}, false, err
 	}
@@ -351,7 +365,7 @@ func (cm *Manager) findProviderRecord(ref string) (ProviderRecord, bool, error) 
 
 func (cm *Manager) findProviderRecordsByID(id string) ([]ProviderRecord, error) {
 	cpModel := sq.New[db.CLOUD_PROVIDER]("")
-	return db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.ID.EqString(id)}))
+	return db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{db.UUIDEq(cpModel.ID, id)}))
 }
 
 //
@@ -604,10 +618,14 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 		return InstanceInfo{}, deploymentFailureError(computeProvider, vmID, cloudLocation, fmt.Errorf("failed to discover instance peer over libp2p: %w", err))
 	}
 	instanceInfo.PublicKey = discoveredPeer.PublicKey
-	instanceInfo.ID = discoveredPeer.ID
+	if pendingInstanceID != "" {
+		instanceInfo.ID = pendingInstanceID
+	} else if _, parseErr := db.UUIDBytes(instanceInfo.ID); parseErr != nil {
+		instanceInfo.ID = db.MustNewUUIDv7()
+	}
 	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
 
-	_ = progress(85, "initializing VM", map[string]string{"peer_id": instanceInfo.ID})
+	_ = progress(85, "initializing VM", map[string]string{"peer_id": discoveredPeer.ID})
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
 	if err != nil {
 		_ = cm.p2p.RemovePeer(instanceInfo)
@@ -650,7 +668,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	instanceInfo.DesiredStatus = ServerStateRunning
 	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
 
-	_ = progress(95, "saving VM identity", map[string]string{"peer_id": instanceInfo.ID})
+	_ = progress(95, "saving VM identity", map[string]string{"peer_id": discoveredPeer.ID})
 	if pendingInstanceID != "" {
 		if err := cm.completeDeploymentInstance(pendingInstanceID, instanceInfo); err != nil {
 			return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
@@ -681,6 +699,7 @@ func deploymentFailureError(provider ComputeProvisioner, id string, location str
 
 func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) (err error) {
 	instanceInfo := InstanceInfo{
+		ID:            db.MustNewUUIDv7(),
 		PublicIP:      ipString,
 		Name:          instanceName,
 		Kind:          kind,
@@ -707,12 +726,11 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 		return fmt.Errorf("failed to discover instance peer over libp2p: %w", err)
 	}
 	instanceInfo.PublicKey = discoveredPeer.PublicKey
-	instanceInfo.ID = discoveredPeer.ID
 	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
 
 	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
 	insertedInstance := false
-	if err := db.Insert(cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.ID)); err != nil {
+	if err := db.Insert(cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.PublicKey)); err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
 	}
 	insertedInstance = true
@@ -721,7 +739,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 			return
 		}
 		im, cmmd := createInstanceDeleteMapper(instanceInfo.ID)
-		_ = db.Delete(cm.db, db.CreatePeerDeleteMapper(instanceInfo.ID), im, cmmd)
+		_ = db.Delete(cm.db, db.CreatePeerDeleteMapper(instanceInfo.PublicKey), im, cmmd)
 	}()
 
 	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
@@ -1001,12 +1019,16 @@ func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
 	deadline := time.Now().Add(10 * time.Minute)
 	for attempt := 1; time.Now().Before(deadline); attempt++ {
 		im, cmmd := createInstanceDeleteMapper(instance.ID)
-		err := db.Delete(cm.db, db.CreatePeerDeleteMapper(instance.ID), createAppDeleteByInstanceMapper(instance.ID), im, cmmd)
-		if err == nil {
-			err = cm.assertInstancePeerRemoved(instance.ID)
+		err := db.Delete(cm.db, db.CreatePeerDeleteMapper(instance.PublicKey), createAppDeleteByInstanceMapper(instance.ID), im, cmmd)
+		peerID := ""
+		if strings.TrimSpace(instance.PublicKey) != "" {
+			peerID, _ = db.PeerIDFromPublicKeyString(instance.PublicKey)
 		}
 		if err == nil {
-			if verifyErr := cm.waitForInstanceDeleteFinalized(instance.ID); verifyErr == nil {
+			err = cm.assertInstancePeerRemoved(peerID)
+		}
+		if err == nil {
+			if verifyErr := cm.waitForInstanceDeleteFinalized(peerID); verifyErr == nil {
 				return nil
 			} else {
 				err = verifyErr
@@ -1149,13 +1171,17 @@ func (cm *Manager) removeInstanceWitnessEligibility(instance InstanceInfo) error
 	if cm == nil || cm.db == nil {
 		return nil
 	}
-	candidates, err := cm.witnessCandidatesExcluding(instance.ID)
+	peerID, err := instance.GetPeerID()
+	if err != nil {
+		return fmt.Errorf("derive peer id for instance '%s': %w", instance.Name, err)
+	}
+	candidates, err := cm.witnessCandidatesExcluding(peerID)
 	if err != nil {
 		return fmt.Errorf("build remaining witness candidates for instance '%s': %w", instance.Name, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	if err := cm.db.RemoveWitnessEligibility(ctx, instance.ID, candidates); err != nil {
+	if err := cm.db.RemoveWitnessEligibility(ctx, peerID, candidates); err != nil {
 		return fmt.Errorf("remove swarmion witness eligibility for instance '%s': %w", instance.Name, err)
 	}
 	return nil
@@ -1169,11 +1195,15 @@ func (cm *Manager) witnessCandidatesExcluding(peerID string) ([]db.WitnessCandid
 	}
 	candidates := make([]db.WitnessCandidate, 0, len(instances)+1)
 	for _, instance := range instances {
-		if strings.TrimSpace(instance.ID) == "" || instance.ID == peerID || strings.TrimSpace(instance.PublicKey) == "" || IsDeletingInstance(instance) {
+		if strings.TrimSpace(instance.ID) == "" || strings.TrimSpace(instance.PublicKey) == "" || IsDeletingInstance(instance) {
+			continue
+		}
+		instancePeerID, err := instance.GetPeerID()
+		if err != nil || instancePeerID == peerID {
 			continue
 		}
 		candidates = append(candidates, db.WitnessCandidate{
-			PeerID:     instance.ID,
+			PeerID:     instancePeerID,
 			DeviceType: db.WitnessDeviceTypeForMachine(instance.Kind, instance.KindID),
 			Rank:       instance.WitnessRank,
 		})
@@ -1186,11 +1216,15 @@ func (cm *Manager) witnessCandidatesExcluding(peerID string) ([]db.WitnessCandid
 		return nil, err
 	}
 	for _, device := range devices {
-		if strings.TrimSpace(device.ID) == "" || device.ID == peerID {
+		if strings.TrimSpace(device.ID) == "" || strings.TrimSpace(device.PublicKey) == "" {
+			continue
+		}
+		devicePeerID, err := db.PeerIDFromPublicKeyString(device.PublicKey)
+		if err != nil || devicePeerID == peerID {
 			continue
 		}
 		candidates = append(candidates, db.WitnessCandidate{
-			PeerID:     device.ID,
+			PeerID:     devicePeerID,
 			DeviceType: db.WitnessDeviceTypeForUserDeviceName(device.Name),
 			Rank:       device.WitnessRank,
 		})

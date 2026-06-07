@@ -36,10 +36,11 @@ package apicv1
 }
 #StartDeviceInviteResponse: {
 	invite_id?:        string
-	expires_at_unix?:  int64
-	advertise_name?:   string
-	advertise_service?: string
-	channel?:          string
+		expires_at_unix?:  int64
+		advertise_name?:   string
+		advertise_service?: string
+		channel?:          string
+		verification_code?: string
 }
 #NearbyOrganisation: {
 	organisation_id?:   string
@@ -55,9 +56,10 @@ package apicv1
 	organisation_id?: string
 	peer_id?:     string
 	invite_id?:   string
-	username?:    string
-	name?:        string
-	channel?:     string
+		username?:    string
+		name?:        string
+		channel?:     string
+		verification_code?: string
 }
 #JoinOrganisationResponse: {}
 #GetLocalSSHKeyRequest: {}
@@ -722,6 +724,7 @@ contract: {
 				{type: "string", name: "advertise_name", number: 3},
 				{type: "string", name: "advertise_service", number: 4},
 				{type: "string", name: "channel", number: 5},
+				{type: "string", name: "verification_code", number: 6},
 			]},
 			{kind: "message", name: "NearbyOrganisation", fields: [
 				{type: "string", name: "organisation_id", number: 1},
@@ -744,6 +747,7 @@ contract: {
 				{type: "string", name: "username", number: 4},
 				{type: "string", name: "name", number: 5},
 				{type: "string", name: "channel", number: 6},
+				{type: "string", name: "verification_code", number: 7},
 			]},
 			{kind: "message", name: "JoinOrganisationResponse", fields: []},
 			{kind: "message", name: "GetLocalSSHKeyRequest", fields: []},

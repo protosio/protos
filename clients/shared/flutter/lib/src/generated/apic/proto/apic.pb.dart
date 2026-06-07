@@ -694,6 +694,7 @@ class StartDeviceInviteResponse extends $pb.GeneratedMessage {
     $core.String? advertiseName,
     $core.String? advertiseService,
     $core.String? channel,
+    $core.String? verificationCode,
   }) {
     final result = create();
     if (inviteId != null) result.inviteId = inviteId;
@@ -701,6 +702,7 @@ class StartDeviceInviteResponse extends $pb.GeneratedMessage {
     if (advertiseName != null) result.advertiseName = advertiseName;
     if (advertiseService != null) result.advertiseService = advertiseService;
     if (channel != null) result.channel = channel;
+    if (verificationCode != null) result.verificationCode = verificationCode;
     return result;
   }
 
@@ -722,6 +724,7 @@ class StartDeviceInviteResponse extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'advertiseName')
     ..aOS(4, _omitFieldNames ? '' : 'advertiseService')
     ..aOS(5, _omitFieldNames ? '' : 'channel')
+    ..aOS(6, _omitFieldNames ? '' : 'verificationCode')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -788,6 +791,15 @@ class StartDeviceInviteResponse extends $pb.GeneratedMessage {
   $core.bool hasChannel() => $_has(4);
   @$pb.TagNumber(5)
   void clearChannel() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get verificationCode => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set verificationCode($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasVerificationCode() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearVerificationCode() => $_clearField(6);
 }
 
 class NearbyOrganisation extends $pb.GeneratedMessage {
@@ -1022,6 +1034,7 @@ class JoinOrganisationRequest extends $pb.GeneratedMessage {
     $core.String? username,
     $core.String? name,
     $core.String? channel,
+    $core.String? verificationCode,
   }) {
     final result = create();
     if (organisationId != null) result.organisationId = organisationId;
@@ -1030,6 +1043,7 @@ class JoinOrganisationRequest extends $pb.GeneratedMessage {
     if (username != null) result.username = username;
     if (name != null) result.name = name;
     if (channel != null) result.channel = channel;
+    if (verificationCode != null) result.verificationCode = verificationCode;
     return result;
   }
 
@@ -1052,6 +1066,7 @@ class JoinOrganisationRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'username')
     ..aOS(5, _omitFieldNames ? '' : 'name')
     ..aOS(6, _omitFieldNames ? '' : 'channel')
+    ..aOS(7, _omitFieldNames ? '' : 'verificationCode')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1127,6 +1142,15 @@ class JoinOrganisationRequest extends $pb.GeneratedMessage {
   $core.bool hasChannel() => $_has(5);
   @$pb.TagNumber(6)
   void clearChannel() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get verificationCode => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set verificationCode($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasVerificationCode() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearVerificationCode() => $_clearField(7);
 }
 
 class JoinOrganisationResponse extends $pb.GeneratedMessage {

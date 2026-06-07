@@ -201,6 +201,13 @@ const StartDeviceInviteResponse$json = {
       '10': 'advertiseService'
     },
     {'1': 'channel', '3': 5, '4': 1, '5': 9, '10': 'channel'},
+    {
+      '1': 'verification_code',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '10': 'verificationCode'
+    },
   ],
 };
 
@@ -209,7 +216,8 @@ final $typed_data.Uint8List startDeviceInviteResponseDescriptor = $convert.base6
     'ChlTdGFydERldmljZUludml0ZVJlc3BvbnNlEhsKCWludml0ZV9pZBgBIAEoCVIIaW52aXRlSW'
     'QSJgoPZXhwaXJlc19hdF91bml4GAIgASgDUg1leHBpcmVzQXRVbml4EiUKDmFkdmVydGlzZV9u'
     'YW1lGAMgASgJUg1hZHZlcnRpc2VOYW1lEisKEWFkdmVydGlzZV9zZXJ2aWNlGAQgASgJUhBhZH'
-    'ZlcnRpc2VTZXJ2aWNlEhgKB2NoYW5uZWwYBSABKAlSB2NoYW5uZWw=');
+    'ZlcnRpc2VTZXJ2aWNlEhgKB2NoYW5uZWwYBSABKAlSB2NoYW5uZWwSKwoRdmVyaWZpY2F0aW9u'
+    'X2NvZGUYBiABKAlSEHZlcmlmaWNhdGlvbkNvZGU=');
 
 @$core.Deprecated('Use nearbyOrganisationDescriptor instead')
 const NearbyOrganisation$json = {
@@ -282,6 +290,13 @@ const JoinOrganisationRequest$json = {
     {'1': 'username', '3': 4, '4': 1, '5': 9, '10': 'username'},
     {'1': 'name', '3': 5, '4': 1, '5': 9, '10': 'name'},
     {'1': 'channel', '3': 6, '4': 1, '5': 9, '10': 'channel'},
+    {
+      '1': 'verification_code',
+      '3': 7,
+      '4': 1,
+      '5': 9,
+      '10': 'verificationCode'
+    },
   ],
 };
 
@@ -290,7 +305,8 @@ final $typed_data.Uint8List joinOrganisationRequestDescriptor = $convert.base64D
     'ChdKb2luT3JnYW5pc2F0aW9uUmVxdWVzdBInCg9vcmdhbmlzYXRpb25faWQYASABKAlSDm9yZ2'
     'FuaXNhdGlvbklkEhcKB3BlZXJfaWQYAiABKAlSBnBlZXJJZBIbCglpbnZpdGVfaWQYAyABKAlS'
     'CGludml0ZUlkEhoKCHVzZXJuYW1lGAQgASgJUgh1c2VybmFtZRISCgRuYW1lGAUgASgJUgRuYW'
-    '1lEhgKB2NoYW5uZWwYBiABKAlSB2NoYW5uZWw=');
+    '1lEhgKB2NoYW5uZWwYBiABKAlSB2NoYW5uZWwSKwoRdmVyaWZpY2F0aW9uX2NvZGUYByABKAlS'
+    'EHZlcmlmaWNhdGlvbkNvZGU=');
 
 @$core.Deprecated('Use joinOrganisationResponseDescriptor instead')
 const JoinOrganisationResponse$json = {

@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -15,6 +17,7 @@ import (
 	p2pgrpc "github.com/birros/go-libp2p-grpc"
 	"github.com/go-playground/validator/v10"
 	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/imageregistry"
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	"github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -25,7 +28,10 @@ import (
 var _ proto.PingerServer = (*Server)(nil)
 var _ proto.PeerDBServer = (*Server)(nil)
 var _ proto.AppsServer = (*Server)(nil)
+var _ proto.ImagesServer = (*Server)(nil)
 var _ proto.InstanceServer = (*Server)(nil)
+
+const imageArchiveUploadMaxChunkSize = 1024 * 1024
 
 type ExternalDB interface {
 	AddPeer(peerID string, conn *grpc.ClientConn) error
@@ -188,6 +194,178 @@ func (s *Server) GetRuntimeState(ctx context.Context, _ *proto.GetRuntimeStateRe
 	return &proto.GetRuntimeStateResponse{State: state}, nil
 }
 
+func (s *Server) DescribeImage(ctx context.Context, req *proto.DescribeImageRequest) (*proto.DescribeImageResponse, error) {
+	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
+		return nil, fmt.Errorf("image manager is not configured")
+	}
+	imageRef, targetDigest, platform, labels, found, err := s.p2p.imageManager.DescribeImage(ctx, req.GetImageRef())
+	if err != nil {
+		return nil, err
+	}
+	return &proto.DescribeImageResponse{
+		Found:        found,
+		ImageRef:     imageRef,
+		TargetDigest: targetDigest,
+		Platform:     platform,
+		Labels:       labels,
+	}, nil
+}
+
+func (s *Server) GetImageContent(ctx context.Context, req *proto.GetImageContentRequest) (*proto.GetImageContentResponse, error) {
+	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
+		return nil, fmt.Errorf("image manager is not configured")
+	}
+	content, found, err := s.p2p.imageManager.GetImageContent(ctx, req.GetImageRef())
+	if err != nil {
+		return nil, err
+	}
+	return &proto.GetImageContentResponse{
+		Found:       found,
+		ImageRef:    content.ImageRef,
+		Target:      imageDescriptorToProto(content.Target),
+		Platform:    content.Platform,
+		Labels:      content.Labels,
+		Descriptors: imageDescriptorsToProto(content.Descriptors),
+	}, nil
+}
+
+func (s *Server) GetImageBlobChunk(ctx context.Context, req *proto.GetImageBlobChunkRequest) (*proto.GetImageBlobChunkResponse, error) {
+	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
+		return nil, fmt.Errorf("image manager is not configured")
+	}
+	data, eof, err := s.p2p.imageManager.ReadImageBlobChunk(ctx, req.GetDigest(), req.GetOffset(), req.GetLength())
+	if err != nil {
+		return nil, err
+	}
+	return &proto.GetImageBlobChunkResponse{
+		Digest: req.GetDigest(),
+		Offset: req.GetOffset(),
+		Data:   data,
+		Eof:    eof,
+	}, nil
+}
+
+func (s *Server) LoadImageArchive(ctx context.Context, req *proto.LoadImageArchiveRequest) (*proto.LoadImageArchiveResponse, error) {
+	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
+		return nil, fmt.Errorf("image manager is not configured")
+	}
+	loaded, err := s.p2p.imageManager.LoadImageArchive(ctx, req.GetArchivePath(), req.GetImageRef())
+	if err != nil {
+		return nil, err
+	}
+	return &proto.LoadImageArchiveResponse{
+		ImageRef:     loaded.ImageRef,
+		TargetDigest: loaded.TargetDigest,
+		Platform:     loaded.Platform,
+	}, nil
+}
+
+func (s *Server) UploadImageArchiveChunk(ctx context.Context, req *proto.UploadImageArchiveChunkRequest) (*proto.UploadImageArchiveChunkResponse, error) {
+	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
+		return nil, fmt.Errorf("image manager is not configured")
+	}
+	if len(req.GetData()) > imageArchiveUploadMaxChunkSize {
+		return nil, fmt.Errorf("image archive chunk is too large: %d bytes", len(req.GetData()))
+	}
+	archivePath, err := imageArchiveUploadPath(req.GetUploadId())
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(archivePath), 0700); err != nil {
+		return nil, err
+	}
+
+	offset := req.GetOffset()
+	flags := os.O_CREATE | os.O_WRONLY
+	if offset == 0 {
+		flags |= os.O_TRUNC
+	}
+	file, err := os.OpenFile(archivePath, flags, 0600)
+	if err != nil {
+		return nil, err
+	}
+	if offset > 0 {
+		info, statErr := file.Stat()
+		if statErr != nil {
+			_ = file.Close()
+			return nil, statErr
+		}
+		if uint64(info.Size()) != offset {
+			_ = file.Close()
+			return nil, fmt.Errorf("image archive upload offset mismatch: got %d, current size %d", offset, info.Size())
+		}
+		if _, seekErr := file.Seek(int64(offset), io.SeekStart); seekErr != nil {
+			_ = file.Close()
+			return nil, seekErr
+		}
+	}
+	written, err := file.Write(req.GetData())
+	closeErr := file.Close()
+	if err != nil {
+		return nil, err
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	if written != len(req.GetData()) {
+		return nil, io.ErrShortWrite
+	}
+
+	received := offset + uint64(written)
+	resp := &proto.UploadImageArchiveChunkResponse{ReceivedBytes: received}
+	if !req.GetEof() {
+		return resp, nil
+	}
+	loaded, err := s.p2p.imageManager.LoadImageArchive(ctx, archivePath, req.GetImageRef())
+	_ = os.Remove(archivePath)
+	if err != nil {
+		return nil, err
+	}
+	resp.Loaded = true
+	resp.ImageRef = loaded.ImageRef
+	resp.TargetDigest = loaded.TargetDigest
+	resp.Platform = loaded.Platform
+	return resp, nil
+}
+
+func imageArchiveUploadPath(uploadID string) (string, error) {
+	uploadID = strings.TrimSpace(uploadID)
+	if uploadID == "" {
+		return "", fmt.Errorf("image archive upload id is empty")
+	}
+	if len(uploadID) > 96 {
+		return "", fmt.Errorf("image archive upload id is too long")
+	}
+	for _, r := range uploadID {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			continue
+		}
+		return "", fmt.Errorf("image archive upload id contains invalid character %q", r)
+	}
+	return filepath.Join(os.TempDir(), "protos-p2p-image-upload-"+uploadID+".tar.gz"), nil
+}
+
+func imageDescriptorToProto(desc imageregistry.Descriptor) *proto.ImageContentDescriptor {
+	if desc.Digest == "" {
+		return nil
+	}
+	return &proto.ImageContentDescriptor{
+		MediaType:   desc.MediaType,
+		Digest:      desc.Digest,
+		SizeBytes:   desc.SizeBytes,
+		Platform:    desc.Platform,
+		Annotations: desc.Annotations,
+	}
+}
+
+func imageDescriptorsToProto(descs []imageregistry.Descriptor) []*proto.ImageContentDescriptor {
+	out := make([]*proto.ImageContentDescriptor, 0, len(descs))
+	for _, desc := range descs {
+		out = append(out, imageDescriptorToProto(desc))
+	}
+	return out
+}
+
 // HandlerGetInstancePeers retrieves the peers for the local instance
 func (s *Server) GetPeers(context.Context, *proto.GetPeersRequest) (*proto.GetPeersResponse, error) {
 
@@ -315,10 +493,14 @@ func readExitRoutes(ctx context.Context, database *db.DB) ([]p2pExitRoute, error
 	var routes []p2pExitRoute
 	for rows.Next() {
 		var route p2pExitRoute
+		var id, deviceID, instanceID []byte
 		var cidrsJSON string
-		if err := rows.Scan(&route.ID, &route.DeviceID, &route.InstanceID, &route.DesiredStatus, &route.DNSServer, &cidrsJSON); err != nil {
+		if err := rows.Scan(&id, &deviceID, &instanceID, &route.DesiredStatus, &route.DNSServer, &cidrsJSON); err != nil {
 			return nil, fmt.Errorf("scan exit route: %w", err)
 		}
+		route.ID = db.UUIDString(id)
+		route.DeviceID = db.UUIDString(deviceID)
+		route.InstanceID = db.UUIDString(instanceID)
 		route.CIDRs = parseExitRouteCIDRS(cidrsJSON)
 		routes = append(routes, route)
 	}
@@ -431,7 +613,75 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 	if trace, ok := reader.SwarmionContentSyncTrace(); ok {
 		out.ContentSyncTrace = append([]string(nil), trace...)
 	}
+	sanitizeRuntimeStateStrings(out)
 	return out, nil
+}
+
+func sanitizeRuntimeStateStrings(out *proto.RuntimeState) {
+	if out == nil {
+		return
+	}
+	out.PeerId = validProtoString(out.GetPeerId())
+	out.ManifestDigest = validProtoString(out.GetManifestDigest())
+	out.FinalizedRootHash = validProtoString(out.GetFinalizedRootHash())
+	out.TentativeRootHash = validProtoString(out.GetTentativeRootHash())
+	out.ProtocolFinalizedRootHash = validProtoString(out.GetProtocolFinalizedRootHash())
+	out.DurableMainRootHash = validProtoString(out.GetDurableMainRootHash())
+	out.ActiveEpochId = validProtoString(out.GetActiveEpochId())
+	out.ActiveWitnessIds = validProtoStrings(out.GetActiveWitnessIds())
+	out.EligibleWitnessIds = validProtoStrings(out.GetEligibleWitnessIds())
+	out.StateProviders = validProtoStrings(out.GetStateProviders())
+	out.ConnectedPeers = validProtoStrings(out.GetConnectedPeers())
+	out.FatalState = validProtoString(out.GetFatalState())
+	out.RuntimeRefreshLastError = validProtoString(out.GetRuntimeRefreshLastError())
+	out.RuntimeFinalizedLastError = validProtoString(out.GetRuntimeFinalizedLastError())
+	out.RuntimeMaterializationPolicy = validProtoString(out.GetRuntimeMaterializationPolicy())
+	out.ContentSyncTrace = validProtoStrings(out.GetContentSyncTrace())
+	out.KnownEpochIds = validProtoStrings(out.GetKnownEpochIds())
+	out.EpochDescriptorDigestById = validProtoStringMap(out.GetEpochDescriptorDigestById())
+	out.EpochFinalizedDigestById = validProtoStringMap(out.GetEpochFinalizedDigestById())
+	out.ProtocolFinalizedDigest = validProtoString(out.GetProtocolFinalizedDigest())
+
+	for _, item := range out.GetCompatibility() {
+		if item == nil {
+			continue
+		}
+		item.PeerId = validProtoString(item.GetPeerId())
+		item.LocalDigest = validProtoString(item.GetLocalDigest())
+		item.RemoteDigest = validProtoString(item.GetRemoteDigest())
+		item.Reason = validProtoString(item.GetReason())
+	}
+	for _, item := range out.GetPeerStatuses() {
+		if item == nil {
+			continue
+		}
+		item.PeerId = validProtoString(item.GetPeerId())
+		item.Addresses = validProtoStrings(item.GetAddresses())
+		item.LastDialErrors = validProtoStringMap(item.GetLastDialErrors())
+		item.Reason = validProtoString(item.GetReason())
+	}
+}
+
+func validProtoString(value string) string {
+	return strings.ToValidUTF8(value, "?")
+}
+
+func validProtoStrings(values []string) []string {
+	for i, value := range values {
+		values[i] = validProtoString(value)
+	}
+	return values
+}
+
+func validProtoStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return values
+	}
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[validProtoString(key)] = validProtoString(value)
+	}
+	return out
 }
 
 func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct{}) {
@@ -672,40 +922,4 @@ func (s *Server) GetAppStatus(ctx context.Context, req *proto.GetAppStatusReques
 	}
 
 	return &proto.GetAppStatusResponse{Status: status}, nil
-}
-
-func (s *Server) ProbeAppHTTP(ctx context.Context, req *proto.ProbeAppHTTPRequest) (*proto.ProbeAppHTTPResponse, error) {
-	if s == nil || s.p2p == nil || s.p2p.appManager == nil {
-		return nil, fmt.Errorf("app manager is not configured")
-	}
-	appName := strings.TrimSpace(req.GetAppName())
-	if appName == "" {
-		return nil, fmt.Errorf("app name is required")
-	}
-	appID, err := s.p2p.appManager.GetAppID(appName)
-	if err != nil {
-		return nil, fmt.Errorf("load app %q: %w", appName, err)
-	}
-	timeout := time.Duration(req.GetTimeoutSeconds()) * time.Second
-	if timeout <= 0 {
-		timeout = 10 * time.Second
-	}
-	if timeout > 30*time.Second {
-		timeout = 30 * time.Second
-	}
-	maxBytes := int(req.GetMaxBytes())
-	if maxBytes <= 0 {
-		maxBytes = 256 * 1024
-	}
-	if maxBytes > 1024*1024 {
-		maxBytes = 1024 * 1024
-	}
-	body, err := probeAppHTTPFromSandbox(ctx, appID, req.GetUrl(), timeout, maxBytes)
-	if err != nil {
-		return nil, err
-	}
-	return &proto.ProbeAppHTTPResponse{
-		Body:      body,
-		BytesRead: int32(len(body)),
-	}, nil
 }

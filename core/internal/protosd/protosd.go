@@ -152,6 +152,7 @@ type Node struct {
 	appRuntime     appruntime.RuntimePlatform
 
 	networkMu          sync.Mutex
+	networkLifecycleMu sync.Mutex
 	networkDesired     bool
 	networkEnabled     bool
 	networkState       string
@@ -337,6 +338,10 @@ func (n *Node) Start() error {
 		}
 		if err := n.appRuntime.Init(); err != nil {
 			return err
+		}
+		if imageManager, ok := n.appRuntime.(p2p.ImageManager); ok {
+			n.P2PManager.SetImageManager(imageManager)
+			n.AppManager.SetImageResolver(n.P2PManager)
 		}
 	}
 

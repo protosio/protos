@@ -63,6 +63,41 @@ func main() {
 		return nil
 	}
 
+	app.Commands = []*cli.Command{
+		{
+			Name:  "image",
+			Usage: "Manage local Protos runtime images",
+			Subcommands: []*cli.Command{
+				{
+					Name:      "load",
+					Usage:     "Load a local image tar or tar.gz into the Protos runtime",
+					ArgsUsage: "<archive-path>",
+					Flags: []cli.Flag{
+						&cli.StringFlag{
+							Name:  "ref",
+							Usage: "Image reference to create or update after loading",
+						},
+					},
+					Action: func(c *cli.Context) error {
+						archivePath := c.Args().First()
+						if archivePath == "" {
+							return cli.Exit("image archive path is required", 2)
+						}
+						loaded, err := protosd.LoadImageArchive(configFile, version, protosd.Options{
+							DataDir:      dataDir,
+							Capabilities: capabilities,
+						}, archivePath, c.String("ref"))
+						if err != nil {
+							return err
+						}
+						log.Infof("Loaded image %s (%s) for %s", loaded.ImageRef, loaded.TargetDigest, loaded.Platform)
+						return nil
+					},
+				},
+			},
+		},
+	}
+
 	app.Action = func(c *cli.Context) error {
 		log.Info("Starting Protos daemon")
 		protosd.StartUp(configFile, version, protosd.Options{

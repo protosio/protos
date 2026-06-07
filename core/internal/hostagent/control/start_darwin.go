@@ -36,7 +36,7 @@ func Start(ctx context.Context, opts StartOptions) error {
 		gid = os.Getgid()
 	}
 	command := fmt.Sprintf(
-		"/usr/bin/sudo -b %s --socket-mode 0660 --socket-uid %d --socket-gid %d >> %s 2>&1",
+		"/usr/bin/nohup %s --socket-mode 0660 --socket-uid %d --socket-gid %d >> %s 2>&1 &",
 		shellQuote(binary),
 		uid,
 		gid,

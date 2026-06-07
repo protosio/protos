@@ -1,11 +1,12 @@
 version: "3"
 
 vars:
-  BUILD_ARGS: '{{.BUILD_ARGS | default "--debug"}}'
+  BUILD_ARGS: '{{.BUILD_ARGS | default "--profile"}}'
   RUN_ARGS: '{{.RUN_ARGS | default "--debug"}}'
   DEVICE: '{{.DEVICE | default ""}}'
   DEVICE_CONNECTION: '{{.DEVICE_CONNECTION | default ""}}'
   DEVICE_TIMEOUT: '{{.DEVICE_TIMEOUT | default "60"}}'
+  CONSOLE_TIMEOUT: '{{.CONSOLE_TIMEOUT | default "600"}}'
   BUNDLE_ID: '{{.BUNDLE_ID | default "io.protos.protosFlutter"}}'
   APP_PATH: '{{.APP_PATH | default "build/ios/iphoneos/Protos.app"}}'
   ALLOW_TUNNEL: '{{.ALLOW_TUNNEL | default ""}}'
@@ -142,7 +143,7 @@ tasks:
           echo "DEVICE=<device-id> is required." >&2
           exit 2
         fi
-        xcrun devicectl device process launch --device "{{.DEVICE}}" --terminate-existing --console "{{.BUNDLE_ID}}" --timeout "{{.DEVICE_TIMEOUT}}"
+        xcrun devicectl device process launch --device "{{.DEVICE}}" --terminate-existing --console "{{.BUNDLE_ID}}" --timeout "{{.CONSOLE_TIMEOUT}}"
 
   install-launch:built:
     desc: Install the already-built iOS app and launch it without Flutter debugger attachment

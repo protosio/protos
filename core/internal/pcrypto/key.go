@@ -55,8 +55,7 @@ func (k Key) IPv6Address() netip.Addr {
 	// Leading 1s and first leading 0 of the NodeID are truncated off
 	// The rest is appended to the IPv6 address (truncated to 128 bits total)
 	if len(k.Pub) != ed25519.PublicKeySize {
-		// FIXME: for now I want a panic
-		panic("invalid public key size")
+		return netip.Addr{}
 	}
 	var buf [ed25519.PublicKeySize]byte
 	copy(buf[:], k.Pub)
@@ -188,17 +187,11 @@ func (k Key) PublicKey() string {
 }
 
 func (k Key) GetID() string {
-	pubKey, err := crypto.UnmarshalEd25519PublicKey(k.Public())
+	id, err := PeerIDFromPublicKeyBytes(k.Public())
 	if err != nil {
-		panic(err)
+		return ""
 	}
-
-	peerID, err := peer.IDFromPublicKey(pubKey)
-	if err != nil {
-		panic(err)
-	}
-
-	return peerID.String()
+	return id
 }
 
 //
@@ -220,12 +213,18 @@ func GetLocalKey(workdir string) (*Key, error) {
 		// Decode PEM block
 		block, _ := pem.Decode(keyData)
 		if block == nil || block.Type != "PRIVATE KEY" {
-			return nil, err
+			return nil, fmt.Errorf("invalid Protos private key PEM in %s", privateKeyFilePath)
 		}
 
 		// Convert PEM block to ed25519.PrivateKey
 		key.Priv = ed25519.PrivateKey(block.Bytes)
+		if len(key.Priv) != ed25519.PrivateKeySize {
+			return nil, fmt.Errorf("invalid Protos private key length in %s: got %d bytes, want %d", privateKeyFilePath, len(key.Priv), ed25519.PrivateKeySize)
+		}
 		key.Pub = key.Priv.Public().(ed25519.PublicKey)
+		if len(key.Pub) != ed25519.PublicKeySize {
+			return nil, fmt.Errorf("invalid Protos public key length derived from %s: got %d bytes, want %d", privateKeyFilePath, len(key.Pub), ed25519.PublicKeySize)
+		}
 	} else {
 		// Key file does not exist, generate a new key
 		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
@@ -272,8 +271,34 @@ func CreatePublicKeyFromBase64(base64String string) (Key, error) {
 	if err != nil {
 		return Key{}, fmt.Errorf("failed to decode base64 public key: %w", err)
 	}
+	if len(pubKey) != ed25519.PublicKeySize {
+		return Key{}, fmt.Errorf("invalid ed25519 public key length: got %d bytes, want %d", len(pubKey), ed25519.PublicKeySize)
+	}
 
 	return Key{Pub: pubKey}, nil
+}
+
+func PeerIDFromPublicKeyString(publicKey string) (string, error) {
+	key, err := CreatePublicKeyFromBase64(publicKey)
+	if err != nil {
+		return "", err
+	}
+	return PeerIDFromPublicKeyBytes(key.Public())
+}
+
+func PeerIDFromPublicKeyBytes(publicKey []byte) (string, error) {
+	if len(publicKey) != ed25519.PublicKeySize {
+		return "", fmt.Errorf("invalid ed25519 public key length: got %d bytes, want %d", len(publicKey), ed25519.PublicKeySize)
+	}
+	pubKey, err := crypto.UnmarshalEd25519PublicKey(publicKey)
+	if err != nil {
+		return "", fmt.Errorf("decode libp2p public key: %w", err)
+	}
+	peerID, err := peer.IDFromPublicKey(pubKey)
+	if err != nil {
+		return "", fmt.Errorf("derive peer id from public key: %w", err)
+	}
+	return peerID.String(), nil
 }
 
 func ConvertPublicEd25519ToCurve25519(base64String string) (wgtypes.Key, error) {

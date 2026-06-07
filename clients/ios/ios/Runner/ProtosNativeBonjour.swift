@@ -10,30 +10,37 @@ public func ProtosNativeBonjourStart(
   _ txtJSONPointer: UnsafePointer<CChar>?
 ) -> UnsafeMutablePointer<CChar>? {
   do {
+    guard !Thread.isMainThread else {
+      return makeCString("native Bonjour start cannot run on the main thread")
+    }
     let instance = try stringArgument(instancePointer, "instance")
     let service = try stringArgument(servicePointer, "service")
     let domain = try stringArgument(domainPointer, "domain")
     let txtJSON = try stringArgument(txtJSONPointer, "txt_json")
     let txtRecords = try decodeTXTRecords(txtJSON)
 
+    let semaphore = DispatchSemaphore(value: 0)
     var startError: Error?
-    let start = {
-      do {
-        try ProtosNativeBonjour.shared.startAdvertisement(
-          instance: instance,
-          service: service,
-          domain: domain,
-          port: Int(port),
-          txtRecords: txtRecords
-        )
-      } catch {
-        startError = error
+    DispatchQueue.main.async {
+      ProtosNativeBonjour.shared.startAdvertisement(
+        instance: instance,
+        service: service,
+        domain: domain,
+        port: Int(port),
+        txtRecords: txtRecords
+      ) { result in
+        if case .failure(let error) = result {
+          startError = error
+        }
+        semaphore.signal()
       }
     }
-    if Thread.isMainThread {
-      start()
-    } else {
-      DispatchQueue.main.sync(execute: start)
+
+    if semaphore.wait(timeout: .now() + .seconds(4)) != .success {
+      DispatchQueue.main.async {
+        ProtosNativeBonjour.shared.stopAdvertisement()
+      }
+      return makeCString("native Bonjour publish timed out")
     }
     if let startError {
       return makeCString(startError.localizedDescription)
@@ -106,6 +113,7 @@ private final class ProtosNativeBonjour {
   static let shared = ProtosNativeBonjour()
 
   private var advertisement: NetService?
+  private var advertisementDelegate: ProtosBonjourAdvertisementDelegate?
   private var browserSessions: [ObjectIdentifier: ProtosBonjourBrowserSession] = [:]
 
   func startAdvertisement(
@@ -113,11 +121,13 @@ private final class ProtosNativeBonjour {
     service: String,
     domain: String,
     port: Int,
-    txtRecords: [String]
-  ) throws {
+    txtRecords: [String],
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
     stopAdvertisement()
     guard port > 0 && port <= 65535 else {
-      throw bonjourError("Bonjour advertisement port is invalid.")
+      completion(.failure(bonjourError("Bonjour advertisement port is invalid.")))
+      return
     }
     let txtData = NetService.data(fromTXTRecord: Self.txtDictionary(from: txtRecords))
 
@@ -129,13 +139,23 @@ private final class ProtosNativeBonjour {
     )
     netService.includesPeerToPeer = true
     netService.setTXTRecord(txtData)
+    let delegate = ProtosBonjourAdvertisementDelegate { [weak self] result in
+      if case .failure = result {
+        self?.stopAdvertisement()
+      }
+      completion(result)
+    }
     advertisement = netService
+    advertisementDelegate = delegate
+    netService.delegate = delegate
     netService.publish()
   }
 
   func stopAdvertisement() {
     advertisement?.stop()
+    advertisement?.delegate = nil
     advertisement = nil
+    advertisementDelegate = nil
   }
 
   func browse(
@@ -217,6 +237,34 @@ private final class ProtosNativeBonjour {
   static func normalizedDomain(_ value: String) -> String {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.hasSuffix(".") ? trimmed : "\(trimmed)."
+  }
+}
+
+private final class ProtosBonjourAdvertisementDelegate: NSObject, NetServiceDelegate {
+  private let completion: (Result<Void, Error>) -> Void
+  private var completed = false
+
+  init(completion: @escaping (Result<Void, Error>) -> Void) {
+    self.completion = completion
+  }
+
+  func netServiceDidPublish(_ sender: NetService) {
+    finish(.success(()))
+  }
+
+  func netService(
+    _ sender: NetService,
+    didNotPublish errorDict: [String: NSNumber]
+  ) {
+    finish(.failure(bonjourError("Bonjour publish failed: \(errorDict).")))
+  }
+
+  private func finish(_ result: Result<Void, Error>) {
+    guard !completed else {
+      return
+    }
+    completed = true
+    completion(result)
   }
 }
 

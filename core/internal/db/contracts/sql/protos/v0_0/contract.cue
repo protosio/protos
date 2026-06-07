@@ -42,6 +42,7 @@ package protos
 }
 
 #User: {
+	id:          string
 	username:    string
 	name?:       string
 	is_disabled: bool
@@ -56,7 +57,8 @@ package protos
 }
 
 #Peer: {
-	id: string
+	id:         string
+	public_key: string
 }
 
 #Task: {
@@ -117,53 +119,65 @@ contract: {
 				name: "machines"
 				go: name: "MACHINE"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull index"}},
-					{name: "kind", type: "VARCHAR(255)", not_null: true, go: {name: "KIND", sq_type: "StringField", ddl: "notnull"}},
-					{name: "desired_status", type: "VARCHAR(255)", go: {name: "DESIRED_STATUS", sq_type: "StringField"}},
+					{name: "kind", type: "VARCHAR(255)", not_null: true, go: {name: "KIND", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "desired_status", type: "VARCHAR(255)", go: {name: "DESIRED_STATUS", sq_type: "StringField", ddl: "index"}},
 					{name: "witness_rank", type: "INT", not_null: true, go: {name: "WITNESS_RANK", sq_type: "NumberField", ddl: "notnull"}},
 				]
-				indexes: [{name: "machines_name_idx", columns: ["name"]}]
+				indexes: [
+					{name: "machines_name_idx", columns: ["name"]},
+					{name: "machines_kind_idx", columns: ["kind"]},
+					{name: "machines_desired_status_idx", columns: ["desired_status"]},
+				]
 			},
 			{
 				name: "cloud_machines_metadata"
 				go: name: "CLOUD_MACHINE_METADATA"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
-					{name: "cloud_id", type: "VARCHAR(255)", not_null: true, go: {name: "CLOUD_ID", sq_type: "StringField", ddl: "notnull"}},
-					{name: "provider_resource_id", type: "VARCHAR(255)", go: {name: "PROVIDER_RESOURCE_ID", sq_type: "StringField"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
+					{name: "cloud_id", type: "VARCHAR(255)", not_null: true, go: {name: "CLOUD_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "provider_resource_id", type: "VARCHAR(255)", go: {name: "PROVIDER_RESOURCE_ID", sq_type: "StringField", ddl: "index"}},
 					{name: "public_ip", type: "VARCHAR(255)", not_null: true, go: {name: "PUBLIC_IP", sq_type: "StringField", ddl: "notnull"}},
 					{name: "location", type: "VARCHAR(255)", not_null: true, go: {name: "LOCATION", sq_type: "StringField", ddl: "notnull"}},
 					{name: "architecture", type: "VARCHAR(255)", not_null: true, go: {name: "ARCHITECTURE", sq_type: "StringField", ddl: "notnull"}},
 					{name: "public_key", type: "VARCHAR(255)", not_null: true, go: {name: "PUBLIC_KEY", sq_type: "StringField", ddl: "notnull index"}},
 				]
-				indexes: [{name: "cloud_machines_metadata_public_key_idx", columns: ["public_key"]}]
+				indexes: [
+					{name: "cloud_machines_metadata_cloud_id_idx", columns: ["cloud_id"]},
+					{name: "cloud_machines_metadata_provider_resource_id_idx", columns: ["provider_resource_id"]},
+					{name: "cloud_machines_metadata_public_key_idx", columns: ["public_key"]},
+				]
 			},
 			{
 				name: "cloud_providers"
 				go: name: "CLOUD_PROVIDER"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull index"}},
-					{name: "type", type: "VARCHAR(255)", not_null: true, go: {name: "TYPE", sq_type: "StringField", ddl: "notnull"}},
+					{name: "type", type: "VARCHAR(255)", not_null: true, go: {name: "TYPE", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "auth", type: "JSON", not_null: true, go: {name: "AUTH", sq_type: "JSONField", ddl: "notnull"}},
 				]
-				indexes: [{name: "cloud_providers_name_idx", columns: ["name"]}]
+				indexes: [
+					{name: "cloud_providers_name_idx", columns: ["name"]},
+					{name: "cloud_providers_type_idx", columns: ["type"]},
+				]
 			},
 			{
 				name: "apps"
 				go: name: "APP"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "installer_ref", type: "VARCHAR(255)", not_null: true, go: {name: "INSTALLER_REF", sq_type: "StringField", ddl: "notnull"}},
-					{name: "instance_id", type: "VARCHAR(255)", not_null: true, go: {name: "INSTANCE_ID", sq_type: "StringField", ddl: "notnull"}},
+					{name: "instance_id", type: "VARCHAR(255)", not_null: true, go: {name: "INSTANCE_ID", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "desired_status", type: "VARCHAR(255)", not_null: true, go: {name: "DESIRED_STATUS", sq_type: "StringField", ddl: "notnull"}},
 					{name: "persistence", type: "TINYINT(1)", not_null: true, go: {name: "PERSISTENCE", sq_type: "BooleanField", ddl: "notnull"}},
 					{name: "public_key", type: "VARCHAR(255)", not_null: true, go: {name: "PUBLIC_KEY", sq_type: "StringField", ddl: "notnull index"}},
 				]
 				indexes: [
 					{name: "apps_name_idx", columns: ["name"]},
+					{name: "apps_instance_id_idx", columns: ["instance_id"]},
 					{name: "apps_public_key_idx", columns: ["public_key"]},
 				]
 			},
@@ -171,7 +185,7 @@ contract: {
 				name: "organisations"
 				go: name: "ORGANISATION"
 				columns: [
-					{name: "id", type: "VARCHAR(64)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "created_at", type: "VARCHAR(64)", not_null: true, go: {name: "CREATED_AT", sq_type: "StringField", ddl: "notnull"}},
 				]
@@ -181,19 +195,20 @@ contract: {
 				name: "users"
 				go: name: "USER"
 				columns: [
-					{name: "username", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "USERNAME", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
+					{name: "username", type: "VARCHAR(255)", not_null: true, go: {name: "USERNAME", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "name", type: "VARCHAR(255)", go: {name: "NAME", sq_type: "StringField"}},
 					{name: "is_disabled", type: "TINYINT(1)", not_null: true, go: {name: "IS_DISABLED", sq_type: "BooleanField", ddl: "notnull"}},
 				]
-				indexes: []
+				indexes: [{name: "users_username_idx", columns: ["username"]}]
 			},
 			{
 				name: "user_devices_metadata"
 				go: name: "USER_DEVICE_METADATA"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
 					{name: "public_key", type: "VARCHAR(255)", not_null: true, go: {name: "PUBLIC_KEY", sq_type: "StringField", ddl: "notnull index"}},
-					{name: "user_id", type: "VARCHAR(255)", not_null: true, go: {name: "USER_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "user_id", type: "BINARY(16)", not_null: true, go: {name: "USER_ID", sq_type: "BinaryField", ddl: "notnull index"}},
 					{name: "name", type: "VARCHAR(255)", not_null: true, go: {name: "NAME", sq_type: "StringField", ddl: "notnull"}},
 					{name: "witness_rank", type: "INT", not_null: true, go: {name: "WITNESS_RANK", sq_type: "NumberField", ddl: "notnull"}},
 				]
@@ -206,15 +221,16 @@ contract: {
 				name: "peers"
 				go: name: "PEER"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
+					{name: "public_key", type: "VARCHAR(255)", not_null: true, go: {name: "PUBLIC_KEY", sq_type: "StringField", ddl: "notnull index"}},
 				]
-				indexes: []
+				indexes: [{name: "peers_public_key_idx", columns: ["public_key"]}]
 			},
 			{
 				name: "tasks"
 				go: name: "TASK"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
 					{name: "task_stream", type: "VARCHAR(255)", not_null: true, go: {name: "TASK_STREAM", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "subject_type", type: "VARCHAR(255)", not_null: true, go: {name: "SUBJECT_TYPE", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "subject_id", type: "VARCHAR(255)", not_null: true, go: {name: "SUBJECT_ID", sq_type: "StringField", ddl: "notnull index"}},
@@ -243,8 +259,8 @@ contract: {
 				name: "task_events"
 				go: name: "TASK_EVENT"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
-					{name: "task_id", type: "VARCHAR(255)", not_null: true, go: {name: "TASK_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
+					{name: "task_id", type: "BINARY(16)", not_null: true, go: {name: "TASK_ID", sq_type: "BinaryField", ddl: "notnull index"}},
 					{name: "status", type: "VARCHAR(64)", not_null: true, go: {name: "STATUS", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "message", type: "TEXT", not_null: true, go: {name: "MESSAGE", sq_type: "StringField", ddl: "notnull"}},
 					{name: "progress", type: "INT", not_null: true, go: {name: "PROGRESS", sq_type: "NumberField", ddl: "notnull"}},
@@ -260,9 +276,9 @@ contract: {
 				name: "exit_routes"
 				go: name: "EXIT_ROUTE"
 				columns: [
-					{name: "id", type: "VARCHAR(255)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
-					{name: "device_id", type: "VARCHAR(255)", not_null: true, go: {name: "DEVICE_ID", sq_type: "StringField", ddl: "notnull index"}},
-					{name: "instance_id", type: "VARCHAR(255)", not_null: true, go: {name: "INSTANCE_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "id", type: "BINARY(16)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "BinaryField", ddl: "notnull primarykey"}},
+					{name: "device_id", type: "BINARY(16)", not_null: true, go: {name: "DEVICE_ID", sq_type: "BinaryField", ddl: "notnull index"}},
+					{name: "instance_id", type: "BINARY(16)", not_null: true, go: {name: "INSTANCE_ID", sq_type: "BinaryField", ddl: "notnull index"}},
 					{name: "desired_status", type: "VARCHAR(255)", not_null: true, go: {name: "DESIRED_STATUS", sq_type: "StringField", ddl: "notnull"}},
 					{name: "dns_server", type: "VARCHAR(255)", not_null: true, go: {name: "DNS_SERVER", sq_type: "StringField", ddl: "notnull"}},
 					{name: "cidrs", type: "TEXT", not_null: true, go: {name: "CIDRS", sq_type: "StringField", ddl: "notnull"}},

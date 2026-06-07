@@ -388,12 +388,13 @@ func (hz *hetzner) UploadLocalImage(imagePath string, imageName string, location
 		return "", errors.Wrap(err, errMsg)
 	}
 
+	hostKeyCallback := pcrypto.EphemeralTrustOnFirstUseHostKeyCallback()
 	sshConfig := &ssh.ClientConfig{
 		User: "root",
 		Auth: []ssh.AuthMethod{
 			key.SSHAuth(),
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 	}
 
 	client := scp.NewClient(hetznerServerPublicIP(server)+":22", sshConfig)
@@ -430,7 +431,7 @@ func (hz *hetzner) UploadLocalImage(imagePath string, imageName string, location
 	}
 	bar.Finish()
 
-	sshClient, err := pcrypto.NewConnection(hetznerServerPublicIP(server), "root", key.SSHAuth(), 10)
+	sshClient, err := pcrypto.NewConnectionWithHostKeyCallback(hetznerServerPublicIP(server), "root", key.SSHAuth(), 10, hostKeyCallback)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg+". Failed to connect to Hetzner rescue server")
 	}
@@ -789,7 +790,7 @@ func (hz *hetzner) connectImageUploadServer(server *hcloud.Server, key *pcrypto.
 		return nil, err
 	}
 	log.Info("Trying to connect to Hetzner rescue server over SSH")
-	sshClient, err := pcrypto.NewConnection(publicIP, "root", key.SSHAuth(), 10)
+	sshClient, err := pcrypto.NewConnectionWithHostKeyCallback(publicIP, "root", key.SSHAuth(), 10, pcrypto.EphemeralTrustOnFirstUseHostKeyCallback())
 	if err != nil {
 		return nil, err
 	}

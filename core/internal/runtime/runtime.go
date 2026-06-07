@@ -1,9 +1,11 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"net"
 
+	"github.com/protosio/protos/internal/imageregistry"
 	"github.com/protosio/protos/internal/network"
 )
 
@@ -49,6 +51,10 @@ type RuntimePlatform interface {
 	RemoveImage(id string) error
 	NewSandbox(name string, appID string, imageID string, persistence bool) (RuntimeSandbox, error)
 	GetHWStats() (HardwareStats, error)
+}
+
+type ImageLoader interface {
+	LoadImageArchive(ctx context.Context, archivePath string, imageRef string) (imageregistry.LoadedImage, error)
 }
 
 // Create initializes the run time platform

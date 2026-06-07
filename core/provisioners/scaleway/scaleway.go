@@ -447,7 +447,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 
 	log.Info("Trying to connect to Scaleway upload instance over SSH")
 
-	sshClient, err := pcrypto.NewConnection(srvPublicIP, "root", key.SSHAuth(), 10)
+	sshClient, err := pcrypto.NewConnectionWithHostKeyCallback(srvPublicIP, "root", key.SSHAuth(), 10, pcrypto.EphemeralTrustOnFirstUseHostKeyCallback())
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway. Failed to deploy VM to Scaleway")
 	}
@@ -600,12 +600,13 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 		return "", errors.Wrap(err, errMsg)
 	}
 
+	hostKeyCallback := pcrypto.EphemeralTrustOnFirstUseHostKeyCallback()
 	sshConfig := &ssh.ClientConfig{
 		User: "root",
 		Auth: []ssh.AuthMethod{
 			key.SSHAuth(),
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 	}
 
 	client := scp.NewClient(srvPublicIP+":22", sshConfig)
@@ -648,7 +649,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 
 	log.Info("Trying to connect to Scaleway upload instance over SSH")
 
-	sshClient, err := pcrypto.NewConnection(srvPublicIP, "root", key.SSHAuth(), 10)
+	sshClient, err := pcrypto.NewConnectionWithHostKeyCallback(srvPublicIP, "root", key.SSHAuth(), 10, hostKeyCallback)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg+". Failed to deploy VM to Scaleway")
 	}

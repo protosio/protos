@@ -41,8 +41,9 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 		t.Fatal("database should be initialized after Init")
 	}
 
+	userID := db.MustNewUUIDv7()
 	if _, err := store.ExecSQLAndCommit(
-		"INSERT INTO users (username, name, is_disabled) VALUES ('alex', 'Alex', false)",
+		fmt.Sprintf("INSERT INTO users (id, username, name, is_disabled) VALUES (UNHEX(REPLACE('%s', '-', '')), 'alex', 'Alex', false)", userID),
 		"insert test user",
 	); err != nil {
 		t.Fatalf("insert user: %v", err)

@@ -26,7 +26,6 @@ type ProviderRecord = ProvisionerRecord
 func newProvisionerRecord(name string, provisionerType Type, auth map[string]string) ProvisionerRecord {
 	name = strings.TrimSpace(name)
 	return ProvisionerRecord{
-		ID:   name,
 		Name: name,
 		Type: provisionerType,
 		Auth: copyStringMap(auth),
@@ -36,12 +35,6 @@ func newProvisionerRecord(name string, provisionerType Type, auth map[string]str
 func (record ProvisionerRecord) normalized() ProvisionerRecord {
 	record.ID = strings.TrimSpace(record.ID)
 	record.Name = strings.TrimSpace(record.Name)
-	if record.ID == "" {
-		record.ID = record.Name
-	}
-	if record.Name == "" {
-		record.Name = record.ID
-	}
 	record.Auth = copyStringMap(record.Auth)
 	return record
 }

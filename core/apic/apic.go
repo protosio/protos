@@ -2,6 +2,7 @@ package apic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -159,8 +160,8 @@ func StartGRPCServer(dataPath string, version string, protosClient *Services) (f
 
 	log.Info("starting gRPC server at unix://", unixSocketFile)
 	go func() {
-		if err := srv.Serve(l); err != nil {
-			log.Fatalf("Failed to serve gRPC service: %s", err.Error())
+		if err := srv.Serve(l); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			log.Errorf("Failed to serve gRPC service: %s", err.Error())
 		}
 	}()
 

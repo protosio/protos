@@ -197,126 +197,6 @@ func (x *GetAppStatusResponse) GetStatus() string {
 	return ""
 }
 
-type ProbeAppHTTPRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	AppName        string                 `protobuf:"bytes,1,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
-	Url            string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	TimeoutSeconds int32                  `protobuf:"varint,3,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
-	MaxBytes       int32                  `protobuf:"varint,4,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *ProbeAppHTTPRequest) Reset() {
-	*x = ProbeAppHTTPRequest{}
-	mi := &file_internal_p2p_proto_app_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ProbeAppHTTPRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ProbeAppHTTPRequest) ProtoMessage() {}
-
-func (x *ProbeAppHTTPRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_app_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProbeAppHTTPRequest.ProtoReflect.Descriptor instead.
-func (*ProbeAppHTTPRequest) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_app_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *ProbeAppHTTPRequest) GetAppName() string {
-	if x != nil {
-		return x.AppName
-	}
-	return ""
-}
-
-func (x *ProbeAppHTTPRequest) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-func (x *ProbeAppHTTPRequest) GetTimeoutSeconds() int32 {
-	if x != nil {
-		return x.TimeoutSeconds
-	}
-	return 0
-}
-
-func (x *ProbeAppHTTPRequest) GetMaxBytes() int32 {
-	if x != nil {
-		return x.MaxBytes
-	}
-	return 0
-}
-
-type ProbeAppHTTPResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Body          []byte                 `protobuf:"bytes,1,opt,name=body,proto3" json:"body,omitempty"`
-	BytesRead     int32                  `protobuf:"varint,2,opt,name=bytes_read,json=bytesRead,proto3" json:"bytes_read,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ProbeAppHTTPResponse) Reset() {
-	*x = ProbeAppHTTPResponse{}
-	mi := &file_internal_p2p_proto_app_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ProbeAppHTTPResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ProbeAppHTTPResponse) ProtoMessage() {}
-
-func (x *ProbeAppHTTPResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_app_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProbeAppHTTPResponse.ProtoReflect.Descriptor instead.
-func (*ProbeAppHTTPResponse) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_app_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *ProbeAppHTTPResponse) GetBody() []byte {
-	if x != nil {
-		return x.Body
-	}
-	return nil
-}
-
-func (x *ProbeAppHTTPResponse) GetBytesRead() int32 {
-	if x != nil {
-		return x.BytesRead
-	}
-	return 0
-}
-
 var File_internal_p2p_proto_app_proto protoreflect.FileDescriptor
 
 const file_internal_p2p_proto_app_proto_rawDesc = "" +
@@ -329,21 +209,11 @@ const file_internal_p2p_proto_app_proto_rawDesc = "" +
 	"\x13GetAppStatusRequest\x12\x19\n" +
 	"\bapp_name\x18\x01 \x01(\tR\aappName\".\n" +
 	"\x14GetAppStatusResponse\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status\"\x88\x01\n" +
-	"\x13ProbeAppHTTPRequest\x12\x19\n" +
-	"\bapp_name\x18\x01 \x01(\tR\aappName\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\x12'\n" +
-	"\x0ftimeout_seconds\x18\x03 \x01(\x05R\x0etimeoutSeconds\x12\x1b\n" +
-	"\tmax_bytes\x18\x04 \x01(\x05R\bmaxBytes\"I\n" +
-	"\x14ProbeAppHTTPResponse\x12\x12\n" +
-	"\x04body\x18\x01 \x01(\fR\x04body\x12\x1d\n" +
-	"\n" +
-	"bytes_read\x18\x02 \x01(\x05R\tbytesRead2\xe1\x01\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status2\x96\x01\n" +
 	"\x04Apps\x12C\n" +
 	"\n" +
 	"GetAppLogs\x12\x18.proto.GetAppLogsRequest\x1a\x19.proto.GetAppLogsResponse\"\x00\x12I\n" +
-	"\fGetAppStatus\x12\x1a.proto.GetAppStatusRequest\x1a\x1b.proto.GetAppStatusResponse\"\x00\x12I\n" +
-	"\fProbeAppHTTP\x12\x1a.proto.ProbeAppHTTPRequest\x1a\x1b.proto.ProbeAppHTTPResponse\"\x00B\tZ\a./protob\x06proto3"
+	"\fGetAppStatus\x12\x1a.proto.GetAppStatusRequest\x1a\x1b.proto.GetAppStatusResponse\"\x00B\tZ\a./protob\x06proto3"
 
 var (
 	file_internal_p2p_proto_app_proto_rawDescOnce sync.Once
@@ -357,24 +227,20 @@ func file_internal_p2p_proto_app_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_app_proto_rawDescData
 }
 
-var file_internal_p2p_proto_app_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_internal_p2p_proto_app_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_internal_p2p_proto_app_proto_goTypes = []any{
 	(*GetAppLogsRequest)(nil),    // 0: proto.GetAppLogsRequest
 	(*GetAppLogsResponse)(nil),   // 1: proto.GetAppLogsResponse
 	(*GetAppStatusRequest)(nil),  // 2: proto.GetAppStatusRequest
 	(*GetAppStatusResponse)(nil), // 3: proto.GetAppStatusResponse
-	(*ProbeAppHTTPRequest)(nil),  // 4: proto.ProbeAppHTTPRequest
-	(*ProbeAppHTTPResponse)(nil), // 5: proto.ProbeAppHTTPResponse
 }
 var file_internal_p2p_proto_app_proto_depIdxs = []int32{
 	0, // 0: proto.Apps.GetAppLogs:input_type -> proto.GetAppLogsRequest
 	2, // 1: proto.Apps.GetAppStatus:input_type -> proto.GetAppStatusRequest
-	4, // 2: proto.Apps.ProbeAppHTTP:input_type -> proto.ProbeAppHTTPRequest
-	1, // 3: proto.Apps.GetAppLogs:output_type -> proto.GetAppLogsResponse
-	3, // 4: proto.Apps.GetAppStatus:output_type -> proto.GetAppStatusResponse
-	5, // 5: proto.Apps.ProbeAppHTTP:output_type -> proto.ProbeAppHTTPResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	1, // 2: proto.Apps.GetAppLogs:output_type -> proto.GetAppLogsResponse
+	3, // 3: proto.Apps.GetAppStatus:output_type -> proto.GetAppStatusResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -391,7 +257,7 @@ func file_internal_p2p_proto_app_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_app_proto_rawDesc), len(file_internal_p2p_proto_app_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

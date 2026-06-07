@@ -21,7 +21,6 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Apps_GetAppLogs_FullMethodName   = "/proto.Apps/GetAppLogs"
 	Apps_GetAppStatus_FullMethodName = "/proto.Apps/GetAppStatus"
-	Apps_ProbeAppHTTP_FullMethodName = "/proto.Apps/ProbeAppHTTP"
 )
 
 // AppsClient is the client API for Apps service.
@@ -30,7 +29,6 @@ const (
 type AppsClient interface {
 	GetAppLogs(ctx context.Context, in *GetAppLogsRequest, opts ...grpc.CallOption) (*GetAppLogsResponse, error)
 	GetAppStatus(ctx context.Context, in *GetAppStatusRequest, opts ...grpc.CallOption) (*GetAppStatusResponse, error)
-	ProbeAppHTTP(ctx context.Context, in *ProbeAppHTTPRequest, opts ...grpc.CallOption) (*ProbeAppHTTPResponse, error)
 }
 
 type appsClient struct {
@@ -61,23 +59,12 @@ func (c *appsClient) GetAppStatus(ctx context.Context, in *GetAppStatusRequest, 
 	return out, nil
 }
 
-func (c *appsClient) ProbeAppHTTP(ctx context.Context, in *ProbeAppHTTPRequest, opts ...grpc.CallOption) (*ProbeAppHTTPResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ProbeAppHTTPResponse)
-	err := c.cc.Invoke(ctx, Apps_ProbeAppHTTP_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AppsServer is the server API for Apps service.
 // All implementations should embed UnimplementedAppsServer
 // for forward compatibility.
 type AppsServer interface {
 	GetAppLogs(context.Context, *GetAppLogsRequest) (*GetAppLogsResponse, error)
 	GetAppStatus(context.Context, *GetAppStatusRequest) (*GetAppStatusResponse, error)
-	ProbeAppHTTP(context.Context, *ProbeAppHTTPRequest) (*ProbeAppHTTPResponse, error)
 }
 
 // UnimplementedAppsServer should be embedded to have
@@ -92,9 +79,6 @@ func (UnimplementedAppsServer) GetAppLogs(context.Context, *GetAppLogsRequest) (
 }
 func (UnimplementedAppsServer) GetAppStatus(context.Context, *GetAppStatusRequest) (*GetAppStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAppStatus not implemented")
-}
-func (UnimplementedAppsServer) ProbeAppHTTP(context.Context, *ProbeAppHTTPRequest) (*ProbeAppHTTPResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ProbeAppHTTP not implemented")
 }
 func (UnimplementedAppsServer) testEmbeddedByValue() {}
 
@@ -152,24 +136,6 @@ func _Apps_GetAppStatus_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Apps_ProbeAppHTTP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ProbeAppHTTPRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AppsServer).ProbeAppHTTP(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Apps_ProbeAppHTTP_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AppsServer).ProbeAppHTTP(ctx, req.(*ProbeAppHTTPRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Apps_ServiceDesc is the grpc.ServiceDesc for Apps service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -184,10 +150,6 @@ var Apps_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAppStatus",
 			Handler:    _Apps_GetAppStatus_Handler,
-		},
-		{
-			MethodName: "ProbeAppHTTP",
-			Handler:    _Apps_ProbeAppHTTP_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

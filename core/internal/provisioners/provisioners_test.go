@@ -93,8 +93,8 @@ func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(instance.ID, "pending-") {
-		t.Fatalf("instance id = %q, want pending id", instance.ID)
+	if _, err := db.UUIDBytes(instance.ID); err != nil {
+		t.Fatalf("instance id = %q, want UUID: %v", instance.ID, err)
 	}
 	if instance.PublicKey != "" {
 		t.Fatalf("public key = %q, want empty until task discovers peer", instance.PublicKey)
@@ -135,7 +135,7 @@ func TestDeleteLocalInstanceContinuesWhenProviderManifestMissing(t *testing.T) {
 	}
 
 	instance := InstanceInfo{
-		ID:                 "pending-local",
+		ID:                 db.MustNewUUIDv7(),
 		Name:               "test1",
 		Kind:               KindLocalVM,
 		KindID:             "local-test",
@@ -181,7 +181,7 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 	}
 
 	instance := InstanceInfo{
-		ID:                 "peer-id",
+		ID:                 db.MustNewUUIDv7(),
 		Name:               "vm",
 		Kind:               KindCloudVM,
 		KindID:             "cloud-test",
@@ -210,25 +210,34 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 
 func TestWitnessCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 	store := openProvisionerTestDB(t)
+	keyManager := pcrypto.CreateManager(store)
+	activeKey, err := keyManager.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deletingKey, err := keyManager.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 	active := InstanceInfo{
-		ID:            "active-peer",
+		ID:            db.MustNewUUIDv7(),
 		Name:          "active",
 		Kind:          KindCloudVM,
 		KindID:        "cloud-test",
 		PublicIP:      "192.0.2.10",
-		PublicKey:     "active-public-key",
+		PublicKey:     activeKey.PublicString(),
 		DesiredStatus: ServerStateRunning,
 		WitnessRank:   10,
 		Location:      "test-location",
 		Architecture:  "amd64",
 	}
 	deleting := InstanceInfo{
-		ID:            "deleting-peer",
+		ID:            db.MustNewUUIDv7(),
 		Name:          "deleting",
 		Kind:          KindCloudVM,
 		KindID:        "cloud-test",
 		PublicIP:      "192.0.2.11",
-		PublicKey:     "deleting-public-key",
+		PublicKey:     deletingKey.PublicString(),
 		DesiredStatus: ServerStateDeleting,
 		WitnessRank:   20,
 		Location:      "test-location",
@@ -245,8 +254,8 @@ func TestWitnessCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(candidates) != 1 || candidates[0].PeerID != active.ID {
-		t.Fatalf("candidates = %#v, want only %s", candidates, active.ID)
+	if len(candidates) != 1 || candidates[0].PeerID != activeKey.GetID() {
+		t.Fatalf("candidates = %#v, want only %s", candidates, activeKey.GetID())
 	}
 }
 

@@ -224,6 +224,7 @@ class AppModel extends ChangeNotifier {
     required String channel,
     required String username,
     required String name,
+    required String verificationCode,
   }) async {
     await api.joinOrganisation(
       organisationId: organisationId,
@@ -232,6 +233,7 @@ class AppModel extends ChangeNotifier {
       channel: channel,
       username: username,
       name: name,
+      verificationCode: verificationCode,
     );
     await _leaveInitializationMode();
   }

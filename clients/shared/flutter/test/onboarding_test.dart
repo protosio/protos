@@ -52,6 +52,10 @@ void main() {
     expect(find.text('MacBook'), findsOneWidget);
     await tester.enterText(find.widgetWithText(TextField, 'Username'), 'alex');
     await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Alex');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Invite code'),
+      '12345678',
+    );
     await tester.tap(find.text('Home Lab'));
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Join'));
@@ -61,6 +65,7 @@ void main() {
     expect(harness.bridge.joinRequest?.peerId, 'peer-1');
     expect(harness.bridge.joinRequest?.inviteId, 'invite-1');
     expect(harness.bridge.joinRequest?.channel, 'mdns');
+    expect(harness.bridge.joinRequest?.verificationCode, '12345678');
   });
 
   testWidgets('overview starts a device invite', (tester) async {
@@ -74,7 +79,7 @@ void main() {
     expect(harness.bridge.inviteRequest?.organisationId, 'org-1');
     expect(harness.bridge.inviteRequest?.channel, 'mdns');
     expect(harness.model.deviceInvite?.inviteId, 'invite-1');
-    expect(find.text('Invite active'), findsOneWidget);
+    expect(find.text('Invite code 12345678'), findsOneWidget);
   });
 }
 
@@ -220,6 +225,7 @@ class _FakeNativeProtosBridge implements NativeProtosBridge {
             advertiseName: 'home',
             advertiseService: '_protos._tcp',
             channel: 'mdns',
+            verificationCode: '12345678',
           ),
         );
       case 'JoinOrganisation':

@@ -1,33 +1,46 @@
 package db
 
-import "github.com/bokwoon95/sq"
+import (
+	"crypto/ed25519"
+	"encoding/base64"
+	"fmt"
 
-func CreatePeerInsertMapper(peerID string) InsertMapper {
+	"github.com/bokwoon95/sq"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+)
+
+func CreatePeerInsertMapper(publicKey string) InsertMapper {
 	return func() sq.InsertQuery {
 		p := sq.New[PEER]("")
 		mapper := func(col *sq.Column) {
-			col.SetString(p.ID, peerID)
+			col.SetBytes(p.ID, MustUUIDBytes(MustNewUUIDv7()))
+			col.SetString(p.PUBLIC_KEY, publicKey)
 		}
 		return sq.InsertInto(p).ColumnValues(mapper)
 	}
 }
 
-func CreatePeerDeleteMapper(peerID string) DeleteMapper {
+func CreatePeerDeleteMapper(publicKey string) DeleteMapper {
 	return func() sq.DeleteQuery {
 		p := sq.New[PEER]("")
-		return sq.DeleteFrom(p).Where(p.ID.EqString(peerID))
+		return sq.DeleteFrom(p).Where(p.PUBLIC_KEY.EqString(publicKey))
 	}
 }
 
 func GetPeerIDs(database *DB) (map[string]struct{}, error) {
-	ids, err := SelectMultiple(database, createPeerQueryAllMapper())
+	publicKeys, err := SelectMultiple(database, createPeerQueryAllMapper())
 	if err != nil {
 		return nil, err
 	}
 
-	peers := make(map[string]struct{}, len(ids))
-	for _, id := range ids {
-		peers[id] = struct{}{}
+	peers := make(map[string]struct{}, len(publicKeys))
+	for _, publicKey := range publicKeys {
+		peerID, err := PeerIDFromPublicKeyString(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("derive peer id from peer public key: %w", err)
+		}
+		peers[peerID] = struct{}{}
 	}
 	return peers, nil
 }
@@ -38,8 +51,27 @@ func createPeerQueryAllMapper() QueryMapper[string] {
 
 	return func() (sq.SelectQuery, func(row *sq.Row) string) {
 		mapper := func(row *sq.Row) string {
-			return row.StringField(p.ID)
+			return row.StringField(p.PUBLIC_KEY)
 		}
 		return query, mapper
 	}
+}
+
+func PeerIDFromPublicKeyString(publicKey string) (string, error) {
+	publicKeyBytes, err := base64.StdEncoding.DecodeString(publicKey)
+	if err != nil {
+		return "", fmt.Errorf("decode public key: %w", err)
+	}
+	if len(publicKeyBytes) != ed25519.PublicKeySize {
+		return "", fmt.Errorf("invalid ed25519 public key length: got %d bytes, want %d", len(publicKeyBytes), ed25519.PublicKeySize)
+	}
+	pubKey, err := libp2pcrypto.UnmarshalEd25519PublicKey(publicKeyBytes)
+	if err != nil {
+		return "", fmt.Errorf("decode libp2p public key: %w", err)
+	}
+	peerID, err := peer.IDFromPublicKey(pubKey)
+	if err != nil {
+		return "", fmt.Errorf("derive peer id from public key: %w", err)
+	}
+	return peerID.String(), nil
 }

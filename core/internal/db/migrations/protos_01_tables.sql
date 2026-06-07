@@ -1,5 +1,5 @@
 CREATE TABLE machines (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     kind VARCHAR(255) NOT NULL,
     desired_status VARCHAR(255),
@@ -8,8 +8,12 @@ CREATE TABLE machines (
 
 CREATE INDEX machines_name_idx ON machines (name);
 
+CREATE INDEX machines_kind_idx ON machines (kind);
+
+CREATE INDEX machines_desired_status_idx ON machines (desired_status);
+
 CREATE TABLE cloud_machines_metadata (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
     cloud_id VARCHAR(255) NOT NULL,
     provider_resource_id VARCHAR(255),
     public_ip VARCHAR(255) NOT NULL,
@@ -18,10 +22,14 @@ CREATE TABLE cloud_machines_metadata (
     public_key VARCHAR(255) NOT NULL
 );
 
+CREATE INDEX cloud_machines_metadata_cloud_id_idx ON cloud_machines_metadata (cloud_id);
+
+CREATE INDEX cloud_machines_metadata_provider_resource_id_idx ON cloud_machines_metadata (provider_resource_id);
+
 CREATE INDEX cloud_machines_metadata_public_key_idx ON cloud_machines_metadata (public_key);
 
 CREATE TABLE cloud_providers (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(255) NOT NULL,
     auth JSON NOT NULL
@@ -29,8 +37,10 @@ CREATE TABLE cloud_providers (
 
 CREATE INDEX cloud_providers_name_idx ON cloud_providers (name);
 
+CREATE INDEX cloud_providers_type_idx ON cloud_providers (type);
+
 CREATE TABLE apps (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     installer_ref VARCHAR(255) NOT NULL,
     instance_id VARCHAR(255) NOT NULL,
@@ -41,10 +51,12 @@ CREATE TABLE apps (
 
 CREATE INDEX apps_name_idx ON apps (name);
 
+CREATE INDEX apps_instance_id_idx ON apps (instance_id);
+
 CREATE INDEX apps_public_key_idx ON apps (public_key);
 
 CREATE TABLE organisations (
-    id VARCHAR(64) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     created_at VARCHAR(64) NOT NULL
 );
@@ -52,15 +64,18 @@ CREATE TABLE organisations (
 CREATE INDEX organisations_name_idx ON organisations (name);
 
 CREATE TABLE users (
-    username VARCHAR(255) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
     name VARCHAR(255),
     is_disabled TINYINT(1) NOT NULL
 );
 
+CREATE INDEX users_username_idx ON users (username);
+
 CREATE TABLE user_devices_metadata (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
     public_key VARCHAR(255) NOT NULL,
-    user_id VARCHAR(255) NOT NULL,
+    user_id BINARY(16) NOT NULL,
     name VARCHAR(255) NOT NULL,
     witness_rank INT NOT NULL
 );
@@ -70,11 +85,14 @@ CREATE INDEX user_devices_metadata_public_key_idx ON user_devices_metadata (publ
 CREATE INDEX user_devices_metadata_user_id_idx ON user_devices_metadata (user_id);
 
 CREATE TABLE peers (
-    id VARCHAR(255) NOT NULL PRIMARY KEY
+    id BINARY(16) NOT NULL PRIMARY KEY,
+    public_key VARCHAR(255) NOT NULL
 );
 
+CREATE INDEX peers_public_key_idx ON peers (public_key);
+
 CREATE TABLE tasks (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    id BINARY(16) NOT NULL PRIMARY KEY,
     task_stream VARCHAR(255) NOT NULL,
     subject_type VARCHAR(255) NOT NULL,
     subject_id VARCHAR(255) NOT NULL,
@@ -102,8 +120,8 @@ CREATE INDEX tasks_subject_id_idx ON tasks (subject_id);
 CREATE INDEX tasks_status_idx ON tasks (status);
 
 CREATE TABLE task_events (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
-    task_id VARCHAR(255) NOT NULL,
+    id BINARY(16) NOT NULL PRIMARY KEY,
+    task_id BINARY(16) NOT NULL,
     status VARCHAR(64) NOT NULL,
     message TEXT NOT NULL,
     progress INT NOT NULL,
@@ -116,9 +134,9 @@ CREATE INDEX task_events_task_id_idx ON task_events (task_id);
 CREATE INDEX task_events_status_idx ON task_events (status);
 
 CREATE TABLE exit_routes (
-    id VARCHAR(255) NOT NULL PRIMARY KEY,
-    device_id VARCHAR(255) NOT NULL,
-    instance_id VARCHAR(255) NOT NULL,
+    id BINARY(16) NOT NULL PRIMARY KEY,
+    device_id BINARY(16) NOT NULL,
+    instance_id BINARY(16) NOT NULL,
     desired_status VARCHAR(255) NOT NULL,
     dns_server VARCHAR(255) NOT NULL,
     cidrs TEXT NOT NULL
