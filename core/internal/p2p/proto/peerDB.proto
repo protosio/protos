@@ -26,6 +26,9 @@ message Commit {
   string hash = 1;
   string committer = 2;
   string message = 3;
+  int64 date_unix = 4;
+  repeated string parent_hashes = 5;
+  repeated string refs = 6;
 }
 
 message GetAllCommitsRequest {

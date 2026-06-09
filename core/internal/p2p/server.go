@@ -108,9 +108,14 @@ func (s *Server) GetAllCommits(ctx context.Context, _ *proto.GetAllCommitsReques
 	res := &proto.GetAllCommitsResponse{}
 	for _, commit := range commits {
 		respCommit := proto.Commit{
-			Hash:      commit.Hash,
-			Committer: commit.Committer,
-			Message:   commit.Message,
+			Hash:         commit.Hash,
+			Committer:    commit.Committer,
+			Message:      commit.Message,
+			ParentHashes: append([]string(nil), commit.ParentHashes...),
+			Refs:         append([]string(nil), commit.Refs...),
+		}
+		if !commit.Date.IsZero() {
+			respCommit.DateUnix = commit.Date.Unix()
 		}
 		res.Commits = append(res.Commits, &respCommit)
 	}

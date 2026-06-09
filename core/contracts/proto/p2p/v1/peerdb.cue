@@ -15,6 +15,9 @@ package p2pv1
 	hash?:      string
 	committer?: string
 	message?:   string
+	date_unix?: int
+	parent_hashes?: [...string]
+	refs?:          [...string]
 }
 
 #GetAllCommitsRequest: {}
@@ -62,11 +65,14 @@ contract: {
 				{type: "string", name: "result", number: 2},
 				{type: "string", name: "err", number: 3},
 			]},
-			{kind: "message", name: "Commit", fields: [
-				{type: "string", name: "hash", number: 1},
-				{type: "string", name: "committer", number: 2},
-				{type: "string", name: "message", number: 3},
-			]},
+				{kind: "message", name: "Commit", fields: [
+					{type: "string", name: "hash", number: 1},
+					{type: "string", name: "committer", number: 2},
+					{type: "string", name: "message", number: 3},
+					{type: "int64", name: "date_unix", number: 4},
+					{rule: "repeated", type: "string", name: "parent_hashes", number: 5},
+					{rule: "repeated", type: "string", name: "refs", number: 6},
+				]},
 			{kind: "message", name: "GetAllCommitsRequest", fields: []},
 			{kind: "message", name: "GetAllCommitsResponse", fields: [
 				{rule: "repeated", type: "Commit", name: "commits", number: 1},

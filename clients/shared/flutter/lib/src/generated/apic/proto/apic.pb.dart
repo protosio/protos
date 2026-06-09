@@ -11023,6 +11023,8 @@ class Commit extends $pb.GeneratedMessage {
     $core.String? message,
     $core.Iterable<$core.String>? states,
     $fixnum.Int64? dateUnix,
+    $core.Iterable<$core.String>? parentHashes,
+    $core.Iterable<$core.String>? refs,
   }) {
     final result = create();
     if (hash != null) result.hash = hash;
@@ -11030,6 +11032,8 @@ class Commit extends $pb.GeneratedMessage {
     if (message != null) result.message = message;
     if (states != null) result.states.addAll(states);
     if (dateUnix != null) result.dateUnix = dateUnix;
+    if (parentHashes != null) result.parentHashes.addAll(parentHashes);
+    if (refs != null) result.refs.addAll(refs);
     return result;
   }
 
@@ -11051,6 +11055,8 @@ class Commit extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'message')
     ..pPS(4, _omitFieldNames ? '' : 'states')
     ..aInt64(5, _omitFieldNames ? '' : 'dateUnix')
+    ..pPS(6, _omitFieldNames ? '' : 'parentHashes')
+    ..pPS(7, _omitFieldNames ? '' : 'refs')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -11109,6 +11115,268 @@ class Commit extends $pb.GeneratedMessage {
   $core.bool hasDateUnix() => $_has(4);
   @$pb.TagNumber(5)
   void clearDateUnix() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $pb.PbList<$core.String> get parentHashes => $_getList(5);
+
+  @$pb.TagNumber(7)
+  $pb.PbList<$core.String> get refs => $_getList(6);
+}
+
+class CommitGraphRelation extends $pb.GeneratedMessage {
+  factory CommitGraphRelation({
+    $core.String? parentHash,
+    $core.int? parentRow,
+    $core.int? fromLane,
+    $core.int? toLane,
+    $core.bool? visible,
+  }) {
+    final result = create();
+    if (parentHash != null) result.parentHash = parentHash;
+    if (parentRow != null) result.parentRow = parentRow;
+    if (fromLane != null) result.fromLane = fromLane;
+    if (toLane != null) result.toLane = toLane;
+    if (visible != null) result.visible = visible;
+    return result;
+  }
+
+  CommitGraphRelation._();
+
+  factory CommitGraphRelation.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitGraphRelation.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitGraphRelation',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'parentHash')
+    ..aI(2, _omitFieldNames ? '' : 'parentRow')
+    ..aI(3, _omitFieldNames ? '' : 'fromLane')
+    ..aI(4, _omitFieldNames ? '' : 'toLane')
+    ..aOB(5, _omitFieldNames ? '' : 'visible')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitGraphRelation clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitGraphRelation copyWith(void Function(CommitGraphRelation) updates) =>
+      super.copyWith((message) => updates(message as CommitGraphRelation))
+          as CommitGraphRelation;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitGraphRelation create() => CommitGraphRelation._();
+  @$core.override
+  CommitGraphRelation createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitGraphRelation getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitGraphRelation>(create);
+  static CommitGraphRelation? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get parentHash => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set parentHash($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasParentHash() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearParentHash() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get parentRow => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set parentRow($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasParentRow() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearParentRow() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get fromLane => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set fromLane($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasFromLane() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearFromLane() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get toLane => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set toLane($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasToLane() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearToLane() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get visible => $_getBF(4);
+  @$pb.TagNumber(5)
+  set visible($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasVisible() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearVisible() => $_clearField(5);
+}
+
+class CommitGraphItem extends $pb.GeneratedMessage {
+  factory CommitGraphItem({
+    Commit? commit,
+    $core.int? row,
+    $core.int? lane,
+    $core.Iterable<$core.int>? activeLanes,
+    $core.Iterable<CommitGraphRelation>? relations,
+  }) {
+    final result = create();
+    if (commit != null) result.commit = commit;
+    if (row != null) result.row = row;
+    if (lane != null) result.lane = lane;
+    if (activeLanes != null) result.activeLanes.addAll(activeLanes);
+    if (relations != null) result.relations.addAll(relations);
+    return result;
+  }
+
+  CommitGraphItem._();
+
+  factory CommitGraphItem.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitGraphItem.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitGraphItem',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOM<Commit>(1, _omitFieldNames ? '' : 'commit', subBuilder: Commit.create)
+    ..aI(2, _omitFieldNames ? '' : 'row')
+    ..aI(3, _omitFieldNames ? '' : 'lane')
+    ..p<$core.int>(4, _omitFieldNames ? '' : 'activeLanes', $pb.PbFieldType.K3)
+    ..pPM<CommitGraphRelation>(5, _omitFieldNames ? '' : 'relations',
+        subBuilder: CommitGraphRelation.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitGraphItem clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitGraphItem copyWith(void Function(CommitGraphItem) updates) =>
+      super.copyWith((message) => updates(message as CommitGraphItem))
+          as CommitGraphItem;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitGraphItem create() => CommitGraphItem._();
+  @$core.override
+  CommitGraphItem createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitGraphItem getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitGraphItem>(create);
+  static CommitGraphItem? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  Commit get commit => $_getN(0);
+  @$pb.TagNumber(1)
+  set commit(Commit value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCommit() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCommit() => $_clearField(1);
+  @$pb.TagNumber(1)
+  Commit ensureCommit() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.int get row => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set row($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRow() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRow() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get lane => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set lane($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLane() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLane() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $pb.PbList<$core.int> get activeLanes => $_getList(3);
+
+  @$pb.TagNumber(5)
+  $pb.PbList<CommitGraphRelation> get relations => $_getList(4);
+}
+
+class CommitGraph extends $pb.GeneratedMessage {
+  factory CommitGraph({
+    $core.Iterable<CommitGraphItem>? items,
+    $core.int? laneCount,
+  }) {
+    final result = create();
+    if (items != null) result.items.addAll(items);
+    if (laneCount != null) result.laneCount = laneCount;
+    return result;
+  }
+
+  CommitGraph._();
+
+  factory CommitGraph.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitGraph.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitGraph',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..pPM<CommitGraphItem>(1, _omitFieldNames ? '' : 'items',
+        subBuilder: CommitGraphItem.create)
+    ..aI(2, _omitFieldNames ? '' : 'laneCount')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitGraph clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitGraph copyWith(void Function(CommitGraph) updates) =>
+      super.copyWith((message) => updates(message as CommitGraph))
+          as CommitGraph;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitGraph create() => CommitGraph._();
+  @$core.override
+  CommitGraph createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitGraph getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitGraph>(create);
+  static CommitGraph? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<CommitGraphItem> get items => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.int get laneCount => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set laneCount($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLaneCount() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLaneCount() => $_clearField(2);
 }
 
 class GetLocalCommitsRequest extends $pb.GeneratedMessage {
@@ -11153,9 +11421,11 @@ class GetLocalCommitsRequest extends $pb.GeneratedMessage {
 class GetLocalCommitsResponse extends $pb.GeneratedMessage {
   factory GetLocalCommitsResponse({
     $core.Iterable<Commit>? commits,
+    CommitGraph? graph,
   }) {
     final result = create();
     if (commits != null) result.commits.addAll(commits);
+    if (graph != null) result.graph = graph;
     return result;
   }
 
@@ -11174,6 +11444,8 @@ class GetLocalCommitsResponse extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..pPM<Commit>(1, _omitFieldNames ? '' : 'commits',
         subBuilder: Commit.create)
+    ..aOM<CommitGraph>(2, _omitFieldNames ? '' : 'graph',
+        subBuilder: CommitGraph.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -11198,6 +11470,17 @@ class GetLocalCommitsResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<Commit> get commits => $_getList(0);
+
+  @$pb.TagNumber(2)
+  CommitGraph get graph => $_getN(1);
+  @$pb.TagNumber(2)
+  set graph(CommitGraph value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasGraph() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGraph() => $_clearField(2);
+  @$pb.TagNumber(2)
+  CommitGraph ensureGraph() => $_ensure(1);
 }
 
 class GetRemoteCommitsRequest extends $pb.GeneratedMessage {
@@ -11258,9 +11541,11 @@ class GetRemoteCommitsRequest extends $pb.GeneratedMessage {
 class GetRemoteCommitsResponse extends $pb.GeneratedMessage {
   factory GetRemoteCommitsResponse({
     $core.Iterable<Commit>? commits,
+    CommitGraph? graph,
   }) {
     final result = create();
     if (commits != null) result.commits.addAll(commits);
+    if (graph != null) result.graph = graph;
     return result;
   }
 
@@ -11279,6 +11564,8 @@ class GetRemoteCommitsResponse extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..pPM<Commit>(1, _omitFieldNames ? '' : 'commits',
         subBuilder: Commit.create)
+    ..aOM<CommitGraph>(2, _omitFieldNames ? '' : 'graph',
+        subBuilder: CommitGraph.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -11303,6 +11590,17 @@ class GetRemoteCommitsResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<Commit> get commits => $_getList(0);
+
+  @$pb.TagNumber(2)
+  CommitGraph get graph => $_getN(1);
+  @$pb.TagNumber(2)
+  set graph(CommitGraph value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasGraph() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGraph() => $_clearField(2);
+  @$pb.TagNumber(2)
+  CommitGraph ensureGraph() => $_ensure(1);
 }
 
 class SqlCell extends $pb.GeneratedMessage {

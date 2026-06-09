@@ -138,6 +138,9 @@ type Commit struct {
 	Hash          string                 `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
 	Committer     string                 `protobuf:"bytes,2,opt,name=committer,proto3" json:"committer,omitempty"`
 	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	DateUnix      int64                  `protobuf:"varint,4,opt,name=date_unix,json=dateUnix,proto3" json:"date_unix,omitempty"`
+	ParentHashes  []string               `protobuf:"bytes,5,rep,name=parent_hashes,json=parentHashes,proto3" json:"parent_hashes,omitempty"`
+	Refs          []string               `protobuf:"bytes,6,rep,name=refs,proto3" json:"refs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -191,6 +194,27 @@ func (x *Commit) GetMessage() string {
 		return x.Message
 	}
 	return ""
+}
+
+func (x *Commit) GetDateUnix() int64 {
+	if x != nil {
+		return x.DateUnix
+	}
+	return 0
+}
+
+func (x *Commit) GetParentHashes() []string {
+	if x != nil {
+		return x.ParentHashes
+	}
+	return nil
+}
+
+func (x *Commit) GetRefs() []string {
+	if x != nil {
+		return x.Refs
+	}
+	return nil
 }
 
 type GetAllCommitsRequest struct {
@@ -364,11 +388,14 @@ const file_internal_p2p_proto_peerDB_proto_rawDesc = "" +
 	"\x0fExecSQLResponse\x12\x16\n" +
 	"\x06commit\x18\x01 \x01(\tR\x06commit\x12\x16\n" +
 	"\x06result\x18\x02 \x01(\tR\x06result\x12\x10\n" +
-	"\x03err\x18\x03 \x01(\tR\x03err\"T\n" +
+	"\x03err\x18\x03 \x01(\tR\x03err\"\xaa\x01\n" +
 	"\x06Commit\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\x12\x1c\n" +
 	"\tcommitter\x18\x02 \x01(\tR\tcommitter\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\x16\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12\x1b\n" +
+	"\tdate_unix\x18\x04 \x01(\x03R\bdateUnix\x12#\n" +
+	"\rparent_hashes\x18\x05 \x03(\tR\fparentHashes\x12\x12\n" +
+	"\x04refs\x18\x06 \x03(\tR\x04refs\"\x16\n" +
 	"\x14GetAllCommitsRequest\"@\n" +
 	"\x15GetAllCommitsResponse\x12'\n" +
 	"\acommits\x18\x01 \x03(\v2\r.proto.CommitR\acommits\"\x10\n" +

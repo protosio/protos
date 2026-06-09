@@ -2200,19 +2200,50 @@ func (b *Backend) GetLocalCommits(ctx context.Context, in *pbApic.GetLocalCommit
 	for _, commit := range commits {
 		resp.Commits = append(resp.Commits, commitViewToProto(commit))
 	}
+	graph := db.BuildCommitGraph(commits)
+	resp.Graph = commitGraphToProto(graph)
 
 	return &resp, nil
 }
 
 func commitViewToProto(commit db.CommitView) *pbApic.Commit {
 	resp := &pbApic.Commit{
-		Hash:      commit.Hash,
-		Committer: commit.Committer,
-		Message:   commit.Message,
-		States:    append([]string(nil), commit.States...),
+		Hash:         commit.Hash,
+		Committer:    commit.Committer,
+		Message:      commit.Message,
+		States:       append([]string(nil), commit.States...),
+		ParentHashes: append([]string(nil), commit.ParentHashes...),
+		Refs:         append([]string(nil), commit.Refs...),
 	}
 	if !commit.Date.IsZero() {
 		resp.DateUnix = commit.Date.Unix()
+	}
+	return resp
+}
+
+func commitGraphToProto(graph db.CommitGraph) *pbApic.CommitGraph {
+	resp := &pbApic.CommitGraph{
+		LaneCount: int32(graph.LaneCount),
+	}
+	for _, item := range graph.Items {
+		respItem := &pbApic.CommitGraphItem{
+			Commit: commitViewToProto(item.Commit),
+			Row:    int32(item.Row),
+			Lane:   int32(item.Lane),
+		}
+		for _, lane := range item.ActiveLanes {
+			respItem.ActiveLanes = append(respItem.ActiveLanes, int32(lane))
+		}
+		for _, relation := range item.Relations {
+			respItem.Relations = append(respItem.Relations, &pbApic.CommitGraphRelation{
+				ParentHash: relation.ParentHash,
+				ParentRow:  int32(relation.ParentRow),
+				FromLane:   int32(relation.FromLane),
+				ToLane:     int32(relation.ToLane),
+				Visible:    relation.Visible,
+			})
+		}
+		resp.Items = append(resp.Items, respItem)
 	}
 	return resp
 }
@@ -2231,15 +2262,26 @@ func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteComm
 	}
 
 	resp := pbApic.GetRemoteCommitsResponse{}
+	commitViews := make([]db.CommitView, 0, len(respRemote.Commits))
 	for _, commit := range respRemote.Commits {
-		respCommit := pbApic.Commit{
-			Hash:      commit.Hash,
-			Committer: commit.Committer,
-			Message:   commit.Message,
-			States:    []string{db.CommitStateFinalized},
+		commitView := db.CommitView{
+			Commit: db.Commit{
+				Hash:         commit.Hash,
+				Committer:    commit.Committer,
+				Message:      commit.Message,
+				ParentHashes: append([]string(nil), commit.ParentHashes...),
+				Refs:         append([]string(nil), commit.Refs...),
+			},
+			States: []string{db.CommitStateFinalized},
 		}
-		resp.Commits = append(resp.Commits, &respCommit)
+		if commit.DateUnix > 0 {
+			commitView.Date = time.Unix(commit.DateUnix, 0)
+		}
+		commitViews = append(commitViews, commitView)
+		resp.Commits = append(resp.Commits, commitViewToProto(commitView))
 	}
+	graph := db.BuildCommitGraph(commitViews)
+	resp.Graph = commitGraphToProto(graph)
 
 	return &resp, nil
 }

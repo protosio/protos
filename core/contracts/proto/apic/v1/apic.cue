@@ -556,11 +556,37 @@ package apicv1
 	message?:   string
 	states?:    [...string]
 	date_unix?: int
+	parent_hashes?: [...string]
+	refs?:          [...string]
+}
+#CommitGraphRelation: {
+	parent_hash?: string
+	parent_row?:  int
+	from_lane?:   int
+	to_lane?:     int
+	visible?:     bool
+}
+#CommitGraphItem: {
+	commit?:       #Commit
+	row?:          int
+	lane?:         int
+	active_lanes?: [...int]
+	relations?:    [...#CommitGraphRelation]
+}
+#CommitGraph: {
+	items?:      [...#CommitGraphItem]
+	lane_count?: int
 }
 #GetLocalCommitsRequest: {}
-#GetLocalCommitsResponse: commits?: [...#Commit]
+#GetLocalCommitsResponse: {
+	commits?: [...#Commit]
+	graph?:   #CommitGraph
+}
 #GetRemoteCommitsRequest: remote?: string
-#GetRemoteCommitsResponse: commits?: [...#Commit]
+#GetRemoteCommitsResponse: {
+	commits?: [...#Commit]
+	graph?:   #CommitGraph
+}
 #SqlCell: {
 	value?:   string
 	is_null?: bool
@@ -1294,17 +1320,43 @@ contract: {
 			{kind: "message", name: "StopHostAgentResponse", fields: [
 				{type: "HostAgentConnectionStatus", name: "status", number: 1},
 			]},
-			{kind: "message", name: "Commit", fields: [
-				{type: "string", name: "hash", number: 1},
-				{type: "string", name: "committer", number: 2},
-				{type: "string", name: "message", number: 3},
-				{rule: "repeated", type: "string", name: "states", number: 4},
-				{type: "int64", name: "date_unix", number: 5},
-			]},
-			{kind: "message", name: "GetLocalCommitsRequest", fields: []},
-			{kind: "message", name: "GetLocalCommitsResponse", fields: [{rule: "repeated", type: "Commit", name: "commits", number: 1}]},
-			{kind: "message", name: "GetRemoteCommitsRequest", fields: [{type: "string", name: "remote", number: 1}]},
-			{kind: "message", name: "GetRemoteCommitsResponse", fields: [{rule: "repeated", type: "Commit", name: "commits", number: 1}]},
+				{kind: "message", name: "Commit", fields: [
+					{type: "string", name: "hash", number: 1},
+					{type: "string", name: "committer", number: 2},
+					{type: "string", name: "message", number: 3},
+					{rule: "repeated", type: "string", name: "states", number: 4},
+					{type: "int64", name: "date_unix", number: 5},
+					{rule: "repeated", type: "string", name: "parent_hashes", number: 6},
+					{rule: "repeated", type: "string", name: "refs", number: 7},
+				]},
+				{kind: "message", name: "CommitGraphRelation", fields: [
+					{type: "string", name: "parent_hash", number: 1},
+					{type: "int32", name: "parent_row", number: 2},
+					{type: "int32", name: "from_lane", number: 3},
+					{type: "int32", name: "to_lane", number: 4},
+					{type: "bool", name: "visible", number: 5},
+				]},
+				{kind: "message", name: "CommitGraphItem", fields: [
+					{type: "Commit", name: "commit", number: 1},
+					{type: "int32", name: "row", number: 2},
+					{type: "int32", name: "lane", number: 3},
+					{rule: "repeated", type: "int32", name: "active_lanes", number: 4},
+					{rule: "repeated", type: "CommitGraphRelation", name: "relations", number: 5},
+				]},
+				{kind: "message", name: "CommitGraph", fields: [
+					{rule: "repeated", type: "CommitGraphItem", name: "items", number: 1},
+					{type: "int32", name: "lane_count", number: 2},
+				]},
+				{kind: "message", name: "GetLocalCommitsRequest", fields: []},
+				{kind: "message", name: "GetLocalCommitsResponse", fields: [
+					{rule: "repeated", type: "Commit", name: "commits", number: 1},
+					{type: "CommitGraph", name: "graph", number: 2},
+				]},
+				{kind: "message", name: "GetRemoteCommitsRequest", fields: [{type: "string", name: "remote", number: 1}]},
+				{kind: "message", name: "GetRemoteCommitsResponse", fields: [
+					{rule: "repeated", type: "Commit", name: "commits", number: 1},
+					{type: "CommitGraph", name: "graph", number: 2},
+				]},
 			{kind: "message", name: "SqlCell", fields: [
 				{type: "string", name: "value", number: 1},
 				{type: "bool", name: "is_null", number: 2},
@@ -1483,8 +1535,11 @@ lineage: {
 			StartHostAgentResponse?:               #StartHostAgentResponse
 			StopHostAgentRequest?:                 #StopHostAgentRequest
 			StopHostAgentResponse?:                #StopHostAgentResponse
-			Commit?:                              #Commit
-			GetLocalCommitsRequest?:              #GetLocalCommitsRequest
+				Commit?:                              #Commit
+				CommitGraphRelation?:                 #CommitGraphRelation
+				CommitGraphItem?:                     #CommitGraphItem
+				CommitGraph?:                         #CommitGraph
+				GetLocalCommitsRequest?:              #GetLocalCommitsRequest
 			GetLocalCommitsResponse?:             #GetLocalCommitsResponse
 			GetRemoteCommitsRequest?:             #GetRemoteCommitsRequest
 			GetRemoteCommitsResponse?:            #GetRemoteCommitsResponse

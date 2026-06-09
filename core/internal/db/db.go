@@ -100,11 +100,13 @@ func (s swarmionSigner) Verify(commit string, signature string, publicKey string
 }
 
 type Commit struct {
-	Hash      string
-	Committer string
-	Email     string
-	Date      time.Time
-	Message   string
+	Hash         string
+	Committer    string
+	Email        string
+	Date         time.Time
+	Message      string
+	ParentHashes []string
+	Refs         []string
 }
 
 type DB struct {
@@ -784,7 +786,7 @@ func (db *DB) GetLastCommit(branch string) (Commit, error) {
 	if strings.TrimSpace(branch) == "" {
 		branch = "main"
 	}
-	query := fmt.Sprintf("SELECT commit_hash, committer, email, date, message FROM dolt_log('%s') LIMIT 1;", escapeSQL(branch))
+	query := fmt.Sprintf("SELECT commit_hash, committer, email, date, message, parents, refs FROM dolt_log('%s', '--parents', '--decorate=short') LIMIT 1;", escapeSQL(branch))
 	commits, err := db.getCommits(query)
 	if err != nil {
 		return Commit{}, err
@@ -803,7 +805,7 @@ func (db *DB) GetCommits(branch string) ([]Commit, error) {
 	if strings.TrimSpace(branch) == "" {
 		branch = "main"
 	}
-	query := fmt.Sprintf("SELECT commit_hash, committer, email, date, message FROM dolt_log('%s');", escapeSQL(branch))
+	query := fmt.Sprintf("SELECT commit_hash, committer, email, date, message, parents, refs FROM dolt_log('%s', '--parents', '--decorate=short');", escapeSQL(branch))
 	return db.getCommits(query)
 }
 
@@ -817,15 +819,31 @@ func (db *DB) getCommits(query string) ([]Commit, error) {
 	var commits []Commit
 	for rows.Next() {
 		var commit Commit
-		if err := rows.Scan(&commit.Hash, &commit.Committer, &commit.Email, &commit.Date, &commit.Message); err != nil {
+		var parents sql.NullString
+		var refs sql.NullString
+		if err := rows.Scan(&commit.Hash, &commit.Committer, &commit.Email, &commit.Date, &commit.Message, &parents, &refs); err != nil {
 			return nil, fmt.Errorf("failed to scan commit: %w", err)
 		}
+		commit.ParentHashes = splitCommitList(parents.String)
+		commit.Refs = splitCommitList(refs.String)
 		commits = append(commits, commit)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to read commits: %w", err)
 	}
 	return commits, nil
+}
+
+func splitCommitList(value string) []string {
+	var items []string
+	for _, raw := range strings.Split(value, ",") {
+		item := strings.TrimSpace(raw)
+		if item == "" {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 func (db *DB) commitStaged(ctx context.Context, message string, allowNoop bool) (string, error) {

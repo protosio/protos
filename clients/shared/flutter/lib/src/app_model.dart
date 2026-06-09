@@ -102,6 +102,7 @@ class AppModel extends ChangeNotifier {
   pb.RuntimeState? runtimeState;
   List<pb.RuntimePeerStatus> runtimePeers = [];
   List<pb.Commit> localCommits = [];
+  pb.CommitGraph? localCommitGraph;
   pb.SystemStatus? systemStatus;
   MobileTunnelStatus mobileTunnelStatus =
       const MobileTunnelStatus.unsupported();
@@ -297,7 +298,11 @@ class AppModel extends ChangeNotifier {
     _setRuntimeState(
       runtimeResponse?.hasState() == true ? runtimeResponse!.state : null,
     );
-    localCommits = (await commitList)?.commits.toList(growable: false) ?? [];
+    final commitsResponse = await commitList;
+    localCommits = commitsResponse?.commits.toList(growable: false) ?? [];
+    localCommitGraph = commitsResponse?.hasGraph() == true
+        ? commitsResponse!.graph
+        : null;
     mobileTunnelStatus =
         await tunnelStatus ?? const MobileTunnelStatus.unsupported();
     if (notify) {
@@ -442,6 +447,7 @@ class AppModel extends ChangeNotifier {
     _setRuntimeState(runtimeResponse.hasState() ? runtimeResponse.state : null);
     final commitResponse = await api.localCommits();
     localCommits = commitResponse.commits.toList(growable: false);
+    localCommitGraph = commitResponse.hasGraph() ? commitResponse.graph : null;
     if (notify) {
       notifyListeners();
     }
@@ -762,6 +768,7 @@ class AppModel extends ChangeNotifier {
     runtimeState = null;
     runtimePeers = [];
     localCommits = [];
+    localCommitGraph = null;
     systemStatus = null;
     mobileTunnelStatus = const MobileTunnelStatus.unsupported();
     instanceDeployOptions = null;

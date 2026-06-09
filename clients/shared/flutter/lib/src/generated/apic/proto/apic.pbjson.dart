@@ -3040,6 +3040,8 @@ const Commit$json = {
     {'1': 'message', '3': 3, '4': 1, '5': 9, '10': 'message'},
     {'1': 'states', '3': 4, '4': 3, '5': 9, '10': 'states'},
     {'1': 'date_unix', '3': 5, '4': 1, '5': 3, '10': 'dateUnix'},
+    {'1': 'parent_hashes', '3': 6, '4': 3, '5': 9, '10': 'parentHashes'},
+    {'1': 'refs', '3': 7, '4': 3, '5': 9, '10': 'refs'},
   ],
 };
 
@@ -3047,7 +3049,80 @@ const Commit$json = {
 final $typed_data.Uint8List commitDescriptor = $convert.base64Decode(
     'CgZDb21taXQSEgoEaGFzaBgBIAEoCVIEaGFzaBIcCgljb21taXR0ZXIYAiABKAlSCWNvbW1pdH'
     'RlchIYCgdtZXNzYWdlGAMgASgJUgdtZXNzYWdlEhYKBnN0YXRlcxgEIAMoCVIGc3RhdGVzEhsK'
-    'CWRhdGVfdW5peBgFIAEoA1IIZGF0ZVVuaXg=');
+    'CWRhdGVfdW5peBgFIAEoA1IIZGF0ZVVuaXgSIwoNcGFyZW50X2hhc2hlcxgGIAMoCVIMcGFyZW'
+    '50SGFzaGVzEhIKBHJlZnMYByADKAlSBHJlZnM=');
+
+@$core.Deprecated('Use commitGraphRelationDescriptor instead')
+const CommitGraphRelation$json = {
+  '1': 'CommitGraphRelation',
+  '2': [
+    {'1': 'parent_hash', '3': 1, '4': 1, '5': 9, '10': 'parentHash'},
+    {'1': 'parent_row', '3': 2, '4': 1, '5': 5, '10': 'parentRow'},
+    {'1': 'from_lane', '3': 3, '4': 1, '5': 5, '10': 'fromLane'},
+    {'1': 'to_lane', '3': 4, '4': 1, '5': 5, '10': 'toLane'},
+    {'1': 'visible', '3': 5, '4': 1, '5': 8, '10': 'visible'},
+  ],
+};
+
+/// Descriptor for `CommitGraphRelation`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitGraphRelationDescriptor = $convert.base64Decode(
+    'ChNDb21taXRHcmFwaFJlbGF0aW9uEh8KC3BhcmVudF9oYXNoGAEgASgJUgpwYXJlbnRIYXNoEh'
+    '0KCnBhcmVudF9yb3cYAiABKAVSCXBhcmVudFJvdxIbCglmcm9tX2xhbmUYAyABKAVSCGZyb21M'
+    'YW5lEhcKB3RvX2xhbmUYBCABKAVSBnRvTGFuZRIYCgd2aXNpYmxlGAUgASgIUgd2aXNpYmxl');
+
+@$core.Deprecated('Use commitGraphItemDescriptor instead')
+const CommitGraphItem$json = {
+  '1': 'CommitGraphItem',
+  '2': [
+    {
+      '1': 'commit',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.Commit',
+      '10': 'commit'
+    },
+    {'1': 'row', '3': 2, '4': 1, '5': 5, '10': 'row'},
+    {'1': 'lane', '3': 3, '4': 1, '5': 5, '10': 'lane'},
+    {'1': 'active_lanes', '3': 4, '4': 3, '5': 5, '10': 'activeLanes'},
+    {
+      '1': 'relations',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CommitGraphRelation',
+      '10': 'relations'
+    },
+  ],
+};
+
+/// Descriptor for `CommitGraphItem`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitGraphItemDescriptor = $convert.base64Decode(
+    'Cg9Db21taXRHcmFwaEl0ZW0SJAoGY29tbWl0GAEgASgLMgwuYXBpYy5Db21taXRSBmNvbW1pdB'
+    'IQCgNyb3cYAiABKAVSA3JvdxISCgRsYW5lGAMgASgFUgRsYW5lEiEKDGFjdGl2ZV9sYW5lcxgE'
+    'IAMoBVILYWN0aXZlTGFuZXMSNwoJcmVsYXRpb25zGAUgAygLMhkuYXBpYy5Db21taXRHcmFwaF'
+    'JlbGF0aW9uUglyZWxhdGlvbnM=');
+
+@$core.Deprecated('Use commitGraphDescriptor instead')
+const CommitGraph$json = {
+  '1': 'CommitGraph',
+  '2': [
+    {
+      '1': 'items',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CommitGraphItem',
+      '10': 'items'
+    },
+    {'1': 'lane_count', '3': 2, '4': 1, '5': 5, '10': 'laneCount'},
+  ],
+};
+
+/// Descriptor for `CommitGraph`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitGraphDescriptor = $convert.base64Decode(
+    'CgtDb21taXRHcmFwaBIrCgVpdGVtcxgBIAMoCzIVLmFwaWMuQ29tbWl0R3JhcGhJdGVtUgVpdG'
+    'VtcxIdCgpsYW5lX2NvdW50GAIgASgFUglsYW5lQ291bnQ=');
 
 @$core.Deprecated('Use getLocalCommitsRequestDescriptor instead')
 const GetLocalCommitsRequest$json = {
@@ -3070,14 +3145,21 @@ const GetLocalCommitsResponse$json = {
       '6': '.apic.Commit',
       '10': 'commits'
     },
+    {
+      '1': 'graph',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CommitGraph',
+      '10': 'graph'
+    },
   ],
 };
 
 /// Descriptor for `GetLocalCommitsResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List getLocalCommitsResponseDescriptor =
-    $convert.base64Decode(
-        'ChdHZXRMb2NhbENvbW1pdHNSZXNwb25zZRImCgdjb21taXRzGAEgAygLMgwuYXBpYy5Db21taX'
-        'RSB2NvbW1pdHM=');
+final $typed_data.Uint8List getLocalCommitsResponseDescriptor = $convert.base64Decode(
+    'ChdHZXRMb2NhbENvbW1pdHNSZXNwb25zZRImCgdjb21taXRzGAEgAygLMgwuYXBpYy5Db21taX'
+    'RSB2NvbW1pdHMSJwoFZ3JhcGgYAiABKAsyES5hcGljLkNvbW1pdEdyYXBoUgVncmFwaA==');
 
 @$core.Deprecated('Use getRemoteCommitsRequestDescriptor instead')
 const GetRemoteCommitsRequest$json = {
@@ -3104,6 +3186,14 @@ const GetRemoteCommitsResponse$json = {
       '6': '.apic.Commit',
       '10': 'commits'
     },
+    {
+      '1': 'graph',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CommitGraph',
+      '10': 'graph'
+    },
   ],
 };
 
@@ -3111,7 +3201,7 @@ const GetRemoteCommitsResponse$json = {
 final $typed_data.Uint8List getRemoteCommitsResponseDescriptor =
     $convert.base64Decode(
         'ChhHZXRSZW1vdGVDb21taXRzUmVzcG9uc2USJgoHY29tbWl0cxgBIAMoCzIMLmFwaWMuQ29tbW'
-        'l0Ugdjb21taXRz');
+        'l0Ugdjb21taXRzEicKBWdyYXBoGAIgASgLMhEuYXBpYy5Db21taXRHcmFwaFIFZ3JhcGg=');
 
 @$core.Deprecated('Use sqlCellDescriptor instead')
 const SqlCell$json = {
@@ -3705,6 +3795,9 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.GetLocalCommitsRequest': GetLocalCommitsRequest$json,
   '.apic.GetLocalCommitsResponse': GetLocalCommitsResponse$json,
   '.apic.Commit': Commit$json,
+  '.apic.CommitGraph': CommitGraph$json,
+  '.apic.CommitGraphItem': CommitGraphItem$json,
+  '.apic.CommitGraphRelation': CommitGraphRelation$json,
   '.apic.GetRemoteCommitsRequest': GetRemoteCommitsRequest$json,
   '.apic.GetRemoteCommitsResponse': GetRemoteCommitsResponse$json,
   '.apic.ExecuteSqlRequest': ExecuteSqlRequest$json,

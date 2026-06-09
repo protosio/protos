@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
@@ -2748,6 +2749,7 @@ class _DvcViewState extends State<DvcView> {
   String selectedCommitHash = '';
   pb.ExecuteSqlResponse? sqlResult;
   bool sqlRunning = false;
+  bool sqlShellOpen = false;
 
   @override
   void dispose() {
@@ -2814,32 +2816,32 @@ class _DvcViewState extends State<DvcView> {
           ),
           const SectionGap(),
           const SectionHeading('Commits'),
-          RowsPanel<pb.Commit>(
-            rows: model.localCommits,
-            emptyTitle: 'No commits',
+          CommitGraphPanel(
+            graph: model.localCommitGraph,
             selectedId: selectedCommitHash,
             onSelect: (id) => setState(() => selectedCommitHash = id),
-            idForRow: (row) => row.hash,
-            columns: [
-              RowColumn('State', _commitStateLabel),
-              RowColumn('Hash', (row) => shortHash(row.hash) ?? ''),
-              RowColumn('Committer', (row) => row.committer),
-              RowColumn('Message', (row) => row.message, flex: 2),
-            ],
           ),
           const SizedBox(height: 12),
           CommitDetailPanel(commit: selectedCommit),
           const SectionGap(),
-          const SectionHeading('SQL'),
-          SqlConsole(
-            controller: sqlController,
-            result: sqlResult,
-            running: sqlRunning,
-            onRun: model.isBusy || sqlRunning
-                ? null
-                : () => unawaited(model.run(() => _executeSql(model))),
-            onCopy: sqlResult == null ? null : () => _copySqlResult(context),
-          ),
+          if (!sqlShellOpen)
+            OutlinedButton.icon(
+              onPressed: () => setState(() => sqlShellOpen = true),
+              icon: const Icon(Icons.terminal_outlined),
+              label: const Text('Open SQL shell'),
+            )
+          else ...[
+            const SectionHeading('SQL'),
+            SqlConsole(
+              controller: sqlController,
+              result: sqlResult,
+              running: sqlRunning,
+              onRun: model.isBusy || sqlRunning
+                  ? null
+                  : () => unawaited(model.run(() => _executeSql(model))),
+              onCopy: sqlResult == null ? null : () => _copySqlResult(context),
+            ),
+          ],
         ],
       ),
     );
@@ -3097,6 +3099,361 @@ class _SqlTableCell extends StatelessWidget {
   }
 }
 
+const _commitGraphRowHeight = 50.0;
+const _commitGraphHeaderHeight = 36.0;
+const _commitGraphLaneGap = 20.0;
+const _commitGraphLanePadding = 18.0;
+const _commitGraphNodeRadius = 5.5;
+const _commitGraphLaneColors = <Color>[
+  Color(0xff0f766e),
+  Color(0xff2563eb),
+  Color(0xffdc2626),
+  Color(0xffca8a04),
+  Color(0xff7c3aed),
+  Color(0xff0891b2),
+];
+
+class CommitGraphPanel extends StatefulWidget {
+  const CommitGraphPanel({
+    required this.graph,
+    required this.selectedId,
+    required this.onSelect,
+    super.key,
+  });
+
+  final pb.CommitGraph? graph;
+  final String selectedId;
+  final ValueChanged<String> onSelect;
+
+  @override
+  State<CommitGraphPanel> createState() => _CommitGraphPanelState();
+}
+
+class _CommitGraphPanelState extends State<CommitGraphPanel> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final graph = widget.graph;
+    final items =
+        graph?.items
+            .where((item) => item.hasCommit())
+            .toList(growable: false) ??
+        const <pb.CommitGraphItem>[];
+    final laneCount = _commitGraphLaneCount(graph, items);
+    final graphWidth = _commitGraphWidth(laneCount);
+    final scheme = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      height: 260,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentWidth = math.max(
+            constraints.maxWidth,
+            _commitGraphContentWidth(graphWidth),
+          );
+          return SingleChildScrollView(
+            primary: false,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: contentWidth,
+              height: constraints.maxHeight,
+              child: Column(
+                children: [
+                  _CommitGraphHeader(graphWidth: graphWidth),
+                  Expanded(
+                    child: items.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No commits',
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : Scrollbar(
+                            controller: _controller,
+                            thumbVisibility: items.length > 5,
+                            child: SingleChildScrollView(
+                              controller: _controller,
+                              primary: false,
+                              child: SizedBox(
+                                height: items.length * _commitGraphRowHeight,
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: CustomPaint(
+                                        painter: _CommitGraphPainter(
+                                          items: items,
+                                          laneCount: laneCount,
+                                          scheme: scheme,
+                                        ),
+                                      ),
+                                    ),
+                                    for (final item in items)
+                                      _CommitGraphRow(
+                                        item: item,
+                                        graphWidth: graphWidth,
+                                        selected:
+                                            widget.selectedId.nonEmpty ==
+                                            item.commit.hash,
+                                        onSelect: widget.onSelect,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CommitGraphHeader extends StatelessWidget {
+  const _CommitGraphHeader({required this.graphWidth});
+
+  final double graphWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: scheme.onSurfaceVariant,
+      fontWeight: FontWeight.w800,
+    );
+
+    return Container(
+      height: _commitGraphHeaderHeight,
+      padding: EdgeInsets.zero,
+      child: Row(
+        children: [
+          SizedBox(
+            width: graphWidth,
+            child: Text('Graph', style: style),
+          ),
+          _CommitGraphHeaderCell('Hash', width: 104, style: style),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommitGraphHeaderCell extends StatelessWidget {
+  const _CommitGraphHeaderCell(this.text, {required this.width, this.style});
+
+  final String text;
+  final double width;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        ),
+      ),
+    );
+  }
+}
+
+class _CommitGraphRow extends StatelessWidget {
+  const _CommitGraphRow({
+    required this.item,
+    required this.graphWidth,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final pb.CommitGraphItem item;
+  final double graphWidth;
+  final bool selected;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final commit = item.commit;
+    final scheme = Theme.of(context).colorScheme;
+    final hash = commit.hash.nonEmpty;
+
+    return Positioned(
+      top: item.row * _commitGraphRowHeight,
+      left: 0,
+      right: 0,
+      height: _commitGraphRowHeight,
+      child: InkWell(
+        key: ValueKey(hash ?? 'commit-row-${item.row}'),
+        onTap: hash == null ? null : () => onSelect(hash),
+        child: Container(
+          padding: EdgeInsets.zero,
+          color: selected
+              ? scheme.primaryContainer.withValues(alpha: 0.56)
+              : Colors.transparent,
+          child: Row(
+            children: [
+              SizedBox(width: graphWidth),
+              _CommitGraphTextCell(
+                shortHash(commit.hash) ?? '',
+                width: 104,
+                monospace: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommitGraphTextCell extends StatelessWidget {
+  const _CommitGraphTextCell(
+    this.text, {
+    required this.width,
+    this.monospace = false,
+    this.color,
+  });
+
+  final String text;
+  final double width;
+  final bool monospace;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Text(
+          fallbackText(text),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: monospace ? 'monospace' : null,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommitGraphPainter extends CustomPainter {
+  const _CommitGraphPainter({
+    required this.items,
+    required this.laneCount,
+    required this.scheme,
+  });
+
+  final List<pb.CommitGraphItem> items;
+  final int laneCount;
+  final ColorScheme scheme;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+
+    for (final item in items) {
+      for (final relation in item.relations) {
+        final from = _pointFor(item.row, relation.fromLane);
+        final to = relation.visible && relation.parentRow >= 0
+            ? _pointFor(relation.parentRow, relation.toLane)
+            : Offset(from.dx, math.min(size.height, from.dy + 34));
+        if (to.dy <= from.dy) {
+          continue;
+        }
+
+        linePaint.color = _commitLaneColor(relation.fromLane);
+        if ((from.dx - to.dx).abs() < 0.5) {
+          canvas.drawLine(
+            Offset(from.dx, from.dy + _commitGraphNodeRadius),
+            Offset(to.dx, to.dy - _commitGraphNodeRadius),
+            linePaint,
+          );
+        } else {
+          final midY = from.dy + ((to.dy - from.dy) * 0.42);
+          final path = Path()
+            ..moveTo(from.dx, from.dy + _commitGraphNodeRadius)
+            ..cubicTo(
+              from.dx,
+              midY,
+              to.dx,
+              midY,
+              to.dx,
+              to.dy - _commitGraphNodeRadius,
+            );
+          canvas.drawPath(path, linePaint);
+        }
+      }
+    }
+
+    final nodeStroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = scheme.surface;
+    for (final item in items) {
+      final center = _pointFor(item.row, item.lane);
+      final color = _commitLaneColor(item.lane);
+      final tentative = item.commit.states.contains('tentative');
+      final fill = Paint()
+        ..style = PaintingStyle.fill
+        ..color = tentative ? scheme.surfaceContainerLowest : color;
+      canvas.drawCircle(center, _commitGraphNodeRadius, fill);
+      canvas.drawCircle(
+        center,
+        _commitGraphNodeRadius,
+        nodeStroke..color = tentative ? color : scheme.surface,
+      );
+      if (tentative) {
+        canvas.drawCircle(
+          center,
+          2.5,
+          Paint()
+            ..style = PaintingStyle.fill
+            ..color = color,
+        );
+      }
+    }
+  }
+
+  Offset _pointFor(int row, int lane) {
+    final safeLane = lane < 0 ? 0 : lane;
+    return Offset(
+      _commitGraphLanePadding + safeLane * _commitGraphLaneGap,
+      row * _commitGraphRowHeight + (_commitGraphRowHeight / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CommitGraphPainter oldDelegate) {
+    return oldDelegate.items != items ||
+        oldDelegate.laneCount != laneCount ||
+        oldDelegate.scheme.brightness != scheme.brightness;
+  }
+}
+
 class CommitDetailPanel extends StatelessWidget {
   const CommitDetailPanel({required this.commit, super.key});
 
@@ -3119,6 +3476,8 @@ class CommitDetailPanel extends StatelessWidget {
             KeyValueItem('Hash', selected.hash),
             KeyValueItem('Committer', selected.committer),
             KeyValueItem('Date', _commitDateLabel(selected)),
+            KeyValueItem('Refs', _commitRefsLabel(selected)),
+            KeyValueItem('Parents', _commitParentLabel(selected)),
           ],
         ),
         const SizedBox(height: 12),
@@ -4026,6 +4385,19 @@ String _commitStateLabel(pb.Commit commit) {
       .join(', ');
 }
 
+String? _commitRefsLabel(pb.Commit commit) {
+  final refs = commit.refs.where((ref) => ref.nonEmpty != null).toList();
+  return refs.isEmpty ? null : refs.join(', ');
+}
+
+String? _commitParentLabel(pb.Commit commit) {
+  final parents = commit.parentHashes
+      .where((hash) => hash.nonEmpty != null)
+      .map((hash) => shortHash(hash) ?? hash)
+      .toList();
+  return parents.isEmpty ? null : parents.join(', ');
+}
+
 String? _commitDateLabel(pb.Commit commit) {
   final unixSeconds = commit.dateUnix.toInt();
   if (unixSeconds <= 0) {
@@ -4041,6 +4413,37 @@ String? _commitDateLabel(pb.Commit commit) {
   final h = date.hour.toString().padLeft(2, '0');
   final min = date.minute.toString().padLeft(2, '0');
   return '$y-$m-$d $h:$min';
+}
+
+int _commitGraphLaneCount(
+  pb.CommitGraph? graph,
+  List<pb.CommitGraphItem> items,
+) {
+  var laneCount = graph?.laneCount ?? 0;
+  for (final item in items) {
+    laneCount = math.max(laneCount, item.lane + 1);
+    for (final relation in item.relations) {
+      laneCount = math.max(laneCount, relation.fromLane + 1);
+      laneCount = math.max(laneCount, relation.toLane + 1);
+    }
+  }
+  return laneCount < 1 ? 1 : laneCount;
+}
+
+double _commitGraphWidth(int laneCount) {
+  final lanes = laneCount < 1 ? 1 : laneCount;
+  final width =
+      (_commitGraphLanePadding * 2) + ((lanes - 1) * _commitGraphLaneGap) + 16;
+  return math.min(180, math.max(58, width.toDouble()));
+}
+
+double _commitGraphContentWidth(double graphWidth) {
+  return graphWidth + 104;
+}
+
+Color _commitLaneColor(int lane) {
+  final safeLane = lane < 0 ? 0 : lane;
+  return _commitGraphLaneColors[safeLane % _commitGraphLaneColors.length];
 }
 
 double _sqlTableWidth(int columnCount) {
