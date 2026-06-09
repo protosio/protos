@@ -65,8 +65,9 @@ It serves VM control and network reconciliation on
 `/var/run/protos-hostagent.sock`. Set `PROTOS_HOSTAGENT_SOCKET` to override the
 socket path.
 When started with `sudo`, the socket is chowned to `SUDO_UID`/`SUDO_GID` so
-the invoking user can run `protosd` unprivileged. A LaunchDaemon install should
-set `--socket-uid` and `--socket-gid` explicitly.
+the invoking user can run `protosd` unprivileged. On desktop macOS, use the
+Flutter app as the long-running entry point instead of installing a separate
+background service for `protosd`.
 
 ## Connect via SSH or getty and switch to the root namespace
 

@@ -30,7 +30,7 @@ tasks:
           echo "Built app bundle not found at $app_path. Run build first." >&2
           exit 1
         fi
-        open -n "$app_path"
+        open "$app_path"
 
   clean:data:
     desc: Remove ~/.protos
