@@ -100,13 +100,14 @@ func (s swarmionSigner) Verify(commit string, signature string, publicKey string
 }
 
 type Commit struct {
-	Hash         string
-	Committer    string
-	Email        string
-	Date         time.Time
-	Message      string
-	ParentHashes []string
-	Refs         []string
+	Hash            string
+	Committer       string
+	Email           string
+	Date            time.Time
+	Message         string
+	SignerPublicKey string
+	ParentHashes    []string
+	Refs            []string
 }
 
 type DB struct {
@@ -816,6 +817,7 @@ func (db *DB) getCommits(query string) ([]Commit, error) {
 		if err := rows.Scan(&commit.Hash, &commit.Committer, &commit.Email, &commit.Date, &commit.Message, &parents, &refs); err != nil {
 			return nil, fmt.Errorf("failed to scan commit: %w", err)
 		}
+		commit.SignerPublicKey = ExtractCommitSignerPublicKey(commit.Message)
 		commit.ParentHashes = splitCommitList(parents.String)
 		commit.Refs = splitCommitList(refs.String)
 		commits = append(commits, commit)

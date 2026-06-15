@@ -74,10 +74,10 @@ func createUserDeviceQueryMapper(publicKey string) db.QueryMapper[UserDevice] {
 	return func() (sq.SelectQuery, func(row *sq.Row) UserDevice) {
 		mapper := func(row *sq.Row) UserDevice {
 			return UserDevice{
-				ID:          db.UUIDString(row.BytesField(d.ID)),
-				UserID:      db.UUIDString(row.BytesField(d.USER_ID)),
-				PublicKey:   row.StringField(d.PUBLIC_KEY),
-				Name:        row.StringField(d.NAME),
+				ID:                  db.UUIDString(row.BytesField(d.ID)),
+				UserID:              db.UUIDString(row.BytesField(d.USER_ID)),
+				PublicKey:           row.StringField(d.PUBLIC_KEY),
+				Name:                row.StringField(d.NAME),
 				ReplicationPriority: row.IntField(d.REPLICATION_PRIORITY),
 			}
 		}
@@ -97,11 +97,35 @@ func createUserDeviceQueryAllMapper(excludePublicKey string) db.QueryMapper[User
 	return func() (sq.SelectQuery, func(row *sq.Row) UserDevice) {
 		mapper := func(row *sq.Row) UserDevice {
 			return UserDevice{
-				ID:          db.UUIDString(row.BytesField(d.ID)),
-				UserID:      db.UUIDString(row.BytesField(d.USER_ID)),
-				PublicKey:   row.StringField(d.PUBLIC_KEY),
-				Name:        row.StringField(d.NAME),
+				ID:                  db.UUIDString(row.BytesField(d.ID)),
+				UserID:              db.UUIDString(row.BytesField(d.USER_ID)),
+				PublicKey:           row.StringField(d.PUBLIC_KEY),
+				Name:                row.StringField(d.NAME),
 				ReplicationPriority: row.IntField(d.REPLICATION_PRIORITY),
+			}
+		}
+		return query, mapper
+	}
+}
+
+func createDeviceIdentityQueryMapper() db.QueryMapper[DeviceIdentity] {
+	d := sq.New[db.USER_DEVICE_METADATA]("")
+	u := sq.New[db.USER]("")
+
+	query := sq.
+		From(d).
+		Join(u, u.ID.Eq(d.USER_ID))
+
+	return func() (sq.SelectQuery, func(row *sq.Row) DeviceIdentity) {
+		mapper := func(row *sq.Row) DeviceIdentity {
+			return DeviceIdentity{
+				DeviceID:     db.UUIDString(row.BytesField(d.ID)),
+				DeviceName:   row.StringField(d.NAME),
+				PublicKey:    row.StringField(d.PUBLIC_KEY),
+				UserID:       db.UUIDString(row.BytesField(u.ID)),
+				Username:     row.StringField(u.USERNAME),
+				UserName:     row.StringField(u.NAME),
+				UserDisabled: row.BoolField(u.IS_DISABLED),
 			}
 		}
 		return query, mapper

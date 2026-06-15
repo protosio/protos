@@ -18,6 +18,17 @@ type CommitView struct {
 	States []string
 }
 
+func ExtractCommitSignerPublicKey(message string) string {
+	for _, line := range strings.Split(message, "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(key) != "swarmion.writer.public_key" {
+			continue
+		}
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
 func (db *DB) GetCombinedCommits(finalizedBranch string, tentativeBranch string) ([]CommitView, error) {
 	finalizedBranch = normalizeCommitBranch(finalizedBranch)
 	finalizedCommits, err := db.GetCommits(finalizedBranch)

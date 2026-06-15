@@ -2,9 +2,11 @@ package apic
 
 import (
 	"context"
+	"encoding/base64"
 	"testing"
 	"time"
 
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -205,6 +207,52 @@ func TestStartInviteJoinModeRejectsAny(t *testing.T) {
 	}
 }
 
+func TestCommitViewToProtoResolvesSignerToUserDevice(t *testing.T) {
+	backend, _, manager := newUserDeviceTestBackend(t)
+	backend.commitIdentities = newCommitIdentityResolver(backend.protosClient)
+
+	createdUser, err := manager.CreateUser("alex", "Alex", false)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	localKey, err := backend.protosClient.KeyManager.GetLocalKey()
+	if err != nil {
+		t.Fatalf("get local key: %v", err)
+	}
+	if err := manager.AddDevice(createdUser.Username, "baracuda", localKey); err != nil {
+		t.Fatalf("add device: %v", err)
+	}
+	backend.commitIdentities.Notify()
+
+	commit := db.CommitView{
+		Commit: db.Commit{
+			Hash:            "commit",
+			Committer:       "swarmion-checkpoint",
+			SignerPublicKey: libp2pPublicKeyString(t, localKey),
+		},
+	}
+
+	if got := backend.commitViewToProto(commit).GetCommitter(); got != "alex (baracuda)" {
+		t.Fatalf("committer = %q, want alex (baracuda)", got)
+	}
+}
+
+func TestCommitViewToProtoUsesSystemFallbackForUnsignedSwarmionCheckpoint(t *testing.T) {
+	backend, _, _ := newUserDeviceTestBackend(t)
+	backend.commitIdentities = newCommitIdentityResolver(backend.protosClient)
+
+	commit := db.CommitView{
+		Commit: db.Commit{
+			Hash:      "commit",
+			Committer: "swarmion-checkpoint",
+		},
+	}
+
+	if got := backend.commitViewToProto(commit).GetCommitter(); got != "system" {
+		t.Fatalf("committer = %q, want system", got)
+	}
+}
+
 func TestEnsureJoinedUserDeviceAddsDeviceForExistingUser(t *testing.T) {
 	backend, store, manager := newUserDeviceTestBackend(t)
 	existingUser, err := manager.CreateUser("alex", "Alex", false)
@@ -359,6 +407,24 @@ func newUserDeviceTestBackend(t *testing.T) (*Backend, *db.DB, *user.Manager) {
 		},
 	}
 	return backend, store, manager
+}
+
+func libp2pPublicKeyString(t *testing.T, key *pcrypto.Key) string {
+	t.Helper()
+
+	rawPublicKey, err := base64.StdEncoding.DecodeString(key.PublicString())
+	if err != nil {
+		t.Fatalf("decode public key: %v", err)
+	}
+	pub, err := libp2pcrypto.UnmarshalEd25519PublicKey(rawPublicKey)
+	if err != nil {
+		t.Fatalf("unmarshal public key: %v", err)
+	}
+	marshaled, err := libp2pcrypto.MarshalPublicKey(pub)
+	if err != nil {
+		t.Fatalf("marshal public key: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(marshaled)
 }
 
 func countUsersByUsername(t *testing.T, store *db.DB, username string) int {

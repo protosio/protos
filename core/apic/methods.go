@@ -2346,18 +2346,22 @@ func (b *Backend) GetLocalCommits(ctx context.Context, in *pbApic.GetLocalCommit
 
 	resp := pbApic.GetLocalCommitsResponse{}
 	for _, commit := range commits {
-		resp.Commits = append(resp.Commits, commitViewToProto(commit))
+		resp.Commits = append(resp.Commits, b.commitViewToProto(commit))
 	}
 	graph := db.BuildCommitGraph(commits)
-	resp.Graph = commitGraphToProto(graph)
+	resp.Graph = b.commitGraphToProto(graph)
 
 	return &resp, nil
 }
 
-func commitViewToProto(commit db.CommitView) *pbApic.Commit {
+func (b *Backend) commitViewToProto(commit db.CommitView) *pbApic.Commit {
+	committer := commit.Committer
+	if b != nil && b.commitIdentities != nil {
+		committer = b.commitIdentities.displayCommitter(commit.Commit)
+	}
 	resp := &pbApic.Commit{
 		Hash:         commit.Hash,
-		Committer:    commit.Committer,
+		Committer:    committer,
 		Message:      commit.Message,
 		States:       append([]string(nil), commit.States...),
 		ParentHashes: append([]string(nil), commit.ParentHashes...),
@@ -2369,13 +2373,13 @@ func commitViewToProto(commit db.CommitView) *pbApic.Commit {
 	return resp
 }
 
-func commitGraphToProto(graph db.CommitGraph) *pbApic.CommitGraph {
+func (b *Backend) commitGraphToProto(graph db.CommitGraph) *pbApic.CommitGraph {
 	resp := &pbApic.CommitGraph{
 		LaneCount: int32(graph.LaneCount),
 	}
 	for _, item := range graph.Items {
 		respItem := &pbApic.CommitGraphItem{
-			Commit: commitViewToProto(item.Commit),
+			Commit: b.commitViewToProto(item.Commit),
 			Row:    int32(item.Row),
 			Lane:   int32(item.Lane),
 		}
@@ -2414,11 +2418,12 @@ func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteComm
 	for _, commit := range respRemote.Commits {
 		commitView := db.CommitView{
 			Commit: db.Commit{
-				Hash:         commit.Hash,
-				Committer:    commit.Committer,
-				Message:      commit.Message,
-				ParentHashes: append([]string(nil), commit.ParentHashes...),
-				Refs:         append([]string(nil), commit.Refs...),
+				Hash:            commit.Hash,
+				Committer:       commit.Committer,
+				Message:         commit.Message,
+				SignerPublicKey: db.ExtractCommitSignerPublicKey(commit.Message),
+				ParentHashes:    append([]string(nil), commit.ParentHashes...),
+				Refs:            append([]string(nil), commit.Refs...),
 			},
 			States: []string{db.CommitStateFinalized},
 		}
@@ -2426,10 +2431,10 @@ func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteComm
 			commitView.Date = time.Unix(commit.DateUnix, 0)
 		}
 		commitViews = append(commitViews, commitView)
-		resp.Commits = append(resp.Commits, commitViewToProto(commitView))
+		resp.Commits = append(resp.Commits, b.commitViewToProto(commitView))
 	}
 	graph := db.BuildCommitGraph(commitViews)
-	resp.Graph = commitGraphToProto(graph)
+	resp.Graph = b.commitGraphToProto(graph)
 
 	return &resp, nil
 }

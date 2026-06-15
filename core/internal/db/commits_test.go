@@ -2,6 +2,27 @@ package db
 
 import "testing"
 
+func TestExtractCommitSignerPublicKey(t *testing.T) {
+	t.Parallel()
+
+	message := "header\n" +
+		"swarmion.metadata.version=3\n" +
+		"swarmion.writer.public_key=CAESIFakeSigner\n" +
+		"swarmion.writer.event_signature=signature"
+
+	if got := ExtractCommitSignerPublicKey(message); got != "CAESIFakeSigner" {
+		t.Fatalf("signer public key = %q, want CAESIFakeSigner", got)
+	}
+}
+
+func TestExtractCommitSignerPublicKeyIgnoresUnsignedCommit(t *testing.T) {
+	t.Parallel()
+
+	if got := ExtractCommitSignerPublicKey("ordinary commit message"); got != "" {
+		t.Fatalf("signer public key = %q, want empty", got)
+	}
+}
+
 func TestCombineCommitBranchesKeepsUnfinalizedTentativeFirst(t *testing.T) {
 	t.Parallel()
 

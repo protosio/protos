@@ -22,10 +22,10 @@ type UserInfo struct {
 
 // UserDevice - represents a device that a user uses to connect to the instances. A user can have multiple devices (laptop, mobile phone etc)
 type UserDevice struct {
-	ID          string `json:"id" validate:"required"`
-	PublicKey   string `json:"publickey" validate:"base64"` // ed25519 public key
-	Name        string `json:"name" validate:"required"`    // ID that uniquely identifies a machine
-	UserID      string `json:"userid" validate:"required"`
+	ID                  string `json:"id" validate:"required"`
+	PublicKey           string `json:"publickey" validate:"base64"` // ed25519 public key
+	Name                string `json:"name" validate:"required"`    // ID that uniquely identifies a machine
+	UserID              string `json:"userid" validate:"required"`
 	ReplicationPriority int    `json:"replication_priority"`
 }
 
@@ -36,6 +36,16 @@ type User struct {
 	Username   string `json:"username"`
 	Name       string `json:"name"`
 	IsDisabled bool   `json:"isdisabled"`
+}
+
+type DeviceIdentity struct {
+	DeviceID     string
+	DeviceName   string
+	PublicKey    string
+	UserID       string
+	Username     string
+	UserName     string
+	UserDisabled bool
 }
 
 func getUser(username string, dbi *db.DB) (User, error) {
@@ -195,6 +205,17 @@ func (um *Manager) GetAllDevices(excludeLocalDevice bool) ([]UserDevice, error) 
 	return userDevices, nil
 }
 
+func (um *Manager) GetDeviceIdentities() ([]DeviceIdentity, error) {
+	if um == nil || um.db == nil {
+		return nil, fmt.Errorf("user manager is not configured")
+	}
+	identities, err := db.SelectMultiple(um.db, createDeviceIdentityQueryMapper())
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve device identities: %w", err)
+	}
+	return identities, nil
+}
+
 // AddDevice adds a device to the user
 func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error {
 	user, err := um.resolveUserRef(userID)
@@ -202,10 +223,10 @@ func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error
 		return err
 	}
 	ud := UserDevice{
-		ID:          db.MustNewUUIDv7(),
-		Name:        name,
-		PublicKey:   key.PublicString(),
-		UserID:      user.ID,
+		ID:                  db.MustNewUUIDv7(),
+		Name:                name,
+		PublicKey:           key.PublicString(),
+		UserID:              user.ID,
 		ReplicationPriority: db.DefaultReplicationPriorityForUserDeviceName(name),
 	}
 

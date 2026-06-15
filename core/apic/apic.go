@@ -30,11 +30,15 @@ import (
 var log = util.GetLogger("grpcAPI")
 
 type Backend struct {
-	protosClient *Services
+	protosClient     *Services
+	commitIdentities *commitIdentityResolver
 }
 
 func NewBackend(protosClient *Services) pbApic.ProtosClientApiServer {
-	return &Backend{protosClient: protosClient}
+	return &Backend{
+		protosClient:     protosClient,
+		commitIdentities: newCommitIdentityResolver(protosClient),
+	}
 }
 
 type Services struct {
