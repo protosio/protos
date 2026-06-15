@@ -284,8 +284,8 @@ require (
 	github.com/multiformats/go-varint v0.1.0 // indirect
 	github.com/nustiueudinastea/swarmion/protocol v0.0.0 // indirect
 	github.com/nustiueudinastea/swarmion/runtime v0.0.0
-	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615074636-a4d454bb32fb
-	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615074636-a4d454bb32fb
+	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615120532-bf5069d914c0
+	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615120532-bf5069d914c0
 	github.com/nustiueudinastea/swarmion/transports v0.0.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -351,12 +351,12 @@ replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014
 
 replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b
 
-replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260615074636-a4d454bb32fb
+replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260615120532-bf5069d914c0
 
-replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260615074636-a4d454bb32fb
+replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260615120532-bf5069d914c0
 
-replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260615074636-a4d454bb32fb
+replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260615120532-bf5069d914c0
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615074636-a4d454bb32fb
+replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615120532-bf5069d914c0
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615074636-a4d454bb32fb
+replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615120532-bf5069d914c0

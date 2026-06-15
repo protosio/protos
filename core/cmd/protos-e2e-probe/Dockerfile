@@ -3,7 +3,7 @@ FROM golang:1.26.3-alpine3.23 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 COPY cmd/protos-e2e-probe ./cmd/protos-e2e-probe
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/protos-e2e-probe ./cmd/protos-e2e-probe
+RUN GOMAXPROCS=2 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/protos-e2e-probe ./cmd/protos-e2e-probe
 
 FROM alpine:3.23
 RUN apk add --no-cache ca-certificates

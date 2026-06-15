@@ -927,12 +927,6 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 		return err
 	}
 
-	if strings.TrimSpace(instance.PublicKey) != "" {
-		if err := cm.removeInstanceReplicationEligibility(instance); err != nil {
-			return err
-		}
-	}
-
 	if !localOnly && (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) {
 		provider, err := cm.GetProvider(instance.KindID)
 		if err != nil {
@@ -1119,41 +1113,19 @@ func (cm *Manager) assertInstancePeerRemoved(peerID string) error {
 	if _, found := peerIDs[peerID]; found {
 		return fmt.Errorf("peer table still contains %s", peerID)
 	}
-	status, ok := cm.db.SwarmionStatus()
-	if !ok {
+	if _, ok := cm.db.SwarmionStatus(); !ok {
 		return nil
-	}
-	if containsString(status.StateProviders, peerID) {
-		return fmt.Errorf("swarmion state providers still contain %s", peerID)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	peerStatuses, err := cm.db.SwarmionPeerStatus(ctx)
+	readiness, err := cm.db.SwarmionPeerRemovalReadiness(ctx, peerID)
 	if err != nil {
-		return fmt.Errorf("read swarmion peer status: %w", err)
+		return fmt.Errorf("read swarmion peer removal readiness: %w", err)
 	}
-	for _, peerStatus := range peerStatuses {
-		if strings.TrimSpace(peerStatus.PeerID) != peerID {
-			continue
-		}
-		if peerStatus.StateProvider {
-			return fmt.Errorf(
-				"swarmion peer status still marks %s as state_provider=%t",
-				peerID,
-				peerStatus.StateProvider,
-			)
-		}
+	if err := db.PeerRemovalReadinessError(readiness); err != nil {
+		return fmt.Errorf("swarmion peer removal readiness blocks %s: %w", peerID, err)
 	}
 	return nil
-}
-
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if strings.TrimSpace(value) == want {
-			return true
-		}
-	}
-	return false
 }
 
 func (cm *Manager) removeInstanceReplicationEligibility(instance InstanceInfo) error {

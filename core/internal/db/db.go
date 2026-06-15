@@ -7,6 +7,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,8 @@ import (
 	"github.com/bokwoon95/sq"
 	"github.com/dolthub/vitess/go/vt/sqlparser"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
+	swarmionadmin "github.com/nustiueudinastea/swarmion/runtime/adminrpc"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
 	swarmiondoltrepo "github.com/nustiueudinastea/swarmion/runtime/doltrepo"
 	cueschema "github.com/nustiueudinastea/swarmion/schema-engines/cue"
@@ -39,9 +42,13 @@ const (
 	swarmionNamespaceTemplate      = "/protos/db/%s"
 	swarmionAdminNamespaceTemplate = "/protos/db/%s/admin"
 	swarmionPortOffset             = 1
+	swarmionStateDirName           = ".swarmion"
 
-	committedWriteMaxAttempts = 3
+	committedWriteMaxAttempts    = 3
+	checkpointCatchUpMaxAttempts = 4
 )
+
+var errSwarmionCheckpointCatchUpRetryable = errors.New("swarmion checkpoint catch-up retryable")
 
 type Signer interface {
 	Sign(commit string) (string, error)
@@ -249,7 +256,12 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 		return fmt.Errorf("failed to create swarmion signer: %w", err)
 	}
 
-	app, err := swarmionapp.Open(ctx, swarmionapp.Config{
+	swarmManifest, hasSwarmManifest, err := db.loadSwarmManifest()
+	if err != nil {
+		_ = network.Close()
+		return err
+	}
+	appConfig := swarmionapp.Config{
 		Repository: swarmiondoltrepo.Config{
 			Dir:         db.workingDir,
 			Name:        db.name,
@@ -265,10 +277,18 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 		SchemaEngine:                    cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
 		OnWriteNotification:             db.handleWriteNotification,
 		Logger:                          logger,
-	}, network)
+	}
+	if hasSwarmManifest {
+		appConfig.SwarmManifest = swarmManifest
+	}
+	app, err := swarmionapp.Open(ctx, appConfig, network)
 	if err != nil {
 		_ = network.Close()
 		return fmt.Errorf("failed to open swarmion runtime: %w", err)
+	}
+	if err := db.persistSwarmManifest(ctx, app); err != nil {
+		_ = app.Close()
+		return err
 	}
 
 	db.app = app
@@ -278,6 +298,67 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	db.watchCancel = watchCancel
 	db.startSwarmionWatchers(watchCtx, app)
+	return nil
+}
+
+func (db *DB) swarmionManifestPath() string {
+	if db == nil {
+		return ""
+	}
+	return filepath.Join(db.workingDir, swarmionStateDirName, db.name+".swarm-manifest.json")
+}
+
+func (db *DB) loadSwarmManifest() (swarmionprotocol.SwarmManifest, bool, error) {
+	path := db.swarmionManifestPath()
+	if path == "" {
+		return swarmionprotocol.SwarmManifest{}, false, fmt.Errorf("db is nil")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return swarmionprotocol.SwarmManifest{}, false, nil
+		}
+		return swarmionprotocol.SwarmManifest{}, false, fmt.Errorf("read swarmion manifest %q: %w", path, err)
+	}
+	var manifest swarmionprotocol.SwarmManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return swarmionprotocol.SwarmManifest{}, false, fmt.Errorf("parse swarmion manifest %q: %w", path, err)
+	}
+	return manifest, true, nil
+}
+
+func (db *DB) persistSwarmManifest(ctx context.Context, app *swarmionapp.App) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	if app == nil {
+		return fmt.Errorf("swarmion app is not initialized")
+	}
+	status, err := app.SwarmManifestStatus(ctx)
+	if err != nil {
+		return fmt.Errorf("read swarmion manifest status: %w", err)
+	}
+	if !status.Complete {
+		notifyLog.Warnf("swarmion manifest for %s is not complete; not persisting an initial boundary yet", db.name)
+		return nil
+	}
+	path := db.swarmionManifestPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create swarmion manifest directory: %w", err)
+	}
+	data, err := json.MarshalIndent(status.Manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode swarmion manifest: %w", err)
+	}
+	data = append(data, '\n')
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
+		return fmt.Errorf("write swarmion manifest %q: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("replace swarmion manifest %q: %w", path, err)
+	}
 	return nil
 }
 
@@ -678,10 +759,93 @@ func (db *DB) CatchUpCheckpoint(ctx context.Context, reason string) error {
 	if strings.TrimSpace(reason) == "" {
 		reason = "protos checkpoint read"
 	}
-	if _, err := app.CatchUpCheckpoint(ctx, reason); err != nil {
+	if err := catchUpSwarmionCheckpointBestEffort(ctx, app, reason); err != nil {
 		return fmt.Errorf("catch up swarmion checkpoint view: %w", err)
 	}
 	return nil
+}
+
+func catchUpSwarmionCheckpointBestEffort(ctx context.Context, app *swarmionapp.App, reason string) error {
+	err := catchUpSwarmionCheckpoint(ctx, app, reason)
+	if errors.Is(err, errSwarmionCheckpointCatchUpRetryable) {
+		notifyLog.Debugf("deferred swarmion checkpoint catch-up for %q after retryable response: %s", reason, err.Error())
+		return nil
+	}
+	return err
+}
+
+func catchUpSwarmionCheckpoint(ctx context.Context, app *swarmionapp.App, reason string) error {
+	if app == nil {
+		return nil
+	}
+	var lastErr error
+	for attempt := 0; attempt < checkpointCatchUpMaxAttempts; attempt++ {
+		err := catchUpSwarmionCheckpointOnce(ctx, app, reason)
+		if err == nil || !errors.Is(err, errSwarmionCheckpointCatchUpRetryable) {
+			return err
+		}
+		lastErr = err
+		if attempt == checkpointCatchUpMaxAttempts-1 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(attempt+1) * 250 * time.Millisecond):
+		}
+	}
+	return lastErr
+}
+
+func catchUpSwarmionCheckpointOnce(ctx context.Context, app *swarmionapp.App, reason string) error {
+	resp, err := app.CatchUpCheckpoint(ctx, reason)
+	if opErr := checkpointCatchUpOperationalError(resp); opErr != nil {
+		if err != nil {
+			return fmt.Errorf("%w: %w", opErr, err)
+		}
+		return opErr
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkpointCatchUpOperationalError(resp swarmionadmin.CheckpointCatchUpResponse) error {
+	status := strings.TrimSpace(resp.Status)
+	switch swarmionadmin.CheckpointCatchUpStatus(status) {
+	case swarmionadmin.CheckpointCatchUpStatusBlockedFatal:
+		return fmt.Errorf("checkpoint catch-up blocked by fatal protocol state: %s", checkpointCatchUpReason(resp))
+	case swarmionadmin.CheckpointCatchUpStatusFailed:
+		return fmt.Errorf("checkpoint catch-up failed: %s", checkpointCatchUpReason(resp))
+	case swarmionadmin.CheckpointCatchUpStatusTargetChanged, swarmionadmin.CheckpointCatchUpStatusRetryable:
+		return fmt.Errorf("%w: status=%s reason=%s", errSwarmionCheckpointCatchUpRetryable, status, checkpointCatchUpReason(resp))
+	case swarmionadmin.CheckpointCatchUpStatusNoTarget,
+		swarmionadmin.CheckpointCatchUpStatusNoSnapshot,
+		swarmionadmin.CheckpointCatchUpStatusAlreadyCurrent,
+		swarmionadmin.CheckpointCatchUpStatusComplete:
+		return nil
+	}
+	if resp.BlockedByFatal {
+		return fmt.Errorf("checkpoint catch-up blocked by fatal protocol state: %s", checkpointCatchUpReason(resp))
+	}
+	if resp.TargetChanged || resp.Retryable {
+		return fmt.Errorf("%w: status=%s reason=%s", errSwarmionCheckpointCatchUpRetryable, status, checkpointCatchUpReason(resp))
+	}
+	return nil
+}
+
+func checkpointCatchUpReason(resp swarmionadmin.CheckpointCatchUpResponse) string {
+	for _, value := range []string{resp.BlockingReason, resp.Detail, resp.Message} {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	if strings.TrimSpace(resp.Status) != "" {
+		return resp.Status
+	}
+	return "no details"
 }
 
 func (db *DB) SwarmionCompatibility(ctx context.Context) ([]swarmionapp.ManifestCompatibility, error) {
@@ -708,6 +872,22 @@ func (db *DB) SwarmionPeerStatus(ctx context.Context) ([]swarmionapp.PeerStatus,
 		return nil, fmt.Errorf("swarmion app is not initialized")
 	}
 	return app.PeerStatus(ctx)
+}
+
+func (db *DB) SwarmionPeerRemovalReadiness(ctx context.Context, peerID string) (swarmionapp.PeerRemovalReadinessResponse, error) {
+	if db == nil {
+		return swarmionapp.PeerRemovalReadinessResponse{}, fmt.Errorf("db is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return swarmionapp.PeerRemovalReadinessResponse{}, fmt.Errorf("swarmion app is not initialized")
+	}
+	return app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
 }
 
 func (db *DB) SwarmionContentSyncTrace() ([]string, bool) {

@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -99,6 +100,11 @@ func (db *DB) ReconcileReplicationPeers(ctx context.Context, candidates []Replic
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+	}
 
 	db.mu.Lock()
 	app := db.app
@@ -107,7 +113,7 @@ func (db *DB) ReconcileReplicationPeers(ctx context.Context, candidates []Replic
 		return nil
 	}
 
-	if _, err := app.CatchUpCheckpoint(ctx, "reconcile Protos replication metadata"); err != nil {
+	if err := catchUpSwarmionCheckpoint(ctx, app, "reconcile Protos replication metadata"); err != nil {
 		return fmt.Errorf("catch up swarmion checkpoint state for replication metadata reconciliation: %w", err)
 	}
 	status := app.Status()
@@ -146,7 +152,7 @@ func (db *DB) RemoveReplicationPeerState(ctx context.Context, peerID string, _ [
 	}
 
 	var lastErr error
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := 0; ; attempt++ {
 		attemptCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		err := removeReplicationPeerStateWithApp(attemptCtx, app, peerID)
 		cancel()
@@ -160,15 +166,19 @@ func (db *DB) RemoveReplicationPeerState(ctx context.Context, peerID string, _ [
 		notifyLog.Debugf("retrying swarmion peer removal for %s after transient state change: %s", peerID, err.Error())
 		select {
 		case <-ctx.Done():
+			if lastErr != nil {
+				return fmt.Errorf("%w: %w", ctx.Err(), lastErr)
+			}
 			return ctx.Err()
 		case <-time.After(5 * time.Second):
 		}
 	}
-	return lastErr
 }
 
+var errSwarmionPeerRemovalNotReady = errors.New("swarmion peer removal not ready")
+
 func removeReplicationPeerStateWithApp(ctx context.Context, app *swarmionapp.App, peerID string) error {
-	if _, err := app.CatchUpCheckpoint(ctx, "remove Protos replication peer state"); err != nil {
+	if err := catchUpSwarmionCheckpoint(ctx, app, "remove Protos replication peer state"); err != nil {
 		return fmt.Errorf("catch up swarmion checkpoint state for replication peer removal: %w", err)
 	}
 	status := app.Status()
@@ -182,7 +192,11 @@ func removeReplicationPeerStateWithApp(ctx context.Context, app *swarmionapp.App
 	if _, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID}); err != nil {
 		return fmt.Errorf("evict swarmion peer %s after removal: %w", peerID, err)
 	}
-	if err := assertSwarmionPeerNotProvider(app.Status(), peerID); err != nil {
+	readiness, err := app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
+	if err != nil {
+		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
+	}
+	if err := PeerRemovalReadinessError(readiness); err != nil {
 		return err
 	}
 	return nil
@@ -192,6 +206,9 @@ func retryablePeerRemovalError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, errSwarmionCheckpointCatchUpRetryable) || errors.Is(err, errSwarmionPeerRemovalNotReady) {
+		return true
+	}
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "checkpoint target changed before catch-up") ||
 		strings.Contains(message, "stale write context") ||
@@ -200,11 +217,64 @@ func retryablePeerRemovalError(err error) bool {
 		strings.Contains(message, "context deadline exceeded")
 }
 
-func assertSwarmionPeerNotProvider(status swarmionapp.Status, peerID string) error {
-	if setHas(stringSet(status.StateProviders), peerID) {
-		return fmt.Errorf("swarmion peer %s is still a state provider after removal", peerID)
+func PeerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse) error {
+	if readiness.SafeToRemoveDurableResource {
+		return nil
 	}
-	return nil
+	if peerRemovalReadinessOnlyStaleLocalObservation(readiness) {
+		notifyLog.Debugf("treating stale swarmion local observation as non-blocking for removed peer %s: %s", readiness.PeerID, readiness.BlockingReason)
+		return nil
+	}
+	reason := strings.TrimSpace(readiness.BlockingReason)
+	if reason == "" {
+		reason = strings.Join(readiness.RemainingObligations, "; ")
+	}
+	if reason == "" {
+		reason = "runtime reports remaining peer obligations"
+	}
+	peerID := strings.TrimSpace(readiness.PeerID)
+	if peerID == "" {
+		peerID = "peer"
+	}
+	return fmt.Errorf("%w for %s: %s", errSwarmionPeerRemovalNotReady, peerID, reason)
+}
+
+func peerRemovalReadinessOnlyStaleLocalObservation(readiness swarmionapp.PeerRemovalReadinessResponse) bool {
+	if peerRemovalReadinessOnlyStaleTransportObservation(readiness) {
+		return true
+	}
+	return peerRemovalReadinessOnlyStaleCheckpointObservation(readiness)
+}
+
+func peerRemovalReadinessOnlyStaleTransportObservation(readiness swarmionapp.PeerRemovalReadinessResponse) bool {
+	if !readiness.StillConnected && !readiness.StillActiveViewPeer {
+		return false
+	}
+	if readiness.StillStateProvider || readiness.StillCheckpointProvider || readiness.StillContentProvider {
+		return false
+	}
+	for _, obligation := range readiness.RemainingObligations {
+		normalized := strings.ToLower(strings.TrimSpace(obligation))
+		if normalized != "peer is still connected" && normalized != "peer is still in the active view" {
+			return false
+		}
+	}
+	return true
+}
+
+func peerRemovalReadinessOnlyStaleCheckpointObservation(readiness swarmionapp.PeerRemovalReadinessResponse) bool {
+	if !readiness.StillCheckpointProvider {
+		return false
+	}
+	if readiness.StillConnected || readiness.StillActiveViewPeer || readiness.StillStateProvider || readiness.StillContentProvider {
+		return false
+	}
+	for _, obligation := range readiness.RemainingObligations {
+		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(obligation)), "peer still advertises checkpoint state") {
+			return false
+		}
+	}
+	return true
 }
 
 func blockOnIncompatiblePeers(ctx context.Context, app *swarmionapp.App) error {
@@ -220,9 +290,23 @@ func blockOnIncompatiblePeers(ctx context.Context, app *swarmionapp.App) error {
 		if reason == "" {
 			reason = "remote peer advertises an incompatible swarm manifest"
 		}
+		if details := compatibilityBoundaryDetails(item); details != "" {
+			reason += " (" + details + ")"
+		}
 		return fmt.Errorf("swarmion compatibility blocks replication reconciliation for peer %s: %s", item.PeerID, reason)
 	}
 	return nil
+}
+
+func compatibilityBoundaryDetails(item swarmionapp.ManifestCompatibility) string {
+	var details []string
+	if item.LocalInitialRootHash != "" || item.LocalInitialCommitID != "" {
+		details = append(details, fmt.Sprintf("local initial root=%s commit=%s", item.LocalInitialRootHash, item.LocalInitialCommitID))
+	}
+	if item.RemoteInitialRootHash != "" || item.RemoteInitialCommitID != "" {
+		details = append(details, fmt.Sprintf("remote initial root=%s commit=%s", item.RemoteInitialRootHash, item.RemoteInitialCommitID))
+	}
+	return strings.Join(details, "; ")
 }
 
 func prioritizedReplicationCandidates(candidates []ReplicationCandidate) []prioritizedReplicationCandidate {
@@ -265,20 +349,4 @@ func prioritizedReplicationCandidates(candidates []ReplicationCandidate) []prior
 		return out[i].PeerID < out[j].PeerID
 	})
 	return out
-}
-
-func stringSet(values []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			out[value] = struct{}{}
-		}
-	}
-	return out
-}
-
-func setHas(set map[string]struct{}, value string) bool {
-	_, found := set[value]
-	return found
 }

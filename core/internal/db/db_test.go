@@ -2,10 +2,14 @@ package db_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
+	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
@@ -39,6 +43,18 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	}
 	if !store.Initialized() {
 		t.Fatal("database should be initialized after Init")
+	}
+	manifestPath := filepath.Join(workDir, ".swarmion", "protos_test.swarm-manifest.json")
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read persisted swarmion manifest: %v", err)
+	}
+	var manifest swarmionprotocol.SwarmManifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatalf("parse persisted swarmion manifest: %v", err)
+	}
+	if manifest.InitialRootHash.String() == "" || manifest.InitialCommitID.String() == "" {
+		t.Fatalf("persisted swarmion manifest missing initial boundary: %#v", manifest)
 	}
 
 	userID := db.MustNewUUIDv7()
