@@ -2772,7 +2772,7 @@ class _DvcViewState extends State<DvcView> {
               KeyValueItem('Peer ID', model.runtimeState?.peerId),
               KeyValueItem(
                 'Finalized root',
-                shortHash(model.runtimeState?.finalizedRootHash),
+                shortHash(model.runtimeState?.checkpointRootHash),
               ),
               KeyValueItem(
                 'Tentative root',
@@ -4328,12 +4328,6 @@ String _peerRoles(pb.RuntimePeerStatus peer, String? localPeerId) {
   }
   if (peer.stateProvider) {
     roles.add('provider');
-  }
-  if (peer.witness) {
-    roles.add('witness');
-  }
-  if (peer.eligibleWitness) {
-    roles.add('eligible');
   }
   if (peer.relayOnly) {
     roles.add('relay-only');

@@ -46,17 +46,17 @@ func Machines(instances []provisioners.InstanceInfo, devices []user.UserDevice) 
 	return peers
 }
 
-func WitnessCandidates(instances []provisioners.InstanceInfo, devices []user.UserDevice) []db.WitnessCandidate {
-	candidates := make([]db.WitnessCandidate, 0, len(instances)+len(devices))
+func ReplicationCandidates(instances []provisioners.InstanceInfo, devices []user.UserDevice) []db.ReplicationCandidate {
+	candidates := make([]db.ReplicationCandidate, 0, len(instances)+len(devices))
 	for _, instance := range instances {
 		peerID, err := instance.GetPeerID()
 		if err != nil {
 			continue
 		}
-		candidates = append(candidates, db.WitnessCandidate{
-			PeerID:     peerID,
-			DeviceType: witnessDeviceTypeForInstance(instance),
-			Rank:       instance.WitnessRank,
+		candidates = append(candidates, db.ReplicationCandidate{
+			PeerID:      peerID,
+			DeviceClass: replicationDeviceClassForInstance(instance),
+			Priority:    instance.ReplicationPriority,
 		})
 	}
 	for _, device := range devices {
@@ -64,19 +64,19 @@ func WitnessCandidates(instances []provisioners.InstanceInfo, devices []user.Use
 		if err != nil {
 			continue
 		}
-		candidates = append(candidates, db.WitnessCandidate{
-			PeerID:     peerID,
-			DeviceType: witnessDeviceTypeForUserDevice(device),
-			Rank:       device.WitnessRank,
+		candidates = append(candidates, db.ReplicationCandidate{
+			PeerID:      peerID,
+			DeviceClass: replicationDeviceClassForUserDevice(device),
+			Priority:    device.ReplicationPriority,
 		})
 	}
 	return candidates
 }
 
-func witnessDeviceTypeForInstance(instance provisioners.InstanceInfo) string {
-	return db.WitnessDeviceTypeForMachine(instance.Kind, instance.KindID)
+func replicationDeviceClassForInstance(instance provisioners.InstanceInfo) string {
+	return db.ReplicationDeviceClassForMachine(instance.Kind, instance.KindID)
 }
 
-func witnessDeviceTypeForUserDevice(device user.UserDevice) string {
-	return db.WitnessDeviceTypeForUserDeviceName(device.GetName())
+func replicationDeviceClassForUserDevice(device user.UserDevice) string {
+	return db.ReplicationDeviceClassForUserDeviceName(device.GetName())
 }

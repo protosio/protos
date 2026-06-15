@@ -10,12 +10,12 @@ type DeleteMapper func() sq.DeleteQuery
 type QueryMapper[T any] func() (sq.SelectQuery, func(row *sq.Row) T)
 
 type MACHINE struct {
-	sq.TableStruct `sq:"machines"`
-	ID             sq.BinaryField `ddl:"notnull primarykey"`
-	NAME           sq.StringField `ddl:"notnull index"`
-	KIND           sq.StringField `ddl:"notnull index"`
-	DESIRED_STATUS sq.StringField `ddl:"index"`
-	WITNESS_RANK   sq.NumberField `ddl:"notnull"`
+	sq.TableStruct       `sq:"machines"`
+	ID                   sq.BinaryField `ddl:"notnull primarykey"`
+	NAME                 sq.StringField `ddl:"notnull index"`
+	KIND                 sq.StringField `ddl:"notnull index"`
+	DESIRED_STATUS       sq.StringField `ddl:"index"`
+	REPLICATION_PRIORITY sq.NumberField `ddl:"notnull"`
 }
 
 type CLOUD_MACHINE_METADATA struct {
@@ -64,12 +64,12 @@ type USER struct {
 }
 
 type USER_DEVICE_METADATA struct {
-	sq.TableStruct `sq:"user_devices_metadata"`
-	ID             sq.BinaryField `ddl:"notnull primarykey"`
-	PUBLIC_KEY     sq.StringField `ddl:"notnull index"`
-	USER_ID        sq.BinaryField `ddl:"notnull index"`
-	NAME           sq.StringField `ddl:"notnull"`
-	WITNESS_RANK   sq.NumberField `ddl:"notnull"`
+	sq.TableStruct       `sq:"user_devices_metadata"`
+	ID                   sq.BinaryField `ddl:"notnull primarykey"`
+	PUBLIC_KEY           sq.StringField `ddl:"notnull index"`
+	USER_ID              sq.BinaryField `ddl:"notnull index"`
+	NAME                 sq.StringField `ddl:"notnull"`
+	REPLICATION_PRIORITY sq.NumberField `ddl:"notnull"`
 }
 
 type PEER struct {

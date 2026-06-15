@@ -451,36 +451,28 @@ package apicv1
 #RuntimeState: {
 	peer_id?:                         string
 	manifest_digest?:                 string
-	finalized_root_hash?:             string
+	checkpoint_root_hash?:            string
 	tentative_root_hash?:             string
-	protocol_finalized_root_hash?:    string
+	protocol_checkpoint_root_hash?:   string
 	durable_main_root_hash?:          string
-	active_epoch_id?:                 string
-	active_witness_ids?:              [...string]
-	eligible_witness_ids?:            [...string]
 	state_providers?:                 [...string]
 	connected_peers?:                 [...string]
 	fatal_state?:                     string
 	runtime_refresh_pending?:         bool
 	runtime_refresh_last_error?:      string
-	runtime_finalized_pending?:       bool
-	runtime_finalized_last_error?:    string
+	runtime_checkpoint_pending?:      bool
+	runtime_checkpoint_last_error?:   string
 	runtime_materialization_policy?:  string
 	peer_statuses?:                  [...#RuntimePeerStatus]
 	compatibility?:                  [...#RuntimeCompatibility]
 	content_sync_trace?:              [...string]
-	known_epoch_ids?:                 [...string]
-	epoch_descriptor_digest_by_id?:   [string]: string
-	epoch_finalized_digest_by_id?:    [string]: string
-	protocol_finalized_digest?:       string
+	protocol_checkpoint_digest?:      string
 }
 #RuntimePeerStatus: {
 	peer_id?:          string
 	connected?:        bool
 	dialable?:         bool
 	state_provider?:   bool
-	witness?:          bool
-	eligible_witness?: bool
 	compatible?:       bool
 	incompatible?:     bool
 	ignored?:          bool
@@ -488,6 +480,8 @@ package apicv1
 	addresses?:        [...string]
 	last_dial_errors?: [string]: string
 	reason?:           string
+	replication_priority?:     int
+	replication_device_class?: string
 }
 #RuntimeCompatibility: {
 	peer_id?:       string
@@ -549,6 +543,42 @@ package apicv1
 	location?:        string
 }
 #RemoveProvisionerImageResponse: {}
+#ImageContentDescriptor: {
+	media_type?:  string
+	digest?:      string
+	size_bytes?:  uint
+	platform?:    string
+	annotations?: [string]: string
+}
+#GetInstanceImageRequest: {
+	instance?:  string
+	image_ref?: string
+}
+#GetInstanceImageResponse: {
+	found?:         bool
+	image_ref?:     string
+	target_digest?: string
+	platform?:      string
+	labels?:        [string]: string
+	has_content?:   bool
+	target?:        #ImageContentDescriptor
+	descriptors?:   [...#ImageContentDescriptor]
+}
+#UploadInstanceImageArchiveChunkRequest: {
+	instance?:  string
+	upload_id?: string
+	image_ref?: string
+	offset?:    uint
+	data?:      bytes
+	eof?:       bool
+}
+#UploadInstanceImageArchiveChunkResponse: {
+	received_bytes?: uint
+	loaded?:         bool
+	image_ref?:      string
+	target_digest?:  string
+	platform?:       string
+}
 
 #Commit: {
 	hash?:      string
@@ -703,6 +733,8 @@ contract: {
 				{name: "GetProvisionerImages", request: "GetProvisionerImagesRequest", response: "GetProvisionerImagesResponse"},
 				{name: "UploadProvisionerImage", request: "UploadProvisionerImageRequest", response: "UploadProvisionerImageResponse"},
 				{name: "RemoveProvisionerImage", request: "RemoveProvisionerImageRequest", response: "RemoveProvisionerImageResponse"},
+				{name: "GetInstanceImage", request: "GetInstanceImageRequest", response: "GetInstanceImageResponse"},
+				{name: "UploadInstanceImageArchiveChunk", request: "UploadInstanceImageArchiveChunkRequest", response: "UploadInstanceImageArchiveChunkResponse"},
 				{name: "GetSystemStatus", request: "GetSystemStatusRequest", response: "GetSystemStatusResponse"},
 				{name: "StartHostAgent", request: "StartHostAgentRequest", response: "StartHostAgentResponse"},
 				{name: "StopHostAgent", request: "StopHostAgentRequest", response: "StopHostAgentResponse"},
@@ -1189,36 +1221,28 @@ contract: {
 			{kind: "message", name: "RuntimeState", fields: [
 				{type: "string", name: "peer_id", number: 1},
 				{type: "string", name: "manifest_digest", number: 2},
-				{type: "string", name: "finalized_root_hash", number: 3},
+				{type: "string", name: "checkpoint_root_hash", number: 3},
 				{type: "string", name: "tentative_root_hash", number: 4},
-				{type: "string", name: "protocol_finalized_root_hash", number: 5},
+				{type: "string", name: "protocol_checkpoint_root_hash", number: 5},
 				{type: "string", name: "durable_main_root_hash", number: 6},
-				{type: "string", name: "active_epoch_id", number: 7},
-				{rule: "repeated", type: "string", name: "active_witness_ids", number: 8},
-				{rule: "repeated", type: "string", name: "eligible_witness_ids", number: 9},
 				{rule: "repeated", type: "string", name: "state_providers", number: 10},
 				{rule: "repeated", type: "string", name: "connected_peers", number: 11},
 				{type: "string", name: "fatal_state", number: 12},
 				{type: "bool", name: "runtime_refresh_pending", number: 13},
 				{type: "string", name: "runtime_refresh_last_error", number: 14},
-				{type: "bool", name: "runtime_finalized_pending", number: 15},
-				{type: "string", name: "runtime_finalized_last_error", number: 16},
+				{type: "bool", name: "runtime_checkpoint_pending", number: 15},
+				{type: "string", name: "runtime_checkpoint_last_error", number: 16},
 				{type: "string", name: "runtime_materialization_policy", number: 17},
 				{rule: "repeated", type: "RuntimePeerStatus", name: "peer_statuses", number: 18},
 				{rule: "repeated", type: "RuntimeCompatibility", name: "compatibility", number: 19},
 				{rule: "repeated", type: "string", name: "content_sync_trace", number: 20},
-				{rule: "repeated", type: "string", name: "known_epoch_ids", number: 21},
-				{type: "map<string, string>", name: "epoch_descriptor_digest_by_id", number: 22},
-				{type: "map<string, string>", name: "epoch_finalized_digest_by_id", number: 23},
-				{type: "string", name: "protocol_finalized_digest", number: 24},
+				{type: "string", name: "protocol_checkpoint_digest", number: 24},
 			]},
 			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
 				{type: "bool", name: "connected", number: 2},
 				{type: "bool", name: "dialable", number: 3},
 				{type: "bool", name: "state_provider", number: 4},
-				{type: "bool", name: "witness", number: 5},
-				{type: "bool", name: "eligible_witness", number: 6},
 				{type: "bool", name: "compatible", number: 7},
 				{type: "bool", name: "incompatible", number: 8},
 				{type: "bool", name: "ignored", number: 9},
@@ -1226,6 +1250,8 @@ contract: {
 				{rule: "repeated", type: "string", name: "addresses", number: 11},
 				{type: "map<string, string>", name: "last_dial_errors", number: 12},
 				{type: "string", name: "reason", number: 13},
+				{type: "int32", name: "replication_priority", number: 14},
+				{type: "string", name: "replication_device_class", number: 15},
 			]},
 			{kind: "message", name: "RuntimeCompatibility", fields: [
 				{type: "string", name: "peer_id", number: 1},
@@ -1286,6 +1312,42 @@ contract: {
 				{type: "string", name: "location", number: 3},
 			]},
 			{kind: "message", name: "RemoveProvisionerImageResponse", fields: []},
+			{kind: "message", name: "ImageContentDescriptor", fields: [
+				{type: "string", name: "media_type", number: 1},
+				{type: "string", name: "digest", number: 2},
+				{type: "uint64", name: "size_bytes", number: 3},
+				{type: "string", name: "platform", number: 4},
+				{type: "map<string, string>", name: "annotations", number: 5},
+			]},
+			{kind: "message", name: "GetInstanceImageRequest", fields: [
+				{type: "string", name: "instance", number: 1},
+				{type: "string", name: "image_ref", number: 2},
+			]},
+			{kind: "message", name: "GetInstanceImageResponse", fields: [
+				{type: "bool", name: "found", number: 1},
+				{type: "string", name: "image_ref", number: 2},
+				{type: "string", name: "target_digest", number: 3},
+				{type: "string", name: "platform", number: 4},
+				{type: "map<string, string>", name: "labels", number: 5},
+				{type: "bool", name: "has_content", number: 6},
+				{type: "ImageContentDescriptor", name: "target", number: 7},
+				{rule: "repeated", type: "ImageContentDescriptor", name: "descriptors", number: 8},
+			]},
+			{kind: "message", name: "UploadInstanceImageArchiveChunkRequest", fields: [
+				{type: "string", name: "instance", number: 1},
+				{type: "string", name: "upload_id", number: 2},
+				{type: "string", name: "image_ref", number: 3},
+				{type: "uint64", name: "offset", number: 4},
+				{type: "bytes", name: "data", number: 5},
+				{type: "bool", name: "eof", number: 6},
+			]},
+			{kind: "message", name: "UploadInstanceImageArchiveChunkResponse", fields: [
+				{type: "uint64", name: "received_bytes", number: 1},
+				{type: "bool", name: "loaded", number: 2},
+				{type: "string", name: "image_ref", number: 3},
+				{type: "string", name: "target_digest", number: 4},
+				{type: "string", name: "platform", number: 5},
+			]},
 			{kind: "message", name: "CoreEndpoint", fields: [
 				{type: "string", name: "kind", number: 1},
 				{type: "string", name: "address", number: 2},

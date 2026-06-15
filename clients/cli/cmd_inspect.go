@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -360,71 +359,25 @@ func printRuntimeState(instance string, state *pbApic.RuntimeState) {
 	fmt.Printf("Target: %s\n", target)
 	fmt.Printf("Peer: %s\n", emptyDefault(state.GetPeerId(), "n/a"))
 	fmt.Printf("Manifest: %s\n", emptyDefault(state.GetManifestDigest(), "n/a"))
-	fmt.Printf("Finalized Root: %s\n", emptyDefault(state.GetFinalizedRootHash(), "n/a"))
+	fmt.Printf("Checkpoint Root: %s\n", emptyDefault(state.GetCheckpointRootHash(), "n/a"))
 	fmt.Printf("Tentative Root: %s\n", emptyDefault(state.GetTentativeRootHash(), "n/a"))
-	fmt.Printf("Protocol Finalized Root: %s\n", emptyDefault(state.GetProtocolFinalizedRootHash(), "n/a"))
-	fmt.Printf("Protocol Finalized Digest: %s\n", emptyDefault(state.GetProtocolFinalizedDigest(), "n/a"))
+	fmt.Printf("Protocol Checkpoint Root: %s\n", emptyDefault(state.GetProtocolCheckpointRootHash(), "n/a"))
+	fmt.Printf("Protocol Checkpoint Digest: %s\n", emptyDefault(state.GetProtocolCheckpointDigest(), "n/a"))
 	fmt.Printf("Durable Main Root: %s\n", emptyDefault(state.GetDurableMainRootHash(), "n/a"))
-	fmt.Printf("Active Epoch: %s\n", emptyDefault(state.GetActiveEpochId(), "n/a"))
-	fmt.Printf("Known Epochs: %s\n", emptyDefault(strings.Join(state.GetKnownEpochIds(), ","), "none"))
 	fmt.Printf("Materialization: %s pending=%t error=%s\n",
 		emptyDefault(state.GetRuntimeMaterializationPolicy(), "n/a"),
-		state.GetRuntimeFinalizedPending(),
-		emptyDefault(state.GetRuntimeFinalizedLastError(), "none"),
+		state.GetRuntimeCheckpointPending(),
+		emptyDefault(state.GetRuntimeCheckpointLastError(), "none"),
 	)
 	fmt.Printf("Refresh: pending=%t error=%s\n", state.GetRuntimeRefreshPending(), emptyDefault(state.GetRuntimeRefreshLastError(), "none"))
 	if fatal := strings.TrimSpace(state.GetFatalState()); fatal != "" {
 		fmt.Printf("Fatal: %s\n", fatal)
 	}
-	fmt.Printf("Active Witnesses: %s\n", emptyDefault(strings.Join(state.GetActiveWitnessIds(), ","), "none"))
-	fmt.Printf("Eligible Witnesses: %s\n", emptyDefault(strings.Join(state.GetEligibleWitnessIds(), ","), "none"))
 	fmt.Printf("State Providers: %s\n", emptyDefault(strings.Join(state.GetStateProviders(), ","), "none"))
 	fmt.Printf("Connected Peers: %s\n", emptyDefault(strings.Join(state.GetConnectedPeers(), ","), "none"))
 	printRuntimePeerStatuses(state.GetPeerStatuses())
 	printRuntimeCompatibility(state.GetCompatibility())
-	printRuntimeEpochDigests(state.GetEpochDescriptorDigestById(), state.GetEpochFinalizedDigestById())
 	printRuntimeTrace(state.GetContentSyncTrace())
-}
-
-func printRuntimeEpochDigests(descriptors, finalized map[string]string) {
-	if len(descriptors) == 0 && len(finalized) == 0 {
-		return
-	}
-	ids := make(map[string]struct{}, len(descriptors)+len(finalized))
-	for id := range descriptors {
-		ids[id] = struct{}{}
-	}
-	for id := range finalized {
-		ids[id] = struct{}{}
-	}
-	ordered := make([]string, 0, len(ids))
-	for id := range ids {
-		ordered = append(ordered, id)
-	}
-	sort.Strings(ordered)
-	fmt.Println("\nEpoch Digests")
-	w := tableWriter()
-	defer w.Flush()
-	fmt.Fprintf(w, " Epoch\tDescriptor\tFinalized\t\n")
-	fmt.Fprintf(w, " -----\t----------\t---------\t\n")
-	for _, id := range ordered {
-		fmt.Fprintf(w, " %s\t%s\t%s\t\n",
-			id,
-			shortDigest(descriptors[id]),
-			shortDigest(finalized[id]),
-		)
-	}
-}
-
-func shortDigest(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "n/a"
-	}
-	if len(value) <= 12 {
-		return value
-	}
-	return value[:12]
 }
 
 func printRuntimePeerStatuses(peers []*pbApic.RuntimePeerStatus) {
@@ -435,16 +388,14 @@ func printRuntimePeerStatuses(peers []*pbApic.RuntimePeerStatus) {
 	}
 	w := tableWriter()
 	defer w.Flush()
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n", "Peer", "Connected", "Dialable", "Provider", "Witness", "Eligible", "Compatible", "Reason")
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n", "----", "---------", "--------", "--------", "-------", "--------", "----------", "------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t\n", "Peer", "Connected", "Dialable", "Provider", "Compatible", "Reason")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t\n", "----", "---------", "--------", "--------", "----------", "------")
 	for _, peer := range peers {
-		fmt.Fprintf(w, " %s\t%t\t%t\t%t\t%t\t%t\t%t\t%s\t\n",
+		fmt.Fprintf(w, " %s\t%t\t%t\t%t\t%t\t%s\t\n",
 			peer.GetPeerId(),
 			peer.GetConnected(),
 			peer.GetDialable(),
 			peer.GetStateProvider(),
-			peer.GetWitness(),
-			peer.GetEligibleWitness(),
 			peer.GetCompatible(),
 			peer.GetReason(),
 		)

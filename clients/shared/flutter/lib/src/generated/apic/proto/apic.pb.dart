@@ -8704,45 +8704,33 @@ class RuntimeState extends $pb.GeneratedMessage {
   factory RuntimeState({
     $core.String? peerId,
     $core.String? manifestDigest,
-    $core.String? finalizedRootHash,
+    $core.String? checkpointRootHash,
     $core.String? tentativeRootHash,
-    $core.String? protocolFinalizedRootHash,
+    $core.String? protocolCheckpointRootHash,
     $core.String? durableMainRootHash,
-    $core.String? activeEpochId,
-    $core.Iterable<$core.String>? activeWitnessIds,
-    $core.Iterable<$core.String>? eligibleWitnessIds,
     $core.Iterable<$core.String>? stateProviders,
     $core.Iterable<$core.String>? connectedPeers,
     $core.String? fatalState,
     $core.bool? runtimeRefreshPending,
     $core.String? runtimeRefreshLastError,
-    $core.bool? runtimeFinalizedPending,
-    $core.String? runtimeFinalizedLastError,
+    $core.bool? runtimeCheckpointPending,
+    $core.String? runtimeCheckpointLastError,
     $core.String? runtimeMaterializationPolicy,
     $core.Iterable<RuntimePeerStatus>? peerStatuses,
     $core.Iterable<RuntimeCompatibility>? compatibility,
     $core.Iterable<$core.String>? contentSyncTrace,
-    $core.Iterable<$core.String>? knownEpochIds,
-    $core.Iterable<$core.MapEntry<$core.String, $core.String>>?
-        epochDescriptorDigestById,
-    $core.Iterable<$core.MapEntry<$core.String, $core.String>>?
-        epochFinalizedDigestById,
-    $core.String? protocolFinalizedDigest,
+    $core.String? protocolCheckpointDigest,
   }) {
     final result = create();
     if (peerId != null) result.peerId = peerId;
     if (manifestDigest != null) result.manifestDigest = manifestDigest;
-    if (finalizedRootHash != null) result.finalizedRootHash = finalizedRootHash;
+    if (checkpointRootHash != null)
+      result.checkpointRootHash = checkpointRootHash;
     if (tentativeRootHash != null) result.tentativeRootHash = tentativeRootHash;
-    if (protocolFinalizedRootHash != null)
-      result.protocolFinalizedRootHash = protocolFinalizedRootHash;
+    if (protocolCheckpointRootHash != null)
+      result.protocolCheckpointRootHash = protocolCheckpointRootHash;
     if (durableMainRootHash != null)
       result.durableMainRootHash = durableMainRootHash;
-    if (activeEpochId != null) result.activeEpochId = activeEpochId;
-    if (activeWitnessIds != null)
-      result.activeWitnessIds.addAll(activeWitnessIds);
-    if (eligibleWitnessIds != null)
-      result.eligibleWitnessIds.addAll(eligibleWitnessIds);
     if (stateProviders != null) result.stateProviders.addAll(stateProviders);
     if (connectedPeers != null) result.connectedPeers.addAll(connectedPeers);
     if (fatalState != null) result.fatalState = fatalState;
@@ -8750,23 +8738,18 @@ class RuntimeState extends $pb.GeneratedMessage {
       result.runtimeRefreshPending = runtimeRefreshPending;
     if (runtimeRefreshLastError != null)
       result.runtimeRefreshLastError = runtimeRefreshLastError;
-    if (runtimeFinalizedPending != null)
-      result.runtimeFinalizedPending = runtimeFinalizedPending;
-    if (runtimeFinalizedLastError != null)
-      result.runtimeFinalizedLastError = runtimeFinalizedLastError;
+    if (runtimeCheckpointPending != null)
+      result.runtimeCheckpointPending = runtimeCheckpointPending;
+    if (runtimeCheckpointLastError != null)
+      result.runtimeCheckpointLastError = runtimeCheckpointLastError;
     if (runtimeMaterializationPolicy != null)
       result.runtimeMaterializationPolicy = runtimeMaterializationPolicy;
     if (peerStatuses != null) result.peerStatuses.addAll(peerStatuses);
     if (compatibility != null) result.compatibility.addAll(compatibility);
     if (contentSyncTrace != null)
       result.contentSyncTrace.addAll(contentSyncTrace);
-    if (knownEpochIds != null) result.knownEpochIds.addAll(knownEpochIds);
-    if (epochDescriptorDigestById != null)
-      result.epochDescriptorDigestById.addEntries(epochDescriptorDigestById);
-    if (epochFinalizedDigestById != null)
-      result.epochFinalizedDigestById.addEntries(epochFinalizedDigestById);
-    if (protocolFinalizedDigest != null)
-      result.protocolFinalizedDigest = protocolFinalizedDigest;
+    if (protocolCheckpointDigest != null)
+      result.protocolCheckpointDigest = protocolCheckpointDigest;
     return result;
   }
 
@@ -8785,40 +8768,24 @@ class RuntimeState extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'peerId')
     ..aOS(2, _omitFieldNames ? '' : 'manifestDigest')
-    ..aOS(3, _omitFieldNames ? '' : 'finalizedRootHash')
+    ..aOS(3, _omitFieldNames ? '' : 'checkpointRootHash')
     ..aOS(4, _omitFieldNames ? '' : 'tentativeRootHash')
-    ..aOS(5, _omitFieldNames ? '' : 'protocolFinalizedRootHash')
+    ..aOS(5, _omitFieldNames ? '' : 'protocolCheckpointRootHash')
     ..aOS(6, _omitFieldNames ? '' : 'durableMainRootHash')
-    ..aOS(7, _omitFieldNames ? '' : 'activeEpochId')
-    ..pPS(8, _omitFieldNames ? '' : 'activeWitnessIds')
-    ..pPS(9, _omitFieldNames ? '' : 'eligibleWitnessIds')
     ..pPS(10, _omitFieldNames ? '' : 'stateProviders')
     ..pPS(11, _omitFieldNames ? '' : 'connectedPeers')
     ..aOS(12, _omitFieldNames ? '' : 'fatalState')
     ..aOB(13, _omitFieldNames ? '' : 'runtimeRefreshPending')
     ..aOS(14, _omitFieldNames ? '' : 'runtimeRefreshLastError')
-    ..aOB(15, _omitFieldNames ? '' : 'runtimeFinalizedPending')
-    ..aOS(16, _omitFieldNames ? '' : 'runtimeFinalizedLastError')
+    ..aOB(15, _omitFieldNames ? '' : 'runtimeCheckpointPending')
+    ..aOS(16, _omitFieldNames ? '' : 'runtimeCheckpointLastError')
     ..aOS(17, _omitFieldNames ? '' : 'runtimeMaterializationPolicy')
     ..pPM<RuntimePeerStatus>(18, _omitFieldNames ? '' : 'peerStatuses',
         subBuilder: RuntimePeerStatus.create)
     ..pPM<RuntimeCompatibility>(19, _omitFieldNames ? '' : 'compatibility',
         subBuilder: RuntimeCompatibility.create)
     ..pPS(20, _omitFieldNames ? '' : 'contentSyncTrace')
-    ..pPS(21, _omitFieldNames ? '' : 'knownEpochIds')
-    ..m<$core.String, $core.String>(
-        22, _omitFieldNames ? '' : 'epochDescriptorDigestById',
-        entryClassName: 'RuntimeState.EpochDescriptorDigestByIdEntry',
-        keyFieldType: $pb.PbFieldType.OS,
-        valueFieldType: $pb.PbFieldType.OS,
-        packageName: const $pb.PackageName('apic'))
-    ..m<$core.String, $core.String>(
-        23, _omitFieldNames ? '' : 'epochFinalizedDigestById',
-        entryClassName: 'RuntimeState.EpochFinalizedDigestByIdEntry',
-        keyFieldType: $pb.PbFieldType.OS,
-        valueFieldType: $pb.PbFieldType.OS,
-        packageName: const $pb.PackageName('apic'))
-    ..aOS(24, _omitFieldNames ? '' : 'protocolFinalizedDigest')
+    ..aOS(24, _omitFieldNames ? '' : 'protocolCheckpointDigest')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8859,13 +8826,13 @@ class RuntimeState extends $pb.GeneratedMessage {
   void clearManifestDigest() => $_clearField(2);
 
   @$pb.TagNumber(3)
-  $core.String get finalizedRootHash => $_getSZ(2);
+  $core.String get checkpointRootHash => $_getSZ(2);
   @$pb.TagNumber(3)
-  set finalizedRootHash($core.String value) => $_setString(2, value);
+  set checkpointRootHash($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
-  $core.bool hasFinalizedRootHash() => $_has(2);
+  $core.bool hasCheckpointRootHash() => $_has(2);
   @$pb.TagNumber(3)
-  void clearFinalizedRootHash() => $_clearField(3);
+  void clearCheckpointRootHash() => $_clearField(3);
 
   @$pb.TagNumber(4)
   $core.String get tentativeRootHash => $_getSZ(3);
@@ -8877,13 +8844,13 @@ class RuntimeState extends $pb.GeneratedMessage {
   void clearTentativeRootHash() => $_clearField(4);
 
   @$pb.TagNumber(5)
-  $core.String get protocolFinalizedRootHash => $_getSZ(4);
+  $core.String get protocolCheckpointRootHash => $_getSZ(4);
   @$pb.TagNumber(5)
-  set protocolFinalizedRootHash($core.String value) => $_setString(4, value);
+  set protocolCheckpointRootHash($core.String value) => $_setString(4, value);
   @$pb.TagNumber(5)
-  $core.bool hasProtocolFinalizedRootHash() => $_has(4);
+  $core.bool hasProtocolCheckpointRootHash() => $_has(4);
   @$pb.TagNumber(5)
-  void clearProtocolFinalizedRootHash() => $_clearField(5);
+  void clearProtocolCheckpointRootHash() => $_clearField(5);
 
   @$pb.TagNumber(6)
   $core.String get durableMainRootHash => $_getSZ(5);
@@ -8894,110 +8861,84 @@ class RuntimeState extends $pb.GeneratedMessage {
   @$pb.TagNumber(6)
   void clearDurableMainRootHash() => $_clearField(6);
 
-  @$pb.TagNumber(7)
-  $core.String get activeEpochId => $_getSZ(6);
-  @$pb.TagNumber(7)
-  set activeEpochId($core.String value) => $_setString(6, value);
-  @$pb.TagNumber(7)
-  $core.bool hasActiveEpochId() => $_has(6);
-  @$pb.TagNumber(7)
-  void clearActiveEpochId() => $_clearField(7);
-
-  @$pb.TagNumber(8)
-  $pb.PbList<$core.String> get activeWitnessIds => $_getList(7);
-
-  @$pb.TagNumber(9)
-  $pb.PbList<$core.String> get eligibleWitnessIds => $_getList(8);
-
   @$pb.TagNumber(10)
-  $pb.PbList<$core.String> get stateProviders => $_getList(9);
+  $pb.PbList<$core.String> get stateProviders => $_getList(6);
 
   @$pb.TagNumber(11)
-  $pb.PbList<$core.String> get connectedPeers => $_getList(10);
+  $pb.PbList<$core.String> get connectedPeers => $_getList(7);
 
   @$pb.TagNumber(12)
-  $core.String get fatalState => $_getSZ(11);
+  $core.String get fatalState => $_getSZ(8);
   @$pb.TagNumber(12)
-  set fatalState($core.String value) => $_setString(11, value);
+  set fatalState($core.String value) => $_setString(8, value);
   @$pb.TagNumber(12)
-  $core.bool hasFatalState() => $_has(11);
+  $core.bool hasFatalState() => $_has(8);
   @$pb.TagNumber(12)
   void clearFatalState() => $_clearField(12);
 
   @$pb.TagNumber(13)
-  $core.bool get runtimeRefreshPending => $_getBF(12);
+  $core.bool get runtimeRefreshPending => $_getBF(9);
   @$pb.TagNumber(13)
-  set runtimeRefreshPending($core.bool value) => $_setBool(12, value);
+  set runtimeRefreshPending($core.bool value) => $_setBool(9, value);
   @$pb.TagNumber(13)
-  $core.bool hasRuntimeRefreshPending() => $_has(12);
+  $core.bool hasRuntimeRefreshPending() => $_has(9);
   @$pb.TagNumber(13)
   void clearRuntimeRefreshPending() => $_clearField(13);
 
   @$pb.TagNumber(14)
-  $core.String get runtimeRefreshLastError => $_getSZ(13);
+  $core.String get runtimeRefreshLastError => $_getSZ(10);
   @$pb.TagNumber(14)
-  set runtimeRefreshLastError($core.String value) => $_setString(13, value);
+  set runtimeRefreshLastError($core.String value) => $_setString(10, value);
   @$pb.TagNumber(14)
-  $core.bool hasRuntimeRefreshLastError() => $_has(13);
+  $core.bool hasRuntimeRefreshLastError() => $_has(10);
   @$pb.TagNumber(14)
   void clearRuntimeRefreshLastError() => $_clearField(14);
 
   @$pb.TagNumber(15)
-  $core.bool get runtimeFinalizedPending => $_getBF(14);
+  $core.bool get runtimeCheckpointPending => $_getBF(11);
   @$pb.TagNumber(15)
-  set runtimeFinalizedPending($core.bool value) => $_setBool(14, value);
+  set runtimeCheckpointPending($core.bool value) => $_setBool(11, value);
   @$pb.TagNumber(15)
-  $core.bool hasRuntimeFinalizedPending() => $_has(14);
+  $core.bool hasRuntimeCheckpointPending() => $_has(11);
   @$pb.TagNumber(15)
-  void clearRuntimeFinalizedPending() => $_clearField(15);
+  void clearRuntimeCheckpointPending() => $_clearField(15);
 
   @$pb.TagNumber(16)
-  $core.String get runtimeFinalizedLastError => $_getSZ(15);
+  $core.String get runtimeCheckpointLastError => $_getSZ(12);
   @$pb.TagNumber(16)
-  set runtimeFinalizedLastError($core.String value) => $_setString(15, value);
+  set runtimeCheckpointLastError($core.String value) => $_setString(12, value);
   @$pb.TagNumber(16)
-  $core.bool hasRuntimeFinalizedLastError() => $_has(15);
+  $core.bool hasRuntimeCheckpointLastError() => $_has(12);
   @$pb.TagNumber(16)
-  void clearRuntimeFinalizedLastError() => $_clearField(16);
+  void clearRuntimeCheckpointLastError() => $_clearField(16);
 
   @$pb.TagNumber(17)
-  $core.String get runtimeMaterializationPolicy => $_getSZ(16);
+  $core.String get runtimeMaterializationPolicy => $_getSZ(13);
   @$pb.TagNumber(17)
   set runtimeMaterializationPolicy($core.String value) =>
-      $_setString(16, value);
+      $_setString(13, value);
   @$pb.TagNumber(17)
-  $core.bool hasRuntimeMaterializationPolicy() => $_has(16);
+  $core.bool hasRuntimeMaterializationPolicy() => $_has(13);
   @$pb.TagNumber(17)
   void clearRuntimeMaterializationPolicy() => $_clearField(17);
 
   @$pb.TagNumber(18)
-  $pb.PbList<RuntimePeerStatus> get peerStatuses => $_getList(17);
+  $pb.PbList<RuntimePeerStatus> get peerStatuses => $_getList(14);
 
   @$pb.TagNumber(19)
-  $pb.PbList<RuntimeCompatibility> get compatibility => $_getList(18);
+  $pb.PbList<RuntimeCompatibility> get compatibility => $_getList(15);
 
   @$pb.TagNumber(20)
-  $pb.PbList<$core.String> get contentSyncTrace => $_getList(19);
-
-  @$pb.TagNumber(21)
-  $pb.PbList<$core.String> get knownEpochIds => $_getList(20);
-
-  @$pb.TagNumber(22)
-  $pb.PbMap<$core.String, $core.String> get epochDescriptorDigestById =>
-      $_getMap(21);
-
-  @$pb.TagNumber(23)
-  $pb.PbMap<$core.String, $core.String> get epochFinalizedDigestById =>
-      $_getMap(22);
+  $pb.PbList<$core.String> get contentSyncTrace => $_getList(16);
 
   @$pb.TagNumber(24)
-  $core.String get protocolFinalizedDigest => $_getSZ(23);
+  $core.String get protocolCheckpointDigest => $_getSZ(17);
   @$pb.TagNumber(24)
-  set protocolFinalizedDigest($core.String value) => $_setString(23, value);
+  set protocolCheckpointDigest($core.String value) => $_setString(17, value);
   @$pb.TagNumber(24)
-  $core.bool hasProtocolFinalizedDigest() => $_has(23);
+  $core.bool hasProtocolCheckpointDigest() => $_has(17);
   @$pb.TagNumber(24)
-  void clearProtocolFinalizedDigest() => $_clearField(24);
+  void clearProtocolCheckpointDigest() => $_clearField(24);
 }
 
 class RuntimePeerStatus extends $pb.GeneratedMessage {
@@ -9006,8 +8947,6 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
     $core.bool? connected,
     $core.bool? dialable,
     $core.bool? stateProvider,
-    $core.bool? witness,
-    $core.bool? eligibleWitness,
     $core.bool? compatible,
     $core.bool? incompatible,
     $core.bool? ignored,
@@ -9015,14 +8954,14 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
     $core.Iterable<$core.String>? addresses,
     $core.Iterable<$core.MapEntry<$core.String, $core.String>>? lastDialErrors,
     $core.String? reason,
+    $core.int? replicationPriority,
+    $core.String? replicationDeviceClass,
   }) {
     final result = create();
     if (peerId != null) result.peerId = peerId;
     if (connected != null) result.connected = connected;
     if (dialable != null) result.dialable = dialable;
     if (stateProvider != null) result.stateProvider = stateProvider;
-    if (witness != null) result.witness = witness;
-    if (eligibleWitness != null) result.eligibleWitness = eligibleWitness;
     if (compatible != null) result.compatible = compatible;
     if (incompatible != null) result.incompatible = incompatible;
     if (ignored != null) result.ignored = ignored;
@@ -9031,6 +8970,10 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
     if (lastDialErrors != null)
       result.lastDialErrors.addEntries(lastDialErrors);
     if (reason != null) result.reason = reason;
+    if (replicationPriority != null)
+      result.replicationPriority = replicationPriority;
+    if (replicationDeviceClass != null)
+      result.replicationDeviceClass = replicationDeviceClass;
     return result;
   }
 
@@ -9051,8 +8994,6 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
     ..aOB(2, _omitFieldNames ? '' : 'connected')
     ..aOB(3, _omitFieldNames ? '' : 'dialable')
     ..aOB(4, _omitFieldNames ? '' : 'stateProvider')
-    ..aOB(5, _omitFieldNames ? '' : 'witness')
-    ..aOB(6, _omitFieldNames ? '' : 'eligibleWitness')
     ..aOB(7, _omitFieldNames ? '' : 'compatible')
     ..aOB(8, _omitFieldNames ? '' : 'incompatible')
     ..aOB(9, _omitFieldNames ? '' : 'ignored')
@@ -9064,6 +9005,8 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
         valueFieldType: $pb.PbFieldType.OS,
         packageName: const $pb.PackageName('apic'))
     ..aOS(13, _omitFieldNames ? '' : 'reason')
+    ..aI(14, _omitFieldNames ? '' : 'replicationPriority')
+    ..aOS(15, _omitFieldNames ? '' : 'replicationDeviceClass')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9121,74 +9064,74 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   void clearStateProvider() => $_clearField(4);
 
-  @$pb.TagNumber(5)
-  $core.bool get witness => $_getBF(4);
-  @$pb.TagNumber(5)
-  set witness($core.bool value) => $_setBool(4, value);
-  @$pb.TagNumber(5)
-  $core.bool hasWitness() => $_has(4);
-  @$pb.TagNumber(5)
-  void clearWitness() => $_clearField(5);
-
-  @$pb.TagNumber(6)
-  $core.bool get eligibleWitness => $_getBF(5);
-  @$pb.TagNumber(6)
-  set eligibleWitness($core.bool value) => $_setBool(5, value);
-  @$pb.TagNumber(6)
-  $core.bool hasEligibleWitness() => $_has(5);
-  @$pb.TagNumber(6)
-  void clearEligibleWitness() => $_clearField(6);
-
   @$pb.TagNumber(7)
-  $core.bool get compatible => $_getBF(6);
+  $core.bool get compatible => $_getBF(4);
   @$pb.TagNumber(7)
-  set compatible($core.bool value) => $_setBool(6, value);
+  set compatible($core.bool value) => $_setBool(4, value);
   @$pb.TagNumber(7)
-  $core.bool hasCompatible() => $_has(6);
+  $core.bool hasCompatible() => $_has(4);
   @$pb.TagNumber(7)
   void clearCompatible() => $_clearField(7);
 
   @$pb.TagNumber(8)
-  $core.bool get incompatible => $_getBF(7);
+  $core.bool get incompatible => $_getBF(5);
   @$pb.TagNumber(8)
-  set incompatible($core.bool value) => $_setBool(7, value);
+  set incompatible($core.bool value) => $_setBool(5, value);
   @$pb.TagNumber(8)
-  $core.bool hasIncompatible() => $_has(7);
+  $core.bool hasIncompatible() => $_has(5);
   @$pb.TagNumber(8)
   void clearIncompatible() => $_clearField(8);
 
   @$pb.TagNumber(9)
-  $core.bool get ignored => $_getBF(8);
+  $core.bool get ignored => $_getBF(6);
   @$pb.TagNumber(9)
-  set ignored($core.bool value) => $_setBool(8, value);
+  set ignored($core.bool value) => $_setBool(6, value);
   @$pb.TagNumber(9)
-  $core.bool hasIgnored() => $_has(8);
+  $core.bool hasIgnored() => $_has(6);
   @$pb.TagNumber(9)
   void clearIgnored() => $_clearField(9);
 
   @$pb.TagNumber(10)
-  $core.bool get relayOnly => $_getBF(9);
+  $core.bool get relayOnly => $_getBF(7);
   @$pb.TagNumber(10)
-  set relayOnly($core.bool value) => $_setBool(9, value);
+  set relayOnly($core.bool value) => $_setBool(7, value);
   @$pb.TagNumber(10)
-  $core.bool hasRelayOnly() => $_has(9);
+  $core.bool hasRelayOnly() => $_has(7);
   @$pb.TagNumber(10)
   void clearRelayOnly() => $_clearField(10);
 
   @$pb.TagNumber(11)
-  $pb.PbList<$core.String> get addresses => $_getList(10);
+  $pb.PbList<$core.String> get addresses => $_getList(8);
 
   @$pb.TagNumber(12)
-  $pb.PbMap<$core.String, $core.String> get lastDialErrors => $_getMap(11);
+  $pb.PbMap<$core.String, $core.String> get lastDialErrors => $_getMap(9);
 
   @$pb.TagNumber(13)
-  $core.String get reason => $_getSZ(12);
+  $core.String get reason => $_getSZ(10);
   @$pb.TagNumber(13)
-  set reason($core.String value) => $_setString(12, value);
+  set reason($core.String value) => $_setString(10, value);
   @$pb.TagNumber(13)
-  $core.bool hasReason() => $_has(12);
+  $core.bool hasReason() => $_has(10);
   @$pb.TagNumber(13)
   void clearReason() => $_clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.int get replicationPriority => $_getIZ(11);
+  @$pb.TagNumber(14)
+  set replicationPriority($core.int value) => $_setSignedInt32(11, value);
+  @$pb.TagNumber(14)
+  $core.bool hasReplicationPriority() => $_has(11);
+  @$pb.TagNumber(14)
+  void clearReplicationPriority() => $_clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get replicationDeviceClass => $_getSZ(12);
+  @$pb.TagNumber(15)
+  set replicationDeviceClass($core.String value) => $_setString(12, value);
+  @$pb.TagNumber(15)
+  $core.bool hasReplicationDeviceClass() => $_has(12);
+  @$pb.TagNumber(15)
+  void clearReplicationDeviceClass() => $_clearField(15);
 }
 
 class RuntimeCompatibility extends $pb.GeneratedMessage {
@@ -10403,6 +10346,541 @@ class RemoveProvisionerImageResponse extends $pb.GeneratedMessage {
   static RemoveProvisionerImageResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<RemoveProvisionerImageResponse>(create);
   static RemoveProvisionerImageResponse? _defaultInstance;
+}
+
+class ImageContentDescriptor extends $pb.GeneratedMessage {
+  factory ImageContentDescriptor({
+    $core.String? mediaType,
+    $core.String? digest,
+    $fixnum.Int64? sizeBytes,
+    $core.String? platform,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? annotations,
+  }) {
+    final result = create();
+    if (mediaType != null) result.mediaType = mediaType;
+    if (digest != null) result.digest = digest;
+    if (sizeBytes != null) result.sizeBytes = sizeBytes;
+    if (platform != null) result.platform = platform;
+    if (annotations != null) result.annotations.addEntries(annotations);
+    return result;
+  }
+
+  ImageContentDescriptor._();
+
+  factory ImageContentDescriptor.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ImageContentDescriptor.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImageContentDescriptor',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'mediaType')
+    ..aOS(2, _omitFieldNames ? '' : 'digest')
+    ..a<$fixnum.Int64>(
+        3, _omitFieldNames ? '' : 'sizeBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOS(4, _omitFieldNames ? '' : 'platform')
+    ..m<$core.String, $core.String>(5, _omitFieldNames ? '' : 'annotations',
+        entryClassName: 'ImageContentDescriptor.AnnotationsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('apic'))
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImageContentDescriptor clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImageContentDescriptor copyWith(
+          void Function(ImageContentDescriptor) updates) =>
+      super.copyWith((message) => updates(message as ImageContentDescriptor))
+          as ImageContentDescriptor;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ImageContentDescriptor create() => ImageContentDescriptor._();
+  @$core.override
+  ImageContentDescriptor createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ImageContentDescriptor getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImageContentDescriptor>(create);
+  static ImageContentDescriptor? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get mediaType => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set mediaType($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMediaType() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMediaType() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get digest => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set digest($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDigest() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDigest() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get sizeBytes => $_getI64(2);
+  @$pb.TagNumber(3)
+  set sizeBytes($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSizeBytes() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSizeBytes() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get platform => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set platform($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPlatform() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPlatform() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $pb.PbMap<$core.String, $core.String> get annotations => $_getMap(4);
+}
+
+class GetInstanceImageRequest extends $pb.GeneratedMessage {
+  factory GetInstanceImageRequest({
+    $core.String? instance,
+    $core.String? imageRef,
+  }) {
+    final result = create();
+    if (instance != null) result.instance = instance;
+    if (imageRef != null) result.imageRef = imageRef;
+    return result;
+  }
+
+  GetInstanceImageRequest._();
+
+  factory GetInstanceImageRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetInstanceImageRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetInstanceImageRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'instance')
+    ..aOS(2, _omitFieldNames ? '' : 'imageRef')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetInstanceImageRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetInstanceImageRequest copyWith(
+          void Function(GetInstanceImageRequest) updates) =>
+      super.copyWith((message) => updates(message as GetInstanceImageRequest))
+          as GetInstanceImageRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetInstanceImageRequest create() => GetInstanceImageRequest._();
+  @$core.override
+  GetInstanceImageRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetInstanceImageRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetInstanceImageRequest>(create);
+  static GetInstanceImageRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get instance => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set instance($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasInstance() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearInstance() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get imageRef => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set imageRef($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasImageRef() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearImageRef() => $_clearField(2);
+}
+
+class GetInstanceImageResponse extends $pb.GeneratedMessage {
+  factory GetInstanceImageResponse({
+    $core.bool? found,
+    $core.String? imageRef,
+    $core.String? targetDigest,
+    $core.String? platform,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? labels,
+    $core.bool? hasContent,
+    ImageContentDescriptor? target,
+    $core.Iterable<ImageContentDescriptor>? descriptors,
+  }) {
+    final result = create();
+    if (found != null) result.found = found;
+    if (imageRef != null) result.imageRef = imageRef;
+    if (targetDigest != null) result.targetDigest = targetDigest;
+    if (platform != null) result.platform = platform;
+    if (labels != null) result.labels.addEntries(labels);
+    if (hasContent != null) result.hasContent = hasContent;
+    if (target != null) result.target = target;
+    if (descriptors != null) result.descriptors.addAll(descriptors);
+    return result;
+  }
+
+  GetInstanceImageResponse._();
+
+  factory GetInstanceImageResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetInstanceImageResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetInstanceImageResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'found')
+    ..aOS(2, _omitFieldNames ? '' : 'imageRef')
+    ..aOS(3, _omitFieldNames ? '' : 'targetDigest')
+    ..aOS(4, _omitFieldNames ? '' : 'platform')
+    ..m<$core.String, $core.String>(5, _omitFieldNames ? '' : 'labels',
+        entryClassName: 'GetInstanceImageResponse.LabelsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('apic'))
+    ..aOB(6, _omitFieldNames ? '' : 'hasContent')
+    ..aOM<ImageContentDescriptor>(7, _omitFieldNames ? '' : 'target',
+        subBuilder: ImageContentDescriptor.create)
+    ..pPM<ImageContentDescriptor>(8, _omitFieldNames ? '' : 'descriptors',
+        subBuilder: ImageContentDescriptor.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetInstanceImageResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetInstanceImageResponse copyWith(
+          void Function(GetInstanceImageResponse) updates) =>
+      super.copyWith((message) => updates(message as GetInstanceImageResponse))
+          as GetInstanceImageResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetInstanceImageResponse create() => GetInstanceImageResponse._();
+  @$core.override
+  GetInstanceImageResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetInstanceImageResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetInstanceImageResponse>(create);
+  static GetInstanceImageResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get found => $_getBF(0);
+  @$pb.TagNumber(1)
+  set found($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasFound() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearFound() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get imageRef => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set imageRef($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasImageRef() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearImageRef() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get targetDigest => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set targetDigest($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTargetDigest() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTargetDigest() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get platform => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set platform($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPlatform() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPlatform() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $pb.PbMap<$core.String, $core.String> get labels => $_getMap(4);
+
+  @$pb.TagNumber(6)
+  $core.bool get hasContent => $_getBF(5);
+  @$pb.TagNumber(6)
+  set hasContent($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasHasContent() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearHasContent() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  ImageContentDescriptor get target => $_getN(6);
+  @$pb.TagNumber(7)
+  set target(ImageContentDescriptor value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasTarget() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearTarget() => $_clearField(7);
+  @$pb.TagNumber(7)
+  ImageContentDescriptor ensureTarget() => $_ensure(6);
+
+  @$pb.TagNumber(8)
+  $pb.PbList<ImageContentDescriptor> get descriptors => $_getList(7);
+}
+
+class UploadInstanceImageArchiveChunkRequest extends $pb.GeneratedMessage {
+  factory UploadInstanceImageArchiveChunkRequest({
+    $core.String? instance,
+    $core.String? uploadId,
+    $core.String? imageRef,
+    $fixnum.Int64? offset,
+    $core.List<$core.int>? data,
+    $core.bool? eof,
+  }) {
+    final result = create();
+    if (instance != null) result.instance = instance;
+    if (uploadId != null) result.uploadId = uploadId;
+    if (imageRef != null) result.imageRef = imageRef;
+    if (offset != null) result.offset = offset;
+    if (data != null) result.data = data;
+    if (eof != null) result.eof = eof;
+    return result;
+  }
+
+  UploadInstanceImageArchiveChunkRequest._();
+
+  factory UploadInstanceImageArchiveChunkRequest.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UploadInstanceImageArchiveChunkRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UploadInstanceImageArchiveChunkRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'instance')
+    ..aOS(2, _omitFieldNames ? '' : 'uploadId')
+    ..aOS(3, _omitFieldNames ? '' : 'imageRef')
+    ..a<$fixnum.Int64>(4, _omitFieldNames ? '' : 'offset', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$core.List<$core.int>>(
+        5, _omitFieldNames ? '' : 'data', $pb.PbFieldType.OY)
+    ..aOB(6, _omitFieldNames ? '' : 'eof')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveChunkRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveChunkRequest copyWith(
+          void Function(UploadInstanceImageArchiveChunkRequest) updates) =>
+      super.copyWith((message) =>
+              updates(message as UploadInstanceImageArchiveChunkRequest))
+          as UploadInstanceImageArchiveChunkRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveChunkRequest create() =>
+      UploadInstanceImageArchiveChunkRequest._();
+  @$core.override
+  UploadInstanceImageArchiveChunkRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveChunkRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<
+          UploadInstanceImageArchiveChunkRequest>(create);
+  static UploadInstanceImageArchiveChunkRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get instance => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set instance($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasInstance() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearInstance() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get uploadId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set uploadId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUploadId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUploadId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get imageRef => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set imageRef($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasImageRef() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearImageRef() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get offset => $_getI64(3);
+  @$pb.TagNumber(4)
+  set offset($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasOffset() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearOffset() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.List<$core.int> get data => $_getN(4);
+  @$pb.TagNumber(5)
+  set data($core.List<$core.int> value) => $_setBytes(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasData() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearData() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get eof => $_getBF(5);
+  @$pb.TagNumber(6)
+  set eof($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasEof() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearEof() => $_clearField(6);
+}
+
+class UploadInstanceImageArchiveChunkResponse extends $pb.GeneratedMessage {
+  factory UploadInstanceImageArchiveChunkResponse({
+    $fixnum.Int64? receivedBytes,
+    $core.bool? loaded,
+    $core.String? imageRef,
+    $core.String? targetDigest,
+    $core.String? platform,
+  }) {
+    final result = create();
+    if (receivedBytes != null) result.receivedBytes = receivedBytes;
+    if (loaded != null) result.loaded = loaded;
+    if (imageRef != null) result.imageRef = imageRef;
+    if (targetDigest != null) result.targetDigest = targetDigest;
+    if (platform != null) result.platform = platform;
+    return result;
+  }
+
+  UploadInstanceImageArchiveChunkResponse._();
+
+  factory UploadInstanceImageArchiveChunkResponse.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UploadInstanceImageArchiveChunkResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UploadInstanceImageArchiveChunkResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..a<$fixnum.Int64>(
+        1, _omitFieldNames ? '' : 'receivedBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOB(2, _omitFieldNames ? '' : 'loaded')
+    ..aOS(3, _omitFieldNames ? '' : 'imageRef')
+    ..aOS(4, _omitFieldNames ? '' : 'targetDigest')
+    ..aOS(5, _omitFieldNames ? '' : 'platform')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveChunkResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveChunkResponse copyWith(
+          void Function(UploadInstanceImageArchiveChunkResponse) updates) =>
+      super.copyWith((message) =>
+              updates(message as UploadInstanceImageArchiveChunkResponse))
+          as UploadInstanceImageArchiveChunkResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveChunkResponse create() =>
+      UploadInstanceImageArchiveChunkResponse._();
+  @$core.override
+  UploadInstanceImageArchiveChunkResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveChunkResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<
+          UploadInstanceImageArchiveChunkResponse>(create);
+  static UploadInstanceImageArchiveChunkResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get receivedBytes => $_getI64(0);
+  @$pb.TagNumber(1)
+  set receivedBytes($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReceivedBytes() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReceivedBytes() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get loaded => $_getBF(1);
+  @$pb.TagNumber(2)
+  set loaded($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLoaded() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLoaded() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get imageRef => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set imageRef($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasImageRef() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearImageRef() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get targetDigest => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set targetDigest($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasTargetDigest() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearTargetDigest() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get platform => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set platform($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPlatform() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPlatform() => $_clearField(5);
 }
 
 class CoreEndpoint extends $pb.GeneratedMessage {
@@ -12101,6 +12579,19 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, RemoveProvisionerImageRequest request) =>
       _client.invoke<RemoveProvisionerImageResponse>(ctx, 'ProtosClientApi',
           'RemoveProvisionerImage', request, RemoveProvisionerImageResponse());
+  $async.Future<GetInstanceImageResponse> getInstanceImage(
+          $pb.ClientContext? ctx, GetInstanceImageRequest request) =>
+      _client.invoke<GetInstanceImageResponse>(ctx, 'ProtosClientApi',
+          'GetInstanceImage', request, GetInstanceImageResponse());
+  $async.Future<UploadInstanceImageArchiveChunkResponse>
+      uploadInstanceImageArchiveChunk($pb.ClientContext? ctx,
+              UploadInstanceImageArchiveChunkRequest request) =>
+          _client.invoke<UploadInstanceImageArchiveChunkResponse>(
+              ctx,
+              'ProtosClientApi',
+              'UploadInstanceImageArchiveChunk',
+              request,
+              UploadInstanceImageArchiveChunkResponse());
   $async.Future<GetSystemStatusResponse> getSystemStatus(
           $pb.ClientContext? ctx, GetSystemStatusRequest request) =>
       _client.invoke<GetSystemStatusResponse>(ctx, 'ProtosClientApi',

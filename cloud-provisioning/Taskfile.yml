@@ -7,6 +7,8 @@ vars:
   DOCKER_CONTEXT: '{{default "/tmp/protos-docker-context" .DOCKER_CONTEXT}}'
   PROTOS_IMAGE: '{{default "protosio/protosd:local" .PROTOS_IMAGE}}'
   PROTOS_IMAGE_PLATFORM: '{{default "" .PROTOS_IMAGE_PLATFORM}}'
+  PROTOS_BUILD_SSH: '{{default "auto" .PROTOS_BUILD_SSH}}'
+  PROTOS_BUILD_NETRC: '{{default "" .PROTOS_BUILD_NETRC}}'
   NATIVE_GO_TAGS: '{{default "dolt_purego_zstd,gms_pure_go" .NATIVE_GO_TAGS}}'
   TARGETS: ./targets
   WORKDIR: ./targets/output
@@ -56,14 +58,6 @@ tasks:
     desc: Build the local protosd container image used by LinuxKit targets.
     cmds:
       - rm -rf {{.DOCKER_CONTEXT}}
-      - mkdir -p {{.DOCKER_CONTEXT}}/swarmion/schema-engines {{.DOCKER_CONTEXT}}/swarmion/internal
-      - |
-        for path in ../../swarmion/runtime ../../swarmion/protocol ../../swarmion/transports ../../swarmion/internal/witnesstransition ../../swarmion/schema-engines/cue ../../swarmion/schema-engines/declarative; do
-          if [ ! -d "$path" ]; then
-            echo "Required local Go replacement directory is missing: $path"
-            exit 1
-          fi
-        done
       - |
         mkdir -p {{.DOCKER_CONTEXT}}/backend/core
         rsync -a --delete \
@@ -77,29 +71,52 @@ tasks:
           --exclude '*.iso' \
           --exclude '*.log' \
           ../core/ {{.DOCKER_CONTEXT}}/backend/core
-      - rsync -a --delete --exclude '.git' ../../swarmion/runtime {{.DOCKER_CONTEXT}}/swarmion/
-      - rsync -a --delete --exclude '.git' ../../swarmion/protocol {{.DOCKER_CONTEXT}}/swarmion/
-      - rsync -a --delete --exclude '.git' ../../swarmion/transports {{.DOCKER_CONTEXT}}/swarmion/
-      - rsync -a --delete --exclude '.git' ../../swarmion/internal/witnesstransition {{.DOCKER_CONTEXT}}/swarmion/internal/
-      - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/cue {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
-      - rsync -a --delete --exclude '.git' ../../swarmion/schema-engines/declarative {{.DOCKER_CONTEXT}}/swarmion/schema-engines/
-      - |
-        if [ "{{.PROTOS_IMAGE_PLATFORM}}" = "linux/amd64" ]; then
-          mkdir -p {{.DOCKER_CONTEXT}}/backend/core/bin
-          cd ../core
-          env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" \
-            go build -ldflags '-w' -o {{.DOCKER_CONTEXT}}/backend/core/bin/protosd ./cmd/protosd
-        fi
       - |
         platform_args=""
-        prebuilt_args=""
         if [ -n "{{.PROTOS_IMAGE_PLATFORM}}" ]; then
           platform_args="--platform {{.PROTOS_IMAGE_PLATFORM}}"
         fi
-        if [ "{{.PROTOS_IMAGE_PLATFORM}}" = "linux/amd64" ]; then
-          prebuilt_args="--build-arg PROTOS_USE_PREBUILT=1"
+
+        ssh_args=""
+        case "{{.PROTOS_BUILD_SSH}}" in
+          auto|default)
+            if [ -n "${SSH_AUTH_SOCK:-}" ] && command -v ssh-add >/dev/null 2>&1 && ssh-add -l >/dev/null 2>&1; then
+              ssh_args="--ssh default"
+            fi
+            ;;
+          none|false|off)
+            ;;
+          *)
+            ssh_args="--ssh {{.PROTOS_BUILD_SSH}}"
+            ;;
+        esac
+
+        secret_args=""
+        netrc_cleanup=""
+        if [ -n "{{.PROTOS_BUILD_NETRC}}" ]; then
+          secret_args="--secret id=github_netrc,src={{.PROTOS_BUILD_NETRC}}"
+        elif [ -n "${GITHUB_TOKEN:-}" ]; then
+          netrc_cleanup="$(mktemp)"
+          chmod 600 "$netrc_cleanup"
+          printf 'machine github.com login x-access-token password %s\n' "$GITHUB_TOKEN" > "$netrc_cleanup"
+          secret_args="--secret id=github_netrc,src=$netrc_cleanup"
+        elif command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
+          netrc_cleanup="$(mktemp)"
+          chmod 600 "$netrc_cleanup"
+          token="$(gh auth token)"
+          printf 'machine github.com login x-access-token password %s\n' "$token" > "$netrc_cleanup"
+          unset token
+          secret_args="--secret id=github_netrc,src=$netrc_cleanup"
         fi
-        docker build $platform_args -f {{.DOCKER_CONTEXT}}/backend/core/Dockerfile --build-arg PROTOS_BUILD_DIR=backend/core --build-arg PROTOS_NATIVE_GO_TAGS={{.NATIVE_GO_TAGS}} $prebuilt_args -t {{.PROTOS_IMAGE}} {{.DOCKER_CONTEXT}}
+
+        if [ -n "$netrc_cleanup" ]; then
+          trap 'rm -f "$netrc_cleanup"' EXIT
+        fi
+        if [ -z "$ssh_args" ] && [ -z "$secret_args" ]; then
+          echo "No GitHub credentials are available for the Docker build. Load an SSH key, set GITHUB_TOKEN, pass PROTOS_BUILD_NETRC=/path/to/netrc, or pass PROTOS_BUILD_SSH=<id|path>." >&2
+          exit 1
+        fi
+        DOCKER_BUILDKIT=1 docker build $platform_args $ssh_args $secret_args -f {{.DOCKER_CONTEXT}}/backend/core/Dockerfile --build-arg PROTOS_BUILD_DIR=backend/core --build-arg PROTOS_NATIVE_GO_TAGS={{.NATIVE_GO_TAGS}} -t {{.PROTOS_IMAGE}} {{.DOCKER_CONTEXT}}
 
   macdev:
     desc: Build the local macOS development kernel+initrd and EFI initrd ISO images.

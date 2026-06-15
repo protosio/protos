@@ -3,7 +3,7 @@ CREATE TABLE machines (
     name VARCHAR(255) NOT NULL,
     kind VARCHAR(255) NOT NULL,
     desired_status VARCHAR(255),
-    witness_rank INT NOT NULL
+    replication_priority INT NOT NULL
 );
 
 CREATE INDEX machines_name_idx ON machines (name);
@@ -77,7 +77,7 @@ CREATE TABLE user_devices_metadata (
     public_key VARCHAR(255) NOT NULL,
     user_id BINARY(16) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    witness_rank INT NOT NULL
+    replication_priority INT NOT NULL
 );
 
 CREATE INDEX user_devices_metadata_public_key_idx ON user_devices_metadata (public_key);

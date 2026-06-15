@@ -393,14 +393,14 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 
 	pendingID := newPendingInstanceID()
 	instance := InstanceInfo{
-		ID:            pendingID,
-		Name:          instanceName,
-		Kind:          KindCloudVM,
-		KindID:        provider.NameStr(),
-		DesiredStatus: ServerStateRunning,
-		WitnessRank:   db.DefaultWitnessRankForMachine(KindCloudVM, provider.NameStr()),
-		Location:      cloudLocation,
-		Status:        ServerStateChanging,
+		ID:                  pendingID,
+		Name:                instanceName,
+		Kind:                KindCloudVM,
+		KindID:              provider.NameStr(),
+		DesiredStatus:       ServerStateRunning,
+		ReplicationPriority: db.DefaultReplicationPriorityForMachine(KindCloudVM, provider.NameStr()),
+		Location:            cloudLocation,
+		Status:              ServerStateChanging,
 	}
 	mm, cmm := createInstanceInsertMapper(instance)
 	if err := db.Insert(cm.db, mm, cmm); err != nil {
@@ -553,14 +553,14 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	if instanceInfo.KindID == "" {
 		instanceInfo.KindID = provider.NameStr()
 	}
-	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
+	instanceInfo.ReplicationPriority = db.DefaultReplicationPriorityForMachine(instanceInfo.Kind, instanceInfo.KindID)
 	if pendingInstanceID != "" {
 		pendingUpdate := instanceInfo
 		pendingUpdate.ID = pendingInstanceID
 		pendingUpdate.PublicKey = ""
 		pendingUpdate.Architecture = ""
 		pendingUpdate.DesiredStatus = ServerStateRunning
-		pendingUpdate.WitnessRank = db.DefaultWitnessRankForMachine(pendingUpdate.Kind, pendingUpdate.KindID)
+		pendingUpdate.ReplicationPriority = db.DefaultReplicationPriorityForMachine(pendingUpdate.Kind, pendingUpdate.KindID)
 		if updateErr := cm.updateDeploymentPlaceholder(pendingUpdate); updateErr != nil {
 			return InstanceInfo{}, updateErr
 		}
@@ -666,7 +666,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	instanceInfo.Architecture = resp.Architecture
 	instanceInfo.Status = instanceUpdate.Status
 	instanceInfo.DesiredStatus = ServerStateRunning
-	instanceInfo.WitnessRank = db.DefaultWitnessRankForMachine(instanceInfo.Kind, instanceInfo.KindID)
+	instanceInfo.ReplicationPriority = db.DefaultReplicationPriorityForMachine(instanceInfo.Kind, instanceInfo.KindID)
 
 	_ = progress(95, "saving VM identity", map[string]string{"peer_id": discoveredPeer.ID})
 	if pendingInstanceID != "" {
@@ -699,14 +699,14 @@ func deploymentFailureError(provider ComputeProvisioner, id string, location str
 
 func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) (err error) {
 	instanceInfo := InstanceInfo{
-		ID:            db.MustNewUUIDv7(),
-		PublicIP:      ipString,
-		Name:          instanceName,
-		Kind:          kind,
-		KindID:        kindID,
-		DesiredStatus: ServerStateRunning,
-		WitnessRank:   db.DefaultWitnessRankForMachine(kind, kindID),
-		Location:      locationName,
+		ID:                  db.MustNewUUIDv7(),
+		PublicIP:            ipString,
+		Name:                instanceName,
+		Kind:                kind,
+		KindID:              kindID,
+		DesiredStatus:       ServerStateRunning,
+		ReplicationPriority: db.DefaultReplicationPriorityForMachine(kind, kindID),
+		Location:            locationName,
 	}
 
 	ip := net.ParseIP(ipString)
@@ -928,7 +928,7 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 	}
 
 	if strings.TrimSpace(instance.PublicKey) != "" {
-		if err := cm.removeInstanceWitnessEligibility(instance); err != nil {
+		if err := cm.removeInstanceReplicationEligibility(instance); err != nil {
 			return err
 		}
 	}
@@ -992,7 +992,7 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 		if err != nil {
 			return fmt.Errorf("failed to remove peer: %w", err)
 		}
-		if err := cm.removeInstanceWitnessEligibility(instance); err != nil {
+		if err := cm.removeInstanceReplicationEligibility(instance); err != nil {
 			return err
 		}
 	}
@@ -1028,7 +1028,7 @@ func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
 			err = cm.assertInstancePeerRemoved(peerID)
 		}
 		if err == nil {
-			if verifyErr := cm.waitForInstanceDeleteFinalized(peerID); verifyErr == nil {
+			if verifyErr := cm.waitForInstanceDeleteCheckpoint(peerID); verifyErr == nil {
 				return nil
 			} else {
 				err = verifyErr
@@ -1045,12 +1045,12 @@ func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
 	return fmt.Errorf("instance '%s' removed but residual peer state remains: %w", instance.Name, lastErr)
 }
 
-func (cm *Manager) waitForInstanceDeleteFinalized(peerID string) error {
+func (cm *Manager) waitForInstanceDeleteCheckpoint(peerID string) error {
 	deadline := time.Now().Add(2 * time.Minute)
 	var lastErr error
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		catchUpErr := cm.db.CatchUpFinalized(ctx, "verify instance delete finalized")
+		catchUpErr := cm.db.CatchUpCheckpoint(ctx, "verify instance delete checkpoint")
 		cancel()
 		if catchUpErr != nil {
 			lastErr = catchUpErr
@@ -1065,11 +1065,11 @@ func (cm *Manager) waitForInstanceDeleteFinalized(peerID string) error {
 			}
 			return nil
 		}
-		finalized := status.FinalizedRootHash.String()
+		checkpoint := status.CheckpointRootHash.String()
 		durable := status.DurableMainRootHash.String()
-		if finalized == "" ||
-			status.TentativeRootHash.String() != finalized ||
-			(durable != "" && durable != finalized) {
+		if checkpoint == "" ||
+			status.TentativeRootHash.String() != checkpoint ||
+			(durable != "" && durable != checkpoint) {
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -1081,7 +1081,7 @@ func (cm *Manager) waitForInstanceDeleteFinalized(peerID string) error {
 	if lastErr != nil {
 		return lastErr
 	}
-	return fmt.Errorf("timed out waiting for finalized delete of peer %s", peerID)
+	return fmt.Errorf("timed out waiting for checkpoint delete of peer %s", peerID)
 }
 
 func (cm *Manager) markInstanceDeleting(instance InstanceInfo) error {
@@ -1123,15 +1123,6 @@ func (cm *Manager) assertInstancePeerRemoved(peerID string) error {
 	if !ok {
 		return nil
 	}
-	if containsString(status.ActiveWitnessIDs, peerID) {
-		return fmt.Errorf("swarmion active witnesses still contain %s", peerID)
-	}
-	if containsString(status.EligibleWitnessIDs, peerID) {
-		return fmt.Errorf("swarmion eligible witnesses still contain %s", peerID)
-	}
-	if rank, found := status.EligibleWitnessRanks[peerID]; found && rank > 0 {
-		return fmt.Errorf("swarmion eligible witness rank for %s is still %d", peerID, rank)
-	}
 	if containsString(status.StateProviders, peerID) {
 		return fmt.Errorf("swarmion state providers still contain %s", peerID)
 	}
@@ -1145,12 +1136,10 @@ func (cm *Manager) assertInstancePeerRemoved(peerID string) error {
 		if strings.TrimSpace(peerStatus.PeerID) != peerID {
 			continue
 		}
-		if peerStatus.Witness || peerStatus.EligibleWitness || peerStatus.StateProvider {
+		if peerStatus.StateProvider {
 			return fmt.Errorf(
-				"swarmion peer status still marks %s as witness=%t eligible=%t state_provider=%t",
+				"swarmion peer status still marks %s as state_provider=%t",
 				peerID,
-				peerStatus.Witness,
-				peerStatus.EligibleWitness,
 				peerStatus.StateProvider,
 			)
 		}
@@ -1167,7 +1156,7 @@ func containsString(values []string, want string) bool {
 	return false
 }
 
-func (cm *Manager) removeInstanceWitnessEligibility(instance InstanceInfo) error {
+func (cm *Manager) removeInstanceReplicationEligibility(instance InstanceInfo) error {
 	if cm == nil || cm.db == nil {
 		return nil
 	}
@@ -1175,25 +1164,25 @@ func (cm *Manager) removeInstanceWitnessEligibility(instance InstanceInfo) error
 	if err != nil {
 		return fmt.Errorf("derive peer id for instance '%s': %w", instance.Name, err)
 	}
-	candidates, err := cm.witnessCandidatesExcluding(peerID)
+	candidates, err := cm.replicationCandidatesExcluding(peerID)
 	if err != nil {
-		return fmt.Errorf("build remaining witness candidates for instance '%s': %w", instance.Name, err)
+		return fmt.Errorf("build remaining replication candidates for instance '%s': %w", instance.Name, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	if err := cm.db.RemoveWitnessEligibility(ctx, peerID, candidates); err != nil {
-		return fmt.Errorf("remove swarmion witness eligibility for instance '%s': %w", instance.Name, err)
+	if err := cm.db.RemoveReplicationPeerState(ctx, peerID, candidates); err != nil {
+		return fmt.Errorf("remove swarmion replication eligibility for instance '%s': %w", instance.Name, err)
 	}
 	return nil
 }
 
-func (cm *Manager) witnessCandidatesExcluding(peerID string) ([]db.WitnessCandidate, error) {
+func (cm *Manager) replicationCandidatesExcluding(peerID string) ([]db.ReplicationCandidate, error) {
 	peerID = strings.TrimSpace(peerID)
 	instances, err := cm.GetInstances(false)
 	if err != nil {
 		return nil, err
 	}
-	candidates := make([]db.WitnessCandidate, 0, len(instances)+1)
+	candidates := make([]db.ReplicationCandidate, 0, len(instances)+1)
 	for _, instance := range instances {
 		if strings.TrimSpace(instance.ID) == "" || strings.TrimSpace(instance.PublicKey) == "" || IsDeletingInstance(instance) {
 			continue
@@ -1202,10 +1191,10 @@ func (cm *Manager) witnessCandidatesExcluding(peerID string) ([]db.WitnessCandid
 		if err != nil || instancePeerID == peerID {
 			continue
 		}
-		candidates = append(candidates, db.WitnessCandidate{
-			PeerID:     instancePeerID,
-			DeviceType: db.WitnessDeviceTypeForMachine(instance.Kind, instance.KindID),
-			Rank:       instance.WitnessRank,
+		candidates = append(candidates, db.ReplicationCandidate{
+			PeerID:      instancePeerID,
+			DeviceClass: db.ReplicationDeviceClassForMachine(instance.Kind, instance.KindID),
+			Priority:    instance.ReplicationPriority,
 		})
 	}
 	if cm.um == nil {
@@ -1223,10 +1212,10 @@ func (cm *Manager) witnessCandidatesExcluding(peerID string) ([]db.WitnessCandid
 		if err != nil || devicePeerID == peerID {
 			continue
 		}
-		candidates = append(candidates, db.WitnessCandidate{
-			PeerID:     devicePeerID,
-			DeviceType: db.WitnessDeviceTypeForUserDeviceName(device.Name),
-			Rank:       device.WitnessRank,
+		candidates = append(candidates, db.ReplicationCandidate{
+			PeerID:      devicePeerID,
+			DeviceClass: db.ReplicationDeviceClassForUserDeviceName(device.Name),
+			Priority:    device.ReplicationPriority,
 		})
 	}
 	return candidates, nil
@@ -1612,8 +1601,8 @@ func mergedReconciledInstance(current InstanceInfo, observed InstanceInfo) Insta
 	if observed.DesiredStatus == "" {
 		observed.DesiredStatus = current.DesiredStatus
 	}
-	if observed.WitnessRank <= 0 {
-		observed.WitnessRank = current.WitnessRank
+	if observed.ReplicationPriority <= 0 {
+		observed.ReplicationPriority = current.ReplicationPriority
 	}
 	if observed.Location == "" {
 		observed.Location = current.Location
@@ -1631,7 +1620,7 @@ func persistentInstanceEqual(a InstanceInfo, b InstanceInfo) bool {
 		a.KindID == b.KindID &&
 		a.ProviderResourceID == b.ProviderResourceID &&
 		a.DesiredStatus == b.DesiredStatus &&
-		a.WitnessRank == b.WitnessRank &&
+		a.ReplicationPriority == b.ReplicationPriority &&
 		a.PublicIP == b.PublicIP &&
 		a.Location == b.Location &&
 		a.Architecture == b.Architecture &&

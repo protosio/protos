@@ -2281,11 +2281,11 @@ const RuntimeState$json = {
     {'1': 'peer_id', '3': 1, '4': 1, '5': 9, '10': 'peerId'},
     {'1': 'manifest_digest', '3': 2, '4': 1, '5': 9, '10': 'manifestDigest'},
     {
-      '1': 'finalized_root_hash',
+      '1': 'checkpoint_root_hash',
       '3': 3,
       '4': 1,
       '5': 9,
-      '10': 'finalizedRootHash'
+      '10': 'checkpointRootHash'
     },
     {
       '1': 'tentative_root_hash',
@@ -2295,11 +2295,11 @@ const RuntimeState$json = {
       '10': 'tentativeRootHash'
     },
     {
-      '1': 'protocol_finalized_root_hash',
+      '1': 'protocol_checkpoint_root_hash',
       '3': 5,
       '4': 1,
       '5': 9,
-      '10': 'protocolFinalizedRootHash'
+      '10': 'protocolCheckpointRootHash'
     },
     {
       '1': 'durable_main_root_hash',
@@ -2307,21 +2307,6 @@ const RuntimeState$json = {
       '4': 1,
       '5': 9,
       '10': 'durableMainRootHash'
-    },
-    {'1': 'active_epoch_id', '3': 7, '4': 1, '5': 9, '10': 'activeEpochId'},
-    {
-      '1': 'active_witness_ids',
-      '3': 8,
-      '4': 3,
-      '5': 9,
-      '10': 'activeWitnessIds'
-    },
-    {
-      '1': 'eligible_witness_ids',
-      '3': 9,
-      '4': 3,
-      '5': 9,
-      '10': 'eligibleWitnessIds'
     },
     {'1': 'state_providers', '3': 10, '4': 3, '5': 9, '10': 'stateProviders'},
     {'1': 'connected_peers', '3': 11, '4': 3, '5': 9, '10': 'connectedPeers'},
@@ -2341,18 +2326,18 @@ const RuntimeState$json = {
       '10': 'runtimeRefreshLastError'
     },
     {
-      '1': 'runtime_finalized_pending',
+      '1': 'runtime_checkpoint_pending',
       '3': 15,
       '4': 1,
       '5': 8,
-      '10': 'runtimeFinalizedPending'
+      '10': 'runtimeCheckpointPending'
     },
     {
-      '1': 'runtime_finalized_last_error',
+      '1': 'runtime_checkpoint_last_error',
       '3': 16,
       '4': 1,
       '5': 9,
-      '10': 'runtimeFinalizedLastError'
+      '10': 'runtimeCheckpointLastError'
     },
     {
       '1': 'runtime_materialization_policy',
@@ -2384,87 +2369,36 @@ const RuntimeState$json = {
       '5': 9,
       '10': 'contentSyncTrace'
     },
-    {'1': 'known_epoch_ids', '3': 21, '4': 3, '5': 9, '10': 'knownEpochIds'},
     {
-      '1': 'epoch_descriptor_digest_by_id',
-      '3': 22,
-      '4': 3,
-      '5': 11,
-      '6': '.apic.RuntimeState.EpochDescriptorDigestByIdEntry',
-      '10': 'epochDescriptorDigestById'
-    },
-    {
-      '1': 'epoch_finalized_digest_by_id',
-      '3': 23,
-      '4': 3,
-      '5': 11,
-      '6': '.apic.RuntimeState.EpochFinalizedDigestByIdEntry',
-      '10': 'epochFinalizedDigestById'
-    },
-    {
-      '1': 'protocol_finalized_digest',
+      '1': 'protocol_checkpoint_digest',
       '3': 24,
       '4': 1,
       '5': 9,
-      '10': 'protocolFinalizedDigest'
+      '10': 'protocolCheckpointDigest'
     },
   ],
-  '3': [
-    RuntimeState_EpochDescriptorDigestByIdEntry$json,
-    RuntimeState_EpochFinalizedDigestByIdEntry$json
-  ],
-};
-
-@$core.Deprecated('Use runtimeStateDescriptor instead')
-const RuntimeState_EpochDescriptorDigestByIdEntry$json = {
-  '1': 'EpochDescriptorDigestByIdEntry',
-  '2': [
-    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
-    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
-  ],
-  '7': {'7': true},
-};
-
-@$core.Deprecated('Use runtimeStateDescriptor instead')
-const RuntimeState_EpochFinalizedDigestByIdEntry$json = {
-  '1': 'EpochFinalizedDigestByIdEntry',
-  '2': [
-    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
-    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
-  ],
-  '7': {'7': true},
 };
 
 /// Descriptor for `RuntimeState`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List runtimeStateDescriptor = $convert.base64Decode(
     'CgxSdW50aW1lU3RhdGUSFwoHcGVlcl9pZBgBIAEoCVIGcGVlcklkEicKD21hbmlmZXN0X2RpZ2'
-    'VzdBgCIAEoCVIObWFuaWZlc3REaWdlc3QSLgoTZmluYWxpemVkX3Jvb3RfaGFzaBgDIAEoCVIR'
-    'ZmluYWxpemVkUm9vdEhhc2gSLgoTdGVudGF0aXZlX3Jvb3RfaGFzaBgEIAEoCVIRdGVudGF0aX'
-    'ZlUm9vdEhhc2gSPwoccHJvdG9jb2xfZmluYWxpemVkX3Jvb3RfaGFzaBgFIAEoCVIZcHJvdG9j'
-    'b2xGaW5hbGl6ZWRSb290SGFzaBIzChZkdXJhYmxlX21haW5fcm9vdF9oYXNoGAYgASgJUhNkdX'
-    'JhYmxlTWFpblJvb3RIYXNoEiYKD2FjdGl2ZV9lcG9jaF9pZBgHIAEoCVINYWN0aXZlRXBvY2hJ'
-    'ZBIsChJhY3RpdmVfd2l0bmVzc19pZHMYCCADKAlSEGFjdGl2ZVdpdG5lc3NJZHMSMAoUZWxpZ2'
-    'libGVfd2l0bmVzc19pZHMYCSADKAlSEmVsaWdpYmxlV2l0bmVzc0lkcxInCg9zdGF0ZV9wcm92'
-    'aWRlcnMYCiADKAlSDnN0YXRlUHJvdmlkZXJzEicKD2Nvbm5lY3RlZF9wZWVycxgLIAMoCVIOY2'
-    '9ubmVjdGVkUGVlcnMSHwoLZmF0YWxfc3RhdGUYDCABKAlSCmZhdGFsU3RhdGUSNgoXcnVudGlt'
-    'ZV9yZWZyZXNoX3BlbmRpbmcYDSABKAhSFXJ1bnRpbWVSZWZyZXNoUGVuZGluZxI7ChpydW50aW'
-    '1lX3JlZnJlc2hfbGFzdF9lcnJvchgOIAEoCVIXcnVudGltZVJlZnJlc2hMYXN0RXJyb3ISOgoZ'
-    'cnVudGltZV9maW5hbGl6ZWRfcGVuZGluZxgPIAEoCFIXcnVudGltZUZpbmFsaXplZFBlbmRpbm'
-    'cSPwoccnVudGltZV9maW5hbGl6ZWRfbGFzdF9lcnJvchgQIAEoCVIZcnVudGltZUZpbmFsaXpl'
-    'ZExhc3RFcnJvchJECh5ydW50aW1lX21hdGVyaWFsaXphdGlvbl9wb2xpY3kYESABKAlSHHJ1bn'
-    'RpbWVNYXRlcmlhbGl6YXRpb25Qb2xpY3kSPAoNcGVlcl9zdGF0dXNlcxgSIAMoCzIXLmFwaWMu'
-    'UnVudGltZVBlZXJTdGF0dXNSDHBlZXJTdGF0dXNlcxJACg1jb21wYXRpYmlsaXR5GBMgAygLMh'
-    'ouYXBpYy5SdW50aW1lQ29tcGF0aWJpbGl0eVINY29tcGF0aWJpbGl0eRIsChJjb250ZW50X3N5'
-    'bmNfdHJhY2UYFCADKAlSEGNvbnRlbnRTeW5jVHJhY2USJgoPa25vd25fZXBvY2hfaWRzGBUgAy'
-    'gJUg1rbm93bkVwb2NoSWRzEnMKHWVwb2NoX2Rlc2NyaXB0b3JfZGlnZXN0X2J5X2lkGBYgAygL'
-    'MjEuYXBpYy5SdW50aW1lU3RhdGUuRXBvY2hEZXNjcmlwdG9yRGlnZXN0QnlJZEVudHJ5UhllcG'
-    '9jaERlc2NyaXB0b3JEaWdlc3RCeUlkEnAKHGVwb2NoX2ZpbmFsaXplZF9kaWdlc3RfYnlfaWQY'
-    'FyADKAsyMC5hcGljLlJ1bnRpbWVTdGF0ZS5FcG9jaEZpbmFsaXplZERpZ2VzdEJ5SWRFbnRyeV'
-    'IYZXBvY2hGaW5hbGl6ZWREaWdlc3RCeUlkEjoKGXByb3RvY29sX2ZpbmFsaXplZF9kaWdlc3QY'
-    'GCABKAlSF3Byb3RvY29sRmluYWxpemVkRGlnZXN0GkwKHkVwb2NoRGVzY3JpcHRvckRpZ2VzdE'
-    'J5SWRFbnRyeRIQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgBGksK'
-    'HUVwb2NoRmluYWxpemVkRGlnZXN0QnlJZEVudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBXZhbH'
-    'VlGAIgASgJUgV2YWx1ZToCOAE=');
+    'VzdBgCIAEoCVIObWFuaWZlc3REaWdlc3QSMAoUY2hlY2twb2ludF9yb290X2hhc2gYAyABKAlS'
+    'EmNoZWNrcG9pbnRSb290SGFzaBIuChN0ZW50YXRpdmVfcm9vdF9oYXNoGAQgASgJUhF0ZW50YX'
+    'RpdmVSb290SGFzaBJBCh1wcm90b2NvbF9jaGVja3BvaW50X3Jvb3RfaGFzaBgFIAEoCVIacHJv'
+    'dG9jb2xDaGVja3BvaW50Um9vdEhhc2gSMwoWZHVyYWJsZV9tYWluX3Jvb3RfaGFzaBgGIAEoCV'
+    'ITZHVyYWJsZU1haW5Sb290SGFzaBInCg9zdGF0ZV9wcm92aWRlcnMYCiADKAlSDnN0YXRlUHJv'
+    'dmlkZXJzEicKD2Nvbm5lY3RlZF9wZWVycxgLIAMoCVIOY29ubmVjdGVkUGVlcnMSHwoLZmF0YW'
+    'xfc3RhdGUYDCABKAlSCmZhdGFsU3RhdGUSNgoXcnVudGltZV9yZWZyZXNoX3BlbmRpbmcYDSAB'
+    'KAhSFXJ1bnRpbWVSZWZyZXNoUGVuZGluZxI7ChpydW50aW1lX3JlZnJlc2hfbGFzdF9lcnJvch'
+    'gOIAEoCVIXcnVudGltZVJlZnJlc2hMYXN0RXJyb3ISPAoacnVudGltZV9jaGVja3BvaW50X3Bl'
+    'bmRpbmcYDyABKAhSGHJ1bnRpbWVDaGVja3BvaW50UGVuZGluZxJBCh1ydW50aW1lX2NoZWNrcG'
+    '9pbnRfbGFzdF9lcnJvchgQIAEoCVIacnVudGltZUNoZWNrcG9pbnRMYXN0RXJyb3ISRAoecnVu'
+    'dGltZV9tYXRlcmlhbGl6YXRpb25fcG9saWN5GBEgASgJUhxydW50aW1lTWF0ZXJpYWxpemF0aW'
+    '9uUG9saWN5EjwKDXBlZXJfc3RhdHVzZXMYEiADKAsyFy5hcGljLlJ1bnRpbWVQZWVyU3RhdHVz'
+    'UgxwZWVyU3RhdHVzZXMSQAoNY29tcGF0aWJpbGl0eRgTIAMoCzIaLmFwaWMuUnVudGltZUNvbX'
+    'BhdGliaWxpdHlSDWNvbXBhdGliaWxpdHkSLAoSY29udGVudF9zeW5jX3RyYWNlGBQgAygJUhBj'
+    'b250ZW50U3luY1RyYWNlEjwKGnByb3RvY29sX2NoZWNrcG9pbnRfZGlnZXN0GBggASgJUhhwcm'
+    '90b2NvbENoZWNrcG9pbnREaWdlc3Q=');
 
 @$core.Deprecated('Use runtimePeerStatusDescriptor instead')
 const RuntimePeerStatus$json = {
@@ -2474,8 +2408,6 @@ const RuntimePeerStatus$json = {
     {'1': 'connected', '3': 2, '4': 1, '5': 8, '10': 'connected'},
     {'1': 'dialable', '3': 3, '4': 1, '5': 8, '10': 'dialable'},
     {'1': 'state_provider', '3': 4, '4': 1, '5': 8, '10': 'stateProvider'},
-    {'1': 'witness', '3': 5, '4': 1, '5': 8, '10': 'witness'},
-    {'1': 'eligible_witness', '3': 6, '4': 1, '5': 8, '10': 'eligibleWitness'},
     {'1': 'compatible', '3': 7, '4': 1, '5': 8, '10': 'compatible'},
     {'1': 'incompatible', '3': 8, '4': 1, '5': 8, '10': 'incompatible'},
     {'1': 'ignored', '3': 9, '4': 1, '5': 8, '10': 'ignored'},
@@ -2490,6 +2422,20 @@ const RuntimePeerStatus$json = {
       '10': 'lastDialErrors'
     },
     {'1': 'reason', '3': 13, '4': 1, '5': 9, '10': 'reason'},
+    {
+      '1': 'replication_priority',
+      '3': 14,
+      '4': 1,
+      '5': 5,
+      '10': 'replicationPriority'
+    },
+    {
+      '1': 'replication_device_class',
+      '3': 15,
+      '4': 1,
+      '5': 9,
+      '10': 'replicationDeviceClass'
+    },
   ],
   '3': [RuntimePeerStatus_LastDialErrorsEntry$json],
 };
@@ -2508,14 +2454,15 @@ const RuntimePeerStatus_LastDialErrorsEntry$json = {
 final $typed_data.Uint8List runtimePeerStatusDescriptor = $convert.base64Decode(
     'ChFSdW50aW1lUGVlclN0YXR1cxIXCgdwZWVyX2lkGAEgASgJUgZwZWVySWQSHAoJY29ubmVjdG'
     'VkGAIgASgIUgljb25uZWN0ZWQSGgoIZGlhbGFibGUYAyABKAhSCGRpYWxhYmxlEiUKDnN0YXRl'
-    'X3Byb3ZpZGVyGAQgASgIUg1zdGF0ZVByb3ZpZGVyEhgKB3dpdG5lc3MYBSABKAhSB3dpdG5lc3'
-    'MSKQoQZWxpZ2libGVfd2l0bmVzcxgGIAEoCFIPZWxpZ2libGVXaXRuZXNzEh4KCmNvbXBhdGli'
-    'bGUYByABKAhSCmNvbXBhdGlibGUSIgoMaW5jb21wYXRpYmxlGAggASgIUgxpbmNvbXBhdGlibG'
-    'USGAoHaWdub3JlZBgJIAEoCFIHaWdub3JlZBIdCgpyZWxheV9vbmx5GAogASgIUglyZWxheU9u'
-    'bHkSHAoJYWRkcmVzc2VzGAsgAygJUglhZGRyZXNzZXMSVQoQbGFzdF9kaWFsX2Vycm9ycxgMIA'
-    'MoCzIrLmFwaWMuUnVudGltZVBlZXJTdGF0dXMuTGFzdERpYWxFcnJvcnNFbnRyeVIObGFzdERp'
-    'YWxFcnJvcnMSFgoGcmVhc29uGA0gASgJUgZyZWFzb24aQQoTTGFzdERpYWxFcnJvcnNFbnRyeR'
-    'IQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgB');
+    'X3Byb3ZpZGVyGAQgASgIUg1zdGF0ZVByb3ZpZGVyEh4KCmNvbXBhdGlibGUYByABKAhSCmNvbX'
+    'BhdGlibGUSIgoMaW5jb21wYXRpYmxlGAggASgIUgxpbmNvbXBhdGlibGUSGAoHaWdub3JlZBgJ'
+    'IAEoCFIHaWdub3JlZBIdCgpyZWxheV9vbmx5GAogASgIUglyZWxheU9ubHkSHAoJYWRkcmVzc2'
+    'VzGAsgAygJUglhZGRyZXNzZXMSVQoQbGFzdF9kaWFsX2Vycm9ycxgMIAMoCzIrLmFwaWMuUnVu'
+    'dGltZVBlZXJTdGF0dXMuTGFzdERpYWxFcnJvcnNFbnRyeVIObGFzdERpYWxFcnJvcnMSFgoGcm'
+    'Vhc29uGA0gASgJUgZyZWFzb24SMQoUcmVwbGljYXRpb25fcHJpb3JpdHkYDiABKAVSE3JlcGxp'
+    'Y2F0aW9uUHJpb3JpdHkSOAoYcmVwbGljYXRpb25fZGV2aWNlX2NsYXNzGA8gASgJUhZyZXBsaW'
+    'NhdGlvbkRldmljZUNsYXNzGkEKE0xhc3REaWFsRXJyb3JzRW50cnkSEAoDa2V5GAEgASgJUgNr'
+    'ZXkSFAoFdmFsdWUYAiABKAlSBXZhbHVlOgI4AQ==');
 
 @$core.Deprecated('Use runtimeCompatibilityDescriptor instead')
 const RuntimeCompatibility$json = {
@@ -2855,6 +2802,161 @@ const RemoveProvisionerImageResponse$json = {
 /// Descriptor for `RemoveProvisionerImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List removeProvisionerImageResponseDescriptor =
     $convert.base64Decode('Ch5SZW1vdmVQcm92aXNpb25lckltYWdlUmVzcG9uc2U=');
+
+@$core.Deprecated('Use imageContentDescriptorDescriptor instead')
+const ImageContentDescriptor$json = {
+  '1': 'ImageContentDescriptor',
+  '2': [
+    {'1': 'media_type', '3': 1, '4': 1, '5': 9, '10': 'mediaType'},
+    {'1': 'digest', '3': 2, '4': 1, '5': 9, '10': 'digest'},
+    {'1': 'size_bytes', '3': 3, '4': 1, '5': 4, '10': 'sizeBytes'},
+    {'1': 'platform', '3': 4, '4': 1, '5': 9, '10': 'platform'},
+    {
+      '1': 'annotations',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.ImageContentDescriptor.AnnotationsEntry',
+      '10': 'annotations'
+    },
+  ],
+  '3': [ImageContentDescriptor_AnnotationsEntry$json],
+};
+
+@$core.Deprecated('Use imageContentDescriptorDescriptor instead')
+const ImageContentDescriptor_AnnotationsEntry$json = {
+  '1': 'AnnotationsEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `ImageContentDescriptor`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List imageContentDescriptorDescriptor = $convert.base64Decode(
+    'ChZJbWFnZUNvbnRlbnREZXNjcmlwdG9yEh0KCm1lZGlhX3R5cGUYASABKAlSCW1lZGlhVHlwZR'
+    'IWCgZkaWdlc3QYAiABKAlSBmRpZ2VzdBIdCgpzaXplX2J5dGVzGAMgASgEUglzaXplQnl0ZXMS'
+    'GgoIcGxhdGZvcm0YBCABKAlSCHBsYXRmb3JtEk8KC2Fubm90YXRpb25zGAUgAygLMi0uYXBpYy'
+    '5JbWFnZUNvbnRlbnREZXNjcmlwdG9yLkFubm90YXRpb25zRW50cnlSC2Fubm90YXRpb25zGj4K'
+    'EEFubm90YXRpb25zRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSFAoFdmFsdWUYAiABKAlSBXZhbH'
+    'VlOgI4AQ==');
+
+@$core.Deprecated('Use getInstanceImageRequestDescriptor instead')
+const GetInstanceImageRequest$json = {
+  '1': 'GetInstanceImageRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+    {'1': 'image_ref', '3': 2, '4': 1, '5': 9, '10': 'imageRef'},
+  ],
+};
+
+/// Descriptor for `GetInstanceImageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceImageRequestDescriptor =
+    $convert.base64Decode(
+        'ChdHZXRJbnN0YW5jZUltYWdlUmVxdWVzdBIaCghpbnN0YW5jZRgBIAEoCVIIaW5zdGFuY2USGw'
+        'oJaW1hZ2VfcmVmGAIgASgJUghpbWFnZVJlZg==');
+
+@$core.Deprecated('Use getInstanceImageResponseDescriptor instead')
+const GetInstanceImageResponse$json = {
+  '1': 'GetInstanceImageResponse',
+  '2': [
+    {'1': 'found', '3': 1, '4': 1, '5': 8, '10': 'found'},
+    {'1': 'image_ref', '3': 2, '4': 1, '5': 9, '10': 'imageRef'},
+    {'1': 'target_digest', '3': 3, '4': 1, '5': 9, '10': 'targetDigest'},
+    {'1': 'platform', '3': 4, '4': 1, '5': 9, '10': 'platform'},
+    {
+      '1': 'labels',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.GetInstanceImageResponse.LabelsEntry',
+      '10': 'labels'
+    },
+    {'1': 'has_content', '3': 6, '4': 1, '5': 8, '10': 'hasContent'},
+    {
+      '1': 'target',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.ImageContentDescriptor',
+      '10': 'target'
+    },
+    {
+      '1': 'descriptors',
+      '3': 8,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.ImageContentDescriptor',
+      '10': 'descriptors'
+    },
+  ],
+  '3': [GetInstanceImageResponse_LabelsEntry$json],
+};
+
+@$core.Deprecated('Use getInstanceImageResponseDescriptor instead')
+const GetInstanceImageResponse_LabelsEntry$json = {
+  '1': 'LabelsEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `GetInstanceImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getInstanceImageResponseDescriptor = $convert.base64Decode(
+    'ChhHZXRJbnN0YW5jZUltYWdlUmVzcG9uc2USFAoFZm91bmQYASABKAhSBWZvdW5kEhsKCWltYW'
+    'dlX3JlZhgCIAEoCVIIaW1hZ2VSZWYSIwoNdGFyZ2V0X2RpZ2VzdBgDIAEoCVIMdGFyZ2V0RGln'
+    'ZXN0EhoKCHBsYXRmb3JtGAQgASgJUghwbGF0Zm9ybRJCCgZsYWJlbHMYBSADKAsyKi5hcGljLk'
+    'dldEluc3RhbmNlSW1hZ2VSZXNwb25zZS5MYWJlbHNFbnRyeVIGbGFiZWxzEh8KC2hhc19jb250'
+    'ZW50GAYgASgIUgpoYXNDb250ZW50EjQKBnRhcmdldBgHIAEoCzIcLmFwaWMuSW1hZ2VDb250ZW'
+    '50RGVzY3JpcHRvclIGdGFyZ2V0Ej4KC2Rlc2NyaXB0b3JzGAggAygLMhwuYXBpYy5JbWFnZUNv'
+    'bnRlbnREZXNjcmlwdG9yUgtkZXNjcmlwdG9ycxo5CgtMYWJlbHNFbnRyeRIQCgNrZXkYASABKA'
+    'lSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgB');
+
+@$core
+    .Deprecated('Use uploadInstanceImageArchiveChunkRequestDescriptor instead')
+const UploadInstanceImageArchiveChunkRequest$json = {
+  '1': 'UploadInstanceImageArchiveChunkRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+    {'1': 'upload_id', '3': 2, '4': 1, '5': 9, '10': 'uploadId'},
+    {'1': 'image_ref', '3': 3, '4': 1, '5': 9, '10': 'imageRef'},
+    {'1': 'offset', '3': 4, '4': 1, '5': 4, '10': 'offset'},
+    {'1': 'data', '3': 5, '4': 1, '5': 12, '10': 'data'},
+    {'1': 'eof', '3': 6, '4': 1, '5': 8, '10': 'eof'},
+  ],
+};
+
+/// Descriptor for `UploadInstanceImageArchiveChunkRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadInstanceImageArchiveChunkRequestDescriptor =
+    $convert.base64Decode(
+        'CiZVcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW5rUmVxdWVzdBIaCghpbnN0YW5jZRgBIA'
+        'EoCVIIaW5zdGFuY2USGwoJdXBsb2FkX2lkGAIgASgJUgh1cGxvYWRJZBIbCglpbWFnZV9yZWYY'
+        'AyABKAlSCGltYWdlUmVmEhYKBm9mZnNldBgEIAEoBFIGb2Zmc2V0EhIKBGRhdGEYBSABKAxSBG'
+        'RhdGESEAoDZW9mGAYgASgIUgNlb2Y=');
+
+@$core
+    .Deprecated('Use uploadInstanceImageArchiveChunkResponseDescriptor instead')
+const UploadInstanceImageArchiveChunkResponse$json = {
+  '1': 'UploadInstanceImageArchiveChunkResponse',
+  '2': [
+    {'1': 'received_bytes', '3': 1, '4': 1, '5': 4, '10': 'receivedBytes'},
+    {'1': 'loaded', '3': 2, '4': 1, '5': 8, '10': 'loaded'},
+    {'1': 'image_ref', '3': 3, '4': 1, '5': 9, '10': 'imageRef'},
+    {'1': 'target_digest', '3': 4, '4': 1, '5': 9, '10': 'targetDigest'},
+    {'1': 'platform', '3': 5, '4': 1, '5': 9, '10': 'platform'},
+  ],
+};
+
+/// Descriptor for `UploadInstanceImageArchiveChunkResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadInstanceImageArchiveChunkResponseDescriptor =
+    $convert.base64Decode(
+        'CidVcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW5rUmVzcG9uc2USJQoOcmVjZWl2ZWRfYn'
+        'l0ZXMYASABKARSDXJlY2VpdmVkQnl0ZXMSFgoGbG9hZGVkGAIgASgIUgZsb2FkZWQSGwoJaW1h'
+        'Z2VfcmVmGAMgASgJUghpbWFnZVJlZhIjCg10YXJnZXRfZGlnZXN0GAQgASgJUgx0YXJnZXREaW'
+        'dlc3QSGgoIcGxhdGZvcm0YBSABKAlSCHBsYXRmb3Jt');
 
 @$core.Deprecated('Use coreEndpointDescriptor instead')
 const CoreEndpoint$json = {
@@ -3581,6 +3683,18 @@ const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
       '4': {}
     },
     {
+      '1': 'GetInstanceImage',
+      '2': '.apic.GetInstanceImageRequest',
+      '3': '.apic.GetInstanceImageResponse',
+      '4': {}
+    },
+    {
+      '1': 'UploadInstanceImageArchiveChunk',
+      '2': '.apic.UploadInstanceImageArchiveChunkRequest',
+      '3': '.apic.UploadInstanceImageArchiveChunkResponse',
+      '4': {}
+    },
+    {
       '1': 'GetSystemStatus',
       '2': '.apic.GetSystemStatusRequest',
       '3': '.apic.GetSystemStatusResponse',
@@ -3745,10 +3859,6 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.RuntimePeerStatus.LastDialErrorsEntry':
       RuntimePeerStatus_LastDialErrorsEntry$json,
   '.apic.RuntimeCompatibility': RuntimeCompatibility$json,
-  '.apic.RuntimeState.EpochDescriptorDigestByIdEntry':
-      RuntimeState_EpochDescriptorDigestByIdEntry$json,
-  '.apic.RuntimeState.EpochFinalizedDigestByIdEntry':
-      RuntimeState_EpochFinalizedDigestByIdEntry$json,
   '.apic.WatchChangesRequest': WatchChangesRequest$json,
   '.apic.WatchChangesResponse': WatchChangesResponse$json,
   '.apic.GetTasksRequest': GetTasksRequest$json,
@@ -3783,6 +3893,17 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.UploadProvisionerImageResponse': UploadProvisionerImageResponse$json,
   '.apic.RemoveProvisionerImageRequest': RemoveProvisionerImageRequest$json,
   '.apic.RemoveProvisionerImageResponse': RemoveProvisionerImageResponse$json,
+  '.apic.GetInstanceImageRequest': GetInstanceImageRequest$json,
+  '.apic.GetInstanceImageResponse': GetInstanceImageResponse$json,
+  '.apic.GetInstanceImageResponse.LabelsEntry':
+      GetInstanceImageResponse_LabelsEntry$json,
+  '.apic.ImageContentDescriptor': ImageContentDescriptor$json,
+  '.apic.ImageContentDescriptor.AnnotationsEntry':
+      ImageContentDescriptor_AnnotationsEntry$json,
+  '.apic.UploadInstanceImageArchiveChunkRequest':
+      UploadInstanceImageArchiveChunkRequest$json,
+  '.apic.UploadInstanceImageArchiveChunkResponse':
+      UploadInstanceImageArchiveChunkResponse$json,
   '.apic.GetSystemStatusRequest': GetSystemStatusRequest$json,
   '.apic.GetSystemStatusResponse': GetSystemStatusResponse$json,
   '.apic.SystemStatus': SystemStatus$json,
@@ -3884,12 +4005,16 @@ final $typed_data.Uint8List protosClientApiServiceDescriptor = $convert.base64De
     'ljLlVwbG9hZFByb3Zpc2lvbmVySW1hZ2VSZXF1ZXN0GiQuYXBpYy5VcGxvYWRQcm92aXNpb25l'
     'ckltYWdlUmVzcG9uc2UiABJlChZSZW1vdmVQcm92aXNpb25lckltYWdlEiMuYXBpYy5SZW1vdm'
     'VQcm92aXNpb25lckltYWdlUmVxdWVzdBokLmFwaWMuUmVtb3ZlUHJvdmlzaW9uZXJJbWFnZVJl'
-    'c3BvbnNlIgASUAoPR2V0U3lzdGVtU3RhdHVzEhwuYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXF1ZX'
-    'N0Gh0uYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXNwb25zZSIAEk0KDlN0YXJ0SG9zdEFnZW50Ehsu'
-    'YXBpYy5TdGFydEhvc3RBZ2VudFJlcXVlc3QaHC5hcGljLlN0YXJ0SG9zdEFnZW50UmVzcG9uc2'
-    'UiABJKCg1TdG9wSG9zdEFnZW50EhouYXBpYy5TdG9wSG9zdEFnZW50UmVxdWVzdBobLmFwaWMu'
-    'U3RvcEhvc3RBZ2VudFJlc3BvbnNlIgASUAoPR2V0TG9jYWxDb21taXRzEhwuYXBpYy5HZXRMb2'
-    'NhbENvbW1pdHNSZXF1ZXN0Gh0uYXBpYy5HZXRMb2NhbENvbW1pdHNSZXNwb25zZSIAElMKEEdl'
-    'dFJlbW90ZUNvbW1pdHMSHS5hcGljLkdldFJlbW90ZUNvbW1pdHNSZXF1ZXN0Gh4uYXBpYy5HZX'
-    'RSZW1vdGVDb21taXRzUmVzcG9uc2UiABJBCgpFeGVjdXRlU3FsEhcuYXBpYy5FeGVjdXRlU3Fs'
-    'UmVxdWVzdBoYLmFwaWMuRXhlY3V0ZVNxbFJlc3BvbnNlIgA=');
+    'c3BvbnNlIgASUwoQR2V0SW5zdGFuY2VJbWFnZRIdLmFwaWMuR2V0SW5zdGFuY2VJbWFnZVJlcX'
+    'Vlc3QaHi5hcGljLkdldEluc3RhbmNlSW1hZ2VSZXNwb25zZSIAEoABCh9VcGxvYWRJbnN0YW5j'
+    'ZUltYWdlQXJjaGl2ZUNodW5rEiwuYXBpYy5VcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW'
+    '5rUmVxdWVzdBotLmFwaWMuVXBsb2FkSW5zdGFuY2VJbWFnZUFyY2hpdmVDaHVua1Jlc3BvbnNl'
+    'IgASUAoPR2V0U3lzdGVtU3RhdHVzEhwuYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXF1ZXN0Gh0uYX'
+    'BpYy5HZXRTeXN0ZW1TdGF0dXNSZXNwb25zZSIAEk0KDlN0YXJ0SG9zdEFnZW50EhsuYXBpYy5T'
+    'dGFydEhvc3RBZ2VudFJlcXVlc3QaHC5hcGljLlN0YXJ0SG9zdEFnZW50UmVzcG9uc2UiABJKCg'
+    '1TdG9wSG9zdEFnZW50EhouYXBpYy5TdG9wSG9zdEFnZW50UmVxdWVzdBobLmFwaWMuU3RvcEhv'
+    'c3RBZ2VudFJlc3BvbnNlIgASUAoPR2V0TG9jYWxDb21taXRzEhwuYXBpYy5HZXRMb2NhbENvbW'
+    '1pdHNSZXF1ZXN0Gh0uYXBpYy5HZXRMb2NhbENvbW1pdHNSZXNwb25zZSIAElMKEEdldFJlbW90'
+    'ZUNvbW1pdHMSHS5hcGljLkdldFJlbW90ZUNvbW1pdHNSZXF1ZXN0Gh4uYXBpYy5HZXRSZW1vdG'
+    'VDb21taXRzUmVzcG9uc2UiABJBCgpFeGVjdXRlU3FsEhcuYXBpYy5FeGVjdXRlU3FsUmVxdWVz'
+    'dBoYLmFwaWMuRXhlY3V0ZVNxbFJlc3BvbnNlIgA=');

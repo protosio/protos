@@ -15,6 +15,10 @@ vars:
   E2E_PROBE_BUILDER: '{{.E2E_PROBE_BUILDER | default "protos-e2e-probe-builder"}}'
   IMAGE_ARCHIVE: '{{.IMAGE_ARCHIVE | default ""}}'
   IMAGE_REF: '{{.IMAGE_REF | default ""}}'
+  HOSTAGENT_BIN: '{{.HOSTAGENT_BIN | default "../bin/protos-hostagent"}}'
+  HOSTAGENT_SOCKET: '{{.HOSTAGENT_SOCKET | default "/var/run/protos-hostagent.sock"}}'
+  HOSTAGENT_WORK_DIR: '{{.HOSTAGENT_WORK_DIR | default "/Library/Application Support/Protos/hostagent"}}'
+  FLUTTER_APP: '{{.FLUTTER_APP | default ""}}'
 
 tasks:
   generate:
@@ -115,22 +119,59 @@ tasks:
         fi
         env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./cmd/protosd image load $ref_arg "{{.IMAGE_ARCHIVE}}"
 
+  hostagent:build:
+    desc: Build protos-hostagent
+    cmds:
+      - mkdir -p "$(dirname "{{.HOSTAGENT_BIN}}")"
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go build -o "{{.HOSTAGENT_BIN}}" ./cmd/protos-hostagent
+
+  hostagent:run:
+    desc: Run protos-hostagent
+    cmds:
+      - '"{{.HOSTAGENT_BIN}}" --socket "{{.HOSTAGENT_SOCKET}}" --work-dir "{{.HOSTAGENT_WORK_DIR}}" {{.CLI_ARGS}}'
+
+  hostagent:run:root:
+    desc: Run protos-hostagent as root
+    cmds:
+      - |
+        hostagent_bin="$(cd "$(dirname "{{.HOSTAGENT_BIN}}")" && pwd)/$(basename "{{.HOSTAGENT_BIN}}")"
+        sudo -n "$hostagent_bin" \
+          --socket "{{.HOSTAGENT_SOCKET}}" \
+          --work-dir "{{.HOSTAGENT_WORK_DIR}}" \
+          --socket-mode 0660 \
+          --socket-uid "$(id -u)" \
+          --socket-gid "$(id -g)" \
+          {{.CLI_ARGS}}
+
+  hostagent:stop:
+    desc: Stop a running protos-hostagent for the selected socket
+    cmds:
+      - '"{{.HOSTAGENT_BIN}}" --socket "{{.HOSTAGENT_SOCKET}}" --stop-existing {{.CLI_ARGS}}'
+
   e2e:local-macos:
     desc: Run the local macOS VM E2E harness
+    deps:
+      - hostagent:build
     cmds:
-      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/local-macos-e2e {{.CLI_ARGS}}
+      - task -t ../clients/macos/Taskfile.yml build
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/local-macos-e2e --flutter-app "{{.FLUTTER_APP}}" --hostagent-bin "{{.HOSTAGENT_BIN}}" {{.CLI_ARGS}}
 
   e2e:local-macos:image-registry:
     desc: Run the local macOS VM E2E harness with Protos P2P app-image resolution enabled
+    deps:
+      - hostagent:build
     cmds:
-      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/local-macos-e2e --instances 2 --app-image {{.E2E_IMAGE_REGISTRY_IMAGE}} {{.CLI_ARGS}}
+      - task -t ../clients/macos/Taskfile.yml build
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/local-macos-e2e --flutter-app "{{.FLUTTER_APP}}" --hostagent-bin "{{.HOSTAGENT_BIN}}" --instances 2 --app-image {{.E2E_IMAGE_REGISTRY_IMAGE}} {{.CLI_ARGS}}
 
-  e2e:mixed-witness:
+  e2e:mixed-cloud:
     desc: Run the mixed local plus Hetzner plus Scaleway cloud VM E2E harness
     deps:
+      - hostagent:build
       - e2e:probe-image:archive
     cmds:
-      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/mixed-witness-e2e --hetzner-env {{.E2E_HETZNER_ENV}} --scaleway-env {{.E2E_SCALEWAY_ENV}} --app-image {{.E2E_PROBE_IMAGE}} --seed-image-archive {{.E2E_PROBE_IMAGE_ARCHIVE}} {{.CLI_ARGS}}
+      - task -t ../clients/macos/Taskfile.yml build
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/mixed-cloud-e2e --flutter-app "{{.FLUTTER_APP}}" --hostagent-bin "{{.HOSTAGENT_BIN}}" --hetzner-env {{.E2E_HETZNER_ENV}} --scaleway-env {{.E2E_SCALEWAY_ENV}} --app-image {{.E2E_PROBE_IMAGE}} --seed-image-archive {{.E2E_PROBE_IMAGE_ARCHIVE}} {{.CLI_ARGS}}
 
   e2e:probe-image:build:
     desc: Build the Protos E2E app probe container image locally

@@ -153,28 +153,22 @@ message ExitRoute {
 message RuntimeState {
   string peer_id = 1;
   string manifest_digest = 2;
-  string finalized_root_hash = 3;
+  string checkpoint_root_hash = 3;
   string tentative_root_hash = 4;
-  string protocol_finalized_root_hash = 5;
+  string protocol_checkpoint_root_hash = 5;
   string durable_main_root_hash = 6;
-  string active_epoch_id = 7;
-  repeated string active_witness_ids = 8;
-  repeated string eligible_witness_ids = 9;
   repeated string state_providers = 10;
   repeated string connected_peers = 11;
   string fatal_state = 12;
   bool runtime_refresh_pending = 13;
   string runtime_refresh_last_error = 14;
-  bool runtime_finalized_pending = 15;
-  string runtime_finalized_last_error = 16;
+  bool runtime_checkpoint_pending = 15;
+  string runtime_checkpoint_last_error = 16;
   string runtime_materialization_policy = 17;
   repeated RuntimePeerStatus peer_statuses = 18;
   repeated RuntimeCompatibility compatibility = 19;
   repeated string content_sync_trace = 20;
-  repeated string known_epoch_ids = 21;
-  map<string, string> epoch_descriptor_digest_by_id = 22;
-  map<string, string> epoch_finalized_digest_by_id = 23;
-  string protocol_finalized_digest = 24;
+  string protocol_checkpoint_digest = 24;
 }
 
 message RuntimePeerStatus {
@@ -182,8 +176,6 @@ message RuntimePeerStatus {
   bool connected = 2;
   bool dialable = 3;
   bool state_provider = 4;
-  bool witness = 5;
-  bool eligible_witness = 6;
   bool compatible = 7;
   bool incompatible = 8;
   bool ignored = 9;

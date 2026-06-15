@@ -23,16 +23,16 @@ import (
 	"github.com/bokwoon95/sq"
 	"github.com/dolthub/vitess/go/vt/sqlparser"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
+	swarmiondoltrepo "github.com/nustiueudinastea/swarmion/runtime/doltrepo"
+	cueschema "github.com/nustiueudinastea/swarmion/schema-engines/cue"
+	declarativeschema "github.com/nustiueudinastea/swarmion/schema-engines/declarative"
+	libp2ptransport "github.com/nustiueudinastea/swarmion/transports/libp2p"
 	"github.com/protosio/protos/internal/config"
 	protoscontracts "github.com/protosio/protos/internal/db/contracts/sql/protos"
 	"github.com/protosio/protos/internal/util"
 	"github.com/rs/xid"
 	"google.golang.org/grpc"
-	swarmionapp "swarmion.dev/runtime/app"
-	swarmiondoltrepo "swarmion.dev/runtime/doltrepo"
-	cueschema "swarmion.dev/schema-engines/cue"
-	declarativeschema "swarmion.dev/schema-engines/declarative"
-	libp2ptransport "swarmion.dev/transports/libp2p"
 )
 
 const (
@@ -122,8 +122,6 @@ type DB struct {
 	opMu                 sync.Mutex
 	initialized          bool
 	watchCancel          context.CancelFunc
-	witnessMu            sync.Mutex
-	witnessRankRequests  map[string]pendingWitnessRankRequest
 	tableChangeCallbacks *util.Map[string, tableChangeCallback]
 }
 
@@ -258,16 +256,14 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 			CommitEmail: db.signer.GetID() + "@protos.local",
 			Signer:      swarmionSigner,
 		},
-		BootstrapPeers:                 append([]string(nil), bootstrapPeers...),
-		Namespace:                      fmt.Sprintf(swarmionNamespaceTemplate, db.name),
-		AdminNamespace:                 fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name),
-		HeartbeatInterval:              5 * time.Second,
-		FinalizedMaterializationPolicy: swarmionapp.FinalizedMaterializationEager,
-		AutomaticEpochPolicies:         true,
-		WitnessSelectionLimit:          protosWitnessSelectionLimit,
-		SchemaEngine:                   cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
-		OnWriteNotification:            db.handleWriteNotification,
-		Logger:                         logger,
+		BootstrapPeers:                  append([]string(nil), bootstrapPeers...),
+		Namespace:                       fmt.Sprintf(swarmionNamespaceTemplate, db.name),
+		AdminNamespace:                  fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name),
+		HeartbeatInterval:               5 * time.Second,
+		CheckpointMaterializationPolicy: swarmionapp.CheckpointMaterializationEager,
+		SchemaEngine:                    cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
+		OnWriteNotification:             db.handleWriteNotification,
+		Logger:                          logger,
 	}, network)
 	if err != nil {
 		_ = network.Close()
@@ -288,10 +284,10 @@ func (db *DB) startSwarmionWatchers(ctx context.Context, app *swarmionapp.App) {
 	if db == nil || app == nil {
 		return
 	}
-	if events, err := app.WatchFinalizedRoots(ctx); err == nil {
-		go db.forwardFinalizedRootEvents(events)
+	if events, err := app.WatchCheckpointRoots(ctx); err == nil {
+		go db.forwardCheckpointRootEvents(events)
 	} else {
-		notifyLog.Warnf("failed to watch swarmion finalized roots: %s", err.Error())
+		notifyLog.Warnf("failed to watch swarmion checkpoint roots: %s", err.Error())
 	}
 	if events, err := app.WatchStatus(ctx); err == nil {
 		go db.forwardSwarmionStatusEvents(events)
@@ -300,7 +296,7 @@ func (db *DB) startSwarmionWatchers(ctx context.Context, app *swarmionapp.App) {
 	}
 }
 
-func (db *DB) forwardFinalizedRootEvents(events <-chan swarmionapp.FinalizedRootEvent) {
+func (db *DB) forwardCheckpointRootEvents(events <-chan swarmionapp.CheckpointRootEvent) {
 	for event := range events {
 		db.triggerTableChangeCallbacks(event.ChangedTables...)
 	}
@@ -309,11 +305,9 @@ func (db *DB) forwardFinalizedRootEvents(events <-chan swarmionapp.FinalizedRoot
 func (db *DB) forwardSwarmionStatusEvents(events <-chan swarmionapp.StatusEvent) {
 	for event := range events {
 		switch event.Kind {
-		case swarmionapp.StatusEventFinalizedRootChanged,
+		case swarmionapp.StatusEventCheckpointRootChanged,
 			swarmionapp.StatusEventTentativeRootChanged,
 			swarmionapp.StatusEventFatalChanged,
-			swarmionapp.StatusEventActiveWitnessesChanged,
-			swarmionapp.StatusEventEligibleWitnessesChanged,
 			swarmionapp.StatusEventStateProvidersChanged:
 			db.triggerTableChangeCallbacks()
 		}
@@ -526,11 +520,9 @@ func (db *DB) RemovePeer(peerID string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := app.EvictPeer(ctx, peerID); err != nil {
+	if _, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID}); err != nil {
 		errText := err.Error()
-		if strings.Contains(errText, "still an active witness") ||
-			strings.Contains(errText, "still witness-eligible") ||
-			strings.Contains(errText, "cannot evict local peer") {
+		if strings.Contains(errText, "cannot evict local peer") {
 			return nil
 		}
 		return fmt.Errorf("evict swarmion peer %s: %w", peerID, err)
@@ -669,7 +661,7 @@ func (db *DB) SwarmionStatus() (swarmionapp.Status, bool) {
 	return app.Status(), true
 }
 
-func (db *DB) CatchUpFinalized(ctx context.Context, reason string) error {
+func (db *DB) CatchUpCheckpoint(ctx context.Context, reason string) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
@@ -683,10 +675,10 @@ func (db *DB) CatchUpFinalized(ctx context.Context, reason string) error {
 		return nil
 	}
 	if strings.TrimSpace(reason) == "" {
-		reason = "protos finalized read"
+		reason = "protos checkpoint read"
 	}
-	if _, err := app.CatchUpFinalized(ctx, reason); err != nil {
-		return fmt.Errorf("catch up swarmion finalized view: %w", err)
+	if _, err := app.CatchUpCheckpoint(ctx, reason); err != nil {
+		return fmt.Errorf("catch up swarmion checkpoint view: %w", err)
 	}
 	return nil
 }
@@ -1077,7 +1069,7 @@ func (db *DB) committedWrite(operation string, commitMessage string, allowNoop b
 
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		resetErr := db.resetWorkingSet(ctx)
-		catchUpErr := db.CatchUpFinalized(ctx, operation+" retry after stale write")
+		catchUpErr := db.CatchUpCheckpoint(ctx, operation+" retry after stale write")
 		cancel()
 		if resetErr != nil {
 			return fmt.Errorf("failed to %s: %w", operation, errors.Join(lastErr, resetErr))
@@ -1109,7 +1101,7 @@ func isRetryableCommittedWriteError(err error) bool {
 	lower := strings.ToLower(err.Error())
 	return strings.Contains(lower, "stale write context") ||
 		strings.Contains(lower, "replay-base conflict") ||
-		strings.Contains(lower, "finalized target changed before catch-up") ||
+		strings.Contains(lower, "checkpoint target changed before catch-up") ||
 		strings.Contains(lower, "conflicts with protocol root")
 }
 

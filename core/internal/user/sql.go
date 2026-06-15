@@ -59,7 +59,7 @@ func createUserDeviceInsertMapper(device UserDevice) db.InsertMapper {
 			col.SetString(d.PUBLIC_KEY, device.PublicKey)
 			col.SetBytes(d.USER_ID, db.MustUUIDBytes(device.UserID))
 			col.SetString(d.NAME, device.Name)
-			col.SetInt(d.WITNESS_RANK, device.WitnessRank)
+			col.SetInt(d.REPLICATION_PRIORITY, device.ReplicationPriority)
 		}
 		return sq.InsertInto(d).ColumnValues(mapper)
 	}
@@ -78,7 +78,7 @@ func createUserDeviceQueryMapper(publicKey string) db.QueryMapper[UserDevice] {
 				UserID:      db.UUIDString(row.BytesField(d.USER_ID)),
 				PublicKey:   row.StringField(d.PUBLIC_KEY),
 				Name:        row.StringField(d.NAME),
-				WitnessRank: row.IntField(d.WITNESS_RANK),
+				ReplicationPriority: row.IntField(d.REPLICATION_PRIORITY),
 			}
 		}
 		return query, mapper
@@ -101,7 +101,7 @@ func createUserDeviceQueryAllMapper(excludePublicKey string) db.QueryMapper[User
 				UserID:      db.UUIDString(row.BytesField(d.USER_ID)),
 				PublicKey:   row.StringField(d.PUBLIC_KEY),
 				Name:        row.StringField(d.NAME),
-				WitnessRank: row.IntField(d.WITNESS_RANK),
+				ReplicationPriority: row.IntField(d.REPLICATION_PRIORITY),
 			}
 		}
 		return query, mapper

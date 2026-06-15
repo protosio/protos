@@ -9,7 +9,7 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/martinlindhe/base36"
-	"swarmion.dev/runtime/identity"
+	"github.com/nustiueudinastea/swarmion/runtime/identity"
 )
 
 func TestSwarmionSignerUsesLibp2pPublicKeyEncoding(t *testing.T) {
@@ -31,15 +31,15 @@ func TestSwarmionSignerUsesLibp2pPublicKeyEncoding(t *testing.T) {
 		t.Fatalf("swarmion public key peer id = %s, want %s", peerID, key.GetID())
 	}
 
-	signature, err := signer.Sign("rank-event-root")
+	signature, err := signer.Sign("checkpoint-event-root")
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
 	var verifier identity.Identity
-	if err := verifier.Verify("rank-event-root", signature, signer.PublicKey()); err != nil {
+	if err := verifier.Verify("checkpoint-event-root", signature, signer.PublicKey()); err != nil {
 		t.Fatalf("verify libp2p-encoded public key: %v", err)
 	}
-	if err := signer.Verify("rank-event-root", signature, signer.PublicKey()); err != nil {
+	if err := signer.Verify("checkpoint-event-root", signature, signer.PublicKey()); err != nil {
 		t.Fatalf("verify through compatibility wrapper: %v", err)
 	}
 }

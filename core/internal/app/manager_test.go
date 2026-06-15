@@ -254,7 +254,7 @@ func insertTestMachine(t *testing.T, store *db.DB, name string) (string, string)
 			col.SetString(m.NAME, name)
 			col.SetString(m.KIND, "cloud_vm")
 			col.SetString(m.DESIRED_STATUS, "running")
-			col.SetInt(m.WITNESS_RANK, 100)
+			col.SetInt(m.REPLICATION_PRIORITY, 100)
 		}
 		return sq.InsertInto(m).ColumnValues(mapper)
 	}

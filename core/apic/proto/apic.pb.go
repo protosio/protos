@@ -6913,28 +6913,22 @@ type RuntimeState struct {
 	state                        protoimpl.MessageState  `protogen:"open.v1"`
 	PeerId                       string                  `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
 	ManifestDigest               string                  `protobuf:"bytes,2,opt,name=manifest_digest,json=manifestDigest,proto3" json:"manifest_digest,omitempty"`
-	FinalizedRootHash            string                  `protobuf:"bytes,3,opt,name=finalized_root_hash,json=finalizedRootHash,proto3" json:"finalized_root_hash,omitempty"`
+	CheckpointRootHash           string                  `protobuf:"bytes,3,opt,name=checkpoint_root_hash,json=checkpointRootHash,proto3" json:"checkpoint_root_hash,omitempty"`
 	TentativeRootHash            string                  `protobuf:"bytes,4,opt,name=tentative_root_hash,json=tentativeRootHash,proto3" json:"tentative_root_hash,omitempty"`
-	ProtocolFinalizedRootHash    string                  `protobuf:"bytes,5,opt,name=protocol_finalized_root_hash,json=protocolFinalizedRootHash,proto3" json:"protocol_finalized_root_hash,omitempty"`
+	ProtocolCheckpointRootHash   string                  `protobuf:"bytes,5,opt,name=protocol_checkpoint_root_hash,json=protocolCheckpointRootHash,proto3" json:"protocol_checkpoint_root_hash,omitempty"`
 	DurableMainRootHash          string                  `protobuf:"bytes,6,opt,name=durable_main_root_hash,json=durableMainRootHash,proto3" json:"durable_main_root_hash,omitempty"`
-	ActiveEpochId                string                  `protobuf:"bytes,7,opt,name=active_epoch_id,json=activeEpochId,proto3" json:"active_epoch_id,omitempty"`
-	ActiveWitnessIds             []string                `protobuf:"bytes,8,rep,name=active_witness_ids,json=activeWitnessIds,proto3" json:"active_witness_ids,omitempty"`
-	EligibleWitnessIds           []string                `protobuf:"bytes,9,rep,name=eligible_witness_ids,json=eligibleWitnessIds,proto3" json:"eligible_witness_ids,omitempty"`
 	StateProviders               []string                `protobuf:"bytes,10,rep,name=state_providers,json=stateProviders,proto3" json:"state_providers,omitempty"`
 	ConnectedPeers               []string                `protobuf:"bytes,11,rep,name=connected_peers,json=connectedPeers,proto3" json:"connected_peers,omitempty"`
 	FatalState                   string                  `protobuf:"bytes,12,opt,name=fatal_state,json=fatalState,proto3" json:"fatal_state,omitempty"`
 	RuntimeRefreshPending        bool                    `protobuf:"varint,13,opt,name=runtime_refresh_pending,json=runtimeRefreshPending,proto3" json:"runtime_refresh_pending,omitempty"`
 	RuntimeRefreshLastError      string                  `protobuf:"bytes,14,opt,name=runtime_refresh_last_error,json=runtimeRefreshLastError,proto3" json:"runtime_refresh_last_error,omitempty"`
-	RuntimeFinalizedPending      bool                    `protobuf:"varint,15,opt,name=runtime_finalized_pending,json=runtimeFinalizedPending,proto3" json:"runtime_finalized_pending,omitempty"`
-	RuntimeFinalizedLastError    string                  `protobuf:"bytes,16,opt,name=runtime_finalized_last_error,json=runtimeFinalizedLastError,proto3" json:"runtime_finalized_last_error,omitempty"`
+	RuntimeCheckpointPending     bool                    `protobuf:"varint,15,opt,name=runtime_checkpoint_pending,json=runtimeCheckpointPending,proto3" json:"runtime_checkpoint_pending,omitempty"`
+	RuntimeCheckpointLastError   string                  `protobuf:"bytes,16,opt,name=runtime_checkpoint_last_error,json=runtimeCheckpointLastError,proto3" json:"runtime_checkpoint_last_error,omitempty"`
 	RuntimeMaterializationPolicy string                  `protobuf:"bytes,17,opt,name=runtime_materialization_policy,json=runtimeMaterializationPolicy,proto3" json:"runtime_materialization_policy,omitempty"`
 	PeerStatuses                 []*RuntimePeerStatus    `protobuf:"bytes,18,rep,name=peer_statuses,json=peerStatuses,proto3" json:"peer_statuses,omitempty"`
 	Compatibility                []*RuntimeCompatibility `protobuf:"bytes,19,rep,name=compatibility,proto3" json:"compatibility,omitempty"`
 	ContentSyncTrace             []string                `protobuf:"bytes,20,rep,name=content_sync_trace,json=contentSyncTrace,proto3" json:"content_sync_trace,omitempty"`
-	KnownEpochIds                []string                `protobuf:"bytes,21,rep,name=known_epoch_ids,json=knownEpochIds,proto3" json:"known_epoch_ids,omitempty"`
-	EpochDescriptorDigestById    map[string]string       `protobuf:"bytes,22,rep,name=epoch_descriptor_digest_by_id,json=epochDescriptorDigestById,proto3" json:"epoch_descriptor_digest_by_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	EpochFinalizedDigestById     map[string]string       `protobuf:"bytes,23,rep,name=epoch_finalized_digest_by_id,json=epochFinalizedDigestById,proto3" json:"epoch_finalized_digest_by_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	ProtocolFinalizedDigest      string                  `protobuf:"bytes,24,opt,name=protocol_finalized_digest,json=protocolFinalizedDigest,proto3" json:"protocol_finalized_digest,omitempty"`
+	ProtocolCheckpointDigest     string                  `protobuf:"bytes,24,opt,name=protocol_checkpoint_digest,json=protocolCheckpointDigest,proto3" json:"protocol_checkpoint_digest,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -6983,9 +6977,9 @@ func (x *RuntimeState) GetManifestDigest() string {
 	return ""
 }
 
-func (x *RuntimeState) GetFinalizedRootHash() string {
+func (x *RuntimeState) GetCheckpointRootHash() string {
 	if x != nil {
-		return x.FinalizedRootHash
+		return x.CheckpointRootHash
 	}
 	return ""
 }
@@ -6997,9 +6991,9 @@ func (x *RuntimeState) GetTentativeRootHash() string {
 	return ""
 }
 
-func (x *RuntimeState) GetProtocolFinalizedRootHash() string {
+func (x *RuntimeState) GetProtocolCheckpointRootHash() string {
 	if x != nil {
-		return x.ProtocolFinalizedRootHash
+		return x.ProtocolCheckpointRootHash
 	}
 	return ""
 }
@@ -7009,27 +7003,6 @@ func (x *RuntimeState) GetDurableMainRootHash() string {
 		return x.DurableMainRootHash
 	}
 	return ""
-}
-
-func (x *RuntimeState) GetActiveEpochId() string {
-	if x != nil {
-		return x.ActiveEpochId
-	}
-	return ""
-}
-
-func (x *RuntimeState) GetActiveWitnessIds() []string {
-	if x != nil {
-		return x.ActiveWitnessIds
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetEligibleWitnessIds() []string {
-	if x != nil {
-		return x.EligibleWitnessIds
-	}
-	return nil
 }
 
 func (x *RuntimeState) GetStateProviders() []string {
@@ -7067,16 +7040,16 @@ func (x *RuntimeState) GetRuntimeRefreshLastError() string {
 	return ""
 }
 
-func (x *RuntimeState) GetRuntimeFinalizedPending() bool {
+func (x *RuntimeState) GetRuntimeCheckpointPending() bool {
 	if x != nil {
-		return x.RuntimeFinalizedPending
+		return x.RuntimeCheckpointPending
 	}
 	return false
 }
 
-func (x *RuntimeState) GetRuntimeFinalizedLastError() string {
+func (x *RuntimeState) GetRuntimeCheckpointLastError() string {
 	if x != nil {
-		return x.RuntimeFinalizedLastError
+		return x.RuntimeCheckpointLastError
 	}
 	return ""
 }
@@ -7109,51 +7082,30 @@ func (x *RuntimeState) GetContentSyncTrace() []string {
 	return nil
 }
 
-func (x *RuntimeState) GetKnownEpochIds() []string {
+func (x *RuntimeState) GetProtocolCheckpointDigest() string {
 	if x != nil {
-		return x.KnownEpochIds
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetEpochDescriptorDigestById() map[string]string {
-	if x != nil {
-		return x.EpochDescriptorDigestById
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetEpochFinalizedDigestById() map[string]string {
-	if x != nil {
-		return x.EpochFinalizedDigestById
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetProtocolFinalizedDigest() string {
-	if x != nil {
-		return x.ProtocolFinalizedDigest
+		return x.ProtocolCheckpointDigest
 	}
 	return ""
 }
 
 type RuntimePeerStatus struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	PeerId          string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	Connected       bool                   `protobuf:"varint,2,opt,name=connected,proto3" json:"connected,omitempty"`
-	Dialable        bool                   `protobuf:"varint,3,opt,name=dialable,proto3" json:"dialable,omitempty"`
-	StateProvider   bool                   `protobuf:"varint,4,opt,name=state_provider,json=stateProvider,proto3" json:"state_provider,omitempty"`
-	Witness         bool                   `protobuf:"varint,5,opt,name=witness,proto3" json:"witness,omitempty"`
-	EligibleWitness bool                   `protobuf:"varint,6,opt,name=eligible_witness,json=eligibleWitness,proto3" json:"eligible_witness,omitempty"`
-	Compatible      bool                   `protobuf:"varint,7,opt,name=compatible,proto3" json:"compatible,omitempty"`
-	Incompatible    bool                   `protobuf:"varint,8,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
-	Ignored         bool                   `protobuf:"varint,9,opt,name=ignored,proto3" json:"ignored,omitempty"`
-	RelayOnly       bool                   `protobuf:"varint,10,opt,name=relay_only,json=relayOnly,proto3" json:"relay_only,omitempty"`
-	Addresses       []string               `protobuf:"bytes,11,rep,name=addresses,proto3" json:"addresses,omitempty"`
-	LastDialErrors  map[string]string      `protobuf:"bytes,12,rep,name=last_dial_errors,json=lastDialErrors,proto3" json:"last_dial_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Reason          string                 `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	PeerId                 string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	Connected              bool                   `protobuf:"varint,2,opt,name=connected,proto3" json:"connected,omitempty"`
+	Dialable               bool                   `protobuf:"varint,3,opt,name=dialable,proto3" json:"dialable,omitempty"`
+	StateProvider          bool                   `protobuf:"varint,4,opt,name=state_provider,json=stateProvider,proto3" json:"state_provider,omitempty"`
+	Compatible             bool                   `protobuf:"varint,7,opt,name=compatible,proto3" json:"compatible,omitempty"`
+	Incompatible           bool                   `protobuf:"varint,8,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
+	Ignored                bool                   `protobuf:"varint,9,opt,name=ignored,proto3" json:"ignored,omitempty"`
+	RelayOnly              bool                   `protobuf:"varint,10,opt,name=relay_only,json=relayOnly,proto3" json:"relay_only,omitempty"`
+	Addresses              []string               `protobuf:"bytes,11,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	LastDialErrors         map[string]string      `protobuf:"bytes,12,rep,name=last_dial_errors,json=lastDialErrors,proto3" json:"last_dial_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Reason                 string                 `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
+	ReplicationPriority    int32                  `protobuf:"varint,14,opt,name=replication_priority,json=replicationPriority,proto3" json:"replication_priority,omitempty"`
+	ReplicationDeviceClass string                 `protobuf:"bytes,15,opt,name=replication_device_class,json=replicationDeviceClass,proto3" json:"replication_device_class,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *RuntimePeerStatus) Reset() {
@@ -7214,20 +7166,6 @@ func (x *RuntimePeerStatus) GetStateProvider() bool {
 	return false
 }
 
-func (x *RuntimePeerStatus) GetWitness() bool {
-	if x != nil {
-		return x.Witness
-	}
-	return false
-}
-
-func (x *RuntimePeerStatus) GetEligibleWitness() bool {
-	if x != nil {
-		return x.EligibleWitness
-	}
-	return false
-}
-
 func (x *RuntimePeerStatus) GetCompatible() bool {
 	if x != nil {
 		return x.Compatible
@@ -7273,6 +7211,20 @@ func (x *RuntimePeerStatus) GetLastDialErrors() map[string]string {
 func (x *RuntimePeerStatus) GetReason() string {
 	if x != nil {
 		return x.Reason
+	}
+	return ""
+}
+
+func (x *RuntimePeerStatus) GetReplicationPriority() int32 {
+	if x != nil {
+		return x.ReplicationPriority
+	}
+	return 0
+}
+
+func (x *RuntimePeerStatus) GetReplicationDeviceClass() string {
+	if x != nil {
+		return x.ReplicationDeviceClass
 	}
 	return ""
 }
@@ -8229,6 +8181,394 @@ func (*RemoveProvisionerImageResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{141}
 }
 
+type ImageContentDescriptor struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MediaType     string                 `protobuf:"bytes,1,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	Digest        string                 `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest,omitempty"`
+	SizeBytes     uint64                 `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Platform      string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
+	Annotations   map[string]string      `protobuf:"bytes,5,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImageContentDescriptor) Reset() {
+	*x = ImageContentDescriptor{}
+	mi := &file_apic_proto_apic_proto_msgTypes[142]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImageContentDescriptor) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImageContentDescriptor) ProtoMessage() {}
+
+func (x *ImageContentDescriptor) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_apic_proto_msgTypes[142]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImageContentDescriptor.ProtoReflect.Descriptor instead.
+func (*ImageContentDescriptor) Descriptor() ([]byte, []int) {
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{142}
+}
+
+func (x *ImageContentDescriptor) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
+func (x *ImageContentDescriptor) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *ImageContentDescriptor) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *ImageContentDescriptor) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *ImageContentDescriptor) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
+type GetInstanceImageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Instance      string                 `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
+	ImageRef      string                 `protobuf:"bytes,2,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInstanceImageRequest) Reset() {
+	*x = GetInstanceImageRequest{}
+	mi := &file_apic_proto_apic_proto_msgTypes[143]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInstanceImageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstanceImageRequest) ProtoMessage() {}
+
+func (x *GetInstanceImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_apic_proto_msgTypes[143]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstanceImageRequest.ProtoReflect.Descriptor instead.
+func (*GetInstanceImageRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{143}
+}
+
+func (x *GetInstanceImageRequest) GetInstance() string {
+	if x != nil {
+		return x.Instance
+	}
+	return ""
+}
+
+func (x *GetInstanceImageRequest) GetImageRef() string {
+	if x != nil {
+		return x.ImageRef
+	}
+	return ""
+}
+
+type GetInstanceImageResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Found         bool                      `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
+	ImageRef      string                    `protobuf:"bytes,2,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
+	TargetDigest  string                    `protobuf:"bytes,3,opt,name=target_digest,json=targetDigest,proto3" json:"target_digest,omitempty"`
+	Platform      string                    `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
+	Labels        map[string]string         `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	HasContent    bool                      `protobuf:"varint,6,opt,name=has_content,json=hasContent,proto3" json:"has_content,omitempty"`
+	Target        *ImageContentDescriptor   `protobuf:"bytes,7,opt,name=target,proto3" json:"target,omitempty"`
+	Descriptors   []*ImageContentDescriptor `protobuf:"bytes,8,rep,name=descriptors,proto3" json:"descriptors,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInstanceImageResponse) Reset() {
+	*x = GetInstanceImageResponse{}
+	mi := &file_apic_proto_apic_proto_msgTypes[144]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInstanceImageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstanceImageResponse) ProtoMessage() {}
+
+func (x *GetInstanceImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_apic_proto_msgTypes[144]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstanceImageResponse.ProtoReflect.Descriptor instead.
+func (*GetInstanceImageResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{144}
+}
+
+func (x *GetInstanceImageResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+func (x *GetInstanceImageResponse) GetImageRef() string {
+	if x != nil {
+		return x.ImageRef
+	}
+	return ""
+}
+
+func (x *GetInstanceImageResponse) GetTargetDigest() string {
+	if x != nil {
+		return x.TargetDigest
+	}
+	return ""
+}
+
+func (x *GetInstanceImageResponse) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *GetInstanceImageResponse) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *GetInstanceImageResponse) GetHasContent() bool {
+	if x != nil {
+		return x.HasContent
+	}
+	return false
+}
+
+func (x *GetInstanceImageResponse) GetTarget() *ImageContentDescriptor {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+func (x *GetInstanceImageResponse) GetDescriptors() []*ImageContentDescriptor {
+	if x != nil {
+		return x.Descriptors
+	}
+	return nil
+}
+
+type UploadInstanceImageArchiveChunkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Instance      string                 `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
+	UploadId      string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	ImageRef      string                 `protobuf:"bytes,3,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
+	Offset        uint64                 `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	Data          []byte                 `protobuf:"bytes,5,opt,name=data,proto3" json:"data,omitempty"`
+	Eof           bool                   `protobuf:"varint,6,opt,name=eof,proto3" json:"eof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) Reset() {
+	*x = UploadInstanceImageArchiveChunkRequest{}
+	mi := &file_apic_proto_apic_proto_msgTypes[145]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadInstanceImageArchiveChunkRequest) ProtoMessage() {}
+
+func (x *UploadInstanceImageArchiveChunkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_apic_proto_msgTypes[145]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadInstanceImageArchiveChunkRequest.ProtoReflect.Descriptor instead.
+func (*UploadInstanceImageArchiveChunkRequest) Descriptor() ([]byte, []int) {
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{145}
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) GetInstance() string {
+	if x != nil {
+		return x.Instance
+	}
+	return ""
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) GetImageRef() string {
+	if x != nil {
+		return x.ImageRef
+	}
+	return ""
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *UploadInstanceImageArchiveChunkRequest) GetEof() bool {
+	if x != nil {
+		return x.Eof
+	}
+	return false
+}
+
+type UploadInstanceImageArchiveChunkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ReceivedBytes uint64                 `protobuf:"varint,1,opt,name=received_bytes,json=receivedBytes,proto3" json:"received_bytes,omitempty"`
+	Loaded        bool                   `protobuf:"varint,2,opt,name=loaded,proto3" json:"loaded,omitempty"`
+	ImageRef      string                 `protobuf:"bytes,3,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
+	TargetDigest  string                 `protobuf:"bytes,4,opt,name=target_digest,json=targetDigest,proto3" json:"target_digest,omitempty"`
+	Platform      string                 `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadInstanceImageArchiveChunkResponse) Reset() {
+	*x = UploadInstanceImageArchiveChunkResponse{}
+	mi := &file_apic_proto_apic_proto_msgTypes[146]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadInstanceImageArchiveChunkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadInstanceImageArchiveChunkResponse) ProtoMessage() {}
+
+func (x *UploadInstanceImageArchiveChunkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_apic_proto_msgTypes[146]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadInstanceImageArchiveChunkResponse.ProtoReflect.Descriptor instead.
+func (*UploadInstanceImageArchiveChunkResponse) Descriptor() ([]byte, []int) {
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{146}
+}
+
+func (x *UploadInstanceImageArchiveChunkResponse) GetReceivedBytes() uint64 {
+	if x != nil {
+		return x.ReceivedBytes
+	}
+	return 0
+}
+
+func (x *UploadInstanceImageArchiveChunkResponse) GetLoaded() bool {
+	if x != nil {
+		return x.Loaded
+	}
+	return false
+}
+
+func (x *UploadInstanceImageArchiveChunkResponse) GetImageRef() string {
+	if x != nil {
+		return x.ImageRef
+	}
+	return ""
+}
+
+func (x *UploadInstanceImageArchiveChunkResponse) GetTargetDigest() string {
+	if x != nil {
+		return x.TargetDigest
+	}
+	return ""
+}
+
+func (x *UploadInstanceImageArchiveChunkResponse) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
 type CoreEndpoint struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -8241,7 +8581,7 @@ type CoreEndpoint struct {
 
 func (x *CoreEndpoint) Reset() {
 	*x = CoreEndpoint{}
-	mi := &file_apic_proto_apic_proto_msgTypes[142]
+	mi := &file_apic_proto_apic_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8253,7 +8593,7 @@ func (x *CoreEndpoint) String() string {
 func (*CoreEndpoint) ProtoMessage() {}
 
 func (x *CoreEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[142]
+	mi := &file_apic_proto_apic_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8266,7 +8606,7 @@ func (x *CoreEndpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CoreEndpoint.ProtoReflect.Descriptor instead.
 func (*CoreEndpoint) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{142}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *CoreEndpoint) GetKind() string {
@@ -8308,7 +8648,7 @@ type HostAgentConnectionStatus struct {
 
 func (x *HostAgentConnectionStatus) Reset() {
 	*x = HostAgentConnectionStatus{}
-	mi := &file_apic_proto_apic_proto_msgTypes[143]
+	mi := &file_apic_proto_apic_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8320,7 +8660,7 @@ func (x *HostAgentConnectionStatus) String() string {
 func (*HostAgentConnectionStatus) ProtoMessage() {}
 
 func (x *HostAgentConnectionStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[143]
+	mi := &file_apic_proto_apic_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8333,7 +8673,7 @@ func (x *HostAgentConnectionStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostAgentConnectionStatus.ProtoReflect.Descriptor instead.
 func (*HostAgentConnectionStatus) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{143}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *HostAgentConnectionStatus) GetConnected() bool {
@@ -8374,7 +8714,7 @@ type SystemStatus struct {
 
 func (x *SystemStatus) Reset() {
 	*x = SystemStatus{}
-	mi := &file_apic_proto_apic_proto_msgTypes[144]
+	mi := &file_apic_proto_apic_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8386,7 +8726,7 @@ func (x *SystemStatus) String() string {
 func (*SystemStatus) ProtoMessage() {}
 
 func (x *SystemStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[144]
+	mi := &file_apic_proto_apic_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8399,7 +8739,7 @@ func (x *SystemStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemStatus.ProtoReflect.Descriptor instead.
 func (*SystemStatus) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{144}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *SystemStatus) GetCoreStatus() string {
@@ -8473,7 +8813,7 @@ type GetSystemStatusRequest struct {
 
 func (x *GetSystemStatusRequest) Reset() {
 	*x = GetSystemStatusRequest{}
-	mi := &file_apic_proto_apic_proto_msgTypes[145]
+	mi := &file_apic_proto_apic_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8485,7 +8825,7 @@ func (x *GetSystemStatusRequest) String() string {
 func (*GetSystemStatusRequest) ProtoMessage() {}
 
 func (x *GetSystemStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[145]
+	mi := &file_apic_proto_apic_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8498,7 +8838,7 @@ func (x *GetSystemStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetSystemStatusRequest) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{145}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{150}
 }
 
 type GetSystemStatusResponse struct {
@@ -8510,7 +8850,7 @@ type GetSystemStatusResponse struct {
 
 func (x *GetSystemStatusResponse) Reset() {
 	*x = GetSystemStatusResponse{}
-	mi := &file_apic_proto_apic_proto_msgTypes[146]
+	mi := &file_apic_proto_apic_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8522,7 +8862,7 @@ func (x *GetSystemStatusResponse) String() string {
 func (*GetSystemStatusResponse) ProtoMessage() {}
 
 func (x *GetSystemStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[146]
+	mi := &file_apic_proto_apic_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8535,7 +8875,7 @@ func (x *GetSystemStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetSystemStatusResponse) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{146}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{151}
 }
 
 func (x *GetSystemStatusResponse) GetStatus() *SystemStatus {
@@ -8553,7 +8893,7 @@ type StartHostAgentRequest struct {
 
 func (x *StartHostAgentRequest) Reset() {
 	*x = StartHostAgentRequest{}
-	mi := &file_apic_proto_apic_proto_msgTypes[147]
+	mi := &file_apic_proto_apic_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8565,7 +8905,7 @@ func (x *StartHostAgentRequest) String() string {
 func (*StartHostAgentRequest) ProtoMessage() {}
 
 func (x *StartHostAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[147]
+	mi := &file_apic_proto_apic_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8578,7 +8918,7 @@ func (x *StartHostAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartHostAgentRequest.ProtoReflect.Descriptor instead.
 func (*StartHostAgentRequest) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{147}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{152}
 }
 
 type StartHostAgentResponse struct {
@@ -8590,7 +8930,7 @@ type StartHostAgentResponse struct {
 
 func (x *StartHostAgentResponse) Reset() {
 	*x = StartHostAgentResponse{}
-	mi := &file_apic_proto_apic_proto_msgTypes[148]
+	mi := &file_apic_proto_apic_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8602,7 +8942,7 @@ func (x *StartHostAgentResponse) String() string {
 func (*StartHostAgentResponse) ProtoMessage() {}
 
 func (x *StartHostAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[148]
+	mi := &file_apic_proto_apic_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8615,7 +8955,7 @@ func (x *StartHostAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartHostAgentResponse.ProtoReflect.Descriptor instead.
 func (*StartHostAgentResponse) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{148}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *StartHostAgentResponse) GetStatus() *HostAgentConnectionStatus {
@@ -8633,7 +8973,7 @@ type StopHostAgentRequest struct {
 
 func (x *StopHostAgentRequest) Reset() {
 	*x = StopHostAgentRequest{}
-	mi := &file_apic_proto_apic_proto_msgTypes[149]
+	mi := &file_apic_proto_apic_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8645,7 +8985,7 @@ func (x *StopHostAgentRequest) String() string {
 func (*StopHostAgentRequest) ProtoMessage() {}
 
 func (x *StopHostAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[149]
+	mi := &file_apic_proto_apic_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8658,7 +8998,7 @@ func (x *StopHostAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopHostAgentRequest.ProtoReflect.Descriptor instead.
 func (*StopHostAgentRequest) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{149}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{154}
 }
 
 type StopHostAgentResponse struct {
@@ -8670,7 +9010,7 @@ type StopHostAgentResponse struct {
 
 func (x *StopHostAgentResponse) Reset() {
 	*x = StopHostAgentResponse{}
-	mi := &file_apic_proto_apic_proto_msgTypes[150]
+	mi := &file_apic_proto_apic_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8682,7 +9022,7 @@ func (x *StopHostAgentResponse) String() string {
 func (*StopHostAgentResponse) ProtoMessage() {}
 
 func (x *StopHostAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[150]
+	mi := &file_apic_proto_apic_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8695,7 +9035,7 @@ func (x *StopHostAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopHostAgentResponse.ProtoReflect.Descriptor instead.
 func (*StopHostAgentResponse) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{150}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *StopHostAgentResponse) GetStatus() *HostAgentConnectionStatus {
@@ -8720,7 +9060,7 @@ type Commit struct {
 
 func (x *Commit) Reset() {
 	*x = Commit{}
-	mi := &file_apic_proto_apic_proto_msgTypes[151]
+	mi := &file_apic_proto_apic_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8732,7 +9072,7 @@ func (x *Commit) String() string {
 func (*Commit) ProtoMessage() {}
 
 func (x *Commit) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[151]
+	mi := &file_apic_proto_apic_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8745,7 +9085,7 @@ func (x *Commit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Commit.ProtoReflect.Descriptor instead.
 func (*Commit) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{151}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *Commit) GetHash() string {
@@ -8810,7 +9150,7 @@ type CommitGraphRelation struct {
 
 func (x *CommitGraphRelation) Reset() {
 	*x = CommitGraphRelation{}
-	mi := &file_apic_proto_apic_proto_msgTypes[152]
+	mi := &file_apic_proto_apic_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8822,7 +9162,7 @@ func (x *CommitGraphRelation) String() string {
 func (*CommitGraphRelation) ProtoMessage() {}
 
 func (x *CommitGraphRelation) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[152]
+	mi := &file_apic_proto_apic_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8835,7 +9175,7 @@ func (x *CommitGraphRelation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitGraphRelation.ProtoReflect.Descriptor instead.
 func (*CommitGraphRelation) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{152}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{157}
 }
 
 func (x *CommitGraphRelation) GetParentHash() string {
@@ -8886,7 +9226,7 @@ type CommitGraphItem struct {
 
 func (x *CommitGraphItem) Reset() {
 	*x = CommitGraphItem{}
-	mi := &file_apic_proto_apic_proto_msgTypes[153]
+	mi := &file_apic_proto_apic_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8898,7 +9238,7 @@ func (x *CommitGraphItem) String() string {
 func (*CommitGraphItem) ProtoMessage() {}
 
 func (x *CommitGraphItem) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[153]
+	mi := &file_apic_proto_apic_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8911,7 +9251,7 @@ func (x *CommitGraphItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitGraphItem.ProtoReflect.Descriptor instead.
 func (*CommitGraphItem) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{153}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *CommitGraphItem) GetCommit() *Commit {
@@ -8959,7 +9299,7 @@ type CommitGraph struct {
 
 func (x *CommitGraph) Reset() {
 	*x = CommitGraph{}
-	mi := &file_apic_proto_apic_proto_msgTypes[154]
+	mi := &file_apic_proto_apic_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8971,7 +9311,7 @@ func (x *CommitGraph) String() string {
 func (*CommitGraph) ProtoMessage() {}
 
 func (x *CommitGraph) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[154]
+	mi := &file_apic_proto_apic_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8984,7 +9324,7 @@ func (x *CommitGraph) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitGraph.ProtoReflect.Descriptor instead.
 func (*CommitGraph) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{154}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *CommitGraph) GetItems() []*CommitGraphItem {
@@ -9009,7 +9349,7 @@ type GetLocalCommitsRequest struct {
 
 func (x *GetLocalCommitsRequest) Reset() {
 	*x = GetLocalCommitsRequest{}
-	mi := &file_apic_proto_apic_proto_msgTypes[155]
+	mi := &file_apic_proto_apic_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9021,7 +9361,7 @@ func (x *GetLocalCommitsRequest) String() string {
 func (*GetLocalCommitsRequest) ProtoMessage() {}
 
 func (x *GetLocalCommitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[155]
+	mi := &file_apic_proto_apic_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9034,7 +9374,7 @@ func (x *GetLocalCommitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLocalCommitsRequest.ProtoReflect.Descriptor instead.
 func (*GetLocalCommitsRequest) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{155}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{160}
 }
 
 type GetLocalCommitsResponse struct {
@@ -9047,7 +9387,7 @@ type GetLocalCommitsResponse struct {
 
 func (x *GetLocalCommitsResponse) Reset() {
 	*x = GetLocalCommitsResponse{}
-	mi := &file_apic_proto_apic_proto_msgTypes[156]
+	mi := &file_apic_proto_apic_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9059,7 +9399,7 @@ func (x *GetLocalCommitsResponse) String() string {
 func (*GetLocalCommitsResponse) ProtoMessage() {}
 
 func (x *GetLocalCommitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[156]
+	mi := &file_apic_proto_apic_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9072,7 +9412,7 @@ func (x *GetLocalCommitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLocalCommitsResponse.ProtoReflect.Descriptor instead.
 func (*GetLocalCommitsResponse) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{156}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{161}
 }
 
 func (x *GetLocalCommitsResponse) GetCommits() []*Commit {
@@ -9098,7 +9438,7 @@ type GetRemoteCommitsRequest struct {
 
 func (x *GetRemoteCommitsRequest) Reset() {
 	*x = GetRemoteCommitsRequest{}
-	mi := &file_apic_proto_apic_proto_msgTypes[157]
+	mi := &file_apic_proto_apic_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9110,7 +9450,7 @@ func (x *GetRemoteCommitsRequest) String() string {
 func (*GetRemoteCommitsRequest) ProtoMessage() {}
 
 func (x *GetRemoteCommitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[157]
+	mi := &file_apic_proto_apic_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9123,7 +9463,7 @@ func (x *GetRemoteCommitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRemoteCommitsRequest.ProtoReflect.Descriptor instead.
 func (*GetRemoteCommitsRequest) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{157}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{162}
 }
 
 func (x *GetRemoteCommitsRequest) GetRemote() string {
@@ -9143,7 +9483,7 @@ type GetRemoteCommitsResponse struct {
 
 func (x *GetRemoteCommitsResponse) Reset() {
 	*x = GetRemoteCommitsResponse{}
-	mi := &file_apic_proto_apic_proto_msgTypes[158]
+	mi := &file_apic_proto_apic_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9155,7 +9495,7 @@ func (x *GetRemoteCommitsResponse) String() string {
 func (*GetRemoteCommitsResponse) ProtoMessage() {}
 
 func (x *GetRemoteCommitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[158]
+	mi := &file_apic_proto_apic_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9168,7 +9508,7 @@ func (x *GetRemoteCommitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRemoteCommitsResponse.ProtoReflect.Descriptor instead.
 func (*GetRemoteCommitsResponse) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{158}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{163}
 }
 
 func (x *GetRemoteCommitsResponse) GetCommits() []*Commit {
@@ -9195,7 +9535,7 @@ type SqlCell struct {
 
 func (x *SqlCell) Reset() {
 	*x = SqlCell{}
-	mi := &file_apic_proto_apic_proto_msgTypes[159]
+	mi := &file_apic_proto_apic_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9207,7 +9547,7 @@ func (x *SqlCell) String() string {
 func (*SqlCell) ProtoMessage() {}
 
 func (x *SqlCell) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[159]
+	mi := &file_apic_proto_apic_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9220,7 +9560,7 @@ func (x *SqlCell) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SqlCell.ProtoReflect.Descriptor instead.
 func (*SqlCell) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{159}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *SqlCell) GetValue() string {
@@ -9246,7 +9586,7 @@ type SqlRow struct {
 
 func (x *SqlRow) Reset() {
 	*x = SqlRow{}
-	mi := &file_apic_proto_apic_proto_msgTypes[160]
+	mi := &file_apic_proto_apic_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9258,7 +9598,7 @@ func (x *SqlRow) String() string {
 func (*SqlRow) ProtoMessage() {}
 
 func (x *SqlRow) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[160]
+	mi := &file_apic_proto_apic_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9271,7 +9611,7 @@ func (x *SqlRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SqlRow.ProtoReflect.Descriptor instead.
 func (*SqlRow) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{160}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *SqlRow) GetCells() []*SqlCell {
@@ -9291,7 +9631,7 @@ type ExecuteSqlRequest struct {
 
 func (x *ExecuteSqlRequest) Reset() {
 	*x = ExecuteSqlRequest{}
-	mi := &file_apic_proto_apic_proto_msgTypes[161]
+	mi := &file_apic_proto_apic_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9303,7 +9643,7 @@ func (x *ExecuteSqlRequest) String() string {
 func (*ExecuteSqlRequest) ProtoMessage() {}
 
 func (x *ExecuteSqlRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[161]
+	mi := &file_apic_proto_apic_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9316,7 +9656,7 @@ func (x *ExecuteSqlRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteSqlRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteSqlRequest) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{161}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{166}
 }
 
 func (x *ExecuteSqlRequest) GetSql() string {
@@ -9346,7 +9686,7 @@ type ExecuteSqlResponse struct {
 
 func (x *ExecuteSqlResponse) Reset() {
 	*x = ExecuteSqlResponse{}
-	mi := &file_apic_proto_apic_proto_msgTypes[162]
+	mi := &file_apic_proto_apic_proto_msgTypes[167]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9358,7 +9698,7 @@ func (x *ExecuteSqlResponse) String() string {
 func (*ExecuteSqlResponse) ProtoMessage() {}
 
 func (x *ExecuteSqlResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_apic_proto_apic_proto_msgTypes[162]
+	mi := &file_apic_proto_apic_proto_msgTypes[167]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9371,7 +9711,7 @@ func (x *ExecuteSqlResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteSqlResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteSqlResponse) Descriptor() ([]byte, []int) {
-	return file_apic_proto_apic_proto_rawDescGZIP(), []int{162}
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{167}
 }
 
 func (x *ExecuteSqlResponse) GetColumns() []string {
@@ -9906,47 +10246,33 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x05route\x18\x01 \x01(\v2\x0f.apic.ExitRouteR\x05route\"4\n" +
 	"\x15ClearExitRouteRequest\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\"\x18\n" +
-	"\x16ClearExitRouteResponse\"\xed\v\n" +
+	"\x16ClearExitRouteResponse\"\xc5\a\n" +
 	"\fRuntimeState\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12'\n" +
-	"\x0fmanifest_digest\x18\x02 \x01(\tR\x0emanifestDigest\x12.\n" +
-	"\x13finalized_root_hash\x18\x03 \x01(\tR\x11finalizedRootHash\x12.\n" +
-	"\x13tentative_root_hash\x18\x04 \x01(\tR\x11tentativeRootHash\x12?\n" +
-	"\x1cprotocol_finalized_root_hash\x18\x05 \x01(\tR\x19protocolFinalizedRootHash\x123\n" +
-	"\x16durable_main_root_hash\x18\x06 \x01(\tR\x13durableMainRootHash\x12&\n" +
-	"\x0factive_epoch_id\x18\a \x01(\tR\ractiveEpochId\x12,\n" +
-	"\x12active_witness_ids\x18\b \x03(\tR\x10activeWitnessIds\x120\n" +
-	"\x14eligible_witness_ids\x18\t \x03(\tR\x12eligibleWitnessIds\x12'\n" +
+	"\x0fmanifest_digest\x18\x02 \x01(\tR\x0emanifestDigest\x120\n" +
+	"\x14checkpoint_root_hash\x18\x03 \x01(\tR\x12checkpointRootHash\x12.\n" +
+	"\x13tentative_root_hash\x18\x04 \x01(\tR\x11tentativeRootHash\x12A\n" +
+	"\x1dprotocol_checkpoint_root_hash\x18\x05 \x01(\tR\x1aprotocolCheckpointRootHash\x123\n" +
+	"\x16durable_main_root_hash\x18\x06 \x01(\tR\x13durableMainRootHash\x12'\n" +
 	"\x0fstate_providers\x18\n" +
 	" \x03(\tR\x0estateProviders\x12'\n" +
 	"\x0fconnected_peers\x18\v \x03(\tR\x0econnectedPeers\x12\x1f\n" +
 	"\vfatal_state\x18\f \x01(\tR\n" +
 	"fatalState\x126\n" +
 	"\x17runtime_refresh_pending\x18\r \x01(\bR\x15runtimeRefreshPending\x12;\n" +
-	"\x1aruntime_refresh_last_error\x18\x0e \x01(\tR\x17runtimeRefreshLastError\x12:\n" +
-	"\x19runtime_finalized_pending\x18\x0f \x01(\bR\x17runtimeFinalizedPending\x12?\n" +
-	"\x1cruntime_finalized_last_error\x18\x10 \x01(\tR\x19runtimeFinalizedLastError\x12D\n" +
+	"\x1aruntime_refresh_last_error\x18\x0e \x01(\tR\x17runtimeRefreshLastError\x12<\n" +
+	"\x1aruntime_checkpoint_pending\x18\x0f \x01(\bR\x18runtimeCheckpointPending\x12A\n" +
+	"\x1druntime_checkpoint_last_error\x18\x10 \x01(\tR\x1aruntimeCheckpointLastError\x12D\n" +
 	"\x1eruntime_materialization_policy\x18\x11 \x01(\tR\x1cruntimeMaterializationPolicy\x12<\n" +
 	"\rpeer_statuses\x18\x12 \x03(\v2\x17.apic.RuntimePeerStatusR\fpeerStatuses\x12@\n" +
 	"\rcompatibility\x18\x13 \x03(\v2\x1a.apic.RuntimeCompatibilityR\rcompatibility\x12,\n" +
-	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\x12&\n" +
-	"\x0fknown_epoch_ids\x18\x15 \x03(\tR\rknownEpochIds\x12s\n" +
-	"\x1depoch_descriptor_digest_by_id\x18\x16 \x03(\v21.apic.RuntimeState.EpochDescriptorDigestByIdEntryR\x19epochDescriptorDigestById\x12p\n" +
-	"\x1cepoch_finalized_digest_by_id\x18\x17 \x03(\v20.apic.RuntimeState.EpochFinalizedDigestByIdEntryR\x18epochFinalizedDigestById\x12:\n" +
-	"\x19protocol_finalized_digest\x18\x18 \x01(\tR\x17protocolFinalizedDigest\x1aL\n" +
-	"\x1eEpochDescriptorDigestByIdEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aK\n" +
-	"\x1dEpochFinalizedDigestByIdEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9f\x04\n" +
+	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\x12<\n" +
+	"\x1aprotocol_checkpoint_digest\x18\x18 \x01(\tR\x18protocolCheckpointDigest\"\xc7\x04\n" +
 	"\x11RuntimePeerStatus\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1c\n" +
 	"\tconnected\x18\x02 \x01(\bR\tconnected\x12\x1a\n" +
 	"\bdialable\x18\x03 \x01(\bR\bdialable\x12%\n" +
-	"\x0estate_provider\x18\x04 \x01(\bR\rstateProvider\x12\x18\n" +
-	"\awitness\x18\x05 \x01(\bR\awitness\x12)\n" +
-	"\x10eligible_witness\x18\x06 \x01(\bR\x0feligibleWitness\x12\x1e\n" +
+	"\x0estate_provider\x18\x04 \x01(\bR\rstateProvider\x12\x1e\n" +
 	"\n" +
 	"compatible\x18\a \x01(\bR\n" +
 	"compatible\x12\"\n" +
@@ -9957,7 +10283,9 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	" \x01(\bR\trelayOnly\x12\x1c\n" +
 	"\taddresses\x18\v \x03(\tR\taddresses\x12U\n" +
 	"\x10last_dial_errors\x18\f \x03(\v2+.apic.RuntimePeerStatus.LastDialErrorsEntryR\x0elastDialErrors\x12\x16\n" +
-	"\x06reason\x18\r \x01(\tR\x06reason\x1aA\n" +
+	"\x06reason\x18\r \x01(\tR\x06reason\x121\n" +
+	"\x14replication_priority\x18\x0e \x01(\x05R\x13replicationPriority\x128\n" +
+	"\x18replication_device_class\x18\x0f \x01(\tR\x16replicationDeviceClass\x1aA\n" +
 	"\x13LastDialErrorsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcb\x01\n" +
@@ -10036,7 +10364,47 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"image_name\x18\x01 \x01(\tR\timageName\x12)\n" +
 	"\x10provisioner_name\x18\x02 \x01(\tR\x0fprovisionerName\x12\x1a\n" +
 	"\blocation\x18\x03 \x01(\tR\blocation\" \n" +
-	"\x1eRemoveProvisionerImageResponse\"n\n" +
+	"\x1eRemoveProvisionerImageResponse\"\x9b\x02\n" +
+	"\x16ImageContentDescriptor\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x01 \x01(\tR\tmediaType\x12\x16\n" +
+	"\x06digest\x18\x02 \x01(\tR\x06digest\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes\x12\x1a\n" +
+	"\bplatform\x18\x04 \x01(\tR\bplatform\x12O\n" +
+	"\vannotations\x18\x05 \x03(\v2-.apic.ImageContentDescriptor.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"R\n" +
+	"\x17GetInstanceImageRequest\x12\x1a\n" +
+	"\binstance\x18\x01 \x01(\tR\binstance\x12\x1b\n" +
+	"\timage_ref\x18\x02 \x01(\tR\bimageRef\"\xa4\x03\n" +
+	"\x18GetInstanceImageResponse\x12\x14\n" +
+	"\x05found\x18\x01 \x01(\bR\x05found\x12\x1b\n" +
+	"\timage_ref\x18\x02 \x01(\tR\bimageRef\x12#\n" +
+	"\rtarget_digest\x18\x03 \x01(\tR\ftargetDigest\x12\x1a\n" +
+	"\bplatform\x18\x04 \x01(\tR\bplatform\x12B\n" +
+	"\x06labels\x18\x05 \x03(\v2*.apic.GetInstanceImageResponse.LabelsEntryR\x06labels\x12\x1f\n" +
+	"\vhas_content\x18\x06 \x01(\bR\n" +
+	"hasContent\x124\n" +
+	"\x06target\x18\a \x01(\v2\x1c.apic.ImageContentDescriptorR\x06target\x12>\n" +
+	"\vdescriptors\x18\b \x03(\v2\x1c.apic.ImageContentDescriptorR\vdescriptors\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbc\x01\n" +
+	"&UploadInstanceImageArchiveChunkRequest\x12\x1a\n" +
+	"\binstance\x18\x01 \x01(\tR\binstance\x12\x1b\n" +
+	"\tupload_id\x18\x02 \x01(\tR\buploadId\x12\x1b\n" +
+	"\timage_ref\x18\x03 \x01(\tR\bimageRef\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x04R\x06offset\x12\x12\n" +
+	"\x04data\x18\x05 \x01(\fR\x04data\x12\x10\n" +
+	"\x03eof\x18\x06 \x01(\bR\x03eof\"\xc6\x01\n" +
+	"'UploadInstanceImageArchiveChunkResponse\x12%\n" +
+	"\x0ereceived_bytes\x18\x01 \x01(\x04R\rreceivedBytes\x12\x16\n" +
+	"\x06loaded\x18\x02 \x01(\bR\x06loaded\x12\x1b\n" +
+	"\timage_ref\x18\x03 \x01(\tR\bimageRef\x12#\n" +
+	"\rtarget_digest\x18\x04 \x01(\tR\ftargetDigest\x12\x1a\n" +
+	"\bplatform\x18\x05 \x01(\tR\bplatform\"n\n" +
 	"\fCoreEndpoint\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x16\n" +
@@ -10115,7 +10483,7 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x04rows\x18\x02 \x03(\v2\f.apic.SqlRowR\x04rows\x12#\n" +
 	"\rrows_affected\x18\x03 \x01(\x03R\frowsAffected\x12\x1c\n" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage2\xd9$\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage2\xb1&\n" +
 	"\x0fProtosClientApi\x12/\n" +
 	"\x04Init\x12\x11.apic.InitRequest\x1a\x12.apic.InitResponse\"\x00\x12M\n" +
 	"\x0eGetUserDevices\x12\x1b.apic.GetUserDevicesRequest\x1a\x1c.apic.GetUserDevicesResponse\"\x00\x12D\n" +
@@ -10169,7 +10537,9 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x10RemoveCloudImage\x12\x1d.apic.RemoveCloudImageRequest\x1a\x1e.apic.RemoveCloudImageResponse\"\x00\x12_\n" +
 	"\x14GetProvisionerImages\x12!.apic.GetProvisionerImagesRequest\x1a\".apic.GetProvisionerImagesResponse\"\x00\x12e\n" +
 	"\x16UploadProvisionerImage\x12#.apic.UploadProvisionerImageRequest\x1a$.apic.UploadProvisionerImageResponse\"\x00\x12e\n" +
-	"\x16RemoveProvisionerImage\x12#.apic.RemoveProvisionerImageRequest\x1a$.apic.RemoveProvisionerImageResponse\"\x00\x12P\n" +
+	"\x16RemoveProvisionerImage\x12#.apic.RemoveProvisionerImageRequest\x1a$.apic.RemoveProvisionerImageResponse\"\x00\x12S\n" +
+	"\x10GetInstanceImage\x12\x1d.apic.GetInstanceImageRequest\x1a\x1e.apic.GetInstanceImageResponse\"\x00\x12\x80\x01\n" +
+	"\x1fUploadInstanceImageArchiveChunk\x12,.apic.UploadInstanceImageArchiveChunkRequest\x1a-.apic.UploadInstanceImageArchiveChunkResponse\"\x00\x12P\n" +
 	"\x0fGetSystemStatus\x12\x1c.apic.GetSystemStatusRequest\x1a\x1d.apic.GetSystemStatusResponse\"\x00\x12M\n" +
 	"\x0eStartHostAgent\x12\x1b.apic.StartHostAgentRequest\x1a\x1c.apic.StartHostAgentResponse\"\x00\x12J\n" +
 	"\rStopHostAgent\x12\x1a.apic.StopHostAgentRequest\x1a\x1b.apic.StopHostAgentResponse\"\x00\x12P\n" +
@@ -10190,182 +10560,187 @@ func file_apic_proto_apic_proto_rawDescGZIP() []byte {
 	return file_apic_proto_apic_proto_rawDescData
 }
 
-var file_apic_proto_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 174)
+var file_apic_proto_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 179)
 var file_apic_proto_apic_proto_goTypes = []any{
-	(*InitRequest)(nil),                        // 0: apic.InitRequest
-	(*InitResponse)(nil),                       // 1: apic.InitResponse
-	(*UserDevice)(nil),                         // 2: apic.UserDevice
-	(*GetUserDevicesRequest)(nil),              // 3: apic.GetUserDevicesRequest
-	(*GetUserDevicesResponse)(nil),             // 4: apic.GetUserDevicesResponse
-	(*GetUserInfoRequest)(nil),                 // 5: apic.GetUserInfoRequest
-	(*GetUserInfoResponse)(nil),                // 6: apic.GetUserInfoResponse
-	(*Organisation)(nil),                       // 7: apic.Organisation
-	(*ListOrganisationsRequest)(nil),           // 8: apic.ListOrganisationsRequest
-	(*ListOrganisationsResponse)(nil),          // 9: apic.ListOrganisationsResponse
-	(*StartDeviceInviteRequest)(nil),           // 10: apic.StartDeviceInviteRequest
-	(*StartDeviceInviteResponse)(nil),          // 11: apic.StartDeviceInviteResponse
-	(*NearbyOrganisation)(nil),                 // 12: apic.NearbyOrganisation
-	(*ListNearbyOrganisationsRequest)(nil),     // 13: apic.ListNearbyOrganisationsRequest
-	(*ListNearbyOrganisationsResponse)(nil),    // 14: apic.ListNearbyOrganisationsResponse
-	(*JoinOrganisationRequest)(nil),            // 15: apic.JoinOrganisationRequest
-	(*JoinOrganisationResponse)(nil),           // 16: apic.JoinOrganisationResponse
-	(*GetLocalSSHKeyRequest)(nil),              // 17: apic.GetLocalSSHKeyRequest
-	(*GetLocalSSHKeyResponse)(nil),             // 18: apic.GetLocalSSHKeyResponse
-	(*App)(nil),                                // 19: apic.App
-	(*GetAppsRequest)(nil),                     // 20: apic.GetAppsRequest
-	(*GetAppsResponse)(nil),                    // 21: apic.GetAppsResponse
-	(*CreateAppRequest)(nil),                   // 22: apic.CreateAppRequest
-	(*CreateAppResponse)(nil),                  // 23: apic.CreateAppResponse
-	(*StartAppRequest)(nil),                    // 24: apic.StartAppRequest
-	(*StartAppResponse)(nil),                   // 25: apic.StartAppResponse
-	(*StopAppRequest)(nil),                     // 26: apic.StopAppRequest
-	(*StopAppResponse)(nil),                    // 27: apic.StopAppResponse
-	(*RemoveAppRequest)(nil),                   // 28: apic.RemoveAppRequest
-	(*RemoveAppResponse)(nil),                  // 29: apic.RemoveAppResponse
-	(*GetAppLogsRequest)(nil),                  // 30: apic.GetAppLogsRequest
-	(*GetAppLogsResponse)(nil),                 // 31: apic.GetAppLogsResponse
-	(*Installer)(nil),                          // 32: apic.Installer
-	(*GetInstallersRequest)(nil),               // 33: apic.GetInstallersRequest
-	(*GetInstallersResponse)(nil),              // 34: apic.GetInstallersResponse
-	(*GetInstallerRequest)(nil),                // 35: apic.GetInstallerRequest
-	(*GetInstallerResponse)(nil),               // 36: apic.GetInstallerResponse
-	(*CloudMachineSpec)(nil),                   // 37: apic.CloudMachineSpec
-	(*CloudType)(nil),                          // 38: apic.CloudType
-	(*CloudProvider)(nil),                      // 39: apic.CloudProvider
-	(*GetSupportedCloudProvidersRequest)(nil),  // 40: apic.GetSupportedCloudProvidersRequest
-	(*GetSupportedCloudProvidersResponse)(nil), // 41: apic.GetSupportedCloudProvidersResponse
-	(*GetCloudProvidersRequest)(nil),           // 42: apic.GetCloudProvidersRequest
-	(*GetCloudProvidersResponse)(nil),          // 43: apic.GetCloudProvidersResponse
-	(*GetCloudProviderRequest)(nil),            // 44: apic.GetCloudProviderRequest
-	(*GetCloudProviderResponse)(nil),           // 45: apic.GetCloudProviderResponse
-	(*AddCloudProviderRequest)(nil),            // 46: apic.AddCloudProviderRequest
-	(*AddCloudProviderResponse)(nil),           // 47: apic.AddCloudProviderResponse
-	(*RemoveCloudProviderRequest)(nil),         // 48: apic.RemoveCloudProviderRequest
-	(*RemoveCloudProviderResponse)(nil),        // 49: apic.RemoveCloudProviderResponse
-	(*ProvisionerMachineSpec)(nil),             // 50: apic.ProvisionerMachineSpec
-	(*ProvisionerType)(nil),                    // 51: apic.ProvisionerType
-	(*Provisioner)(nil),                        // 52: apic.Provisioner
-	(*GetSupportedProvisionersRequest)(nil),    // 53: apic.GetSupportedProvisionersRequest
-	(*GetSupportedProvisionersResponse)(nil),   // 54: apic.GetSupportedProvisionersResponse
-	(*GetProvisionersRequest)(nil),             // 55: apic.GetProvisionersRequest
-	(*GetProvisionersResponse)(nil),            // 56: apic.GetProvisionersResponse
-	(*GetProvisionerRequest)(nil),              // 57: apic.GetProvisionerRequest
-	(*GetProvisionerResponse)(nil),             // 58: apic.GetProvisionerResponse
-	(*AddProvisionerRequest)(nil),              // 59: apic.AddProvisionerRequest
-	(*AddProvisionerResponse)(nil),             // 60: apic.AddProvisionerResponse
-	(*RemoveProvisionerRequest)(nil),           // 61: apic.RemoveProvisionerRequest
-	(*RemoveProvisionerResponse)(nil),          // 62: apic.RemoveProvisionerResponse
-	(*CloudInstance)(nil),                      // 63: apic.CloudInstance
-	(*GetInstancesRequest)(nil),                // 64: apic.GetInstancesRequest
-	(*GetInstancesResponse)(nil),               // 65: apic.GetInstancesResponse
-	(*GetInstanceRequest)(nil),                 // 66: apic.GetInstanceRequest
-	(*GetInstanceResponse)(nil),                // 67: apic.GetInstanceResponse
-	(*InstanceDeployFieldOption)(nil),          // 68: apic.InstanceDeployFieldOption
-	(*InstanceDeployField)(nil),                // 69: apic.InstanceDeployField
-	(*GetInstanceDeployOptionsRequest)(nil),    // 70: apic.GetInstanceDeployOptionsRequest
-	(*GetInstanceDeployOptionsResponse)(nil),   // 71: apic.GetInstanceDeployOptionsResponse
-	(*DeployInstanceRequest)(nil),              // 72: apic.DeployInstanceRequest
-	(*DeployInstanceResponse)(nil),             // 73: apic.DeployInstanceResponse
-	(*RemoveInstanceRequest)(nil),              // 74: apic.RemoveInstanceRequest
-	(*RemoveInstanceResponse)(nil),             // 75: apic.RemoveInstanceResponse
-	(*StartInstanceRequest)(nil),               // 76: apic.StartInstanceRequest
-	(*StartInstanceResponse)(nil),              // 77: apic.StartInstanceResponse
-	(*StopInstanceRequest)(nil),                // 78: apic.StopInstanceRequest
-	(*StopInstanceResponse)(nil),               // 79: apic.StopInstanceResponse
-	(*GetInstanceKeyRequest)(nil),              // 80: apic.GetInstanceKeyRequest
-	(*GetInstanceKeyResponse)(nil),             // 81: apic.GetInstanceKeyResponse
-	(*GetInstanceLogsRequest)(nil),             // 82: apic.GetInstanceLogsRequest
-	(*GetInstanceLogsResponse)(nil),            // 83: apic.GetInstanceLogsResponse
-	(*InitInstanceRequest)(nil),                // 84: apic.InitInstanceRequest
-	(*InitInstanceResponse)(nil),               // 85: apic.InitInstanceResponse
-	(*UpdateInstanceRequest)(nil),              // 86: apic.UpdateInstanceRequest
-	(*UpdateInstanceResponse)(nil),             // 87: apic.UpdateInstanceResponse
-	(*GetNetworkStateRequest)(nil),             // 88: apic.GetNetworkStateRequest
-	(*GetNetworkStateResponse)(nil),            // 89: apic.GetNetworkStateResponse
-	(*SetNetworkEnabledRequest)(nil),           // 90: apic.SetNetworkEnabledRequest
-	(*SetNetworkEnabledResponse)(nil),          // 91: apic.SetNetworkEnabledResponse
-	(*NetworkRuntimeStatus)(nil),               // 92: apic.NetworkRuntimeStatus
-	(*NetworkState)(nil),                       // 93: apic.NetworkState
-	(*NetworkInterface)(nil),                   // 94: apic.NetworkInterface
-	(*NetworkAddress)(nil),                     // 95: apic.NetworkAddress
-	(*NetworkRoute)(nil),                       // 96: apic.NetworkRoute
-	(*WireGuardPeer)(nil),                      // 97: apic.WireGuardPeer
-	(*FirewallTable)(nil),                      // 98: apic.FirewallTable
-	(*FirewallChain)(nil),                      // 99: apic.FirewallChain
-	(*FirewallRule)(nil),                       // 100: apic.FirewallRule
-	(*DNSState)(nil),                           // 101: apic.DNSState
-	(*ExitRoute)(nil),                          // 102: apic.ExitRoute
-	(*GetExitRoutesRequest)(nil),               // 103: apic.GetExitRoutesRequest
-	(*GetExitRoutesResponse)(nil),              // 104: apic.GetExitRoutesResponse
-	(*GetMobileTunnelConfigRequest)(nil),       // 105: apic.GetMobileTunnelConfigRequest
-	(*MobileTunnelConfig)(nil),                 // 106: apic.MobileTunnelConfig
-	(*GetMobileTunnelConfigResponse)(nil),      // 107: apic.GetMobileTunnelConfigResponse
-	(*GetRuntimeStateRequest)(nil),             // 108: apic.GetRuntimeStateRequest
-	(*GetRuntimeStateResponse)(nil),            // 109: apic.GetRuntimeStateResponse
-	(*WatchChangesRequest)(nil),                // 110: apic.WatchChangesRequest
-	(*WatchChangesResponse)(nil),               // 111: apic.WatchChangesResponse
-	(*Task)(nil),                               // 112: apic.Task
-	(*TaskEvent)(nil),                          // 113: apic.TaskEvent
-	(*GetTasksRequest)(nil),                    // 114: apic.GetTasksRequest
-	(*GetTasksResponse)(nil),                   // 115: apic.GetTasksResponse
-	(*GetTaskRequest)(nil),                     // 116: apic.GetTaskRequest
-	(*GetTaskResponse)(nil),                    // 117: apic.GetTaskResponse
-	(*SetExitRouteRequest)(nil),                // 118: apic.SetExitRouteRequest
-	(*SetExitRouteResponse)(nil),               // 119: apic.SetExitRouteResponse
-	(*ClearExitRouteRequest)(nil),              // 120: apic.ClearExitRouteRequest
-	(*ClearExitRouteResponse)(nil),             // 121: apic.ClearExitRouteResponse
-	(*RuntimeState)(nil),                       // 122: apic.RuntimeState
-	(*RuntimePeerStatus)(nil),                  // 123: apic.RuntimePeerStatus
-	(*RuntimeCompatibility)(nil),               // 124: apic.RuntimeCompatibility
-	(*CloudImage)(nil),                         // 125: apic.CloudImage
-	(*CloudSpecificImage)(nil),                 // 126: apic.CloudSpecificImage
-	(*Release)(nil),                            // 127: apic.Release
-	(*GetProtosdReleasesRequest)(nil),          // 128: apic.GetProtosdReleasesRequest
-	(*GetProtosdReleasesResponse)(nil),         // 129: apic.GetProtosdReleasesResponse
-	(*GetCloudImagesRequest)(nil),              // 130: apic.GetCloudImagesRequest
-	(*GetCloudImagesResponse)(nil),             // 131: apic.GetCloudImagesResponse
-	(*GetProvisionerImagesRequest)(nil),        // 132: apic.GetProvisionerImagesRequest
-	(*GetProvisionerImagesResponse)(nil),       // 133: apic.GetProvisionerImagesResponse
-	(*UploadCloudImageRequest)(nil),            // 134: apic.UploadCloudImageRequest
-	(*UploadCloudImageResponse)(nil),           // 135: apic.UploadCloudImageResponse
-	(*UploadProvisionerImageRequest)(nil),      // 136: apic.UploadProvisionerImageRequest
-	(*UploadProvisionerImageResponse)(nil),     // 137: apic.UploadProvisionerImageResponse
-	(*RemoveCloudImageRequest)(nil),            // 138: apic.RemoveCloudImageRequest
-	(*RemoveCloudImageResponse)(nil),           // 139: apic.RemoveCloudImageResponse
-	(*RemoveProvisionerImageRequest)(nil),      // 140: apic.RemoveProvisionerImageRequest
-	(*RemoveProvisionerImageResponse)(nil),     // 141: apic.RemoveProvisionerImageResponse
-	(*CoreEndpoint)(nil),                       // 142: apic.CoreEndpoint
-	(*HostAgentConnectionStatus)(nil),          // 143: apic.HostAgentConnectionStatus
-	(*SystemStatus)(nil),                       // 144: apic.SystemStatus
-	(*GetSystemStatusRequest)(nil),             // 145: apic.GetSystemStatusRequest
-	(*GetSystemStatusResponse)(nil),            // 146: apic.GetSystemStatusResponse
-	(*StartHostAgentRequest)(nil),              // 147: apic.StartHostAgentRequest
-	(*StartHostAgentResponse)(nil),             // 148: apic.StartHostAgentResponse
-	(*StopHostAgentRequest)(nil),               // 149: apic.StopHostAgentRequest
-	(*StopHostAgentResponse)(nil),              // 150: apic.StopHostAgentResponse
-	(*Commit)(nil),                             // 151: apic.Commit
-	(*CommitGraphRelation)(nil),                // 152: apic.CommitGraphRelation
-	(*CommitGraphItem)(nil),                    // 153: apic.CommitGraphItem
-	(*CommitGraph)(nil),                        // 154: apic.CommitGraph
-	(*GetLocalCommitsRequest)(nil),             // 155: apic.GetLocalCommitsRequest
-	(*GetLocalCommitsResponse)(nil),            // 156: apic.GetLocalCommitsResponse
-	(*GetRemoteCommitsRequest)(nil),            // 157: apic.GetRemoteCommitsRequest
-	(*GetRemoteCommitsResponse)(nil),           // 158: apic.GetRemoteCommitsResponse
-	(*SqlCell)(nil),                            // 159: apic.SqlCell
-	(*SqlRow)(nil),                             // 160: apic.SqlRow
-	(*ExecuteSqlRequest)(nil),                  // 161: apic.ExecuteSqlRequest
-	(*ExecuteSqlResponse)(nil),                 // 162: apic.ExecuteSqlResponse
-	nil,                                        // 163: apic.CloudProvider.SupportedMachinesEntry
-	nil,                                        // 164: apic.AddCloudProviderRequest.CredentialsEntry
-	nil,                                        // 165: apic.Provisioner.SupportedMachinesEntry
-	nil,                                        // 166: apic.AddProvisionerRequest.CredentialsEntry
-	nil,                                        // 167: apic.CloudInstance.PeersEntry
-	nil,                                        // 168: apic.RuntimeState.EpochDescriptorDigestByIdEntry
-	nil,                                        // 169: apic.RuntimeState.EpochFinalizedDigestByIdEntry
-	nil,                                        // 170: apic.RuntimePeerStatus.LastDialErrorsEntry
-	nil,                                        // 171: apic.Release.CloudImagesEntry
-	nil,                                        // 172: apic.GetCloudImagesResponse.CloudImagesEntry
-	nil,                                        // 173: apic.GetProvisionerImagesResponse.ImagesEntry
+	(*InitRequest)(nil),                             // 0: apic.InitRequest
+	(*InitResponse)(nil),                            // 1: apic.InitResponse
+	(*UserDevice)(nil),                              // 2: apic.UserDevice
+	(*GetUserDevicesRequest)(nil),                   // 3: apic.GetUserDevicesRequest
+	(*GetUserDevicesResponse)(nil),                  // 4: apic.GetUserDevicesResponse
+	(*GetUserInfoRequest)(nil),                      // 5: apic.GetUserInfoRequest
+	(*GetUserInfoResponse)(nil),                     // 6: apic.GetUserInfoResponse
+	(*Organisation)(nil),                            // 7: apic.Organisation
+	(*ListOrganisationsRequest)(nil),                // 8: apic.ListOrganisationsRequest
+	(*ListOrganisationsResponse)(nil),               // 9: apic.ListOrganisationsResponse
+	(*StartDeviceInviteRequest)(nil),                // 10: apic.StartDeviceInviteRequest
+	(*StartDeviceInviteResponse)(nil),               // 11: apic.StartDeviceInviteResponse
+	(*NearbyOrganisation)(nil),                      // 12: apic.NearbyOrganisation
+	(*ListNearbyOrganisationsRequest)(nil),          // 13: apic.ListNearbyOrganisationsRequest
+	(*ListNearbyOrganisationsResponse)(nil),         // 14: apic.ListNearbyOrganisationsResponse
+	(*JoinOrganisationRequest)(nil),                 // 15: apic.JoinOrganisationRequest
+	(*JoinOrganisationResponse)(nil),                // 16: apic.JoinOrganisationResponse
+	(*GetLocalSSHKeyRequest)(nil),                   // 17: apic.GetLocalSSHKeyRequest
+	(*GetLocalSSHKeyResponse)(nil),                  // 18: apic.GetLocalSSHKeyResponse
+	(*App)(nil),                                     // 19: apic.App
+	(*GetAppsRequest)(nil),                          // 20: apic.GetAppsRequest
+	(*GetAppsResponse)(nil),                         // 21: apic.GetAppsResponse
+	(*CreateAppRequest)(nil),                        // 22: apic.CreateAppRequest
+	(*CreateAppResponse)(nil),                       // 23: apic.CreateAppResponse
+	(*StartAppRequest)(nil),                         // 24: apic.StartAppRequest
+	(*StartAppResponse)(nil),                        // 25: apic.StartAppResponse
+	(*StopAppRequest)(nil),                          // 26: apic.StopAppRequest
+	(*StopAppResponse)(nil),                         // 27: apic.StopAppResponse
+	(*RemoveAppRequest)(nil),                        // 28: apic.RemoveAppRequest
+	(*RemoveAppResponse)(nil),                       // 29: apic.RemoveAppResponse
+	(*GetAppLogsRequest)(nil),                       // 30: apic.GetAppLogsRequest
+	(*GetAppLogsResponse)(nil),                      // 31: apic.GetAppLogsResponse
+	(*Installer)(nil),                               // 32: apic.Installer
+	(*GetInstallersRequest)(nil),                    // 33: apic.GetInstallersRequest
+	(*GetInstallersResponse)(nil),                   // 34: apic.GetInstallersResponse
+	(*GetInstallerRequest)(nil),                     // 35: apic.GetInstallerRequest
+	(*GetInstallerResponse)(nil),                    // 36: apic.GetInstallerResponse
+	(*CloudMachineSpec)(nil),                        // 37: apic.CloudMachineSpec
+	(*CloudType)(nil),                               // 38: apic.CloudType
+	(*CloudProvider)(nil),                           // 39: apic.CloudProvider
+	(*GetSupportedCloudProvidersRequest)(nil),       // 40: apic.GetSupportedCloudProvidersRequest
+	(*GetSupportedCloudProvidersResponse)(nil),      // 41: apic.GetSupportedCloudProvidersResponse
+	(*GetCloudProvidersRequest)(nil),                // 42: apic.GetCloudProvidersRequest
+	(*GetCloudProvidersResponse)(nil),               // 43: apic.GetCloudProvidersResponse
+	(*GetCloudProviderRequest)(nil),                 // 44: apic.GetCloudProviderRequest
+	(*GetCloudProviderResponse)(nil),                // 45: apic.GetCloudProviderResponse
+	(*AddCloudProviderRequest)(nil),                 // 46: apic.AddCloudProviderRequest
+	(*AddCloudProviderResponse)(nil),                // 47: apic.AddCloudProviderResponse
+	(*RemoveCloudProviderRequest)(nil),              // 48: apic.RemoveCloudProviderRequest
+	(*RemoveCloudProviderResponse)(nil),             // 49: apic.RemoveCloudProviderResponse
+	(*ProvisionerMachineSpec)(nil),                  // 50: apic.ProvisionerMachineSpec
+	(*ProvisionerType)(nil),                         // 51: apic.ProvisionerType
+	(*Provisioner)(nil),                             // 52: apic.Provisioner
+	(*GetSupportedProvisionersRequest)(nil),         // 53: apic.GetSupportedProvisionersRequest
+	(*GetSupportedProvisionersResponse)(nil),        // 54: apic.GetSupportedProvisionersResponse
+	(*GetProvisionersRequest)(nil),                  // 55: apic.GetProvisionersRequest
+	(*GetProvisionersResponse)(nil),                 // 56: apic.GetProvisionersResponse
+	(*GetProvisionerRequest)(nil),                   // 57: apic.GetProvisionerRequest
+	(*GetProvisionerResponse)(nil),                  // 58: apic.GetProvisionerResponse
+	(*AddProvisionerRequest)(nil),                   // 59: apic.AddProvisionerRequest
+	(*AddProvisionerResponse)(nil),                  // 60: apic.AddProvisionerResponse
+	(*RemoveProvisionerRequest)(nil),                // 61: apic.RemoveProvisionerRequest
+	(*RemoveProvisionerResponse)(nil),               // 62: apic.RemoveProvisionerResponse
+	(*CloudInstance)(nil),                           // 63: apic.CloudInstance
+	(*GetInstancesRequest)(nil),                     // 64: apic.GetInstancesRequest
+	(*GetInstancesResponse)(nil),                    // 65: apic.GetInstancesResponse
+	(*GetInstanceRequest)(nil),                      // 66: apic.GetInstanceRequest
+	(*GetInstanceResponse)(nil),                     // 67: apic.GetInstanceResponse
+	(*InstanceDeployFieldOption)(nil),               // 68: apic.InstanceDeployFieldOption
+	(*InstanceDeployField)(nil),                     // 69: apic.InstanceDeployField
+	(*GetInstanceDeployOptionsRequest)(nil),         // 70: apic.GetInstanceDeployOptionsRequest
+	(*GetInstanceDeployOptionsResponse)(nil),        // 71: apic.GetInstanceDeployOptionsResponse
+	(*DeployInstanceRequest)(nil),                   // 72: apic.DeployInstanceRequest
+	(*DeployInstanceResponse)(nil),                  // 73: apic.DeployInstanceResponse
+	(*RemoveInstanceRequest)(nil),                   // 74: apic.RemoveInstanceRequest
+	(*RemoveInstanceResponse)(nil),                  // 75: apic.RemoveInstanceResponse
+	(*StartInstanceRequest)(nil),                    // 76: apic.StartInstanceRequest
+	(*StartInstanceResponse)(nil),                   // 77: apic.StartInstanceResponse
+	(*StopInstanceRequest)(nil),                     // 78: apic.StopInstanceRequest
+	(*StopInstanceResponse)(nil),                    // 79: apic.StopInstanceResponse
+	(*GetInstanceKeyRequest)(nil),                   // 80: apic.GetInstanceKeyRequest
+	(*GetInstanceKeyResponse)(nil),                  // 81: apic.GetInstanceKeyResponse
+	(*GetInstanceLogsRequest)(nil),                  // 82: apic.GetInstanceLogsRequest
+	(*GetInstanceLogsResponse)(nil),                 // 83: apic.GetInstanceLogsResponse
+	(*InitInstanceRequest)(nil),                     // 84: apic.InitInstanceRequest
+	(*InitInstanceResponse)(nil),                    // 85: apic.InitInstanceResponse
+	(*UpdateInstanceRequest)(nil),                   // 86: apic.UpdateInstanceRequest
+	(*UpdateInstanceResponse)(nil),                  // 87: apic.UpdateInstanceResponse
+	(*GetNetworkStateRequest)(nil),                  // 88: apic.GetNetworkStateRequest
+	(*GetNetworkStateResponse)(nil),                 // 89: apic.GetNetworkStateResponse
+	(*SetNetworkEnabledRequest)(nil),                // 90: apic.SetNetworkEnabledRequest
+	(*SetNetworkEnabledResponse)(nil),               // 91: apic.SetNetworkEnabledResponse
+	(*NetworkRuntimeStatus)(nil),                    // 92: apic.NetworkRuntimeStatus
+	(*NetworkState)(nil),                            // 93: apic.NetworkState
+	(*NetworkInterface)(nil),                        // 94: apic.NetworkInterface
+	(*NetworkAddress)(nil),                          // 95: apic.NetworkAddress
+	(*NetworkRoute)(nil),                            // 96: apic.NetworkRoute
+	(*WireGuardPeer)(nil),                           // 97: apic.WireGuardPeer
+	(*FirewallTable)(nil),                           // 98: apic.FirewallTable
+	(*FirewallChain)(nil),                           // 99: apic.FirewallChain
+	(*FirewallRule)(nil),                            // 100: apic.FirewallRule
+	(*DNSState)(nil),                                // 101: apic.DNSState
+	(*ExitRoute)(nil),                               // 102: apic.ExitRoute
+	(*GetExitRoutesRequest)(nil),                    // 103: apic.GetExitRoutesRequest
+	(*GetExitRoutesResponse)(nil),                   // 104: apic.GetExitRoutesResponse
+	(*GetMobileTunnelConfigRequest)(nil),            // 105: apic.GetMobileTunnelConfigRequest
+	(*MobileTunnelConfig)(nil),                      // 106: apic.MobileTunnelConfig
+	(*GetMobileTunnelConfigResponse)(nil),           // 107: apic.GetMobileTunnelConfigResponse
+	(*GetRuntimeStateRequest)(nil),                  // 108: apic.GetRuntimeStateRequest
+	(*GetRuntimeStateResponse)(nil),                 // 109: apic.GetRuntimeStateResponse
+	(*WatchChangesRequest)(nil),                     // 110: apic.WatchChangesRequest
+	(*WatchChangesResponse)(nil),                    // 111: apic.WatchChangesResponse
+	(*Task)(nil),                                    // 112: apic.Task
+	(*TaskEvent)(nil),                               // 113: apic.TaskEvent
+	(*GetTasksRequest)(nil),                         // 114: apic.GetTasksRequest
+	(*GetTasksResponse)(nil),                        // 115: apic.GetTasksResponse
+	(*GetTaskRequest)(nil),                          // 116: apic.GetTaskRequest
+	(*GetTaskResponse)(nil),                         // 117: apic.GetTaskResponse
+	(*SetExitRouteRequest)(nil),                     // 118: apic.SetExitRouteRequest
+	(*SetExitRouteResponse)(nil),                    // 119: apic.SetExitRouteResponse
+	(*ClearExitRouteRequest)(nil),                   // 120: apic.ClearExitRouteRequest
+	(*ClearExitRouteResponse)(nil),                  // 121: apic.ClearExitRouteResponse
+	(*RuntimeState)(nil),                            // 122: apic.RuntimeState
+	(*RuntimePeerStatus)(nil),                       // 123: apic.RuntimePeerStatus
+	(*RuntimeCompatibility)(nil),                    // 124: apic.RuntimeCompatibility
+	(*CloudImage)(nil),                              // 125: apic.CloudImage
+	(*CloudSpecificImage)(nil),                      // 126: apic.CloudSpecificImage
+	(*Release)(nil),                                 // 127: apic.Release
+	(*GetProtosdReleasesRequest)(nil),               // 128: apic.GetProtosdReleasesRequest
+	(*GetProtosdReleasesResponse)(nil),              // 129: apic.GetProtosdReleasesResponse
+	(*GetCloudImagesRequest)(nil),                   // 130: apic.GetCloudImagesRequest
+	(*GetCloudImagesResponse)(nil),                  // 131: apic.GetCloudImagesResponse
+	(*GetProvisionerImagesRequest)(nil),             // 132: apic.GetProvisionerImagesRequest
+	(*GetProvisionerImagesResponse)(nil),            // 133: apic.GetProvisionerImagesResponse
+	(*UploadCloudImageRequest)(nil),                 // 134: apic.UploadCloudImageRequest
+	(*UploadCloudImageResponse)(nil),                // 135: apic.UploadCloudImageResponse
+	(*UploadProvisionerImageRequest)(nil),           // 136: apic.UploadProvisionerImageRequest
+	(*UploadProvisionerImageResponse)(nil),          // 137: apic.UploadProvisionerImageResponse
+	(*RemoveCloudImageRequest)(nil),                 // 138: apic.RemoveCloudImageRequest
+	(*RemoveCloudImageResponse)(nil),                // 139: apic.RemoveCloudImageResponse
+	(*RemoveProvisionerImageRequest)(nil),           // 140: apic.RemoveProvisionerImageRequest
+	(*RemoveProvisionerImageResponse)(nil),          // 141: apic.RemoveProvisionerImageResponse
+	(*ImageContentDescriptor)(nil),                  // 142: apic.ImageContentDescriptor
+	(*GetInstanceImageRequest)(nil),                 // 143: apic.GetInstanceImageRequest
+	(*GetInstanceImageResponse)(nil),                // 144: apic.GetInstanceImageResponse
+	(*UploadInstanceImageArchiveChunkRequest)(nil),  // 145: apic.UploadInstanceImageArchiveChunkRequest
+	(*UploadInstanceImageArchiveChunkResponse)(nil), // 146: apic.UploadInstanceImageArchiveChunkResponse
+	(*CoreEndpoint)(nil),                            // 147: apic.CoreEndpoint
+	(*HostAgentConnectionStatus)(nil),               // 148: apic.HostAgentConnectionStatus
+	(*SystemStatus)(nil),                            // 149: apic.SystemStatus
+	(*GetSystemStatusRequest)(nil),                  // 150: apic.GetSystemStatusRequest
+	(*GetSystemStatusResponse)(nil),                 // 151: apic.GetSystemStatusResponse
+	(*StartHostAgentRequest)(nil),                   // 152: apic.StartHostAgentRequest
+	(*StartHostAgentResponse)(nil),                  // 153: apic.StartHostAgentResponse
+	(*StopHostAgentRequest)(nil),                    // 154: apic.StopHostAgentRequest
+	(*StopHostAgentResponse)(nil),                   // 155: apic.StopHostAgentResponse
+	(*Commit)(nil),                                  // 156: apic.Commit
+	(*CommitGraphRelation)(nil),                     // 157: apic.CommitGraphRelation
+	(*CommitGraphItem)(nil),                         // 158: apic.CommitGraphItem
+	(*CommitGraph)(nil),                             // 159: apic.CommitGraph
+	(*GetLocalCommitsRequest)(nil),                  // 160: apic.GetLocalCommitsRequest
+	(*GetLocalCommitsResponse)(nil),                 // 161: apic.GetLocalCommitsResponse
+	(*GetRemoteCommitsRequest)(nil),                 // 162: apic.GetRemoteCommitsRequest
+	(*GetRemoteCommitsResponse)(nil),                // 163: apic.GetRemoteCommitsResponse
+	(*SqlCell)(nil),                                 // 164: apic.SqlCell
+	(*SqlRow)(nil),                                  // 165: apic.SqlRow
+	(*ExecuteSqlRequest)(nil),                       // 166: apic.ExecuteSqlRequest
+	(*ExecuteSqlResponse)(nil),                      // 167: apic.ExecuteSqlResponse
+	nil,                                             // 168: apic.CloudProvider.SupportedMachinesEntry
+	nil,                                             // 169: apic.AddCloudProviderRequest.CredentialsEntry
+	nil,                                             // 170: apic.Provisioner.SupportedMachinesEntry
+	nil,                                             // 171: apic.AddProvisionerRequest.CredentialsEntry
+	nil,                                             // 172: apic.CloudInstance.PeersEntry
+	nil,                                             // 173: apic.RuntimePeerStatus.LastDialErrorsEntry
+	nil,                                             // 174: apic.Release.CloudImagesEntry
+	nil,                                             // 175: apic.GetCloudImagesResponse.CloudImagesEntry
+	nil,                                             // 176: apic.GetProvisionerImagesResponse.ImagesEntry
+	nil,                                             // 177: apic.ImageContentDescriptor.AnnotationsEntry
+	nil,                                             // 178: apic.GetInstanceImageResponse.LabelsEntry
 }
 var file_apic_proto_apic_proto_depIdxs = []int32{
 	2,   // 0: apic.GetUserDevicesResponse.devices:type_name -> apic.UserDevice
@@ -10375,18 +10750,18 @@ var file_apic_proto_apic_proto_depIdxs = []int32{
 	32,  // 4: apic.GetInstallersResponse.installers:type_name -> apic.Installer
 	32,  // 5: apic.GetInstallerResponse.installer:type_name -> apic.Installer
 	38,  // 6: apic.CloudProvider.type:type_name -> apic.CloudType
-	163, // 7: apic.CloudProvider.supported_machines:type_name -> apic.CloudProvider.SupportedMachinesEntry
+	168, // 7: apic.CloudProvider.supported_machines:type_name -> apic.CloudProvider.SupportedMachinesEntry
 	38,  // 8: apic.GetSupportedCloudProvidersResponse.cloud_types:type_name -> apic.CloudType
 	39,  // 9: apic.GetCloudProvidersResponse.cloud_providers:type_name -> apic.CloudProvider
 	39,  // 10: apic.GetCloudProviderResponse.cloud_provider:type_name -> apic.CloudProvider
-	164, // 11: apic.AddCloudProviderRequest.credentials:type_name -> apic.AddCloudProviderRequest.CredentialsEntry
+	169, // 11: apic.AddCloudProviderRequest.credentials:type_name -> apic.AddCloudProviderRequest.CredentialsEntry
 	51,  // 12: apic.Provisioner.type:type_name -> apic.ProvisionerType
-	165, // 13: apic.Provisioner.supported_machines:type_name -> apic.Provisioner.SupportedMachinesEntry
+	170, // 13: apic.Provisioner.supported_machines:type_name -> apic.Provisioner.SupportedMachinesEntry
 	51,  // 14: apic.GetSupportedProvisionersResponse.provisioner_types:type_name -> apic.ProvisionerType
 	52,  // 15: apic.GetProvisionersResponse.provisioners:type_name -> apic.Provisioner
 	52,  // 16: apic.GetProvisionerResponse.provisioner:type_name -> apic.Provisioner
-	166, // 17: apic.AddProvisionerRequest.credentials:type_name -> apic.AddProvisionerRequest.CredentialsEntry
-	167, // 18: apic.CloudInstance.peers:type_name -> apic.CloudInstance.PeersEntry
+	171, // 17: apic.AddProvisionerRequest.credentials:type_name -> apic.AddProvisionerRequest.CredentialsEntry
+	172, // 18: apic.CloudInstance.peers:type_name -> apic.CloudInstance.PeersEntry
 	63,  // 19: apic.GetInstancesResponse.instances:type_name -> apic.CloudInstance
 	63,  // 20: apic.GetInstanceResponse.instance:type_name -> apic.CloudInstance
 	68,  // 21: apic.InstanceDeployField.options:type_name -> apic.InstanceDeployFieldOption
@@ -10412,154 +10787,160 @@ var file_apic_proto_apic_proto_depIdxs = []int32{
 	102, // 41: apic.SetExitRouteResponse.route:type_name -> apic.ExitRoute
 	123, // 42: apic.RuntimeState.peer_statuses:type_name -> apic.RuntimePeerStatus
 	124, // 43: apic.RuntimeState.compatibility:type_name -> apic.RuntimeCompatibility
-	168, // 44: apic.RuntimeState.epoch_descriptor_digest_by_id:type_name -> apic.RuntimeState.EpochDescriptorDigestByIdEntry
-	169, // 45: apic.RuntimeState.epoch_finalized_digest_by_id:type_name -> apic.RuntimeState.EpochFinalizedDigestByIdEntry
-	170, // 46: apic.RuntimePeerStatus.last_dial_errors:type_name -> apic.RuntimePeerStatus.LastDialErrorsEntry
-	171, // 47: apic.Release.cloud_images:type_name -> apic.Release.CloudImagesEntry
-	127, // 48: apic.GetProtosdReleasesResponse.releases:type_name -> apic.Release
-	172, // 49: apic.GetCloudImagesResponse.cloud_images:type_name -> apic.GetCloudImagesResponse.CloudImagesEntry
-	173, // 50: apic.GetProvisionerImagesResponse.images:type_name -> apic.GetProvisionerImagesResponse.ImagesEntry
-	142, // 51: apic.SystemStatus.endpoints:type_name -> apic.CoreEndpoint
-	143, // 52: apic.SystemStatus.host_agent:type_name -> apic.HostAgentConnectionStatus
-	92,  // 53: apic.SystemStatus.network:type_name -> apic.NetworkRuntimeStatus
-	144, // 54: apic.GetSystemStatusResponse.status:type_name -> apic.SystemStatus
-	143, // 55: apic.StartHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
-	143, // 56: apic.StopHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
-	151, // 57: apic.CommitGraphItem.commit:type_name -> apic.Commit
-	152, // 58: apic.CommitGraphItem.relations:type_name -> apic.CommitGraphRelation
-	153, // 59: apic.CommitGraph.items:type_name -> apic.CommitGraphItem
-	151, // 60: apic.GetLocalCommitsResponse.commits:type_name -> apic.Commit
-	154, // 61: apic.GetLocalCommitsResponse.graph:type_name -> apic.CommitGraph
-	151, // 62: apic.GetRemoteCommitsResponse.commits:type_name -> apic.Commit
-	154, // 63: apic.GetRemoteCommitsResponse.graph:type_name -> apic.CommitGraph
-	159, // 64: apic.SqlRow.cells:type_name -> apic.SqlCell
-	160, // 65: apic.ExecuteSqlResponse.rows:type_name -> apic.SqlRow
-	37,  // 66: apic.CloudProvider.SupportedMachinesEntry.value:type_name -> apic.CloudMachineSpec
-	50,  // 67: apic.Provisioner.SupportedMachinesEntry.value:type_name -> apic.ProvisionerMachineSpec
-	125, // 68: apic.Release.CloudImagesEntry.value:type_name -> apic.CloudImage
-	126, // 69: apic.GetCloudImagesResponse.CloudImagesEntry.value:type_name -> apic.CloudSpecificImage
-	126, // 70: apic.GetProvisionerImagesResponse.ImagesEntry.value:type_name -> apic.CloudSpecificImage
-	0,   // 71: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
-	3,   // 72: apic.ProtosClientApi.GetUserDevices:input_type -> apic.GetUserDevicesRequest
-	5,   // 73: apic.ProtosClientApi.GetUserInfo:input_type -> apic.GetUserInfoRequest
-	8,   // 74: apic.ProtosClientApi.ListOrganisations:input_type -> apic.ListOrganisationsRequest
-	10,  // 75: apic.ProtosClientApi.StartDeviceInvite:input_type -> apic.StartDeviceInviteRequest
-	13,  // 76: apic.ProtosClientApi.ListNearbyOrganisations:input_type -> apic.ListNearbyOrganisationsRequest
-	15,  // 77: apic.ProtosClientApi.JoinOrganisation:input_type -> apic.JoinOrganisationRequest
-	17,  // 78: apic.ProtosClientApi.GetLocalSSHKey:input_type -> apic.GetLocalSSHKeyRequest
-	20,  // 79: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
-	22,  // 80: apic.ProtosClientApi.CreateApp:input_type -> apic.CreateAppRequest
-	24,  // 81: apic.ProtosClientApi.StartApp:input_type -> apic.StartAppRequest
-	26,  // 82: apic.ProtosClientApi.StopApp:input_type -> apic.StopAppRequest
-	28,  // 83: apic.ProtosClientApi.RemoveApp:input_type -> apic.RemoveAppRequest
-	30,  // 84: apic.ProtosClientApi.GetAppLogs:input_type -> apic.GetAppLogsRequest
-	40,  // 85: apic.ProtosClientApi.GetSupportedCloudProviders:input_type -> apic.GetSupportedCloudProvidersRequest
-	42,  // 86: apic.ProtosClientApi.GetCloudProviders:input_type -> apic.GetCloudProvidersRequest
-	44,  // 87: apic.ProtosClientApi.GetCloudProvider:input_type -> apic.GetCloudProviderRequest
-	46,  // 88: apic.ProtosClientApi.AddCloudProvider:input_type -> apic.AddCloudProviderRequest
-	48,  // 89: apic.ProtosClientApi.RemoveCloudProvider:input_type -> apic.RemoveCloudProviderRequest
-	53,  // 90: apic.ProtosClientApi.GetSupportedProvisioners:input_type -> apic.GetSupportedProvisionersRequest
-	55,  // 91: apic.ProtosClientApi.GetProvisioners:input_type -> apic.GetProvisionersRequest
-	57,  // 92: apic.ProtosClientApi.GetProvisioner:input_type -> apic.GetProvisionerRequest
-	59,  // 93: apic.ProtosClientApi.AddProvisioner:input_type -> apic.AddProvisionerRequest
-	61,  // 94: apic.ProtosClientApi.RemoveProvisioner:input_type -> apic.RemoveProvisionerRequest
-	64,  // 95: apic.ProtosClientApi.GetInstances:input_type -> apic.GetInstancesRequest
-	66,  // 96: apic.ProtosClientApi.GetInstance:input_type -> apic.GetInstanceRequest
-	70,  // 97: apic.ProtosClientApi.GetInstanceDeployOptions:input_type -> apic.GetInstanceDeployOptionsRequest
-	72,  // 98: apic.ProtosClientApi.DeployInstance:input_type -> apic.DeployInstanceRequest
-	74,  // 99: apic.ProtosClientApi.RemoveInstance:input_type -> apic.RemoveInstanceRequest
-	76,  // 100: apic.ProtosClientApi.StartInstance:input_type -> apic.StartInstanceRequest
-	78,  // 101: apic.ProtosClientApi.StopInstance:input_type -> apic.StopInstanceRequest
-	80,  // 102: apic.ProtosClientApi.GetInstanceKey:input_type -> apic.GetInstanceKeyRequest
-	82,  // 103: apic.ProtosClientApi.GetInstanceLogs:input_type -> apic.GetInstanceLogsRequest
-	84,  // 104: apic.ProtosClientApi.InitInstance:input_type -> apic.InitInstanceRequest
-	86,  // 105: apic.ProtosClientApi.UpdateInstance:input_type -> apic.UpdateInstanceRequest
-	88,  // 106: apic.ProtosClientApi.GetNetworkState:input_type -> apic.GetNetworkStateRequest
-	90,  // 107: apic.ProtosClientApi.SetNetworkEnabled:input_type -> apic.SetNetworkEnabledRequest
-	103, // 108: apic.ProtosClientApi.GetExitRoutes:input_type -> apic.GetExitRoutesRequest
-	105, // 109: apic.ProtosClientApi.GetMobileTunnelConfig:input_type -> apic.GetMobileTunnelConfigRequest
-	108, // 110: apic.ProtosClientApi.GetRuntimeState:input_type -> apic.GetRuntimeStateRequest
-	110, // 111: apic.ProtosClientApi.WatchChanges:input_type -> apic.WatchChangesRequest
-	114, // 112: apic.ProtosClientApi.GetTasks:input_type -> apic.GetTasksRequest
-	116, // 113: apic.ProtosClientApi.GetTask:input_type -> apic.GetTaskRequest
-	118, // 114: apic.ProtosClientApi.SetExitRoute:input_type -> apic.SetExitRouteRequest
-	120, // 115: apic.ProtosClientApi.ClearExitRoute:input_type -> apic.ClearExitRouteRequest
-	128, // 116: apic.ProtosClientApi.GetProtosdReleases:input_type -> apic.GetProtosdReleasesRequest
-	130, // 117: apic.ProtosClientApi.GetCloudImages:input_type -> apic.GetCloudImagesRequest
-	134, // 118: apic.ProtosClientApi.UploadCloudImage:input_type -> apic.UploadCloudImageRequest
-	138, // 119: apic.ProtosClientApi.RemoveCloudImage:input_type -> apic.RemoveCloudImageRequest
-	132, // 120: apic.ProtosClientApi.GetProvisionerImages:input_type -> apic.GetProvisionerImagesRequest
-	136, // 121: apic.ProtosClientApi.UploadProvisionerImage:input_type -> apic.UploadProvisionerImageRequest
-	140, // 122: apic.ProtosClientApi.RemoveProvisionerImage:input_type -> apic.RemoveProvisionerImageRequest
-	145, // 123: apic.ProtosClientApi.GetSystemStatus:input_type -> apic.GetSystemStatusRequest
-	147, // 124: apic.ProtosClientApi.StartHostAgent:input_type -> apic.StartHostAgentRequest
-	149, // 125: apic.ProtosClientApi.StopHostAgent:input_type -> apic.StopHostAgentRequest
-	155, // 126: apic.ProtosClientApi.GetLocalCommits:input_type -> apic.GetLocalCommitsRequest
-	157, // 127: apic.ProtosClientApi.GetRemoteCommits:input_type -> apic.GetRemoteCommitsRequest
-	161, // 128: apic.ProtosClientApi.ExecuteSql:input_type -> apic.ExecuteSqlRequest
-	1,   // 129: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
-	4,   // 130: apic.ProtosClientApi.GetUserDevices:output_type -> apic.GetUserDevicesResponse
-	6,   // 131: apic.ProtosClientApi.GetUserInfo:output_type -> apic.GetUserInfoResponse
-	9,   // 132: apic.ProtosClientApi.ListOrganisations:output_type -> apic.ListOrganisationsResponse
-	11,  // 133: apic.ProtosClientApi.StartDeviceInvite:output_type -> apic.StartDeviceInviteResponse
-	14,  // 134: apic.ProtosClientApi.ListNearbyOrganisations:output_type -> apic.ListNearbyOrganisationsResponse
-	16,  // 135: apic.ProtosClientApi.JoinOrganisation:output_type -> apic.JoinOrganisationResponse
-	18,  // 136: apic.ProtosClientApi.GetLocalSSHKey:output_type -> apic.GetLocalSSHKeyResponse
-	21,  // 137: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
-	23,  // 138: apic.ProtosClientApi.CreateApp:output_type -> apic.CreateAppResponse
-	25,  // 139: apic.ProtosClientApi.StartApp:output_type -> apic.StartAppResponse
-	27,  // 140: apic.ProtosClientApi.StopApp:output_type -> apic.StopAppResponse
-	29,  // 141: apic.ProtosClientApi.RemoveApp:output_type -> apic.RemoveAppResponse
-	31,  // 142: apic.ProtosClientApi.GetAppLogs:output_type -> apic.GetAppLogsResponse
-	41,  // 143: apic.ProtosClientApi.GetSupportedCloudProviders:output_type -> apic.GetSupportedCloudProvidersResponse
-	43,  // 144: apic.ProtosClientApi.GetCloudProviders:output_type -> apic.GetCloudProvidersResponse
-	45,  // 145: apic.ProtosClientApi.GetCloudProvider:output_type -> apic.GetCloudProviderResponse
-	47,  // 146: apic.ProtosClientApi.AddCloudProvider:output_type -> apic.AddCloudProviderResponse
-	49,  // 147: apic.ProtosClientApi.RemoveCloudProvider:output_type -> apic.RemoveCloudProviderResponse
-	54,  // 148: apic.ProtosClientApi.GetSupportedProvisioners:output_type -> apic.GetSupportedProvisionersResponse
-	56,  // 149: apic.ProtosClientApi.GetProvisioners:output_type -> apic.GetProvisionersResponse
-	58,  // 150: apic.ProtosClientApi.GetProvisioner:output_type -> apic.GetProvisionerResponse
-	60,  // 151: apic.ProtosClientApi.AddProvisioner:output_type -> apic.AddProvisionerResponse
-	62,  // 152: apic.ProtosClientApi.RemoveProvisioner:output_type -> apic.RemoveProvisionerResponse
-	65,  // 153: apic.ProtosClientApi.GetInstances:output_type -> apic.GetInstancesResponse
-	67,  // 154: apic.ProtosClientApi.GetInstance:output_type -> apic.GetInstanceResponse
-	71,  // 155: apic.ProtosClientApi.GetInstanceDeployOptions:output_type -> apic.GetInstanceDeployOptionsResponse
-	73,  // 156: apic.ProtosClientApi.DeployInstance:output_type -> apic.DeployInstanceResponse
-	75,  // 157: apic.ProtosClientApi.RemoveInstance:output_type -> apic.RemoveInstanceResponse
-	77,  // 158: apic.ProtosClientApi.StartInstance:output_type -> apic.StartInstanceResponse
-	79,  // 159: apic.ProtosClientApi.StopInstance:output_type -> apic.StopInstanceResponse
-	81,  // 160: apic.ProtosClientApi.GetInstanceKey:output_type -> apic.GetInstanceKeyResponse
-	83,  // 161: apic.ProtosClientApi.GetInstanceLogs:output_type -> apic.GetInstanceLogsResponse
-	85,  // 162: apic.ProtosClientApi.InitInstance:output_type -> apic.InitInstanceResponse
-	87,  // 163: apic.ProtosClientApi.UpdateInstance:output_type -> apic.UpdateInstanceResponse
-	89,  // 164: apic.ProtosClientApi.GetNetworkState:output_type -> apic.GetNetworkStateResponse
-	91,  // 165: apic.ProtosClientApi.SetNetworkEnabled:output_type -> apic.SetNetworkEnabledResponse
-	104, // 166: apic.ProtosClientApi.GetExitRoutes:output_type -> apic.GetExitRoutesResponse
-	107, // 167: apic.ProtosClientApi.GetMobileTunnelConfig:output_type -> apic.GetMobileTunnelConfigResponse
-	109, // 168: apic.ProtosClientApi.GetRuntimeState:output_type -> apic.GetRuntimeStateResponse
-	111, // 169: apic.ProtosClientApi.WatchChanges:output_type -> apic.WatchChangesResponse
-	115, // 170: apic.ProtosClientApi.GetTasks:output_type -> apic.GetTasksResponse
-	117, // 171: apic.ProtosClientApi.GetTask:output_type -> apic.GetTaskResponse
-	119, // 172: apic.ProtosClientApi.SetExitRoute:output_type -> apic.SetExitRouteResponse
-	121, // 173: apic.ProtosClientApi.ClearExitRoute:output_type -> apic.ClearExitRouteResponse
-	129, // 174: apic.ProtosClientApi.GetProtosdReleases:output_type -> apic.GetProtosdReleasesResponse
-	131, // 175: apic.ProtosClientApi.GetCloudImages:output_type -> apic.GetCloudImagesResponse
-	135, // 176: apic.ProtosClientApi.UploadCloudImage:output_type -> apic.UploadCloudImageResponse
-	139, // 177: apic.ProtosClientApi.RemoveCloudImage:output_type -> apic.RemoveCloudImageResponse
-	133, // 178: apic.ProtosClientApi.GetProvisionerImages:output_type -> apic.GetProvisionerImagesResponse
-	137, // 179: apic.ProtosClientApi.UploadProvisionerImage:output_type -> apic.UploadProvisionerImageResponse
-	141, // 180: apic.ProtosClientApi.RemoveProvisionerImage:output_type -> apic.RemoveProvisionerImageResponse
-	146, // 181: apic.ProtosClientApi.GetSystemStatus:output_type -> apic.GetSystemStatusResponse
-	148, // 182: apic.ProtosClientApi.StartHostAgent:output_type -> apic.StartHostAgentResponse
-	150, // 183: apic.ProtosClientApi.StopHostAgent:output_type -> apic.StopHostAgentResponse
-	156, // 184: apic.ProtosClientApi.GetLocalCommits:output_type -> apic.GetLocalCommitsResponse
-	158, // 185: apic.ProtosClientApi.GetRemoteCommits:output_type -> apic.GetRemoteCommitsResponse
-	162, // 186: apic.ProtosClientApi.ExecuteSql:output_type -> apic.ExecuteSqlResponse
-	129, // [129:187] is the sub-list for method output_type
-	71,  // [71:129] is the sub-list for method input_type
-	71,  // [71:71] is the sub-list for extension type_name
-	71,  // [71:71] is the sub-list for extension extendee
-	0,   // [0:71] is the sub-list for field type_name
+	173, // 44: apic.RuntimePeerStatus.last_dial_errors:type_name -> apic.RuntimePeerStatus.LastDialErrorsEntry
+	174, // 45: apic.Release.cloud_images:type_name -> apic.Release.CloudImagesEntry
+	127, // 46: apic.GetProtosdReleasesResponse.releases:type_name -> apic.Release
+	175, // 47: apic.GetCloudImagesResponse.cloud_images:type_name -> apic.GetCloudImagesResponse.CloudImagesEntry
+	176, // 48: apic.GetProvisionerImagesResponse.images:type_name -> apic.GetProvisionerImagesResponse.ImagesEntry
+	177, // 49: apic.ImageContentDescriptor.annotations:type_name -> apic.ImageContentDescriptor.AnnotationsEntry
+	178, // 50: apic.GetInstanceImageResponse.labels:type_name -> apic.GetInstanceImageResponse.LabelsEntry
+	142, // 51: apic.GetInstanceImageResponse.target:type_name -> apic.ImageContentDescriptor
+	142, // 52: apic.GetInstanceImageResponse.descriptors:type_name -> apic.ImageContentDescriptor
+	147, // 53: apic.SystemStatus.endpoints:type_name -> apic.CoreEndpoint
+	148, // 54: apic.SystemStatus.host_agent:type_name -> apic.HostAgentConnectionStatus
+	92,  // 55: apic.SystemStatus.network:type_name -> apic.NetworkRuntimeStatus
+	149, // 56: apic.GetSystemStatusResponse.status:type_name -> apic.SystemStatus
+	148, // 57: apic.StartHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
+	148, // 58: apic.StopHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
+	156, // 59: apic.CommitGraphItem.commit:type_name -> apic.Commit
+	157, // 60: apic.CommitGraphItem.relations:type_name -> apic.CommitGraphRelation
+	158, // 61: apic.CommitGraph.items:type_name -> apic.CommitGraphItem
+	156, // 62: apic.GetLocalCommitsResponse.commits:type_name -> apic.Commit
+	159, // 63: apic.GetLocalCommitsResponse.graph:type_name -> apic.CommitGraph
+	156, // 64: apic.GetRemoteCommitsResponse.commits:type_name -> apic.Commit
+	159, // 65: apic.GetRemoteCommitsResponse.graph:type_name -> apic.CommitGraph
+	164, // 66: apic.SqlRow.cells:type_name -> apic.SqlCell
+	165, // 67: apic.ExecuteSqlResponse.rows:type_name -> apic.SqlRow
+	37,  // 68: apic.CloudProvider.SupportedMachinesEntry.value:type_name -> apic.CloudMachineSpec
+	50,  // 69: apic.Provisioner.SupportedMachinesEntry.value:type_name -> apic.ProvisionerMachineSpec
+	125, // 70: apic.Release.CloudImagesEntry.value:type_name -> apic.CloudImage
+	126, // 71: apic.GetCloudImagesResponse.CloudImagesEntry.value:type_name -> apic.CloudSpecificImage
+	126, // 72: apic.GetProvisionerImagesResponse.ImagesEntry.value:type_name -> apic.CloudSpecificImage
+	0,   // 73: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
+	3,   // 74: apic.ProtosClientApi.GetUserDevices:input_type -> apic.GetUserDevicesRequest
+	5,   // 75: apic.ProtosClientApi.GetUserInfo:input_type -> apic.GetUserInfoRequest
+	8,   // 76: apic.ProtosClientApi.ListOrganisations:input_type -> apic.ListOrganisationsRequest
+	10,  // 77: apic.ProtosClientApi.StartDeviceInvite:input_type -> apic.StartDeviceInviteRequest
+	13,  // 78: apic.ProtosClientApi.ListNearbyOrganisations:input_type -> apic.ListNearbyOrganisationsRequest
+	15,  // 79: apic.ProtosClientApi.JoinOrganisation:input_type -> apic.JoinOrganisationRequest
+	17,  // 80: apic.ProtosClientApi.GetLocalSSHKey:input_type -> apic.GetLocalSSHKeyRequest
+	20,  // 81: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
+	22,  // 82: apic.ProtosClientApi.CreateApp:input_type -> apic.CreateAppRequest
+	24,  // 83: apic.ProtosClientApi.StartApp:input_type -> apic.StartAppRequest
+	26,  // 84: apic.ProtosClientApi.StopApp:input_type -> apic.StopAppRequest
+	28,  // 85: apic.ProtosClientApi.RemoveApp:input_type -> apic.RemoveAppRequest
+	30,  // 86: apic.ProtosClientApi.GetAppLogs:input_type -> apic.GetAppLogsRequest
+	40,  // 87: apic.ProtosClientApi.GetSupportedCloudProviders:input_type -> apic.GetSupportedCloudProvidersRequest
+	42,  // 88: apic.ProtosClientApi.GetCloudProviders:input_type -> apic.GetCloudProvidersRequest
+	44,  // 89: apic.ProtosClientApi.GetCloudProvider:input_type -> apic.GetCloudProviderRequest
+	46,  // 90: apic.ProtosClientApi.AddCloudProvider:input_type -> apic.AddCloudProviderRequest
+	48,  // 91: apic.ProtosClientApi.RemoveCloudProvider:input_type -> apic.RemoveCloudProviderRequest
+	53,  // 92: apic.ProtosClientApi.GetSupportedProvisioners:input_type -> apic.GetSupportedProvisionersRequest
+	55,  // 93: apic.ProtosClientApi.GetProvisioners:input_type -> apic.GetProvisionersRequest
+	57,  // 94: apic.ProtosClientApi.GetProvisioner:input_type -> apic.GetProvisionerRequest
+	59,  // 95: apic.ProtosClientApi.AddProvisioner:input_type -> apic.AddProvisionerRequest
+	61,  // 96: apic.ProtosClientApi.RemoveProvisioner:input_type -> apic.RemoveProvisionerRequest
+	64,  // 97: apic.ProtosClientApi.GetInstances:input_type -> apic.GetInstancesRequest
+	66,  // 98: apic.ProtosClientApi.GetInstance:input_type -> apic.GetInstanceRequest
+	70,  // 99: apic.ProtosClientApi.GetInstanceDeployOptions:input_type -> apic.GetInstanceDeployOptionsRequest
+	72,  // 100: apic.ProtosClientApi.DeployInstance:input_type -> apic.DeployInstanceRequest
+	74,  // 101: apic.ProtosClientApi.RemoveInstance:input_type -> apic.RemoveInstanceRequest
+	76,  // 102: apic.ProtosClientApi.StartInstance:input_type -> apic.StartInstanceRequest
+	78,  // 103: apic.ProtosClientApi.StopInstance:input_type -> apic.StopInstanceRequest
+	80,  // 104: apic.ProtosClientApi.GetInstanceKey:input_type -> apic.GetInstanceKeyRequest
+	82,  // 105: apic.ProtosClientApi.GetInstanceLogs:input_type -> apic.GetInstanceLogsRequest
+	84,  // 106: apic.ProtosClientApi.InitInstance:input_type -> apic.InitInstanceRequest
+	86,  // 107: apic.ProtosClientApi.UpdateInstance:input_type -> apic.UpdateInstanceRequest
+	88,  // 108: apic.ProtosClientApi.GetNetworkState:input_type -> apic.GetNetworkStateRequest
+	90,  // 109: apic.ProtosClientApi.SetNetworkEnabled:input_type -> apic.SetNetworkEnabledRequest
+	103, // 110: apic.ProtosClientApi.GetExitRoutes:input_type -> apic.GetExitRoutesRequest
+	105, // 111: apic.ProtosClientApi.GetMobileTunnelConfig:input_type -> apic.GetMobileTunnelConfigRequest
+	108, // 112: apic.ProtosClientApi.GetRuntimeState:input_type -> apic.GetRuntimeStateRequest
+	110, // 113: apic.ProtosClientApi.WatchChanges:input_type -> apic.WatchChangesRequest
+	114, // 114: apic.ProtosClientApi.GetTasks:input_type -> apic.GetTasksRequest
+	116, // 115: apic.ProtosClientApi.GetTask:input_type -> apic.GetTaskRequest
+	118, // 116: apic.ProtosClientApi.SetExitRoute:input_type -> apic.SetExitRouteRequest
+	120, // 117: apic.ProtosClientApi.ClearExitRoute:input_type -> apic.ClearExitRouteRequest
+	128, // 118: apic.ProtosClientApi.GetProtosdReleases:input_type -> apic.GetProtosdReleasesRequest
+	130, // 119: apic.ProtosClientApi.GetCloudImages:input_type -> apic.GetCloudImagesRequest
+	134, // 120: apic.ProtosClientApi.UploadCloudImage:input_type -> apic.UploadCloudImageRequest
+	138, // 121: apic.ProtosClientApi.RemoveCloudImage:input_type -> apic.RemoveCloudImageRequest
+	132, // 122: apic.ProtosClientApi.GetProvisionerImages:input_type -> apic.GetProvisionerImagesRequest
+	136, // 123: apic.ProtosClientApi.UploadProvisionerImage:input_type -> apic.UploadProvisionerImageRequest
+	140, // 124: apic.ProtosClientApi.RemoveProvisionerImage:input_type -> apic.RemoveProvisionerImageRequest
+	143, // 125: apic.ProtosClientApi.GetInstanceImage:input_type -> apic.GetInstanceImageRequest
+	145, // 126: apic.ProtosClientApi.UploadInstanceImageArchiveChunk:input_type -> apic.UploadInstanceImageArchiveChunkRequest
+	150, // 127: apic.ProtosClientApi.GetSystemStatus:input_type -> apic.GetSystemStatusRequest
+	152, // 128: apic.ProtosClientApi.StartHostAgent:input_type -> apic.StartHostAgentRequest
+	154, // 129: apic.ProtosClientApi.StopHostAgent:input_type -> apic.StopHostAgentRequest
+	160, // 130: apic.ProtosClientApi.GetLocalCommits:input_type -> apic.GetLocalCommitsRequest
+	162, // 131: apic.ProtosClientApi.GetRemoteCommits:input_type -> apic.GetRemoteCommitsRequest
+	166, // 132: apic.ProtosClientApi.ExecuteSql:input_type -> apic.ExecuteSqlRequest
+	1,   // 133: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
+	4,   // 134: apic.ProtosClientApi.GetUserDevices:output_type -> apic.GetUserDevicesResponse
+	6,   // 135: apic.ProtosClientApi.GetUserInfo:output_type -> apic.GetUserInfoResponse
+	9,   // 136: apic.ProtosClientApi.ListOrganisations:output_type -> apic.ListOrganisationsResponse
+	11,  // 137: apic.ProtosClientApi.StartDeviceInvite:output_type -> apic.StartDeviceInviteResponse
+	14,  // 138: apic.ProtosClientApi.ListNearbyOrganisations:output_type -> apic.ListNearbyOrganisationsResponse
+	16,  // 139: apic.ProtosClientApi.JoinOrganisation:output_type -> apic.JoinOrganisationResponse
+	18,  // 140: apic.ProtosClientApi.GetLocalSSHKey:output_type -> apic.GetLocalSSHKeyResponse
+	21,  // 141: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
+	23,  // 142: apic.ProtosClientApi.CreateApp:output_type -> apic.CreateAppResponse
+	25,  // 143: apic.ProtosClientApi.StartApp:output_type -> apic.StartAppResponse
+	27,  // 144: apic.ProtosClientApi.StopApp:output_type -> apic.StopAppResponse
+	29,  // 145: apic.ProtosClientApi.RemoveApp:output_type -> apic.RemoveAppResponse
+	31,  // 146: apic.ProtosClientApi.GetAppLogs:output_type -> apic.GetAppLogsResponse
+	41,  // 147: apic.ProtosClientApi.GetSupportedCloudProviders:output_type -> apic.GetSupportedCloudProvidersResponse
+	43,  // 148: apic.ProtosClientApi.GetCloudProviders:output_type -> apic.GetCloudProvidersResponse
+	45,  // 149: apic.ProtosClientApi.GetCloudProvider:output_type -> apic.GetCloudProviderResponse
+	47,  // 150: apic.ProtosClientApi.AddCloudProvider:output_type -> apic.AddCloudProviderResponse
+	49,  // 151: apic.ProtosClientApi.RemoveCloudProvider:output_type -> apic.RemoveCloudProviderResponse
+	54,  // 152: apic.ProtosClientApi.GetSupportedProvisioners:output_type -> apic.GetSupportedProvisionersResponse
+	56,  // 153: apic.ProtosClientApi.GetProvisioners:output_type -> apic.GetProvisionersResponse
+	58,  // 154: apic.ProtosClientApi.GetProvisioner:output_type -> apic.GetProvisionerResponse
+	60,  // 155: apic.ProtosClientApi.AddProvisioner:output_type -> apic.AddProvisionerResponse
+	62,  // 156: apic.ProtosClientApi.RemoveProvisioner:output_type -> apic.RemoveProvisionerResponse
+	65,  // 157: apic.ProtosClientApi.GetInstances:output_type -> apic.GetInstancesResponse
+	67,  // 158: apic.ProtosClientApi.GetInstance:output_type -> apic.GetInstanceResponse
+	71,  // 159: apic.ProtosClientApi.GetInstanceDeployOptions:output_type -> apic.GetInstanceDeployOptionsResponse
+	73,  // 160: apic.ProtosClientApi.DeployInstance:output_type -> apic.DeployInstanceResponse
+	75,  // 161: apic.ProtosClientApi.RemoveInstance:output_type -> apic.RemoveInstanceResponse
+	77,  // 162: apic.ProtosClientApi.StartInstance:output_type -> apic.StartInstanceResponse
+	79,  // 163: apic.ProtosClientApi.StopInstance:output_type -> apic.StopInstanceResponse
+	81,  // 164: apic.ProtosClientApi.GetInstanceKey:output_type -> apic.GetInstanceKeyResponse
+	83,  // 165: apic.ProtosClientApi.GetInstanceLogs:output_type -> apic.GetInstanceLogsResponse
+	85,  // 166: apic.ProtosClientApi.InitInstance:output_type -> apic.InitInstanceResponse
+	87,  // 167: apic.ProtosClientApi.UpdateInstance:output_type -> apic.UpdateInstanceResponse
+	89,  // 168: apic.ProtosClientApi.GetNetworkState:output_type -> apic.GetNetworkStateResponse
+	91,  // 169: apic.ProtosClientApi.SetNetworkEnabled:output_type -> apic.SetNetworkEnabledResponse
+	104, // 170: apic.ProtosClientApi.GetExitRoutes:output_type -> apic.GetExitRoutesResponse
+	107, // 171: apic.ProtosClientApi.GetMobileTunnelConfig:output_type -> apic.GetMobileTunnelConfigResponse
+	109, // 172: apic.ProtosClientApi.GetRuntimeState:output_type -> apic.GetRuntimeStateResponse
+	111, // 173: apic.ProtosClientApi.WatchChanges:output_type -> apic.WatchChangesResponse
+	115, // 174: apic.ProtosClientApi.GetTasks:output_type -> apic.GetTasksResponse
+	117, // 175: apic.ProtosClientApi.GetTask:output_type -> apic.GetTaskResponse
+	119, // 176: apic.ProtosClientApi.SetExitRoute:output_type -> apic.SetExitRouteResponse
+	121, // 177: apic.ProtosClientApi.ClearExitRoute:output_type -> apic.ClearExitRouteResponse
+	129, // 178: apic.ProtosClientApi.GetProtosdReleases:output_type -> apic.GetProtosdReleasesResponse
+	131, // 179: apic.ProtosClientApi.GetCloudImages:output_type -> apic.GetCloudImagesResponse
+	135, // 180: apic.ProtosClientApi.UploadCloudImage:output_type -> apic.UploadCloudImageResponse
+	139, // 181: apic.ProtosClientApi.RemoveCloudImage:output_type -> apic.RemoveCloudImageResponse
+	133, // 182: apic.ProtosClientApi.GetProvisionerImages:output_type -> apic.GetProvisionerImagesResponse
+	137, // 183: apic.ProtosClientApi.UploadProvisionerImage:output_type -> apic.UploadProvisionerImageResponse
+	141, // 184: apic.ProtosClientApi.RemoveProvisionerImage:output_type -> apic.RemoveProvisionerImageResponse
+	144, // 185: apic.ProtosClientApi.GetInstanceImage:output_type -> apic.GetInstanceImageResponse
+	146, // 186: apic.ProtosClientApi.UploadInstanceImageArchiveChunk:output_type -> apic.UploadInstanceImageArchiveChunkResponse
+	151, // 187: apic.ProtosClientApi.GetSystemStatus:output_type -> apic.GetSystemStatusResponse
+	153, // 188: apic.ProtosClientApi.StartHostAgent:output_type -> apic.StartHostAgentResponse
+	155, // 189: apic.ProtosClientApi.StopHostAgent:output_type -> apic.StopHostAgentResponse
+	161, // 190: apic.ProtosClientApi.GetLocalCommits:output_type -> apic.GetLocalCommitsResponse
+	163, // 191: apic.ProtosClientApi.GetRemoteCommits:output_type -> apic.GetRemoteCommitsResponse
+	167, // 192: apic.ProtosClientApi.ExecuteSql:output_type -> apic.ExecuteSqlResponse
+	133, // [133:193] is the sub-list for method output_type
+	73,  // [73:133] is the sub-list for method input_type
+	73,  // [73:73] is the sub-list for extension type_name
+	73,  // [73:73] is the sub-list for extension extendee
+	0,   // [0:73] is the sub-list for field type_name
 }
 
 func init() { file_apic_proto_apic_proto_init() }
@@ -10573,7 +10954,7 @@ func file_apic_proto_apic_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apic_proto_apic_proto_rawDesc), len(file_apic_proto_apic_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   174,
+			NumMessages:   179,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

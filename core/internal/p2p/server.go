@@ -16,13 +16,13 @@ import (
 
 	p2pgrpc "github.com/birros/go-libp2p-grpc"
 	"github.com/go-playground/validator/v10"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/imageregistry"
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	"github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"google.golang.org/grpc"
-	swarmionapp "swarmion.dev/runtime/app"
 )
 
 var _ proto.PingerServer = (*Server)(nil)
@@ -39,7 +39,7 @@ type ExternalDB interface {
 	GetAllCommits() ([]db.Commit, error)
 	ExecSQLAndCommit(statement string, commitMsg string) (string, error)
 	GetLastCommit(branch string) (db.Commit, error)
-	CatchUpFinalized(ctx context.Context, reason string) error
+	CatchUpCheckpoint(ctx context.Context, reason string) error
 	InitFromPeer(peerID string, bootstrapPeers []string) error
 	EnableGRPCServers(server *grpc.Server) error
 	Initialized() bool
@@ -97,7 +97,7 @@ func (s *Server) ExecSQL(ctx context.Context, req *proto.ExecSQLRequest) (*proto
 }
 
 func (s *Server) GetAllCommits(ctx context.Context, _ *proto.GetAllCommitsRequest) (*proto.GetAllCommitsResponse, error) {
-	if err := s.DB.CatchUpFinalized(ctx, "p2p get all commits"); err != nil {
+	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get all commits"); err != nil {
 		return nil, err
 	}
 	commits, err := s.DB.GetAllCommits()
@@ -124,7 +124,7 @@ func (s *Server) GetAllCommits(ctx context.Context, _ *proto.GetAllCommitsReques
 }
 
 func (s *Server) GetHead(ctx context.Context, _ *proto.GetHeadRequest) (*proto.GetHeadResponse, error) {
-	if err := s.DB.CatchUpFinalized(ctx, "p2p get head"); err != nil {
+	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get head"); err != nil {
 		return nil, err
 	}
 	commit, err := s.DB.GetLastCommit("main")
@@ -170,7 +170,7 @@ func (s *Server) GetExitRoutes(ctx context.Context, _ *proto.GetExitRoutesReques
 	if !ok || database == nil {
 		return nil, fmt.Errorf("exit route reader is not configured")
 	}
-	if err := s.DB.CatchUpFinalized(ctx, "p2p get exit routes"); err != nil {
+	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get exit routes"); err != nil {
 		return nil, err
 	}
 	routes, err := readExitRoutes(ctx, database)
@@ -189,7 +189,7 @@ func (s *Server) GetRuntimeState(ctx context.Context, _ *proto.GetRuntimeStateRe
 	if !ok || reader == nil {
 		return nil, fmt.Errorf("runtime state reader is not configured")
 	}
-	if err := s.DB.CatchUpFinalized(ctx, "p2p get runtime state"); err != nil {
+	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get runtime state"); err != nil {
 		return nil, err
 	}
 	state, err := runtimeStateToP2PProto(ctx, reader)
@@ -375,17 +375,13 @@ func imageDescriptorsToProto(descs []imageregistry.Descriptor) []*proto.ImageCon
 func (s *Server) GetPeers(context.Context, *proto.GetPeersRequest) (*proto.GetPeersResponse, error) {
 
 	peers := map[string]string{}
-	for id, machine := range s.p2p.machines.Snapshot() {
+	for id := range s.p2p.machines.Snapshot() {
 		peerStatus := string(PeerStatusDesired)
 		if state, found := s.p2p.peerStates.Get(id); found && state.Status != "" {
 			peerStatus = string(state.Status)
 		}
 		if client, found := s.p2p.clients.Get(id); found && client != nil {
 			peerStatus = string(PeerStatusConnected)
-		}
-		if machine.GetName() != "" {
-			peers[machine.GetName()] = peerStatus
-			continue
 		}
 		peers[id] = peerStatus
 	}
@@ -546,24 +542,18 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 	out := &proto.RuntimeState{
 		PeerId:                       status.PeerID,
 		ManifestDigest:               status.ManifestDigest,
-		FinalizedRootHash:            status.FinalizedRootHash.String(),
+		CheckpointRootHash:           status.CheckpointRootHash.String(),
 		TentativeRootHash:            status.TentativeRootHash.String(),
-		ProtocolFinalizedRootHash:    status.RuntimeFinalizedDesiredRootHash.String(),
+		ProtocolCheckpointRootHash:   status.RuntimeCheckpointDesiredRootHash.String(),
 		DurableMainRootHash:          status.DurableMainRootHash.String(),
-		ActiveEpochId:                status.ActiveEpochID,
-		ActiveWitnessIds:             append([]string(nil), status.ActiveWitnessIDs...),
-		EligibleWitnessIds:           append([]string(nil), status.EligibleWitnessIDs...),
 		StateProviders:               append([]string(nil), status.StateProviders...),
 		ConnectedPeers:               append([]string(nil), status.ConnectedPeers...),
 		RuntimeRefreshPending:        status.RuntimeRefreshPending,
 		RuntimeRefreshLastError:      status.RuntimeRefreshLastError,
-		RuntimeFinalizedPending:      status.RuntimeFinalizedMaterializePending,
-		RuntimeFinalizedLastError:    status.RuntimeFinalizedMaterializeLastError,
-		RuntimeMaterializationPolicy: status.RuntimeFinalizedMaterializationPolicy.String(),
-		KnownEpochIds:                append([]string(nil), status.KnownEpochIDs...),
-		EpochDescriptorDigestById:    cloneStringMap(status.EpochDescriptorDigestByID),
-		EpochFinalizedDigestById:     cloneStringMap(status.EpochFinalizedDigestByID),
-		ProtocolFinalizedDigest:      formatRuntimeDigest(status.ProtocolFinalizedDigest),
+		RuntimeCheckpointPending:     status.RuntimeCheckpointMaterializePending,
+		RuntimeCheckpointLastError:   status.RuntimeCheckpointMaterializeLastError,
+		RuntimeMaterializationPolicy: status.RuntimeCheckpointMaterializationPolicy.String(),
+		ProtocolCheckpointDigest:     formatRuntimeDigest(status.ProtocolCheckpointDigest),
 	}
 	if status.Fatal != nil {
 		out.FatalState = status.Fatal.State
@@ -577,19 +567,17 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 	}
 	for _, peerStatus := range peerStatuses {
 		out.PeerStatuses = append(out.PeerStatuses, &proto.RuntimePeerStatus{
-			PeerId:          peerStatus.PeerID,
-			Connected:       peerStatus.Connected,
-			Dialable:        peerStatus.Dialable,
-			StateProvider:   peerStatus.StateProvider,
-			Witness:         peerStatus.Witness,
-			EligibleWitness: peerStatus.EligibleWitness,
-			Compatible:      peerStatus.Compatible,
-			Incompatible:    peerStatus.Incompatible,
-			Ignored:         peerStatus.Ignored,
-			RelayOnly:       peerStatus.RelayOnly,
-			Addresses:       append([]string(nil), peerStatus.Addresses...),
-			LastDialErrors:  cloneStringMap(peerStatus.LastDialErrors),
-			Reason:          peerStatus.Reason,
+			PeerId:         peerStatus.PeerID,
+			Connected:      peerStatus.Connected,
+			Dialable:       peerStatus.Dialable,
+			StateProvider:  peerStatus.StateProvider,
+			Compatible:     peerStatus.Compatible,
+			Incompatible:   peerStatus.Incompatible,
+			Ignored:        peerStatus.Ignored,
+			RelayOnly:      peerStatus.RelayOnly,
+			Addresses:      append([]string(nil), peerStatus.Addresses...),
+			LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
+			Reason:         peerStatus.Reason,
 		})
 	}
 	if database, ok := reader.(*db.DB); ok {
@@ -628,24 +616,18 @@ func sanitizeRuntimeStateStrings(out *proto.RuntimeState) {
 	}
 	out.PeerId = validProtoString(out.GetPeerId())
 	out.ManifestDigest = validProtoString(out.GetManifestDigest())
-	out.FinalizedRootHash = validProtoString(out.GetFinalizedRootHash())
+	out.CheckpointRootHash = validProtoString(out.GetCheckpointRootHash())
 	out.TentativeRootHash = validProtoString(out.GetTentativeRootHash())
-	out.ProtocolFinalizedRootHash = validProtoString(out.GetProtocolFinalizedRootHash())
+	out.ProtocolCheckpointRootHash = validProtoString(out.GetProtocolCheckpointRootHash())
 	out.DurableMainRootHash = validProtoString(out.GetDurableMainRootHash())
-	out.ActiveEpochId = validProtoString(out.GetActiveEpochId())
-	out.ActiveWitnessIds = validProtoStrings(out.GetActiveWitnessIds())
-	out.EligibleWitnessIds = validProtoStrings(out.GetEligibleWitnessIds())
 	out.StateProviders = validProtoStrings(out.GetStateProviders())
 	out.ConnectedPeers = validProtoStrings(out.GetConnectedPeers())
 	out.FatalState = validProtoString(out.GetFatalState())
 	out.RuntimeRefreshLastError = validProtoString(out.GetRuntimeRefreshLastError())
-	out.RuntimeFinalizedLastError = validProtoString(out.GetRuntimeFinalizedLastError())
+	out.RuntimeCheckpointLastError = validProtoString(out.GetRuntimeCheckpointLastError())
 	out.RuntimeMaterializationPolicy = validProtoString(out.GetRuntimeMaterializationPolicy())
 	out.ContentSyncTrace = validProtoStrings(out.GetContentSyncTrace())
-	out.KnownEpochIds = validProtoStrings(out.GetKnownEpochIds())
-	out.EpochDescriptorDigestById = validProtoStringMap(out.GetEpochDescriptorDigestById())
-	out.EpochFinalizedDigestById = validProtoStringMap(out.GetEpochFinalizedDigestById())
-	out.ProtocolFinalizedDigest = validProtoString(out.GetProtocolFinalizedDigest())
+	out.ProtocolCheckpointDigest = validProtoString(out.GetProtocolCheckpointDigest())
 
 	for _, item := range out.GetCompatibility() {
 		if item == nil {
@@ -799,13 +781,11 @@ func addKnownRuntimePeerStatuses(out *proto.RuntimeState, peerIDs map[string]str
 func knownRuntimePeerStatus(peerID string, state *proto.RuntimeState) *proto.RuntimePeerStatus {
 	isSelf := peerID == strings.TrimSpace(state.GetPeerId())
 	status := &proto.RuntimePeerStatus{
-		PeerId:          peerID,
-		Connected:       isSelf || stringInList(peerID, state.GetConnectedPeers()),
-		Dialable:        isSelf,
-		StateProvider:   stringInList(peerID, state.GetStateProviders()),
-		Witness:         stringInList(peerID, state.GetActiveWitnessIds()),
-		EligibleWitness: stringInList(peerID, state.GetEligibleWitnessIds()),
-		Compatible:      isSelf,
+		PeerId:        peerID,
+		Connected:     isSelf || stringInList(peerID, state.GetConnectedPeers()),
+		Dialable:      isSelf,
+		StateProvider: stringInList(peerID, state.GetStateProviders()),
+		Compatible:    isSelf,
 	}
 	if isSelf {
 		status.Reason = "self"
@@ -917,7 +897,7 @@ func (s *Server) GetAppLogs(ctx context.Context, req *proto.GetAppLogsRequest) (
 }
 
 func (s *Server) GetAppStatus(ctx context.Context, req *proto.GetAppStatusRequest) (*proto.GetAppStatusResponse, error) {
-	if err := s.DB.CatchUpFinalized(ctx, "p2p get app status"); err != nil {
+	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get app status"); err != nil {
 		return nil, err
 	}
 

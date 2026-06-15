@@ -112,36 +112,28 @@ package p2pv1
 #RuntimeState: {
 	peer_id?:                         string
 	manifest_digest?:                 string
-	finalized_root_hash?:             string
+	checkpoint_root_hash?:            string
 	tentative_root_hash?:             string
-	protocol_finalized_root_hash?:    string
+	protocol_checkpoint_root_hash?:   string
 	durable_main_root_hash?:          string
-	active_epoch_id?:                 string
-	active_witness_ids?:              [...string]
-	eligible_witness_ids?:            [...string]
 	state_providers?:                 [...string]
 	connected_peers?:                 [...string]
 	fatal_state?:                     string
 	runtime_refresh_pending?:         bool
 	runtime_refresh_last_error?:      string
-	runtime_finalized_pending?:       bool
-	runtime_finalized_last_error?:    string
+	runtime_checkpoint_pending?:      bool
+	runtime_checkpoint_last_error?:   string
 	runtime_materialization_policy?:  string
 	peer_statuses?:                  [...#RuntimePeerStatus]
 	compatibility?:                  [...#RuntimeCompatibility]
 	content_sync_trace?:              [...string]
-	known_epoch_ids?:                 [...string]
-	epoch_descriptor_digest_by_id?:   [string]: string
-	epoch_finalized_digest_by_id?:    [string]: string
-	protocol_finalized_digest?:       string
+	protocol_checkpoint_digest?:      string
 }
 #RuntimePeerStatus: {
 	peer_id?:          string
 	connected?:        bool
 	dialable?:         bool
 	state_provider?:   bool
-	witness?:          bool
-	eligible_witness?: bool
 	compatible?:       bool
 	incompatible?:     bool
 	ignored?:          bool
@@ -298,36 +290,28 @@ contract: {
 			{kind: "message", name: "RuntimeState", fields: [
 				{type: "string", name: "peer_id", number: 1},
 				{type: "string", name: "manifest_digest", number: 2},
-				{type: "string", name: "finalized_root_hash", number: 3},
+				{type: "string", name: "checkpoint_root_hash", number: 3},
 				{type: "string", name: "tentative_root_hash", number: 4},
-				{type: "string", name: "protocol_finalized_root_hash", number: 5},
+				{type: "string", name: "protocol_checkpoint_root_hash", number: 5},
 				{type: "string", name: "durable_main_root_hash", number: 6},
-				{type: "string", name: "active_epoch_id", number: 7},
-				{rule: "repeated", type: "string", name: "active_witness_ids", number: 8},
-				{rule: "repeated", type: "string", name: "eligible_witness_ids", number: 9},
 				{rule: "repeated", type: "string", name: "state_providers", number: 10},
 				{rule: "repeated", type: "string", name: "connected_peers", number: 11},
 				{type: "string", name: "fatal_state", number: 12},
 				{type: "bool", name: "runtime_refresh_pending", number: 13},
 				{type: "string", name: "runtime_refresh_last_error", number: 14},
-				{type: "bool", name: "runtime_finalized_pending", number: 15},
-				{type: "string", name: "runtime_finalized_last_error", number: 16},
+				{type: "bool", name: "runtime_checkpoint_pending", number: 15},
+				{type: "string", name: "runtime_checkpoint_last_error", number: 16},
 				{type: "string", name: "runtime_materialization_policy", number: 17},
 				{rule: "repeated", type: "RuntimePeerStatus", name: "peer_statuses", number: 18},
 				{rule: "repeated", type: "RuntimeCompatibility", name: "compatibility", number: 19},
 				{rule: "repeated", type: "string", name: "content_sync_trace", number: 20},
-				{rule: "repeated", type: "string", name: "known_epoch_ids", number: 21},
-				{type: "map<string, string>", name: "epoch_descriptor_digest_by_id", number: 22},
-				{type: "map<string, string>", name: "epoch_finalized_digest_by_id", number: 23},
-				{type: "string", name: "protocol_finalized_digest", number: 24},
+				{type: "string", name: "protocol_checkpoint_digest", number: 24},
 			]},
 			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
 				{type: "bool", name: "connected", number: 2},
 				{type: "bool", name: "dialable", number: 3},
 				{type: "bool", name: "state_provider", number: 4},
-				{type: "bool", name: "witness", number: 5},
-				{type: "bool", name: "eligible_witness", number: 6},
 				{type: "bool", name: "compatible", number: 7},
 				{type: "bool", name: "incompatible", number: 8},
 				{type: "bool", name: "ignored", number: 9},

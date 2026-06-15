@@ -208,7 +208,7 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 	}
 }
 
-func TestWitnessCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
+func TestReplicationCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	keyManager := pcrypto.CreateManager(store)
 	activeKey, err := keyManager.GenerateKey()
@@ -227,7 +227,7 @@ func TestWitnessCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 		PublicIP:      "192.0.2.10",
 		PublicKey:     activeKey.PublicString(),
 		DesiredStatus: ServerStateRunning,
-		WitnessRank:   10,
+		ReplicationPriority:   10,
 		Location:      "test-location",
 		Architecture:  "amd64",
 	}
@@ -239,7 +239,7 @@ func TestWitnessCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 		PublicIP:      "192.0.2.11",
 		PublicKey:     deletingKey.PublicString(),
 		DesiredStatus: ServerStateDeleting,
-		WitnessRank:   20,
+		ReplicationPriority:   20,
 		Location:      "test-location",
 		Architecture:  "amd64",
 	}
@@ -250,7 +250,7 @@ func TestWitnessCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 	}
 
 	cm := &Manager{db: store}
-	candidates, err := cm.witnessCandidatesExcluding("removed-peer")
+	candidates, err := cm.replicationCandidatesExcluding("removed-peer")
 	if err != nil {
 		t.Fatal(err)
 	}

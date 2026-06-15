@@ -16,6 +16,7 @@ import (
 	"github.com/protosio/protos/internal/invitations"
 	"github.com/protosio/protos/internal/network"
 	networkmodule "github.com/protosio/protos/internal/network/module"
+	"github.com/protosio/protos/internal/p2p"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
@@ -252,7 +253,7 @@ func (b *Backend) JoinOrganisation(ctx context.Context, in *pbApic.JoinOrganisat
 	if err := b.protosClient.DB.InitFromPeer(nearby.PeerID, nearby.SwarmionAddrs); err != nil {
 		return nil, fmt.Errorf("join organisation from %s: %w", nearby.PeerID, err)
 	}
-	if err := b.protosClient.DB.CatchUpFinalized(ctx, "join organisation user/device registration"); err != nil {
+	if err := b.protosClient.DB.CatchUpCheckpoint(ctx, "join organisation user/device registration"); err != nil {
 		return nil, fmt.Errorf("sync organisation state after joining: %w", err)
 	}
 	if err := b.ensureJoinedUserDevice(in.GetUsername(), in.GetName(), joinMode, nearby.TargetUserID); err != nil {
@@ -399,7 +400,7 @@ func (b *Backend) ensureJoinedUserDevice(username string, name string, joinMode 
 		if username == "" {
 			return grpcstatus.Error(codes.InvalidArgument, "username is required")
 		}
-		userRef := username
+		var userRef string
 		if existingUser, err := b.protosClient.Manager.GetUser(username); err == nil {
 			userRef = existingUser.ID
 		} else {
@@ -981,8 +982,8 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 				status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
 			} else {
 				status = fmt.Sprintf("%s (%s)", instance.Status, "reachable")
-				for name, peer := range resp.Peers {
-					peers[name] = peer
+				for peerID, peerStatus := range resp.GetPeers() {
+					peers[peerID] = peerStatus
 				}
 			}
 		}
@@ -1285,7 +1286,13 @@ func (b *Backend) GetRuntimeState(ctx context.Context, in *pbApic.GetRuntimeStat
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve runtime state from instance '%s': %w", instanceName, err)
 	}
-	return &pbApic.GetRuntimeStateResponse{State: runtimeStateFromP2PProto(resp.GetState())}, nil
+	state := runtimeStateFromP2PProto(resp.GetState())
+	metadata, metadataErr := b.runtimePeerReplicationMetadata()
+	if metadataErr != nil {
+		return nil, metadataErr
+	}
+	annotateRuntimePeerReplication(state, metadata)
+	return &pbApic.GetRuntimeStateResponse{State: state}, nil
 }
 
 func (b *Backend) WatchChanges(in *pbApic.WatchChangesRequest, stream pbApic.ProtosClientApi_WatchChangesServer) error {
@@ -1636,7 +1643,7 @@ func networkStateFromP2PProto(state *p2pproto.NetworkState) *pbApic.NetworkState
 }
 
 func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, error) {
-	if err := b.protosClient.DB.CatchUpFinalized(ctx, "apic get runtime state"); err != nil {
+	if err := b.protosClient.DB.CatchUpCheckpoint(ctx, "apic get runtime state"); err != nil {
 		return nil, err
 	}
 	status, ok := b.protosClient.DB.SwarmionStatus()
@@ -1646,24 +1653,18 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 	out := &pbApic.RuntimeState{
 		PeerId:                       status.PeerID,
 		ManifestDigest:               status.ManifestDigest,
-		FinalizedRootHash:            status.FinalizedRootHash.String(),
+		CheckpointRootHash:           status.CheckpointRootHash.String(),
 		TentativeRootHash:            status.TentativeRootHash.String(),
-		ProtocolFinalizedRootHash:    status.RuntimeFinalizedDesiredRootHash.String(),
+		ProtocolCheckpointRootHash:   status.RuntimeCheckpointDesiredRootHash.String(),
 		DurableMainRootHash:          status.DurableMainRootHash.String(),
-		ActiveEpochId:                status.ActiveEpochID,
-		ActiveWitnessIds:             append([]string(nil), status.ActiveWitnessIDs...),
-		EligibleWitnessIds:           append([]string(nil), status.EligibleWitnessIDs...),
 		StateProviders:               append([]string(nil), status.StateProviders...),
 		ConnectedPeers:               append([]string(nil), status.ConnectedPeers...),
 		RuntimeRefreshPending:        status.RuntimeRefreshPending,
 		RuntimeRefreshLastError:      status.RuntimeRefreshLastError,
-		RuntimeFinalizedPending:      status.RuntimeFinalizedMaterializePending,
-		RuntimeFinalizedLastError:    status.RuntimeFinalizedMaterializeLastError,
-		RuntimeMaterializationPolicy: status.RuntimeFinalizedMaterializationPolicy.String(),
-		KnownEpochIds:                append([]string(nil), status.KnownEpochIDs...),
-		EpochDescriptorDigestById:    cloneStringMap(status.EpochDescriptorDigestByID),
-		EpochFinalizedDigestById:     cloneStringMap(status.EpochFinalizedDigestByID),
-		ProtocolFinalizedDigest:      formatRuntimeDigest(status.ProtocolFinalizedDigest),
+		RuntimeCheckpointPending:     status.RuntimeCheckpointMaterializePending,
+		RuntimeCheckpointLastError:   status.RuntimeCheckpointMaterializeLastError,
+		RuntimeMaterializationPolicy: status.RuntimeCheckpointMaterializationPolicy.String(),
+		ProtocolCheckpointDigest:     formatRuntimeDigest(status.ProtocolCheckpointDigest),
 	}
 	if status.Fatal != nil {
 		out.FatalState = status.Fatal.State
@@ -1677,19 +1678,17 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 	}
 	for _, peerStatus := range peerStatuses {
 		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
-			PeerId:          peerStatus.PeerID,
-			Connected:       peerStatus.Connected,
-			Dialable:        peerStatus.Dialable,
-			StateProvider:   peerStatus.StateProvider,
-			Witness:         peerStatus.Witness,
-			EligibleWitness: peerStatus.EligibleWitness,
-			Compatible:      peerStatus.Compatible,
-			Incompatible:    peerStatus.Incompatible,
-			Ignored:         peerStatus.Ignored,
-			RelayOnly:       peerStatus.RelayOnly,
-			Addresses:       append([]string(nil), peerStatus.Addresses...),
-			LastDialErrors:  cloneStringMap(peerStatus.LastDialErrors),
-			Reason:          peerStatus.Reason,
+			PeerId:         peerStatus.PeerID,
+			Connected:      peerStatus.Connected,
+			Dialable:       peerStatus.Dialable,
+			StateProvider:  peerStatus.StateProvider,
+			Compatible:     peerStatus.Compatible,
+			Incompatible:   peerStatus.Incompatible,
+			Ignored:        peerStatus.Ignored,
+			RelayOnly:      peerStatus.RelayOnly,
+			Addresses:      append([]string(nil), peerStatus.Addresses...),
+			LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
+			Reason:         peerStatus.Reason,
 		})
 	}
 	peerIDs, err := db.GetPeerIDs(b.protosClient.DB)
@@ -1698,6 +1697,11 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 	}
 	filterRuntimePeerSurface(out, peerIDs)
 	addKnownRuntimePeerStatuses(out, peerIDs)
+	metadata, err := b.runtimePeerReplicationMetadata()
+	if err != nil {
+		return nil, err
+	}
+	annotateRuntimePeerReplication(out, metadata)
 	compatibility, err := b.protosClient.DB.SwarmionCompatibility(ctx)
 	if err != nil {
 		return nil, err
@@ -1794,42 +1798,34 @@ func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState
 	out := &pbApic.RuntimeState{
 		PeerId:                       state.GetPeerId(),
 		ManifestDigest:               state.GetManifestDigest(),
-		FinalizedRootHash:            state.GetFinalizedRootHash(),
+		CheckpointRootHash:           state.GetCheckpointRootHash(),
 		TentativeRootHash:            state.GetTentativeRootHash(),
-		ProtocolFinalizedRootHash:    state.GetProtocolFinalizedRootHash(),
+		ProtocolCheckpointRootHash:   state.GetProtocolCheckpointRootHash(),
 		DurableMainRootHash:          state.GetDurableMainRootHash(),
-		ActiveEpochId:                state.GetActiveEpochId(),
-		ActiveWitnessIds:             append([]string(nil), state.GetActiveWitnessIds()...),
-		EligibleWitnessIds:           append([]string(nil), state.GetEligibleWitnessIds()...),
 		StateProviders:               append([]string(nil), state.GetStateProviders()...),
 		ConnectedPeers:               append([]string(nil), state.GetConnectedPeers()...),
 		FatalState:                   state.GetFatalState(),
 		RuntimeRefreshPending:        state.GetRuntimeRefreshPending(),
 		RuntimeRefreshLastError:      state.GetRuntimeRefreshLastError(),
-		RuntimeFinalizedPending:      state.GetRuntimeFinalizedPending(),
-		RuntimeFinalizedLastError:    state.GetRuntimeFinalizedLastError(),
+		RuntimeCheckpointPending:     state.GetRuntimeCheckpointPending(),
+		RuntimeCheckpointLastError:   state.GetRuntimeCheckpointLastError(),
 		RuntimeMaterializationPolicy: state.GetRuntimeMaterializationPolicy(),
 		ContentSyncTrace:             append([]string(nil), state.GetContentSyncTrace()...),
-		KnownEpochIds:                append([]string(nil), state.GetKnownEpochIds()...),
-		EpochDescriptorDigestById:    cloneStringMap(state.GetEpochDescriptorDigestById()),
-		EpochFinalizedDigestById:     cloneStringMap(state.GetEpochFinalizedDigestById()),
-		ProtocolFinalizedDigest:      state.GetProtocolFinalizedDigest(),
+		ProtocolCheckpointDigest:     state.GetProtocolCheckpointDigest(),
 	}
 	for _, peerStatus := range state.GetPeerStatuses() {
 		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
-			PeerId:          peerStatus.GetPeerId(),
-			Connected:       peerStatus.GetConnected(),
-			Dialable:        peerStatus.GetDialable(),
-			StateProvider:   peerStatus.GetStateProvider(),
-			Witness:         peerStatus.GetWitness(),
-			EligibleWitness: peerStatus.GetEligibleWitness(),
-			Compatible:      peerStatus.GetCompatible(),
-			Incompatible:    peerStatus.GetIncompatible(),
-			Ignored:         peerStatus.GetIgnored(),
-			RelayOnly:       peerStatus.GetRelayOnly(),
-			Addresses:       append([]string(nil), peerStatus.GetAddresses()...),
-			LastDialErrors:  cloneStringMap(peerStatus.GetLastDialErrors()),
-			Reason:          peerStatus.GetReason(),
+			PeerId:         peerStatus.GetPeerId(),
+			Connected:      peerStatus.GetConnected(),
+			Dialable:       peerStatus.GetDialable(),
+			StateProvider:  peerStatus.GetStateProvider(),
+			Compatible:     peerStatus.GetCompatible(),
+			Incompatible:   peerStatus.GetIncompatible(),
+			Ignored:        peerStatus.GetIgnored(),
+			RelayOnly:      peerStatus.GetRelayOnly(),
+			Addresses:      append([]string(nil), peerStatus.GetAddresses()...),
+			LastDialErrors: cloneStringMap(peerStatus.GetLastDialErrors()),
+			Reason:         peerStatus.GetReason(),
 		})
 	}
 	for _, item := range state.GetCompatibility() {
@@ -1883,16 +1879,76 @@ func addKnownRuntimePeerStatuses(out *pbApic.RuntimeState, peerIDs map[string]st
 	}
 }
 
+type runtimePeerReplicationMetadata struct {
+	deviceClass string
+	priority    int
+}
+
+func (b *Backend) runtimePeerReplicationMetadata() (map[string]runtimePeerReplicationMetadata, error) {
+	out := map[string]runtimePeerReplicationMetadata{}
+	if b == nil || b.protosClient == nil {
+		return out, nil
+	}
+	if b.protosClient.CloudManager != nil {
+		instances, err := b.protosClient.CloudManager.GetInstances(false)
+		if err != nil {
+			return nil, fmt.Errorf("load runtime instance replication metadata: %w", err)
+		}
+		for _, instance := range instances {
+			peerID, err := instance.GetPeerID()
+			if err != nil {
+				continue
+			}
+			out[peerID] = runtimePeerReplicationMetadata{
+				deviceClass: db.ReplicationDeviceClassForMachine(instance.Kind, instance.KindID),
+				priority:    instance.ReplicationPriority,
+			}
+		}
+	}
+	if b.protosClient.Manager != nil {
+		devices, err := b.protosClient.Manager.GetAllDevices(false)
+		if err != nil {
+			return nil, fmt.Errorf("load runtime user-device replication metadata: %w", err)
+		}
+		for _, device := range devices {
+			peerID, err := db.PeerIDFromPublicKeyString(device.PublicKey)
+			if err != nil {
+				continue
+			}
+			out[peerID] = runtimePeerReplicationMetadata{
+				deviceClass: db.ReplicationDeviceClassForUserDeviceName(device.Name),
+				priority:    device.ReplicationPriority,
+			}
+		}
+	}
+	return out, nil
+}
+
+func annotateRuntimePeerReplication(state *pbApic.RuntimeState, metadata map[string]runtimePeerReplicationMetadata) {
+	if state == nil || len(metadata) == 0 {
+		return
+	}
+	for _, peerStatus := range state.GetPeerStatuses() {
+		if peerStatus == nil {
+			continue
+		}
+		item, found := metadata[peerStatus.GetPeerId()]
+		if !found {
+			continue
+		}
+		peerStatus.ReplicationDeviceClass = item.deviceClass
+		peerStatus.ReplicationPriority = int32(item.priority)
+	}
+}
+
 func knownRuntimePeerStatus(peerID string, state *pbApic.RuntimeState) *pbApic.RuntimePeerStatus {
 	isSelf := peerID == strings.TrimSpace(state.GetPeerId())
 	status := &pbApic.RuntimePeerStatus{
-		PeerId:          peerID,
-		Connected:       isSelf || stringInList(peerID, state.GetConnectedPeers()),
-		Dialable:        isSelf,
-		StateProvider:   stringInList(peerID, state.GetStateProviders()),
-		Witness:         stringInList(peerID, state.GetActiveWitnessIds()),
-		EligibleWitness: stringInList(peerID, state.GetEligibleWitnessIds()),
-		Compatible:      isSelf,
+		PeerId:        peerID,
+		Connected:     isSelf || stringInList(peerID, state.GetConnectedPeers()),
+		Dialable:      isSelf,
+		StateProvider: stringInList(peerID, state.GetStateProviders()),
+		Compatible:    isSelf,
 	}
 	if isSelf {
 		status.Reason = "self"
@@ -2183,6 +2239,98 @@ func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveP
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}
 	return &pbApic.RemoveProvisionerImageResponse{}, nil
+}
+
+func (b *Backend) GetInstanceImage(ctx context.Context, in *pbApic.GetInstanceImageRequest) (*pbApic.GetInstanceImageResponse, error) {
+	client, err := b.instanceAdminClient(in.GetInstance(), "get instance image")
+	if err != nil {
+		return nil, err
+	}
+	describeResp, err := client.DescribeImage(ctx, &p2pproto.DescribeImageRequest{ImageRef: in.GetImageRef()})
+	if err != nil {
+		return nil, fmt.Errorf("describe image %q on instance %q: %w", in.GetImageRef(), in.GetInstance(), err)
+	}
+	resp := &pbApic.GetInstanceImageResponse{
+		Found:        describeResp.GetFound(),
+		ImageRef:     describeResp.GetImageRef(),
+		TargetDigest: describeResp.GetTargetDigest(),
+		Platform:     describeResp.GetPlatform(),
+		Labels:       cloneStringMap(describeResp.GetLabels()),
+	}
+	if !describeResp.GetFound() {
+		return resp, nil
+	}
+	contentResp, err := client.GetImageContent(ctx, &p2pproto.GetImageContentRequest{ImageRef: in.GetImageRef()})
+	if err != nil {
+		return nil, fmt.Errorf("get image content %q on instance %q: %w", in.GetImageRef(), in.GetInstance(), err)
+	}
+	resp.HasContent = contentResp.GetFound()
+	resp.Target = imageContentDescriptorFromP2P(contentResp.GetTarget())
+	for _, descriptor := range contentResp.GetDescriptors() {
+		resp.Descriptors = append(resp.Descriptors, imageContentDescriptorFromP2P(descriptor))
+	}
+	if contentResp.GetImageRef() != "" {
+		resp.ImageRef = contentResp.GetImageRef()
+	}
+	if contentResp.GetPlatform() != "" {
+		resp.Platform = contentResp.GetPlatform()
+	}
+	if len(contentResp.GetLabels()) > 0 {
+		resp.Labels = cloneStringMap(contentResp.GetLabels())
+	}
+	return resp, nil
+}
+
+func (b *Backend) UploadInstanceImageArchiveChunk(ctx context.Context, in *pbApic.UploadInstanceImageArchiveChunkRequest) (*pbApic.UploadInstanceImageArchiveChunkResponse, error) {
+	client, err := b.instanceAdminClient(in.GetInstance(), "upload instance image archive")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.UploadImageArchiveChunk(ctx, &p2pproto.UploadImageArchiveChunkRequest{
+		UploadId: in.GetUploadId(),
+		ImageRef: in.GetImageRef(),
+		Offset:   in.GetOffset(),
+		Data:     append([]byte(nil), in.GetData()...),
+		Eof:      in.GetEof(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("upload image archive chunk to instance %q: %w", in.GetInstance(), err)
+	}
+	return &pbApic.UploadInstanceImageArchiveChunkResponse{
+		ReceivedBytes: resp.GetReceivedBytes(),
+		Loaded:        resp.GetLoaded(),
+		ImageRef:      resp.GetImageRef(),
+		TargetDigest:  resp.GetTargetDigest(),
+		Platform:      resp.GetPlatform(),
+	}, nil
+}
+
+func (b *Backend) instanceAdminClient(instance string, action string) (*p2p.Client, error) {
+	instance = strings.TrimSpace(instance)
+	if instance == "" || instance == "local" {
+		return nil, fmt.Errorf("cannot %s: instance is required", action)
+	}
+	if b.protosClient == nil || b.protosClient.P2PManager == nil {
+		return nil, fmt.Errorf("cannot %s: p2p manager is not configured", action)
+	}
+	client, err := b.protosClient.P2PManager.GetClient(instance)
+	if err != nil {
+		return nil, fmt.Errorf("cannot %s for instance %q: %w", action, instance, err)
+	}
+	return client, nil
+}
+
+func imageContentDescriptorFromP2P(desc *p2pproto.ImageContentDescriptor) *pbApic.ImageContentDescriptor {
+	if desc == nil {
+		return nil
+	}
+	return &pbApic.ImageContentDescriptor{
+		MediaType:   desc.GetMediaType(),
+		Digest:      desc.GetDigest(),
+		SizeBytes:   desc.GetSizeBytes(),
+		Platform:    desc.GetPlatform(),
+		Annotations: cloneStringMap(desc.GetAnnotations()),
+	}
 }
 
 //

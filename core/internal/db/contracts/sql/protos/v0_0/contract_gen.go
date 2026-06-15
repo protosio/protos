@@ -5,7 +5,7 @@ package protosv00
 import (
 	_ "embed"
 
-	"swarmion.dev/runtime/schema"
+	"github.com/nustiueudinastea/swarmion/runtime/schema"
 )
 
 //go:embed contract.cue
@@ -23,7 +23,7 @@ var Version = schema.VersionDefinition{
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "kind", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "desired_status", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
-					{Name: "witness_rank", Type: "INT", PrimaryKey: false, NotNull: true},
+					{Name: "replication_priority", Type: "INT", PrimaryKey: false, NotNull: true},
 				},
 			},
 			{
@@ -83,7 +83,7 @@ var Version = schema.VersionDefinition{
 					{Name: "public_key", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "user_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
-					{Name: "witness_rank", Type: "INT", PrimaryKey: false, NotNull: true},
+					{Name: "replication_priority", Type: "INT", PrimaryKey: false, NotNull: true},
 				},
 			},
 			{
@@ -156,7 +156,7 @@ var CreateSQL = []string{
   name VARCHAR(255) NOT NULL,
   kind VARCHAR(255) NOT NULL,
   desired_status VARCHAR(255),
-  witness_rank INT NOT NULL
+  replication_priority INT NOT NULL
 )`,
 	`CREATE TABLE cloud_machines_metadata (
   id BINARY(16) NOT NULL PRIMARY KEY,
@@ -198,7 +198,7 @@ var CreateSQL = []string{
   public_key VARCHAR(255) NOT NULL,
   user_id BINARY(16) NOT NULL,
   name VARCHAR(255) NOT NULL,
-  witness_rank INT NOT NULL
+  replication_priority INT NOT NULL
 )`,
 	`CREATE TABLE peers (
   id BINARY(16) NOT NULL PRIMARY KEY,

@@ -22,6 +22,7 @@ import (
 
 type testMachine struct {
 	id         string
+	name       string
 	publicKey  string
 	publicIP   string
 	internalIP string
@@ -30,7 +31,12 @@ type testMachine struct {
 func (m testMachine) GetID() string        { return m.id }
 func (m testMachine) GetPublicKey() string { return m.publicKey }
 func (m testMachine) GetPublicIP() string  { return m.publicIP }
-func (m testMachine) GetName() string      { return m.id }
+func (m testMachine) GetName() string {
+	if m.name != "" {
+		return m.name
+	}
+	return m.id
+}
 func (m testMachine) GetInternalIP() string {
 	return m.internalIP
 }
@@ -63,8 +69,28 @@ func newTestMachine(t *testing.T, publicIP string) (testMachine, string, string)
 
 func newTestP2P() *P2P {
 	return &P2P{
-		machines: util.NewMap[string, Machine](),
-		clients:  util.NewMap[string, *Client](),
+		machines:   util.NewMap[string, Machine](),
+		clients:    util.NewMap[string, *Client](),
+		peerStates: util.NewMap[string, PeerState](),
+	}
+}
+
+func TestGetPeersKeysByPeerID(t *testing.T) {
+	p2p := newTestP2P()
+	p2p.machines.Set("peer-id-1", testMachine{id: "machine-id-1", name: "display-name-1"})
+	p2p.peerStates.Set("peer-id-1", PeerState{Status: PeerStatusConnected})
+
+	server := &Server{p2p: p2p}
+	resp, err := server.GetPeers(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("GetPeers() error = %v", err)
+	}
+
+	if got := resp.GetPeers()["peer-id-1"]; got != string(PeerStatusConnected) {
+		t.Fatalf("GetPeers()[peer-id-1] = %q, want %q", got, PeerStatusConnected)
+	}
+	if _, found := resp.GetPeers()["display-name-1"]; found {
+		t.Fatalf("GetPeers() used machine name as key: %v", resp.GetPeers())
 	}
 }
 
@@ -220,7 +246,7 @@ func (f testExternalDB) ExecSQLAndCommit(string, string) (string, error) {
 	return "", nil
 }
 func (f testExternalDB) GetLastCommit(string) (db.Commit, error) { return db.Commit{}, nil }
-func (f testExternalDB) CatchUpFinalized(context.Context, string) error {
+func (f testExternalDB) CatchUpCheckpoint(context.Context, string) error {
 	return nil
 }
 func (f testExternalDB) InitFromPeer(string, []string) error { return nil }

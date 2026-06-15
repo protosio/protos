@@ -26,7 +26,7 @@ type UserDevice struct {
 	PublicKey   string `json:"publickey" validate:"base64"` // ed25519 public key
 	Name        string `json:"name" validate:"required"`    // ID that uniquely identifies a machine
 	UserID      string `json:"userid" validate:"required"`
-	WitnessRank int    `json:"witness_rank"`
+	ReplicationPriority int    `json:"replication_priority"`
 }
 
 // User represents a Protos user
@@ -206,7 +206,7 @@ func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error
 		Name:        name,
 		PublicKey:   key.PublicString(),
 		UserID:      user.ID,
-		WitnessRank: db.DefaultWitnessRankForUserDeviceName(name),
+		ReplicationPriority: db.DefaultReplicationPriorityForUserDeviceName(name),
 	}
 
 	err = db.Insert(um.db, createUserDeviceInsertMapper(ud), db.CreatePeerInsertMapper(ud.PublicKey))

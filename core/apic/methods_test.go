@@ -96,11 +96,9 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 	t.Parallel()
 
 	state := &pbApic.RuntimeState{
-		PeerId:             "local-peer",
-		ConnectedPeers:     []string{"connected-peer"},
-		ActiveWitnessIds:   []string{"witness-peer"},
-		EligibleWitnessIds: []string{"eligible-peer"},
-		StateProviders:     []string{"provider-peer"},
+		PeerId:         "local-peer",
+		ConnectedPeers: []string{"connected-peer"},
+		StateProviders: []string{"provider-peer"},
 		PeerStatuses: []*pbApic.RuntimePeerStatus{
 			{PeerId: "connected-peer", Connected: true},
 		},
@@ -108,8 +106,7 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 
 	addKnownRuntimePeerStatuses(state, map[string]struct{}{
 		"connected-peer": {},
-		"witness-peer":   {},
-		"eligible-peer":  {},
+		"database-peer":  {},
 		"provider-peer":  {},
 	})
 
@@ -118,17 +115,14 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 		statuses[status.GetPeerId()] = status
 	}
 
-	if len(statuses) != 5 {
-		t.Fatalf("peer statuses count = %d, want 5: %#v", len(statuses), statuses)
+	if len(statuses) != 4 {
+		t.Fatalf("peer statuses count = %d, want 4: %#v", len(statuses), statuses)
 	}
 	if self := statuses["local-peer"]; self == nil || !self.GetConnected() || !self.GetDialable() || !self.GetCompatible() || self.GetReason() != "self" {
 		t.Fatalf("self status = %#v, want connected dialable compatible self row", self)
 	}
-	if witness := statuses["witness-peer"]; witness == nil || !witness.GetWitness() {
-		t.Fatalf("witness status = %#v, want witness=true", witness)
-	}
-	if eligible := statuses["eligible-peer"]; eligible == nil || !eligible.GetEligibleWitness() {
-		t.Fatalf("eligible status = %#v, want eligible_witness=true", eligible)
+	if databasePeer := statuses["database-peer"]; databasePeer == nil || databasePeer.GetConnected() || databasePeer.GetDialable() || databasePeer.GetStateProvider() || databasePeer.GetReason() != "known database peer" {
+		t.Fatalf("database peer status = %#v, want inert known database row", databasePeer)
 	}
 	if provider := statuses["provider-peer"]; provider == nil || !provider.GetStateProvider() {
 		t.Fatalf("provider status = %#v, want state_provider=true", provider)

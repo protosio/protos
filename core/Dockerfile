@@ -1,18 +1,35 @@
-FROM golang:1.26.3-alpine3.23 AS build
+# syntax=docker/dockerfile:1
+
+FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine3.23 AS build
+
+RUN apk add --no-cache ca-certificates git openssh-client
 
 ARG PROTOS_BUILD_DIR=.
 ARG PROTOS_NATIVE_GO_TAGS=dolt_purego_zstd,gms_pure_go
 ARG PROTOS_BUILD_GOMAXPROCS=2
-ARG PROTOS_USE_PREBUILT=0
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /go/src/github.com
-ENV GOPATH=/go PATH=$PATH:/go/bin
+ENV GOPATH=/go \
+    PATH=$PATH:/go/bin \
+    GIT_TERMINAL_PROMPT=0 \
+    GOPRIVATE=github.com/nustiueudinastea/swarmion \
+    GONOSUMDB=github.com/nustiueudinastea/swarmion
+RUN mkdir -p -m 0700 /root/.ssh \
+    && ssh-keyscan github.com >> /root/.ssh/known_hosts
 ADD . /go/src/github.com/protos
 WORKDIR /go/src/github.com/protos/${PROTOS_BUILD_DIR}
-RUN if [ "${PROTOS_USE_PREBUILT}" = "1" ]; then \
-      test -x bin/protosd; \
-    else \
-      GOMAXPROCS=${PROTOS_BUILD_GOMAXPROCS} CGO_ENABLED=0 GOOS=linux go build -tags "${PROTOS_NATIVE_GO_TAGS}" -ldflags '-w' -o bin/protosd cmd/protosd/protosd.go; \
-    fi
+RUN --mount=type=ssh,required=false \
+    --mount=type=secret,id=github_netrc,target=/root/.netrc,mode=0600,required=false \
+    --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    if [ ! -s /root/.netrc ] && [ -n "${SSH_AUTH_SOCK:-}" ]; then \
+      git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"; \
+    fi; \
+    target_os="${TARGETOS:-linux}"; \
+    target_arch="${TARGETARCH:-$(go env GOARCH)}"; \
+    GOMAXPROCS=${PROTOS_BUILD_GOMAXPROCS} CGO_ENABLED=0 GOOS="${target_os}" GOARCH="${target_arch}" \
+      go build -tags "${PROTOS_NATIVE_GO_TAGS}" -ldflags '-w' -o bin/protosd cmd/protosd/protosd.go
 RUN mkdir /root/tmp
 
 

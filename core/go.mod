@@ -12,7 +12,6 @@ replace (
 
 require (
 	filippo.io/edwards25519 v1.2.0
-	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/birros/go-libp2p-grpc v0.0.0
 	github.com/bokwoon95/sq v0.5.1
@@ -23,6 +22,7 @@ require (
 	github.com/containerd/platforms v1.0.0-rc.4
 	github.com/dennwc/btrfs v0.0.0-20260222081608-edfb8b9e4f55
 	github.com/go-playground/validator/v10 v10.30.2
+	github.com/grandcat/zeroconf v1.0.0
 	github.com/hetznercloud/hcloud-go/v2 v2.40.0
 	github.com/jsimonetti/rtnetlink v1.4.2
 	github.com/libp2p/go-libp2p v0.48.0
@@ -104,7 +104,6 @@ require (
 	github.com/google/pprof v0.0.0-20260507013755-92041b743c96 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/grafana/thema v0.0.0-20240605110052-2016107581da // indirect
-	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-pubsub v0.16.0 // indirect
@@ -233,7 +232,7 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/google/uuid v1.6.0
 	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
@@ -244,7 +243,6 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/juju/gnuflag v1.0.0 // indirect
-	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kch42/buzhash v0.0.0-20160816060738-9bdec3dec7c6 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -265,7 +263,6 @@ require (
 	github.com/mdlayher/genetlink v1.4.0 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
-	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
@@ -285,8 +282,13 @@ require (
 	github.com/multiformats/go-multihash v0.2.3 // indirect
 	github.com/multiformats/go-multistream v0.6.1 // indirect
 	github.com/multiformats/go-varint v0.1.0 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/nustiueudinastea/swarmion/protocol v0.0.0 // indirect
+	github.com/nustiueudinastea/swarmion/runtime v0.0.0
+	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615074636-a4d454bb32fb
+	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615074636-a4d454bb32fb
+	github.com/nustiueudinastea/swarmion/transports v0.0.0
+	github.com/opencontainers/go-digest v1.0.0
+	github.com/opencontainers/image-spec v1.1.1
 	github.com/oracle/oci-go-sdk/v65 v65.114.2 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
@@ -341,12 +343,6 @@ require (
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
-	swarmion.dev/internal/witnesstransition v0.0.0 // indirect
-	swarmion.dev/protocol v0.0.0
-	swarmion.dev/runtime v0.0.0
-	swarmion.dev/schema-engines/cue v0.0.0
-	swarmion.dev/schema-engines/declarative v0.0.0
-	swarmion.dev/transports v0.0.0
 )
 
 replace github.com/grafana/thema => github.com/nustiueudinastea/thema v0.0.0-20240605110052-2016107581da
@@ -355,14 +351,12 @@ replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014
 
 replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b
 
-replace swarmion.dev/internal/witnesstransition => ../../swarmion/internal/witnesstransition
+replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260615074636-a4d454bb32fb
 
-replace swarmion.dev/runtime => ../../swarmion/runtime
+replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260615074636-a4d454bb32fb
 
-replace swarmion.dev/protocol => ../../swarmion/protocol
+replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260615074636-a4d454bb32fb
 
-replace swarmion.dev/transports => ../../swarmion/transports
+replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615074636-a4d454bb32fb
 
-replace swarmion.dev/schema-engines/cue => ../../swarmion/schema-engines/cue
-
-replace swarmion.dev/schema-engines/declarative => ../../swarmion/schema-engines/declarative
+replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615074636-a4d454bb32fb

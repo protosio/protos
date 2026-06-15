@@ -1377,28 +1377,22 @@ type RuntimeState struct {
 	state                        protoimpl.MessageState  `protogen:"open.v1"`
 	PeerId                       string                  `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
 	ManifestDigest               string                  `protobuf:"bytes,2,opt,name=manifest_digest,json=manifestDigest,proto3" json:"manifest_digest,omitempty"`
-	FinalizedRootHash            string                  `protobuf:"bytes,3,opt,name=finalized_root_hash,json=finalizedRootHash,proto3" json:"finalized_root_hash,omitempty"`
+	CheckpointRootHash           string                  `protobuf:"bytes,3,opt,name=checkpoint_root_hash,json=checkpointRootHash,proto3" json:"checkpoint_root_hash,omitempty"`
 	TentativeRootHash            string                  `protobuf:"bytes,4,opt,name=tentative_root_hash,json=tentativeRootHash,proto3" json:"tentative_root_hash,omitempty"`
-	ProtocolFinalizedRootHash    string                  `protobuf:"bytes,5,opt,name=protocol_finalized_root_hash,json=protocolFinalizedRootHash,proto3" json:"protocol_finalized_root_hash,omitempty"`
+	ProtocolCheckpointRootHash   string                  `protobuf:"bytes,5,opt,name=protocol_checkpoint_root_hash,json=protocolCheckpointRootHash,proto3" json:"protocol_checkpoint_root_hash,omitempty"`
 	DurableMainRootHash          string                  `protobuf:"bytes,6,opt,name=durable_main_root_hash,json=durableMainRootHash,proto3" json:"durable_main_root_hash,omitempty"`
-	ActiveEpochId                string                  `protobuf:"bytes,7,opt,name=active_epoch_id,json=activeEpochId,proto3" json:"active_epoch_id,omitempty"`
-	ActiveWitnessIds             []string                `protobuf:"bytes,8,rep,name=active_witness_ids,json=activeWitnessIds,proto3" json:"active_witness_ids,omitempty"`
-	EligibleWitnessIds           []string                `protobuf:"bytes,9,rep,name=eligible_witness_ids,json=eligibleWitnessIds,proto3" json:"eligible_witness_ids,omitempty"`
 	StateProviders               []string                `protobuf:"bytes,10,rep,name=state_providers,json=stateProviders,proto3" json:"state_providers,omitempty"`
 	ConnectedPeers               []string                `protobuf:"bytes,11,rep,name=connected_peers,json=connectedPeers,proto3" json:"connected_peers,omitempty"`
 	FatalState                   string                  `protobuf:"bytes,12,opt,name=fatal_state,json=fatalState,proto3" json:"fatal_state,omitempty"`
 	RuntimeRefreshPending        bool                    `protobuf:"varint,13,opt,name=runtime_refresh_pending,json=runtimeRefreshPending,proto3" json:"runtime_refresh_pending,omitempty"`
 	RuntimeRefreshLastError      string                  `protobuf:"bytes,14,opt,name=runtime_refresh_last_error,json=runtimeRefreshLastError,proto3" json:"runtime_refresh_last_error,omitempty"`
-	RuntimeFinalizedPending      bool                    `protobuf:"varint,15,opt,name=runtime_finalized_pending,json=runtimeFinalizedPending,proto3" json:"runtime_finalized_pending,omitempty"`
-	RuntimeFinalizedLastError    string                  `protobuf:"bytes,16,opt,name=runtime_finalized_last_error,json=runtimeFinalizedLastError,proto3" json:"runtime_finalized_last_error,omitempty"`
+	RuntimeCheckpointPending     bool                    `protobuf:"varint,15,opt,name=runtime_checkpoint_pending,json=runtimeCheckpointPending,proto3" json:"runtime_checkpoint_pending,omitempty"`
+	RuntimeCheckpointLastError   string                  `protobuf:"bytes,16,opt,name=runtime_checkpoint_last_error,json=runtimeCheckpointLastError,proto3" json:"runtime_checkpoint_last_error,omitempty"`
 	RuntimeMaterializationPolicy string                  `protobuf:"bytes,17,opt,name=runtime_materialization_policy,json=runtimeMaterializationPolicy,proto3" json:"runtime_materialization_policy,omitempty"`
 	PeerStatuses                 []*RuntimePeerStatus    `protobuf:"bytes,18,rep,name=peer_statuses,json=peerStatuses,proto3" json:"peer_statuses,omitempty"`
 	Compatibility                []*RuntimeCompatibility `protobuf:"bytes,19,rep,name=compatibility,proto3" json:"compatibility,omitempty"`
 	ContentSyncTrace             []string                `protobuf:"bytes,20,rep,name=content_sync_trace,json=contentSyncTrace,proto3" json:"content_sync_trace,omitempty"`
-	KnownEpochIds                []string                `protobuf:"bytes,21,rep,name=known_epoch_ids,json=knownEpochIds,proto3" json:"known_epoch_ids,omitempty"`
-	EpochDescriptorDigestById    map[string]string       `protobuf:"bytes,22,rep,name=epoch_descriptor_digest_by_id,json=epochDescriptorDigestById,proto3" json:"epoch_descriptor_digest_by_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	EpochFinalizedDigestById     map[string]string       `protobuf:"bytes,23,rep,name=epoch_finalized_digest_by_id,json=epochFinalizedDigestById,proto3" json:"epoch_finalized_digest_by_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	ProtocolFinalizedDigest      string                  `protobuf:"bytes,24,opt,name=protocol_finalized_digest,json=protocolFinalizedDigest,proto3" json:"protocol_finalized_digest,omitempty"`
+	ProtocolCheckpointDigest     string                  `protobuf:"bytes,24,opt,name=protocol_checkpoint_digest,json=protocolCheckpointDigest,proto3" json:"protocol_checkpoint_digest,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -1447,9 +1441,9 @@ func (x *RuntimeState) GetManifestDigest() string {
 	return ""
 }
 
-func (x *RuntimeState) GetFinalizedRootHash() string {
+func (x *RuntimeState) GetCheckpointRootHash() string {
 	if x != nil {
-		return x.FinalizedRootHash
+		return x.CheckpointRootHash
 	}
 	return ""
 }
@@ -1461,9 +1455,9 @@ func (x *RuntimeState) GetTentativeRootHash() string {
 	return ""
 }
 
-func (x *RuntimeState) GetProtocolFinalizedRootHash() string {
+func (x *RuntimeState) GetProtocolCheckpointRootHash() string {
 	if x != nil {
-		return x.ProtocolFinalizedRootHash
+		return x.ProtocolCheckpointRootHash
 	}
 	return ""
 }
@@ -1473,27 +1467,6 @@ func (x *RuntimeState) GetDurableMainRootHash() string {
 		return x.DurableMainRootHash
 	}
 	return ""
-}
-
-func (x *RuntimeState) GetActiveEpochId() string {
-	if x != nil {
-		return x.ActiveEpochId
-	}
-	return ""
-}
-
-func (x *RuntimeState) GetActiveWitnessIds() []string {
-	if x != nil {
-		return x.ActiveWitnessIds
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetEligibleWitnessIds() []string {
-	if x != nil {
-		return x.EligibleWitnessIds
-	}
-	return nil
 }
 
 func (x *RuntimeState) GetStateProviders() []string {
@@ -1531,16 +1504,16 @@ func (x *RuntimeState) GetRuntimeRefreshLastError() string {
 	return ""
 }
 
-func (x *RuntimeState) GetRuntimeFinalizedPending() bool {
+func (x *RuntimeState) GetRuntimeCheckpointPending() bool {
 	if x != nil {
-		return x.RuntimeFinalizedPending
+		return x.RuntimeCheckpointPending
 	}
 	return false
 }
 
-func (x *RuntimeState) GetRuntimeFinalizedLastError() string {
+func (x *RuntimeState) GetRuntimeCheckpointLastError() string {
 	if x != nil {
-		return x.RuntimeFinalizedLastError
+		return x.RuntimeCheckpointLastError
 	}
 	return ""
 }
@@ -1573,51 +1546,28 @@ func (x *RuntimeState) GetContentSyncTrace() []string {
 	return nil
 }
 
-func (x *RuntimeState) GetKnownEpochIds() []string {
+func (x *RuntimeState) GetProtocolCheckpointDigest() string {
 	if x != nil {
-		return x.KnownEpochIds
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetEpochDescriptorDigestById() map[string]string {
-	if x != nil {
-		return x.EpochDescriptorDigestById
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetEpochFinalizedDigestById() map[string]string {
-	if x != nil {
-		return x.EpochFinalizedDigestById
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetProtocolFinalizedDigest() string {
-	if x != nil {
-		return x.ProtocolFinalizedDigest
+		return x.ProtocolCheckpointDigest
 	}
 	return ""
 }
 
 type RuntimePeerStatus struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	PeerId          string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	Connected       bool                   `protobuf:"varint,2,opt,name=connected,proto3" json:"connected,omitempty"`
-	Dialable        bool                   `protobuf:"varint,3,opt,name=dialable,proto3" json:"dialable,omitempty"`
-	StateProvider   bool                   `protobuf:"varint,4,opt,name=state_provider,json=stateProvider,proto3" json:"state_provider,omitempty"`
-	Witness         bool                   `protobuf:"varint,5,opt,name=witness,proto3" json:"witness,omitempty"`
-	EligibleWitness bool                   `protobuf:"varint,6,opt,name=eligible_witness,json=eligibleWitness,proto3" json:"eligible_witness,omitempty"`
-	Compatible      bool                   `protobuf:"varint,7,opt,name=compatible,proto3" json:"compatible,omitempty"`
-	Incompatible    bool                   `protobuf:"varint,8,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
-	Ignored         bool                   `protobuf:"varint,9,opt,name=ignored,proto3" json:"ignored,omitempty"`
-	RelayOnly       bool                   `protobuf:"varint,10,opt,name=relay_only,json=relayOnly,proto3" json:"relay_only,omitempty"`
-	Addresses       []string               `protobuf:"bytes,11,rep,name=addresses,proto3" json:"addresses,omitempty"`
-	LastDialErrors  map[string]string      `protobuf:"bytes,12,rep,name=last_dial_errors,json=lastDialErrors,proto3" json:"last_dial_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Reason          string                 `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	PeerId         string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	Connected      bool                   `protobuf:"varint,2,opt,name=connected,proto3" json:"connected,omitempty"`
+	Dialable       bool                   `protobuf:"varint,3,opt,name=dialable,proto3" json:"dialable,omitempty"`
+	StateProvider  bool                   `protobuf:"varint,4,opt,name=state_provider,json=stateProvider,proto3" json:"state_provider,omitempty"`
+	Compatible     bool                   `protobuf:"varint,7,opt,name=compatible,proto3" json:"compatible,omitempty"`
+	Incompatible   bool                   `protobuf:"varint,8,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
+	Ignored        bool                   `protobuf:"varint,9,opt,name=ignored,proto3" json:"ignored,omitempty"`
+	RelayOnly      bool                   `protobuf:"varint,10,opt,name=relay_only,json=relayOnly,proto3" json:"relay_only,omitempty"`
+	Addresses      []string               `protobuf:"bytes,11,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	LastDialErrors map[string]string      `protobuf:"bytes,12,rep,name=last_dial_errors,json=lastDialErrors,proto3" json:"last_dial_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Reason         string                 `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RuntimePeerStatus) Reset() {
@@ -1674,20 +1624,6 @@ func (x *RuntimePeerStatus) GetDialable() bool {
 func (x *RuntimePeerStatus) GetStateProvider() bool {
 	if x != nil {
 		return x.StateProvider
-	}
-	return false
-}
-
-func (x *RuntimePeerStatus) GetWitness() bool {
-	if x != nil {
-		return x.Witness
-	}
-	return false
-}
-
-func (x *RuntimePeerStatus) GetEligibleWitness() bool {
-	if x != nil {
-		return x.EligibleWitness
 	}
 	return false
 }
@@ -1934,47 +1870,33 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1d\n" +
 	"\n" +
 	"dns_server\x18\x05 \x01(\tR\tdnsServer\x12\x14\n" +
-	"\x05cidrs\x18\x06 \x03(\tR\x05cidrs\"\xf1\v\n" +
+	"\x05cidrs\x18\x06 \x03(\tR\x05cidrs\"\xc7\a\n" +
 	"\fRuntimeState\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12'\n" +
-	"\x0fmanifest_digest\x18\x02 \x01(\tR\x0emanifestDigest\x12.\n" +
-	"\x13finalized_root_hash\x18\x03 \x01(\tR\x11finalizedRootHash\x12.\n" +
-	"\x13tentative_root_hash\x18\x04 \x01(\tR\x11tentativeRootHash\x12?\n" +
-	"\x1cprotocol_finalized_root_hash\x18\x05 \x01(\tR\x19protocolFinalizedRootHash\x123\n" +
-	"\x16durable_main_root_hash\x18\x06 \x01(\tR\x13durableMainRootHash\x12&\n" +
-	"\x0factive_epoch_id\x18\a \x01(\tR\ractiveEpochId\x12,\n" +
-	"\x12active_witness_ids\x18\b \x03(\tR\x10activeWitnessIds\x120\n" +
-	"\x14eligible_witness_ids\x18\t \x03(\tR\x12eligibleWitnessIds\x12'\n" +
+	"\x0fmanifest_digest\x18\x02 \x01(\tR\x0emanifestDigest\x120\n" +
+	"\x14checkpoint_root_hash\x18\x03 \x01(\tR\x12checkpointRootHash\x12.\n" +
+	"\x13tentative_root_hash\x18\x04 \x01(\tR\x11tentativeRootHash\x12A\n" +
+	"\x1dprotocol_checkpoint_root_hash\x18\x05 \x01(\tR\x1aprotocolCheckpointRootHash\x123\n" +
+	"\x16durable_main_root_hash\x18\x06 \x01(\tR\x13durableMainRootHash\x12'\n" +
 	"\x0fstate_providers\x18\n" +
 	" \x03(\tR\x0estateProviders\x12'\n" +
 	"\x0fconnected_peers\x18\v \x03(\tR\x0econnectedPeers\x12\x1f\n" +
 	"\vfatal_state\x18\f \x01(\tR\n" +
 	"fatalState\x126\n" +
 	"\x17runtime_refresh_pending\x18\r \x01(\bR\x15runtimeRefreshPending\x12;\n" +
-	"\x1aruntime_refresh_last_error\x18\x0e \x01(\tR\x17runtimeRefreshLastError\x12:\n" +
-	"\x19runtime_finalized_pending\x18\x0f \x01(\bR\x17runtimeFinalizedPending\x12?\n" +
-	"\x1cruntime_finalized_last_error\x18\x10 \x01(\tR\x19runtimeFinalizedLastError\x12D\n" +
+	"\x1aruntime_refresh_last_error\x18\x0e \x01(\tR\x17runtimeRefreshLastError\x12<\n" +
+	"\x1aruntime_checkpoint_pending\x18\x0f \x01(\bR\x18runtimeCheckpointPending\x12A\n" +
+	"\x1druntime_checkpoint_last_error\x18\x10 \x01(\tR\x1aruntimeCheckpointLastError\x12D\n" +
 	"\x1eruntime_materialization_policy\x18\x11 \x01(\tR\x1cruntimeMaterializationPolicy\x12=\n" +
 	"\rpeer_statuses\x18\x12 \x03(\v2\x18.proto.RuntimePeerStatusR\fpeerStatuses\x12A\n" +
 	"\rcompatibility\x18\x13 \x03(\v2\x1b.proto.RuntimeCompatibilityR\rcompatibility\x12,\n" +
-	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\x12&\n" +
-	"\x0fknown_epoch_ids\x18\x15 \x03(\tR\rknownEpochIds\x12t\n" +
-	"\x1depoch_descriptor_digest_by_id\x18\x16 \x03(\v22.proto.RuntimeState.EpochDescriptorDigestByIdEntryR\x19epochDescriptorDigestById\x12q\n" +
-	"\x1cepoch_finalized_digest_by_id\x18\x17 \x03(\v21.proto.RuntimeState.EpochFinalizedDigestByIdEntryR\x18epochFinalizedDigestById\x12:\n" +
-	"\x19protocol_finalized_digest\x18\x18 \x01(\tR\x17protocolFinalizedDigest\x1aL\n" +
-	"\x1eEpochDescriptorDigestByIdEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aK\n" +
-	"\x1dEpochFinalizedDigestByIdEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x04\n" +
+	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\x12<\n" +
+	"\x1aprotocol_checkpoint_digest\x18\x18 \x01(\tR\x18protocolCheckpointDigest\"\xdb\x03\n" +
 	"\x11RuntimePeerStatus\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1c\n" +
 	"\tconnected\x18\x02 \x01(\bR\tconnected\x12\x1a\n" +
 	"\bdialable\x18\x03 \x01(\bR\bdialable\x12%\n" +
-	"\x0estate_provider\x18\x04 \x01(\bR\rstateProvider\x12\x18\n" +
-	"\awitness\x18\x05 \x01(\bR\awitness\x12)\n" +
-	"\x10eligible_witness\x18\x06 \x01(\bR\x0feligibleWitness\x12\x1e\n" +
+	"\x0estate_provider\x18\x04 \x01(\bR\rstateProvider\x12\x1e\n" +
 	"\n" +
 	"compatible\x18\a \x01(\bR\n" +
 	"compatible\x12\"\n" +
@@ -2018,7 +1940,7 @@ func file_internal_p2p_proto_instance_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_instance_proto_rawDescData
 }
 
-var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_internal_p2p_proto_instance_proto_goTypes = []any{
 	(*InitRequest)(nil),             // 0: proto.InitRequest
 	(*InitResponse)(nil),            // 1: proto.InitResponse
@@ -2046,9 +1968,7 @@ var file_internal_p2p_proto_instance_proto_goTypes = []any{
 	(*RuntimePeerStatus)(nil),       // 23: proto.RuntimePeerStatus
 	(*RuntimeCompatibility)(nil),    // 24: proto.RuntimeCompatibility
 	nil,                             // 25: proto.GetPeersResponse.PeersEntry
-	nil,                             // 26: proto.RuntimeState.EpochDescriptorDigestByIdEntry
-	nil,                             // 27: proto.RuntimeState.EpochFinalizedDigestByIdEntry
-	nil,                             // 28: proto.RuntimePeerStatus.LastDialErrorsEntry
+	nil,                             // 26: proto.RuntimePeerStatus.LastDialErrorsEntry
 }
 var file_internal_p2p_proto_instance_proto_depIdxs = []int32{
 	25, // 0: proto.GetPeersResponse.peers:type_name -> proto.GetPeersResponse.PeersEntry
@@ -2065,26 +1985,24 @@ var file_internal_p2p_proto_instance_proto_depIdxs = []int32{
 	19, // 11: proto.FirewallChain.rules:type_name -> proto.FirewallRule
 	23, // 12: proto.RuntimeState.peer_statuses:type_name -> proto.RuntimePeerStatus
 	24, // 13: proto.RuntimeState.compatibility:type_name -> proto.RuntimeCompatibility
-	26, // 14: proto.RuntimeState.epoch_descriptor_digest_by_id:type_name -> proto.RuntimeState.EpochDescriptorDigestByIdEntry
-	27, // 15: proto.RuntimeState.epoch_finalized_digest_by_id:type_name -> proto.RuntimeState.EpochFinalizedDigestByIdEntry
-	28, // 16: proto.RuntimePeerStatus.last_dial_errors:type_name -> proto.RuntimePeerStatus.LastDialErrorsEntry
-	0,  // 17: proto.Instance.Init:input_type -> proto.InitRequest
-	2,  // 18: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
-	4,  // 19: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
-	6,  // 20: proto.Instance.GetNetworkState:input_type -> proto.GetNetworkStateRequest
-	8,  // 21: proto.Instance.GetExitRoutes:input_type -> proto.GetExitRoutesRequest
-	10, // 22: proto.Instance.GetRuntimeState:input_type -> proto.GetRuntimeStateRequest
-	1,  // 23: proto.Instance.Init:output_type -> proto.InitResponse
-	3,  // 24: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
-	5,  // 25: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
-	7,  // 26: proto.Instance.GetNetworkState:output_type -> proto.GetNetworkStateResponse
-	9,  // 27: proto.Instance.GetExitRoutes:output_type -> proto.GetExitRoutesResponse
-	11, // 28: proto.Instance.GetRuntimeState:output_type -> proto.GetRuntimeStateResponse
-	23, // [23:29] is the sub-list for method output_type
-	17, // [17:23] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	26, // 14: proto.RuntimePeerStatus.last_dial_errors:type_name -> proto.RuntimePeerStatus.LastDialErrorsEntry
+	0,  // 15: proto.Instance.Init:input_type -> proto.InitRequest
+	2,  // 16: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
+	4,  // 17: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
+	6,  // 18: proto.Instance.GetNetworkState:input_type -> proto.GetNetworkStateRequest
+	8,  // 19: proto.Instance.GetExitRoutes:input_type -> proto.GetExitRoutesRequest
+	10, // 20: proto.Instance.GetRuntimeState:input_type -> proto.GetRuntimeStateRequest
+	1,  // 21: proto.Instance.Init:output_type -> proto.InitResponse
+	3,  // 22: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
+	5,  // 23: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
+	7,  // 24: proto.Instance.GetNetworkState:output_type -> proto.GetNetworkStateResponse
+	9,  // 25: proto.Instance.GetExitRoutes:output_type -> proto.GetExitRoutesResponse
+	11, // 26: proto.Instance.GetRuntimeState:output_type -> proto.GetRuntimeStateResponse
+	21, // [21:27] is the sub-list for method output_type
+	15, // [15:21] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_internal_p2p_proto_instance_proto_init() }
@@ -2098,7 +2016,7 @@ func file_internal_p2p_proto_instance_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_instance_proto_rawDesc), len(file_internal_p2p_proto_instance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   29,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

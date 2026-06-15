@@ -563,9 +563,9 @@ func (dbn *DBNotifier) Notify() {
 	}
 
 	catchUpCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	if err := dbn.database.CatchUpFinalized(catchUpCtx, "protosd reconcile desired state"); err != nil {
+	if err := dbn.database.CatchUpCheckpoint(catchUpCtx, "protosd reconcile desired state"); err != nil {
 		cancel()
-		log.Error(fmt.Errorf("failed to catch up finalized DB state: %w", err))
+		log.Error(fmt.Errorf("failed to catch up checkpoint DB state: %w", err))
 		return
 	}
 	cancel()
@@ -590,13 +590,13 @@ func (dbn *DBNotifier) Notify() {
 	instances = membership.FilterInstances(instances, peerIDs)
 	instances = provisioners.ActiveInstances(instances)
 
-	witnessInstances, err := dbn.cm.GetInstances(false)
+	replicationInstances, err := dbn.cm.GetInstances(false)
 	if err != nil {
-		log.Error(fmt.Errorf("failed to retrieve witness instances: %w", err))
+		log.Error(fmt.Errorf("failed to retrieve replication instances: %w", err))
 		return
 	}
-	witnessInstances = membership.FilterInstances(witnessInstances, peerIDs)
-	witnessInstances = provisioners.ActiveInstances(witnessInstances)
+	replicationInstances = membership.FilterInstances(replicationInstances, peerIDs)
+	replicationInstances = provisioners.ActiveInstances(replicationInstances)
 
 	userDevices, err := dbn.um.GetAllDevices(false)
 	if err != nil {
@@ -656,8 +656,8 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 
-	if err := dbn.database.ReconcileWitnesses(context.Background(), membership.WitnessCandidates(witnessInstances, userDevices)); err != nil {
-		log.Error(fmt.Errorf("failed to reconcile swarmion witnesses: %w", err))
+	if err := dbn.database.ReconcileReplicationPeers(context.Background(), membership.ReplicationCandidates(replicationInstances, userDevices)); err != nil {
+		log.Error(fmt.Errorf("failed to reconcile swarmion replication metadata: %w", err))
 	}
 }
 

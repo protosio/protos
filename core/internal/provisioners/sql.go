@@ -18,7 +18,7 @@ func createInstanceInsertMapper(instance InstanceInfo) (db.InsertMapper, db.Inse
 			col.SetString(m.NAME, instance.Name)
 			col.SetString(m.KIND, instance.Kind)
 			col.SetString(m.DESIRED_STATUS, instance.DesiredStatus)
-			col.SetInt(m.WITNESS_RANK, instance.WitnessRank)
+			col.SetInt(m.REPLICATION_PRIORITY, instance.ReplicationPriority)
 		}
 
 		return sq.InsertInto(m).ColumnValues(mapper)
@@ -50,7 +50,7 @@ func createInstanceUpdateMapper(instance InstanceInfo) (db.UpdateMapper, db.Upda
 			col.SetString(m.NAME, instance.Name)
 			col.SetString(m.KIND, instance.Kind)
 			col.SetString(m.DESIRED_STATUS, instance.DesiredStatus)
-			col.SetInt(m.WITNESS_RANK, instance.WitnessRank)
+			col.SetInt(m.REPLICATION_PRIORITY, instance.ReplicationPriority)
 		}
 
 		return sq.Update(m).SetFunc(mapper).Where(db.UUIDEq(m.ID, instance.ID))
@@ -79,7 +79,7 @@ func createInstanceFinalizeMapper(pendingID string, instance InstanceInfo) (db.U
 			col.SetString(m.NAME, instance.Name)
 			col.SetString(m.KIND, instance.Kind)
 			col.SetString(m.DESIRED_STATUS, instance.DesiredStatus)
-			col.SetInt(m.WITNESS_RANK, instance.WitnessRank)
+			col.SetInt(m.REPLICATION_PRIORITY, instance.ReplicationPriority)
 		}
 		return sq.Update(m).SetFunc(mapper).Where(db.UUIDEq(m.ID, pendingID))
 	}
@@ -116,7 +116,7 @@ func createInstanceQueryMapper(id string) db.QueryMapper[InstanceInfo] {
 				Name:               row.StringField(m.NAME),
 				Kind:               row.StringField(m.KIND),
 				DesiredStatus:      row.StringField(m.DESIRED_STATUS),
-				WitnessRank:        row.IntField(m.WITNESS_RANK),
+				ReplicationPriority:        row.IntField(m.REPLICATION_PRIORITY),
 				KindID:             row.StringField(cmm.CLOUD_ID),
 				ProviderResourceID: row.StringField(cmm.PROVIDER_RESOURCE_ID),
 				PublicIP:           row.StringField(cmm.PUBLIC_IP),
@@ -145,7 +145,7 @@ func createInstanceQueryByNameMapper(name string) db.QueryMapper[InstanceInfo] {
 				Name:               row.StringField(m.NAME),
 				Kind:               row.StringField(m.KIND),
 				DesiredStatus:      row.StringField(m.DESIRED_STATUS),
-				WitnessRank:        row.IntField(m.WITNESS_RANK),
+				ReplicationPriority:        row.IntField(m.REPLICATION_PRIORITY),
 				KindID:             row.StringField(cmm.CLOUD_ID),
 				ProviderResourceID: row.StringField(cmm.PROVIDER_RESOURCE_ID),
 				PublicIP:           row.StringField(cmm.PUBLIC_IP),
@@ -177,7 +177,7 @@ func createInstanceQueryAllMapper(excludePublicKey string) db.QueryMapper[Instan
 				Name:               row.StringField(m.NAME),
 				Kind:               row.StringField(m.KIND),
 				DesiredStatus:      row.StringField(m.DESIRED_STATUS),
-				WitnessRank:        row.IntField(m.WITNESS_RANK),
+				ReplicationPriority:        row.IntField(m.REPLICATION_PRIORITY),
 				KindID:             row.StringField(cmm.CLOUD_ID),
 				ProviderResourceID: row.StringField(cmm.PROVIDER_RESOURCE_ID),
 				PublicIP:           row.StringField(cmm.PUBLIC_IP),
