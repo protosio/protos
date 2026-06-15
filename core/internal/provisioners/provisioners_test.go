@@ -1,6 +1,8 @@
 package provisioners
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -148,7 +150,7 @@ func TestDeleteLocalInstanceContinuesWhenProviderManifestMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cm.DeleteInstance("test1"); err != nil {
+	if err := cm.DeleteInstance(context.Background(), "test1"); err != nil {
 		t.Fatal(err)
 	}
 	if len(provider.deleted) != 1 || provider.deleted[0] != "vm-missing" {
@@ -194,7 +196,7 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cm.DeleteInstance("vm"); err != nil {
+	if err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
 		t.Fatal(err)
 	}
 	if provider.stopCalls != 1 {
@@ -205,6 +207,95 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 	}
 	if _, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err == nil {
 		t.Fatal("expected instance row to be removed")
+	}
+}
+
+func TestDeleteInstanceReturnsVolumeDeleteErrorAndKeepsRecord(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	provider := &fakeStopFailDeleteProvider{
+		instances: map[string]InstanceInfo{
+			"provider-vm-id": {
+				ID:                 "provider-vm-id",
+				Name:               "vm",
+				ProviderResourceID: "provider-vm-id",
+				Status:             ServerStateStopped,
+				Volumes: []VolumeInfo{
+					{VolumeID: "volume-id", Name: "vm"},
+				},
+			},
+		},
+		volumeErr: fmt.Errorf("provider volume is locked"),
+	}
+	cm := &Manager{
+		db:           store,
+		provisioners: newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}),
+	}
+	if err := cm.AddProvisioner("cloud-test", fakeStopFailDeleteType.String(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := InstanceInfo{
+		ID:                 db.MustNewUUIDv7(),
+		Name:               "vm",
+		Kind:               KindCloudVM,
+		KindID:             "cloud-test",
+		ProviderResourceID: "provider-vm-id",
+		DesiredStatus:      ServerStateRunning,
+		Location:           "test-location",
+	}
+	im, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(store, im, cmm); err != nil {
+		t.Fatal(err)
+	}
+
+	err := cm.DeleteInstance(context.Background(), "vm")
+	if err == nil {
+		t.Fatal("expected volume delete error")
+	}
+	if !strings.Contains(err.Error(), "could not delete volume 'volume-id'") {
+		t.Fatalf("error = %v, want volume delete context", err)
+	}
+	if provider.deleteCalls != 0 {
+		t.Fatalf("delete calls = %d, want 0", provider.deleteCalls)
+	}
+	if provider.volumeDeleteCalls != 1 {
+		t.Fatalf("volume delete calls = %d, want 1", provider.volumeDeleteCalls)
+	}
+	if _, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err != nil {
+		t.Fatalf("expected instance row to remain for retry: %v", err)
+	}
+}
+
+func TestDeleteInstanceHonorsCanceledContextBeforeMutatingState(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	cm := &Manager{db: store}
+
+	instance := InstanceInfo{
+		ID:            db.MustNewUUIDv7(),
+		Name:          "vm",
+		Kind:          KindCloudVM,
+		KindID:        "cloud-test",
+		DesiredStatus: ServerStateRunning,
+		Location:      "test-location",
+	}
+	im, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(store, im, cmm); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := cm.DeleteInstance(ctx, "vm")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("DeleteInstance error = %v, want context.Canceled", err)
+	}
+
+	stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.DesiredStatus != ServerStateRunning {
+		t.Fatalf("desired status = %q, want %q", stored.DesiredStatus, ServerStateRunning)
 	}
 }
 
@@ -220,28 +311,28 @@ func TestReplicationCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 		t.Fatal(err)
 	}
 	active := InstanceInfo{
-		ID:            db.MustNewUUIDv7(),
-		Name:          "active",
-		Kind:          KindCloudVM,
-		KindID:        "cloud-test",
-		PublicIP:      "192.0.2.10",
-		PublicKey:     activeKey.PublicString(),
-		DesiredStatus: ServerStateRunning,
-		ReplicationPriority:   10,
-		Location:      "test-location",
-		Architecture:  "amd64",
+		ID:                  db.MustNewUUIDv7(),
+		Name:                "active",
+		Kind:                KindCloudVM,
+		KindID:              "cloud-test",
+		PublicIP:            "192.0.2.10",
+		PublicKey:           activeKey.PublicString(),
+		DesiredStatus:       ServerStateRunning,
+		ReplicationPriority: 10,
+		Location:            "test-location",
+		Architecture:        "amd64",
 	}
 	deleting := InstanceInfo{
-		ID:            db.MustNewUUIDv7(),
-		Name:          "deleting",
-		Kind:          KindCloudVM,
-		KindID:        "cloud-test",
-		PublicIP:      "192.0.2.11",
-		PublicKey:     deletingKey.PublicString(),
-		DesiredStatus: ServerStateDeleting,
-		ReplicationPriority:   20,
-		Location:      "test-location",
-		Architecture:  "amd64",
+		ID:                  db.MustNewUUIDv7(),
+		Name:                "deleting",
+		Kind:                KindCloudVM,
+		KindID:              "cloud-test",
+		PublicIP:            "192.0.2.11",
+		PublicKey:           deletingKey.PublicString(),
+		DesiredStatus:       ServerStateDeleting,
+		ReplicationPriority: 20,
+		Location:            "test-location",
+		Architecture:        "amd64",
 	}
 	activeMachine, activeMetadata := createInstanceInsertMapper(active)
 	deletingMachine, deletingMetadata := createInstanceInsertMapper(deleting)
@@ -611,10 +702,12 @@ func (f fakeStopFailDeleteFactory) NewClient(record ProvisionerRecord, deps Prov
 
 type fakeStopFailDeleteProvider struct {
 	ProvisionerMetadata
-	instances   map[string]InstanceInfo
-	stopErr     error
-	stopCalls   int
-	deleteCalls int
+	instances         map[string]InstanceInfo
+	stopErr           error
+	volumeErr         error
+	stopCalls         int
+	deleteCalls       int
+	volumeDeleteCalls int
 }
 
 func (p *fakeStopFailDeleteProvider) Init() error {
@@ -661,7 +754,8 @@ func (p *fakeStopFailDeleteProvider) NewVolume(string, int, string) (string, err
 }
 
 func (p *fakeStopFailDeleteProvider) DeleteVolume(string, string) error {
-	return nil
+	p.volumeDeleteCalls++
+	return p.volumeErr
 }
 
 func (p *fakeStopFailDeleteProvider) AttachVolume(string, string, string) error {

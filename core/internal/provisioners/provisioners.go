@@ -503,11 +503,9 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to deploy Protos instance: %w", err)
 	}
-	for id, img := range images {
-		if img.Location == cloudLocation && img.Name == release.Version {
-			imageID = id
-			break
-		}
+	if selectedID, selectedImage, found := SelectProtosImageForRef(images, cloudLocation, release.Version); found {
+		imageID = selectedID
+		log.Infof("selected Protos image '%s' (%s) for version '%s'", selectedImage.Name, selectedID, release.Version)
 	}
 	if imageID != "" {
 		log.Infof("found Protos image version '%s' in your cloud account", release.Version)
@@ -896,16 +894,22 @@ func (cm *Manager) UpdateInstance(id string, ip string) error {
 }
 
 // DeleteInstance deletes an instance
-func (cm *Manager) DeleteInstance(id string) error {
-	return cm.deleteInstance(id, false)
+func (cm *Manager) DeleteInstance(ctx context.Context, id string) error {
+	return cm.deleteInstance(ctx, id, false)
 }
 
 // DeleteInstanceLocal deletes only local database and peer state for an instance.
-func (cm *Manager) DeleteInstanceLocal(id string) error {
-	return cm.deleteInstance(id, true)
+func (cm *Manager) DeleteInstanceLocal(ctx context.Context, id string) error {
+	return cm.deleteInstance(ctx, id, true)
 }
 
-func (cm *Manager) deleteInstance(id string, localOnly bool) error {
+func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool) error {
+	ctx, cancel := instanceDeleteContext(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	instance, err := cm.GetInstance(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
@@ -918,16 +922,34 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 		}
 	}
 
-	if err := cm.markInstanceDeleting(instance); err != nil {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := cm.markInstanceDeleting(ctx, instance); err != nil {
 		return err
 	}
 	instance.DesiredStatus = ServerStateDeleting
 
-	if err := cm.deleteAppsForInstance(instance.ID); err != nil {
+	if err := cm.deleteAppsForInstance(ctx, instance.ID); err != nil {
 		return err
 	}
 
+	if strings.TrimSpace(instance.PublicKey) != "" {
+		if cm.p2p != nil {
+			err = cm.p2p.RemovePeer(instance)
+			if err != nil {
+				return fmt.Errorf("failed to remove peer: %w", err)
+			}
+		}
+		if err := cm.waitForInstancePeerDurableRemovalReady(ctx, instance); err != nil {
+			return err
+		}
+	}
+
 	if !localOnly && (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		provider, err := cm.GetProvider(instance.KindID)
 		if err != nil {
 			return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
@@ -961,37 +983,36 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 		if found {
 			if vmInfo.Status == ServerStateRunning {
 				log.Infof("Stopping instance '%s' (%s)", instance.Name, providerInstanceID)
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				err = computeProvider.StopInstance(providerInstanceID, instance.Location)
 				if err != nil {
 					log.Warnf("failed to stop instance '%s' before delete; attempting provider delete anyway: %s", id, err.Error())
 				}
 			}
+			for _, vol := range vmInfo.Volumes {
+				log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, id)
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				err = volumeProvider.DeleteVolume(vol.VolumeID, instance.Location)
+				if err != nil {
+					return fmt.Errorf("could not delete volume '%s' for instance '%s': %w", vol.VolumeID, id, err)
+				}
+			}
 			log.Infof("Deleting instance '%s' (%s)", instance.Name, providerInstanceID)
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			err = computeProvider.DeleteInstance(providerInstanceID, instance.Location)
 			if err != nil {
 				return fmt.Errorf("could not delete instance '%s': %w", id, err)
 			}
-			for _, vol := range vmInfo.Volumes {
-				log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, id)
-				err = volumeProvider.DeleteVolume(vol.VolumeID, instance.Location)
-				if err != nil {
-					log.Errorf("failed to delete volume '%s': %s", vol.Name, err.Error())
-				}
-			}
 		}
 	}
 
-	if strings.TrimSpace(instance.PublicKey) != "" {
-		err = cm.p2p.RemovePeer(instance)
-		if err != nil {
-			return fmt.Errorf("failed to remove peer: %w", err)
-		}
-		if err := cm.removeInstanceReplicationEligibility(instance); err != nil {
-			return err
-		}
-	}
-
-	if err := cm.deleteInstanceRecords(instance); err != nil {
+	if err := cm.deleteInstanceRecords(ctx, instance); err != nil {
 		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
 	}
 	if err := cm.deleteInstanceSSHKey(instance.ID); err != nil {
@@ -1001,7 +1022,17 @@ func (cm *Manager) deleteInstance(id string, localOnly bool) error {
 	return nil
 }
 
-func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
+func instanceDeleteContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, 10*time.Minute)
+}
+
+func (cm *Manager) deleteInstanceRecords(ctx context.Context, instance InstanceInfo) error {
 	if cm == nil || cm.db == nil {
 		return fmt.Errorf("provisioner manager database is not configured")
 	}
@@ -1010,8 +1041,13 @@ func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
 	}
 
 	var lastErr error
-	deadline := time.Now().Add(10 * time.Minute)
-	for attempt := 1; time.Now().Before(deadline); attempt++ {
+	for attempt := 1; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			if lastErr != nil {
+				return fmt.Errorf("%w: %w", err, lastErr)
+			}
+			return err
+		}
 		im, cmmd := createInstanceDeleteMapper(instance.ID)
 		err := db.Delete(cm.db, db.CreatePeerDeleteMapper(instance.PublicKey), createAppDeleteByInstanceMapper(instance.ID), im, cmmd)
 		peerID := ""
@@ -1019,10 +1055,10 @@ func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
 			peerID, _ = db.PeerIDFromPublicKeyString(instance.PublicKey)
 		}
 		if err == nil {
-			err = cm.assertInstancePeerRemoved(peerID)
+			err = cm.assertInstancePeerRemoved(ctx, peerID)
 		}
 		if err == nil {
-			if verifyErr := cm.waitForInstanceDeleteCheckpoint(peerID); verifyErr == nil {
+			if verifyErr := cm.waitForInstanceDeleteCheckpoint(ctx, peerID); verifyErr == nil {
 				return nil
 			} else {
 				err = verifyErr
@@ -1033,28 +1069,40 @@ func (cm *Manager) deleteInstanceRecords(instance InstanceInfo) error {
 		if sleep > 15*time.Second {
 			sleep = 15 * time.Second
 		}
-		time.Sleep(sleep)
+		select {
+		case <-ctx.Done():
+		case <-time.After(sleep):
+		}
 	}
-
-	return fmt.Errorf("instance '%s' removed but residual peer state remains: %w", instance.Name, lastErr)
 }
 
-func (cm *Manager) waitForInstanceDeleteCheckpoint(peerID string) error {
-	deadline := time.Now().Add(2 * time.Minute)
+func (cm *Manager) waitForInstanceDeleteCheckpoint(ctx context.Context, peerID string) error {
 	var lastErr error
-	for time.Now().Before(deadline) {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		catchUpErr := cm.db.CatchUpCheckpoint(ctx, "verify instance delete checkpoint")
+	for {
+		if err := ctx.Err(); err != nil {
+			if lastErr != nil {
+				return fmt.Errorf("%w: %w", err, lastErr)
+			}
+			return err
+		}
+		attemptCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		catchUpErr := cm.db.CatchUpCheckpointStrict(attemptCtx, "verify instance delete checkpoint")
 		cancel()
 		if catchUpErr != nil {
 			lastErr = catchUpErr
-			time.Sleep(5 * time.Second)
+			if !db.IsRetryableCheckpointCatchUp(catchUpErr) {
+				return catchUpErr
+			}
+			select {
+			case <-ctx.Done():
+			case <-time.After(5 * time.Second):
+			}
 			continue
 		}
 
 		status, ok := cm.db.SwarmionStatus()
 		if !ok {
-			if err := cm.assertInstancePeerRemoved(peerID); err != nil {
+			if err := cm.assertInstancePeerRemoved(ctx, peerID); err != nil {
 				return err
 			}
 			return nil
@@ -1064,23 +1112,25 @@ func (cm *Manager) waitForInstanceDeleteCheckpoint(peerID string) error {
 		if checkpoint == "" ||
 			status.TentativeRootHash.String() != checkpoint ||
 			(durable != "" && durable != checkpoint) {
-			time.Sleep(5 * time.Second)
+			select {
+			case <-ctx.Done():
+			case <-time.After(5 * time.Second):
+			}
 			continue
 		}
-		if err := cm.assertInstancePeerRemoved(peerID); err != nil {
+		if err := cm.assertInstancePeerRemoved(ctx, peerID); err != nil {
 			return err
 		}
 		return nil
 	}
-	if lastErr != nil {
-		return lastErr
-	}
-	return fmt.Errorf("timed out waiting for checkpoint delete of peer %s", peerID)
 }
 
-func (cm *Manager) markInstanceDeleting(instance InstanceInfo) error {
+func (cm *Manager) markInstanceDeleting(ctx context.Context, instance InstanceInfo) error {
 	if cm == nil || cm.db == nil || strings.TrimSpace(instance.ID) == "" || IsDeletingInstance(instance) {
 		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	instance.DesiredStatus = ServerStateDeleting
 	im, _ := createInstanceUpdateMapper(instance)
@@ -1090,10 +1140,13 @@ func (cm *Manager) markInstanceDeleting(instance InstanceInfo) error {
 	return nil
 }
 
-func (cm *Manager) deleteAppsForInstance(instanceID string) error {
+func (cm *Manager) deleteAppsForInstance(ctx context.Context, instanceID string) error {
 	instanceID = strings.TrimSpace(instanceID)
 	if cm == nil || cm.db == nil || instanceID == "" {
 		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := db.Delete(cm.db, createAppDeleteByInstanceMapper(instanceID)); err != nil {
 		return fmt.Errorf("failed to delete apps for instance '%s': %w", instanceID, err)
@@ -1101,10 +1154,13 @@ func (cm *Manager) deleteAppsForInstance(instanceID string) error {
 	return nil
 }
 
-func (cm *Manager) assertInstancePeerRemoved(peerID string) error {
+func (cm *Manager) assertInstancePeerRemoved(ctx context.Context, peerID string) error {
 	peerID = strings.TrimSpace(peerID)
 	if cm == nil || cm.db == nil || peerID == "" {
 		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	peerIDs, err := db.GetPeerIDs(cm.db)
 	if err != nil {
@@ -1116,7 +1172,7 @@ func (cm *Manager) assertInstancePeerRemoved(peerID string) error {
 	if _, ok := cm.db.SwarmionStatus(); !ok {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	readiness, err := cm.db.SwarmionPeerRemovalReadiness(ctx, peerID)
 	if err != nil {
@@ -1128,7 +1184,7 @@ func (cm *Manager) assertInstancePeerRemoved(peerID string) error {
 	return nil
 }
 
-func (cm *Manager) removeInstanceReplicationEligibility(instance InstanceInfo) error {
+func (cm *Manager) waitForInstancePeerDurableRemovalReady(ctx context.Context, instance InstanceInfo) error {
 	if cm == nil || cm.db == nil {
 		return nil
 	}
@@ -1140,10 +1196,8 @@ func (cm *Manager) removeInstanceReplicationEligibility(instance InstanceInfo) e
 	if err != nil {
 		return fmt.Errorf("build remaining replication candidates for instance '%s': %w", instance.Name, err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
 	if err := cm.db.RemoveReplicationPeerState(ctx, peerID, candidates); err != nil {
-		return fmt.Errorf("remove swarmion replication eligibility for instance '%s': %w", instance.Name, err)
+		return fmt.Errorf("wait for swarmion peer removal readiness for instance '%s': %w", instance.Name, err)
 	}
 	return nil
 }

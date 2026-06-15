@@ -189,10 +189,18 @@ func removeReplicationPeerStateWithApp(ctx context.Context, app *swarmionapp.App
 		return err
 	}
 
+	readiness, err := app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
+	if err != nil {
+		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
+	}
+	if err := StrictPeerRemovalReadinessError(readiness); err == nil {
+		return nil
+	}
+
 	if _, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID}); err != nil {
 		return fmt.Errorf("evict swarmion peer %s after removal: %w", peerID, err)
 	}
-	readiness, err := app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
+	readiness, err = app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
 	if err != nil {
 		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
 	}
@@ -217,11 +225,19 @@ func retryablePeerRemovalError(err error) bool {
 		strings.Contains(message, "context deadline exceeded")
 }
 
+func StrictPeerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse) error {
+	return peerRemovalReadinessError(readiness, false)
+}
+
 func PeerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse) error {
+	return peerRemovalReadinessError(readiness, true)
+}
+
+func peerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse, allowStaleLocalObservation bool) error {
 	if readiness.SafeToRemoveDurableResource {
 		return nil
 	}
-	if peerRemovalReadinessOnlyStaleLocalObservation(readiness) {
+	if allowStaleLocalObservation && peerRemovalReadinessOnlyStaleLocalObservation(readiness) {
 		notifyLog.Debugf("treating stale swarmion local observation as non-blocking for removed peer %s: %s", readiness.PeerID, readiness.BlockingReason)
 		return nil
 	}

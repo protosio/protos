@@ -550,6 +550,11 @@ func (db *DB) Close() error {
 	if app == nil {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := evictSwarmionPeer(ctx, app, app.PeerID()); err != nil {
+		notifyLog.Debugf("failed to evict local swarmion peer before close: %s", err.Error())
+	}
+	cancel()
 	return app.Close()
 }
 
@@ -596,17 +601,80 @@ func (db *DB) RemovePeer(peerID string) error {
 	if app == nil {
 		return nil
 	}
-	if peerID == app.PeerID() {
-		return nil
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID}); err != nil {
-		errText := err.Error()
-		if strings.Contains(errText, "cannot evict local peer") {
-			return nil
+	return evictSwarmionPeer(ctx, app, peerID)
+}
+
+func (db *DB) PrepareSwarmionShutdown(ctx context.Context) error {
+	if db == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil
+	}
+	return evictSwarmionPeer(ctx, app, app.PeerID())
+}
+
+func (db *DB) ReconcileRemovedSwarmionPeers(ctx context.Context, activePeerIDs map[string]struct{}) error {
+	if db == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil
+	}
+
+	active := make(map[string]struct{}, len(activePeerIDs))
+	for peerID := range activePeerIDs {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			active[peerID] = struct{}{}
 		}
+	}
+
+	peerStatuses, err := app.PeerStatus(ctx)
+	if err != nil {
+		return fmt.Errorf("read swarmion peer status for removed-peer reconciliation: %w", err)
+	}
+
+	var failures []string
+	for _, peerStatus := range peerStatuses {
+		peerID := strings.TrimSpace(peerStatus.PeerID)
+		if peerID == "" {
+			continue
+		}
+		if _, found := active[peerID]; found {
+			continue
+		}
+		if err := evictSwarmionPeer(ctx, app, peerID); err != nil {
+			failures = append(failures, err.Error())
+		}
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("reconcile removed swarmion peers: %s", strings.Join(failures, "; "))
+	}
+	return nil
+}
+
+func evictSwarmionPeer(ctx context.Context, app *swarmionapp.App, peerID string) error {
+	peerID = strings.TrimSpace(peerID)
+	if app == nil || peerID == "" {
+		return nil
+	}
+	if _, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID}); err != nil {
 		return fmt.Errorf("evict swarmion peer %s: %w", peerID, err)
 	}
 	return nil
@@ -744,6 +812,17 @@ func (db *DB) SwarmionStatus() (swarmionapp.Status, bool) {
 }
 
 func (db *DB) CatchUpCheckpoint(ctx context.Context, reason string) error {
+	if err := db.CatchUpCheckpointStrict(ctx, reason); err != nil {
+		if errors.Is(err, errSwarmionCheckpointCatchUpRetryable) {
+			notifyLog.Debugf("deferred swarmion checkpoint catch-up for %q after retryable response: %s", reason, err.Error())
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func (db *DB) CatchUpCheckpointStrict(ctx context.Context, reason string) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
@@ -759,19 +838,14 @@ func (db *DB) CatchUpCheckpoint(ctx context.Context, reason string) error {
 	if strings.TrimSpace(reason) == "" {
 		reason = "protos checkpoint read"
 	}
-	if err := catchUpSwarmionCheckpointBestEffort(ctx, app, reason); err != nil {
+	if err := catchUpSwarmionCheckpoint(ctx, app, reason); err != nil {
 		return fmt.Errorf("catch up swarmion checkpoint view: %w", err)
 	}
 	return nil
 }
 
-func catchUpSwarmionCheckpointBestEffort(ctx context.Context, app *swarmionapp.App, reason string) error {
-	err := catchUpSwarmionCheckpoint(ctx, app, reason)
-	if errors.Is(err, errSwarmionCheckpointCatchUpRetryable) {
-		notifyLog.Debugf("deferred swarmion checkpoint catch-up for %q after retryable response: %s", reason, err.Error())
-		return nil
-	}
-	return err
+func IsRetryableCheckpointCatchUp(err error) bool {
+	return errors.Is(err, errSwarmionCheckpointCatchUpRetryable)
 }
 
 func catchUpSwarmionCheckpoint(ctx context.Context, app *swarmionapp.App, reason string) error {

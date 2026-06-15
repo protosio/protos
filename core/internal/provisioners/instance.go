@@ -32,10 +32,11 @@ type VolumeInfo struct {
 
 // ImageInfo holds information about a cloud image used for deploying an instance
 type ImageInfo struct {
-	ID        string
-	Name      string
-	Location  string
-	UpdatedAt time.Time
+	ID          string
+	Name        string
+	LogicalName string
+	Location    string
+	UpdatedAt   time.Time
 }
 
 // MachineSpec holds information about the hardware characteristics of vm or baremetal instance
@@ -51,19 +52,19 @@ type MachineSpec struct {
 
 // InstanceInfo holds information about a cloud instance
 type InstanceInfo struct {
-	ID                 string
-	Name               string
-	PublicKey          string // ed25519 public key
-	PublicIP           string // this can be a public or private IP, depending on where the device is located
-	Kind               string // type of instance: local_vm, cloud_vm
-	KindID             string // ID of the cloud provider or device ID for local VM
-	ProviderResourceID string // ID used by the provisioner API for lifecycle operations
-	DesiredStatus      string
-	ReplicationPriority        int
-	Location           string
-	Status             string
-	Architecture       string
-	Volumes            []VolumeInfo
+	ID                  string
+	Name                string
+	PublicKey           string // ed25519 public key
+	PublicIP            string // this can be a public or private IP, depending on where the device is located
+	Kind                string // type of instance: local_vm, cloud_vm
+	KindID              string // ID of the cloud provider or device ID for local VM
+	ProviderResourceID  string // ID used by the provisioner API for lifecycle operations
+	DesiredStatus       string
+	ReplicationPriority int
+	Location            string
+	Status              string
+	Architecture        string
+	Volumes             []VolumeInfo
 }
 
 func (i InstanceInfo) GetID() string {

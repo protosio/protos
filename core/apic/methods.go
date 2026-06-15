@@ -1103,9 +1103,9 @@ func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceR
 	log.Debugf("Removing instance '%s'", in.Name)
 	var err error
 	if in.LocalOnly {
-		err = b.protosClient.CloudManager.DeleteInstanceLocal(in.Name)
+		err = b.protosClient.CloudManager.DeleteInstanceLocal(ctx, in.Name)
 	} else {
-		err = b.protosClient.CloudManager.DeleteInstance(in.Name)
+		err = b.protosClient.CloudManager.DeleteInstance(ctx, in.Name)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove instance '%s': %w", in.Name, err)

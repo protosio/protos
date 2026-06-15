@@ -489,7 +489,16 @@ func (n *Node) Stop() {
 	for _, stopper := range n.stoppers {
 		stoppers = append(stoppers, stopper)
 	}
+	database := n.DB
 	n.stopMu.Unlock()
+
+	if database != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := database.PrepareSwarmionShutdown(ctx); err != nil {
+			log.Debugf("failed to prepare swarmion shutdown: %s", err.Error())
+		}
+		cancel()
+	}
 
 	for _, stopper := range stoppers {
 		if err := stopper(); err != nil {
@@ -581,6 +590,11 @@ func (dbn *DBNotifier) Notify() {
 		log.Error(fmt.Errorf("failed to retrieve peer membership: %w", err))
 		return
 	}
+	reconcileRemovedCtx, reconcileRemovedCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := dbn.database.ReconcileRemovedSwarmionPeers(reconcileRemovedCtx, peerIDs); err != nil {
+		log.Debugf("failed to reconcile removed swarmion peers: %s", err.Error())
+	}
+	reconcileRemovedCancel()
 
 	instances, err := dbn.cm.GetInstances(true)
 	if err != nil {

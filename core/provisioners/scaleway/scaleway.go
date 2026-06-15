@@ -373,9 +373,8 @@ func (sw *scaleway) GetImages() (map[string]provisioners.ImageInfo, error) {
 			return images, errors.Wrap(err, "Failed to retrieve account images from Scaleway")
 		}
 		for _, img := range resp.Images {
-			if strings.Contains(img.Name, "protos-") {
-				imgName := strings.TrimPrefix(img.Name, "protos-")
-				images[img.ID] = provisioners.ImageInfo{Name: imgName, ID: img.ID, Location: location}
+			if info, ok := scalewayProtosImageInfo(img, location); ok {
+				images[img.ID] = info
 			} else {
 				images[img.ID] = provisioners.ImageInfo{Name: img.Name, ID: img.ID, Location: location}
 			}
@@ -393,9 +392,8 @@ func (sw *scaleway) GetProtosImages() (map[string]provisioners.ImageInfo, error)
 			return images, errors.Wrap(err, "Failed to retrieve account images from Scaleway")
 		}
 		for _, img := range resp.Images {
-			if strings.Contains(img.Name, "protos-") {
-				imgName := strings.TrimPrefix(img.Name, "protos-")
-				images[img.ID] = provisioners.ImageInfo{Name: imgName, ID: img.ID, Location: location}
+			if info, ok := scalewayProtosImageInfo(img, location); ok {
+				images[img.ID] = info
 			}
 		}
 	}
@@ -404,6 +402,10 @@ func (sw *scaleway) GetProtosImages() (map[string]provisioners.ImageInfo, error)
 }
 
 func (sw *scaleway) AddImage(url string, hash string, version string, location string) (string, error) {
+	names, err := provisioners.NewProtosCloudImageNames(version, time.Now())
+	if err != nil {
+		return "", errors.Wrap(err, "Failed to add Protos image to Scaleway")
+	}
 
 	//
 	// create and add ssh key to account
@@ -453,7 +455,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	}
 	log.Info("SSH connection initiated")
 
-	localISO := "/tmp/protos-scaleway.iso"
+	localISO := "/tmp/" + names.ImageName
 
 	log.Info("Downloading Protos image")
 	out, err := pcrypto.ExecuteCommand("wget -O "+localISO+" "+url, sshClient)
@@ -514,7 +516,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	log.Info("Creating snapshot from volume")
 	snapshotResp, err := sw.instanceAPI.CreateSnapshot(&instance.CreateSnapshotRequest{
 		VolumeID: &vol.ID,
-		Name:     "protos-snapshot-" + version,
+		Name:     names.SnapshotName,
 		Zone:     scw.Zone(location),
 	})
 	if err != nil {
@@ -523,7 +525,7 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 
 	log.Info("Creating image from snapshot")
 	imageResp, err := sw.instanceAPI.CreateImage(&instance.CreateImageRequest{
-		Name:       "protos-" + version,
+		Name:       names.ImageName,
 		Arch:       instance.ArchX86_64,
 		RootVolume: snapshotResp.Snapshot.ID,
 		Zone:       scw.Zone(location),
@@ -545,7 +547,10 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (id string, err error) {
 
 	errMsg := "Failed to upload Protos image to Scaleway"
-	protosImage := "protos-" + imageName
+	names, err := provisioners.NewProtosCloudImageNames(imageName, time.Now())
+	if err != nil {
+		return "", errors.Wrap(err, errMsg)
+	}
 
 	fdHash, err := os.Open(imagePath)
 	if err != nil {
@@ -630,7 +635,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	}
 
 	log.Info("Uploading image. This can take a while...")
-	remoteImage := "/tmp/" + protosImage
+	remoteImage := "/tmp/" + names.ImageName
 
 	bar := pb.Full.Start(0)
 	passThru := func(r io.Reader, total int64) io.Reader {
@@ -707,7 +712,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	log.Info("Creating snapshot from volume")
 	snapshotResp, err := sw.instanceAPI.CreateSnapshot(&instance.CreateSnapshotRequest{
 		VolumeID: &vol.ID,
-		Name:     "protos-snapshot-" + imageName,
+		Name:     names.SnapshotName,
 		Zone:     scw.Zone(location),
 	})
 	if err != nil {
@@ -716,7 +721,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 
 	log.Info("Creating image from snapshot")
 	imageResp, err := sw.instanceAPI.CreateImage(&instance.CreateImageRequest{
-		Name:       protosImage,
+		Name:       names.ImageName,
 		Arch:       instance.ArchX86_64,
 		RootVolume: snapshotResp.Snapshot.ID,
 		Zone:       scw.Zone(location),
@@ -724,7 +729,7 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	if err != nil {
 		return "", errors.Wrap(err, errMsg+". Error while creating image from snapshot")
 	}
-	log.Infof("Protos image '%s(%s)' created", protosImage, imageResp.Image.ID)
+	log.Infof("Protos image '%s(%s)' created", names.ImageName, imageResp.Image.ID)
 
 	log.Infof("Deleting protos image volume '%s'", vol.ID)
 	err = sw.instanceAPI.DeleteVolume(&instance.DeleteVolumeRequest{Zone: scw.Zone(location), VolumeID: vol.ID})
@@ -745,16 +750,19 @@ func (sw *scaleway) RemoveImage(name string, location string) error {
 	if err != nil {
 		return errors.Wrap(err, errMsg)
 	}
-	id := ""
+	var matches []provisioners.ImageInfo
 	for _, img := range images {
-		if img.Location == location && img.Name == name {
-			id = img.ID
-			break
+		if img.Location == location && provisioners.ProtosImageMatchesRef(img, name) {
+			matches = append(matches, img)
 		}
 	}
-	if id == "" {
+	if len(matches) == 0 {
 		return fmt.Errorf("%s: could not find image '%s'", errMsg, name)
 	}
+	if len(matches) > 1 {
+		return fmt.Errorf("%s: image reference '%s' matches multiple images; use the full image name or provider id", errMsg, name)
+	}
+	id := matches[0].ID
 	img, err := sw.instanceAPI.GetImage(&instance.GetImageRequest{ImageID: id, Zone: scw.Zone(location)})
 	if err != nil {
 		return errors.Wrap(err, errMsg)
@@ -771,6 +779,19 @@ func (sw *scaleway) RemoveImage(name string, location string) error {
 	}
 
 	return nil
+}
+
+func scalewayProtosImageInfo(img *instance.Image, location string) (provisioners.ImageInfo, bool) {
+	if img == nil {
+		return provisioners.ImageInfo{}, false
+	}
+	if logicalName, _, ok := provisioners.ParseProtosCloudObjectName(img.Name); ok {
+		return provisioners.ProtosCloudImageInfo(img.ID, img.Name, location, logicalName), true
+	}
+	if strings.HasPrefix(img.Name, "protos-") {
+		return provisioners.ProtosCloudImageInfo(img.ID, img.Name, location, strings.TrimPrefix(img.Name, "protos-")), true
+	}
+	return provisioners.ImageInfo{}, false
 }
 
 //
@@ -802,6 +823,43 @@ func (sw *scaleway) NewVolume(name string, size int, location string) (string, e
 }
 
 func (sw *scaleway) DeleteVolume(id string, location string) error {
+	if err := sw.deleteVolume(id, location); err == nil {
+		return nil
+	} else if isScalewayNotFoundError(err) {
+		return nil
+	} else {
+		log.Debugf("Failed to delete Scaleway volume '%s' before detach: %s", id, err.Error())
+	}
+
+	if err := sw.detachVolume(id, location); err != nil {
+		if isScalewayNotFoundError(err) {
+			return nil
+		}
+		if !isScalewayVolumeNotAttachedError(err) {
+			return errors.Wrapf(err, "Failed to detach Scaleway volume '%s'", id)
+		}
+	}
+
+	if err := sw.waitForVolumeAvailable(id, location); err != nil {
+		if isScalewayNotFoundError(err) {
+			return nil
+		}
+		log.Debugf("Failed waiting for Scaleway volume '%s' after detach: %s", id, err.Error())
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < 12; attempt++ {
+		err := sw.deleteVolume(id, location)
+		if err == nil || isScalewayNotFoundError(err) {
+			return nil
+		}
+		lastErr = err
+		time.Sleep(time.Duration(attempt+1) * time.Second)
+	}
+	return errors.Wrapf(lastErr, "Failed to delete Scaleway volume '%s'", id)
+}
+
+func (sw *scaleway) deleteVolume(id string, location string) error {
 	blockDeleteReq := &block.DeleteVolumeRequest{
 		VolumeID: id,
 		Zone:     scw.Zone(location),
@@ -820,6 +878,56 @@ func (sw *scaleway) DeleteVolume(id string, location string) error {
 		return errors.Wrapf(err, "Failed to delete Scaleway volume '%s'", id)
 	}
 	return nil
+}
+
+func (sw *scaleway) detachVolume(id string, location string) error {
+	_, err := sw.instanceAPI.DetachVolume(&instance.DetachVolumeRequest{
+		Zone:     scw.Zone(location),
+		VolumeID: id,
+	})
+	return err
+}
+
+func (sw *scaleway) waitForVolumeAvailable(id string, location string) error {
+	timeout := 2 * time.Minute
+	retry := 5 * time.Second
+	if _, err := sw.instanceAPI.WaitForVolume(&instance.WaitForVolumeRequest{
+		VolumeID:      id,
+		Zone:          scw.Zone(location),
+		Timeout:       &timeout,
+		RetryInterval: &retry,
+	}); err == nil {
+		return nil
+	} else if !isScalewayNotFoundError(err) {
+		return err
+	}
+
+	available := block.VolumeStatusAvailable
+	if _, err := sw.blockAPI.WaitForVolume(&block.WaitForVolumeRequest{
+		VolumeID:       id,
+		Zone:           scw.Zone(location),
+		Timeout:        &timeout,
+		RetryInterval:  &retry,
+		TerminalStatus: &available,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func isScalewayNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var notFound *scw.ResourceNotFoundError
+	return errors.As(err, &notFound)
+}
+
+func isScalewayVolumeNotAttachedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "volume should be attached to a server")
 }
 
 func (sw *scaleway) AttachVolume(volumeID string, instanceID string, location string) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,6 +36,7 @@ const (
 	hetznerLabelImage         = "protos-image"
 	hetznerLabelImageName     = "protos-image-name"
 	hetznerLabelImageLocation = "protos-image-location"
+	hetznerLabelImageCreated  = "protos-image-created"
 	hetznerLabelTemporary     = "protos-temporary"
 )
 
@@ -330,7 +332,10 @@ func (hz *hetzner) GetProtosImages() (map[string]provisioners.ImageInfo, error) 
 
 func (hz *hetzner) AddImage(url string, hash string, version string, location string) (string, error) {
 	errMsg := "Failed to add Protos image to Hetzner"
-	protosImage := "protos-" + version
+	names, err := provisioners.NewProtosCloudImageNames(version, time.Now())
+	if err != nil {
+		return "", errors.Wrap(err, errMsg)
+	}
 
 	key, sshKey, server, err := hz.createImageUploadServer(location)
 	if err != nil {
@@ -345,7 +350,7 @@ func (hz *hetzner) AddImage(url string, hash string, version string, location st
 	}
 	defer sshClient.Close()
 
-	remoteImage := "/tmp/" + sanitizeRemoteName(protosImage)
+	remoteImage := "/tmp/" + sanitizeRemoteName(names.ImageName)
 	log.Info("Downloading Protos image on Hetzner upload server")
 	downloadCmd := fmt.Sprintf("(command -v wget >/dev/null && wget -O %s %s) || (command -v curl >/dev/null && curl -L -o %s %s)",
 		shellQuote(remoteImage), shellQuote(url), shellQuote(remoteImage), shellQuote(url))
@@ -361,7 +366,7 @@ func (hz *hetzner) AddImage(url string, hash string, version string, location st
 		return "", errors.Wrap(err, errMsg)
 	}
 
-	imageID, err := hz.snapshotImageServer(server, version, location)
+	imageID, err := hz.snapshotImageServer(server, names, location)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}
@@ -370,7 +375,10 @@ func (hz *hetzner) AddImage(url string, hash string, version string, location st
 
 func (hz *hetzner) UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (id string, err error) {
 	errMsg := "Failed to upload Protos image to Hetzner"
-	protosImage := "protos-" + imageName
+	names, err := provisioners.NewProtosCloudImageNames(imageName, time.Now())
+	if err != nil {
+		return "", errors.Wrap(err, errMsg)
+	}
 
 	imageHash, err := fileSHA256(imagePath)
 	if err != nil {
@@ -418,7 +426,7 @@ func (hz *hetzner) UploadLocalImage(imagePath string, imageName string, location
 		return "", errors.Wrap(err, errMsg)
 	}
 
-	remoteImage := "/tmp/" + sanitizeRemoteName(protosImage)
+	remoteImage := "/tmp/" + sanitizeRemoteName(names.ImageName)
 	log.Info("Uploading image to Hetzner rescue server. This can take a while...")
 	bar := pb.Full.Start(0)
 	passThru := func(r io.Reader, total int64) io.Reader {
@@ -444,7 +452,7 @@ func (hz *hetzner) UploadLocalImage(imagePath string, imageName string, location
 		return "", errors.Wrap(err, errMsg)
 	}
 
-	imageID, err := hz.snapshotImageServer(server, imageName, location)
+	imageID, err := hz.snapshotImageServer(server, names, location)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}
@@ -460,15 +468,25 @@ func (hz *hetzner) RemoveImage(name string, location string) error {
 	if err != nil {
 		return errors.Wrap(err, errMsg)
 	}
+	var matches []*hcloud.Image
 	for _, image := range images {
-		imageName := hetznerImageName(image)
-		imageLocation := image.Labels[hetznerLabelImageLocation]
-		if imageName == name && (location == "" || imageLocation == "" || imageLocation == location) {
-			if _, err := hz.client.Image.Delete(ctx, image); err != nil {
-				return errors.Wrap(err, errMsg)
-			}
-			return nil
+		imageInfo, ok := hetznerProtosImageInfo(image)
+		if !ok {
+			continue
 		}
+		imageLocation := image.Labels[hetznerLabelImageLocation]
+		if provisioners.ProtosImageMatchesRef(imageInfo, name) && (location == "" || imageLocation == "" || imageLocation == location) {
+			matches = append(matches, image)
+		}
+	}
+	if len(matches) == 1 {
+		if _, err := hz.client.Image.Delete(ctx, matches[0]); err != nil {
+			return errors.Wrap(err, errMsg)
+		}
+		return nil
+	}
+	if len(matches) > 1 {
+		return fmt.Errorf("%s: image reference '%s' matches multiple images; use the full image name or provider id", errMsg, name)
 	}
 	return fmt.Errorf("%s: could not find image '%s'", errMsg, name)
 }
@@ -506,6 +524,30 @@ func (hz *hetzner) DeleteVolume(id string, location string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
+	var lastErr error
+	for attempt := 0; ; attempt++ {
+		err := hz.deleteVolume(ctx, id)
+		if err == nil {
+			return nil
+		}
+		if !isHetznerLockedError(err) {
+			return err
+		}
+		lastErr = err
+
+		wait := time.Duration(attempt+1) * 2 * time.Second
+		if wait > 15*time.Second {
+			wait = 15 * time.Second
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Wrapf(lastErr, "Timed out waiting to delete locked Hetzner volume '%s'", id)
+		case <-time.After(wait):
+		}
+	}
+}
+
+func (hz *hetzner) deleteVolume(ctx context.Context, id string) error {
 	volume, err := hz.getVolume(ctx, id)
 	if err != nil {
 		return err
@@ -526,6 +568,11 @@ func (hz *hetzner) DeleteVolume(id string, location string) error {
 		return errors.Wrapf(err, "Failed to delete Hetzner volume '%s'", id)
 	}
 	return nil
+}
+
+func isHetznerLockedError(err error) bool {
+	var hcloudErr hcloud.Error
+	return stderrors.As(err, &hcloudErr) && hcloudErr.Code == hcloud.ErrorCodeLocked
 }
 
 func (hz *hetzner) AttachVolume(volumeID string, instanceID string, location string) error {
@@ -599,18 +646,19 @@ func (hz *hetzner) getImages(protosOnly bool) (map[string]provisioners.ImageInfo
 		if image.Status != hcloud.ImageStatusAvailable {
 			continue
 		}
-		imageName := hetznerImageName(image)
-		if protosOnly && imageName == "" {
-			continue
+		info, isProtosImage := hetznerProtosImageInfo(image)
+		if protosOnly {
+			if !isProtosImage {
+				continue
+			}
+		} else if !isProtosImage {
+			info = provisioners.ImageInfo{
+				ID:       strconv.FormatInt(image.ID, 10),
+				Name:     firstNonEmpty(image.Description, image.Name, strconv.FormatInt(image.ID, 10)),
+				Location: image.Labels[hetznerLabelImageLocation],
+			}
 		}
-		if imageName == "" {
-			imageName = firstNonEmpty(image.Description, image.Name, strconv.FormatInt(image.ID, 10))
-		}
-		result[strconv.FormatInt(image.ID, 10)] = provisioners.ImageInfo{
-			ID:       strconv.FormatInt(image.ID, 10),
-			Name:     imageName,
-			Location: image.Labels[hetznerLabelImageLocation],
-		}
+		result[strconv.FormatInt(image.ID, 10)] = info
 	}
 	return result, nil
 }
@@ -798,7 +846,7 @@ func (hz *hetzner) connectImageUploadServer(server *hcloud.Server, key *pcrypto.
 	return sshClient, nil
 }
 
-func (hz *hetzner) snapshotImageServer(server *hcloud.Server, imageName string, location string) (string, error) {
+func (hz *hetzner) snapshotImageServer(server *hcloud.Server, names provisioners.ProtosCloudImageNames, location string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
@@ -806,7 +854,7 @@ func (hz *hetzner) snapshotImageServer(server *hcloud.Server, imageName string, 
 		return "", err
 	}
 
-	description := "protos-" + imageName
+	description := names.ImageName
 	log.Infof("Creating Hetzner snapshot image '%s'", description)
 	result, _, err := hz.client.Server.CreateImage(ctx, server, &hcloud.ServerCreateImageOpts{
 		Type:        hcloud.ImageTypeSnapshot,
@@ -814,8 +862,9 @@ func (hz *hetzner) snapshotImageServer(server *hcloud.Server, imageName string, 
 		Labels: map[string]string{
 			hetznerLabelManaged:       "true",
 			hetznerLabelImage:         "true",
-			hetznerLabelImageName:     imageName,
+			hetznerLabelImageName:     names.LogicalName,
 			hetznerLabelImageLocation: location,
+			hetznerLabelImageCreated:  names.DateSuffix,
 		},
 	})
 	if err != nil {
@@ -1003,17 +1052,22 @@ func hetznerServerPublicIP(server *hcloud.Server) string {
 	return ""
 }
 
-func hetznerImageName(image *hcloud.Image) string {
+func hetznerProtosImageInfo(image *hcloud.Image) (provisioners.ImageInfo, bool) {
 	if image == nil {
-		return ""
+		return provisioners.ImageInfo{}, false
+	}
+	id := strconv.FormatInt(image.ID, 10)
+	if logicalName, _, ok := provisioners.ParseProtosCloudObjectName(image.Description); ok {
+		return provisioners.ProtosCloudImageInfo(id, image.Description, image.Labels[hetznerLabelImageLocation], logicalName), true
 	}
 	if name := strings.TrimSpace(image.Labels[hetznerLabelImageName]); name != "" {
-		return name
+		displayName := firstNonEmpty(image.Description, "protos-"+name)
+		return provisioners.ProtosCloudImageInfo(id, displayName, image.Labels[hetznerLabelImageLocation], name), true
 	}
 	if strings.HasPrefix(image.Description, "protos-") {
-		return strings.TrimPrefix(image.Description, "protos-")
+		return provisioners.ProtosCloudImageInfo(id, image.Description, image.Labels[hetznerLabelImageLocation], strings.TrimPrefix(image.Description, "protos-")), true
 	}
-	return ""
+	return provisioners.ImageInfo{}, false
 }
 
 func fileSHA256(path string) (string, error) {

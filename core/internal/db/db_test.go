@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	"github.com/protosio/protos/internal/config"
@@ -132,6 +133,40 @@ func TestDialableListenMultiaddrsIncludeExplicitIPs(t *testing.T) {
 	}
 	if count := countString(got, wants[0]); count != 1 {
 		t.Fatalf("explicit IPv6 addr appeared %d times, want 1 in %v", count, got)
+	}
+}
+
+func TestRemovedSwarmionPeerCleanupIsIdempotent(t *testing.T) {
+	cfg := config.Get()
+	previousP2PPort := cfg.P2PPort
+	cfg.P2PPort = 0
+	t.Cleanup(func() {
+		cfg.P2PPort = previousP2PPort
+	})
+
+	workDir := t.TempDir()
+	key, err := pcrypto.GetLocalKey(workDir)
+	if err != nil {
+		t.Fatalf("get local key: %v", err)
+	}
+	store, err := db.Open(workDir, "protos_test", key)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer store.Close()
+	if err := store.Init(); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for i := 0; i < 2; i++ {
+		if err := store.ReconcileRemovedSwarmionPeers(ctx, map[string]struct{}{}); err != nil {
+			t.Fatalf("reconcile removed peers attempt %d: %v", i+1, err)
+		}
+		if err := store.PrepareSwarmionShutdown(ctx); err != nil {
+			t.Fatalf("prepare shutdown attempt %d: %v", i+1, err)
+		}
 	}
 }
 
