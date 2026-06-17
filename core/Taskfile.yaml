@@ -9,6 +9,7 @@ vars:
   E2E_PROBE_IMAGE_PLATFORM: '{{.E2E_PROBE_IMAGE_PLATFORM | default "linux/amd64"}}'
   E2E_PROBE_IMAGE_PLATFORMS: '{{.E2E_PROBE_IMAGE_PLATFORMS | default "linux/amd64,linux/arm64"}}'
   E2E_PROBE_IMAGE_ARCHIVE: '{{.E2E_PROBE_IMAGE_ARCHIVE | default ".tmp/protos-e2e-probe.tar.gz"}}'
+  E2E_MIXED_CLOUD_SUMMARY: '{{.E2E_MIXED_CLOUD_SUMMARY | default ".tmp/mixed-cloud-e2e-summary.json"}}'
   E2E_HETZNER_ENV: '{{.E2E_HETZNER_ENV | default "../.env-hetzner"}}'
   E2E_SCALEWAY_ENV: '{{.E2E_SCALEWAY_ENV | default "../.env-scaleway"}}'
   E2E_PROBE_SMOKE_PORT: '{{.E2E_PROBE_SMOKE_PORT | default "18080"}}'
@@ -19,6 +20,10 @@ vars:
   HOSTAGENT_SOCKET: '{{.HOSTAGENT_SOCKET | default "/var/run/protos-hostagent.sock"}}'
   HOSTAGENT_WORK_DIR: '{{.HOSTAGENT_WORK_DIR | default "/Library/Application Support/Protos/hostagent"}}'
   FLUTTER_APP: '{{.FLUTTER_APP | default ""}}'
+  APIC_SOCKET: '{{.APIC_SOCKET | default "~/.protos/protos.socket"}}'
+  PROVISIONER: '{{.PROVISIONER | default ""}}'
+  LOCATION: '{{.LOCATION | default ""}}'
+  OLDER_THAN: '{{.OLDER_THAN | default ""}}'
 
 tasks:
   generate:
@@ -170,8 +175,9 @@ tasks:
       - hostagent:build
       - e2e:probe-image:archive
     cmds:
+      - task: verify:contracts
       - task -t ../clients/macos/Taskfile.yml build
-      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/mixed-cloud-e2e --flutter-app "{{.FLUTTER_APP}}" --hostagent-bin "{{.HOSTAGENT_BIN}}" --hetzner-env {{.E2E_HETZNER_ENV}} --scaleway-env {{.E2E_SCALEWAY_ENV}} --app-image {{.E2E_PROBE_IMAGE}} --seed-image-archive {{.E2E_PROBE_IMAGE_ARCHIVE}} {{.CLI_ARGS}}
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/mixed-cloud-e2e --flutter-app "{{.FLUTTER_APP}}" --hostagent-bin "{{.HOSTAGENT_BIN}}" --hetzner-env {{.E2E_HETZNER_ENV}} --scaleway-env {{.E2E_SCALEWAY_ENV}} --app-image {{.E2E_PROBE_IMAGE}} --seed-image-archive {{.E2E_PROBE_IMAGE_ARCHIVE}} --summary-artifact "{{.E2E_MIXED_CLOUD_SUMMARY}}" {{.CLI_ARGS}}
 
   e2e:probe-image:build:
     desc: Build the Protos E2E app probe container image locally
@@ -231,6 +237,24 @@ tasks:
             exit 1
             ;;
         esac
+
+  release:audit:
+    desc: Dry-run audit of Protos cloud images through the local APIC node
+    cmds:
+      - |
+        set -e
+        if [ -z "{{.PROVISIONER}}" ]; then
+          echo "PROVISIONER is required" >&2
+          exit 2
+        fi
+        set -- --unix-socket "{{.APIC_SOCKET}}" release audit "{{.PROVISIONER}}"
+        if [ -n "{{.LOCATION}}" ]; then
+          set -- "$@" --location "{{.LOCATION}}"
+        fi
+        if [ -n "{{.OLDER_THAN}}" ]; then
+          set -- "$@" --older-than "{{.OLDER_THAN}}"
+        fi
+        env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ../clients/cli "$@"
 
   default:
     desc: Show available tasks

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -50,6 +51,7 @@ func main() {
 	scalewayEnv := flag.String("scaleway-env", ".env-scaleway", "Scaleway credential env file")
 	appImage := flag.String("app-image", defaultProbeAppImage, "container image used for app connectivity checks; must run protos-e2e-probe on port 8080")
 	seedImageArchive := flag.String("seed-image-archive", "", "optional local image tar or tar.gz archive to upload to the Hetzner seed VM before app start")
+	summaryArtifact := flag.String("summary-artifact", "", "path for the mixed-cloud run summary JSON artifact")
 	configureNetwork := flag.Bool("network", true, "configure the host network module through protos-hostagent")
 	flag.Parse()
 
@@ -72,6 +74,7 @@ func main() {
 		scalewayEnv:        *scalewayEnv,
 		appImage:           *appImage,
 		seedImageArchive:   *seedImageArchive,
+		summaryArtifact:    *summaryArtifact,
 		configureNetwork:   *configureNetwork,
 	}
 	if err := run(cfg); err != nil {
@@ -99,6 +102,7 @@ type harnessConfig struct {
 	scalewayEnv        string
 	appImage           string
 	seedImageArchive   string
+	summaryArtifact    string
 	configureNetwork   bool
 }
 
@@ -106,9 +110,203 @@ type imageRef struct {
 	provider string
 	name     string
 	location string
+	id       string
 }
 
-func run(cfg harnessConfig) error {
+type mixedCloudRunSummary struct {
+	Path             string                      `json:"-"`
+	StartedAt        string                      `json:"started_at"`
+	FinishedAt       string                      `json:"finished_at,omitempty"`
+	Status           string                      `json:"status"`
+	Error            string                      `json:"error,omitempty"`
+	WorkDir          string                      `json:"work_dir"`
+	Suffix           string                      `json:"suffix"`
+	ImageName        string                      `json:"image_name"`
+	AppImage         string                      `json:"app_image"`
+	SeedImageArchive string                      `json:"seed_image_archive,omitempty"`
+	Providers        []mixedCloudSummaryProvider `json:"providers"`
+	Images           []mixedCloudSummaryImage    `json:"images"`
+	Instances        []mixedCloudSummaryInstance `json:"instances"`
+	Cleanup          []mixedCloudSummaryCleanup  `json:"cleanup"`
+}
+
+type mixedCloudSummaryProvider struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Location string `json:"location,omitempty"`
+	Status   string `json:"status"`
+}
+
+type mixedCloudSummaryImage struct {
+	Name     string `json:"name"`
+	ID       string `json:"id,omitempty"`
+	Provider string `json:"provider"`
+	Location string `json:"location"`
+	Status   string `json:"status"`
+}
+
+type mixedCloudSummaryInstance struct {
+	Name         string `json:"name"`
+	ID           string `json:"id,omitempty"`
+	PeerID       string `json:"peer_id,omitempty"`
+	Provider     string `json:"provider"`
+	Location     string `json:"location"`
+	MachineType  string `json:"machine_type"`
+	PublicIP     string `json:"public_ip,omitempty"`
+	Architecture string `json:"architecture,omitempty"`
+	Status       string `json:"status"`
+}
+
+type mixedCloudSummaryCleanup struct {
+	ResourceType string `json:"resource_type"`
+	Name         string `json:"name"`
+	ID           string `json:"id,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+	Location     string `json:"location,omitempty"`
+	Status       string `json:"status"`
+	Error        string `json:"error,omitempty"`
+}
+
+func newMixedCloudRunSummary(path string, workDir string, suffix string, imageName string, cfg harnessConfig) (*mixedCloudRunSummary, error) {
+	if strings.TrimSpace(path) == "" {
+		path = filepath.Join(os.TempDir(), "protos-mixed-cloud-e2e-summary-"+suffix+".json")
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	return &mixedCloudRunSummary{
+		Path:             absPath,
+		StartedAt:        time.Now().UTC().Format(time.RFC3339Nano),
+		Status:           "running",
+		WorkDir:          workDir,
+		Suffix:           suffix,
+		ImageName:        imageName,
+		AppImage:         cfg.appImage,
+		SeedImageArchive: cfg.seedImageArchive,
+	}, nil
+}
+
+func (summary *mixedCloudRunSummary) addProvider(name string, typ string, location string) {
+	if summary == nil {
+		return
+	}
+	summary.Providers = append(summary.Providers, mixedCloudSummaryProvider{Name: name, Type: typ, Location: location, Status: "configured"})
+}
+
+func (summary *mixedCloudRunSummary) setProviderStatus(name string, status string) {
+	if summary == nil {
+		return
+	}
+	for i := range summary.Providers {
+		if summary.Providers[i].Name == name {
+			summary.Providers[i].Status = status
+			return
+		}
+	}
+}
+
+func (summary *mixedCloudRunSummary) addImage(provider string, name string, location string, id string) {
+	if summary == nil {
+		return
+	}
+	summary.Images = append(summary.Images, mixedCloudSummaryImage{Name: name, ID: id, Provider: provider, Location: location, Status: "uploaded"})
+}
+
+func (summary *mixedCloudRunSummary) setImageStatus(provider string, name string, location string, status string) {
+	if summary == nil {
+		return
+	}
+	for i := range summary.Images {
+		image := summary.Images[i]
+		if image.Provider == provider && image.Name == name && image.Location == location {
+			summary.Images[i].Status = status
+			return
+		}
+	}
+}
+
+func (summary *mixedCloudRunSummary) addInstance(instance *pbApic.CloudInstance, machineType string, peerID string, status string) {
+	if summary == nil || instance == nil {
+		return
+	}
+	summary.Instances = append(summary.Instances, mixedCloudSummaryInstance{
+		Name:         instance.GetName(),
+		ID:           instance.GetVmId(),
+		PeerID:       peerID,
+		Provider:     instance.GetCloudName(),
+		Location:     instance.GetLocation(),
+		MachineType:  machineType,
+		PublicIP:     instance.GetPublicIp(),
+		Architecture: instance.GetArchitecture(),
+		Status:       status,
+	})
+}
+
+func (summary *mixedCloudRunSummary) setInstanceStatus(name string, status string) {
+	if summary == nil {
+		return
+	}
+	for i := range summary.Instances {
+		if summary.Instances[i].Name == name {
+			summary.Instances[i].Status = status
+			return
+		}
+	}
+}
+
+func (summary *mixedCloudRunSummary) recordCleanup(resourceType string, name string, id string, provider string, location string, err error) {
+	if summary == nil {
+		return
+	}
+	item := mixedCloudSummaryCleanup{
+		ResourceType: resourceType,
+		Name:         name,
+		ID:           id,
+		Provider:     provider,
+		Location:     location,
+		Status:       "removed",
+	}
+	if err != nil {
+		item.Status = "failed"
+		item.Error = err.Error()
+	}
+	summary.Cleanup = append(summary.Cleanup, item)
+}
+
+func (summary *mixedCloudRunSummary) finish(runErr error) {
+	if summary == nil {
+		return
+	}
+	summary.FinishedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	if runErr != nil {
+		summary.Status = "failed"
+		summary.Error = runErr.Error()
+		return
+	}
+	summary.Status = "passed"
+}
+
+func (summary *mixedCloudRunSummary) write() error {
+	if summary == nil {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(summary.Path), 0755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(summary, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(summary.Path, data, 0644); err != nil {
+		return err
+	}
+	fmt.Printf("mixed cloud e2e summary artifact: %s\n", summary.Path)
+	return nil
+}
+
+func run(cfg harnessConfig) (runErr error) {
 	imagePath, err := filepath.Abs(cfg.imagePath)
 	if err != nil {
 		return err
@@ -140,6 +338,27 @@ func run(cfg harnessConfig) error {
 		defer os.RemoveAll(workDir)
 	}
 
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	localProviderName := "local-e2e-" + suffix
+	hetznerProviderName := "hetzner-e2e-" + suffix
+	scalewayProviderName := "scaleway-e2e-" + suffix
+	imageName := "mixed-cloud-e2e-" + suffix
+	vmDir := filepath.Join(workDir, "local-macos-vms")
+	summary, err := newMixedCloudRunSummary(cfg.summaryArtifact, workDir, suffix, imageName, cfg)
+	if err != nil {
+		return fmt.Errorf("create mixed cloud run summary: %w", err)
+	}
+	defer func() {
+		summary.finish(runErr)
+		if err := summary.write(); err != nil {
+			if runErr == nil {
+				runErr = fmt.Errorf("write mixed cloud summary artifact: %w", err)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "failed to write mixed cloud summary artifact: %v\n", err)
+		}
+	}()
+
 	node, err := e2eapic.StartFlutterNode(e2eapic.FlutterNodeOptions{
 		WorkDir:          workDir,
 		AppPath:          cfg.flutterApp,
@@ -167,12 +386,6 @@ func run(cfg harnessConfig) error {
 	}
 	cancel()
 
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-	localProviderName := "local-e2e-" + suffix
-	hetznerProviderName := "hetzner-e2e-" + suffix
-	scalewayProviderName := "scaleway-e2e-" + suffix
-	imageName := "mixed-cloud-e2e-" + suffix
-	vmDir := filepath.Join(workDir, "local-macos-vms")
 	deadline := time.Now().Add(cfg.timeout)
 
 	var cleanupInstances []string
@@ -182,17 +395,27 @@ func run(cfg harnessConfig) error {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cleanupCancel()
 		for i := len(cleanupInstances) - 1; i >= 0; i-- {
-			_, _ = client.RemoveInstance(cleanupCtx, &pbApic.RemoveInstanceRequest{Name: cleanupInstances[i]})
+			cleanupName := cleanupInstances[i]
+			_, err := client.RemoveInstance(cleanupCtx, &pbApic.RemoveInstanceRequest{Name: cleanupName})
+			summary.recordCleanup("instance", cleanupName, "", "", "", err)
 		}
 		for _, image := range cleanupImages {
-			_, _ = client.RemoveProvisionerImage(cleanupCtx, &pbApic.RemoveProvisionerImageRequest{
+			_, err := client.RemoveProvisionerImage(cleanupCtx, &pbApic.RemoveProvisionerImageRequest{
 				ImageName:       image.name,
 				ProvisionerName: image.provider,
 				Location:        image.location,
 			})
+			summary.recordCleanup("image", image.name, image.id, image.provider, image.location, err)
+			if err == nil {
+				summary.setImageStatus(image.provider, image.name, image.location, "removed")
+			}
 		}
 		for _, providerName := range cleanupProviders {
-			_, _ = client.RemoveProvisioner(cleanupCtx, &pbApic.RemoveProvisionerRequest{Name: providerName})
+			_, err := client.RemoveProvisioner(cleanupCtx, &pbApic.RemoveProvisionerRequest{Name: providerName})
+			summary.recordCleanup("provisioner", providerName, "", providerName, "", err)
+			if err == nil {
+				summary.setProviderStatus(providerName, "removed")
+			}
 		}
 	}()
 	removeCleanupInstance := func(name string) {
@@ -208,11 +431,14 @@ func run(cfg harnessConfig) error {
 	if err := addProvisioner(client, localProviderName, localmacos.Type.String(), map[string]string{"VM_DIR": vmDir}); err != nil {
 		return fmt.Errorf("add local macOS provisioner: %w", err)
 	}
+	summary.addProvider(localProviderName, localmacos.Type.String(), "local")
 	cleanupProviders = append(cleanupProviders, localProviderName)
-	if err := uploadProvisionerImage(client, imagePath, imageName, localProviderName, "local", cfg.imageUploadTimeout); err != nil {
+	localImageID, err := uploadProvisionerImage(client, imagePath, imageName, localProviderName, "local", cfg.imageUploadTimeout)
+	if err != nil {
 		return fmt.Errorf("upload local macOS image: %w", err)
 	}
-	cleanupImages = append(cleanupImages, imageRef{provider: localProviderName, name: imageName, location: "local"})
+	summary.addImage(localProviderName, imageName, "local", localImageID)
+	cleanupImages = append(cleanupImages, imageRef{provider: localProviderName, name: imageName, location: "local", id: localImageID})
 
 	hetznerCredentials, err := hetznerAuth(cfg.hetznerEnv)
 	if err != nil {
@@ -221,11 +447,14 @@ func run(cfg harnessConfig) error {
 	if err := addProvisioner(client, hetznerProviderName, hetzner.Type.String(), hetznerCredentials); err != nil {
 		return fmt.Errorf("add Hetzner provisioner: %w", err)
 	}
+	summary.addProvider(hetznerProviderName, hetzner.Type.String(), cfg.hetznerLocation)
 	cleanupProviders = append(cleanupProviders, hetznerProviderName)
-	if err := uploadProvisionerImage(client, hetznerImagePath, imageName, hetznerProviderName, cfg.hetznerLocation, cfg.imageUploadTimeout); err != nil {
+	hetznerImageID, err := uploadProvisionerImage(client, hetznerImagePath, imageName, hetznerProviderName, cfg.hetznerLocation, cfg.imageUploadTimeout)
+	if err != nil {
 		return fmt.Errorf("upload Hetzner image: %w", err)
 	}
-	cleanupImages = append(cleanupImages, imageRef{provider: hetznerProviderName, name: imageName, location: cfg.hetznerLocation})
+	summary.addImage(hetznerProviderName, imageName, cfg.hetznerLocation, hetznerImageID)
+	cleanupImages = append(cleanupImages, imageRef{provider: hetznerProviderName, name: imageName, location: cfg.hetznerLocation, id: hetznerImageID})
 
 	scalewayCredentials, err := scalewayAuth(cfg.scalewayEnv)
 	if err != nil {
@@ -234,11 +463,14 @@ func run(cfg harnessConfig) error {
 	if err := addProvisioner(client, scalewayProviderName, scaleway.Type.String(), scalewayCredentials); err != nil {
 		return fmt.Errorf("add Scaleway provisioner: %w", err)
 	}
+	summary.addProvider(scalewayProviderName, scaleway.Type.String(), cfg.scalewayLocation)
 	cleanupProviders = append(cleanupProviders, scalewayProviderName)
-	if err := uploadProvisionerImage(client, scalewayImagePath, imageName, scalewayProviderName, cfg.scalewayLocation, cfg.imageUploadTimeout); err != nil {
+	scalewayImageID, err := uploadProvisionerImage(client, scalewayImagePath, imageName, scalewayProviderName, cfg.scalewayLocation, cfg.imageUploadTimeout)
+	if err != nil {
 		return fmt.Errorf("upload Scaleway image: %w", err)
 	}
-	cleanupImages = append(cleanupImages, imageRef{provider: scalewayProviderName, name: imageName, location: cfg.scalewayLocation})
+	summary.addImage(scalewayProviderName, imageName, cfg.scalewayLocation, scalewayImageID)
+	cleanupImages = append(cleanupImages, imageRef{provider: scalewayProviderName, name: imageName, location: cfg.scalewayLocation, id: scalewayImageID})
 
 	localState, err := e2eapic.RuntimeState(deadline, client, "")
 	if err != nil {
@@ -277,8 +509,20 @@ func run(cfg harnessConfig) error {
 			return nil, err
 		}
 		deployed = append(deployed, instance)
+		peerID, peerErr := e2eapic.PeerIDForInstance(instance)
+		if peerErr != nil {
+			return nil, peerErr
+		}
+		summary.addInstance(instance, machine, peerID, "ready")
 		fmt.Printf("deployed instance: name=%s id=%s provider=%s ip=%s arch=%s status=%s\n", instance.GetName(), instance.GetVmId(), provider, instance.GetPublicIp(), instance.GetArchitecture(), instance.GetStatus())
 		return instance, nil
+	}
+	recordInstanceDeleted := func(instance *pbApic.CloudInstance) {
+		if instance == nil {
+			return
+		}
+		summary.setInstanceStatus(instance.GetName(), "deleted")
+		summary.recordCleanup("instance", instance.GetName(), instance.GetVmId(), instance.GetCloudName(), instance.GetLocation(), nil)
 	}
 
 	localVM1, err := deploy("local-vm-1-"+suffix, localProviderName, "local", cfg.localMachine)
@@ -389,9 +633,15 @@ func run(cfg harnessConfig) error {
 		return err
 	}
 
+	if err := stopInstanceAndVerifyPeerShutdown(deadline, client, localVM1, []*pbApic.CloudInstance{localVM2, hetznerVM, scalewayVM}); err != nil {
+		return err
+	}
+	summary.setInstanceStatus(localVM1.GetName(), "stopped-peer-removed")
+
 	if err := deleteInstanceAndVerify(deadline, client, localVM1, removeCleanupInstance); err != nil {
 		return err
 	}
+	recordInstanceDeleted(localVM1)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "cloud-priority metadata remains after first local VM deletion",
 		Priorities: map[string]int{
@@ -407,6 +657,7 @@ func run(cfg harnessConfig) error {
 	if err := deleteInstanceAndVerify(deadline, client, localVM2, removeCleanupInstance); err != nil {
 		return err
 	}
+	recordInstanceDeleted(localVM2)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "cloud-priority metadata remains after second local VM deletion",
 		Priorities: map[string]int{
@@ -421,6 +672,7 @@ func run(cfg harnessConfig) error {
 	if err := deleteInstanceAndVerify(deadline, client, hetznerVM, removeCleanupInstance); err != nil {
 		return err
 	}
+	recordInstanceDeleted(hetznerVM)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "single remaining cloud VM keeps cloud priority metadata after Hetzner deletion",
 		Priorities: map[string]int{
@@ -434,6 +686,7 @@ func run(cfg harnessConfig) error {
 	if err := deleteInstanceAndVerify(deadline, client, scalewayVM, removeCleanupInstance); err != nil {
 		return err
 	}
+	recordInstanceDeleted(scalewayVM)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "local client remains after all VM deletion",
 		Priorities: map[string]int{
@@ -452,6 +705,31 @@ func run(cfg harnessConfig) error {
 	return nil
 }
 
+func stopInstanceAndVerifyPeerShutdown(deadline time.Time, client pbApic.ProtosClientApiClient, instance *pbApic.CloudInstance, observers []*pbApic.CloudInstance) error {
+	peerID, err := e2eapic.PeerIDForInstance(instance)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("stopping instance to verify daemon peer shutdown: name=%s id=%s peer=%s\n", instance.GetName(), instance.GetVmId(), peerID)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	_, err = client.StopInstance(ctx, &pbApic.StopInstanceRequest{Name: instance.GetName()})
+	cancel()
+	if err != nil {
+		return fmt.Errorf("stop instance %s: %w", instance.GetName(), err)
+	}
+	if _, err := e2eapic.WaitForInstanceStatus(deadline, client, instance.GetName(), "stopped"); err != nil {
+		return err
+	}
+	if err := e2eapic.WaitForPeerRemoved(deadline, client, peerID); err != nil {
+		return err
+	}
+	if err := e2eapic.WaitForPeerRemovedFromRuntimes(deadline, client, observers, peerID); err != nil {
+		return err
+	}
+	fmt.Printf("daemon shutdown peer removal verified: name=%s peer=%s\n", instance.GetName(), peerID)
+	return nil
+}
+
 func addProvisioner(client pbApic.ProtosClientApiClient, name string, typ string, credentials map[string]string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -463,21 +741,12 @@ func addProvisioner(client pbApic.ProtosClientApiClient, name string, typ string
 	return err
 }
 
-func uploadProvisionerImage(client pbApic.ProtosClientApiClient, imagePath string, imageName string, provider string, location string, timeout time.Duration) error {
-	callTimeout := timeout + 5*time.Minute
-	if callTimeout <= 5*time.Minute {
-		callTimeout = 35 * time.Minute
+func uploadProvisionerImage(client pbApic.ProtosClientApiClient, imagePath string, imageName string, provider string, location string, timeout time.Duration) (string, error) {
+	deadline := time.Now().Add(timeout + 5*time.Minute)
+	if timeout <= 0 {
+		deadline = time.Now().Add(35 * time.Minute)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-	defer cancel()
-	_, err := client.UploadProvisionerImage(ctx, &pbApic.UploadProvisionerImageRequest{
-		ImagePath:       imagePath,
-		ImageName:       imageName,
-		ProvisionerName: provider,
-		Location:        location,
-		Timeout:         e2eapic.Minutes(timeout),
-	})
-	return err
+	return e2eapic.UploadProvisionerImage(deadline, client, imagePath, imageName, provider, location, timeout)
 }
 
 func createCloudAppConnectivityPair(
@@ -512,6 +781,9 @@ func createCloudAppConnectivityPair(
 	}
 	if err := e2eapic.WaitForRemoteImageContentReady(deadline, client, hetznerVM.GetName(), appImage); err != nil {
 		return nil, err
+	}
+	if err := e2eapic.WaitForRemoteFullMesh(deadline, client, []*pbApic.CloudInstance{hetznerVM, scalewayVM}); err != nil {
+		return nil, fmt.Errorf("cloud seed/puller p2p mesh did not become ready: %w", err)
 	}
 
 	scalewayAppName := "app-scaleway-" + suffix

@@ -104,13 +104,22 @@ func ProtosWatchChanges(request unsafe.Pointer, requestLen C.int64_t, callbackCo
 	if callback == nil {
 		return watchErrorResult(fmt.Errorf("watch callback is required"))
 	}
-	return startWatch(request, requestLen, func(response []byte) {
-		C.ProtosInvokeWatchCallback(callback, callbackContext, bytesResult(response))
-	}, func(err error) {
-		C.ProtosInvokeWatchCallback(callback, callbackContext, errorResult(err))
-	}, func() {
-		C.ProtosInvokeWatchCallback(callback, callbackContext, C.ProtosResult{})
-	})
+	return startWatch(
+		request,
+		requestLen,
+		func(ctx context.Context, current *apibridge.Bridge, payload []byte, emit func([]byte) bool) error {
+			return current.WatchChanges(ctx, payload, emit)
+		},
+		func(response []byte) {
+			C.ProtosInvokeWatchCallback(callback, callbackContext, bytesResult(response))
+		},
+		func(err error) {
+			C.ProtosInvokeWatchCallback(callback, callbackContext, errorResult(err))
+		},
+		func() {
+			C.ProtosInvokeWatchCallback(callback, callbackContext, C.ProtosResult{})
+		},
+	)
 }
 
 //export ProtosWatchChangesBytes
@@ -118,20 +127,50 @@ func ProtosWatchChangesBytes(request unsafe.Pointer, requestLen C.int64_t, callb
 	if callback == nil {
 		return watchErrorResult(fmt.Errorf("watch callback is required"))
 	}
-	return startWatch(request, requestLen, func(response []byte) {
-		result := bytesResult(response)
-		C.ProtosInvokeWatchBytesCallback(callback, callbackContext, result.data, result.len, result.err)
-	}, func(err error) {
-		result := errorResult(err)
-		C.ProtosInvokeWatchBytesCallback(callback, callbackContext, result.data, result.len, result.err)
-	}, func() {
-		C.ProtosInvokeWatchBytesCallback(callback, callbackContext, nil, 0, nil)
+	return startWatchBytes(request, requestLen, callbackContext, callback, func(ctx context.Context, current *apibridge.Bridge, payload []byte, emit func([]byte) bool) error {
+		return current.WatchChanges(ctx, payload, emit)
 	})
+}
+
+//export ProtosWatchTaskBytes
+func ProtosWatchTaskBytes(request unsafe.Pointer, requestLen C.int64_t, callbackContext unsafe.Pointer, callback C.ProtosWatchBytesCallback) C.ProtosWatchResult {
+	if callback == nil {
+		return watchErrorResult(fmt.Errorf("watch callback is required"))
+	}
+	return startWatchBytes(request, requestLen, callbackContext, callback, func(ctx context.Context, current *apibridge.Bridge, payload []byte, emit func([]byte) bool) error {
+		return current.WatchTask(ctx, payload, emit)
+	})
+}
+
+func startWatchBytes(
+	request unsafe.Pointer,
+	requestLen C.int64_t,
+	callbackContext unsafe.Pointer,
+	callback C.ProtosWatchBytesCallback,
+	run func(context.Context, *apibridge.Bridge, []byte, func([]byte) bool) error,
+) C.ProtosWatchResult {
+	return startWatch(
+		request,
+		requestLen,
+		run,
+		func(response []byte) {
+			result := bytesResult(response)
+			C.ProtosInvokeWatchBytesCallback(callback, callbackContext, result.data, result.len, result.err)
+		},
+		func(err error) {
+			result := errorResult(err)
+			C.ProtosInvokeWatchBytesCallback(callback, callbackContext, result.data, result.len, result.err)
+		},
+		func() {
+			C.ProtosInvokeWatchBytesCallback(callback, callbackContext, nil, 0, nil)
+		},
+	)
 }
 
 func startWatch(
 	request unsafe.Pointer,
 	requestLen C.int64_t,
+	run func(context.Context, *apibridge.Bridge, []byte, func([]byte) bool) error,
 	emitData func([]byte),
 	emitError func(error),
 	emitDone func(),
@@ -161,7 +200,7 @@ func startWatch(
 
 	go func() {
 		defer unregisterWatch(id)
-		err := current.WatchChanges(ctx, payload, func(response []byte) bool {
+		err := run(ctx, current, payload, func(response []byte) bool {
 			return entry.emit(ctx, func() {
 				emitData(response)
 			})

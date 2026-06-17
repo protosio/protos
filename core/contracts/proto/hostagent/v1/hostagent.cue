@@ -13,6 +13,8 @@ package hostagentv1
 #StatusRequest: {
 	vms?: [...#VMRef]
 	network?: bool
+	root_dir?: string
+	list_vms?: bool
 }
 
 #StatusResponse: {
@@ -34,22 +36,61 @@ package hostagentv1
 
 #VMDesiredState: {
 	id?:            string
-	manifest_path?: string
+	root_dir?:      string
 	desired_state?: string
+	config?:        #VMConfig
 }
 
 #VMRef: {
-	id?:            string
-	manifest_path?: string
+	id?:       string
+	name?:     string
+	root_dir?: string
 }
 
 #VMObservedState: {
-	id?:            string
-	manifest_path?: string
-	status?:        string
-	pid?:           int32
-	public_ip?:     string
-	message?:       string
+	id?:        string
+	status?:    string
+	pid?:       int32
+	public_ip?: string
+	message?:   string
+	config?:    #VMConfig
+}
+
+#VMConfig: {
+	id?:                     string
+	name?:                   string
+	image_id?:               string
+	location?:               string
+	machine_type?:           string
+	cores?:                  uint32
+	memory_mib?:             uint32
+	init_origin_public_key?: string
+	public_ip?:              string
+	mac_address?:            string
+	kernel_path?:            string
+	initrd_path?:            string
+	cmdline_path?:           string
+	root_disk_path?:         string
+	boot_iso_path?:          string
+	metadata_iso?:           string
+	artifact_dir?:           string
+	network?:                #VMNetworkConfig
+	volumes?: [...#VMVolume]
+}
+
+#VMNetworkConfig: {
+	interface?:     string
+	ip_address?:    string
+	prefix_length?: int32
+	gateway?:       string
+	dns_servers?: [...string]
+}
+
+#VMVolume: {
+	id?:       string
+	name?:     string
+	path?:     string
+	size_mib?: int32
 }
 
 #NetworkDesiredState: {
@@ -221,6 +262,8 @@ contract: {
 			{kind: "message", name: "StatusRequest", fields: [
 				{rule: "repeated", type: "VMRef", name: "vms", number: 1},
 				{type: "bool", name: "network", number: 2},
+				{type: "string", name: "root_dir", number: 3},
+				{type: "bool", name: "list_vms", number: 4},
 			]},
 			{kind: "message", name: "StatusResponse", fields: [
 				{rule: "repeated", type: "VMObservedState", name: "vms", number: 1},
@@ -237,20 +280,56 @@ contract: {
 			]},
 			{kind: "message", name: "VMDesiredState", fields: [
 				{type: "string", name: "id", number: 1},
-				{type: "string", name: "manifest_path", number: 2},
+				{type: "string", name: "root_dir", number: 2},
 				{type: "string", name: "desired_state", number: 3},
+				{type: "VMConfig", name: "config", number: 4},
 			]},
 			{kind: "message", name: "VMRef", fields: [
 				{type: "string", name: "id", number: 1},
-				{type: "string", name: "manifest_path", number: 2},
+				{type: "string", name: "name", number: 2},
+				{type: "string", name: "root_dir", number: 3},
 			]},
 			{kind: "message", name: "VMObservedState", fields: [
 				{type: "string", name: "id", number: 1},
-				{type: "string", name: "manifest_path", number: 2},
-				{type: "string", name: "status", number: 3},
-				{type: "int32", name: "pid", number: 4},
-				{type: "string", name: "public_ip", number: 5},
-				{type: "string", name: "message", number: 6},
+				{type: "string", name: "status", number: 2},
+				{type: "int32", name: "pid", number: 3},
+				{type: "string", name: "public_ip", number: 4},
+				{type: "string", name: "message", number: 5},
+				{type: "VMConfig", name: "config", number: 6},
+			]},
+			{kind: "message", name: "VMConfig", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "name", number: 2},
+				{type: "string", name: "image_id", number: 3},
+				{type: "string", name: "location", number: 4},
+				{type: "string", name: "machine_type", number: 5},
+				{type: "uint32", name: "cores", number: 6},
+				{type: "uint32", name: "memory_mib", number: 7},
+				{type: "string", name: "init_origin_public_key", number: 8},
+				{type: "string", name: "public_ip", number: 9},
+				{type: "string", name: "mac_address", number: 10},
+				{type: "string", name: "kernel_path", number: 11},
+				{type: "string", name: "initrd_path", number: 12},
+				{type: "string", name: "cmdline_path", number: 13},
+				{type: "string", name: "root_disk_path", number: 14},
+				{type: "string", name: "boot_iso_path", number: 15},
+				{type: "string", name: "metadata_iso", number: 16},
+				{type: "string", name: "artifact_dir", number: 17},
+				{type: "VMNetworkConfig", name: "network", number: 18},
+				{rule: "repeated", type: "VMVolume", name: "volumes", number: 19},
+			]},
+			{kind: "message", name: "VMNetworkConfig", fields: [
+				{type: "string", name: "interface", number: 1},
+				{type: "string", name: "ip_address", number: 2},
+				{type: "int32", name: "prefix_length", number: 3},
+				{type: "string", name: "gateway", number: 4},
+				{rule: "repeated", type: "string", name: "dns_servers", number: 5},
+			]},
+			{kind: "message", name: "VMVolume", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "name", number: 2},
+				{type: "string", name: "path", number: 3},
+				{type: "int32", name: "size_mib", number: 4},
 			]},
 			{kind: "message", name: "NetworkDesiredState", fields: [
 				{type: "string", name: "desired_state", number: 1},
@@ -387,6 +466,9 @@ lineage: {
 			VMDesiredState?:       #VMDesiredState
 			VMRef?:                #VMRef
 			VMObservedState?:      #VMObservedState
+			VMConfig?:             #VMConfig
+			VMNetworkConfig?:      #VMNetworkConfig
+			VMVolume?:             #VMVolume
 			NetworkDesiredState?:  #NetworkDesiredState
 			NetworkConfig?:        #NetworkConfig
 			InstancePeer?:         #InstancePeer

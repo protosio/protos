@@ -128,11 +128,45 @@ func (db *DB) ReconcileReplicationPeers(ctx context.Context, candidates []Replic
 	if len(prioritized) == 0 {
 		return nil
 	}
-	notifyLog.Debugf(
-		"swarmion checkpoint runtime has no replication-policy mutation API; retained %d Protos replication-priority candidates as local metadata",
-		len(prioritized),
-	)
+	if db.shouldLogReplicationPolicyNotice(prioritized) {
+		notifyLog.Debugf(
+			"swarmion checkpoint runtime has no replication-policy mutation API; retained %d Protos replication-priority candidates as local metadata",
+			len(prioritized),
+		)
+	}
 	return nil
+}
+
+func (db *DB) shouldLogReplicationPolicyNotice(prioritized []prioritizedReplicationCandidate) bool {
+	if db == nil {
+		return false
+	}
+	signature := replicationPolicyNoticeSignature(prioritized)
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.replicationNoticeSig == signature {
+		return false
+	}
+	db.replicationNoticeSig = signature
+	return true
+}
+
+func replicationPolicyNoticeSignature(prioritized []prioritizedReplicationCandidate) string {
+	var b strings.Builder
+	for _, candidate := range prioritized {
+		if candidate.PeerID == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte('|')
+		}
+		b.WriteString(candidate.PeerID)
+		b.WriteByte(':')
+		b.WriteString(candidate.DeviceClass)
+		b.WriteByte(':')
+		b.WriteString(fmt.Sprint(candidate.Priority))
+	}
+	return b.String()
 }
 
 func (db *DB) RemoveReplicationPeerState(ctx context.Context, peerID string, _ []ReplicationCandidate) error {
@@ -163,7 +197,7 @@ func (db *DB) RemoveReplicationPeerState(ctx context.Context, peerID string, _ [
 			return err
 		}
 		lastErr = err
-		notifyLog.Debugf("retrying swarmion peer removal for %s after transient state change: %s", peerID, err.Error())
+		notifyLog.Debugf("retrying swarmion peer removal for %s after retryable blocker on attempt %d: %s", peerID, attempt+1, err.Error())
 		select {
 		case <-ctx.Done():
 			if lastErr != nil {
@@ -194,19 +228,29 @@ func removeReplicationPeerStateWithApp(ctx context.Context, app *swarmionapp.App
 		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
 	}
 	if err := StrictPeerRemovalReadinessError(readiness); err == nil {
+		notifyLog.Debugf("swarmion peer %s is already ready for durable removal: %s", peerID, PeerRemovalReadinessSummary(readiness))
 		return nil
+	} else {
+		notifyLog.Debugf("swarmion peer %s requires eviction before durable removal: %s", peerID, PeerRemovalReadinessSummary(readiness))
 	}
 
-	if _, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID}); err != nil {
+	eviction, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID})
+	if err != nil {
 		return fmt.Errorf("evict swarmion peer %s after removal: %w", peerID, err)
 	}
-	readiness, err = app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
-	if err != nil {
-		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
+	if eviction.RemovalReadiness != nil {
+		readiness = *eviction.RemovalReadiness
+	} else {
+		readiness, err = app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
+		if err != nil {
+			return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
+		}
 	}
 	if err := PeerRemovalReadinessError(readiness); err != nil {
+		notifyLog.Debugf("swarmion peer %s is not ready after eviction: %s", peerID, PeerRemovalReadinessSummary(readiness))
 		return err
 	}
+	notifyLog.Debugf("swarmion peer %s is ready after eviction: %s", peerID, PeerRemovalReadinessSummary(readiness))
 	return nil
 }
 
@@ -231,6 +275,55 @@ func StrictPeerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessR
 
 func PeerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse) error {
 	return peerRemovalReadinessError(readiness, true)
+}
+
+func PeerRemovalReadinessSummary(readiness swarmionapp.PeerRemovalReadinessResponse) string {
+	peerID := strings.TrimSpace(readiness.PeerID)
+	if peerID == "" {
+		peerID = "peer"
+	}
+	flags := make([]string, 0, 5)
+	if readiness.StillConnected {
+		flags = append(flags, "connected")
+	}
+	if readiness.StillActiveViewPeer {
+		flags = append(flags, "active-view")
+	}
+	if readiness.StillStateProvider {
+		flags = append(flags, "state-provider")
+	}
+	if readiness.StillCheckpointProvider {
+		flags = append(flags, "checkpoint-provider")
+	}
+	if readiness.StillContentProvider {
+		flags = append(flags, "content-provider")
+	}
+	if len(flags) == 0 {
+		flags = append(flags, "no-runtime-flags")
+	}
+	reason := strings.TrimSpace(readiness.BlockingReason)
+	if reason == "" {
+		reason = strings.TrimSpace(readiness.CheckpointProviderReason)
+	}
+	if reason == "" && len(readiness.RemainingObligations) > 0 {
+		reason = strings.Join(readiness.RemainingObligations, "; ")
+	}
+	if reason == "" {
+		reason = "none"
+	}
+	observed := "never"
+	if !readiness.LastObservedAt.IsZero() {
+		observed = readiness.LastObservedAt.Format(time.RFC3339)
+	}
+	return fmt.Sprintf(
+		"peer=%s safe=%t flags=%s reason=%q obligations=%d last_observed=%s",
+		peerID,
+		readiness.SafeToRemoveDurableResource,
+		strings.Join(flags, ","),
+		reason,
+		len(readiness.RemainingObligations),
+		observed,
+	)
 }
 
 func peerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse, allowStaleLocalObservation bool) error {

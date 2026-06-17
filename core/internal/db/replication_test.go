@@ -67,6 +67,26 @@ func TestPrioritizedReplicationCandidatesUsesExplicitPriority(t *testing.T) {
 	}
 }
 
+func TestReplicationPolicyNoticeLogsOnlyWhenCandidatesChange(t *testing.T) {
+	db := &DB{}
+	first := []prioritizedReplicationCandidate{
+		{PeerID: "cloud", DeviceClass: ReplicationDeviceClassCloudVM, Priority: 100},
+		{PeerID: "local", DeviceClass: ReplicationDeviceClassLocalUserClient, Priority: 50},
+	}
+	if !db.shouldLogReplicationPolicyNotice(first) {
+		t.Fatal("first notice should be logged")
+	}
+	if db.shouldLogReplicationPolicyNotice(first) {
+		t.Fatal("unchanged notice should be suppressed")
+	}
+	changed := []prioritizedReplicationCandidate{
+		{PeerID: "cloud", DeviceClass: ReplicationDeviceClassCloudVM, Priority: 100},
+	}
+	if !db.shouldLogReplicationPolicyNotice(changed) {
+		t.Fatal("changed notice should be logged")
+	}
+}
+
 func TestCheckpointCatchUpOperationalErrorUsesStructuredStatus(t *testing.T) {
 	if err := checkpointCatchUpOperationalError(swarmionadmin.CheckpointCatchUpResponse{
 		Status:    string(swarmionadmin.CheckpointCatchUpStatusNoSnapshot),
@@ -113,6 +133,21 @@ func TestPeerRemovalReadinessErrorUsesReadinessContract(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "peer is still a state provider") {
 		t.Fatalf("readiness error = %v, want obligation in message", err)
+	}
+}
+
+func TestPeerRemovalReadinessSummaryIncludesBlockers(t *testing.T) {
+	summary := PeerRemovalReadinessSummary(swarmionapp.PeerRemovalReadinessResponse{
+		PeerID:                   "peer-a",
+		StillConnected:           true,
+		StillCheckpointProvider:  true,
+		CheckpointProviderReason: "advertises checkpoint state",
+		RemainingObligations:     []string{"peer is still connected"},
+	})
+	for _, want := range []string{"peer=peer-a", "connected", "checkpoint-provider", "advertises checkpoint state", "obligations=1"} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary = %q, want %q", summary, want)
+		}
 	}
 }
 

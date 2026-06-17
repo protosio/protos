@@ -231,6 +231,53 @@ func (b *Bridge) WatchChanges(ctx context.Context, request []byte, emit func([]b
 	}
 }
 
+func (b *Bridge) WatchTask(ctx context.Context, request []byte, emit func([]byte) bool) error {
+	if b == nil {
+		return fmt.Errorf("bridge is not started")
+	}
+	if emit == nil {
+		return fmt.Errorf("watch callback is required")
+	}
+
+	var req pbApic.WatchTaskRequest
+	if len(request) > 0 {
+		if err := proto.Unmarshal(request, &req); err != nil {
+			return fmt.Errorf("decode WatchTask request: %w", err)
+		}
+	}
+
+	b.mu.Lock()
+	conn := b.conn
+	b.mu.Unlock()
+	if conn == nil {
+		return fmt.Errorf("bridge is stopped")
+	}
+
+	stream, err := pbApic.NewProtosClientApiClient(conn).WatchTask(ctx, &req)
+	if err != nil {
+		return bridgeUserError(err)
+	}
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			return bridgeUserError(err)
+		}
+		encoded, err := proto.Marshal(resp)
+		if err != nil {
+			return fmt.Errorf("encode WatchTask response: %w", err)
+		}
+		if !emit(encoded) {
+			return nil
+		}
+	}
+}
+
 func bridgeUserError(err error) error {
 	if err == nil {
 		return nil

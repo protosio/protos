@@ -131,6 +131,7 @@ type DB struct {
 	initialized          bool
 	watchCancel          context.CancelFunc
 	tableChangeCallbacks *util.Map[string, tableChangeCallback]
+	replicationNoticeSig string
 }
 
 //go:embed migrations/*.sql

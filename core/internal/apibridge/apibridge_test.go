@@ -79,6 +79,17 @@ func TestBridgeCallsProtobufAPI(t *testing.T) {
 	if watchResponse.Reason != "initial" || !watchResponse.RuntimeChanged {
 		t.Fatalf("unexpected watch response: reason=%q runtime_changed=%v", watchResponse.Reason, watchResponse.RuntimeChanged)
 	}
+
+	taskWatchRequest, err := proto.Marshal(&pbApic.WatchTaskRequest{Id: "missing-task", IncludeSnapshot: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bridge.WatchTask(ctx, taskWatchRequest, func(data []byte) bool {
+		t.Fatalf("unexpected task watch response: %d bytes", len(data))
+		return false
+	}); err == nil {
+		t.Fatal("expected WatchTask to return an error for an unknown task")
+	}
 }
 
 func TestBridgeUserErrorUsesStatusMessage(t *testing.T) {

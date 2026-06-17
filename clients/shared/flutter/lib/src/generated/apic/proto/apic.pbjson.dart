@@ -2216,6 +2216,84 @@ final $typed_data.Uint8List getTaskResponseDescriptor = $convert.base64Decode(
     'Cg9HZXRUYXNrUmVzcG9uc2USHgoEdGFzaxgBIAEoCzIKLmFwaWMuVGFza1IEdGFzaxInCgZldm'
     'VudHMYAiADKAsyDy5hcGljLlRhc2tFdmVudFIGZXZlbnRz');
 
+@$core.Deprecated('Use taskProgressUpdateDescriptor instead')
+const TaskProgressUpdate$json = {
+  '1': 'TaskProgressUpdate',
+  '2': [
+    {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+    {'1': 'status', '3': 2, '4': 1, '5': 9, '10': 'status'},
+    {'1': 'message', '3': 3, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'progress', '3': 4, '4': 1, '5': 5, '10': 'progress'},
+    {'1': 'details_json', '3': 5, '4': 1, '5': 9, '10': 'detailsJson'},
+    {'1': 'created_at', '3': 6, '4': 1, '5': 9, '10': 'createdAt'},
+    {'1': 'durable', '3': 7, '4': 1, '5': 8, '10': 'durable'},
+  ],
+};
+
+/// Descriptor for `TaskProgressUpdate`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List taskProgressUpdateDescriptor = $convert.base64Decode(
+    'ChJUYXNrUHJvZ3Jlc3NVcGRhdGUSFwoHdGFza19pZBgBIAEoCVIGdGFza0lkEhYKBnN0YXR1cx'
+    'gCIAEoCVIGc3RhdHVzEhgKB21lc3NhZ2UYAyABKAlSB21lc3NhZ2USGgoIcHJvZ3Jlc3MYBCAB'
+    'KAVSCHByb2dyZXNzEiEKDGRldGFpbHNfanNvbhgFIAEoCVILZGV0YWlsc0pzb24SHQoKY3JlYX'
+    'RlZF9hdBgGIAEoCVIJY3JlYXRlZEF0EhgKB2R1cmFibGUYByABKAhSB2R1cmFibGU=');
+
+@$core.Deprecated('Use watchTaskRequestDescriptor instead')
+const WatchTaskRequest$json = {
+  '1': 'WatchTaskRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'include_snapshot', '3': 2, '4': 1, '5': 8, '10': 'includeSnapshot'},
+    {'1': 'include_events', '3': 3, '4': 1, '5': 8, '10': 'includeEvents'},
+    {
+      '1': 'heartbeat_interval_ms',
+      '3': 4,
+      '4': 1,
+      '5': 13,
+      '10': 'heartbeatIntervalMs'
+    },
+  ],
+};
+
+/// Descriptor for `WatchTaskRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List watchTaskRequestDescriptor = $convert.base64Decode(
+    'ChBXYXRjaFRhc2tSZXF1ZXN0Eg4KAmlkGAEgASgJUgJpZBIpChBpbmNsdWRlX3NuYXBzaG90GA'
+    'IgASgIUg9pbmNsdWRlU25hcHNob3QSJQoOaW5jbHVkZV9ldmVudHMYAyABKAhSDWluY2x1ZGVF'
+    'dmVudHMSMgoVaGVhcnRiZWF0X2ludGVydmFsX21zGAQgASgNUhNoZWFydGJlYXRJbnRlcnZhbE'
+    '1z');
+
+@$core.Deprecated('Use watchTaskResponseDescriptor instead')
+const WatchTaskResponse$json = {
+  '1': 'WatchTaskResponse',
+  '2': [
+    {'1': 'sequence', '3': 1, '4': 1, '5': 4, '10': 'sequence'},
+    {'1': 'task', '3': 2, '4': 1, '5': 11, '6': '.apic.Task', '10': 'task'},
+    {
+      '1': 'events',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.TaskEvent',
+      '10': 'events'
+    },
+    {
+      '1': 'update',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.TaskProgressUpdate',
+      '10': 'update'
+    },
+    {'1': 'heartbeat', '3': 5, '4': 1, '5': 8, '10': 'heartbeat'},
+  ],
+};
+
+/// Descriptor for `WatchTaskResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List watchTaskResponseDescriptor = $convert.base64Decode(
+    'ChFXYXRjaFRhc2tSZXNwb25zZRIaCghzZXF1ZW5jZRgBIAEoBFIIc2VxdWVuY2USHgoEdGFzax'
+    'gCIAEoCzIKLmFwaWMuVGFza1IEdGFzaxInCgZldmVudHMYAyADKAsyDy5hcGljLlRhc2tFdmVu'
+    'dFIGZXZlbnRzEjAKBnVwZGF0ZRgEIAEoCzIYLmFwaWMuVGFza1Byb2dyZXNzVXBkYXRlUgZ1cG'
+    'RhdGUSHAoJaGVhcnRiZWF0GAUgASgIUgloZWFydGJlYXQ=');
+
 @$core.Deprecated('Use setExitRouteRequestDescriptor instead')
 const SetExitRouteRequest$json = {
   '1': 'SetExitRouteRequest',
@@ -2508,13 +2586,19 @@ const CloudSpecificImage$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
     {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
     {'1': 'location', '3': 3, '4': 1, '5': 9, '10': 'location'},
+    {'1': 'logical_name', '3': 4, '4': 1, '5': 9, '10': 'logicalName'},
+    {'1': 'date_suffix', '3': 5, '4': 1, '5': 9, '10': 'dateSuffix'},
+    {'1': 'updated_at_unix', '3': 6, '4': 1, '5': 3, '10': 'updatedAtUnix'},
+    {'1': 'canonical', '3': 7, '4': 1, '5': 8, '10': 'canonical'},
   ],
 };
 
 /// Descriptor for `CloudSpecificImage`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List cloudSpecificImageDescriptor = $convert.base64Decode(
     'ChJDbG91ZFNwZWNpZmljSW1hZ2USDgoCaWQYASABKAlSAmlkEhIKBG5hbWUYAiABKAlSBG5hbW'
-    'USGgoIbG9jYXRpb24YAyABKAlSCGxvY2F0aW9u');
+    'USGgoIbG9jYXRpb24YAyABKAlSCGxvY2F0aW9uEiEKDGxvZ2ljYWxfbmFtZRgEIAEoCVILbG9n'
+    'aWNhbE5hbWUSHwoLZGF0ZV9zdWZmaXgYBSABKAlSCmRhdGVTdWZmaXgSJgoPdXBkYXRlZF9hdF'
+    '91bml4GAYgASgDUg11cGRhdGVkQXRVbml4EhwKCWNhbm9uaWNhbBgHIAEoCFIJY2Fub25pY2Fs');
 
 @$core.Deprecated('Use releaseDescriptor instead')
 const Release$json = {
@@ -2718,11 +2802,17 @@ final $typed_data.Uint8List uploadCloudImageRequestDescriptor = $convert.base64D
 @$core.Deprecated('Use uploadCloudImageResponseDescriptor instead')
 const UploadCloudImageResponse$json = {
   '1': 'UploadCloudImageResponse',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'task_id', '3': 2, '4': 1, '5': 9, '10': 'taskId'},
+  ],
 };
 
 /// Descriptor for `UploadCloudImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List uploadCloudImageResponseDescriptor =
-    $convert.base64Decode('ChhVcGxvYWRDbG91ZEltYWdlUmVzcG9uc2U=');
+    $convert.base64Decode(
+        'ChhVcGxvYWRDbG91ZEltYWdlUmVzcG9uc2USDgoCaWQYASABKAlSAmlkEhcKB3Rhc2tfaWQYAi'
+        'ABKAlSBnRhc2tJZA==');
 
 @$core.Deprecated('Use uploadProvisionerImageRequestDescriptor instead')
 const UploadProvisionerImageRequest$json = {
@@ -2746,11 +2836,17 @@ final $typed_data.Uint8List uploadProvisionerImageRequestDescriptor = $convert.b
 @$core.Deprecated('Use uploadProvisionerImageResponseDescriptor instead')
 const UploadProvisionerImageResponse$json = {
   '1': 'UploadProvisionerImageResponse',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'task_id', '3': 2, '4': 1, '5': 9, '10': 'taskId'},
+  ],
 };
 
 /// Descriptor for `UploadProvisionerImageResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List uploadProvisionerImageResponseDescriptor =
-    $convert.base64Decode('Ch5VcGxvYWRQcm92aXNpb25lckltYWdlUmVzcG9uc2U=');
+    $convert.base64Decode(
+        'Ch5VcGxvYWRQcm92aXNpb25lckltYWdlUmVzcG9uc2USDgoCaWQYASABKAlSAmlkEhcKB3Rhc2'
+        'tfaWQYAiABKAlSBnRhc2tJZA==');
 
 @$core.Deprecated('Use removeCloudImageRequestDescriptor instead')
 const RemoveCloudImageRequest$json = {
@@ -3629,6 +3725,13 @@ const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
       '4': {}
     },
     {
+      '1': 'WatchTask',
+      '2': '.apic.WatchTaskRequest',
+      '3': '.apic.WatchTaskResponse',
+      '4': {},
+      '6': true
+    },
+    {
       '1': 'SetExitRoute',
       '2': '.apic.SetExitRouteRequest',
       '3': '.apic.SetExitRouteResponse',
@@ -3867,6 +3970,9 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.GetTaskRequest': GetTaskRequest$json,
   '.apic.GetTaskResponse': GetTaskResponse$json,
   '.apic.TaskEvent': TaskEvent$json,
+  '.apic.WatchTaskRequest': WatchTaskRequest$json,
+  '.apic.WatchTaskResponse': WatchTaskResponse$json,
+  '.apic.TaskProgressUpdate': TaskProgressUpdate$json,
   '.apic.SetExitRouteRequest': SetExitRouteRequest$json,
   '.apic.SetExitRouteResponse': SetExitRouteResponse$json,
   '.apic.ClearExitRouteRequest': ClearExitRouteRequest$json,
@@ -3990,31 +4096,32 @@ final $typed_data.Uint8List protosClientApiServiceDescriptor = $convert.base64De
     'aW1lU3RhdGVSZXNwb25zZSIAEkkKDFdhdGNoQ2hhbmdlcxIZLmFwaWMuV2F0Y2hDaGFuZ2VzUm'
     'VxdWVzdBoaLmFwaWMuV2F0Y2hDaGFuZ2VzUmVzcG9uc2UiADABEjsKCEdldFRhc2tzEhUuYXBp'
     'Yy5HZXRUYXNrc1JlcXVlc3QaFi5hcGljLkdldFRhc2tzUmVzcG9uc2UiABI4CgdHZXRUYXNrEh'
-    'QuYXBpYy5HZXRUYXNrUmVxdWVzdBoVLmFwaWMuR2V0VGFza1Jlc3BvbnNlIgASRwoMU2V0RXhp'
-    'dFJvdXRlEhkuYXBpYy5TZXRFeGl0Um91dGVSZXF1ZXN0GhouYXBpYy5TZXRFeGl0Um91dGVSZX'
-    'Nwb25zZSIAEk0KDkNsZWFyRXhpdFJvdXRlEhsuYXBpYy5DbGVhckV4aXRSb3V0ZVJlcXVlc3Qa'
-    'HC5hcGljLkNsZWFyRXhpdFJvdXRlUmVzcG9uc2UiABJZChJHZXRQcm90b3NkUmVsZWFzZXMSHy'
-    '5hcGljLkdldFByb3Rvc2RSZWxlYXNlc1JlcXVlc3QaIC5hcGljLkdldFByb3Rvc2RSZWxlYXNl'
-    'c1Jlc3BvbnNlIgASTQoOR2V0Q2xvdWRJbWFnZXMSGy5hcGljLkdldENsb3VkSW1hZ2VzUmVxdW'
-    'VzdBocLmFwaWMuR2V0Q2xvdWRJbWFnZXNSZXNwb25zZSIAElMKEFVwbG9hZENsb3VkSW1hZ2US'
-    'HS5hcGljLlVwbG9hZENsb3VkSW1hZ2VSZXF1ZXN0Gh4uYXBpYy5VcGxvYWRDbG91ZEltYWdlUm'
-    'VzcG9uc2UiABJTChBSZW1vdmVDbG91ZEltYWdlEh0uYXBpYy5SZW1vdmVDbG91ZEltYWdlUmVx'
-    'dWVzdBoeLmFwaWMuUmVtb3ZlQ2xvdWRJbWFnZVJlc3BvbnNlIgASXwoUR2V0UHJvdmlzaW9uZX'
-    'JJbWFnZXMSIS5hcGljLkdldFByb3Zpc2lvbmVySW1hZ2VzUmVxdWVzdBoiLmFwaWMuR2V0UHJv'
-    'dmlzaW9uZXJJbWFnZXNSZXNwb25zZSIAEmUKFlVwbG9hZFByb3Zpc2lvbmVySW1hZ2USIy5hcG'
-    'ljLlVwbG9hZFByb3Zpc2lvbmVySW1hZ2VSZXF1ZXN0GiQuYXBpYy5VcGxvYWRQcm92aXNpb25l'
-    'ckltYWdlUmVzcG9uc2UiABJlChZSZW1vdmVQcm92aXNpb25lckltYWdlEiMuYXBpYy5SZW1vdm'
-    'VQcm92aXNpb25lckltYWdlUmVxdWVzdBokLmFwaWMuUmVtb3ZlUHJvdmlzaW9uZXJJbWFnZVJl'
-    'c3BvbnNlIgASUwoQR2V0SW5zdGFuY2VJbWFnZRIdLmFwaWMuR2V0SW5zdGFuY2VJbWFnZVJlcX'
-    'Vlc3QaHi5hcGljLkdldEluc3RhbmNlSW1hZ2VSZXNwb25zZSIAEoABCh9VcGxvYWRJbnN0YW5j'
-    'ZUltYWdlQXJjaGl2ZUNodW5rEiwuYXBpYy5VcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW'
-    '5rUmVxdWVzdBotLmFwaWMuVXBsb2FkSW5zdGFuY2VJbWFnZUFyY2hpdmVDaHVua1Jlc3BvbnNl'
-    'IgASUAoPR2V0U3lzdGVtU3RhdHVzEhwuYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXF1ZXN0Gh0uYX'
-    'BpYy5HZXRTeXN0ZW1TdGF0dXNSZXNwb25zZSIAEk0KDlN0YXJ0SG9zdEFnZW50EhsuYXBpYy5T'
-    'dGFydEhvc3RBZ2VudFJlcXVlc3QaHC5hcGljLlN0YXJ0SG9zdEFnZW50UmVzcG9uc2UiABJKCg'
-    '1TdG9wSG9zdEFnZW50EhouYXBpYy5TdG9wSG9zdEFnZW50UmVxdWVzdBobLmFwaWMuU3RvcEhv'
-    'c3RBZ2VudFJlc3BvbnNlIgASUAoPR2V0TG9jYWxDb21taXRzEhwuYXBpYy5HZXRMb2NhbENvbW'
-    '1pdHNSZXF1ZXN0Gh0uYXBpYy5HZXRMb2NhbENvbW1pdHNSZXNwb25zZSIAElMKEEdldFJlbW90'
-    'ZUNvbW1pdHMSHS5hcGljLkdldFJlbW90ZUNvbW1pdHNSZXF1ZXN0Gh4uYXBpYy5HZXRSZW1vdG'
-    'VDb21taXRzUmVzcG9uc2UiABJBCgpFeGVjdXRlU3FsEhcuYXBpYy5FeGVjdXRlU3FsUmVxdWVz'
-    'dBoYLmFwaWMuRXhlY3V0ZVNxbFJlc3BvbnNlIgA=');
+    'QuYXBpYy5HZXRUYXNrUmVxdWVzdBoVLmFwaWMuR2V0VGFza1Jlc3BvbnNlIgASQAoJV2F0Y2hU'
+    'YXNrEhYuYXBpYy5XYXRjaFRhc2tSZXF1ZXN0GhcuYXBpYy5XYXRjaFRhc2tSZXNwb25zZSIAMA'
+    'ESRwoMU2V0RXhpdFJvdXRlEhkuYXBpYy5TZXRFeGl0Um91dGVSZXF1ZXN0GhouYXBpYy5TZXRF'
+    'eGl0Um91dGVSZXNwb25zZSIAEk0KDkNsZWFyRXhpdFJvdXRlEhsuYXBpYy5DbGVhckV4aXRSb3'
+    'V0ZVJlcXVlc3QaHC5hcGljLkNsZWFyRXhpdFJvdXRlUmVzcG9uc2UiABJZChJHZXRQcm90b3Nk'
+    'UmVsZWFzZXMSHy5hcGljLkdldFByb3Rvc2RSZWxlYXNlc1JlcXVlc3QaIC5hcGljLkdldFByb3'
+    'Rvc2RSZWxlYXNlc1Jlc3BvbnNlIgASTQoOR2V0Q2xvdWRJbWFnZXMSGy5hcGljLkdldENsb3Vk'
+    'SW1hZ2VzUmVxdWVzdBocLmFwaWMuR2V0Q2xvdWRJbWFnZXNSZXNwb25zZSIAElMKEFVwbG9hZE'
+    'Nsb3VkSW1hZ2USHS5hcGljLlVwbG9hZENsb3VkSW1hZ2VSZXF1ZXN0Gh4uYXBpYy5VcGxvYWRD'
+    'bG91ZEltYWdlUmVzcG9uc2UiABJTChBSZW1vdmVDbG91ZEltYWdlEh0uYXBpYy5SZW1vdmVDbG'
+    '91ZEltYWdlUmVxdWVzdBoeLmFwaWMuUmVtb3ZlQ2xvdWRJbWFnZVJlc3BvbnNlIgASXwoUR2V0'
+    'UHJvdmlzaW9uZXJJbWFnZXMSIS5hcGljLkdldFByb3Zpc2lvbmVySW1hZ2VzUmVxdWVzdBoiLm'
+    'FwaWMuR2V0UHJvdmlzaW9uZXJJbWFnZXNSZXNwb25zZSIAEmUKFlVwbG9hZFByb3Zpc2lvbmVy'
+    'SW1hZ2USIy5hcGljLlVwbG9hZFByb3Zpc2lvbmVySW1hZ2VSZXF1ZXN0GiQuYXBpYy5VcGxvYW'
+    'RQcm92aXNpb25lckltYWdlUmVzcG9uc2UiABJlChZSZW1vdmVQcm92aXNpb25lckltYWdlEiMu'
+    'YXBpYy5SZW1vdmVQcm92aXNpb25lckltYWdlUmVxdWVzdBokLmFwaWMuUmVtb3ZlUHJvdmlzaW'
+    '9uZXJJbWFnZVJlc3BvbnNlIgASUwoQR2V0SW5zdGFuY2VJbWFnZRIdLmFwaWMuR2V0SW5zdGFu'
+    'Y2VJbWFnZVJlcXVlc3QaHi5hcGljLkdldEluc3RhbmNlSW1hZ2VSZXNwb25zZSIAEoABCh9VcG'
+    'xvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW5rEiwuYXBpYy5VcGxvYWRJbnN0YW5jZUltYWdl'
+    'QXJjaGl2ZUNodW5rUmVxdWVzdBotLmFwaWMuVXBsb2FkSW5zdGFuY2VJbWFnZUFyY2hpdmVDaH'
+    'Vua1Jlc3BvbnNlIgASUAoPR2V0U3lzdGVtU3RhdHVzEhwuYXBpYy5HZXRTeXN0ZW1TdGF0dXNS'
+    'ZXF1ZXN0Gh0uYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXNwb25zZSIAEk0KDlN0YXJ0SG9zdEFnZW'
+    '50EhsuYXBpYy5TdGFydEhvc3RBZ2VudFJlcXVlc3QaHC5hcGljLlN0YXJ0SG9zdEFnZW50UmVz'
+    'cG9uc2UiABJKCg1TdG9wSG9zdEFnZW50EhouYXBpYy5TdG9wSG9zdEFnZW50UmVxdWVzdBobLm'
+    'FwaWMuU3RvcEhvc3RBZ2VudFJlc3BvbnNlIgASUAoPR2V0TG9jYWxDb21taXRzEhwuYXBpYy5H'
+    'ZXRMb2NhbENvbW1pdHNSZXF1ZXN0Gh0uYXBpYy5HZXRMb2NhbENvbW1pdHNSZXNwb25zZSIAEl'
+    'MKEEdldFJlbW90ZUNvbW1pdHMSHS5hcGljLkdldFJlbW90ZUNvbW1pdHNSZXF1ZXN0Gh4uYXBp'
+    'Yy5HZXRSZW1vdGVDb21taXRzUmVzcG9uc2UiABJBCgpFeGVjdXRlU3FsEhcuYXBpYy5FeGVjdX'
+    'RlU3FsUmVxdWVzdBoYLmFwaWMuRXhlY3V0ZVNxbFJlc3BvbnNlIgA=');

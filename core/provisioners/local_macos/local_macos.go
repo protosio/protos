@@ -40,7 +40,7 @@ const (
 	localMacOSImageRootDisk = "root.raw"
 	localMacOSImageBootISO  = "boot.iso"
 	localMacOSMetadataISO   = "metadata.iso"
-	localMacOSManifestFile  = "manifest.json"
+	localMacOSMetadataFile  = "metadata.json"
 	localMacOSConsoleLog    = "console.log"
 	localMacOSDiagMaxBytes  = 8192
 
@@ -64,7 +64,7 @@ type localMacOS struct {
 	vmDir string
 }
 
-type localMacOSImageManifest struct {
+type localMacOSImageMetadata struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	Location     string `json:"location"`
@@ -75,7 +75,7 @@ type localMacOSImageManifest struct {
 	BootISOPath  string `json:"boot_iso_path,omitempty"`
 }
 
-type localMacOSVolumeManifest struct {
+type localMacOSVolumeMetadata struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Path     string `json:"path"`
@@ -90,7 +90,7 @@ type localMacOSAttachedVolume struct {
 	SizeMiB int    `json:"size_mib"`
 }
 
-type localMacOSNetworkManifest struct {
+type localMacOSNetworkConfig struct {
 	Interface    string   `json:"interface"`
 	IPAddress    string   `json:"ip_address"`
 	PrefixLength int      `json:"prefix_length"`
@@ -98,9 +98,10 @@ type localMacOSNetworkManifest struct {
 	DNSServers   []string `json:"dns_servers,omitempty"`
 }
 
-type localMacOSInstanceManifest struct {
+type localMacOSVMConfig struct {
 	ID                  string                     `json:"id"`
 	Name                string                     `json:"name"`
+	ArtifactDir         string                     `json:"-"`
 	ImageID             string                     `json:"image_id"`
 	Location            string                     `json:"location"`
 	MachineType         string                     `json:"machine_type"`
@@ -109,15 +110,13 @@ type localMacOSInstanceManifest struct {
 	InitOriginPublicKey string                     `json:"init_origin_public_key"`
 	PublicIP            string                     `json:"public_ip"`
 	MACAddress          string                     `json:"mac_address"`
-	Status              string                     `json:"status"`
-	PID                 int                        `json:"pid,omitempty"`
 	KernelPath          string                     `json:"kernel_path"`
 	InitrdPath          string                     `json:"initrd_path"`
 	CmdlinePath         string                     `json:"cmdline_path"`
 	RootDiskPath        string                     `json:"root_disk_path,omitempty"`
 	BootISOPath         string                     `json:"boot_iso_path,omitempty"`
 	MetadataISO         string                     `json:"metadata_iso,omitempty"`
-	Network             localMacOSNetworkManifest  `json:"network,omitempty"`
+	Network             localMacOSNetworkConfig    `json:"network,omitempty"`
 	Volumes             []localMacOSAttachedVolume `json:"volumes,omitempty"`
 }
 
@@ -255,7 +254,7 @@ func (lm *localMacOS) NewInstance(name string, imageID string, originPublicKey s
 		return "", fmt.Errorf("machine type '%s' is not valid for local macOS", machineType)
 	}
 
-	image, err := lm.readImageManifest(imageID)
+	image, err := lm.readImageMetadata(imageID)
 	if err != nil {
 		return "", err
 	}
@@ -307,14 +306,15 @@ func (lm *localMacOS) NewInstance(name string, imageID string, originPublicKey s
 	if err != nil {
 		return "", err
 	}
-	network, err := lm.newNetworkManifest(id)
+	network, err := lm.newNetworkConfig(id)
 	if err != nil {
 		return "", err
 	}
 
-	manifest := localMacOSInstanceManifest{
+	vmConfig := localMacOSVMConfig{
 		ID:                  id,
 		Name:                name,
+		ArtifactDir:         instanceDir,
 		ImageID:             imageID,
 		Location:            localMacOSLocation,
 		MachineType:         machineType,
@@ -323,7 +323,6 @@ func (lm *localMacOS) NewInstance(name string, imageID string, originPublicKey s
 		InitOriginPublicKey: strings.TrimSpace(originPublicKey),
 		PublicIP:            network.IPAddress,
 		MACAddress:          macAddress,
-		Status:              provisioners.ServerStateStopped,
 		KernelPath:          kernelPath,
 		InitrdPath:          initrdPath,
 		CmdlinePath:         cmdlinePath,
@@ -331,7 +330,7 @@ func (lm *localMacOS) NewInstance(name string, imageID string, originPublicKey s
 		BootISOPath:         bootISOPath,
 		Network:             network,
 	}
-	if err := lm.writeInstanceManifest(manifest); err != nil {
+	if _, err := lm.applyHostAgentVM(id, "configured", &vmConfig); err != nil {
 		return "", err
 	}
 	return id, nil
@@ -341,25 +340,23 @@ func (lm *localMacOS) DeleteInstance(id string, location string) error {
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return err
 	}
-	manifest, err := lm.readInstanceManifestByIDOrName(id)
+	state, err := lm.hostAgentVMStateByIDOrName(id)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		return lm.deleteInstanceArtifacts(id, 0)
+		return lm.deleteInstanceArtifacts(id)
 	}
-	return lm.deleteInstanceArtifacts(manifest.ID, manifest.PID)
+	config, err := lm.vmConfigFromState(state)
+	if err != nil {
+		return lm.deleteInstanceArtifacts(id)
+	}
+	return lm.deleteInstanceArtifacts(config.ID)
 }
 
-func (lm *localMacOS) deleteInstanceArtifacts(id string, pid int) error {
+func (lm *localMacOS) deleteInstanceArtifacts(id string) error {
 	instanceID, err := sanitizeLocalMacOSName(id)
 	if err != nil {
 		return err
 	}
-	if _, err := lm.applyHostAgentVM(instanceID, "deleted"); err != nil {
-		if pid != 0 && localMacOSProcessAlive(pid) {
-			return err
-		}
+	if _, err := lm.applyHostAgentVM(instanceID, "deleted", nil); err != nil {
 		log.Debugf("Skipping host agent delete for stopped local macOS VM '%s': %v", instanceID, err)
 	}
 	if err := removeLocalMacOSDir(lm.instanceDir(instanceID)); err != nil {
@@ -372,38 +369,27 @@ func (lm *localMacOS) StartInstance(id string, location string) error {
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return err
 	}
-	manifest, err := lm.readInstanceManifestByIDOrName(id)
+	state, err := lm.hostAgentVMStateByIDOrName(id)
 	if err != nil {
 		return err
 	}
-	if manifest.PID != 0 && localMacOSProcessAlive(manifest.PID) {
+	if strings.EqualFold(state.GetStatus(), provisioners.ServerStateRunning) && state.GetPid() != 0 {
 		return nil
 	}
-	if err := lm.ensureNetworkManifest(&manifest); err != nil {
+	vmConfig, err := lm.vmConfigFromState(state)
+	if err != nil {
 		return err
 	}
-	manifest.Status = provisioners.ServerStateChanging
-	manifest.PID = 0
-	manifest.PublicIP = manifest.Network.IPAddress
-	manifest.MetadataISO = filepath.Join(lm.instanceDir(manifest.ID), localMacOSMetadataISO)
-	if err := writeLocalMacOSMetadataISO(manifest.MetadataISO, manifest.Name, manifest.InitOriginPublicKey, manifest.Network); err != nil {
+	if err := lm.ensureNetworkConfig(&vmConfig); err != nil {
+		return err
+	}
+	vmConfig.PublicIP = vmConfig.Network.IPAddress
+	vmConfig.MetadataISO = filepath.Join(lm.instanceDir(vmConfig.ID), localMacOSMetadataISO)
+	if err := writeLocalMacOSMetadataISO(vmConfig.MetadataISO, vmConfig.Name, vmConfig.InitOriginPublicKey, vmConfig.Network); err != nil {
 		return fmt.Errorf("failed to write metadata ISO: %w", err)
 	}
-	if err := lm.writeInstanceManifest(manifest); err != nil {
-		return err
-	}
 
-	state, err := lm.applyHostAgentVM(manifest.ID, provisioners.ServerStateRunning)
-	if err != nil {
-		manifest.Status = provisioners.ServerStateStopped
-		_ = lm.writeInstanceManifest(manifest)
-		return err
-	}
-	manifest.PID = int(state.GetPid())
-	if state.GetStatus() != "" {
-		manifest.Status = state.GetStatus()
-	}
-	if err := lm.writeInstanceManifest(manifest); err != nil {
+	if _, err := lm.applyHostAgentVM(vmConfig.ID, provisioners.ServerStateRunning, &vmConfig); err != nil {
 		return err
 	}
 	return nil
@@ -413,82 +399,45 @@ func (lm *localMacOS) StopInstance(id string, location string) error {
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return err
 	}
-	manifest, err := lm.readInstanceManifestByIDOrName(id)
+	state, err := lm.hostAgentVMStateByIDOrName(id)
 	if err != nil {
 		return err
 	}
-	manifest.Status = provisioners.ServerStateChanging
-	if err := lm.writeInstanceManifest(manifest); err != nil {
-		return err
-	}
-
-	state, err := lm.applyHostAgentVM(manifest.ID, provisioners.ServerStateStopped)
+	vmConfig, err := lm.vmConfigFromState(state)
 	if err != nil {
 		return err
 	}
-	manifest.PID = int(state.GetPid())
-	manifest.Status = state.GetStatus()
-	if manifest.Status == "" {
-		manifest.Status = provisioners.ServerStateStopped
-	}
-	return lm.writeInstanceManifest(manifest)
+	_, err = lm.applyHostAgentVM(vmConfig.ID, provisioners.ServerStateStopped, nil)
+	return err
 }
 
 func (lm *localMacOS) GetInstanceInfo(id string, location string) (provisioners.InstanceInfo, error) {
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return provisioners.InstanceInfo{}, err
 	}
-	manifest, err := lm.readInstanceManifestByIDOrName(id)
+	state, err := lm.hostAgentVMStateByIDOrName(id)
 	if err != nil {
 		return provisioners.InstanceInfo{}, err
 	}
-	updated := false
-	if manifest.Network.IPAddress == "" {
-		if err := lm.ensureNetworkManifest(&manifest); err != nil {
-			return provisioners.InstanceInfo{}, err
-		}
-		updated = true
-	}
-	if manifest.PublicIP != manifest.Network.IPAddress {
-		manifest.PublicIP = manifest.Network.IPAddress
-		updated = true
-	}
-	if state, err := lm.hostAgentVMStatus(manifest.ID); err == nil {
-		if state.GetPid() != int32(manifest.PID) {
-			manifest.PID = int(state.GetPid())
-			updated = true
-		}
-		if state.GetStatus() != "" && state.GetStatus() != manifest.Status {
-			manifest.Status = state.GetStatus()
-			updated = true
-		}
-	} else if manifest.PID != 0 && localMacOSProcessAlive(manifest.PID) {
-		if manifest.Status != provisioners.ServerStateRunning {
-			manifest.Status = provisioners.ServerStateRunning
-			updated = true
-		}
-	} else if manifest.Status == provisioners.ServerStateRunning || manifest.Status == provisioners.ServerStateChanging {
-		manifest.PID = 0
-		manifest.Status = provisioners.ServerStateStopped
-		updated = true
-	}
-	if updated {
-		if err := lm.writeInstanceManifest(manifest); err != nil {
-			return provisioners.InstanceInfo{}, err
-		}
+	vmConfig, err := lm.vmConfigFromState(state)
+	if err != nil {
+		return provisioners.InstanceInfo{}, err
 	}
 
 	info := provisioners.InstanceInfo{
-		ID:                 manifest.ID,
-		Name:               manifest.Name,
-		PublicIP:           manifest.PublicIP,
+		ID:                 vmConfig.ID,
+		Name:               vmConfig.Name,
+		PublicIP:           firstNonEmptyLocalMacOSString(state.GetPublicIp(), vmConfig.PublicIP, vmConfig.Network.IPAddress),
 		Kind:               provisioners.KindLocalVM,
 		KindID:             lm.NameStr(),
-		ProviderResourceID: manifest.ID,
+		ProviderResourceID: vmConfig.ID,
 		Location:           localMacOSLocation,
-		Status:             manifest.Status,
+		Status:             state.GetStatus(),
 	}
-	for _, volume := range manifest.Volumes {
+	if info.Status == "" {
+		info.Status = provisioners.ServerStateStopped
+	}
+	for _, volume := range vmConfig.Volumes {
 		info.Volumes = append(info.Volumes, provisioners.VolumeInfo{
 			VolumeID: volume.ID,
 			Name:     volume.Name,
@@ -502,16 +451,20 @@ func (lm *localMacOS) DeploymentDiagnostics(id string, location string) (string,
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return "", err
 	}
-	manifest, err := lm.readInstanceManifestByIDOrName(id)
+	state, err := lm.hostAgentVMStateByIDOrName(id)
+	if err != nil {
+		return "", err
+	}
+	vmConfig, err := lm.vmConfigFromState(state)
 	if err != nil {
 		return "", err
 	}
 	lines := []string{
-		fmt.Sprintf("image: %s", firstNonEmptyLocalMacOSString(manifest.ImageID, "unknown")),
-		fmt.Sprintf("network: %s/%d via %s", firstNonEmptyLocalMacOSString(manifest.Network.IPAddress, "unknown"), manifest.Network.PrefixLength, firstNonEmptyLocalMacOSString(manifest.Network.Gateway, "unknown")),
-		fmt.Sprintf("mac: %s", firstNonEmptyLocalMacOSString(manifest.MACAddress, "unknown")),
+		fmt.Sprintf("image: %s", firstNonEmptyLocalMacOSString(vmConfig.ImageID, "unknown")),
+		fmt.Sprintf("network: %s/%d via %s", firstNonEmptyLocalMacOSString(vmConfig.Network.IPAddress, "unknown"), vmConfig.Network.PrefixLength, firstNonEmptyLocalMacOSString(vmConfig.Network.Gateway, "unknown")),
+		fmt.Sprintf("mac: %s", firstNonEmptyLocalMacOSString(vmConfig.MACAddress, "unknown")),
 	}
-	data, err := os.ReadFile(filepath.Join(lm.instanceDir(manifest.ID), localMacOSConsoleLog))
+	data, err := os.ReadFile(filepath.Join(lm.instanceDir(vmConfig.ID), localMacOSConsoleLog))
 	if err != nil {
 		lines = append(lines, fmt.Sprintf("console: unavailable: %s", err.Error()))
 		return strings.Join(lines, "\n"), nil
@@ -619,7 +572,7 @@ func (lm *localMacOS) UploadLocalImage(imagePath string, imageName string, locat
 	if err != nil {
 		return "", err
 	}
-	if _, err := lm.readImageManifest(imageID); err == nil {
+	if _, err := lm.readImageMetadata(imageID); err == nil {
 		return "", fmt.Errorf("found an image with the same name")
 	} else if !os.IsNotExist(err) {
 		return "", err
@@ -672,7 +625,7 @@ func (lm *localMacOS) UploadLocalImage(imagePath string, imageName string, locat
 		}
 	}
 
-	manifest := localMacOSImageManifest{
+	metadata := localMacOSImageMetadata{
 		ID:           imageID,
 		Name:         imageName,
 		Location:     localMacOSLocation,
@@ -682,7 +635,7 @@ func (lm *localMacOS) UploadLocalImage(imagePath string, imageName string, locat
 		RootDiskPath: rootDiskPath,
 		BootISOPath:  bootISOPath,
 	}
-	if err := writeJSONFile(filepath.Join(imageDir, localMacOSManifestFile), manifest); err != nil {
+	if err := writeJSONFile(filepath.Join(imageDir, localMacOSMetadataFile), metadata); err != nil {
 		return "", err
 	}
 	return imageID, nil
@@ -696,7 +649,7 @@ func (lm *localMacOS) RemoveImage(name string, location string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := lm.readImageManifest(imageID); err != nil {
+	if _, err := lm.readImageMetadata(imageID); err != nil {
 		return err
 	}
 	return os.RemoveAll(lm.imageDir(imageID))
@@ -725,14 +678,14 @@ func (lm *localMacOS) NewVolume(name string, size int, location string) (string,
 	if err := file.Close(); err != nil {
 		return "", err
 	}
-	manifest := localMacOSVolumeManifest{
+	metadata := localMacOSVolumeMetadata{
 		ID:       id,
 		Name:     name,
 		Path:     path,
 		SizeMiB:  size,
 		Location: localMacOSLocation,
 	}
-	if err := writeJSONFile(lm.volumeManifestPath(id), manifest); err != nil {
+	if err := writeJSONFile(lm.volumeMetadataPath(id), metadata); err != nil {
 		return "", err
 	}
 	return id, nil
@@ -742,14 +695,14 @@ func (lm *localMacOS) DeleteVolume(id string, location string) error {
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return err
 	}
-	manifest, err := lm.readVolumeManifest(id)
+	metadata, err := lm.readVolumeMetadata(id)
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(manifest.Path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(metadata.Path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete local macOS volume '%s': %w", id, err)
 	}
-	if err := os.Remove(lm.volumeManifestPath(id)); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(lm.volumeMetadataPath(id)); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete local macOS volume metadata '%s': %w", id, err)
 	}
 	return nil
@@ -759,14 +712,18 @@ func (lm *localMacOS) AttachVolume(volumeID string, instanceID string, location 
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return err
 	}
-	instance, err := lm.readInstanceManifest(instanceID)
+	state, err := lm.hostAgentVMStateByIDOrName(instanceID)
 	if err != nil {
 		return err
 	}
-	if instance.PID != 0 && localMacOSProcessAlive(instance.PID) {
+	if strings.EqualFold(state.GetStatus(), provisioners.ServerStateRunning) || state.GetPid() != 0 {
 		return fmt.Errorf("cannot attach local macOS volume '%s' to running VM '%s'", volumeID, instanceID)
 	}
-	volume, err := lm.readVolumeManifest(volumeID)
+	instance, err := lm.vmConfigFromState(state)
+	if err != nil {
+		return err
+	}
+	volume, err := lm.readVolumeMetadata(volumeID)
 	if err != nil {
 		return err
 	}
@@ -781,19 +738,24 @@ func (lm *localMacOS) AttachVolume(volumeID string, instanceID string, location 
 		Path:    volume.Path,
 		SizeMiB: volume.SizeMiB,
 	})
-	return lm.writeInstanceManifest(instance)
+	_, err = lm.applyHostAgentVM(instance.ID, "configured", &instance)
+	return err
 }
 
 func (lm *localMacOS) DettachVolume(volumeID string, instanceID string, location string) error {
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return err
 	}
-	instance, err := lm.readInstanceManifest(instanceID)
+	state, err := lm.hostAgentVMStateByIDOrName(instanceID)
 	if err != nil {
 		return err
 	}
-	if instance.PID != 0 && localMacOSProcessAlive(instance.PID) {
+	if strings.EqualFold(state.GetStatus(), provisioners.ServerStateRunning) || state.GetPid() != 0 {
 		return fmt.Errorf("cannot detach local macOS volume '%s' from running VM '%s'", volumeID, instanceID)
+	}
+	instance, err := lm.vmConfigFromState(state)
+	if err != nil {
+		return err
 	}
 	volumes := instance.Volumes[:0]
 	for _, volume := range instance.Volumes {
@@ -802,7 +764,8 @@ func (lm *localMacOS) DettachVolume(volumeID string, instanceID string, location
 		}
 	}
 	instance.Volumes = volumes
-	return lm.writeInstanceManifest(instance)
+	_, err = lm.applyHostAgentVM(instance.ID, "configured", &instance)
+	return err
 }
 
 func (lm *localMacOS) imagesDir() string {
@@ -823,10 +786,6 @@ func (lm *localMacOS) imageDir(id string) string {
 
 func (lm *localMacOS) instanceDir(id string) string {
 	return filepath.Join(lm.instancesDir(), id)
-}
-
-func (lm *localMacOS) instanceManifestPath(id string) string {
-	return filepath.Join(lm.instanceDir(id), localMacOSManifestFile)
 }
 
 func removeLocalMacOSDir(path string) error {
@@ -867,7 +826,7 @@ func tailLocalMacOSDiagnostics(data []byte, limit int) string {
 	return fmt.Sprintf("[last %d bytes]\n%s", limit, string(data))
 }
 
-func (lm *localMacOS) volumeManifestPath(id string) string {
+func (lm *localMacOS) volumeMetadataPath(id string) string {
 	return filepath.Join(lm.volumesDir(), id+".json")
 }
 
@@ -884,104 +843,76 @@ func (lm *localMacOS) getImages(protosOnly bool) (map[string]provisioners.ImageI
 		if !entry.IsDir() {
 			continue
 		}
-		manifest, err := lm.readImageManifest(entry.Name())
+		metadata, err := lm.readImageMetadata(entry.Name())
 		if err != nil {
 			log.Warnf("failed to read local macOS image '%s': %s", entry.Name(), err.Error())
 			continue
 		}
 		var updatedAt time.Time
-		if info, err := os.Stat(filepath.Join(lm.imageDir(entry.Name()), localMacOSManifestFile)); err == nil {
+		if info, err := os.Stat(filepath.Join(lm.imageDir(entry.Name()), localMacOSMetadataFile)); err == nil {
 			updatedAt = info.ModTime()
 		}
-		images[manifest.ID] = provisioners.ImageInfo{
-			ID:        manifest.ID,
-			Name:      manifest.Name,
-			Location:  manifest.Location,
+		images[metadata.ID] = provisioners.ImageInfo{
+			ID:        metadata.ID,
+			Name:      metadata.Name,
+			Location:  metadata.Location,
 			UpdatedAt: updatedAt,
 		}
 	}
 	return images, nil
 }
 
-func (lm *localMacOS) readImageManifest(id string) (localMacOSImageManifest, error) {
+func (lm *localMacOS) readImageMetadata(id string) (localMacOSImageMetadata, error) {
 	id, err := sanitizeLocalMacOSName(id)
 	if err != nil {
-		return localMacOSImageManifest{}, err
+		return localMacOSImageMetadata{}, err
 	}
-	var manifest localMacOSImageManifest
-	if err := readJSONFile(filepath.Join(lm.imageDir(id), localMacOSManifestFile), &manifest); err != nil {
-		return localMacOSImageManifest{}, err
+	var metadata localMacOSImageMetadata
+	if err := readJSONFile(filepath.Join(lm.imageDir(id), localMacOSMetadataFile), &metadata); err != nil {
+		return localMacOSImageMetadata{}, err
 	}
-	return manifest, nil
+	return metadata, nil
 }
 
-func (lm *localMacOS) readInstanceManifest(id string) (localMacOSInstanceManifest, error) {
-	id, err := sanitizeLocalMacOSName(id)
-	if err != nil {
-		return localMacOSInstanceManifest{}, err
-	}
-	var manifest localMacOSInstanceManifest
-	if err := readJSONFile(lm.instanceManifestPath(id), &manifest); err != nil {
-		return localMacOSInstanceManifest{}, err
-	}
-	return manifest, nil
-}
-
-func (lm *localMacOS) readInstanceManifestByIDOrName(id string) (localMacOSInstanceManifest, error) {
-	manifest, err := lm.readInstanceManifest(id)
-	if err == nil {
-		return manifest, nil
-	}
-	directErr := err
-	manifest, err = lm.findInstanceByName(id)
-	if err != nil {
-		return localMacOSInstanceManifest{}, err
-	}
-	if manifest.ID != "" {
-		return manifest, nil
-	}
-	return localMacOSInstanceManifest{}, directErr
-}
-
-func (lm *localMacOS) ensureNetworkManifest(manifest *localMacOSInstanceManifest) error {
-	if manifest == nil {
-		return fmt.Errorf("local macOS VM manifest is nil")
+func (lm *localMacOS) ensureNetworkConfig(config *localMacOSVMConfig) error {
+	if config == nil {
+		return fmt.Errorf("local macOS VM config is nil")
 	}
 	natNetwork, err := localMacOSCurrentNATNetwork()
 	if err != nil {
 		return err
 	}
-	ip := net.ParseIP(strings.TrimSpace(manifest.Network.IPAddress))
+	ip := net.ParseIP(strings.TrimSpace(config.Network.IPAddress))
 	if ip == nil || !natNetwork.Network.Contains(ip) {
-		network, err := lm.newNetworkManifest(manifest.ID)
+		network, err := lm.newNetworkConfig(config.ID)
 		if err != nil {
 			return err
 		}
-		manifest.Network = network
+		config.Network = network
 	} else {
-		manifest.Network.PrefixLength = natNetwork.PrefixLength
-		manifest.Network.Gateway = natNetwork.Gateway.String()
+		config.Network.PrefixLength = natNetwork.PrefixLength
+		config.Network.Gateway = natNetwork.Gateway.String()
 	}
-	if manifest.Network.Interface == "" {
-		manifest.Network.Interface = localMacOSNetworkInterface
+	if config.Network.Interface == "" {
+		config.Network.Interface = localMacOSNetworkInterface
 	}
-	if len(manifest.Network.DNSServers) == 0 {
-		manifest.Network.DNSServers = defaultLocalMacOSDNSServers()
+	if len(config.Network.DNSServers) == 0 {
+		config.Network.DNSServers = defaultLocalMacOSDNSServers()
 	}
-	manifest.PublicIP = manifest.Network.IPAddress
+	config.PublicIP = config.Network.IPAddress
 	return nil
 }
 
-func (lm *localMacOS) newNetworkManifest(id string) (localMacOSNetworkManifest, error) {
+func (lm *localMacOS) newNetworkConfig(id string) (localMacOSNetworkConfig, error) {
 	natNetwork, err := localMacOSCurrentNATNetwork()
 	if err != nil {
-		return localMacOSNetworkManifest{}, err
+		return localMacOSNetworkConfig{}, err
 	}
 	ipAddress, err := lm.allocateStaticIPAddress(id, natNetwork)
 	if err != nil {
-		return localMacOSNetworkManifest{}, err
+		return localMacOSNetworkConfig{}, err
 	}
-	return localMacOSNetworkManifest{
+	return localMacOSNetworkConfig{
 		Interface:    localMacOSNetworkInterface,
 		IPAddress:    ipAddress,
 		PrefixLength: natNetwork.PrefixLength,
@@ -994,47 +925,33 @@ func defaultLocalMacOSDNSServers() []string {
 	return []string{"8.8.8.8", "1.1.1.1"}
 }
 
-func (lm *localMacOS) writeInstanceManifest(manifest localMacOSInstanceManifest) error {
-	if err := os.MkdirAll(lm.instanceDir(manifest.ID), 0755); err != nil {
-		return err
-	}
-	return writeJSONFile(lm.instanceManifestPath(manifest.ID), manifest)
-}
-
-func (lm *localMacOS) readVolumeManifest(id string) (localMacOSVolumeManifest, error) {
+func (lm *localMacOS) readVolumeMetadata(id string) (localMacOSVolumeMetadata, error) {
 	id, err := sanitizeLocalMacOSName(id)
 	if err != nil {
-		return localMacOSVolumeManifest{}, err
+		return localMacOSVolumeMetadata{}, err
 	}
-	var manifest localMacOSVolumeManifest
-	if err := readJSONFile(lm.volumeManifestPath(id), &manifest); err != nil {
-		return localMacOSVolumeManifest{}, err
+	var metadata localMacOSVolumeMetadata
+	if err := readJSONFile(lm.volumeMetadataPath(id), &metadata); err != nil {
+		return localMacOSVolumeMetadata{}, err
 	}
-	return manifest, nil
+	return metadata, nil
 }
 
-func (lm *localMacOS) findInstanceByName(name string) (localMacOSInstanceManifest, error) {
-	entries, err := os.ReadDir(lm.instancesDir())
+func (lm *localMacOS) findInstanceByName(name string) (localMacOSVMConfig, error) {
+	states, err := lm.hostAgentVMs()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return localMacOSInstanceManifest{}, nil
-		}
-		return localMacOSInstanceManifest{}, err
+		return localMacOSVMConfig{}, err
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		manifest, err := lm.readInstanceManifest(entry.Name())
+	for _, state := range states {
+		config, err := lm.vmConfigFromState(state)
 		if err != nil {
-			log.Warnf("failed to read local macOS VM '%s': %s", entry.Name(), err.Error())
 			continue
 		}
-		if manifest.Name == name {
-			return manifest, nil
+		if config.Name == name {
+			return config, nil
 		}
 	}
-	return localMacOSInstanceManifest{}, nil
+	return localMacOSVMConfig{}, nil
 }
 
 func localMacOSCurrentNATNetwork() (localMacOSNATNetwork, error) {
@@ -1132,7 +1049,7 @@ func (lm *localMacOS) allocateStaticIPAddress(id string, natNetwork localMacOSNA
 	used := map[string]struct{}{
 		natNetwork.Gateway.String(): {},
 	}
-	for ip := range lm.localMacOSManifestIPs(id) {
+	for ip := range lm.localMacOSAssignedIPs(id) {
 		used[ip] = struct{}{}
 	}
 	for ip := range localMacOSDHCPLeaseIPs() {
@@ -1188,21 +1105,18 @@ func allocateLocalMacOSStaticIP(network *net.IPNet, gateway net.IP, id string, u
 	return "", fmt.Errorf("no free local macOS static IPs in %s", network.String())
 }
 
-func (lm *localMacOS) localMacOSManifestIPs(excludeID string) map[string]struct{} {
+func (lm *localMacOS) localMacOSAssignedIPs(excludeID string) map[string]struct{} {
 	used := map[string]struct{}{}
-	entries, err := os.ReadDir(lm.instancesDir())
+	states, err := lm.hostAgentVMs()
 	if err != nil {
 		return used
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == excludeID {
+	for _, state := range states {
+		config, err := lm.vmConfigFromState(state)
+		if err != nil || config.ID == excludeID {
 			continue
 		}
-		manifest, err := lm.readInstanceManifest(entry.Name())
-		if err != nil {
-			continue
-		}
-		for _, ip := range []string{manifest.Network.IPAddress, manifest.PublicIP} {
+		for _, ip := range []string{config.Network.IPAddress, config.PublicIP} {
 			ip = strings.TrimSpace(ip)
 			if ip == "" {
 				continue
@@ -1213,14 +1127,14 @@ func (lm *localMacOS) localMacOSManifestIPs(excludeID string) map[string]struct{
 	return used
 }
 
-func (lm *localMacOS) applyHostAgentVM(id string, desiredState string) (*hostagentpb.VMObservedState, error) {
+func (lm *localMacOS) applyHostAgentVM(id string, desiredState string, config *localMacOSVMConfig) (*hostagentpb.VMObservedState, error) {
 	client, err := hostagentclient.New()
 	if err != nil {
 		return nil, err
 	}
 	defer client.Close()
 
-	state, err := client.ApplyVM(id, lm.instanceManifestPath(id), desiredState)
+	state, err := client.ApplyVM(id, lm.vmDir, desiredState, vmConfigToProto(config))
 	if err != nil {
 		return nil, fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
 	}
@@ -1230,18 +1144,144 @@ func (lm *localMacOS) applyHostAgentVM(id string, desiredState string) (*hostage
 	return state, nil
 }
 
-func (lm *localMacOS) hostAgentVMStatus(id string) (*hostagentpb.VMObservedState, error) {
+func (lm *localMacOS) hostAgentVMStateByIDOrName(idOrName string) (*hostagentpb.VMObservedState, error) {
+	state, err := lm.hostAgentVMStatus(idOrName, "")
+	if err == nil && state.GetConfig() != nil {
+		return state, nil
+	}
+	state, nameErr := lm.hostAgentVMStatus("", idOrName)
+	if nameErr == nil && state.GetConfig() != nil {
+		return state, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if nameErr != nil {
+		return nil, nameErr
+	}
+	return nil, os.ErrNotExist
+}
+
+func (lm *localMacOS) hostAgentVMStatus(id string, name string) (*hostagentpb.VMObservedState, error) {
 	client, err := hostagentclient.New()
 	if err != nil {
 		return nil, err
 	}
 	defer client.Close()
 
-	state, err := client.VMStatus(id, lm.instanceManifestPath(id))
+	state, err := client.VMStatus(id, name, lm.vmDir)
 	if err != nil {
 		return nil, fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
 	}
 	return state, nil
+}
+
+func (lm *localMacOS) hostAgentVMs() ([]*hostagentpb.VMObservedState, error) {
+	client, err := hostagentclient.New()
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	states, err := client.ListVMs(lm.vmDir)
+	if err != nil {
+		return nil, fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
+	}
+	return states, nil
+}
+
+func (lm *localMacOS) vmConfigFromState(state *hostagentpb.VMObservedState) (localMacOSVMConfig, error) {
+	if state == nil || state.GetConfig() == nil {
+		return localMacOSVMConfig{}, os.ErrNotExist
+	}
+	return vmConfigFromProto(state.GetConfig()), nil
+}
+
+func vmConfigToProto(config *localMacOSVMConfig) *hostagentpb.VMConfig {
+	if config == nil {
+		return nil
+	}
+	out := &hostagentpb.VMConfig{
+		Id:                  config.ID,
+		Name:                config.Name,
+		ImageId:             config.ImageID,
+		Location:            config.Location,
+		MachineType:         config.MachineType,
+		Cores:               config.Cores,
+		MemoryMib:           config.MemoryMiB,
+		InitOriginPublicKey: config.InitOriginPublicKey,
+		PublicIp:            config.PublicIP,
+		MacAddress:          config.MACAddress,
+		KernelPath:          config.KernelPath,
+		InitrdPath:          config.InitrdPath,
+		CmdlinePath:         config.CmdlinePath,
+		RootDiskPath:        config.RootDiskPath,
+		BootIsoPath:         config.BootISOPath,
+		MetadataIso:         config.MetadataISO,
+		ArtifactDir:         config.ArtifactDir,
+	}
+	out.Network = &hostagentpb.VMNetworkConfig{
+		Interface:    config.Network.Interface,
+		IpAddress:    config.Network.IPAddress,
+		PrefixLength: int32(config.Network.PrefixLength),
+		Gateway:      config.Network.Gateway,
+		DnsServers:   append([]string(nil), config.Network.DNSServers...),
+	}
+	for _, volume := range config.Volumes {
+		out.Volumes = append(out.Volumes, &hostagentpb.VMVolume{
+			Id:      volume.ID,
+			Name:    volume.Name,
+			Path:    volume.Path,
+			SizeMib: int32(volume.SizeMiB),
+		})
+	}
+	return out
+}
+
+func vmConfigFromProto(config *hostagentpb.VMConfig) localMacOSVMConfig {
+	if config == nil {
+		return localMacOSVMConfig{}
+	}
+	out := localMacOSVMConfig{
+		ID:                  config.GetId(),
+		Name:                config.GetName(),
+		ArtifactDir:         config.GetArtifactDir(),
+		ImageID:             config.GetImageId(),
+		Location:            config.GetLocation(),
+		MachineType:         config.GetMachineType(),
+		Cores:               config.GetCores(),
+		MemoryMiB:           config.GetMemoryMib(),
+		InitOriginPublicKey: config.GetInitOriginPublicKey(),
+		PublicIP:            config.GetPublicIp(),
+		MACAddress:          config.GetMacAddress(),
+		KernelPath:          config.GetKernelPath(),
+		InitrdPath:          config.GetInitrdPath(),
+		CmdlinePath:         config.GetCmdlinePath(),
+		RootDiskPath:        config.GetRootDiskPath(),
+		BootISOPath:         config.GetBootIsoPath(),
+		MetadataISO:         config.GetMetadataIso(),
+	}
+	if network := config.GetNetwork(); network != nil {
+		out.Network = localMacOSNetworkConfig{
+			Interface:    network.GetInterface(),
+			IPAddress:    network.GetIpAddress(),
+			PrefixLength: int(network.GetPrefixLength()),
+			Gateway:      network.GetGateway(),
+			DNSServers:   append([]string(nil), network.GetDnsServers()...),
+		}
+	}
+	for _, volume := range config.GetVolumes() {
+		if volume == nil {
+			continue
+		}
+		out.Volumes = append(out.Volumes, localMacOSAttachedVolume{
+			ID:      volume.GetId(),
+			Name:    volume.GetName(),
+			Path:    volume.GetPath(),
+			SizeMiB: int(volume.GetSizeMib()),
+		})
+	}
+	return out
 }
 
 func validateLocalMacOSLocation(location string) error {
@@ -1384,7 +1424,7 @@ func firstNonEmptyLocalMacOSString(values ...string) string {
 	return ""
 }
 
-func writeLocalMacOSMetadataISO(path string, hostname string, initOriginPublicKey string, network localMacOSNetworkManifest) error {
+func writeLocalMacOSMetadataISO(path string, hostname string, initOriginPublicKey string, network localMacOSNetworkConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -1463,7 +1503,40 @@ func writeJSONFile(path string, value any) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0644)
+
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if info, err := os.Stat(path); err == nil {
+		if err := os.Chmod(tmpPath, info.Mode().Perm()); err != nil {
+			_ = os.Remove(tmpPath)
+			return err
+		}
+	} else if os.IsNotExist(err) {
+		if err := os.Chmod(tmpPath, 0644); err != nil {
+			_ = os.Remove(tmpPath)
+			return err
+		}
+	} else {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 func readJSONFile(path string, value any) error {

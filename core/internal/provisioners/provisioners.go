@@ -1178,6 +1178,7 @@ func (cm *Manager) assertInstancePeerRemoved(ctx context.Context, peerID string)
 	if err != nil {
 		return fmt.Errorf("read swarmion peer removal readiness: %w", err)
 	}
+	log.Debugf("swarmion peer removal readiness after local row removal for %s: %s", peerID, db.PeerRemovalReadinessSummary(readiness))
 	if err := db.PeerRemovalReadinessError(readiness); err != nil {
 		return fmt.Errorf("swarmion peer removal readiness blocks %s: %w", peerID, err)
 	}
@@ -1199,6 +1200,7 @@ func (cm *Manager) waitForInstancePeerDurableRemovalReady(ctx context.Context, i
 	if err := cm.db.RemoveReplicationPeerState(ctx, peerID, candidates); err != nil {
 		return fmt.Errorf("wait for swarmion peer removal readiness for instance '%s': %w", instance.Name, err)
 	}
+	log.Debugf("swarmion peer %s is ready for provider resource cleanup for instance '%s'", peerID, instance.Name)
 	return nil
 }
 
@@ -1210,7 +1212,7 @@ func (cm *Manager) replicationCandidatesExcluding(peerID string) ([]db.Replicati
 	}
 	candidates := make([]db.ReplicationCandidate, 0, len(instances)+1)
 	for _, instance := range instances {
-		if strings.TrimSpace(instance.ID) == "" || strings.TrimSpace(instance.PublicKey) == "" || IsDeletingInstance(instance) {
+		if strings.TrimSpace(instance.ID) == "" || strings.TrimSpace(instance.PublicKey) == "" || !IsActiveInstance(instance) {
 			continue
 		}
 		instancePeerID, err := instance.GetPeerID()
@@ -1377,28 +1379,12 @@ func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 		return instance, nil
 	}
 
-	// if not local, we update the instance status
-	if instance.Kind != KindLocalVM {
-		provider, err := cm.GetProvider(instance.KindID)
-		if err != nil {
-			return InstanceInfo{}, err
-		}
-		computeProvider, err := requireComputeProvisioner(provider)
-		if err != nil {
-			return InstanceInfo{}, err
-		}
-		if err := provider.Init(); err != nil {
-			return InstanceInfo{}, err
-		}
-		instanceInfo, _, err := getProviderInstanceInfo(computeProvider, instance)
-		if err != nil {
-			log.Errorf("failed to retrieve remote status from instance '%s': %s", instance.Name, err.Error())
-			instance.Status = "n/a"
-		} else {
-			instance.Status = instanceInfo.Status
-		}
-	} else {
+	status, err := cm.retrieveInstanceStatus(instance)
+	if err != nil {
+		log.Errorf("failed to retrieve status from instance '%s': %s", instance.Name, err.Error())
 		instance.Status = "n/a"
+	} else {
+		instance.Status = status
 	}
 	return instance, nil
 }
@@ -1424,29 +1410,27 @@ func (cm *Manager) GetInstances(excludeLocalInstance bool) ([]InstanceInfo, erro
 }
 
 func (cm *Manager) retrieveInstanceStatus(instance InstanceInfo) (string, error) {
+	provider, err := cm.GetProvider(instance.KindID)
+	if err != nil && instance.Kind == KindLocalVM {
+		provider, err = cm.GetProvisionerOrDefault(instance.KindID)
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+	}
+	computeProvider, err := requireComputeProvisioner(provider)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+	}
+	if err := provider.Init(); err != nil {
+		return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
+	}
+	instanceInfo, _, err := getProviderInstanceInfo(computeProvider, instance)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
 
-	if instance.Kind != KindLocalVM {
-		provider, err := cm.GetProvider(instance.KindID)
-		if err != nil {
-			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
-		}
-		computeProvider, err := requireComputeProvisioner(provider)
-		if err != nil {
-			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
-		}
-		if err := provider.Init(); err != nil {
-			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
-		}
-		instanceInfo, _, err := getProviderInstanceInfo(computeProvider, instance)
-		if err != nil {
-			return "", fmt.Errorf("failed to retrieve status for instance '%s': %s", instance.Name, err.Error())
-
-		}
-
-		return instanceInfo.Status, nil
 	}
 
-	return "n/a", nil
+	return instanceInfo.Status, nil
 }
 
 // GetInstances returns all the instances from the db
@@ -1490,7 +1474,7 @@ func (cm *Manager) ReconcileDesiredInstances() error {
 			continue
 		}
 		desiredStatus := normalizeDesiredInstanceStatus(instance.DesiredStatus)
-		if desiredStatus == "" || instance.Kind == KindLocalVM || strings.TrimSpace(instance.PublicKey) == "" {
+		if desiredStatus == "" || strings.TrimSpace(instance.PublicKey) == "" {
 			continue
 		}
 
@@ -1653,46 +1637,101 @@ func persistentInstanceEqual(a InstanceInfo, b InstanceInfo) bool {
 		a.PublicKey == b.PublicKey
 }
 
-// UploadLocalImage uploads a local Protosd image to a specific cloud
-func (cm *Manager) UploadLocalImage(imagePath string, imageName string, cloudName string, cloudLocation string, timeout time.Duration) error {
+func (cm *Manager) uploadLocalImageImperative(ctx context.Context, progress func(int, string, any, bool) error, imagePath string, imageName string, cloudName string, cloudLocation string, timeout time.Duration) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if progress == nil {
+		progress = func(int, string, any, bool) error { return nil }
+	}
 	errMsg := fmt.Sprintf("failed to upload local image '%s' to cloud '%s'", imagePath, cloudName)
+
+	if err := progress(5, "validating image", map[string]string{
+		"image_path":  imagePath,
+		"image_name":  imageName,
+		"provisioner": cloudName,
+		"location":    cloudLocation,
+	}, true); err != nil {
+		return "", err
+	}
 	// check local image file
 	finfo, err := os.Stat(imagePath)
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return "", fmt.Errorf("%s: %w", errMsg, err)
 	}
 	if !finfo.IsDir() && finfo.Size() == 0 {
-		return fmt.Errorf("%s: Image '%s' has 0 bytes", errMsg, imagePath)
+		return "", fmt.Errorf("%s: Image '%s' has 0 bytes", errMsg, imagePath)
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 
+	if err := progress(15, "loading provisioner", map[string]string{
+		"provisioner": cloudName,
+		"location":    cloudLocation,
+	}, true); err != nil {
+		return "", err
+	}
 	provider, err := cm.GetProvider(cloudName)
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return "", fmt.Errorf("%s: %w", errMsg, err)
 	}
 
 	imageProvider, err := requireImageProvisioner(provider)
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return "", fmt.Errorf("%s: %w", errMsg, err)
 	}
 	if err := provider.Init(); err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return "", fmt.Errorf("%s: %w", errMsg, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 
+	if err := progress(30, "checking existing images", map[string]string{
+		"image_name": imageName,
+		"location":   cloudLocation,
+	}, true); err != nil {
+		return "", err
+	}
 	// find image
 	images, err := imageProvider.GetImages()
 	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+		return "", fmt.Errorf("%s: %w", errMsg, err)
 	}
 	for _, img := range images {
 		if img.Location == cloudLocation && img.Name == imageName {
-			return fmt.Errorf("%s: Found an image with the same name", errMsg)
+			return "", fmt.Errorf("%s: Found an image with the same name", errMsg)
 		}
 	}
-
-	// upload image
-	_, err = imageProvider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
-	if err != nil {
-		return fmt.Errorf("%s: %w", errMsg, err)
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
-	return nil
+
+	uploadDetails := map[string]string{
+		"image_path":  imagePath,
+		"image_name":  imageName,
+		"provisioner": cloudName,
+		"location":    cloudLocation,
+	}
+	if err := progress(60, "uploading image", uploadDetails, true); err != nil {
+		return "", err
+	}
+	if err := progress(60, "upload in progress", uploadDetails, false); err != nil {
+		return "", err
+	}
+	// upload image
+	id, err := imageProvider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", errMsg, err)
+	}
+	if err := progress(95, "image uploaded", map[string]string{
+		"image_id":    id,
+		"image_name":  imageName,
+		"provisioner": cloudName,
+		"location":    cloudLocation,
+	}, true); err != nil {
+		return "", err
+	}
+	return id, nil
 }

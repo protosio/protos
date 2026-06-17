@@ -20,6 +20,7 @@ const (
 	imageBlobChunkTimeout         = 30 * time.Second
 	imageBlobImportTimeout        = 5 * time.Minute
 	imageCreateTimeout            = 5 * time.Minute
+	imagePeerRefreshBudget        = 45 * time.Second
 )
 
 type imageContentCandidate struct {
@@ -37,16 +38,34 @@ func (p2p *P2P) ResolveImage(ctx context.Context, imageRef string) error {
 		return fmt.Errorf("image manager is not configured")
 	}
 
-	clients := p2p.clients.Snapshot()
-	if len(clients) == 0 {
-		return fmt.Errorf("no connected peers can provide image %s", imageRef)
+	selection := p2p.currentImageResolutionClients()
+	candidates := p2p.getImageContentCandidates(ctx, imageRef, selection.clients)
+	if len(candidates) == 0 && selection.disconnectedKnownPeerCount > 0 {
+		log.Infof("image %s is not available from %d connected image-capable peer(s); refreshing %d disconnected known peer(s) before registry fallback", imageRef, len(selection.clients), selection.disconnectedKnownPeerCount)
+		selection = p2p.imageResolutionClients(ctx, imagePeerRefreshBudget)
+		candidates = p2p.getImageContentCandidates(ctx, imageRef, selection.clients)
 	}
-
-	candidates := p2p.getImageContentCandidates(ctx, imageRef, clients)
 	if len(candidates) == 0 {
-		return fmt.Errorf("no connected peers have image %s", imageRef)
+		if len(selection.clients) == 0 {
+			return fmt.Errorf(
+				"no connected image-capable peers can provide image %s (known=%d disconnected=%d)",
+				imageRef,
+				selection.knownPeerCount,
+				selection.disconnectedKnownPeerCount,
+			)
+		}
+		return fmt.Errorf(
+			"no connected peers have image %s (queried=%d known=%d disconnected=%d)",
+			imageRef,
+			len(selection.clients),
+			selection.knownPeerCount,
+			selection.disconnectedKnownPeerCount,
+		)
 	}
+	return p2p.resolveImageFromCandidates(ctx, imageRef, candidates)
+}
 
+func (p2p *P2P) resolveImageFromCandidates(ctx context.Context, imageRef string, candidates []imageContentCandidate) error {
 	var lastErr error
 	for _, group := range groupedImageContentCandidates(candidates) {
 		content := group[0].content

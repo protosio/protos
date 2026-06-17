@@ -176,33 +176,70 @@ class NativeProtosBridge {
     bool includeSnapshot = false,
     int heartbeatIntervalMs = 0,
   }) {
+    final request = pb.WatchChangesRequest(
+      includeSnapshot: includeSnapshot,
+      heartbeatIntervalMs: heartbeatIntervalMs,
+    );
+    return _startByteWatch<pb.WatchChangesResponse>(
+      request,
+      _bindings.watchChangesBytes,
+      pb.WatchChangesResponse.fromBuffer,
+    );
+  }
+
+  Stream<pb.WatchTaskResponse> watchTask({
+    required String id,
+    bool includeSnapshot = true,
+    bool includeEvents = false,
+    int heartbeatIntervalMs = 0,
+  }) {
+    final request = pb.WatchTaskRequest(
+      id: id,
+      includeSnapshot: includeSnapshot,
+      includeEvents: includeEvents,
+      heartbeatIntervalMs: heartbeatIntervalMs,
+    );
+    return _startByteWatch<pb.WatchTaskResponse>(
+      request,
+      _bindings.watchTaskBytes,
+      pb.WatchTaskResponse.fromBuffer,
+    );
+  }
+
+  Stream<T> _startByteWatch<T extends GeneratedMessage>(
+    GeneratedMessage request,
+    _ProtosWatchChangesBytesDart startWatch,
+    T Function(List<int>) decode,
+  ) {
     if (!_started) {
       return Stream.error(
         const ProtosBridgeException('The embedded daemon is not running.'),
       );
     }
 
-    final request = pb.WatchChangesRequest(
-      includeSnapshot: includeSnapshot,
-      heartbeatIntervalMs: heartbeatIntervalMs,
-    );
     final requestData = request.writeToBuffer();
     final requestPointer = _copyBytes(requestData);
     final contextPointer = calloc<Int64>();
     final state = _WatchState(contextPointer);
     _watchStates[contextPointer.address] = state;
 
-    late final StreamController<pb.WatchChangesResponse> controller;
-    controller = StreamController<pb.WatchChangesResponse>(
+    late final StreamController<T> controller;
+    controller = StreamController<T>(
       onCancel: () {
         state.cancel(_bindings);
         _watchStates.remove(contextPointer.address);
       },
     );
-    state.controller = controller;
+    state.addData = (bytes) => controller.add(decode(bytes));
+    state.addError = (error, stackTrace) {
+      controller.addError(error, stackTrace);
+    };
+    state.closeController = () {
+      unawaited(controller.close());
+    };
 
     try {
-      final result = _bindings.watchChangesBytes(
+      final result = startWatch(
         requestPointer.cast<Void>(),
         requestData.length,
         contextPointer.cast<Void>(),
@@ -270,7 +307,7 @@ class NativeProtosBridge {
     try {
       final bytes = Uint8List.fromList(data.cast<Uint8>().asTypedList(len));
       _bindings.free(data);
-      state.controller?.add(pb.WatchChangesResponse.fromBuffer(bytes));
+      state.addData?.call(bytes);
     } catch (error, stackTrace) {
       state.finishError(error, _bindings, stackTrace);
       _watchStates.remove(context.address);
@@ -397,7 +434,9 @@ class _WatchState {
   _WatchState(this.contextPointer);
 
   final Pointer<Int64> contextPointer;
-  StreamController<pb.WatchChangesResponse>? controller;
+  void Function(Uint8List bytes)? addData;
+  void Function(Object error, StackTrace? stackTrace)? addError;
+  void Function()? closeController;
   int watchId = 0;
   var _closed = false;
 
@@ -411,7 +450,7 @@ class _WatchState {
       watchId = 0;
     }
     calloc.free(contextPointer);
-    unawaited(controller?.close());
+    closeController?.call();
   }
 
   void finish(_NativeBindings bindings) {
@@ -420,7 +459,7 @@ class _WatchState {
     }
     _closed = true;
     calloc.free(contextPointer);
-    unawaited(controller?.close());
+    closeController?.call();
   }
 
   void finishError(
@@ -433,8 +472,8 @@ class _WatchState {
     }
     _closed = true;
     calloc.free(contextPointer);
-    controller?.addError(error, stackTrace);
-    unawaited(controller?.close());
+    addError?.call(error, stackTrace);
+    closeController?.call();
   }
 }
 
@@ -454,6 +493,11 @@ class _NativeBindings {
             _ProtosWatchChangesBytesNative,
             _ProtosWatchChangesBytesDart
           >('ProtosWatchChangesBytes'),
+      watchTaskBytes = library
+          .lookupFunction<
+            _ProtosWatchChangesBytesNative,
+            _ProtosWatchChangesBytesDart
+          >('ProtosWatchTaskBytes'),
       cancelWatch = library
           .lookupFunction<_ProtosCancelWatchNative, _ProtosCancelWatchDart>(
             'ProtosCancelWatch',
@@ -472,6 +516,7 @@ class _NativeBindings {
   final _ProtosStopDart stop;
   final _ProtosCallDart call;
   final _ProtosWatchChangesBytesDart watchChangesBytes;
+  final _ProtosWatchChangesBytesDart watchTaskBytes;
   final _ProtosCancelWatchDart cancelWatch;
   final _ProtosCancelAllWatchesDart cancelAllWatches;
   final _ProtosFreeDart free;

@@ -123,17 +123,9 @@ func run(imagePath string, flutterApp string, hostAgentBin string, workDir strin
 	}
 	cancel()
 
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Minute)
-	if _, err := client.UploadProvisionerImage(ctx, &pbApic.UploadProvisionerImageRequest{
-		ImagePath:       imagePath,
-		ImageName:       imageName,
-		ProvisionerName: providerName,
-		Location:        "local",
-	}); err != nil {
-		cancel()
+	if _, err := e2eapic.UploadProvisionerImage(deadline, client, imagePath, imageName, providerName, "local", 10*time.Minute); err != nil {
 		return fmt.Errorf("upload local image: %w", err)
 	}
-	cancel()
 	cleanupImage = true
 
 	var deployed []*pbApic.CloudInstance

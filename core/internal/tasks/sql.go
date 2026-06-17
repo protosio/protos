@@ -14,7 +14,7 @@ import (
 
 const taskSelectColumns = "id, task_stream, subject_type, subject_id, status, title, message, progress, CAST(payload AS CHAR), CAST(result AS CHAR), error_message, attempts, max_attempts, created_at, updated_at, started_at, finished_at"
 const taskSummarySelectColumns = "id, task_stream, subject_type, subject_id, status, title, message, progress, '{}', '{}', error_message, attempts, max_attempts, created_at, updated_at, started_at, finished_at"
-const taskEventSelectColumns = "id, task_id, status, message, progress, '{}', created_at"
+const taskEventSelectColumns = "id, task_id, status, message, progress, CAST(details AS CHAR), created_at"
 
 type taskQueryFilters struct {
 	IDs         []string

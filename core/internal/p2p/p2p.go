@@ -255,6 +255,9 @@ func (p2p *P2P) GetClient(id string) (*Client, error) {
 }
 
 func (p2p *P2P) connectedClient(peerIDString string) (*Client, bool) {
+	if p2p == nil || p2p.host == nil {
+		return nil, false
+	}
 	client, found := p2p.clients.Get(peerIDString)
 	if !found {
 		return nil, false
@@ -358,11 +361,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 				log.Debugf("failed to remove peer %s: %v", peerIDString, err)
 			}
 			p2p.clients.Delete(peerIDString)
-			if p2p.externalDB != nil {
-				if err := p2p.externalDB.RemovePeer(peerIDString); err != nil {
-					log.Debugf("failed to remove DB peer %s: %v", peerIDString, err)
-				}
-			}
+			p2p.removeExternalDBPeer(peerIDString)
 		}
 	}
 
@@ -442,6 +441,9 @@ func (p2p *P2P) trackPeer(machine Machine) (string, error) {
 }
 
 func (p2p *P2P) connectPeer(ctx context.Context, peerIDString string, machine Machine) (*Client, error) {
+	if p2p == nil || p2p.host == nil {
+		return nil, fmt.Errorf("p2p host is not configured")
+	}
 	client, found := p2p.connectedClient(peerIDString)
 	if found {
 		p2p.markPeerConnected(peerIDString, machine)
@@ -700,6 +702,7 @@ func (p2p *P2P) reconcileLoop() {
 }
 
 func (p2p *P2P) reconcilePeers() {
+	p2p.pruneStaleClients()
 	for peerIDString, machine := range p2p.machines.Snapshot() {
 		if _, found := p2p.connectedClient(peerIDString); found {
 			p2p.markPeerConnected(peerIDString, machine)
@@ -775,18 +778,31 @@ func (p2p *P2P) RemovePeer(machine Machine) error {
 	if err != nil {
 		return fmt.Errorf("failed to convert public key to peer ID: %w", err)
 	}
+	peerIDString := peerID.String()
 
-	err = p2p.host.Network().ClosePeer(peerID)
-	if err != nil {
-		return fmt.Errorf("failed to remove peer %s", machine.GetID())
+	if p2p.host != nil {
+		if err := p2p.host.Network().ClosePeer(peerID); err != nil {
+			log.Debugf("failed to close peer %s for removed machine %s: %v", peerIDString, machine.GetID(), err)
+		}
 	}
 
-	p2p.machines.Delete(peerID.String())
-	p2p.clients.Delete(peerID.String())
-	p2p.peerStates.Delete(peerID.String())
-	p2p.pendingPeers.Delete(peerID.String())
+	p2p.machines.Delete(peerIDString)
+	p2p.clients.Delete(peerIDString)
+	p2p.peerStates.Delete(peerIDString)
+	p2p.pendingPeers.Delete(peerIDString)
+	p2p.removeExternalDBPeer(peerIDString)
+	p2p.requestReconcile()
 
 	return nil
+}
+
+func (p2p *P2P) removeExternalDBPeer(peerIDString string) {
+	if p2p == nil || p2p.externalDB == nil || peerIDString == "" {
+		return
+	}
+	if err := p2p.externalDB.RemovePeer(peerIDString); err != nil {
+		log.Debugf("failed to remove DB peer %s: %v", peerIDString, err)
+	}
 }
 
 //

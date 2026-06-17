@@ -54,6 +54,7 @@ vendor/**
 bin/
 .aider*
 tmp/
+.tmp/
 .tmp-contracts.*
 local-macos-vms/
 **/local-macos-vms/

@@ -55,7 +55,13 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 		ConnectedPeers: []string{"provider-peer", "deleted-peer", "provider-peer"},
 		PeerStatuses: []*proto.RuntimePeerStatus{
 			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true},
+			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true},
 			{PeerId: "deleted-peer", Connected: true, Dialable: true, StateProvider: true},
+		},
+		Compatibility: []*proto.RuntimeCompatibility{
+			{PeerId: "provider-peer", Compatible: true},
+			{PeerId: "provider-peer", Compatible: true},
+			{PeerId: "deleted-peer", Blocking: true},
 		},
 	}
 
@@ -74,5 +80,8 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 	}
 	if len(state.GetPeerStatuses()) != 1 {
 		t.Fatalf("peer statuses count = %d, want 1", len(state.GetPeerStatuses()))
+	}
+	if got := state.GetCompatibility(); len(got) != 1 || got[0].GetPeerId() != "provider-peer" {
+		t.Fatalf("compatibility = %#v, want only provider peer", got)
 	}
 }

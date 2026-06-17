@@ -321,6 +321,7 @@ func (s *Server) UploadImageArchiveChunk(ctx context.Context, req *proto.UploadI
 	if !req.GetEof() {
 		return resp, nil
 	}
+	log.Infof("image archive upload complete: upload=%s image=%s bytes=%d; importing into runtime", req.GetUploadId(), req.GetImageRef(), received)
 	loaded, err := s.p2p.imageManager.LoadImageArchive(ctx, archivePath, req.GetImageRef())
 	_ = os.Remove(archivePath)
 	if err != nil {
@@ -330,6 +331,7 @@ func (s *Server) UploadImageArchiveChunk(ctx context.Context, req *proto.UploadI
 	resp.ImageRef = loaded.ImageRef
 	resp.TargetDigest = loaded.TargetDigest
 	resp.Platform = loaded.Platform
+	log.Infof("image archive import complete: upload=%s image=%s digest=%s platform=%s bytes=%d", req.GetUploadId(), loaded.ImageRef, loaded.TargetDigest, loaded.Platform, received)
 	return resp, nil
 }
 
@@ -580,13 +582,12 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 			Reason:         peerStatus.Reason,
 		})
 	}
+	var peerIDs map[string]struct{}
 	if database, ok := reader.(*db.DB); ok {
-		peerIDs, err := db.GetPeerIDs(database)
+		peerIDs, err = db.GetActiveRuntimePeerIDs(database)
 		if err != nil {
 			return nil, err
 		}
-		filterRuntimePeerSurface(out, peerIDs)
-		addKnownRuntimePeerStatuses(out, peerIDs)
 	}
 
 	compatibility, err := reader.SwarmionCompatibility(ctx)
@@ -602,6 +603,10 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 			Blocking:     item.Blocking,
 			Reason:       item.Reason,
 		})
+	}
+	if peerIDs != nil {
+		filterRuntimePeerSurface(out, peerIDs)
+		addKnownRuntimePeerStatuses(out, peerIDs)
 	}
 	if trace, ok := reader.SwarmionContentSyncTrace(); ok {
 		out.ContentSyncTrace = append([]string(nil), trace...)
@@ -699,6 +704,7 @@ func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct
 		connected[localPeerID] = struct{}{}
 	}
 	filteredStatuses := out.GetPeerStatuses()[:0]
+	seenStatuses := make(map[string]struct{}, len(out.GetPeerStatuses()))
 	for _, peerStatus := range out.GetPeerStatuses() {
 		if peerStatus == nil {
 			continue
@@ -707,6 +713,10 @@ func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct
 		if _, found := allowed[peerID]; !found {
 			continue
 		}
+		if _, found := seenStatuses[peerID]; found {
+			continue
+		}
+		seenStatuses[peerID] = struct{}{}
 		if _, found := providers[peerID]; !found {
 			peerStatus.StateProvider = false
 		}
@@ -718,6 +728,23 @@ func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct
 		filteredStatuses = append(filteredStatuses, peerStatus)
 	}
 	out.PeerStatuses = filteredStatuses
+	filteredCompatibility := out.GetCompatibility()[:0]
+	seenCompatibility := make(map[string]struct{}, len(out.GetCompatibility()))
+	for _, item := range out.GetCompatibility() {
+		if item == nil {
+			continue
+		}
+		peerID := strings.TrimSpace(item.GetPeerId())
+		if _, found := allowed[peerID]; !found {
+			continue
+		}
+		if _, found := seenCompatibility[peerID]; found {
+			continue
+		}
+		seenCompatibility[peerID] = struct{}{}
+		filteredCompatibility = append(filteredCompatibility, item)
+	}
+	out.Compatibility = filteredCompatibility
 }
 
 func filterStringsBySet(values []string, allowed map[string]struct{}) []string {

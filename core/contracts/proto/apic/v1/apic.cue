@@ -436,6 +436,28 @@ package apicv1
 	task?:   #Task
 	events?: [...#TaskEvent]
 }
+#TaskProgressUpdate: {
+	task_id?:      string
+	status?:       string
+	message?:      string
+	progress?:     int
+	details_json?: string
+	created_at?:   string
+	durable?:      bool
+}
+#WatchTaskRequest: {
+	id?:                    string
+	include_snapshot?:      bool
+	include_events?:        bool
+	heartbeat_interval_ms?: uint
+}
+#WatchTaskResponse: {
+	sequence?:  uint
+	task?:      #Task
+	events?:    [...#TaskEvent]
+	update?:    #TaskProgressUpdate
+	heartbeat?: bool
+}
 #SetExitRouteRequest: {
 	instance?:   string
 	device_id?:  string
@@ -499,9 +521,13 @@ package apicv1
 	release_date?: int
 }
 #CloudSpecificImage: {
-	id?:       string
-	name?:     string
-	location?: string
+	id?:              string
+	name?:            string
+	logical_name?:    string
+	date_suffix?:     string
+	location?:        string
+	updated_at_unix?: int64
+	canonical?:       bool
 }
 #Release: {
 	cloud_images?: [string]: #CloudImage
@@ -522,7 +548,10 @@ package apicv1
 	cloud_location?: string
 	timeout?:        int
 }
-#UploadCloudImageResponse: {}
+#UploadCloudImageResponse: {
+	id?:      string
+	task_id?: string
+}
 #UploadProvisionerImageRequest: {
 	image_path?: string
 	image_name?: string
@@ -530,7 +559,10 @@ package apicv1
 	location?:   string
 	timeout?:    int
 }
-#UploadProvisionerImageResponse: {}
+#UploadProvisionerImageResponse: {
+	id?:      string
+	task_id?: string
+}
 #RemoveCloudImageRequest: {
 	image_name?:     string
 	cloud_name?:     string
@@ -724,6 +756,7 @@ contract: {
 				{name: "WatchChanges", request: "WatchChangesRequest", response: "WatchChangesResponse", response_stream: true},
 				{name: "GetTasks", request: "GetTasksRequest", response: "GetTasksResponse"},
 				{name: "GetTask", request: "GetTaskRequest", response: "GetTaskResponse"},
+				{name: "WatchTask", request: "WatchTaskRequest", response: "WatchTaskResponse", response_stream: true},
 				{name: "SetExitRoute", request: "SetExitRouteRequest", response: "SetExitRouteResponse"},
 				{name: "ClearExitRoute", request: "ClearExitRouteRequest", response: "ClearExitRouteResponse"},
 				{name: "GetProtosdReleases", request: "GetProtosdReleasesRequest", response: "GetProtosdReleasesResponse"},
@@ -1205,6 +1238,28 @@ contract: {
 				{type: "Task", name: "task", number: 1},
 				{rule: "repeated", type: "TaskEvent", name: "events", number: 2},
 			]},
+			{kind: "message", name: "TaskProgressUpdate", fields: [
+				{type: "string", name: "task_id", number: 1},
+				{type: "string", name: "status", number: 2},
+				{type: "string", name: "message", number: 3},
+				{type: "int32", name: "progress", number: 4},
+				{type: "string", name: "details_json", number: 5},
+				{type: "string", name: "created_at", number: 6},
+				{type: "bool", name: "durable", number: 7},
+			]},
+			{kind: "message", name: "WatchTaskRequest", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "bool", name: "include_snapshot", number: 2},
+				{type: "bool", name: "include_events", number: 3},
+				{type: "uint32", name: "heartbeat_interval_ms", number: 4},
+			]},
+			{kind: "message", name: "WatchTaskResponse", fields: [
+				{type: "uint64", name: "sequence", number: 1},
+				{type: "Task", name: "task", number: 2},
+				{rule: "repeated", type: "TaskEvent", name: "events", number: 3},
+				{type: "TaskProgressUpdate", name: "update", number: 4},
+				{type: "bool", name: "heartbeat", number: 5},
+			]},
 			{kind: "message", name: "SetExitRouteRequest", fields: [
 				{type: "string", name: "instance", number: 1},
 				{type: "string", name: "device_id", number: 2},
@@ -1271,6 +1326,10 @@ contract: {
 				{type: "string", name: "id", number: 1},
 				{type: "string", name: "name", number: 2},
 				{type: "string", name: "location", number: 3},
+				{type: "string", name: "logical_name", number: 4},
+				{type: "string", name: "date_suffix", number: 5},
+				{type: "int64", name: "updated_at_unix", number: 6},
+				{type: "bool", name: "canonical", number: 7},
 			]},
 			{kind: "message", name: "Release", fields: [
 				{type: "map<string, CloudImage>", name: "cloud_images", number: 1},
@@ -1291,7 +1350,10 @@ contract: {
 				{type: "string", name: "cloud_location", number: 4},
 				{type: "int32", name: "timeout", number: 5},
 			]},
-			{kind: "message", name: "UploadCloudImageResponse", fields: []},
+			{kind: "message", name: "UploadCloudImageResponse", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "task_id", number: 2},
+			]},
 			{kind: "message", name: "UploadProvisionerImageRequest", fields: [
 				{type: "string", name: "image_path", number: 1},
 				{type: "string", name: "image_name", number: 2},
@@ -1299,7 +1361,10 @@ contract: {
 				{type: "string", name: "location", number: 4},
 				{type: "int32", name: "timeout", number: 5},
 			]},
-			{kind: "message", name: "UploadProvisionerImageResponse", fields: []},
+			{kind: "message", name: "UploadProvisionerImageResponse", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "task_id", number: 2},
+			]},
 			{kind: "message", name: "RemoveCloudImageRequest", fields: [
 				{type: "string", name: "image_name", number: 2},
 				{type: "string", name: "cloud_name", number: 3},
@@ -1564,6 +1629,9 @@ lineage: {
 			GetTasksResponse?:                    #GetTasksResponse
 			GetTaskRequest?:                      #GetTaskRequest
 			GetTaskResponse?:                     #GetTaskResponse
+			TaskProgressUpdate?:                  #TaskProgressUpdate
+			WatchTaskRequest?:                    #WatchTaskRequest
+			WatchTaskResponse?:                   #WatchTaskResponse
 			RuntimeState?:                        #RuntimeState
 			RuntimePeerStatus?:                   #RuntimePeerStatus
 			RuntimeCompatibility?:                #RuntimeCompatibility

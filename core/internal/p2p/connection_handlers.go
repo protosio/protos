@@ -91,6 +91,7 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 		if p2p.externalDB.Initialized() {
 			if !p2p.peerKnownOrPending(conn.RemotePeer()) {
 				log.Warnf("new connection with peer '%s' with unknown machine. Closing connection", conn.RemotePeer().String())
+				p2p.removeExternalDBPeer(conn.RemotePeer().String())
 				conn.Close()
 				return
 			}
@@ -135,16 +136,13 @@ func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) 
 	_, found := p2p.machines.Get(conn.RemotePeer().String())
 	if !found {
 		log.Debugf("disconnected from unknown peer %s", conn.RemotePeer().String())
+		p2p.removeExternalDBPeer(conn.RemotePeer().String())
 		return
 	}
 
 	log.Debugf("disconnected from peer %s", conn.RemotePeer().String())
 	p2p.clients.Delete(conn.RemotePeer().String())
 	p2p.markPeerDisconnected(conn.RemotePeer().String())
-	if p2p.externalDB != nil {
-		if err := p2p.externalDB.RemovePeer(conn.RemotePeer().String()); err != nil {
-			log.Errorf("failed to remove DB peer for %s: %v", conn.RemotePeer().String(), err)
-		}
-	}
+	p2p.removeExternalDBPeer(conn.RemotePeer().String())
 	p2p.requestReconcile()
 }

@@ -107,6 +107,8 @@ func ProtosCloudImageInfo(id string, cloudName string, location string, logicalF
 	}
 	if logicalName, dateSuffix, ok := ParseProtosCloudObjectName(cloudName); ok {
 		info.LogicalName = logicalName
+		info.DateSuffix = dateSuffix
+		info.Canonical = true
 		if parsed, err := time.ParseInLocation(ProtosCloudNameDateLayout, dateSuffix, time.UTC); err == nil {
 			info.UpdatedAt = parsed
 		}

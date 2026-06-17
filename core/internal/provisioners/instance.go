@@ -35,8 +35,10 @@ type ImageInfo struct {
 	ID          string
 	Name        string
 	LogicalName string
+	DateSuffix  string
 	Location    string
 	UpdatedAt   time.Time
+	Canonical   bool
 }
 
 // MachineSpec holds information about the hardware characteristics of vm or baremetal instance
@@ -99,10 +101,18 @@ func IsDeletingInstance(instance InstanceInfo) bool {
 	return strings.EqualFold(strings.TrimSpace(instance.DesiredStatus), ServerStateDeleting)
 }
 
+func IsStoppedInstance(instance InstanceInfo) bool {
+	return strings.EqualFold(strings.TrimSpace(instance.DesiredStatus), ServerStateStopped)
+}
+
+func IsActiveInstance(instance InstanceInfo) bool {
+	return !IsDeletingInstance(instance) && !IsStoppedInstance(instance)
+}
+
 func ActiveInstances(instances []InstanceInfo) []InstanceInfo {
 	active := make([]InstanceInfo, 0, len(instances))
 	for _, instance := range instances {
-		if IsDeletingInstance(instance) {
+		if !IsActiveInstance(instance) {
 			continue
 		}
 		active = append(active, instance)

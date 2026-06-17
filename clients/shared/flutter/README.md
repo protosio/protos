@@ -12,6 +12,7 @@ The clients use the shared protobuf API surface and load the Go bridge through
 - `ProtosStart(configJSON)`
 - `ProtosCall(method, requestBytes)`
 - `ProtosWatchChangesBytes(requestBytes, callback)`
+- `ProtosWatchTaskBytes(requestBytes, callback)`
 - `ProtosCancelWatch(watchID)`
 - `ProtosStop()`
 - `ProtosFree(ptr)`

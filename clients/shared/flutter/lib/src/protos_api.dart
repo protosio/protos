@@ -432,14 +432,14 @@ class ProtosApi {
     );
   }
 
-  Future<void> uploadProvisionerImage({
+  Future<pb.UploadProvisionerImageResponse> uploadProvisionerImage({
     required String imagePath,
     required String imageName,
     required String provisioner,
     required String location,
     required int timeout,
-  }) async {
-    await bridge.call(
+  }) {
+    return bridge.call(
       'UploadProvisionerImage',
       pb.UploadProvisionerImageRequest(
         imagePath: imagePath,
@@ -525,6 +525,20 @@ class ProtosApi {
   }) {
     return bridge.watchChanges(
       includeSnapshot: includeSnapshot,
+      heartbeatIntervalMs: heartbeatIntervalMs,
+    );
+  }
+
+  Stream<pb.WatchTaskResponse> watchTask({
+    required String id,
+    bool includeSnapshot = true,
+    bool includeEvents = false,
+    int heartbeatIntervalMs = 0,
+  }) {
+    return bridge.watchTask(
+      id: id,
+      includeSnapshot: includeSnapshot,
+      includeEvents: includeEvents,
       heartbeatIntervalMs: heartbeatIntervalMs,
     );
   }

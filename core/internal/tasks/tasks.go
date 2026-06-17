@@ -55,6 +55,17 @@ type Event struct {
 	CreatedAt time.Time
 }
 
+type ProgressUpdate struct {
+	Sequence  uint64
+	TaskID    string
+	Status    Status
+	Message   string
+	Progress  int
+	Details   json.RawMessage
+	CreatedAt time.Time
+	Durable   bool
+}
+
 type EnqueueOptions[P any] struct {
 	ID          string
 	Stream      string
@@ -95,6 +106,10 @@ func (ctx *RunContext[P]) Payload() P {
 
 func (ctx *RunContext[P]) Update(progress int, message string, details any) error {
 	return ctx.manager.Update(ctx.record.ID, StatusRunning, progress, message, details)
+}
+
+func (ctx *RunContext[P]) Progress(progress int, message string, details any) error {
+	return ctx.manager.Progress(ctx.record.ID, StatusRunning, progress, message, details)
 }
 
 type registeredStream interface {
@@ -138,15 +153,22 @@ func (s streamAdapter[P, R]) run(ctx context.Context, manager *Manager, record R
 }
 
 type Manager struct {
-	db      *db.DB
-	mu      sync.RWMutex
-	streams map[string]registeredStream
+	db               *db.DB
+	mu               sync.RWMutex
+	streams          map[string]registeredStream
+	progressMu       sync.Mutex
+	progressSeq      uint64
+	nextWatcherID    uint64
+	progressWatchers map[string]map[uint64]chan ProgressUpdate
+	latestProgress   map[string]ProgressUpdate
 }
 
 func NewManager(database *db.DB) *Manager {
 	return &Manager{
-		db:      database,
-		streams: map[string]registeredStream{},
+		db:               database,
+		streams:          map[string]registeredStream{},
+		progressWatchers: map[string]map[uint64]chan ProgressUpdate{},
+		latestProgress:   map[string]ProgressUpdate{},
 	}
 }
 
@@ -221,9 +243,11 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 	if record.Message == "" {
 		record.Message = "queued"
 	}
-	if err := db.Insert(manager.db, createTaskInsertMapper(record), createTaskEventInsertMapper(taskEvent(record, nil))); err != nil {
+	event := taskEvent(record, nil)
+	if err := db.Insert(manager.db, createTaskInsertMapper(record), createTaskEventInsertMapper(event)); err != nil {
 		return Record{}, err
 	}
+	manager.publishProgress(recordProgressUpdate(record, event.Details, true))
 	return record, nil
 }
 
@@ -302,7 +326,7 @@ func (m *Manager) Get(id string) (Record, error) {
 	if id == "" {
 		return Record{}, fmt.Errorf("task id is empty")
 	}
-	records, err := selectTaskRecords(m.db, taskQueryFilters{IDs: []string{id}}, false)
+	records, err := selectTaskRecords(m.db, taskQueryFilters{IDs: []string{id}}, true)
 	if err != nil {
 		return Record{}, err
 	}
@@ -355,6 +379,60 @@ func (m *Manager) Events(taskID string) ([]Event, error) {
 	return events, nil
 }
 
+func (m *Manager) Subscribe(taskID string) (<-chan ProgressUpdate, func(), error) {
+	if m == nil {
+		return nil, nil, fmt.Errorf("task manager is nil")
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil, nil, fmt.Errorf("task id is empty")
+	}
+	ch := make(chan ProgressUpdate, 32)
+	m.progressMu.Lock()
+	m.nextWatcherID++
+	watcherID := m.nextWatcherID
+	if m.progressWatchers[taskID] == nil {
+		m.progressWatchers[taskID] = map[uint64]chan ProgressUpdate{}
+	}
+	m.progressWatchers[taskID][watcherID] = ch
+	m.progressMu.Unlock()
+
+	cancel := func() {
+		m.progressMu.Lock()
+		defer m.progressMu.Unlock()
+		watchers := m.progressWatchers[taskID]
+		if watchers == nil {
+			return
+		}
+		if existing, found := watchers[watcherID]; found {
+			delete(watchers, watcherID)
+			close(existing)
+		}
+		if len(watchers) == 0 {
+			delete(m.progressWatchers, taskID)
+		}
+	}
+	return ch, cancel, nil
+}
+
+func (m *Manager) LatestProgress(taskID string) (ProgressUpdate, bool) {
+	if m == nil {
+		return ProgressUpdate{}, false
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return ProgressUpdate{}, false
+	}
+	m.progressMu.Lock()
+	defer m.progressMu.Unlock()
+	update, found := m.latestProgress[taskID]
+	if !found {
+		return ProgressUpdate{}, false
+	}
+	update.Details = append(json.RawMessage(nil), update.Details...)
+	return update, true
+}
+
 func (m *Manager) LatestForSubject(stream string, subjectType string, subjectID string) (Record, bool, error) {
 	records, err := selectTaskRecords(m.db, taskQueryFilters{
 		Stream:      stream,
@@ -393,6 +471,32 @@ func (m *Manager) Update(id string, status Status, progress int, message string,
 		return err
 	}
 	return m.saveTaskUpdate(record, taskEvent(record, eventDetails))
+}
+
+func (m *Manager) Progress(id string, status Status, progress int, message string, details any) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("task id is empty")
+	}
+	eventDetails, err := marshalOptional(details)
+	if err != nil {
+		return err
+	}
+	status = normalizeStatus(status)
+	message = strings.TrimSpace(message)
+	if message == "" {
+		message = string(status)
+	}
+	m.publishProgress(ProgressUpdate{
+		TaskID:    id,
+		Status:    status,
+		Message:   message,
+		Progress:  normalizeProgress(progress),
+		Details:   eventDetails,
+		CreatedAt: time.Now().UTC(),
+		Durable:   false,
+	})
+	return nil
 }
 
 func (m *Manager) Succeed(id string, result any) error {
@@ -471,7 +575,11 @@ func (m *Manager) saveTaskUpdate(record Record, event Event) error {
 	if err := db.Update(m.db, createTaskUpdateMapper(record)); err != nil {
 		return err
 	}
-	return db.Insert(m.db, createTaskEventInsertMapper(event))
+	if err := db.Insert(m.db, createTaskEventInsertMapper(event)); err != nil {
+		return err
+	}
+	m.publishProgress(recordProgressUpdate(record, event.Details, true))
+	return nil
 }
 
 func (m *Manager) stream(name string) (registeredStream, bool) {
@@ -493,6 +601,65 @@ func taskEvent(record Record, details json.RawMessage) Event {
 		Progress:  record.Progress,
 		Details:   details,
 		CreatedAt: time.Now().UTC(),
+	}
+}
+
+func recordProgressUpdate(record Record, details json.RawMessage, durable bool) ProgressUpdate {
+	if len(details) == 0 {
+		details = json.RawMessage("{}")
+	}
+	return ProgressUpdate{
+		TaskID:    record.ID,
+		Status:    record.Status,
+		Message:   record.Message,
+		Progress:  record.Progress,
+		Details:   details,
+		CreatedAt: time.Now().UTC(),
+		Durable:   durable,
+	}
+}
+
+func (m *Manager) publishProgress(update ProgressUpdate) {
+	if m == nil {
+		return
+	}
+	update.TaskID = strings.TrimSpace(update.TaskID)
+	if update.TaskID == "" {
+		return
+	}
+	update.Status = normalizeStatus(update.Status)
+	update.Progress = normalizeProgress(update.Progress)
+	update.Message = strings.TrimSpace(update.Message)
+	if update.Message == "" {
+		update.Message = string(update.Status)
+	}
+	if update.CreatedAt.IsZero() {
+		update.CreatedAt = time.Now().UTC()
+	}
+	if len(update.Details) == 0 {
+		update.Details = json.RawMessage("{}")
+	} else {
+		update.Details = append(json.RawMessage(nil), update.Details...)
+	}
+
+	m.progressMu.Lock()
+	defer m.progressMu.Unlock()
+	m.progressSeq++
+	update.Sequence = m.progressSeq
+	m.latestProgress[update.TaskID] = update
+	for _, watcher := range m.progressWatchers[update.TaskID] {
+		select {
+		case watcher <- update:
+		default:
+			select {
+			case <-watcher:
+			default:
+			}
+			select {
+			case watcher <- update:
+			default:
+			}
+		}
 	}
 }
 

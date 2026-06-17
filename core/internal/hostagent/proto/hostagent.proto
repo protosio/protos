@@ -24,6 +24,8 @@ message ApplyResponse {
 message StatusRequest {
   repeated VMRef vms = 1;
   bool network = 2;
+  string root_dir = 3;
+  bool list_vms = 4;
 }
 
 message StatusResponse {
@@ -46,22 +48,61 @@ message HostDesiredState {
 
 message VMDesiredState {
   string id = 1;
-  string manifest_path = 2;
+  string root_dir = 2;
   string desired_state = 3;
+  VMConfig config = 4;
 }
 
 message VMRef {
   string id = 1;
-  string manifest_path = 2;
+  string name = 2;
+  string root_dir = 3;
 }
 
 message VMObservedState {
   string id = 1;
-  string manifest_path = 2;
-  string status = 3;
-  int32 pid = 4;
-  string public_ip = 5;
-  string message = 6;
+  string status = 2;
+  int32 pid = 3;
+  string public_ip = 4;
+  string message = 5;
+  VMConfig config = 6;
+}
+
+message VMConfig {
+  string id = 1;
+  string name = 2;
+  string image_id = 3;
+  string location = 4;
+  string machine_type = 5;
+  uint32 cores = 6;
+  uint32 memory_mib = 7;
+  string init_origin_public_key = 8;
+  string public_ip = 9;
+  string mac_address = 10;
+  string kernel_path = 11;
+  string initrd_path = 12;
+  string cmdline_path = 13;
+  string root_disk_path = 14;
+  string boot_iso_path = 15;
+  string metadata_iso = 16;
+  string artifact_dir = 17;
+  VMNetworkConfig network = 18;
+  repeated VMVolume volumes = 19;
+}
+
+message VMNetworkConfig {
+  string interface = 1;
+  string ip_address = 2;
+  int32 prefix_length = 3;
+  string gateway = 4;
+  repeated string dns_servers = 5;
+}
+
+message VMVolume {
+  string id = 1;
+  string name = 2;
+  string path = 3;
+  int32 size_mib = 4;
 }
 
 message NetworkDesiredState {

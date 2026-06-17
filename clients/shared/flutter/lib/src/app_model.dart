@@ -112,6 +112,7 @@ class AppModel extends ChangeNotifier {
   var _hasStarted = false;
   var _busyCount = 0;
   StreamSubscription<pb.WatchChangesResponse>? _changeWatchSubscription;
+  StreamSubscription<pb.WatchTaskResponse>? _taskWatchSubscription;
   Timer? _liveRefreshTimer;
   Timer? _initializationProbeTimer;
   final _pendingLiveTables = <String>{};
@@ -387,6 +388,7 @@ class AppModel extends ChangeNotifier {
   }
 
   Future<void> selectTask(String id) async {
+    _stopTaskWatcher();
     selectedTaskId = id.trim();
     selectedTaskEvents = [];
     notifyListeners();
@@ -394,6 +396,7 @@ class AppModel extends ChangeNotifier {
       return;
     }
     await refreshSelectedTaskDetail();
+    _startSelectedTaskWatcher();
   }
 
   Future<void> refreshSelectedTaskDetail({bool notify = true}) async {
@@ -537,7 +540,16 @@ class AppModel extends ChangeNotifier {
   }) {
     provisionerImages = images;
     sortedProvisionerImages = images.entries.toList(growable: false)
-      ..sort((a, b) => a.key.compareTo(b.key));
+      ..sort((a, b) {
+        final leftUpdated = a.value.updatedAtUnix.toInt();
+        final rightUpdated = b.value.updatedAtUnix.toInt();
+        if (leftUpdated != rightUpdated) {
+          return rightUpdated.compareTo(leftUpdated);
+        }
+        final leftName = a.value.name.nonEmpty ?? a.key;
+        final rightName = b.value.name.nonEmpty ?? b.key;
+        return leftName.compareTo(rightName);
+      });
     if (notify) {
       notifyListeners();
     }
@@ -573,6 +585,7 @@ class AppModel extends ChangeNotifier {
   @override
   void dispose() {
     _changeWatchSubscription?.cancel();
+    _taskWatchSubscription?.cancel();
     _liveRefreshTimer?.cancel();
     _initializationProbeTimer?.cancel();
     unawaited(api.stop().whenComplete(bridge.dispose));
@@ -750,6 +763,7 @@ class AppModel extends ChangeNotifier {
   }
 
   void _clearLoadedData() {
+    _stopTaskWatcher();
     userInfo = null;
     devices = [];
     sshKey = null;
@@ -785,6 +799,69 @@ class AppModel extends ChangeNotifier {
     _pendingHeartbeat = false;
   }
 
+  void _startSelectedTaskWatcher() {
+    final id = selectedTaskId.nonEmpty;
+    if (id == null || _taskWatchSubscription != null) {
+      return;
+    }
+    late final StreamSubscription<pb.WatchTaskResponse> subscription;
+    subscription = api
+        .watchTask(id: id, includeSnapshot: true, heartbeatIntervalMs: 5000)
+        .listen(
+          _applyTaskWatchResponse,
+          onError: (Object error) {
+            if (_taskWatchSubscription != subscription) {
+              return;
+            }
+            if (selectedTaskId == id) {
+              message = 'Task progress stopped: $error';
+              notifyListeners();
+            }
+            _taskWatchSubscription = null;
+          },
+          onDone: () {
+            if (_taskWatchSubscription != subscription) {
+              return;
+            }
+            _taskWatchSubscription = null;
+            notifyListeners();
+          },
+        );
+    _taskWatchSubscription = subscription;
+  }
+
+  void _stopTaskWatcher() {
+    unawaited(_taskWatchSubscription?.cancel());
+    _taskWatchSubscription = null;
+  }
+
+  void _applyTaskWatchResponse(pb.WatchTaskResponse response) {
+    final selectedId = selectedTaskId.nonEmpty;
+    if (selectedId == null) {
+      return;
+    }
+    var changed = false;
+    if (response.hasTask() && response.task.id == selectedId) {
+      _upsertTask(response.task);
+      changed = true;
+    }
+    if (response.hasUpdate() && response.update.taskId == selectedId) {
+      final index = tasks.indexWhere((task) => task.id == selectedId);
+      if (index >= 0) {
+        final task = tasks[index].deepCopy();
+        task.status = response.update.status;
+        task.message = response.update.message;
+        task.progress = response.update.progress;
+        task.updatedAt = response.update.createdAt;
+        _upsertTask(task);
+        changed = true;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
   void _startInitializationProbe() {
     _initializationProbeTimer ??= Timer.periodic(
       const Duration(seconds: 3),
@@ -813,6 +890,7 @@ class AppModel extends ChangeNotifier {
     if (tasks.any((task) => task.id == id)) {
       return;
     }
+    _stopTaskWatcher();
     selectedTaskId = '';
     selectedTaskEvents = [];
   }

@@ -2,7 +2,9 @@ package tasks
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -82,6 +84,80 @@ func TestTaskManagerRunsRegisteredStream(t *testing.T) {
 	if eventCount < 3 {
 		t.Fatalf("event count = %d, want at least queued/running/progress/succeeded events", eventCount)
 	}
+}
+
+func TestTaskProgressSubscriptionDoesNotPersistEvent(t *testing.T) {
+	store := openTaskTestDB(t)
+	manager := NewManager(store)
+
+	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+		Stream:      "test.stream",
+		SubjectType: "test-subject",
+		SubjectID:   "subject-1",
+		Title:       "test task",
+		Payload:     testPayload{Value: "input"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventsBefore := taskEventCount(t, store, queued.ID)
+
+	updates, cancel, err := manager.Subscribe(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cancel()
+
+	if err := manager.Progress(queued.ID, StatusRunning, 42, "uploading", map[string]string{"phase": "copy"}); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case update := <-updates:
+		if update.TaskID != queued.ID {
+			t.Fatalf("update task id = %q, want %q", update.TaskID, queued.ID)
+		}
+		if update.Durable {
+			t.Fatal("live progress update should not be durable")
+		}
+		if update.Progress != 42 {
+			t.Fatalf("update progress = %d, want 42", update.Progress)
+		}
+		var details map[string]string
+		if err := json.Unmarshal(update.Details, &details); err != nil {
+			t.Fatalf("decode details: %v", err)
+		}
+		if details["phase"] != "copy" {
+			t.Fatalf("details phase = %q, want copy", details["phase"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for live progress update")
+	}
+
+	eventsAfter := taskEventCount(t, store, queued.ID)
+	if eventsAfter != eventsBefore {
+		t.Fatalf("task events changed from %d to %d after live progress", eventsBefore, eventsAfter)
+	}
+}
+
+func taskEventCount(t *testing.T, store *db.DB, taskID string) int {
+	t.Helper()
+	rows, err := store.QueryContext(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", db.MustUUIDBytes(taskID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		t.Fatal("event count query returned no rows")
+	}
+	var count int
+	if err := rows.Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
 
 func openTaskTestDB(t *testing.T) *db.DB {

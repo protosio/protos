@@ -17,7 +17,7 @@ require (
 	github.com/bokwoon95/sq v0.5.1
 	github.com/bramvdbogaerde/go-scp v1.6.0
 	github.com/cheggaaa/pb/v3 v3.1.7
-	github.com/containerd/containerd/v2 v2.3.0
+	github.com/containerd/containerd/v2 v2.3.1
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/platforms v1.0.0-rc.4
 	github.com/dennwc/btrfs v0.0.0-20260222081608-edfb8b9e4f55
@@ -77,7 +77,7 @@ require (
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
 	github.com/cockroachdb/redact v1.1.8 // indirect
 	github.com/containerd/cgroups/v3 v3.1.3 // indirect
-	github.com/containerd/containerd/api v1.11.0 // indirect
+	github.com/containerd/containerd/api v1.11.1 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/plugin v1.1.0 // indirect
 	github.com/containernetworking/plugins v1.9.1 // indirect
@@ -282,7 +282,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3 // indirect
 	github.com/multiformats/go-multistream v0.6.1 // indirect
 	github.com/multiformats/go-varint v0.1.0 // indirect
-	github.com/nustiueudinastea/swarmion/protocol v0.0.0 // indirect
+	github.com/nustiueudinastea/swarmion/protocol v0.0.0
 	github.com/nustiueudinastea/swarmion/runtime v0.0.0
 	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615120532-bf5069d914c0
 	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615120532-bf5069d914c0

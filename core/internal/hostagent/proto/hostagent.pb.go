@@ -129,6 +129,8 @@ type StatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Vms           []*VMRef               `protobuf:"bytes,1,rep,name=vms,proto3" json:"vms,omitempty"`
 	Network       bool                   `protobuf:"varint,2,opt,name=network,proto3" json:"network,omitempty"`
+	RootDir       string                 `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
+	ListVms       bool                   `protobuf:"varint,4,opt,name=list_vms,json=listVms,proto3" json:"list_vms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -173,6 +175,20 @@ func (x *StatusRequest) GetVms() []*VMRef {
 func (x *StatusRequest) GetNetwork() bool {
 	if x != nil {
 		return x.Network
+	}
+	return false
+}
+
+func (x *StatusRequest) GetRootDir() string {
+	if x != nil {
+		return x.RootDir
+	}
+	return ""
+}
+
+func (x *StatusRequest) GetListVms() bool {
+	if x != nil {
+		return x.ListVms
 	}
 	return false
 }
@@ -372,8 +388,9 @@ func (x *HostDesiredState) GetNetwork() *NetworkDesiredState {
 type VMDesiredState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ManifestPath  string                 `protobuf:"bytes,2,opt,name=manifest_path,json=manifestPath,proto3" json:"manifest_path,omitempty"`
+	RootDir       string                 `protobuf:"bytes,2,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
 	DesiredState  string                 `protobuf:"bytes,3,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
+	Config        *VMConfig              `protobuf:"bytes,4,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -415,9 +432,9 @@ func (x *VMDesiredState) GetId() string {
 	return ""
 }
 
-func (x *VMDesiredState) GetManifestPath() string {
+func (x *VMDesiredState) GetRootDir() string {
 	if x != nil {
-		return x.ManifestPath
+		return x.RootDir
 	}
 	return ""
 }
@@ -429,10 +446,18 @@ func (x *VMDesiredState) GetDesiredState() string {
 	return ""
 }
 
+func (x *VMDesiredState) GetConfig() *VMConfig {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
 type VMRef struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ManifestPath  string                 `protobuf:"bytes,2,opt,name=manifest_path,json=manifestPath,proto3" json:"manifest_path,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	RootDir       string                 `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -474,9 +499,16 @@ func (x *VMRef) GetId() string {
 	return ""
 }
 
-func (x *VMRef) GetManifestPath() string {
+func (x *VMRef) GetName() string {
 	if x != nil {
-		return x.ManifestPath
+		return x.Name
+	}
+	return ""
+}
+
+func (x *VMRef) GetRootDir() string {
+	if x != nil {
+		return x.RootDir
 	}
 	return ""
 }
@@ -484,11 +516,11 @@ func (x *VMRef) GetManifestPath() string {
 type VMObservedState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ManifestPath  string                 `protobuf:"bytes,2,opt,name=manifest_path,json=manifestPath,proto3" json:"manifest_path,omitempty"`
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	Pid           int32                  `protobuf:"varint,4,opt,name=pid,proto3" json:"pid,omitempty"`
-	PublicIp      string                 `protobuf:"bytes,5,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
-	Message       string                 `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Pid           int32                  `protobuf:"varint,3,opt,name=pid,proto3" json:"pid,omitempty"`
+	PublicIp      string                 `protobuf:"bytes,4,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
+	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	Config        *VMConfig              `protobuf:"bytes,6,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -530,13 +562,6 @@ func (x *VMObservedState) GetId() string {
 	return ""
 }
 
-func (x *VMObservedState) GetManifestPath() string {
-	if x != nil {
-		return x.ManifestPath
-	}
-	return ""
-}
-
 func (x *VMObservedState) GetStatus() string {
 	if x != nil {
 		return x.Status
@@ -565,6 +590,345 @@ func (x *VMObservedState) GetMessage() string {
 	return ""
 }
 
+func (x *VMObservedState) GetConfig() *VMConfig {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+type VMConfig struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	ImageId             string                 `protobuf:"bytes,3,opt,name=image_id,json=imageId,proto3" json:"image_id,omitempty"`
+	Location            string                 `protobuf:"bytes,4,opt,name=location,proto3" json:"location,omitempty"`
+	MachineType         string                 `protobuf:"bytes,5,opt,name=machine_type,json=machineType,proto3" json:"machine_type,omitempty"`
+	Cores               uint32                 `protobuf:"varint,6,opt,name=cores,proto3" json:"cores,omitempty"`
+	MemoryMib           uint32                 `protobuf:"varint,7,opt,name=memory_mib,json=memoryMib,proto3" json:"memory_mib,omitempty"`
+	InitOriginPublicKey string                 `protobuf:"bytes,8,opt,name=init_origin_public_key,json=initOriginPublicKey,proto3" json:"init_origin_public_key,omitempty"`
+	PublicIp            string                 `protobuf:"bytes,9,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
+	MacAddress          string                 `protobuf:"bytes,10,opt,name=mac_address,json=macAddress,proto3" json:"mac_address,omitempty"`
+	KernelPath          string                 `protobuf:"bytes,11,opt,name=kernel_path,json=kernelPath,proto3" json:"kernel_path,omitempty"`
+	InitrdPath          string                 `protobuf:"bytes,12,opt,name=initrd_path,json=initrdPath,proto3" json:"initrd_path,omitempty"`
+	CmdlinePath         string                 `protobuf:"bytes,13,opt,name=cmdline_path,json=cmdlinePath,proto3" json:"cmdline_path,omitempty"`
+	RootDiskPath        string                 `protobuf:"bytes,14,opt,name=root_disk_path,json=rootDiskPath,proto3" json:"root_disk_path,omitempty"`
+	BootIsoPath         string                 `protobuf:"bytes,15,opt,name=boot_iso_path,json=bootIsoPath,proto3" json:"boot_iso_path,omitempty"`
+	MetadataIso         string                 `protobuf:"bytes,16,opt,name=metadata_iso,json=metadataIso,proto3" json:"metadata_iso,omitempty"`
+	ArtifactDir         string                 `protobuf:"bytes,17,opt,name=artifact_dir,json=artifactDir,proto3" json:"artifact_dir,omitempty"`
+	Network             *VMNetworkConfig       `protobuf:"bytes,18,opt,name=network,proto3" json:"network,omitempty"`
+	Volumes             []*VMVolume            `protobuf:"bytes,19,rep,name=volumes,proto3" json:"volumes,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *VMConfig) Reset() {
+	*x = VMConfig{}
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VMConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VMConfig) ProtoMessage() {}
+
+func (x *VMConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VMConfig.ProtoReflect.Descriptor instead.
+func (*VMConfig) Descriptor() ([]byte, []int) {
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *VMConfig) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *VMConfig) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *VMConfig) GetImageId() string {
+	if x != nil {
+		return x.ImageId
+	}
+	return ""
+}
+
+func (x *VMConfig) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+func (x *VMConfig) GetMachineType() string {
+	if x != nil {
+		return x.MachineType
+	}
+	return ""
+}
+
+func (x *VMConfig) GetCores() uint32 {
+	if x != nil {
+		return x.Cores
+	}
+	return 0
+}
+
+func (x *VMConfig) GetMemoryMib() uint32 {
+	if x != nil {
+		return x.MemoryMib
+	}
+	return 0
+}
+
+func (x *VMConfig) GetInitOriginPublicKey() string {
+	if x != nil {
+		return x.InitOriginPublicKey
+	}
+	return ""
+}
+
+func (x *VMConfig) GetPublicIp() string {
+	if x != nil {
+		return x.PublicIp
+	}
+	return ""
+}
+
+func (x *VMConfig) GetMacAddress() string {
+	if x != nil {
+		return x.MacAddress
+	}
+	return ""
+}
+
+func (x *VMConfig) GetKernelPath() string {
+	if x != nil {
+		return x.KernelPath
+	}
+	return ""
+}
+
+func (x *VMConfig) GetInitrdPath() string {
+	if x != nil {
+		return x.InitrdPath
+	}
+	return ""
+}
+
+func (x *VMConfig) GetCmdlinePath() string {
+	if x != nil {
+		return x.CmdlinePath
+	}
+	return ""
+}
+
+func (x *VMConfig) GetRootDiskPath() string {
+	if x != nil {
+		return x.RootDiskPath
+	}
+	return ""
+}
+
+func (x *VMConfig) GetBootIsoPath() string {
+	if x != nil {
+		return x.BootIsoPath
+	}
+	return ""
+}
+
+func (x *VMConfig) GetMetadataIso() string {
+	if x != nil {
+		return x.MetadataIso
+	}
+	return ""
+}
+
+func (x *VMConfig) GetArtifactDir() string {
+	if x != nil {
+		return x.ArtifactDir
+	}
+	return ""
+}
+
+func (x *VMConfig) GetNetwork() *VMNetworkConfig {
+	if x != nil {
+		return x.Network
+	}
+	return nil
+}
+
+func (x *VMConfig) GetVolumes() []*VMVolume {
+	if x != nil {
+		return x.Volumes
+	}
+	return nil
+}
+
+type VMNetworkConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Interface     string                 `protobuf:"bytes,1,opt,name=interface,proto3" json:"interface,omitempty"`
+	IpAddress     string                 `protobuf:"bytes,2,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	PrefixLength  int32                  `protobuf:"varint,3,opt,name=prefix_length,json=prefixLength,proto3" json:"prefix_length,omitempty"`
+	Gateway       string                 `protobuf:"bytes,4,opt,name=gateway,proto3" json:"gateway,omitempty"`
+	DnsServers    []string               `protobuf:"bytes,5,rep,name=dns_servers,json=dnsServers,proto3" json:"dns_servers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VMNetworkConfig) Reset() {
+	*x = VMNetworkConfig{}
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VMNetworkConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VMNetworkConfig) ProtoMessage() {}
+
+func (x *VMNetworkConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VMNetworkConfig.ProtoReflect.Descriptor instead.
+func (*VMNetworkConfig) Descriptor() ([]byte, []int) {
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *VMNetworkConfig) GetInterface() string {
+	if x != nil {
+		return x.Interface
+	}
+	return ""
+}
+
+func (x *VMNetworkConfig) GetIpAddress() string {
+	if x != nil {
+		return x.IpAddress
+	}
+	return ""
+}
+
+func (x *VMNetworkConfig) GetPrefixLength() int32 {
+	if x != nil {
+		return x.PrefixLength
+	}
+	return 0
+}
+
+func (x *VMNetworkConfig) GetGateway() string {
+	if x != nil {
+		return x.Gateway
+	}
+	return ""
+}
+
+func (x *VMNetworkConfig) GetDnsServers() []string {
+	if x != nil {
+		return x.DnsServers
+	}
+	return nil
+}
+
+type VMVolume struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	SizeMib       int32                  `protobuf:"varint,4,opt,name=size_mib,json=sizeMib,proto3" json:"size_mib,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VMVolume) Reset() {
+	*x = VMVolume{}
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VMVolume) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VMVolume) ProtoMessage() {}
+
+func (x *VMVolume) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VMVolume.ProtoReflect.Descriptor instead.
+func (*VMVolume) Descriptor() ([]byte, []int) {
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *VMVolume) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *VMVolume) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *VMVolume) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *VMVolume) GetSizeMib() int32 {
+	if x != nil {
+		return x.SizeMib
+	}
+	return 0
+}
+
 type NetworkDesiredState struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	DesiredState         string                 `protobuf:"bytes,1,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
@@ -580,7 +944,7 @@ type NetworkDesiredState struct {
 
 func (x *NetworkDesiredState) Reset() {
 	*x = NetworkDesiredState{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[10]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -592,7 +956,7 @@ func (x *NetworkDesiredState) String() string {
 func (*NetworkDesiredState) ProtoMessage() {}
 
 func (x *NetworkDesiredState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[10]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -605,7 +969,7 @@ func (x *NetworkDesiredState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkDesiredState.ProtoReflect.Descriptor instead.
 func (*NetworkDesiredState) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{10}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *NetworkDesiredState) GetDesiredState() string {
@@ -670,7 +1034,7 @@ type NetworkConfig struct {
 
 func (x *NetworkConfig) Reset() {
 	*x = NetworkConfig{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[11]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -682,7 +1046,7 @@ func (x *NetworkConfig) String() string {
 func (*NetworkConfig) ProtoMessage() {}
 
 func (x *NetworkConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[11]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -695,7 +1059,7 @@ func (x *NetworkConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkConfig.ProtoReflect.Descriptor instead.
 func (*NetworkConfig) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{11}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *NetworkConfig) GetIpv6Address() string {
@@ -747,7 +1111,7 @@ type InstancePeer struct {
 
 func (x *InstancePeer) Reset() {
 	*x = InstancePeer{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[12]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -759,7 +1123,7 @@ func (x *InstancePeer) String() string {
 func (*InstancePeer) ProtoMessage() {}
 
 func (x *InstancePeer) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[12]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -772,7 +1136,7 @@ func (x *InstancePeer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstancePeer.ProtoReflect.Descriptor instead.
 func (*InstancePeer) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{12}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *InstancePeer) GetId() string {
@@ -829,7 +1193,7 @@ type DevicePeer struct {
 
 func (x *DevicePeer) Reset() {
 	*x = DevicePeer{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[13]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -841,7 +1205,7 @@ func (x *DevicePeer) String() string {
 func (*DevicePeer) ProtoMessage() {}
 
 func (x *DevicePeer) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[13]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -854,7 +1218,7 @@ func (x *DevicePeer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DevicePeer.ProtoReflect.Descriptor instead.
 func (*DevicePeer) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{13}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DevicePeer) GetName() string {
@@ -895,7 +1259,7 @@ type NamespacedInterface struct {
 
 func (x *NamespacedInterface) Reset() {
 	*x = NamespacedInterface{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[14]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -907,7 +1271,7 @@ func (x *NamespacedInterface) String() string {
 func (*NamespacedInterface) ProtoMessage() {}
 
 func (x *NamespacedInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[14]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -920,7 +1284,7 @@ func (x *NamespacedInterface) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NamespacedInterface.ProtoReflect.Descriptor instead.
 func (*NamespacedInterface) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{14}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *NamespacedInterface) GetNetnsPath() string {
@@ -949,7 +1313,7 @@ type ExitRoute struct {
 
 func (x *ExitRoute) Reset() {
 	*x = ExitRoute{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[15]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -961,7 +1325,7 @@ func (x *ExitRoute) String() string {
 func (*ExitRoute) ProtoMessage() {}
 
 func (x *ExitRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[15]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -974,7 +1338,7 @@ func (x *ExitRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExitRoute.ProtoReflect.Descriptor instead.
 func (*ExitRoute) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{15}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ExitRoute) GetId() string {
@@ -1017,7 +1381,7 @@ type NetworkObservedState struct {
 
 func (x *NetworkObservedState) Reset() {
 	*x = NetworkObservedState{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[16]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1029,7 +1393,7 @@ func (x *NetworkObservedState) String() string {
 func (*NetworkObservedState) ProtoMessage() {}
 
 func (x *NetworkObservedState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[16]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1042,7 +1406,7 @@ func (x *NetworkObservedState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkObservedState.ProtoReflect.Descriptor instead.
 func (*NetworkObservedState) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{16}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *NetworkObservedState) GetModule() string {
@@ -1091,7 +1455,7 @@ type NetworkState struct {
 
 func (x *NetworkState) Reset() {
 	*x = NetworkState{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[17]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1103,7 +1467,7 @@ func (x *NetworkState) String() string {
 func (*NetworkState) ProtoMessage() {}
 
 func (x *NetworkState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[17]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1116,7 +1480,7 @@ func (x *NetworkState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkState.ProtoReflect.Descriptor instead.
 func (*NetworkState) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{17}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *NetworkState) GetModule() string {
@@ -1205,7 +1569,7 @@ type NetworkInterface struct {
 
 func (x *NetworkInterface) Reset() {
 	*x = NetworkInterface{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[18]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1217,7 +1581,7 @@ func (x *NetworkInterface) String() string {
 func (*NetworkInterface) ProtoMessage() {}
 
 func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[18]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1230,7 +1594,7 @@ func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkInterface.ProtoReflect.Descriptor instead.
 func (*NetworkInterface) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{18}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *NetworkInterface) GetName() string {
@@ -1300,7 +1664,7 @@ type NetworkAddress struct {
 
 func (x *NetworkAddress) Reset() {
 	*x = NetworkAddress{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[19]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1312,7 +1676,7 @@ func (x *NetworkAddress) String() string {
 func (*NetworkAddress) ProtoMessage() {}
 
 func (x *NetworkAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[19]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1325,7 +1689,7 @@ func (x *NetworkAddress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkAddress.ProtoReflect.Descriptor instead.
 func (*NetworkAddress) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{19}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *NetworkAddress) GetInterfaceName() string {
@@ -1367,7 +1731,7 @@ type NetworkRoute struct {
 
 func (x *NetworkRoute) Reset() {
 	*x = NetworkRoute{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[20]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1379,7 +1743,7 @@ func (x *NetworkRoute) String() string {
 func (*NetworkRoute) ProtoMessage() {}
 
 func (x *NetworkRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[20]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1392,7 +1756,7 @@ func (x *NetworkRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkRoute.ProtoReflect.Descriptor instead.
 func (*NetworkRoute) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{20}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *NetworkRoute) GetInterfaceName() string {
@@ -1479,7 +1843,7 @@ type WireGuardPeer struct {
 
 func (x *WireGuardPeer) Reset() {
 	*x = WireGuardPeer{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[21]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1491,7 +1855,7 @@ func (x *WireGuardPeer) String() string {
 func (*WireGuardPeer) ProtoMessage() {}
 
 func (x *WireGuardPeer) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[21]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1504,7 +1868,7 @@ func (x *WireGuardPeer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WireGuardPeer.ProtoReflect.Descriptor instead.
 func (*WireGuardPeer) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{21}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *WireGuardPeer) GetPublicKey() string {
@@ -1560,7 +1924,7 @@ type FirewallTable struct {
 
 func (x *FirewallTable) Reset() {
 	*x = FirewallTable{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[22]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1572,7 +1936,7 @@ func (x *FirewallTable) String() string {
 func (*FirewallTable) ProtoMessage() {}
 
 func (x *FirewallTable) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[22]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1585,7 +1949,7 @@ func (x *FirewallTable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallTable.ProtoReflect.Descriptor instead.
 func (*FirewallTable) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{22}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *FirewallTable) GetFamily() string {
@@ -1622,7 +1986,7 @@ type FirewallChain struct {
 
 func (x *FirewallChain) Reset() {
 	*x = FirewallChain{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[23]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1634,7 +1998,7 @@ func (x *FirewallChain) String() string {
 func (*FirewallChain) ProtoMessage() {}
 
 func (x *FirewallChain) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[23]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1647,7 +2011,7 @@ func (x *FirewallChain) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallChain.ProtoReflect.Descriptor instead.
 func (*FirewallChain) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{23}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *FirewallChain) GetName() string {
@@ -1696,7 +2060,7 @@ type FirewallRule struct {
 
 func (x *FirewallRule) Reset() {
 	*x = FirewallRule{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[24]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1708,7 +2072,7 @@ func (x *FirewallRule) String() string {
 func (*FirewallRule) ProtoMessage() {}
 
 func (x *FirewallRule) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[24]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1721,7 +2085,7 @@ func (x *FirewallRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallRule.ProtoReflect.Descriptor instead.
 func (*FirewallRule) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{24}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *FirewallRule) GetExpressions() []string {
@@ -1759,7 +2123,7 @@ type DNSState struct {
 
 func (x *DNSState) Reset() {
 	*x = DNSState{}
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[25]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1771,7 +2135,7 @@ func (x *DNSState) String() string {
 func (*DNSState) ProtoMessage() {}
 
 func (x *DNSState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[25]
+	mi := &file_internal_hostagent_proto_hostagent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1784,7 +2148,7 @@ func (x *DNSState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DNSState.ProtoReflect.Descriptor instead.
 func (*DNSState) Descriptor() ([]byte, []int) {
-	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{25}
+	return file_internal_hostagent_proto_hostagent_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DNSState) GetScope() string {
@@ -1839,10 +2203,12 @@ const file_internal_hostagent_proto_hostagent_proto_rawDesc = "" +
 	"\rApplyResponse\x12,\n" +
 	"\x03vms\x18\x01 \x03(\v2\x1a.hostagent.VMObservedStateR\x03vms\x129\n" +
 	"\anetwork\x18\x02 \x01(\v2\x1f.hostagent.NetworkObservedStateR\anetwork\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"M\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x83\x01\n" +
 	"\rStatusRequest\x12\"\n" +
 	"\x03vms\x18\x01 \x03(\v2\x10.hostagent.VMRefR\x03vms\x12\x18\n" +
-	"\anetwork\x18\x02 \x01(\bR\anetwork\"\x93\x01\n" +
+	"\anetwork\x18\x02 \x01(\bR\anetwork\x12\x19\n" +
+	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12\x19\n" +
+	"\blist_vms\x18\x04 \x01(\bR\alistVms\"\x93\x01\n" +
 	"\x0eStatusResponse\x12,\n" +
 	"\x03vms\x18\x01 \x03(\v2\x1a.hostagent.VMObservedStateR\x03vms\x129\n" +
 	"\anetwork\x18\x02 \x01(\v2\x1f.hostagent.NetworkObservedStateR\anetwork\x12\x18\n" +
@@ -1852,21 +2218,61 @@ const file_internal_hostagent_proto_hostagent_proto_rawDesc = "" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"y\n" +
 	"\x10HostDesiredState\x12+\n" +
 	"\x03vms\x18\x01 \x03(\v2\x19.hostagent.VMDesiredStateR\x03vms\x128\n" +
-	"\anetwork\x18\x02 \x01(\v2\x1e.hostagent.NetworkDesiredStateR\anetwork\"j\n" +
+	"\anetwork\x18\x02 \x01(\v2\x1e.hostagent.NetworkDesiredStateR\anetwork\"\x8d\x01\n" +
 	"\x0eVMDesiredState\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
-	"\rmanifest_path\x18\x02 \x01(\tR\fmanifestPath\x12#\n" +
-	"\rdesired_state\x18\x03 \x01(\tR\fdesiredState\"<\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
+	"\broot_dir\x18\x02 \x01(\tR\arootDir\x12#\n" +
+	"\rdesired_state\x18\x03 \x01(\tR\fdesiredState\x12+\n" +
+	"\x06config\x18\x04 \x01(\v2\x13.hostagent.VMConfigR\x06config\"F\n" +
 	"\x05VMRef\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
-	"\rmanifest_path\x18\x02 \x01(\tR\fmanifestPath\"\xa7\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
+	"\broot_dir\x18\x03 \x01(\tR\arootDir\"\xaf\x01\n" +
 	"\x0fVMObservedState\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
-	"\rmanifest_path\x18\x02 \x01(\tR\fmanifestPath\x12\x16\n" +
-	"\x06status\x18\x03 \x01(\tR\x06status\x12\x10\n" +
-	"\x03pid\x18\x04 \x01(\x05R\x03pid\x12\x1b\n" +
-	"\tpublic_ip\x18\x05 \x01(\tR\bpublicIp\x12\x18\n" +
-	"\amessage\x18\x06 \x01(\tR\amessage\"\x89\x03\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x10\n" +
+	"\x03pid\x18\x03 \x01(\x05R\x03pid\x12\x1b\n" +
+	"\tpublic_ip\x18\x04 \x01(\tR\bpublicIp\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\x12+\n" +
+	"\x06config\x18\x06 \x01(\v2\x13.hostagent.VMConfigR\x06config\"\x8a\x05\n" +
+	"\bVMConfig\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
+	"\bimage_id\x18\x03 \x01(\tR\aimageId\x12\x1a\n" +
+	"\blocation\x18\x04 \x01(\tR\blocation\x12!\n" +
+	"\fmachine_type\x18\x05 \x01(\tR\vmachineType\x12\x14\n" +
+	"\x05cores\x18\x06 \x01(\rR\x05cores\x12\x1d\n" +
+	"\n" +
+	"memory_mib\x18\a \x01(\rR\tmemoryMib\x123\n" +
+	"\x16init_origin_public_key\x18\b \x01(\tR\x13initOriginPublicKey\x12\x1b\n" +
+	"\tpublic_ip\x18\t \x01(\tR\bpublicIp\x12\x1f\n" +
+	"\vmac_address\x18\n" +
+	" \x01(\tR\n" +
+	"macAddress\x12\x1f\n" +
+	"\vkernel_path\x18\v \x01(\tR\n" +
+	"kernelPath\x12\x1f\n" +
+	"\vinitrd_path\x18\f \x01(\tR\n" +
+	"initrdPath\x12!\n" +
+	"\fcmdline_path\x18\r \x01(\tR\vcmdlinePath\x12$\n" +
+	"\x0eroot_disk_path\x18\x0e \x01(\tR\frootDiskPath\x12\"\n" +
+	"\rboot_iso_path\x18\x0f \x01(\tR\vbootIsoPath\x12!\n" +
+	"\fmetadata_iso\x18\x10 \x01(\tR\vmetadataIso\x12!\n" +
+	"\fartifact_dir\x18\x11 \x01(\tR\vartifactDir\x124\n" +
+	"\anetwork\x18\x12 \x01(\v2\x1a.hostagent.VMNetworkConfigR\anetwork\x12-\n" +
+	"\avolumes\x18\x13 \x03(\v2\x13.hostagent.VMVolumeR\avolumes\"\xae\x01\n" +
+	"\x0fVMNetworkConfig\x12\x1c\n" +
+	"\tinterface\x18\x01 \x01(\tR\tinterface\x12\x1d\n" +
+	"\n" +
+	"ip_address\x18\x02 \x01(\tR\tipAddress\x12#\n" +
+	"\rprefix_length\x18\x03 \x01(\x05R\fprefixLength\x12\x18\n" +
+	"\agateway\x18\x04 \x01(\tR\agateway\x12\x1f\n" +
+	"\vdns_servers\x18\x05 \x03(\tR\n" +
+	"dnsServers\"]\n" +
+	"\bVMVolume\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x19\n" +
+	"\bsize_mib\x18\x04 \x01(\x05R\asizeMib\"\x89\x03\n" +
 	"\x13NetworkDesiredState\x12#\n" +
 	"\rdesired_state\x18\x01 \x01(\tR\fdesiredState\x120\n" +
 	"\x06config\x18\x02 \x01(\v2\x18.hostagent.NetworkConfigR\x06config\x125\n" +
@@ -1999,7 +2405,7 @@ func file_internal_hostagent_proto_hostagent_proto_rawDescGZIP() []byte {
 	return file_internal_hostagent_proto_hostagent_proto_rawDescData
 }
 
-var file_internal_hostagent_proto_hostagent_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_internal_hostagent_proto_hostagent_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_internal_hostagent_proto_hostagent_proto_goTypes = []any{
 	(*ApplyRequest)(nil),         // 0: hostagent.ApplyRequest
 	(*ApplyResponse)(nil),        // 1: hostagent.ApplyResponse
@@ -2011,57 +2417,64 @@ var file_internal_hostagent_proto_hostagent_proto_goTypes = []any{
 	(*VMDesiredState)(nil),       // 7: hostagent.VMDesiredState
 	(*VMRef)(nil),                // 8: hostagent.VMRef
 	(*VMObservedState)(nil),      // 9: hostagent.VMObservedState
-	(*NetworkDesiredState)(nil),  // 10: hostagent.NetworkDesiredState
-	(*NetworkConfig)(nil),        // 11: hostagent.NetworkConfig
-	(*InstancePeer)(nil),         // 12: hostagent.InstancePeer
-	(*DevicePeer)(nil),           // 13: hostagent.DevicePeer
-	(*NamespacedInterface)(nil),  // 14: hostagent.NamespacedInterface
-	(*ExitRoute)(nil),            // 15: hostagent.ExitRoute
-	(*NetworkObservedState)(nil), // 16: hostagent.NetworkObservedState
-	(*NetworkState)(nil),         // 17: hostagent.NetworkState
-	(*NetworkInterface)(nil),     // 18: hostagent.NetworkInterface
-	(*NetworkAddress)(nil),       // 19: hostagent.NetworkAddress
-	(*NetworkRoute)(nil),         // 20: hostagent.NetworkRoute
-	(*WireGuardPeer)(nil),        // 21: hostagent.WireGuardPeer
-	(*FirewallTable)(nil),        // 22: hostagent.FirewallTable
-	(*FirewallChain)(nil),        // 23: hostagent.FirewallChain
-	(*FirewallRule)(nil),         // 24: hostagent.FirewallRule
-	(*DNSState)(nil),             // 25: hostagent.DNSState
+	(*VMConfig)(nil),             // 10: hostagent.VMConfig
+	(*VMNetworkConfig)(nil),      // 11: hostagent.VMNetworkConfig
+	(*VMVolume)(nil),             // 12: hostagent.VMVolume
+	(*NetworkDesiredState)(nil),  // 13: hostagent.NetworkDesiredState
+	(*NetworkConfig)(nil),        // 14: hostagent.NetworkConfig
+	(*InstancePeer)(nil),         // 15: hostagent.InstancePeer
+	(*DevicePeer)(nil),           // 16: hostagent.DevicePeer
+	(*NamespacedInterface)(nil),  // 17: hostagent.NamespacedInterface
+	(*ExitRoute)(nil),            // 18: hostagent.ExitRoute
+	(*NetworkObservedState)(nil), // 19: hostagent.NetworkObservedState
+	(*NetworkState)(nil),         // 20: hostagent.NetworkState
+	(*NetworkInterface)(nil),     // 21: hostagent.NetworkInterface
+	(*NetworkAddress)(nil),       // 22: hostagent.NetworkAddress
+	(*NetworkRoute)(nil),         // 23: hostagent.NetworkRoute
+	(*WireGuardPeer)(nil),        // 24: hostagent.WireGuardPeer
+	(*FirewallTable)(nil),        // 25: hostagent.FirewallTable
+	(*FirewallChain)(nil),        // 26: hostagent.FirewallChain
+	(*FirewallRule)(nil),         // 27: hostagent.FirewallRule
+	(*DNSState)(nil),             // 28: hostagent.DNSState
 }
 var file_internal_hostagent_proto_hostagent_proto_depIdxs = []int32{
 	6,  // 0: hostagent.ApplyRequest.desired_state:type_name -> hostagent.HostDesiredState
 	9,  // 1: hostagent.ApplyResponse.vms:type_name -> hostagent.VMObservedState
-	16, // 2: hostagent.ApplyResponse.network:type_name -> hostagent.NetworkObservedState
+	19, // 2: hostagent.ApplyResponse.network:type_name -> hostagent.NetworkObservedState
 	8,  // 3: hostagent.StatusRequest.vms:type_name -> hostagent.VMRef
 	9,  // 4: hostagent.StatusResponse.vms:type_name -> hostagent.VMObservedState
-	16, // 5: hostagent.StatusResponse.network:type_name -> hostagent.NetworkObservedState
+	19, // 5: hostagent.StatusResponse.network:type_name -> hostagent.NetworkObservedState
 	7,  // 6: hostagent.HostDesiredState.vms:type_name -> hostagent.VMDesiredState
-	10, // 7: hostagent.HostDesiredState.network:type_name -> hostagent.NetworkDesiredState
-	11, // 8: hostagent.NetworkDesiredState.config:type_name -> hostagent.NetworkConfig
-	12, // 9: hostagent.NetworkDesiredState.instances:type_name -> hostagent.InstancePeer
-	13, // 10: hostagent.NetworkDesiredState.devices:type_name -> hostagent.DevicePeer
-	14, // 11: hostagent.NetworkDesiredState.namespaced_interfaces:type_name -> hostagent.NamespacedInterface
-	15, // 12: hostagent.NetworkDesiredState.exit_routes:type_name -> hostagent.ExitRoute
-	17, // 13: hostagent.NetworkObservedState.state:type_name -> hostagent.NetworkState
-	19, // 14: hostagent.NetworkState.addresses:type_name -> hostagent.NetworkAddress
-	20, // 15: hostagent.NetworkState.routes:type_name -> hostagent.NetworkRoute
-	21, // 16: hostagent.NetworkState.wireguard_peers:type_name -> hostagent.WireGuardPeer
-	22, // 17: hostagent.NetworkState.firewall_tables:type_name -> hostagent.FirewallTable
-	25, // 18: hostagent.NetworkState.dns:type_name -> hostagent.DNSState
-	18, // 19: hostagent.NetworkState.interfaces:type_name -> hostagent.NetworkInterface
-	23, // 20: hostagent.FirewallTable.chains:type_name -> hostagent.FirewallChain
-	24, // 21: hostagent.FirewallChain.rules:type_name -> hostagent.FirewallRule
-	0,  // 22: hostagent.HostAgent.Apply:input_type -> hostagent.ApplyRequest
-	2,  // 23: hostagent.HostAgent.Status:input_type -> hostagent.StatusRequest
-	4,  // 24: hostagent.HostAgent.Shutdown:input_type -> hostagent.ShutdownRequest
-	1,  // 25: hostagent.HostAgent.Apply:output_type -> hostagent.ApplyResponse
-	3,  // 26: hostagent.HostAgent.Status:output_type -> hostagent.StatusResponse
-	5,  // 27: hostagent.HostAgent.Shutdown:output_type -> hostagent.ShutdownResponse
-	25, // [25:28] is the sub-list for method output_type
-	22, // [22:25] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	13, // 7: hostagent.HostDesiredState.network:type_name -> hostagent.NetworkDesiredState
+	10, // 8: hostagent.VMDesiredState.config:type_name -> hostagent.VMConfig
+	10, // 9: hostagent.VMObservedState.config:type_name -> hostagent.VMConfig
+	11, // 10: hostagent.VMConfig.network:type_name -> hostagent.VMNetworkConfig
+	12, // 11: hostagent.VMConfig.volumes:type_name -> hostagent.VMVolume
+	14, // 12: hostagent.NetworkDesiredState.config:type_name -> hostagent.NetworkConfig
+	15, // 13: hostagent.NetworkDesiredState.instances:type_name -> hostagent.InstancePeer
+	16, // 14: hostagent.NetworkDesiredState.devices:type_name -> hostagent.DevicePeer
+	17, // 15: hostagent.NetworkDesiredState.namespaced_interfaces:type_name -> hostagent.NamespacedInterface
+	18, // 16: hostagent.NetworkDesiredState.exit_routes:type_name -> hostagent.ExitRoute
+	20, // 17: hostagent.NetworkObservedState.state:type_name -> hostagent.NetworkState
+	22, // 18: hostagent.NetworkState.addresses:type_name -> hostagent.NetworkAddress
+	23, // 19: hostagent.NetworkState.routes:type_name -> hostagent.NetworkRoute
+	24, // 20: hostagent.NetworkState.wireguard_peers:type_name -> hostagent.WireGuardPeer
+	25, // 21: hostagent.NetworkState.firewall_tables:type_name -> hostagent.FirewallTable
+	28, // 22: hostagent.NetworkState.dns:type_name -> hostagent.DNSState
+	21, // 23: hostagent.NetworkState.interfaces:type_name -> hostagent.NetworkInterface
+	26, // 24: hostagent.FirewallTable.chains:type_name -> hostagent.FirewallChain
+	27, // 25: hostagent.FirewallChain.rules:type_name -> hostagent.FirewallRule
+	0,  // 26: hostagent.HostAgent.Apply:input_type -> hostagent.ApplyRequest
+	2,  // 27: hostagent.HostAgent.Status:input_type -> hostagent.StatusRequest
+	4,  // 28: hostagent.HostAgent.Shutdown:input_type -> hostagent.ShutdownRequest
+	1,  // 29: hostagent.HostAgent.Apply:output_type -> hostagent.ApplyResponse
+	3,  // 30: hostagent.HostAgent.Status:output_type -> hostagent.StatusResponse
+	5,  // 31: hostagent.HostAgent.Shutdown:output_type -> hostagent.ShutdownResponse
+	29, // [29:32] is the sub-list for method output_type
+	26, // [26:29] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_internal_hostagent_proto_hostagent_proto_init() }
@@ -2075,7 +2488,7 @@ func file_internal_hostagent_proto_hostagent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_hostagent_proto_hostagent_proto_rawDesc), len(file_internal_hostagent_proto_hostagent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -590,11 +590,6 @@ func (dbn *DBNotifier) Notify() {
 		log.Error(fmt.Errorf("failed to retrieve peer membership: %w", err))
 		return
 	}
-	reconcileRemovedCtx, reconcileRemovedCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := dbn.database.ReconcileRemovedSwarmionPeers(reconcileRemovedCtx, peerIDs); err != nil {
-		log.Debugf("failed to reconcile removed swarmion peers: %s", err.Error())
-	}
-	reconcileRemovedCancel()
 
 	instances, err := dbn.cm.GetInstances(true)
 	if err != nil {
@@ -618,6 +613,13 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 	userDevices = membership.FilterDevices(userDevices, peerIDs)
+
+	activePeerIDs := activeMembershipPeerIDs(replicationInstances, userDevices)
+	reconcileRemovedCtx, reconcileRemovedCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := dbn.database.ReconcileRemovedSwarmionPeers(reconcileRemovedCtx, activePeerIDs); err != nil {
+		log.Debugf("failed to reconcile removed swarmion peers: %s", err.Error())
+	}
+	reconcileRemovedCancel()
 
 	appRoutes := []network.AppRoute{}
 	if dbn.am != nil {
@@ -673,6 +675,26 @@ func (dbn *DBNotifier) Notify() {
 	if err := dbn.database.ReconcileReplicationPeers(context.Background(), membership.ReplicationCandidates(replicationInstances, userDevices)); err != nil {
 		log.Error(fmt.Errorf("failed to reconcile swarmion replication metadata: %w", err))
 	}
+}
+
+func activeMembershipPeerIDs(instances []provisioners.InstanceInfo, devices []user.UserDevice) map[string]struct{} {
+	peerIDs := make(map[string]struct{}, len(instances)+len(devices))
+	for _, instance := range instances {
+		if !provisioners.IsActiveInstance(instance) {
+			continue
+		}
+		peerID, err := instance.GetPeerID()
+		if err == nil && strings.TrimSpace(peerID) != "" {
+			peerIDs[peerID] = struct{}{}
+		}
+	}
+	for _, device := range devices {
+		peerID, err := db.PeerIDFromPublicKeyString(device.GetPublicKey())
+		if err == nil && strings.TrimSpace(peerID) != "" {
+			peerIDs[peerID] = struct{}{}
+		}
+	}
+	return peerIDs
 }
 
 func (dbn *DBNotifier) configureDNSForwarder(exitRoutes []network.ExitRoute) {

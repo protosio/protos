@@ -5,6 +5,7 @@ package e2eapic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -323,6 +324,26 @@ func WaitForInstanceAbsent(deadline time.Time, client pbApic.ProtosClientApiClie
 	return fmt.Errorf("instance %s remained after deletion: %w", instance.GetName(), lastErr)
 }
 
+func WaitForInstanceStatus(deadline time.Time, client pbApic.ProtosClientApiClient, name string, status string) (*pbApic.CloudInstance, error) {
+	var lastStatus string
+	for time.Now().Before(deadline) {
+		ctx, cancel := contextWithDeadline(deadline, 10*time.Second)
+		resp, err := client.GetInstance(ctx, &pbApic.GetInstanceRequest{Name: name})
+		cancel()
+		if err == nil && resp.GetInstance() != nil {
+			instance := resp.GetInstance()
+			lastStatus = instance.GetStatus()
+			if strings.EqualFold(strings.TrimSpace(instance.GetStatus()), strings.TrimSpace(status)) {
+				return instance, nil
+			}
+		} else if err != nil {
+			lastStatus = err.Error()
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return nil, fmt.Errorf("instance %s did not reach status %q before deadline; last status: %s", name, status, lastStatus)
+}
+
 func WaitForNoInstances(deadline time.Time, client pbApic.ProtosClientApiClient) error {
 	var lastErr error
 	for time.Now().Before(deadline) {
@@ -377,7 +398,8 @@ func WaitForRemoteFullMesh(deadline time.Time, client pbApic.ProtosClientApiClie
 					continue
 				}
 				if peers[targetPeerID] != "connected" {
-					lastErr = fmt.Errorf("%s sees %s (%s) as %q", source.GetName(), target.GetName(), targetPeerID, peers[targetPeerID])
+					diagnostic := RemotePeerDiagnostic(deadline, client, source.GetName(), targetPeerID)
+					lastErr = fmt.Errorf("%s sees %s (%s) as %q; runtime=%s", source.GetName(), target.GetName(), targetPeerID, peers[targetPeerID], diagnostic)
 					ready = false
 					break
 				}
@@ -392,6 +414,30 @@ func WaitForRemoteFullMesh(deadline time.Time, client pbApic.ProtosClientApiClie
 		time.Sleep(3 * time.Second)
 	}
 	return fmt.Errorf("VM full mesh did not become connected: %w", lastErr)
+}
+
+func RemotePeerDiagnostic(deadline time.Time, client pbApic.ProtosClientApiClient, instanceName string, peerID string) string {
+	state, err := RuntimeState(deadline, client, instanceName)
+	if err != nil {
+		return fmt.Sprintf("runtime state unavailable: %v", err)
+	}
+	status := RuntimePeerStatus(state, peerID)
+	if status == nil {
+		return RuntimeStateSummary(state)
+	}
+	return fmt.Sprintf(
+		"peer=%s connected=%t dialable=%t provider=%t compatible=%t relay_only=%t reason=%q addresses=%v last_dial_errors=%v state=%s",
+		status.GetPeerId(),
+		status.GetConnected(),
+		status.GetDialable(),
+		status.GetStateProvider(),
+		status.GetCompatible(),
+		status.GetRelayOnly(),
+		status.GetReason(),
+		status.GetAddresses(),
+		status.GetLastDialErrors(),
+		RuntimeStateSummary(state),
+	)
 }
 
 func WaitForRemotePeerConnection(deadline time.Time, client pbApic.ProtosClientApiClient, instances []*pbApic.CloudInstance, peerID string) error {
@@ -508,6 +554,8 @@ func WaitForPeerRemoved(deadline time.Time, client pbApic.ProtosClientApiClient,
 			lastErr = fmt.Errorf("connected peers still contain %s", peerID)
 		} else if RuntimePeerStatus(state, peerID) != nil {
 			lastErr = fmt.Errorf("runtime peer statuses still contain %s", peerID)
+		} else if RuntimeCompatibility(state, peerID) != nil {
+			lastErr = fmt.Errorf("runtime compatibility still contains %s", peerID)
 		} else {
 			return nil
 		}
@@ -518,6 +566,53 @@ func WaitForPeerRemoved(deadline time.Time, client pbApic.ProtosClientApiClient,
 		time.Sleep(3 * time.Second)
 	}
 	return fmt.Errorf("runtime peer %s remained after deletion: %w", peerID, lastErr)
+}
+
+func WaitForPeerRemovedFromRuntimes(deadline time.Time, client pbApic.ProtosClientApiClient, instances []*pbApic.CloudInstance, peerID string) error {
+	var lastErr error
+	var lastReport time.Time
+	for time.Now().Before(deadline) {
+		remaining := make([]string, 0, len(instances))
+		for _, instance := range instances {
+			if instance == nil {
+				continue
+			}
+			state, err := RuntimeState(deadline, client, instance.GetName())
+			if err != nil {
+				remaining = append(remaining, instance.GetName()+": "+err.Error())
+				continue
+			}
+			if err := peerAbsentFromRuntimeState(state, peerID); err != nil {
+				remaining = append(remaining, instance.GetName()+": "+err.Error())
+			}
+		}
+		if len(remaining) == 0 {
+			return nil
+		}
+		lastErr = fmt.Errorf("%s", strings.Join(remaining, "; "))
+		if time.Since(lastReport) >= 30*time.Second {
+			lastReport = time.Now()
+			fmt.Printf("waiting for remote runtime peer removal: peer=%s err=%v\n", peerID, lastErr)
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return fmt.Errorf("remote runtimes still observed peer %s: %w", peerID, lastErr)
+}
+
+func peerAbsentFromRuntimeState(state *pbApic.RuntimeState, peerID string) error {
+	if stringSet(state.GetStateProviders())[peerID] {
+		return fmt.Errorf("state providers still contain %s", peerID)
+	}
+	if stringSet(state.GetConnectedPeers())[peerID] {
+		return fmt.Errorf("connected peers still contain %s", peerID)
+	}
+	if RuntimePeerStatus(state, peerID) != nil {
+		return fmt.Errorf("runtime peer statuses still contain %s", peerID)
+	}
+	if RuntimeCompatibility(state, peerID) != nil {
+		return fmt.Errorf("runtime compatibility still contains %s", peerID)
+	}
+	return nil
 }
 
 func RuntimeState(deadline time.Time, client pbApic.ProtosClientApiClient, instance string) (*pbApic.RuntimeState, error) {
@@ -791,6 +886,32 @@ func UploadImageArchive(deadline time.Time, client pbApic.ProtosClientApiClient,
 	uploadID := fmt.Sprintf("seed-%d", time.Now().UnixNano())
 	buf := make([]byte, 1024*1024)
 	var offset uint64
+	total := uint64(info.Size())
+	started := time.Now()
+	lastReport := started
+	var lastReportedBytes uint64
+	reportedProgress := false
+	nextPercentReport := uint64(0)
+	fmt.Printf("remote seed image archive upload started: instance=%s image=%s path=%s size=%s\n", instanceName, imageRef, absPath, formatByteCount(total))
+	reportProgress := func(force bool, received uint64) {
+		percent := uint64(100)
+		if total > 0 && received < total {
+			percent = received * 100 / total
+		}
+		if force && reportedProgress && received == lastReportedBytes {
+			return
+		}
+		if !force && percent < nextPercentReport && time.Since(lastReport) < 15*time.Second {
+			return
+		}
+		lastReport = time.Now()
+		lastReportedBytes = received
+		reportedProgress = true
+		for nextPercentReport <= percent {
+			nextPercentReport += 10
+		}
+		fmt.Printf("remote seed image archive upload progress: instance=%s uploaded=%s/%s percent=%d elapsed=%s\n", instanceName, formatByteCount(received), formatByteCount(total), percent, time.Since(started).Round(time.Second))
+	}
 	for {
 		n, readErr := file.Read(buf)
 		eof := readErr == io.EOF
@@ -799,6 +920,11 @@ func UploadImageArchive(deadline time.Time, client pbApic.ProtosClientApiClient,
 		}
 		if n == 0 && !eof {
 			continue
+		}
+		if eof {
+			expectedReceived := offset + uint64(n)
+			reportProgress(true, expectedReceived)
+			fmt.Printf("remote seed image archive transfer complete: instance=%s image=%s uploaded=%s; waiting for runtime import\n", instanceName, imageRef, formatByteCount(expectedReceived))
 		}
 		ctx, cancel := contextWithDeadline(deadline, 2*time.Minute)
 		resp, err := client.UploadInstanceImageArchiveChunk(ctx, &pbApic.UploadInstanceImageArchiveChunkRequest{
@@ -815,14 +941,32 @@ func UploadImageArchive(deadline time.Time, client pbApic.ProtosClientApiClient,
 		}
 		offset = resp.GetReceivedBytes()
 		if !eof {
+			reportProgress(false, offset)
+		}
+		if !eof {
 			continue
 		}
 		if !resp.GetLoaded() {
 			return fmt.Errorf("seed image archive upload to %s reached EOF without loading image", instanceName)
 		}
-		fmt.Printf("remote seed image archive loaded: instance=%s image=%s digest=%s platform=%s bytes=%d\n", instanceName, resp.GetImageRef(), resp.GetTargetDigest(), resp.GetPlatform(), offset)
+		fmt.Printf("remote seed image archive loaded: instance=%s image=%s digest=%s platform=%s bytes=%s elapsed=%s\n", instanceName, resp.GetImageRef(), resp.GetTargetDigest(), resp.GetPlatform(), formatByteCount(offset), time.Since(started).Round(time.Second))
 		return nil
 	}
+}
+
+func formatByteCount(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%dB", bytes)
+	}
+	value := float64(bytes)
+	for _, suffix := range []string{"KiB", "MiB", "GiB", "TiB"} {
+		value /= unit
+		if value < unit {
+			return fmt.Sprintf("%.1f%s", value, suffix)
+		}
+	}
+	return fmt.Sprintf("%.1fPiB", value/unit)
 }
 
 func WaitForRemoteImageContentReady(deadline time.Time, client pbApic.ProtosClientApiClient, instanceName string, imageRef string) error {
@@ -1010,6 +1154,18 @@ func RuntimePeerStatus(state *pbApic.RuntimeState, peerID string) *pbApic.Runtim
 	return nil
 }
 
+func RuntimeCompatibility(state *pbApic.RuntimeState, peerID string) *pbApic.RuntimeCompatibility {
+	if state == nil {
+		return nil
+	}
+	for _, item := range state.GetCompatibility() {
+		if item.GetPeerId() == peerID {
+			return item
+		}
+	}
+	return nil
+}
+
 func RuntimeStateSummary(state *pbApic.RuntimeState) string {
 	if state == nil {
 		return "nil"
@@ -1040,6 +1196,141 @@ func Minutes(timeout time.Duration) int32 {
 		return 0
 	}
 	return int32((timeout + time.Minute - 1) / time.Minute)
+}
+
+func UploadProvisionerImage(deadline time.Time, client pbApic.ProtosClientApiClient, imagePath string, imageName string, provisionerName string, location string, timeout time.Duration) (string, error) {
+	ctx, cancel := contextWithDeadline(deadline, 30*time.Second)
+	resp, err := client.UploadProvisionerImage(ctx, &pbApic.UploadProvisionerImageRequest{
+		ImagePath:       imagePath,
+		ImageName:       imageName,
+		ProvisionerName: provisionerName,
+		Location:        location,
+		Timeout:         Minutes(timeout),
+	})
+	cancel()
+	if err != nil {
+		return "", err
+	}
+	taskID := strings.TrimSpace(resp.GetTaskId())
+	if taskID == "" {
+		return "", fmt.Errorf("upload image response did not include a task id")
+	}
+	fmt.Printf("queued image upload task: image=%s provisioner=%s location=%s task=%s\n", imageName, provisionerName, location, taskID)
+	task, err := WaitForTaskSucceeded(deadline, client, taskID)
+	if err != nil {
+		return "", err
+	}
+	imageID := uploadTaskImageID(task)
+	if imageID == "" {
+		return "", fmt.Errorf("upload task %s completed without image_id result: %s", taskID, task.GetResultJson())
+	}
+	return imageID, nil
+}
+
+func WaitForTaskSucceeded(deadline time.Time, client pbApic.ProtosClientApiClient, taskID string) (*pbApic.Task, error) {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil, fmt.Errorf("task id is empty")
+	}
+	ctx, cancel := contextWithDeadline(deadline, 0)
+	defer cancel()
+	stream, err := client.WatchTask(ctx, &pbApic.WatchTaskRequest{
+		Id:                  taskID,
+		IncludeSnapshot:     true,
+		IncludeEvents:       false,
+		HeartbeatIntervalMs: 10000,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("watch task %s: %w", taskID, err)
+	}
+
+	var latestStatus string
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return fetchTaskResult(deadline, client, taskID, latestStatus)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("watch task %s: %w", taskID, err)
+		}
+		if task := resp.GetTask(); task != nil && task.GetId() != "" {
+			latestStatus = task.GetStatus()
+			fmt.Printf("task snapshot: id=%s stream=%s status=%s progress=%d message=%s\n", task.GetId(), task.GetStream(), task.GetStatus(), task.GetProgress(), task.GetMessage())
+		}
+		if update := resp.GetUpdate(); update != nil {
+			latestStatus = update.GetStatus()
+			fmt.Printf("task progress: id=%s status=%s progress=%d durable=%t message=%s\n", update.GetTaskId(), update.GetStatus(), update.GetProgress(), update.GetDurable(), update.GetMessage())
+		}
+		if taskTerminalStatus(latestStatus) {
+			return fetchTaskResult(deadline, client, taskID, latestStatus)
+		}
+	}
+}
+
+func fetchTaskResult(deadline time.Time, client pbApic.ProtosClientApiClient, taskID string, latestStatus string) (*pbApic.Task, error) {
+	ctx, cancel := contextWithDeadline(deadline, 10*time.Second)
+	defer cancel()
+	resp, err := client.GetTask(ctx, &pbApic.GetTaskRequest{Id: taskID, IncludeEvents: false})
+	if err != nil {
+		return nil, fmt.Errorf("get task %s: %w", taskID, err)
+	}
+	task := resp.GetTask()
+	if task == nil || task.GetId() == "" {
+		return nil, fmt.Errorf("task %s not found", taskID)
+	}
+	if task.GetStatus() != "succeeded" {
+		if taskFailedStatus(task.GetStatus()) {
+			return nil, fmt.Errorf("task %s ended with status %s: %s", taskID, task.GetStatus(), taskErrorSummary(task))
+		}
+		if latestStatus != "" {
+			return nil, fmt.Errorf("task %s stream ended before success; latest=%s current=%s", taskID, latestStatus, task.GetStatus())
+		}
+		return nil, fmt.Errorf("task %s is %s, not succeeded", taskID, task.GetStatus())
+	}
+	return task, nil
+}
+
+func uploadTaskImageID(task *pbApic.Task) string {
+	if task == nil || strings.TrimSpace(task.GetResultJson()) == "" {
+		return ""
+	}
+	var result struct {
+		ImageID string `json:"image_id"`
+	}
+	if err := json.Unmarshal([]byte(task.GetResultJson()), &result); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(result.ImageID)
+}
+
+func taskTerminalStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "succeeded", "failed", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func taskFailedStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "failed", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func taskErrorSummary(task *pbApic.Task) string {
+	message := strings.TrimSpace(task.GetMessage())
+	errMessage := strings.TrimSpace(task.GetErrorMessage())
+	if errMessage == "" {
+		return message
+	}
+	if message == "" || message == "failed" {
+		return errMessage
+	}
+	return message + ": " + errMessage
 }
 
 func contextWithDeadline(deadline time.Time, max time.Duration) (context.Context, context.CancelFunc) {

@@ -264,6 +264,7 @@ func (cdp *containerdPlatform) LoadImageArchive(ctx context.Context, archivePath
 		importOpts = append(importOpts, client.WithIndexName(imageRef))
 	}
 
+	log.Infof("importing image archive into containerd: path=%s image=%s", archivePath, imageRef)
 	imported, err := cdp.client.Import(ctx, reader, importOpts...)
 	if err != nil {
 		return imageregistry.LoadedImage{}, fmt.Errorf("failed to import image archive %s: %w", archivePath, err)
@@ -284,6 +285,7 @@ func (cdp *containerdPlatform) LoadImageArchive(ctx context.Context, archivePath
 	if err := cdp.CreateImageFromContent(ctx, imageRef, descriptorFromOCI(target), map[string]string{imageregistry.SourceLabel: imageregistry.SourceLocalTar}); err != nil {
 		return imageregistry.LoadedImage{}, err
 	}
+	log.Infof("imported image archive into containerd: path=%s image=%s digest=%s platform=%s", archivePath, imageRef, target.Digest.String(), platforms.DefaultString())
 	return imageregistry.LoadedImage{
 		ImageRef:     imageRef,
 		TargetDigest: target.Digest.String(),

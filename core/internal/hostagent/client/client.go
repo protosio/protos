@@ -42,7 +42,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) ApplyVM(id string, manifestPath string, desiredState string) (*hostagentpb.VMObservedState, error) {
+func (c *Client) ApplyVM(id string, rootDir string, desiredState string, config *hostagentpb.VMConfig) (*hostagentpb.VMObservedState, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
 	defer cancel()
 
@@ -51,8 +51,9 @@ func (c *Client) ApplyVM(id string, manifestPath string, desiredState string) (*
 			Vms: []*hostagentpb.VMDesiredState{
 				{
 					Id:           id,
-					ManifestPath: manifestPath,
+					RootDir:      rootDir,
 					DesiredState: desiredState,
+					Config:       config,
 				},
 			},
 		},
@@ -70,15 +71,16 @@ func (c *Client) ApplyVM(id string, manifestPath string, desiredState string) (*
 	return state, nil
 }
 
-func (c *Client) VMStatus(id string, manifestPath string) (*hostagentpb.VMObservedState, error) {
+func (c *Client) VMStatus(id string, name string, rootDir string) (*hostagentpb.VMObservedState, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
 	defer cancel()
 
 	resp, err := c.client.Status(ctx, &hostagentpb.StatusRequest{
 		Vms: []*hostagentpb.VMRef{
 			{
-				Id:           id,
-				ManifestPath: manifestPath,
+				Id:      id,
+				Name:    name,
+				RootDir: rootDir,
 			},
 		},
 	})
@@ -89,6 +91,20 @@ func (c *Client) VMStatus(id string, manifestPath string) (*hostagentpb.VMObserv
 		return nil, fmt.Errorf("host agent status via %s returned no VM state", c.socket)
 	}
 	return resp.GetVms()[0], nil
+}
+
+func (c *Client) ListVMs(rootDir string) ([]*hostagentpb.VMObservedState, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer cancel()
+
+	resp, err := c.client.Status(ctx, &hostagentpb.StatusRequest{
+		RootDir: rootDir,
+		ListVms: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("host agent status via %s: %w", c.socket, err)
+	}
+	return resp.GetVms(), nil
 }
 
 func (c *Client) Shutdown() error {

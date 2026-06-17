@@ -43,6 +43,12 @@ func TestProtosCloudImageInfoParsesUpdatedAt(t *testing.T) {
 	if info.LogicalName != "release" {
 		t.Fatalf("logical name = %q, want release", info.LogicalName)
 	}
+	if info.DateSuffix != "20260615123456" {
+		t.Fatalf("date suffix = %q, want 20260615123456", info.DateSuffix)
+	}
+	if !info.Canonical {
+		t.Fatal("canonical should be true")
+	}
 	if info.UpdatedAt.IsZero() {
 		t.Fatal("updated time should be parsed from canonical suffix")
 	}

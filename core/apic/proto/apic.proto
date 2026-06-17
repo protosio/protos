@@ -49,6 +49,7 @@ service ProtosClientApi {
   rpc WatchChanges(WatchChangesRequest) returns (stream WatchChangesResponse) {}
   rpc GetTasks(GetTasksRequest) returns (GetTasksResponse) {}
   rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {}
+  rpc WatchTask(WatchTaskRequest) returns (stream WatchTaskResponse) {}
   rpc SetExitRoute(SetExitRouteRequest) returns (SetExitRouteResponse) {}
   rpc ClearExitRoute(ClearExitRouteRequest) returns (ClearExitRouteResponse) {}
   rpc GetProtosdReleases(GetProtosdReleasesRequest) returns (GetProtosdReleasesResponse) {}
@@ -728,6 +729,31 @@ message GetTaskResponse {
   repeated TaskEvent events = 2;
 }
 
+message TaskProgressUpdate {
+  string task_id = 1;
+  string status = 2;
+  string message = 3;
+  int32 progress = 4;
+  string details_json = 5;
+  string created_at = 6;
+  bool durable = 7;
+}
+
+message WatchTaskRequest {
+  string id = 1;
+  bool include_snapshot = 2;
+  bool include_events = 3;
+  uint32 heartbeat_interval_ms = 4;
+}
+
+message WatchTaskResponse {
+  uint64 sequence = 1;
+  Task task = 2;
+  repeated TaskEvent events = 3;
+  TaskProgressUpdate update = 4;
+  bool heartbeat = 5;
+}
+
 message SetExitRouteRequest {
   string instance = 1;
   string device_id = 2;
@@ -803,6 +829,10 @@ message CloudSpecificImage {
   string id = 1;
   string name = 2;
   string location = 3;
+  string logical_name = 4;
+  string date_suffix = 5;
+  int64 updated_at_unix = 6;
+  bool canonical = 7;
 }
 
 message Release {
@@ -844,6 +874,8 @@ message UploadCloudImageRequest {
 }
 
 message UploadCloudImageResponse {
+  string id = 1;
+  string task_id = 2;
 }
 
 message UploadProvisionerImageRequest {
@@ -855,6 +887,8 @@ message UploadProvisionerImageRequest {
 }
 
 message UploadProvisionerImageResponse {
+  string id = 1;
+  string task_id = 2;
 }
 
 message RemoveCloudImageRequest {

@@ -80,6 +80,64 @@ func TestGetProviderInstanceInfoPrefersProviderResourceID(t *testing.T) {
 	}
 }
 
+func TestActiveInstancesExcludesStoppedAndDeleting(t *testing.T) {
+	instances := []InstanceInfo{
+		{Name: "running", DesiredStatus: ServerStateRunning},
+		{Name: "stopped", DesiredStatus: ServerStateStopped},
+		{Name: "deleting", DesiredStatus: ServerStateDeleting},
+		{Name: "legacy"},
+	}
+
+	active := ActiveInstances(instances)
+	if len(active) != 2 {
+		t.Fatalf("active instances = %#v, want running and legacy only", active)
+	}
+	if active[0].Name != "running" || active[1].Name != "legacy" {
+		t.Fatalf("active instances = %#v, want running and legacy only", active)
+	}
+}
+
+func TestGetLocalInstanceReportsObservedStatus(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	cm := &Manager{
+		db:           store,
+		provisioners: newProvisionerRegistry(fakeDeploymentFactory{}),
+	}
+	if err := cm.AddProvisioner("local-test", "fake", nil); err != nil {
+		t.Fatal(err)
+	}
+	instance := InstanceInfo{
+		ID:                 db.MustNewUUIDv7(),
+		Name:               "local-vm",
+		Kind:               KindLocalVM,
+		KindID:             "local-test",
+		ProviderResourceID: "vm-local",
+		DesiredStatus:      ServerStateStopped,
+		PublicKey:          "public-key",
+		Location:           "local",
+	}
+	im, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(store, im, cmm); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := cm.GetInstance("local-vm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != ServerStateRunning {
+		t.Fatalf("status = %q, want observed running status", got.Status)
+	}
+
+	instances, err := cm.GetInstancesWithUpdatedStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(instances) != 1 || instances[0].Status != ServerStateRunning {
+		t.Fatalf("instances = %#v, want observed running local status", instances)
+	}
+}
+
 func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	cm := &Manager{
@@ -266,6 +324,63 @@ func TestDeleteInstanceReturnsVolumeDeleteErrorAndKeepsRecord(t *testing.T) {
 	}
 }
 
+func TestDeleteInstanceTreatsAttachedVolumeCleanupAsRetryable(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	provider := &fakeStopFailDeleteProvider{
+		instances: map[string]InstanceInfo{
+			"provider-vm-id": {
+				ID:                 "provider-vm-id",
+				Name:               "vm",
+				ProviderResourceID: "provider-vm-id",
+				Status:             ServerStateStopped,
+				Volumes: []VolumeInfo{
+					{VolumeID: "attached-volume-id", Name: "vm"},
+				},
+			},
+		},
+		volumeErr: fmt.Errorf("volume is attached to a server"),
+	}
+	cm := &Manager{
+		db:           store,
+		provisioners: newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}),
+	}
+	if err := cm.AddProvisioner("cloud-test", fakeStopFailDeleteType.String(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := InstanceInfo{
+		ID:                 db.MustNewUUIDv7(),
+		Name:               "vm",
+		Kind:               KindCloudVM,
+		KindID:             "cloud-test",
+		ProviderResourceID: "provider-vm-id",
+		DesiredStatus:      ServerStateRunning,
+		Location:           "test-location",
+	}
+	im, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(store, im, cmm); err != nil {
+		t.Fatal(err)
+	}
+
+	err := cm.DeleteInstance(context.Background(), "vm")
+	if err == nil {
+		t.Fatal("expected attached volume cleanup error")
+	}
+	if provider.deleteCalls != 0 {
+		t.Fatalf("delete calls = %d, want 0", provider.deleteCalls)
+	}
+	if provider.volumeDeleteCalls != 1 {
+		t.Fatalf("volume delete calls = %d, want 1", provider.volumeDeleteCalls)
+	}
+	stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID))
+	if err != nil {
+		t.Fatalf("expected instance row to remain for retry: %v", err)
+	}
+	if stored.DesiredStatus != ServerStateDeleting {
+		t.Fatalf("desired status = %q, want %q", stored.DesiredStatus, ServerStateDeleting)
+	}
+}
+
 func TestDeleteInstanceHonorsCanceledContextBeforeMutatingState(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	cm := &Manager{db: store}
@@ -382,9 +497,14 @@ func TestMergedReconciledInstancePreservesPeerIdentity(t *testing.T) {
 }
 
 type fakeReconcileComputeProvisioner struct {
+	ProvisionerMetadata
 	instances  map[string]InstanceInfo
 	startCalls int
 	stopCalls  int
+}
+
+func (f *fakeReconcileComputeProvisioner) Init() error {
+	return nil
 }
 
 func (f *fakeReconcileComputeProvisioner) SupportedLocations() []string {
@@ -429,6 +549,29 @@ func (f *fakeReconcileComputeProvisioner) GetInstanceInfo(id string, location st
 	return info, nil
 }
 
+const fakeReconcileType = Type("fake-reconcile")
+
+type fakeReconcileFactory struct {
+	provider *fakeReconcileComputeProvisioner
+}
+
+func (fakeReconcileFactory) Type() Type {
+	return fakeReconcileType
+}
+
+func (fakeReconcileFactory) AuthFields() []string {
+	return nil
+}
+
+func (f fakeReconcileFactory) NewClient(record ProvisionerRecord, deps ProvisionerDeps) (Provisioner, error) {
+	provider := f.provider
+	if provider == nil {
+		provider = &fakeReconcileComputeProvisioner{instances: map[string]InstanceInfo{}}
+	}
+	provider.ProvisionerMetadata = newProvisionerMetadata(record, nil)
+	return provider, nil
+}
+
 func TestReconcileComputeInstanceStartsStoppedInstance(t *testing.T) {
 	provider := &fakeReconcileComputeProvisioner{instances: map[string]InstanceInfo{
 		"provider-vm-id": {
@@ -462,6 +605,63 @@ func TestReconcileComputeInstanceStartsStoppedInstance(t *testing.T) {
 	}
 	if updated.PublicIP != "192.0.2.11" {
 		t.Fatalf("public IP = %q, want refreshed value", updated.PublicIP)
+	}
+}
+
+func TestReconcileDesiredInstancesAppliesLocalVMDesiredStatus(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	provider := &fakeReconcileComputeProvisioner{instances: map[string]InstanceInfo{
+		"provider-vm-id": {
+			ID:                 "provider-vm-id",
+			ProviderResourceID: "provider-vm-id",
+			Status:             ServerStateRunning,
+			PublicIP:           "192.0.2.10",
+		},
+	}}
+	cm := &Manager{
+		db:           store,
+		provisioners: newProvisionerRegistry(fakeReconcileFactory{provider: provider}),
+	}
+	if err := cm.AddProvisioner("local-test", fakeReconcileType.String(), nil); err != nil {
+		t.Fatal(err)
+	}
+	instance := InstanceInfo{
+		ID:                 db.MustNewUUIDv7(),
+		Name:               "local-vm",
+		Kind:               KindLocalVM,
+		KindID:             "local-test",
+		ProviderResourceID: "provider-vm-id",
+		DesiredStatus:      ServerStateStopped,
+		Status:             ServerStateRunning,
+		PublicKey:          "public-key",
+		PublicIP:           "192.0.2.10",
+		Location:           "local",
+	}
+	im, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(store, im, cmm); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cm.ReconcileDesiredInstances(); err != nil {
+		t.Fatal(err)
+	}
+	if provider.stopCalls != 1 {
+		t.Fatalf("stop calls = %d, want 1", provider.stopCalls)
+	}
+
+	stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.DesiredStatus != ServerStateStopped {
+		t.Fatalf("stored desired status = %q, want stopped", stored.DesiredStatus)
+	}
+	observed, err := cm.GetInstance(instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status != ServerStateStopped {
+		t.Fatalf("observed status = %q, want stopped", observed.Status)
 	}
 }
 

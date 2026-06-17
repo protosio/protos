@@ -18,6 +18,18 @@ device cleanup. Do not invoke `flutter run`, `flutter build`, `xcodebuild`, or
 needed workflow is missing or inconsistent, add or fix the Taskfile task first,
 then run that task.
 
+## Test And Debug Discipline
+
+When an integration or e2e test fails, repeat the failing test after gathering
+evidence, investigate the root cause through product APIs such as APIC and
+grpcurl, and fix the underlying issue rather than accepting one-off retries or
+test-specific workarounds. Prefer architecturally clean solutions that preserve
+the declarative-to-imperative layering: clients call core APIs, core owns product
+behavior, and imperative host/provider actions flow through the appropriate
+agent or provisioner API. Keep rerunning the relevant focused and end-to-end
+tests until the fix is demonstrated or the remaining blocker is clearly
+identified with evidence.
+
 For local client work use:
 
 - macOS: `task -t clients/macos/Taskfile.yml run` or `task -t

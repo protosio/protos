@@ -961,7 +961,7 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 	internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
 	var status string
 	peers := map[string]string{}
-	if strings.TrimSpace(instance.PublicKey) == "" {
+	if strings.TrimSpace(instance.PublicKey) == "" || !provisioners.IsActiveInstance(instance) {
 		status = instance.Status
 	} else {
 		client, err := b.protosClient.P2PManager.GetClient(instance.Name)
@@ -1408,6 +1408,87 @@ func (b *Backend) GetTask(ctx context.Context, in *pbApic.GetTaskRequest) (*pbAp
 	return resp, nil
 }
 
+func (b *Backend) WatchTask(in *pbApic.WatchTaskRequest, stream pbApic.ProtosClientApi_WatchTaskServer) error {
+	manager, err := b.taskManager()
+	if err != nil {
+		return err
+	}
+	id := strings.TrimSpace(in.GetId())
+	if id == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "task id is empty")
+	}
+	updates, cancel, err := manager.Subscribe(id)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+
+	record, err := manager.Get(id)
+	if err != nil {
+		return grpcstatus.Errorf(codes.NotFound, "failed to retrieve task %q: %v", id, err)
+	}
+	if in.GetIncludeSnapshot() {
+		resp := &pbApic.WatchTaskResponse{Task: taskRecordToProto(record)}
+		if in.GetIncludeEvents() {
+			events, err := manager.Events(record.ID)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve task events for '%s': %w", record.ID, err)
+			}
+			for _, event := range events {
+				resp.Events = append(resp.Events, taskEventToProto(event))
+			}
+		}
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+	}
+
+	var lastSequence uint64
+	if latest, found := manager.LatestProgress(id); found {
+		lastSequence = latest.Sequence
+		if err := stream.Send(&pbApic.WatchTaskResponse{
+			Sequence: latest.Sequence,
+			Update:   taskProgressUpdateToProto(latest),
+		}); err != nil {
+			return err
+		}
+	}
+
+	var ticks <-chan time.Time
+	var ticker *time.Ticker
+	if intervalMillis := in.GetHeartbeatIntervalMs(); intervalMillis > 0 {
+		ticker = time.NewTicker(time.Duration(intervalMillis) * time.Millisecond)
+		defer ticker.Stop()
+		ticks = ticker.C
+	}
+
+	ctx := stream.Context()
+	for {
+		select {
+		case update, ok := <-updates:
+			if !ok {
+				return nil
+			}
+			if update.Sequence <= lastSequence {
+				continue
+			}
+			lastSequence = update.Sequence
+			if err := stream.Send(&pbApic.WatchTaskResponse{
+				Sequence: update.Sequence,
+				Update:   taskProgressUpdateToProto(update),
+			}); err != nil {
+				return err
+			}
+		case <-ticks:
+			if err := stream.Send(&pbApic.WatchTaskResponse{Heartbeat: true}); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
 func (b *Backend) taskManager() (*tasks.Manager, error) {
 	if b.protosClient == nil || b.protosClient.CloudManager == nil {
 		return nil, fmt.Errorf("task manager is not configured")
@@ -1450,6 +1531,18 @@ func taskEventToProto(event tasks.Event) *pbApic.TaskEvent {
 		Progress:    int32(event.Progress),
 		DetailsJson: rawJSONText(event.Details),
 		CreatedAt:   formatTaskTime(event.CreatedAt),
+	}
+}
+
+func taskProgressUpdateToProto(update tasks.ProgressUpdate) *pbApic.TaskProgressUpdate {
+	return &pbApic.TaskProgressUpdate{
+		TaskId:      update.TaskID,
+		Status:      string(update.Status),
+		Message:     update.Message,
+		Progress:    int32(update.Progress),
+		DetailsJson: rawJSONText(update.Details),
+		CreatedAt:   formatTaskTime(update.CreatedAt),
+		Durable:     update.Durable,
 	}
 }
 
@@ -1691,17 +1784,14 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 			Reason:         peerStatus.Reason,
 		})
 	}
-	peerIDs, err := db.GetPeerIDs(b.protosClient.DB)
+	peerIDs, err := db.GetActiveRuntimePeerIDs(b.protosClient.DB)
 	if err != nil {
 		return nil, err
 	}
-	filterRuntimePeerSurface(out, peerIDs)
-	addKnownRuntimePeerStatuses(out, peerIDs)
 	metadata, err := b.runtimePeerReplicationMetadata()
 	if err != nil {
 		return nil, err
 	}
-	annotateRuntimePeerReplication(out, metadata)
 	compatibility, err := b.protosClient.DB.SwarmionCompatibility(ctx)
 	if err != nil {
 		return nil, err
@@ -1716,6 +1806,9 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 			Reason:       item.Reason,
 		})
 	}
+	filterRuntimePeerSurface(out, peerIDs)
+	addKnownRuntimePeerStatuses(out, peerIDs)
+	annotateRuntimePeerReplication(out, metadata)
 	if trace, ok := b.protosClient.DB.SwarmionContentSyncTrace(); ok {
 		out.ContentSyncTrace = append([]string(nil), trace...)
 	}
@@ -1750,6 +1843,7 @@ func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struc
 		connected[localPeerID] = struct{}{}
 	}
 	filteredStatuses := out.GetPeerStatuses()[:0]
+	seenStatuses := make(map[string]struct{}, len(out.GetPeerStatuses()))
 	for _, peerStatus := range out.GetPeerStatuses() {
 		if peerStatus == nil {
 			continue
@@ -1758,6 +1852,10 @@ func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struc
 		if _, found := allowed[peerID]; !found {
 			continue
 		}
+		if _, found := seenStatuses[peerID]; found {
+			continue
+		}
+		seenStatuses[peerID] = struct{}{}
 		if _, found := providers[peerID]; !found {
 			peerStatus.StateProvider = false
 		}
@@ -1769,6 +1867,23 @@ func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struc
 		filteredStatuses = append(filteredStatuses, peerStatus)
 	}
 	out.PeerStatuses = filteredStatuses
+	filteredCompatibility := out.GetCompatibility()[:0]
+	seenCompatibility := make(map[string]struct{}, len(out.GetCompatibility()))
+	for _, item := range out.GetCompatibility() {
+		if item == nil {
+			continue
+		}
+		peerID := strings.TrimSpace(item.GetPeerId())
+		if _, found := allowed[peerID]; !found {
+			continue
+		}
+		if _, found := seenCompatibility[peerID]; found {
+			continue
+		}
+		seenCompatibility[peerID] = struct{}{}
+		filteredCompatibility = append(filteredCompatibility, item)
+	}
+	out.Compatibility = filteredCompatibility
 }
 
 func filterStringsBySet(values []string, allowed map[string]struct{}) []string {
@@ -1895,6 +2010,9 @@ func (b *Backend) runtimePeerReplicationMetadata() (map[string]runtimePeerReplic
 			return nil, fmt.Errorf("load runtime instance replication metadata: %w", err)
 		}
 		for _, instance := range instances {
+			if !provisioners.IsActiveInstance(instance) {
+				continue
+			}
 			peerID, err := instance.GetPeerID()
 			if err != nil {
 				continue
@@ -2134,12 +2252,7 @@ func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesR
 	}
 	resp := pbApic.GetCloudImagesResponse{CloudImages: map[string]*pbApic.CloudSpecificImage{}}
 	for id, image := range images {
-		respImage := pbApic.CloudSpecificImage{
-			Id:       image.ID,
-			Name:     image.Name,
-			Location: image.Location,
-		}
-		resp.CloudImages[id] = &respImage
+		resp.CloudImages[id] = cloudSpecificImageProto(image)
 	}
 	return &resp, nil
 }
@@ -2164,29 +2277,48 @@ func (b *Backend) GetProvisionerImages(ctx context.Context, in *pbApic.GetProvis
 	}
 	resp := pbApic.GetProvisionerImagesResponse{Images: map[string]*pbApic.CloudSpecificImage{}}
 	for id, image := range images {
-		resp.Images[id] = &pbApic.CloudSpecificImage{
-			Id:       image.ID,
-			Name:     image.Name,
-			Location: image.Location,
-		}
+		resp.Images[id] = cloudSpecificImageProto(image)
 	}
 	return &resp, nil
+}
+
+func cloudSpecificImageProto(image provisioners.ImageInfo) *pbApic.CloudSpecificImage {
+	resp := &pbApic.CloudSpecificImage{
+		Id:          image.ID,
+		Name:        image.Name,
+		LogicalName: image.LogicalName,
+		DateSuffix:  image.DateSuffix,
+		Location:    image.Location,
+		Canonical:   image.Canonical,
+	}
+	if !image.UpdatedAt.IsZero() {
+		resp.UpdatedAtUnix = image.UpdatedAt.Unix()
+	}
+	return resp
 }
 
 func (b *Backend) UploadCloudImage(ctx context.Context, in *pbApic.UploadCloudImageRequest) (*pbApic.UploadCloudImageResponse, error) {
 	if err := b.requireProvisionerCapability("upload cloud image"); err != nil {
 		return nil, err
 	}
-	log.Debugf("Uploading cloud image '%s'(%s) to cloud '%s'", in.ImageName, in.ImagePath, in.CloudName)
-	return &pbApic.UploadCloudImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Minute)
+	log.Debugf("Queueing cloud image upload '%s'(%s) to cloud '%s'", in.ImageName, in.ImagePath, in.CloudName)
+	task, err := b.protosClient.CloudManager.QueueUploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	return &pbApic.UploadCloudImageResponse{TaskId: task.ID}, nil
 }
 
 func (b *Backend) UploadProvisionerImage(ctx context.Context, in *pbApic.UploadProvisionerImageRequest) (*pbApic.UploadProvisionerImageResponse, error) {
 	if err := b.requireProvisionerCapability("upload provisioner image"); err != nil {
 		return nil, err
 	}
-	log.Debugf("Uploading image '%s'(%s) to provisioner '%s'", in.ImageName, in.ImagePath, in.ProvisionerName)
-	return &pbApic.UploadProvisionerImageResponse{}, b.protosClient.CloudManager.UploadLocalImage(in.ImagePath, in.ImageName, in.ProvisionerName, in.Location, time.Duration(in.Timeout)*time.Minute)
+	log.Debugf("Queueing image upload '%s'(%s) to provisioner '%s'", in.ImageName, in.ImagePath, in.ProvisionerName)
+	task, err := b.protosClient.CloudManager.QueueUploadLocalImage(in.ImagePath, in.ImageName, in.ProvisionerName, in.Location, time.Duration(in.Timeout)*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	return &pbApic.UploadProvisionerImageResponse{TaskId: task.ID}, nil
 }
 
 func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudImageRequest) (*pbApic.RemoveCloudImageResponse, error) {

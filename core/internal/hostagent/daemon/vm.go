@@ -89,9 +89,16 @@ func (s *Server) Status(ctx context.Context, req *hostagentpb.StatusRequest) (*h
 		return nil, fmt.Errorf("host agent is shutting down")
 	}
 
-	resp := &hostagentpb.StatusResponse{Vms: make([]*hostagentpb.VMObservedState, 0, len(req.GetVms()))}
+	vmCapacity := len(req.GetVms())
+	if req.GetListVms() {
+		vmCapacity = 8
+	}
+	resp := &hostagentpb.StatusResponse{Vms: make([]*hostagentpb.VMObservedState, 0, vmCapacity)}
+	if req.GetListVms() {
+		resp.Vms = append(resp.Vms, s.listVMs(req.GetRootDir())...)
+	}
 	for _, vm := range req.GetVms() {
-		resp.Vms = append(resp.Vms, s.vmStatus(vm.GetId(), vm.GetManifestPath()))
+		resp.Vms = append(resp.Vms, s.vmStatus(vm))
 	}
 	if req.GetNetwork() {
 		resp.Network = s.networkStatus("")
@@ -147,15 +154,22 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) applyVM(vm *hostagentpb.VMDesiredState) *hostagentpb.VMObservedState {
-	id := strings.TrimSpace(vm.GetId())
-	manifestPath := strings.TrimSpace(vm.GetManifestPath())
-	if manifestPath == "" {
-		return observedError(id, manifestPath, "manifest path is required")
+	id := strings.TrimSpace(firstNonEmpty(vm.GetId(), vm.GetConfig().GetId()))
+	desired := strings.ToLower(strings.TrimSpace(vm.GetDesiredState()))
+	if desired == "" {
+		desired = desiredStateStopped
 	}
 
-	switch strings.ToLower(strings.TrimSpace(vm.GetDesiredState())) {
+	manifestPath, manifest, err := s.prepareVMManifest(vm)
+	if err != nil {
+		return observedError(id, err.Error())
+	}
+
+	switch desired {
+	case desiredStateConfig:
+		return observedFromManifest(manifestPath, manifest, "")
 	case desiredStateRunning:
-		return s.startVM(id, manifestPath)
+		return s.startVM(manifestPath)
 	case desiredStateStopped:
 		return s.stopVM(id, manifestPath)
 	case desiredStateDeleted:
@@ -163,51 +177,63 @@ func (s *Server) applyVM(vm *hostagentpb.VMDesiredState) *hostagentpb.VMObserved
 		if state.GetStatus() == stateError {
 			return state
 		}
+		if err := os.Remove(manifestPath); err != nil && !os.IsNotExist(err) {
+			return observedError(id, fmt.Sprintf("remove VM manifest: %v", err))
+		}
 		state.Status = desiredStateDeleted
 		return state
 	default:
-		return observedError(id, manifestPath, fmt.Sprintf("unknown desired state %q", vm.GetDesiredState()))
+		return observedError(id, fmt.Sprintf("unknown desired state %q", vm.GetDesiredState()))
 	}
 }
 
-func (s *Server) startVM(id string, manifestPath string) *hostagentpb.VMObservedState {
+func (s *Server) prepareVMManifest(vm *hostagentpb.VMDesiredState) (string, vmManifest, error) {
+	if vm.GetConfig() != nil {
+		return writeConfiguredVMManifest(vm.GetRootDir(), vm.GetConfig())
+	}
+	ref := &hostagentpb.VMRef{Id: vm.GetId(), RootDir: vm.GetRootDir()}
+	manifestPath, manifest, err := resolveVMManifest(ref)
+	if err != nil {
+		return "", vmManifest{}, err
+	}
+	return manifestPath, manifest, nil
+}
+
+func (s *Server) startVM(manifestPath string) *hostagentpb.VMObservedState {
 	manifest, err := readManifest(manifestPath)
 	if err != nil {
-		return observedError(id, manifestPath, err.Error())
-	}
-	if id == "" {
-		id = manifest.ID
+		return observedError("", err.Error())
 	}
 	if manifest.PID > 0 && processAlive(manifest.PID) {
 		if manifest.Status != stateRunning {
 			_ = updateManifest(manifestPath, map[string]any{manifestStatusField: stateRunning})
 			manifest.Status = stateRunning
 		}
-		return observedFromManifest(id, manifestPath, manifest, "")
+		return observedFromManifest(manifestPath, manifest, "")
 	}
 
 	if err := updateManifest(manifestPath, map[string]any{
 		manifestPIDField:    0,
 		manifestStatusField: stateChanging,
 	}); err != nil {
-		return observedError(id, manifestPath, err.Error())
+		return observedError(manifest.ID, err.Error())
 	}
 
 	executable, err := os.Executable()
 	if err != nil {
-		return observedError(id, manifestPath, fmt.Sprintf("resolve host agent executable: %v", err))
+		return observedError(manifest.ID, fmt.Sprintf("resolve host agent executable: %v", err))
 	}
 	executable, err = filepath.EvalSymlinks(executable)
 	if err != nil {
-		return observedError(id, manifestPath, fmt.Sprintf("resolve host agent executable symlink: %v", err))
+		return observedError(manifest.ID, fmt.Sprintf("resolve host agent executable symlink: %v", err))
 	}
 	if err := ensureVMRunnerEntitled(executable); err != nil {
-		return observedError(id, manifestPath, err.Error())
+		return observedError(manifest.ID, err.Error())
 	}
 
 	console, err := os.OpenFile(filepath.Join(filepath.Dir(manifestPath), consoleLogFile), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		return observedError(id, manifestPath, fmt.Sprintf("open VM console log: %v", err))
+		return observedError(manifest.ID, fmt.Sprintf("open VM console log: %v", err))
 	}
 	defer console.Close()
 
@@ -218,7 +244,7 @@ func (s *Server) startVM(id string, manifestPath string) *hostagentpb.VMObserved
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	closeParentFilesOnExec(console.Fd())
 	if err := cmd.Start(); err != nil {
-		return observedError(id, manifestPath, fmt.Sprintf("start VM process: %v", err))
+		return observedError(manifest.ID, fmt.Sprintf("start VM process: %v", err))
 	}
 
 	pid := cmd.Process.Pid
@@ -226,22 +252,22 @@ func (s *Server) startVM(id string, manifestPath string) *hostagentpb.VMObserved
 		manifestPIDField:    pid,
 		manifestStatusField: stateRunning,
 	}); err != nil {
-		return observedError(id, manifestPath, err.Error())
+		return observedError(manifest.ID, err.Error())
 	}
 	go waitVMProcess(manifestPath, pid, cmd)
 
 	manifest.PID = pid
 	manifest.Status = stateRunning
-	return observedFromManifest(id, manifestPath, manifest, "")
+	return observedFromManifest(manifestPath, manifest, "")
 }
 
 func (s *Server) stopVM(id string, manifestPath string) *hostagentpb.VMObservedState {
 	manifest, err := readManifest(manifestPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &hostagentpb.VMObservedState{Id: id, ManifestPath: manifestPath, Status: stateStopped}
+			return &hostagentpb.VMObservedState{Id: id, Status: stateStopped}
 		}
-		return observedError(id, manifestPath, err.Error())
+		return observedError(id, err.Error())
 	}
 	if id == "" {
 		id = manifest.ID
@@ -253,25 +279,25 @@ func (s *Server) stopVM(id string, manifestPath string) *hostagentpb.VMObservedS
 		})
 		manifest.PID = 0
 		manifest.Status = stateStopped
-		return observedFromManifest(id, manifestPath, manifest, "")
+		return observedFromManifest(manifestPath, manifest, "")
 	}
 
 	_ = updateManifest(manifestPath, map[string]any{manifestStatusField: stateChanging})
 	process, err := os.FindProcess(manifest.PID)
 	if err != nil {
-		return observedError(id, manifestPath, fmt.Sprintf("find VM process %d: %v", manifest.PID, err))
+		return observedError(id, fmt.Sprintf("find VM process %d: %v", manifest.PID, err))
 	}
 	if err := process.Signal(syscall.SIGTERM); err != nil && processAlive(manifest.PID) {
-		return observedError(id, manifestPath, fmt.Sprintf("stop VM process %d: %v", manifest.PID, err))
+		return observedError(id, fmt.Sprintf("stop VM process %d: %v", manifest.PID, err))
 	}
 	if !waitForProcessExit(manifest.PID, gracefulStopTimeout) {
 		if err := process.Signal(syscall.SIGTERM); err != nil && processAlive(manifest.PID) {
-			return observedError(id, manifestPath, fmt.Sprintf("force stop VM process %d: %v", manifest.PID, err))
+			return observedError(id, fmt.Sprintf("force stop VM process %d: %v", manifest.PID, err))
 		}
 	}
 	if !waitForProcessExit(manifest.PID, forcedStopTimeout) {
 		if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return observedError(id, manifestPath, fmt.Sprintf("kill VM process %d: %v", manifest.PID, err))
+			return observedError(id, fmt.Sprintf("kill VM process %d: %v", manifest.PID, err))
 		}
 		_ = waitForProcessExit(manifest.PID, forcedStopTimeout)
 	}
@@ -280,30 +306,40 @@ func (s *Server) stopVM(id string, manifestPath string) *hostagentpb.VMObservedS
 		manifestPIDField:    0,
 		manifestStatusField: stateStopped,
 	}); err != nil {
-		return observedError(id, manifestPath, err.Error())
+		return observedError(id, err.Error())
 	}
 	manifest.PID = 0
 	manifest.Status = stateStopped
-	return observedFromManifest(id, manifestPath, manifest, "")
+	return observedFromManifest(manifestPath, manifest, "")
 }
 
-func (s *Server) vmStatus(id string, manifestPath string) *hostagentpb.VMObservedState {
-	manifest, err := readManifest(manifestPath)
+func (s *Server) vmStatus(ref *hostagentpb.VMRef) *hostagentpb.VMObservedState {
+	id := strings.TrimSpace(ref.GetId())
+	manifestPath, manifest, err := resolveVMManifest(ref)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return &hostagentpb.VMObservedState{Id: id, Status: stateStopped}
+		}
+		return observedError(id, err.Error())
+	}
+	return s.observedVMStatus(manifestPath, manifest)
+}
+
+func (s *Server) observedVMStatus(manifestPath string, manifest vmManifest) *hostagentpb.VMObservedState {
+	current, err := readManifest(manifestPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &hostagentpb.VMObservedState{Id: id, ManifestPath: manifestPath, Status: stateStopped}
+			return &hostagentpb.VMObservedState{Id: manifest.ID, Status: stateStopped}
 		}
-		return observedError(id, manifestPath, err.Error())
+		return observedError(manifest.ID, err.Error())
 	}
-	if id == "" {
-		id = manifest.ID
-	}
+	manifest = current
 	if manifest.PID > 0 && processAlive(manifest.PID) {
 		if manifest.Status != stateRunning {
 			_ = updateManifest(manifestPath, map[string]any{manifestStatusField: stateRunning})
 			manifest.Status = stateRunning
 		}
-		return observedFromManifest(id, manifestPath, manifest, "")
+		return observedFromManifest(manifestPath, manifest, "")
 	}
 	if manifest.PID != 0 || manifest.Status == stateRunning || manifest.Status == stateChanging {
 		_ = updateManifest(manifestPath, map[string]any{
@@ -313,7 +349,35 @@ func (s *Server) vmStatus(id string, manifestPath string) *hostagentpb.VMObserve
 		manifest.PID = 0
 		manifest.Status = stateStopped
 	}
-	return observedFromManifest(id, manifestPath, manifest, "")
+	return observedFromManifest(manifestPath, manifest, "")
+}
+
+func (s *Server) listVMs(rootDir string) []*hostagentpb.VMObservedState {
+	rootDir = strings.TrimSpace(rootDir)
+	if rootDir == "" {
+		return []*hostagentpb.VMObservedState{observedError("", "root_dir is required")}
+	}
+	entries, err := os.ReadDir(hostAgentVMInstancesDir(rootDir))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return []*hostagentpb.VMObservedState{observedError("", err.Error())}
+	}
+	states := make([]*hostagentpb.VMObservedState, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		manifestPath := hostAgentVMManifestPath(rootDir, entry.Name())
+		manifest, err := readManifest(manifestPath)
+		if err != nil {
+			states = append(states, observedError(entry.Name(), err.Error()))
+			continue
+		}
+		states = append(states, s.observedVMStatus(manifestPath, manifest))
+	}
+	return states
 }
 
 func (s *Server) applyNetwork(desired *hostagentpb.NetworkDesiredState) *hostagentpb.NetworkObservedState {
@@ -596,15 +660,46 @@ func networkPeersFromProto(instances []*hostagentpb.InstancePeer, devices []*hos
 	return peers, nil
 }
 
-type manifest struct {
-	ID       string `json:"id"`
-	PublicIP string `json:"public_ip"`
-	Status   string `json:"status"`
-	PID      int    `json:"pid,omitempty"`
+type vmManifest struct {
+	ID                  string          `json:"id"`
+	Name                string          `json:"name"`
+	ImageID             string          `json:"image_id"`
+	Location            string          `json:"location"`
+	MachineType         string          `json:"machine_type"`
+	Cores               uint32          `json:"cores"`
+	MemoryMiB           uint32          `json:"memory_mib"`
+	InitOriginPublicKey string          `json:"init_origin_public_key"`
+	PublicIP            string          `json:"public_ip"`
+	MACAddress          string          `json:"mac_address"`
+	Status              string          `json:"status"`
+	PID                 int             `json:"pid,omitempty"`
+	KernelPath          string          `json:"kernel_path"`
+	InitrdPath          string          `json:"initrd_path"`
+	CmdlinePath         string          `json:"cmdline_path"`
+	RootDiskPath        string          `json:"root_disk_path,omitempty"`
+	BootISOPath         string          `json:"boot_iso_path,omitempty"`
+	MetadataISO         string          `json:"metadata_iso,omitempty"`
+	Network             vmNetworkConfig `json:"network,omitempty"`
+	Volumes             []vmVolume      `json:"volumes,omitempty"`
 }
 
-func readManifest(path string) (manifest, error) {
-	var m manifest
+type vmNetworkConfig struct {
+	Interface    string   `json:"interface"`
+	IPAddress    string   `json:"ip_address"`
+	PrefixLength int32    `json:"prefix_length"`
+	Gateway      string   `json:"gateway"`
+	DNSServers   []string `json:"dns_servers,omitempty"`
+}
+
+type vmVolume struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	SizeMiB int32  `json:"size_mib"`
+}
+
+func readManifest(path string) (vmManifest, error) {
+	var m vmManifest
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return m, err
@@ -613,6 +708,243 @@ func readManifest(path string) (manifest, error) {
 		return m, fmt.Errorf("decode VM manifest %s: %w", path, err)
 	}
 	return m, nil
+}
+
+func writeConfiguredVMManifest(rootDir string, config *hostagentpb.VMConfig) (string, vmManifest, error) {
+	manifestPath, err := manifestPathForConfig(rootDir, config)
+	if err != nil {
+		return "", vmManifest{}, err
+	}
+	manifest := manifestFromProto(config)
+	if manifest.ID == "" {
+		return "", vmManifest{}, fmt.Errorf("VM id is required")
+	}
+	existing, err := readManifest(manifestPath)
+	if err == nil {
+		manifest.PID = existing.PID
+		manifest.Status = existing.Status
+	} else if !os.IsNotExist(err) {
+		return "", vmManifest{}, err
+	}
+	if manifest.Status == "" {
+		manifest.Status = stateStopped
+	}
+	if err := writeManifest(manifestPath, manifest); err != nil {
+		return "", vmManifest{}, err
+	}
+	return manifestPath, manifest, nil
+}
+
+func writeManifest(path string, manifest vmManifest) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".manifest-*.json")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if info, err := os.Stat(path); err == nil {
+		if err := preserveManifestMetadata(tmpPath, info); err != nil {
+			_ = os.Remove(tmpPath)
+			return err
+		}
+	} else if os.IsNotExist(err) {
+		if err := os.Chmod(tmpPath, 0644); err != nil {
+			_ = os.Remove(tmpPath)
+			return err
+		}
+	} else {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
+func resolveVMManifest(ref *hostagentpb.VMRef) (string, vmManifest, error) {
+	rootDir := strings.TrimSpace(ref.GetRootDir())
+	if rootDir == "" {
+		return "", vmManifest{}, fmt.Errorf("root_dir is required")
+	}
+	if id := strings.TrimSpace(ref.GetId()); id != "" {
+		manifestPath := hostAgentVMManifestPath(rootDir, id)
+		manifest, err := readManifest(manifestPath)
+		return manifestPath, manifest, err
+	}
+	name := strings.TrimSpace(ref.GetName())
+	if name == "" {
+		return "", vmManifest{}, fmt.Errorf("VM id or name is required")
+	}
+	entries, err := os.ReadDir(hostAgentVMInstancesDir(rootDir))
+	if err != nil {
+		return "", vmManifest{}, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		manifestPath := hostAgentVMManifestPath(rootDir, entry.Name())
+		manifest, err := readManifest(manifestPath)
+		if err != nil {
+			continue
+		}
+		if manifest.Name == name {
+			return manifestPath, manifest, nil
+		}
+	}
+	return "", vmManifest{}, os.ErrNotExist
+}
+
+func manifestPathForConfig(rootDir string, config *hostagentpb.VMConfig) (string, error) {
+	if config == nil {
+		return "", fmt.Errorf("VM config is required")
+	}
+	id, err := cleanVMID(config.GetId())
+	if err != nil {
+		return "", err
+	}
+	if artifactDir := strings.TrimSpace(config.GetArtifactDir()); artifactDir != "" {
+		return filepath.Join(artifactDir, "manifest.json"), nil
+	}
+	rootDir = strings.TrimSpace(rootDir)
+	if rootDir == "" {
+		return "", fmt.Errorf("root_dir or config.artifact_dir is required")
+	}
+	return hostAgentVMManifestPath(rootDir, id), nil
+}
+
+func hostAgentVMInstancesDir(rootDir string) string {
+	return filepath.Join(rootDir, "instances")
+}
+
+func hostAgentVMManifestPath(rootDir string, id string) string {
+	cleanID, err := cleanVMID(id)
+	if err != nil {
+		cleanID = strings.TrimSpace(id)
+	}
+	return filepath.Join(hostAgentVMInstancesDir(rootDir), cleanID, "manifest.json")
+}
+
+func cleanVMID(id string) (string, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "", fmt.Errorf("VM id is required")
+	}
+	if id == "." || id == ".." || strings.ContainsAny(id, `/\`) {
+		return "", fmt.Errorf("invalid VM id %q", id)
+	}
+	return id, nil
+}
+
+func manifestFromProto(config *hostagentpb.VMConfig) vmManifest {
+	if config == nil {
+		return vmManifest{}
+	}
+	manifest := vmManifest{
+		ID:                  strings.TrimSpace(config.GetId()),
+		Name:                strings.TrimSpace(config.GetName()),
+		ImageID:             strings.TrimSpace(config.GetImageId()),
+		Location:            strings.TrimSpace(config.GetLocation()),
+		MachineType:         strings.TrimSpace(config.GetMachineType()),
+		Cores:               config.GetCores(),
+		MemoryMiB:           config.GetMemoryMib(),
+		InitOriginPublicKey: strings.TrimSpace(config.GetInitOriginPublicKey()),
+		PublicIP:            strings.TrimSpace(config.GetPublicIp()),
+		MACAddress:          strings.TrimSpace(config.GetMacAddress()),
+		KernelPath:          strings.TrimSpace(config.GetKernelPath()),
+		InitrdPath:          strings.TrimSpace(config.GetInitrdPath()),
+		CmdlinePath:         strings.TrimSpace(config.GetCmdlinePath()),
+		RootDiskPath:        strings.TrimSpace(config.GetRootDiskPath()),
+		BootISOPath:         strings.TrimSpace(config.GetBootIsoPath()),
+		MetadataISO:         strings.TrimSpace(config.GetMetadataIso()),
+	}
+	if network := config.GetNetwork(); network != nil {
+		manifest.Network = vmNetworkConfig{
+			Interface:    strings.TrimSpace(network.GetInterface()),
+			IPAddress:    strings.TrimSpace(network.GetIpAddress()),
+			PrefixLength: network.GetPrefixLength(),
+			Gateway:      strings.TrimSpace(network.GetGateway()),
+			DNSServers:   append([]string(nil), network.GetDnsServers()...),
+		}
+	}
+	for _, volume := range config.GetVolumes() {
+		if volume == nil {
+			continue
+		}
+		manifest.Volumes = append(manifest.Volumes, vmVolume{
+			ID:      strings.TrimSpace(volume.GetId()),
+			Name:    strings.TrimSpace(volume.GetName()),
+			Path:    strings.TrimSpace(volume.GetPath()),
+			SizeMiB: volume.GetSizeMib(),
+		})
+	}
+	return manifest
+}
+
+func protoFromManifest(manifestPath string, manifest vmManifest) *hostagentpb.VMConfig {
+	config := &hostagentpb.VMConfig{
+		Id:                  manifest.ID,
+		Name:                manifest.Name,
+		ImageId:             manifest.ImageID,
+		Location:            manifest.Location,
+		MachineType:         manifest.MachineType,
+		Cores:               manifest.Cores,
+		MemoryMib:           manifest.MemoryMiB,
+		InitOriginPublicKey: manifest.InitOriginPublicKey,
+		PublicIp:            manifest.PublicIP,
+		MacAddress:          manifest.MACAddress,
+		KernelPath:          manifest.KernelPath,
+		InitrdPath:          manifest.InitrdPath,
+		CmdlinePath:         manifest.CmdlinePath,
+		RootDiskPath:        manifest.RootDiskPath,
+		BootIsoPath:         manifest.BootISOPath,
+		MetadataIso:         manifest.MetadataISO,
+		ArtifactDir:         filepath.Dir(manifestPath),
+	}
+	config.Network = &hostagentpb.VMNetworkConfig{
+		Interface:    manifest.Network.Interface,
+		IpAddress:    manifest.Network.IPAddress,
+		PrefixLength: manifest.Network.PrefixLength,
+		Gateway:      manifest.Network.Gateway,
+		DnsServers:   append([]string(nil), manifest.Network.DNSServers...),
+	}
+	for _, volume := range manifest.Volumes {
+		config.Volumes = append(config.Volumes, &hostagentpb.VMVolume{
+			Id:      volume.ID,
+			Name:    volume.Name,
+			Path:    volume.Path,
+			SizeMib: volume.SizeMiB,
+		})
+	}
+	return config
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func updateManifest(path string, updates map[string]any) error {
@@ -682,26 +1014,22 @@ func preserveManifestMetadata(path string, info os.FileInfo) error {
 	return nil
 }
 
-func observedFromManifest(id string, manifestPath string, manifest manifest, message string) *hostagentpb.VMObservedState {
-	if id == "" {
-		id = manifest.ID
-	}
+func observedFromManifest(manifestPath string, manifest vmManifest, message string) *hostagentpb.VMObservedState {
 	return &hostagentpb.VMObservedState{
-		Id:           id,
-		ManifestPath: manifestPath,
-		Status:       manifest.Status,
-		Pid:          int32(manifest.PID),
-		PublicIp:     manifest.PublicIP,
-		Message:      message,
+		Id:       manifest.ID,
+		Status:   manifest.Status,
+		Pid:      int32(manifest.PID),
+		PublicIp: manifest.PublicIP,
+		Message:  message,
+		Config:   protoFromManifest(manifestPath, manifest),
 	}
 }
 
-func observedError(id string, manifestPath string, message string) *hostagentpb.VMObservedState {
+func observedError(id string, message string) *hostagentpb.VMObservedState {
 	return &hostagentpb.VMObservedState{
-		Id:           id,
-		ManifestPath: manifestPath,
-		Status:       stateError,
-		Message:      message,
+		Id:      id,
+		Status:  stateError,
+		Message: message,
 	}
 }
 

@@ -94,6 +94,20 @@ func TestGetPeersKeysByPeerID(t *testing.T) {
 	}
 }
 
+func TestDisconnectedKnownPeerCountIgnoresExtraPendingClients(t *testing.T) {
+	known := map[string]Machine{
+		"peer-a": testMachine{id: "peer-a"},
+		"peer-b": testMachine{id: "peer-b"},
+	}
+	connected := map[string]*Client{
+		"peer-a":       {},
+		"pending-peer": {},
+	}
+	if got := disconnectedKnownPeerCount(known, connected); got != 1 {
+		t.Fatalf("disconnectedKnownPeerCount() = %d, want 1", got)
+	}
+}
+
 func TestDestinationStringsIncludeWireGuardIPv6WithoutPublicIP(t *testing.T) {
 	machine, peerID, internalIP := newTestMachine(t, "")
 	p2p := newTestP2P()
@@ -206,6 +220,44 @@ func TestDiscoverPeerAtLearnsRemoteIdentityWithFakePeerID(t *testing.T) {
 	}
 }
 
+func TestRemovePeerUnregistersExternalDBPeer(t *testing.T) {
+	localKey, err := pcrypto.GetLocalKey(t.TempDir())
+	if err != nil {
+		t.Fatalf("local key: %v", err)
+	}
+	externalDB := &recordingExternalDB{testExternalDB: testExternalDB{initialized: true}}
+	p2p, err := NewManager(localKey, nil, externalDB, 0)
+	if err != nil {
+		t.Fatalf("manager: %v", err)
+	}
+	defer p2p.host.Close()
+
+	machine, peerID, _ := newTestMachine(t, "203.0.113.10")
+	if trackedPeerID, err := p2p.trackPeer(machine); err != nil {
+		t.Fatalf("track peer: %v", err)
+	} else if trackedPeerID != peerID {
+		t.Fatalf("trackPeer() = %s, want %s", trackedPeerID, peerID)
+	}
+	p2p.pendingPeers.Set(peerID, true)
+
+	if err := p2p.RemovePeer(machine); err != nil {
+		t.Fatalf("RemovePeer() error = %v", err)
+	}
+
+	if _, found := p2p.machines.Get(peerID); found {
+		t.Fatalf("machine map still has removed peer %s", peerID)
+	}
+	if _, found := p2p.peerStates.Get(peerID); found {
+		t.Fatalf("peer state map still has removed peer %s", peerID)
+	}
+	if pending, found := p2p.pendingPeers.Get(peerID); found || pending {
+		t.Fatalf("pending peer map still has removed peer %s", peerID)
+	}
+	if !slices.Equal(externalDB.removed, []string{peerID}) {
+		t.Fatalf("external DB removals = %#v, want [%s]", externalDB.removed, peerID)
+	}
+}
+
 func TestTofuTransportAddrsPreferTCPBeforeQUIC(t *testing.T) {
 	p2p := &P2P{p2pPort: 1234}
 
@@ -239,6 +291,11 @@ type testExternalDB struct {
 	initialized bool
 }
 
+type recordingExternalDB struct {
+	testExternalDB
+	removed []string
+}
+
 func (f testExternalDB) AddPeer(string, *grpc.ClientConn) error { return nil }
 func (f testExternalDB) RemovePeer(string) error                { return nil }
 func (f testExternalDB) GetAllCommits() ([]db.Commit, error)    { return nil, nil }
@@ -254,3 +311,8 @@ func (f testExternalDB) EnableGRPCServers(*grpc.Server) error {
 	return nil
 }
 func (f testExternalDB) Initialized() bool { return f.initialized }
+
+func (f *recordingExternalDB) RemovePeer(peerID string) error {
+	f.removed = append(f.removed, peerID)
+	return nil
+}

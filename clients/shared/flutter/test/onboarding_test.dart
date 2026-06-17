@@ -337,5 +337,15 @@ class _FakeNativeProtosBridge implements NativeProtosBridge {
   }
 
   @override
+  Stream<pb.WatchTaskResponse> watchTask({
+    required String id,
+    bool includeSnapshot = true,
+    bool includeEvents = false,
+    int heartbeatIntervalMs = 0,
+  }) {
+    return const Stream.empty();
+  }
+
+  @override
   void dispose() {}
 }

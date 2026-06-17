@@ -108,6 +108,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.GetTasksRequest request);
   $async.Future<$0.GetTaskResponse> getTask(
       $pb.ServerContext ctx, $0.GetTaskRequest request);
+  $async.Future<$0.WatchTaskResponse> watchTask(
+      $pb.ServerContext ctx, $0.WatchTaskRequest request);
   $async.Future<$0.SetExitRouteResponse> setExitRoute(
       $pb.ServerContext ctx, $0.SetExitRouteRequest request);
   $async.Future<$0.ClearExitRouteResponse> clearExitRoute(
@@ -232,6 +234,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.GetTasksRequest();
       case 'GetTask':
         return $0.GetTaskRequest();
+      case 'WatchTask':
+        return $0.WatchTaskRequest();
       case 'SetExitRoute':
         return $0.SetExitRouteRequest();
       case 'ClearExitRoute':
@@ -366,6 +370,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return getTasks(ctx, request as $0.GetTasksRequest);
       case 'GetTask':
         return getTask(ctx, request as $0.GetTaskRequest);
+      case 'WatchTask':
+        return watchTask(ctx, request as $0.WatchTaskRequest);
       case 'SetExitRoute':
         return setExitRoute(ctx, request as $0.SetExitRouteRequest);
       case 'ClearExitRoute':

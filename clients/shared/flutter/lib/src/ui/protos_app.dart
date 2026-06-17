@@ -2550,6 +2550,7 @@ class _ReleasesViewState extends State<ReleasesView> {
   final imageName = TextEditingController();
   final location = TextEditingController(text: 'local');
   final timeout = TextEditingController(text: '600');
+  final retentionDays = TextEditingController(text: '30');
   String selectedImage = '';
 
   @override
@@ -2561,6 +2562,7 @@ class _ReleasesViewState extends State<ReleasesView> {
       imageName,
       location,
       timeout,
+      retentionDays,
     ]) {
       controller.addListener(_refreshControls);
     }
@@ -2575,12 +2577,19 @@ class _ReleasesViewState extends State<ReleasesView> {
     imageName.dispose();
     location.dispose();
     timeout.dispose();
+    retentionDays.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final model = AppScope.of(context);
+    final selectedImageEntry = _selectedProvisionerImage(model, selectedImage);
+    final cleanupDays = int.tryParse(retentionDays.text);
+    final cleanupEnabled =
+        provisioner.text.nonEmpty != null &&
+        cleanupDays != null &&
+        cleanupDays > 0;
 
     return DetailScroll(
       child: Column(
@@ -2647,8 +2656,10 @@ class _ReleasesViewState extends State<ReleasesView> {
             onSelect: (id) => setState(() => selectedImage = id),
             idForRow: (row) => row.key,
             columns: [
-              RowColumn('Key', (row) => row.key),
               RowColumn('Name', (row) => row.value.name),
+              RowColumn('Logical', (row) => row.value.logicalName),
+              RowColumn('Date', (row) => _imageDateLabel(row.value)),
+              RowColumn('Age', (row) => _imageAgeLabel(row.value)),
               RowColumn('Location', (row) => row.value.location),
               RowColumn('ID', (row) => row.value.id),
             ],
@@ -2685,6 +2696,14 @@ class _ReleasesViewState extends State<ReleasesView> {
                   decoration: textField('Timeout'),
                 ),
               ),
+              FieldBox(
+                width: 110,
+                child: TextField(
+                  controller: retentionDays,
+                  keyboardType: TextInputType.number,
+                  decoration: textField('Keep days'),
+                ),
+              ),
               FilledButton.icon(
                 onPressed:
                     provisioner.text.nonEmpty == null ||
@@ -2693,20 +2712,17 @@ class _ReleasesViewState extends State<ReleasesView> {
                     ? null
                     : () => unawaited(
                         model.run(() async {
-                          await model.api.uploadProvisionerImage(
+                          final upload = await model.api.uploadProvisionerImage(
                             imagePath: imagePath.text,
                             imageName: imageName.text,
                             provisioner: provisioner.text,
                             location: location.text,
                             timeout: int.tryParse(timeout.text) ?? 600,
                           );
-                          final response = await model.api.provisionerImages(
-                            provisioner.text,
-                          );
-                          model.setProvisionerImages(
-                            response.images,
-                            notify: false,
-                          );
+                          await model.refreshTasks(notify: false);
+                          if (upload.taskId.nonEmpty != null) {
+                            await model.selectTask(upload.taskId);
+                          }
                         }),
                       ),
                 icon: const Icon(Icons.upload_outlined),
@@ -2716,13 +2732,41 @@ class _ReleasesViewState extends State<ReleasesView> {
                 label: 'Remove',
                 icon: Icons.delete_outline,
                 destructive: true,
-                enabled: selectedImage.nonEmpty != null,
+                enabled: selectedImageEntry != null,
                 action: (model) async {
+                  final row = selectedImageEntry;
+                  if (row == null) {
+                    return;
+                  }
                   await model.api.removeProvisionerImage(
-                    imageName: selectedImage,
+                    imageName: row.value.name.nonEmpty ?? row.value.id,
                     provisioner: provisioner.text,
-                    location: location.text,
+                    location: row.value.location,
                   );
+                  final response = await model.api.provisionerImages(
+                    provisioner.text,
+                  );
+                  model.setProvisionerImages(response.images, notify: false);
+                },
+              ),
+              CommandButton(
+                label: 'Remove Old',
+                icon: Icons.auto_delete_outlined,
+                destructive: true,
+                enabled: cleanupEnabled,
+                action: (model) async {
+                  final days = int.tryParse(retentionDays.text);
+                  if (days == null || days <= 0) {
+                    return;
+                  }
+                  final candidates = _oldProvisionerImages(model, days);
+                  for (final row in candidates) {
+                    await model.api.removeProvisionerImage(
+                      imageName: row.value.name.nonEmpty ?? row.value.id,
+                      provisioner: provisioner.text,
+                      location: row.value.location,
+                    );
+                  }
                   final response = await model.api.provisionerImages(
                     provisioner.text,
                   );
@@ -2734,6 +2778,35 @@ class _ReleasesViewState extends State<ReleasesView> {
         ],
       ),
     );
+  }
+
+  MapEntry<String, pb.CloudSpecificImage>? _selectedProvisionerImage(
+    AppModel model,
+    String id,
+  ) {
+    for (final row in model.sortedProvisionerImages) {
+      if (row.key == id) {
+        return row;
+      }
+    }
+    return null;
+  }
+
+  List<MapEntry<String, pb.CloudSpecificImage>> _oldProvisionerImages(
+    AppModel model,
+    int days,
+  ) {
+    final cutoff =
+        DateTime.now().subtract(Duration(days: days)).millisecondsSinceEpoch ~/
+        1000;
+    return model.sortedProvisionerImages
+        .where(
+          (row) =>
+              row.value.canonical &&
+              row.value.updatedAtUnix.toInt() > 0 &&
+              row.value.updatedAtUnix.toInt() < cutoff,
+        )
+        .toList(growable: false);
   }
 }
 
@@ -3329,13 +3402,11 @@ class _CommitGraphTextCell extends StatelessWidget {
     this.text, {
     required this.width,
     this.monospace = false,
-    this.color,
   });
 
   final String text;
   final double width;
   final bool monospace;
-  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -3347,10 +3418,7 @@ class _CommitGraphTextCell extends StatelessWidget {
           fallbackText(text),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontFamily: monospace ? 'monospace' : null,
-            color: color,
-          ),
+          style: TextStyle(fontFamily: monospace ? 'monospace' : null),
         ),
       ),
     );
@@ -4198,6 +4266,45 @@ String _taskDateLabel(String value) {
   final h = local.hour.toString().padLeft(2, '0');
   final min = local.minute.toString().padLeft(2, '0');
   return '$y-$m-$d $h:$min';
+}
+
+String _imageDateLabel(pb.CloudSpecificImage image) {
+  final unixSeconds = image.updatedAtUnix.toInt();
+  if (unixSeconds > 0) {
+    final date = DateTime.fromMillisecondsSinceEpoch(
+      unixSeconds * 1000,
+      isUtc: true,
+    ).toLocal();
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    final h = date.hour.toString().padLeft(2, '0');
+    final min = date.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min';
+  }
+  return image.dateSuffix.nonEmpty ?? 'n/a';
+}
+
+String _imageAgeLabel(pb.CloudSpecificImage image) {
+  final unixSeconds = image.updatedAtUnix.toInt();
+  if (unixSeconds <= 0) {
+    return 'n/a';
+  }
+  final updated = DateTime.fromMillisecondsSinceEpoch(
+    unixSeconds * 1000,
+    isUtc: true,
+  );
+  final age = DateTime.now().toUtc().difference(updated);
+  if (age.isNegative) {
+    return '0h';
+  }
+  if (age.inDays > 0) {
+    return '${age.inDays}d';
+  }
+  if (age.inHours > 0) {
+    return '${age.inHours}h';
+  }
+  return '<1h';
 }
 
 String _taskJson(String value) {

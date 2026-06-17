@@ -8465,6 +8465,328 @@ class GetTaskResponse extends $pb.GeneratedMessage {
   $pb.PbList<TaskEvent> get events => $_getList(1);
 }
 
+class TaskProgressUpdate extends $pb.GeneratedMessage {
+  factory TaskProgressUpdate({
+    $core.String? taskId,
+    $core.String? status,
+    $core.String? message,
+    $core.int? progress,
+    $core.String? detailsJson,
+    $core.String? createdAt,
+    $core.bool? durable,
+  }) {
+    final result = create();
+    if (taskId != null) result.taskId = taskId;
+    if (status != null) result.status = status;
+    if (message != null) result.message = message;
+    if (progress != null) result.progress = progress;
+    if (detailsJson != null) result.detailsJson = detailsJson;
+    if (createdAt != null) result.createdAt = createdAt;
+    if (durable != null) result.durable = durable;
+    return result;
+  }
+
+  TaskProgressUpdate._();
+
+  factory TaskProgressUpdate.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TaskProgressUpdate.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TaskProgressUpdate',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'taskId')
+    ..aOS(2, _omitFieldNames ? '' : 'status')
+    ..aOS(3, _omitFieldNames ? '' : 'message')
+    ..aI(4, _omitFieldNames ? '' : 'progress')
+    ..aOS(5, _omitFieldNames ? '' : 'detailsJson')
+    ..aOS(6, _omitFieldNames ? '' : 'createdAt')
+    ..aOB(7, _omitFieldNames ? '' : 'durable')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TaskProgressUpdate clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TaskProgressUpdate copyWith(void Function(TaskProgressUpdate) updates) =>
+      super.copyWith((message) => updates(message as TaskProgressUpdate))
+          as TaskProgressUpdate;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TaskProgressUpdate create() => TaskProgressUpdate._();
+  @$core.override
+  TaskProgressUpdate createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TaskProgressUpdate getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TaskProgressUpdate>(create);
+  static TaskProgressUpdate? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get taskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set taskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTaskId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get status => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set status($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasStatus() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearStatus() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get message => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set message($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasMessage() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMessage() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get progress => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set progress($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasProgress() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearProgress() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get detailsJson => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set detailsJson($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasDetailsJson() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearDetailsJson() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get createdAt => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set createdAt($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCreatedAt() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCreatedAt() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get durable => $_getBF(6);
+  @$pb.TagNumber(7)
+  set durable($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasDurable() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearDurable() => $_clearField(7);
+}
+
+class WatchTaskRequest extends $pb.GeneratedMessage {
+  factory WatchTaskRequest({
+    $core.String? id,
+    $core.bool? includeSnapshot,
+    $core.bool? includeEvents,
+    $core.int? heartbeatIntervalMs,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (includeSnapshot != null) result.includeSnapshot = includeSnapshot;
+    if (includeEvents != null) result.includeEvents = includeEvents;
+    if (heartbeatIntervalMs != null)
+      result.heartbeatIntervalMs = heartbeatIntervalMs;
+    return result;
+  }
+
+  WatchTaskRequest._();
+
+  factory WatchTaskRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory WatchTaskRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'WatchTaskRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOB(2, _omitFieldNames ? '' : 'includeSnapshot')
+    ..aOB(3, _omitFieldNames ? '' : 'includeEvents')
+    ..aI(4, _omitFieldNames ? '' : 'heartbeatIntervalMs',
+        fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchTaskRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchTaskRequest copyWith(void Function(WatchTaskRequest) updates) =>
+      super.copyWith((message) => updates(message as WatchTaskRequest))
+          as WatchTaskRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static WatchTaskRequest create() => WatchTaskRequest._();
+  @$core.override
+  WatchTaskRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static WatchTaskRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<WatchTaskRequest>(create);
+  static WatchTaskRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get includeSnapshot => $_getBF(1);
+  @$pb.TagNumber(2)
+  set includeSnapshot($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasIncludeSnapshot() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearIncludeSnapshot() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get includeEvents => $_getBF(2);
+  @$pb.TagNumber(3)
+  set includeEvents($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasIncludeEvents() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIncludeEvents() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get heartbeatIntervalMs => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set heartbeatIntervalMs($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasHeartbeatIntervalMs() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearHeartbeatIntervalMs() => $_clearField(4);
+}
+
+class WatchTaskResponse extends $pb.GeneratedMessage {
+  factory WatchTaskResponse({
+    $fixnum.Int64? sequence,
+    Task? task,
+    $core.Iterable<TaskEvent>? events,
+    TaskProgressUpdate? update,
+    $core.bool? heartbeat,
+  }) {
+    final result = create();
+    if (sequence != null) result.sequence = sequence;
+    if (task != null) result.task = task;
+    if (events != null) result.events.addAll(events);
+    if (update != null) result.update = update;
+    if (heartbeat != null) result.heartbeat = heartbeat;
+    return result;
+  }
+
+  WatchTaskResponse._();
+
+  factory WatchTaskResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory WatchTaskResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'WatchTaskResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..a<$fixnum.Int64>(
+        1, _omitFieldNames ? '' : 'sequence', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOM<Task>(2, _omitFieldNames ? '' : 'task', subBuilder: Task.create)
+    ..pPM<TaskEvent>(3, _omitFieldNames ? '' : 'events',
+        subBuilder: TaskEvent.create)
+    ..aOM<TaskProgressUpdate>(4, _omitFieldNames ? '' : 'update',
+        subBuilder: TaskProgressUpdate.create)
+    ..aOB(5, _omitFieldNames ? '' : 'heartbeat')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchTaskResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchTaskResponse copyWith(void Function(WatchTaskResponse) updates) =>
+      super.copyWith((message) => updates(message as WatchTaskResponse))
+          as WatchTaskResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static WatchTaskResponse create() => WatchTaskResponse._();
+  @$core.override
+  WatchTaskResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static WatchTaskResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<WatchTaskResponse>(create);
+  static WatchTaskResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get sequence => $_getI64(0);
+  @$pb.TagNumber(1)
+  set sequence($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSequence() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSequence() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  Task get task => $_getN(1);
+  @$pb.TagNumber(2)
+  set task(Task value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTask() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTask() => $_clearField(2);
+  @$pb.TagNumber(2)
+  Task ensureTask() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<TaskEvent> get events => $_getList(2);
+
+  @$pb.TagNumber(4)
+  TaskProgressUpdate get update => $_getN(3);
+  @$pb.TagNumber(4)
+  set update(TaskProgressUpdate value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasUpdate() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUpdate() => $_clearField(4);
+  @$pb.TagNumber(4)
+  TaskProgressUpdate ensureUpdate() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  $core.bool get heartbeat => $_getBF(4);
+  @$pb.TagNumber(5)
+  set heartbeat($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasHeartbeat() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearHeartbeat() => $_clearField(5);
+}
+
 class SetExitRouteRequest extends $pb.GeneratedMessage {
   factory SetExitRouteRequest({
     $core.String? instance,
@@ -9342,11 +9664,19 @@ class CloudSpecificImage extends $pb.GeneratedMessage {
     $core.String? id,
     $core.String? name,
     $core.String? location,
+    $core.String? logicalName,
+    $core.String? dateSuffix,
+    $fixnum.Int64? updatedAtUnix,
+    $core.bool? canonical,
   }) {
     final result = create();
     if (id != null) result.id = id;
     if (name != null) result.name = name;
     if (location != null) result.location = location;
+    if (logicalName != null) result.logicalName = logicalName;
+    if (dateSuffix != null) result.dateSuffix = dateSuffix;
+    if (updatedAtUnix != null) result.updatedAtUnix = updatedAtUnix;
+    if (canonical != null) result.canonical = canonical;
     return result;
   }
 
@@ -9366,6 +9696,10 @@ class CloudSpecificImage extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..aOS(3, _omitFieldNames ? '' : 'location')
+    ..aOS(4, _omitFieldNames ? '' : 'logicalName')
+    ..aOS(5, _omitFieldNames ? '' : 'dateSuffix')
+    ..aInt64(6, _omitFieldNames ? '' : 'updatedAtUnix')
+    ..aOB(7, _omitFieldNames ? '' : 'canonical')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9413,6 +9747,42 @@ class CloudSpecificImage extends $pb.GeneratedMessage {
   $core.bool hasLocation() => $_has(2);
   @$pb.TagNumber(3)
   void clearLocation() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get logicalName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set logicalName($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasLogicalName() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLogicalName() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get dateSuffix => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set dateSuffix($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasDateSuffix() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearDateSuffix() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get updatedAtUnix => $_getI64(5);
+  @$pb.TagNumber(6)
+  set updatedAtUnix($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasUpdatedAtUnix() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearUpdatedAtUnix() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get canonical => $_getBF(6);
+  @$pb.TagNumber(7)
+  set canonical($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasCanonical() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearCanonical() => $_clearField(7);
 }
 
 class Release extends $pb.GeneratedMessage {
@@ -9924,7 +10294,15 @@ class UploadCloudImageRequest extends $pb.GeneratedMessage {
 }
 
 class UploadCloudImageResponse extends $pb.GeneratedMessage {
-  factory UploadCloudImageResponse() => create();
+  factory UploadCloudImageResponse({
+    $core.String? id,
+    $core.String? taskId,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (taskId != null) result.taskId = taskId;
+    return result;
+  }
 
   UploadCloudImageResponse._();
 
@@ -9939,6 +10317,8 @@ class UploadCloudImageResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'UploadCloudImageResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'taskId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9960,6 +10340,24 @@ class UploadCloudImageResponse extends $pb.GeneratedMessage {
   static UploadCloudImageResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<UploadCloudImageResponse>(create);
   static UploadCloudImageResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get taskId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set taskId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTaskId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTaskId() => $_clearField(2);
 }
 
 class UploadProvisionerImageRequest extends $pb.GeneratedMessage {
@@ -10068,7 +10466,15 @@ class UploadProvisionerImageRequest extends $pb.GeneratedMessage {
 }
 
 class UploadProvisionerImageResponse extends $pb.GeneratedMessage {
-  factory UploadProvisionerImageResponse() => create();
+  factory UploadProvisionerImageResponse({
+    $core.String? id,
+    $core.String? taskId,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (taskId != null) result.taskId = taskId;
+    return result;
+  }
 
   UploadProvisionerImageResponse._();
 
@@ -10083,6 +10489,8 @@ class UploadProvisionerImageResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'UploadProvisionerImageResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'taskId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -10106,6 +10514,24 @@ class UploadProvisionerImageResponse extends $pb.GeneratedMessage {
   static UploadProvisionerImageResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<UploadProvisionerImageResponse>(create);
   static UploadProvisionerImageResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get taskId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set taskId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTaskId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTaskId() => $_clearField(2);
 }
 
 class RemoveCloudImageRequest extends $pb.GeneratedMessage {
@@ -12543,6 +12969,10 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetTaskRequest request) =>
       _client.invoke<GetTaskResponse>(
           ctx, 'ProtosClientApi', 'GetTask', request, GetTaskResponse());
+  $async.Future<WatchTaskResponse> watchTask(
+          $pb.ClientContext? ctx, WatchTaskRequest request) =>
+      _client.invoke<WatchTaskResponse>(
+          ctx, 'ProtosClientApi', 'WatchTask', request, WatchTaskResponse());
   $async.Future<SetExitRouteResponse> setExitRoute(
           $pb.ClientContext? ctx, SetExitRouteRequest request) =>
       _client.invoke<SetExitRouteResponse>(ctx, 'ProtosClientApi',
