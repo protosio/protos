@@ -11,7 +11,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,7 +20,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	hostagentclient "github.com/protosio/protos/internal/hostagent/client"
@@ -1648,18 +1646,6 @@ func newLocalMacOSMACAddress() (string, error) {
 	}
 	b[0] = (b[0] | 0x02) & 0xfe
 	return net.HardwareAddr(b[:]).String(), nil
-}
-
-func localMacOSProcessAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	err = process.Signal(syscall.Signal(0))
-	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 func localMacOSDHCPLeaseIPs() map[string]struct{} {

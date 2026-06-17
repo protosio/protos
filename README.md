@@ -18,13 +18,19 @@ Flutter UI with the Go FFI bridge in `core/cmd/protos-ffi-bridge`.
 
 ```sh
 go test ./clients/cli
-go test ./core/...
+task -t core/Taskfile.yaml test
+task -t core/Taskfile.yaml verify
 task -t clients/macos/Taskfile.yml build
 task -t clients/macos/Taskfile.yml run
 task -t clients/ios/Taskfile.yml build:no-tunnel
 task -t clients/ios/Taskfile.yml run:no-tunnel DEVICE=<device-id>
 task -t cloud-provisioning/Taskfile.yml image-contracts
 ```
+
+Use `task -t core/Taskfile.yaml test` instead of raw `go test ./core/...`.
+The core test path needs the same pure-Go Dolt/Swarmion tags used by the
+Taskfile; running Go directly can select native ICU/zstd dependencies that are
+not part of the normal backend test environment.
 
 ## Design Notes
 

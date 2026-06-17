@@ -1198,7 +1198,22 @@ func Minutes(timeout time.Duration) int32 {
 	return int32((timeout + time.Minute - 1) / time.Minute)
 }
 
+type UploadProvisionerImageResult struct {
+	ImageID string
+	TaskID  string
+	Task    *pbApic.Task
+	Events  []*pbApic.TaskEvent
+}
+
 func UploadProvisionerImage(deadline time.Time, client pbApic.ProtosClientApiClient, imagePath string, imageName string, provisionerName string, location string, timeout time.Duration) (string, error) {
+	result, err := UploadProvisionerImageDetailed(deadline, client, imagePath, imageName, provisionerName, location, timeout)
+	if err != nil {
+		return "", err
+	}
+	return result.ImageID, nil
+}
+
+func UploadProvisionerImageDetailed(deadline time.Time, client pbApic.ProtosClientApiClient, imagePath string, imageName string, provisionerName string, location string, timeout time.Duration) (UploadProvisionerImageResult, error) {
 	ctx, cancel := contextWithDeadline(deadline, 30*time.Second)
 	resp, err := client.UploadProvisionerImage(ctx, &pbApic.UploadProvisionerImageRequest{
 		ImagePath:       imagePath,
@@ -1209,49 +1224,58 @@ func UploadProvisionerImage(deadline time.Time, client pbApic.ProtosClientApiCli
 	})
 	cancel()
 	if err != nil {
-		return "", err
+		return UploadProvisionerImageResult{}, err
 	}
 	taskID := strings.TrimSpace(resp.GetTaskId())
 	if taskID == "" {
-		return "", fmt.Errorf("upload image response did not include a task id")
+		return UploadProvisionerImageResult{}, fmt.Errorf("upload image response did not include a task id")
 	}
 	fmt.Printf("queued image upload task: image=%s provisioner=%s location=%s task=%s\n", imageName, provisionerName, location, taskID)
-	task, err := WaitForTaskSucceeded(deadline, client, taskID)
+	task, events, err := WaitForTaskSucceededWithEvents(deadline, client, taskID)
 	if err != nil {
-		return "", err
+		return UploadProvisionerImageResult{}, err
 	}
 	imageID := uploadTaskImageID(task)
 	if imageID == "" {
-		return "", fmt.Errorf("upload task %s completed without image_id result: %s", taskID, task.GetResultJson())
+		return UploadProvisionerImageResult{}, fmt.Errorf("upload task %s completed without image_id result: %s", taskID, task.GetResultJson())
 	}
-	return imageID, nil
+	return UploadProvisionerImageResult{
+		ImageID: imageID,
+		TaskID:  taskID,
+		Task:    task,
+		Events:  events,
+	}, nil
 }
 
-func WaitForTaskSucceeded(deadline time.Time, client pbApic.ProtosClientApiClient, taskID string) (*pbApic.Task, error) {
+func WaitForTaskSucceededWithEvents(deadline time.Time, client pbApic.ProtosClientApiClient, taskID string) (*pbApic.Task, []*pbApic.TaskEvent, error) {
+	return waitForTaskSucceeded(deadline, client, taskID, true)
+}
+
+func waitForTaskSucceeded(deadline time.Time, client pbApic.ProtosClientApiClient, taskID string, includeEvents bool) (*pbApic.Task, []*pbApic.TaskEvent, error) {
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
-		return nil, fmt.Errorf("task id is empty")
+		return nil, nil, fmt.Errorf("task id is empty")
 	}
 	ctx, cancel := contextWithDeadline(deadline, 0)
 	defer cancel()
 	stream, err := client.WatchTask(ctx, &pbApic.WatchTaskRequest{
 		Id:                  taskID,
 		IncludeSnapshot:     true,
-		IncludeEvents:       false,
+		IncludeEvents:       includeEvents,
 		HeartbeatIntervalMs: 10000,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("watch task %s: %w", taskID, err)
+		return nil, nil, fmt.Errorf("watch task %s: %w", taskID, err)
 	}
 
 	var latestStatus string
 	for {
 		resp, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			return fetchTaskResult(deadline, client, taskID, latestStatus)
+			return fetchTaskResult(deadline, client, taskID, latestStatus, includeEvents)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("watch task %s: %w", taskID, err)
+			return nil, nil, fmt.Errorf("watch task %s: %w", taskID, err)
 		}
 		if task := resp.GetTask(); task != nil && task.GetId() != "" {
 			latestStatus = task.GetStatus()
@@ -1262,32 +1286,32 @@ func WaitForTaskSucceeded(deadline time.Time, client pbApic.ProtosClientApiClien
 			fmt.Printf("task progress: id=%s status=%s progress=%d durable=%t message=%s\n", update.GetTaskId(), update.GetStatus(), update.GetProgress(), update.GetDurable(), update.GetMessage())
 		}
 		if taskTerminalStatus(latestStatus) {
-			return fetchTaskResult(deadline, client, taskID, latestStatus)
+			return fetchTaskResult(deadline, client, taskID, latestStatus, includeEvents)
 		}
 	}
 }
 
-func fetchTaskResult(deadline time.Time, client pbApic.ProtosClientApiClient, taskID string, latestStatus string) (*pbApic.Task, error) {
+func fetchTaskResult(deadline time.Time, client pbApic.ProtosClientApiClient, taskID string, latestStatus string, includeEvents bool) (*pbApic.Task, []*pbApic.TaskEvent, error) {
 	ctx, cancel := contextWithDeadline(deadline, 10*time.Second)
 	defer cancel()
-	resp, err := client.GetTask(ctx, &pbApic.GetTaskRequest{Id: taskID, IncludeEvents: false})
+	resp, err := client.GetTask(ctx, &pbApic.GetTaskRequest{Id: taskID, IncludeEvents: includeEvents})
 	if err != nil {
-		return nil, fmt.Errorf("get task %s: %w", taskID, err)
+		return nil, nil, fmt.Errorf("get task %s: %w", taskID, err)
 	}
 	task := resp.GetTask()
 	if task == nil || task.GetId() == "" {
-		return nil, fmt.Errorf("task %s not found", taskID)
+		return nil, nil, fmt.Errorf("task %s not found", taskID)
 	}
 	if task.GetStatus() != "succeeded" {
 		if taskFailedStatus(task.GetStatus()) {
-			return nil, fmt.Errorf("task %s ended with status %s: %s", taskID, task.GetStatus(), taskErrorSummary(task))
+			return nil, nil, fmt.Errorf("task %s ended with status %s: %s", taskID, task.GetStatus(), taskErrorSummary(task))
 		}
 		if latestStatus != "" {
-			return nil, fmt.Errorf("task %s stream ended before success; latest=%s current=%s", taskID, latestStatus, task.GetStatus())
+			return nil, nil, fmt.Errorf("task %s stream ended before success; latest=%s current=%s", taskID, latestStatus, task.GetStatus())
 		}
-		return nil, fmt.Errorf("task %s is %s, not succeeded", taskID, task.GetStatus())
+		return nil, nil, fmt.Errorf("task %s is %s, not succeeded", taskID, task.GetStatus())
 	}
-	return task, nil
+	return task, resp.GetEvents(), nil
 }
 
 func uploadTaskImageID(task *pbApic.Task) string {

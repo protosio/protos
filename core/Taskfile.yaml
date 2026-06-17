@@ -46,11 +46,64 @@ tasks:
     cmds:
       - ./scripts/verify-contracts.sh
 
+  verify:
+    desc: Run contracts, tests, quality, security, and critical dependency freshness checks
+    cmds:
+      - task: verify:contracts
+      - task: test
+      - task: quality
+      - task: deps:freshness
+
   quality:
-    desc: Run code quality checks
+    desc: Run code quality and vulnerability checks
     cmds:
       - task: lint
       - task: deadcode
+      - task: deps:security
+
+  deps:check:
+    desc: Run vulnerability and critical dependency freshness checks
+    cmds:
+      - task: deps:security
+      - task: deps:freshness
+
+  deps:security:
+    desc: Run govulncheck with the canonical pure-Go backend tags
+    cmds:
+      - |
+        set -e
+        if command -v govulncheck >/dev/null 2>&1; then
+          vuln_cmd="govulncheck"
+        else
+          vuln_cmd="go run golang.org/x/vuln/cmd/govulncheck@latest"
+        fi
+        env \
+          GOCACHE={{.GO_TEST_CACHE}} \
+          CGO_ENABLED=0 \
+          GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" \
+          ${vuln_cmd} ./...
+      - for:
+          - ../clients/cli
+          - network/modules/ipc
+          - network/modules/networkextension
+          - network/modules/wireguard
+        cmd: |
+          cd {{.ITEM}}
+          if command -v govulncheck >/dev/null 2>&1; then
+            vuln_cmd="govulncheck"
+          else
+            vuln_cmd="go run golang.org/x/vuln/cmd/govulncheck@latest"
+          fi
+          env \
+            GOCACHE={{.GO_TEST_CACHE}} \
+            CGO_ENABLED=0 \
+            GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" \
+            ${vuln_cmd} ./...
+
+  deps:freshness:
+    desc: Check critical runtime, Swarmion, API, and cloud SDK dependencies against upstream
+    cmds:
+      - env GOCACHE={{.GO_TEST_CACHE}} CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./scripts/check-critical-deps.go
 
   lint:
     desc: Run golangci-lint
@@ -109,6 +162,11 @@ tasks:
           - network/modules/wireguard
         cmd: cd {{.ITEM}} && env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
 
+  test:go:
+    desc: Canonical replacement for raw go test ./... with the backend's pure-Go tags
+    cmds:
+      - task: test
+
   image:load:
     desc: Load a local image tar or tar.gz into the Protos app runtime
     cmds:
@@ -152,6 +210,12 @@ tasks:
     desc: Stop a running protos-hostagent for the selected socket
     cmds:
       - '"{{.HOSTAGENT_BIN}}" --socket "{{.HOSTAGENT_SOCKET}}" --stop-existing {{.CLI_ARGS}}'
+
+  e2e:full:
+    desc: Run local macOS and mixed-cloud E2E harnesses in the validated order
+    cmds:
+      - task: e2e:local-macos
+      - task: e2e:mixed-cloud
 
   e2e:local-macos:
     desc: Run the local macOS VM E2E harness

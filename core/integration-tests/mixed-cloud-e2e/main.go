@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -127,6 +128,9 @@ type mixedCloudRunSummary struct {
 	Providers        []mixedCloudSummaryProvider `json:"providers"`
 	Images           []mixedCloudSummaryImage    `json:"images"`
 	Instances        []mixedCloudSummaryInstance `json:"instances"`
+	Tasks            []mixedCloudSummaryTask     `json:"tasks,omitempty"`
+	RuntimeSnapshots []mixedCloudRuntimeSnapshot `json:"runtime_snapshots,omitempty"`
+	ImageSources     []mixedCloudImageSource     `json:"image_sources,omitempty"`
 	Cleanup          []mixedCloudSummaryCleanup  `json:"cleanup"`
 }
 
@@ -138,11 +142,13 @@ type mixedCloudSummaryProvider struct {
 }
 
 type mixedCloudSummaryImage struct {
-	Name     string `json:"name"`
-	ID       string `json:"id,omitempty"`
-	Provider string `json:"provider"`
-	Location string `json:"location"`
-	Status   string `json:"status"`
+	Name       string `json:"name"`
+	ID         string `json:"id,omitempty"`
+	Provider   string `json:"provider"`
+	Location   string `json:"location"`
+	SourcePath string `json:"source_path,omitempty"`
+	TaskID     string `json:"task_id,omitempty"`
+	Status     string `json:"status"`
 }
 
 type mixedCloudSummaryInstance struct {
@@ -165,6 +171,96 @@ type mixedCloudSummaryCleanup struct {
 	Location     string `json:"location,omitempty"`
 	Status       string `json:"status"`
 	Error        string `json:"error,omitempty"`
+	CompletedAt  string `json:"completed_at"`
+}
+
+type mixedCloudSummaryTask struct {
+	ID           string                       `json:"id"`
+	Stream       string                       `json:"stream"`
+	SubjectType  string                       `json:"subject_type"`
+	SubjectID    string                       `json:"subject_id"`
+	Status       string                       `json:"status"`
+	Title        string                       `json:"title,omitempty"`
+	Message      string                       `json:"message,omitempty"`
+	ErrorMessage string                       `json:"error_message,omitempty"`
+	Progress     int32                        `json:"progress"`
+	Provider     string                       `json:"provider,omitempty"`
+	Location     string                       `json:"location,omitempty"`
+	ImageName    string                       `json:"image_name,omitempty"`
+	ImageID      string                       `json:"image_id,omitempty"`
+	CreatedAt    string                       `json:"created_at,omitempty"`
+	StartedAt    string                       `json:"started_at,omitempty"`
+	FinishedAt   string                       `json:"finished_at,omitempty"`
+	Events       []mixedCloudSummaryTaskEvent `json:"events,omitempty"`
+}
+
+type mixedCloudSummaryTaskEvent struct {
+	ID          string `json:"id"`
+	Status      string `json:"status"`
+	Message     string `json:"message,omitempty"`
+	Progress    int32  `json:"progress"`
+	DetailsJSON string `json:"details_json,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+}
+
+type mixedCloudRuntimeSnapshot struct {
+	Phase                      string                        `json:"phase"`
+	Instance                   string                        `json:"instance"`
+	PeerID                     string                        `json:"peer_id,omitempty"`
+	CheckpointRootHash         string                        `json:"checkpoint_root_hash,omitempty"`
+	TentativeRootHash          string                        `json:"tentative_root_hash,omitempty"`
+	DurableMainRootHash        string                        `json:"durable_main_root_hash,omitempty"`
+	StateProviders             []string                      `json:"state_providers,omitempty"`
+	ConnectedPeers             []string                      `json:"connected_peers,omitempty"`
+	RuntimeRefreshPending      bool                          `json:"runtime_refresh_pending,omitempty"`
+	RuntimeRefreshLastError    string                        `json:"runtime_refresh_last_error,omitempty"`
+	RuntimeCheckpointPending   bool                          `json:"runtime_checkpoint_pending,omitempty"`
+	RuntimeCheckpointLastError string                        `json:"runtime_checkpoint_last_error,omitempty"`
+	PeerStatuses               []mixedCloudRuntimePeerStatus `json:"peer_statuses,omitempty"`
+	Compatibility              []mixedCloudRuntimeCompat     `json:"compatibility,omitempty"`
+	ContentSyncTrace           []string                      `json:"content_sync_trace,omitempty"`
+	Error                      string                        `json:"error,omitempty"`
+	CapturedAt                 string                        `json:"captured_at"`
+}
+
+type mixedCloudRuntimePeerStatus struct {
+	PeerID                 string            `json:"peer_id"`
+	Connected              bool              `json:"connected"`
+	Dialable               bool              `json:"dialable"`
+	StateProvider          bool              `json:"state_provider"`
+	Compatible             bool              `json:"compatible"`
+	Incompatible           bool              `json:"incompatible"`
+	Ignored                bool              `json:"ignored"`
+	RelayOnly              bool              `json:"relay_only"`
+	Reason                 string            `json:"reason,omitempty"`
+	Addresses              []string          `json:"addresses,omitempty"`
+	LastDialErrors         map[string]string `json:"last_dial_errors,omitempty"`
+	ReplicationPriority    int32             `json:"replication_priority,omitempty"`
+	ReplicationDeviceClass string            `json:"replication_device_class,omitempty"`
+}
+
+type mixedCloudRuntimeCompat struct {
+	PeerID       string `json:"peer_id"`
+	LocalDigest  string `json:"local_digest,omitempty"`
+	RemoteDigest string `json:"remote_digest,omitempty"`
+	Compatible   bool   `json:"compatible"`
+	Blocking     bool   `json:"blocking"`
+	Reason       string `json:"reason,omitempty"`
+}
+
+type mixedCloudImageSource struct {
+	Phase        string            `json:"phase"`
+	Instance     string            `json:"instance"`
+	ImageRef     string            `json:"image_ref"`
+	Found        bool              `json:"found"`
+	HasContent   bool              `json:"has_content"`
+	Source       string            `json:"source,omitempty"`
+	TargetDigest string            `json:"target_digest,omitempty"`
+	Platform     string            `json:"platform,omitempty"`
+	Labels       map[string]string `json:"labels,omitempty"`
+	Descriptors  int               `json:"descriptors"`
+	Error        string            `json:"error,omitempty"`
+	CapturedAt   string            `json:"captured_at"`
 }
 
 func newMixedCloudRunSummary(path string, workDir string, suffix string, imageName string, cfg harnessConfig) (*mixedCloudRunSummary, error) {
@@ -206,11 +302,19 @@ func (summary *mixedCloudRunSummary) setProviderStatus(name string, status strin
 	}
 }
 
-func (summary *mixedCloudRunSummary) addImage(provider string, name string, location string, id string) {
+func (summary *mixedCloudRunSummary) addImage(provider string, name string, location string, id string, sourcePath string, taskID string) {
 	if summary == nil {
 		return
 	}
-	summary.Images = append(summary.Images, mixedCloudSummaryImage{Name: name, ID: id, Provider: provider, Location: location, Status: "uploaded"})
+	summary.Images = append(summary.Images, mixedCloudSummaryImage{
+		Name:       name,
+		ID:         id,
+		Provider:   provider,
+		Location:   location,
+		SourcePath: sourcePath,
+		TaskID:     taskID,
+		Status:     "uploaded",
+	})
 }
 
 func (summary *mixedCloudRunSummary) setImageStatus(provider string, name string, location string, status string) {
@@ -224,6 +328,45 @@ func (summary *mixedCloudRunSummary) setImageStatus(provider string, name string
 			return
 		}
 	}
+}
+
+func (summary *mixedCloudRunSummary) addTask(provider string, location string, imageName string, imageID string, result e2eapic.UploadProvisionerImageResult) {
+	if summary == nil || result.Task == nil {
+		return
+	}
+	task := result.Task
+	item := mixedCloudSummaryTask{
+		ID:           task.GetId(),
+		Stream:       task.GetStream(),
+		SubjectType:  task.GetSubjectType(),
+		SubjectID:    task.GetSubjectId(),
+		Status:       task.GetStatus(),
+		Title:        task.GetTitle(),
+		Message:      task.GetMessage(),
+		ErrorMessage: task.GetErrorMessage(),
+		Progress:     task.GetProgress(),
+		Provider:     provider,
+		Location:     location,
+		ImageName:    imageName,
+		ImageID:      imageID,
+		CreatedAt:    task.GetCreatedAt(),
+		StartedAt:    task.GetStartedAt(),
+		FinishedAt:   task.GetFinishedAt(),
+	}
+	for _, event := range result.Events {
+		if event == nil {
+			continue
+		}
+		item.Events = append(item.Events, mixedCloudSummaryTaskEvent{
+			ID:          event.GetId(),
+			Status:      event.GetStatus(),
+			Message:     event.GetMessage(),
+			Progress:    event.GetProgress(),
+			DetailsJSON: event.GetDetailsJson(),
+			CreatedAt:   event.GetCreatedAt(),
+		})
+	}
+	summary.Tasks = append(summary.Tasks, item)
 }
 
 func (summary *mixedCloudRunSummary) addInstance(instance *pbApic.CloudInstance, machineType string, peerID string, status string) {
@@ -266,12 +409,123 @@ func (summary *mixedCloudRunSummary) recordCleanup(resourceType string, name str
 		Provider:     provider,
 		Location:     location,
 		Status:       "removed",
+		CompletedAt:  time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	if err != nil {
 		item.Status = "failed"
 		item.Error = err.Error()
 	}
 	summary.Cleanup = append(summary.Cleanup, item)
+}
+
+func (summary *mixedCloudRunSummary) captureRuntimeSnapshots(deadline time.Time, client pbApic.ProtosClientApiClient, phase string, instances ...string) {
+	if summary == nil {
+		return
+	}
+	for _, instance := range instances {
+		state, err := e2eapic.RuntimeState(deadline, client, instance)
+		summary.recordRuntimeSnapshot(phase, instance, state, err)
+	}
+}
+
+func (summary *mixedCloudRunSummary) recordRuntimeSnapshot(phase string, instance string, state *pbApic.RuntimeState, err error) {
+	if summary == nil {
+		return
+	}
+	item := mixedCloudRuntimeSnapshot{
+		Phase:      phase,
+		Instance:   summaryInstanceName(instance),
+		CapturedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if err != nil {
+		item.Error = err.Error()
+		summary.RuntimeSnapshots = append(summary.RuntimeSnapshots, item)
+		return
+	}
+	if state == nil {
+		item.Error = "runtime state was empty"
+		summary.RuntimeSnapshots = append(summary.RuntimeSnapshots, item)
+		return
+	}
+	item.PeerID = state.GetPeerId()
+	item.CheckpointRootHash = state.GetCheckpointRootHash()
+	item.TentativeRootHash = state.GetTentativeRootHash()
+	item.DurableMainRootHash = state.GetDurableMainRootHash()
+	item.StateProviders = sortedStrings(state.GetStateProviders())
+	item.ConnectedPeers = sortedStrings(state.GetConnectedPeers())
+	item.RuntimeRefreshPending = state.GetRuntimeRefreshPending()
+	item.RuntimeRefreshLastError = state.GetRuntimeRefreshLastError()
+	item.RuntimeCheckpointPending = state.GetRuntimeCheckpointPending()
+	item.RuntimeCheckpointLastError = state.GetRuntimeCheckpointLastError()
+	item.ContentSyncTrace = append([]string(nil), state.GetContentSyncTrace()...)
+	for _, status := range state.GetPeerStatuses() {
+		if status == nil {
+			continue
+		}
+		item.PeerStatuses = append(item.PeerStatuses, mixedCloudRuntimePeerStatus{
+			PeerID:                 status.GetPeerId(),
+			Connected:              status.GetConnected(),
+			Dialable:               status.GetDialable(),
+			StateProvider:          status.GetStateProvider(),
+			Compatible:             status.GetCompatible(),
+			Incompatible:           status.GetIncompatible(),
+			Ignored:                status.GetIgnored(),
+			RelayOnly:              status.GetRelayOnly(),
+			Reason:                 status.GetReason(),
+			Addresses:              sortedStrings(status.GetAddresses()),
+			LastDialErrors:         copyStringMap(status.GetLastDialErrors()),
+			ReplicationPriority:    status.GetReplicationPriority(),
+			ReplicationDeviceClass: status.GetReplicationDeviceClass(),
+		})
+	}
+	sort.Slice(item.PeerStatuses, func(i, j int) bool {
+		return item.PeerStatuses[i].PeerID < item.PeerStatuses[j].PeerID
+	})
+	for _, compat := range state.GetCompatibility() {
+		if compat == nil {
+			continue
+		}
+		item.Compatibility = append(item.Compatibility, mixedCloudRuntimeCompat{
+			PeerID:       compat.GetPeerId(),
+			LocalDigest:  compat.GetLocalDigest(),
+			RemoteDigest: compat.GetRemoteDigest(),
+			Compatible:   compat.GetCompatible(),
+			Blocking:     compat.GetBlocking(),
+			Reason:       compat.GetReason(),
+		})
+	}
+	sort.Slice(item.Compatibility, func(i, j int) bool {
+		return item.Compatibility[i].PeerID < item.Compatibility[j].PeerID
+	})
+	summary.RuntimeSnapshots = append(summary.RuntimeSnapshots, item)
+}
+
+func (summary *mixedCloudRunSummary) captureImageSource(deadline time.Time, client pbApic.ProtosClientApiClient, phase string, instance string, imageRef string) {
+	if summary == nil {
+		return
+	}
+	ctx, cancel := contextBefore(deadline, 20*time.Second)
+	resp, err := client.GetInstanceImage(ctx, &pbApic.GetInstanceImageRequest{Instance: instance, ImageRef: imageRef})
+	cancel()
+	item := mixedCloudImageSource{
+		Phase:      phase,
+		Instance:   summaryInstanceName(instance),
+		ImageRef:   imageRef,
+		CapturedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if err != nil {
+		item.Error = err.Error()
+		summary.ImageSources = append(summary.ImageSources, item)
+		return
+	}
+	item.Found = resp.GetFound()
+	item.HasContent = resp.GetHasContent()
+	item.TargetDigest = resp.GetTargetDigest()
+	item.Platform = resp.GetPlatform()
+	item.Labels = copyStringMap(resp.GetLabels())
+	item.Source = item.Labels["protos.io/image.source"]
+	item.Descriptors = len(resp.GetDescriptors())
+	summary.ImageSources = append(summary.ImageSources, item)
 }
 
 func (summary *mixedCloudRunSummary) finish(runErr error) {
@@ -433,12 +687,13 @@ func run(cfg harnessConfig) (runErr error) {
 	}
 	summary.addProvider(localProviderName, localmacos.Type.String(), "local")
 	cleanupProviders = append(cleanupProviders, localProviderName)
-	localImageID, err := uploadProvisionerImage(client, imagePath, imageName, localProviderName, "local", cfg.imageUploadTimeout)
+	localUpload, err := uploadProvisionerImage(client, imagePath, imageName, localProviderName, "local", cfg.imageUploadTimeout)
 	if err != nil {
 		return fmt.Errorf("upload local macOS image: %w", err)
 	}
-	summary.addImage(localProviderName, imageName, "local", localImageID)
-	cleanupImages = append(cleanupImages, imageRef{provider: localProviderName, name: imageName, location: "local", id: localImageID})
+	summary.addTask(localProviderName, "local", imageName, localUpload.ImageID, localUpload)
+	summary.addImage(localProviderName, imageName, "local", localUpload.ImageID, imagePath, localUpload.TaskID)
+	cleanupImages = append(cleanupImages, imageRef{provider: localProviderName, name: imageName, location: "local", id: localUpload.ImageID})
 
 	hetznerCredentials, err := hetznerAuth(cfg.hetznerEnv)
 	if err != nil {
@@ -449,12 +704,13 @@ func run(cfg harnessConfig) (runErr error) {
 	}
 	summary.addProvider(hetznerProviderName, hetzner.Type.String(), cfg.hetznerLocation)
 	cleanupProviders = append(cleanupProviders, hetznerProviderName)
-	hetznerImageID, err := uploadProvisionerImage(client, hetznerImagePath, imageName, hetznerProviderName, cfg.hetznerLocation, cfg.imageUploadTimeout)
+	hetznerUpload, err := uploadProvisionerImage(client, hetznerImagePath, imageName, hetznerProviderName, cfg.hetznerLocation, cfg.imageUploadTimeout)
 	if err != nil {
 		return fmt.Errorf("upload Hetzner image: %w", err)
 	}
-	summary.addImage(hetznerProviderName, imageName, cfg.hetznerLocation, hetznerImageID)
-	cleanupImages = append(cleanupImages, imageRef{provider: hetznerProviderName, name: imageName, location: cfg.hetznerLocation, id: hetznerImageID})
+	summary.addTask(hetznerProviderName, cfg.hetznerLocation, imageName, hetznerUpload.ImageID, hetznerUpload)
+	summary.addImage(hetznerProviderName, imageName, cfg.hetznerLocation, hetznerUpload.ImageID, hetznerImagePath, hetznerUpload.TaskID)
+	cleanupImages = append(cleanupImages, imageRef{provider: hetznerProviderName, name: imageName, location: cfg.hetznerLocation, id: hetznerUpload.ImageID})
 
 	scalewayCredentials, err := scalewayAuth(cfg.scalewayEnv)
 	if err != nil {
@@ -465,12 +721,13 @@ func run(cfg harnessConfig) (runErr error) {
 	}
 	summary.addProvider(scalewayProviderName, scaleway.Type.String(), cfg.scalewayLocation)
 	cleanupProviders = append(cleanupProviders, scalewayProviderName)
-	scalewayImageID, err := uploadProvisionerImage(client, scalewayImagePath, imageName, scalewayProviderName, cfg.scalewayLocation, cfg.imageUploadTimeout)
+	scalewayUpload, err := uploadProvisionerImage(client, scalewayImagePath, imageName, scalewayProviderName, cfg.scalewayLocation, cfg.imageUploadTimeout)
 	if err != nil {
 		return fmt.Errorf("upload Scaleway image: %w", err)
 	}
-	summary.addImage(scalewayProviderName, imageName, cfg.scalewayLocation, scalewayImageID)
-	cleanupImages = append(cleanupImages, imageRef{provider: scalewayProviderName, name: imageName, location: cfg.scalewayLocation, id: scalewayImageID})
+	summary.addTask(scalewayProviderName, cfg.scalewayLocation, imageName, scalewayUpload.ImageID, scalewayUpload)
+	summary.addImage(scalewayProviderName, imageName, cfg.scalewayLocation, scalewayUpload.ImageID, scalewayImagePath, scalewayUpload.TaskID)
+	cleanupImages = append(cleanupImages, imageRef{provider: scalewayProviderName, name: imageName, location: cfg.scalewayLocation, id: scalewayUpload.ImageID})
 
 	localState, err := e2eapic.RuntimeState(deadline, client, "")
 	if err != nil {
@@ -609,11 +866,12 @@ func run(cfg harnessConfig) (runErr error) {
 	if err := e2eapic.WaitForRemoteRuntimeConnection(deadline, client, deployed, localPeerID); err != nil {
 		return err
 	}
+	summary.captureRuntimeSnapshots(deadline, client, "all-peers-connected", "", localVM1.GetName(), localVM2.GetName(), hetznerVM.GetName(), scalewayVM.GetName())
 	if err := e2eapic.WaitForAllRemoteHeads(deadline, client, deployed); err != nil {
 		return fmt.Errorf("post-checkpoint DB sync failed: %w", err)
 	}
 
-	appPair, err := createCloudAppConnectivityPair(cfg, deadline, client, deployed, hetznerVM, scalewayVM, suffix)
+	appPair, err := createCloudAppConnectivityPair(cfg, deadline, client, deployed, hetznerVM, scalewayVM, suffix, summary)
 	if err != nil {
 		return err
 	}
@@ -701,6 +959,7 @@ func run(cfg harnessConfig) (runErr error) {
 	if err := e2eapic.WaitForNoApps(deadline, client); err != nil {
 		return err
 	}
+	summary.captureRuntimeSnapshots(deadline, client, "after-all-vm-deletions", "")
 
 	return nil
 }
@@ -741,12 +1000,12 @@ func addProvisioner(client pbApic.ProtosClientApiClient, name string, typ string
 	return err
 }
 
-func uploadProvisionerImage(client pbApic.ProtosClientApiClient, imagePath string, imageName string, provider string, location string, timeout time.Duration) (string, error) {
+func uploadProvisionerImage(client pbApic.ProtosClientApiClient, imagePath string, imageName string, provider string, location string, timeout time.Duration) (e2eapic.UploadProvisionerImageResult, error) {
 	deadline := time.Now().Add(timeout + 5*time.Minute)
 	if timeout <= 0 {
 		deadline = time.Now().Add(35 * time.Minute)
 	}
-	return e2eapic.UploadProvisionerImage(deadline, client, imagePath, imageName, provider, location, timeout)
+	return e2eapic.UploadProvisionerImageDetailed(deadline, client, imagePath, imageName, provider, location, timeout)
 }
 
 func createCloudAppConnectivityPair(
@@ -757,6 +1016,7 @@ func createCloudAppConnectivityPair(
 	hetznerVM *pbApic.CloudInstance,
 	scalewayVM *pbApic.CloudInstance,
 	suffix string,
+	summary *mixedCloudRunSummary,
 ) (*appConnectivityPair, error) {
 	appImage := strings.TrimSpace(cfg.appImage)
 	if appImage == "" {
@@ -782,9 +1042,11 @@ func createCloudAppConnectivityPair(
 	if err := e2eapic.WaitForRemoteImageContentReady(deadline, client, hetznerVM.GetName(), appImage); err != nil {
 		return nil, err
 	}
+	summary.captureImageSource(deadline, client, "seed-image-content-ready", hetznerVM.GetName(), appImage)
 	if err := e2eapic.WaitForRemoteFullMesh(deadline, client, []*pbApic.CloudInstance{hetznerVM, scalewayVM}); err != nil {
 		return nil, fmt.Errorf("cloud seed/puller p2p mesh did not become ready: %w", err)
 	}
+	summary.captureRuntimeSnapshots(deadline, client, "seed-puller-p2p-mesh-ready", hetznerVM.GetName(), scalewayVM.GetName())
 
 	scalewayAppName := "app-scaleway-" + suffix
 	if err := e2eapic.CreateAndStartApp(deadline, client, appImage, scalewayAppName, scalewayVM.GetVmId()); err != nil {
@@ -800,6 +1062,8 @@ func createCloudAppConnectivityPair(
 	if err := e2eapic.WaitForRemoteP2PImageLabel(deadline, client, scalewayVM.GetName(), appImage); err != nil {
 		return nil, err
 	}
+	summary.captureImageSource(deadline, client, "p2p-image-source-verified", scalewayVM.GetName(), appImage)
+	summary.captureRuntimeSnapshots(deadline, client, "p2p-image-source-verified", hetznerVM.GetName(), scalewayVM.GetName())
 	fmt.Printf("cloud P2P image resolution verified: seed=%s puller=%s image=%s\n", hetznerVM.GetName(), scalewayVM.GetName(), appImage)
 	return &appConnectivityPair{hetznerApp: hetznerApp, scalewayApp: scalewayApp}, nil
 }
@@ -1027,6 +1291,45 @@ func requireAuth(path string, values map[string]string, keys ...string) error {
 		return fmt.Errorf("env file %s is missing required keys: %s", path, strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+func contextBefore(deadline time.Time, max time.Duration) (context.Context, context.CancelFunc) {
+	timeout := time.Until(deadline)
+	if timeout <= 0 {
+		timeout = time.Millisecond
+	}
+	if max > 0 && timeout > max {
+		timeout = max
+	}
+	return context.WithTimeout(context.Background(), timeout)
+}
+
+func summaryInstanceName(instance string) string {
+	instance = strings.TrimSpace(instance)
+	if instance == "" {
+		return "local"
+	}
+	return instance
+}
+
+func sortedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := append([]string(nil), values...)
+	sort.Strings(out)
+	return out
+}
+
+func copyStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
 }
 
 func firstNonEmpty(values ...string) string {

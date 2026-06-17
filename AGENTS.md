@@ -30,6 +30,14 @@ agent or provisioner API. Keep rerunning the relevant focused and end-to-end
 tests until the fix is demonstrated or the remaining blocker is clearly
 identified with evidence.
 
+For core Go work, use `task -t core/Taskfile.yaml test` or
+`task -t core/Taskfile.yaml verify` rather than raw `go test ./core/...`.
+The Taskfile applies the canonical pure-Go Dolt/Swarmion build tags and avoids
+accidentally selecting local native ICU/zstd dependencies. Use
+`task -t core/Taskfile.yaml deps:security` for `govulncheck` and
+`task -t core/Taskfile.yaml deps:freshness` to compare critical runtime,
+Swarmion, API, and cloud SDK modules with upstream.
+
 For local client work use:
 
 - macOS: `task -t clients/macos/Taskfile.yml run` or `task -t
