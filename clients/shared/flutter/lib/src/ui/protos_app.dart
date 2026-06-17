@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart'
@@ -2044,6 +2045,7 @@ class TasksView extends StatelessWidget {
           TaskDetailPanel(
             task: model.selectedTask,
             events: model.selectedTaskEvents,
+            latestUpdate: model.selectedTaskLiveUpdate,
           ),
         ],
       ),
@@ -2052,10 +2054,16 @@ class TasksView extends StatelessWidget {
 }
 
 class TaskDetailPanel extends StatelessWidget {
-  const TaskDetailPanel({required this.task, required this.events, super.key});
+  const TaskDetailPanel({
+    required this.task,
+    required this.events,
+    required this.latestUpdate,
+    super.key,
+  });
 
   final pb.Task? task;
   final List<pb.TaskEvent> events;
+  final pb.TaskProgressUpdate? latestUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -2084,6 +2092,10 @@ class TaskDetailPanel extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         LinearProgressIndicator(value: _taskProgressValue(selected.progress)),
+        if (latestUpdate != null) ...[
+          const SizedBox(height: 12),
+          TaskLiveProgressPanel(update: latestUpdate!),
+        ],
         const SizedBox(height: 12),
         KeyValueWrap(
           items: [
@@ -2138,10 +2150,92 @@ class TaskDetailPanel extends StatelessWidget {
               flex: 2,
             ),
             RowColumn('Message', (row) => row.message, flex: 2),
-            RowColumn('Details', (row) => row.detailsJson, flex: 2),
+            RowColumn(
+              'Details',
+              (row) => _taskDetailsSummary(row.detailsJson),
+              flex: 2,
+            ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class TaskLiveProgressPanel extends StatelessWidget {
+  const TaskLiveProgressPanel({required this.update, super.key});
+
+  final pb.TaskProgressUpdate update;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final details = _taskDetailsSummary(update.detailsJson);
+    final delivery = update.durable ? 'Saved' : 'Live';
+    final deliveryColor = update.durable
+        ? Colors.green.shade700
+        : scheme.primary;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.sync_outlined, size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Latest Update',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              TaskStatusBadge(status: update.status),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: deliveryColor.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: deliveryColor.withValues(alpha: 0.34),
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  delivery,
+                  style: TextStyle(
+                    color: deliveryColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LinearProgressIndicator(value: _taskProgressValue(update.progress)),
+          const SizedBox(height: 10),
+          KeyValueWrap(
+            items: [
+              KeyValueItem('Progress', _taskProgressLabel(update.progress)),
+              KeyValueItem('Updated', _taskDateLabel(update.createdAt)),
+              KeyValueItem('Message', update.message),
+              KeyValueItem('Details', details),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4308,7 +4402,90 @@ String _imageAgeLabel(pb.CloudSpecificImage image) {
 }
 
 String _taskJson(String value) {
-  return value.nonEmpty ?? 'n/a';
+  final trimmed = value.nonEmpty;
+  if (trimmed == null) {
+    return 'n/a';
+  }
+  try {
+    return const JsonEncoder.withIndent('  ').convert(jsonDecode(trimmed));
+  } catch (_) {
+    return trimmed;
+  }
+}
+
+String _taskDetailsSummary(String value) {
+  final trimmed = value.nonEmpty;
+  if (trimmed == null || trimmed == '{}') {
+    return '';
+  }
+  Object? decoded;
+  try {
+    decoded = jsonDecode(trimmed);
+  } catch (_) {
+    return trimmed;
+  }
+  if (decoded is! Map) {
+    return trimmed;
+  }
+  final values = decoded.cast<String, Object?>();
+  final parts = <String>[];
+  final uploaded = _jsonInt(values['bytes_uploaded']);
+  final total = _jsonInt(values['archive_size_bytes']);
+  if (uploaded != null) {
+    if (total != null && total > 0) {
+      parts.add('${_byteCount(uploaded)} / ${_byteCount(total)}');
+    } else {
+      parts.add(_byteCount(uploaded));
+    }
+  }
+  final percent = _jsonInt(values['percent']);
+  if (percent != null && percent >= 0 && percent <= 100) {
+    parts.add('$percent%');
+  }
+  for (final key in [
+    'image_id',
+    'image_ref',
+    'target_digest',
+    'platform',
+    'instance',
+  ]) {
+    final text = values[key]?.toString().nonEmpty;
+    if (text != null) {
+      parts.add('$key=$text');
+    }
+  }
+  if (parts.isNotEmpty) {
+    return parts.join('  ');
+  }
+  return jsonEncode(values);
+}
+
+int? _jsonInt(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    return int.tryParse(value);
+  }
+  return null;
+}
+
+String _byteCount(int bytes) {
+  const unit = 1024;
+  if (bytes < unit) {
+    return '${bytes}B';
+  }
+  var value = bytes.toDouble();
+  for (final suffix in ['KiB', 'MiB', 'GiB', 'TiB']) {
+    value /= unit;
+    if (value < unit) {
+      return '${value.toStringAsFixed(1)}$suffix';
+    }
+  }
+  return '${(value / unit).toStringAsFixed(1)}PiB';
 }
 
 String? _statusText(String? status) {

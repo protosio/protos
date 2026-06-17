@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -151,7 +153,11 @@ func taskInfo(id string) error {
 	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t", "Status", "Progress", "Created", "Message")
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "------", "--------", "-------", "-------")
 	for _, event := range resp.GetEvents() {
-		fmt.Fprintf(w, "\n %s\t%d%%\t%s\t%s\t", event.GetStatus(), event.GetProgress(), event.GetCreatedAt(), event.GetMessage())
+		message := event.GetMessage()
+		if details := taskDetailsSummary(event.GetDetailsJson(), ""); details != "" {
+			message = strings.TrimSpace(message + " " + details)
+		}
+		fmt.Fprintf(w, "\n %s\t%d%%\t%s\t%s\t", event.GetStatus(), event.GetProgress(), event.GetCreatedAt(), message)
 	}
 	fmt.Fprint(w, "\n")
 	return nil
@@ -172,6 +178,7 @@ func followTaskUntilTerminal(ctx context.Context, id string, jsonl bool) (*pbApi
 		return nil, fmt.Errorf("failed to watch task '%s': %w", id, err)
 	}
 
+	printer := newTaskProgressPrinter(jsonl)
 	var latest *pbApic.Task
 	var latestStatus string
 	for {
@@ -182,7 +189,7 @@ func followTaskUntilTerminal(ctx context.Context, id string, jsonl bool) (*pbApi
 		if err != nil {
 			return nil, fmt.Errorf("watch task '%s': %w", id, err)
 		}
-		if err := printTaskWatchResponse(resp, jsonl); err != nil {
+		if err := printer.print(resp); err != nil {
 			return nil, err
 		}
 		if task := resp.GetTask(); task != nil && task.GetId() != "" {
@@ -207,6 +214,7 @@ func followTaskUntilTerminal(ctx context.Context, id string, jsonl bool) (*pbApi
 				}
 				return latest, fmt.Errorf("task '%s' %s", id, message)
 			}
+			printer.printFinal(latest)
 			return latest, nil
 		}
 	}
@@ -230,8 +238,29 @@ func fetchTaskAfterWatch(ctx context.Context, id string, latestStatus string) (*
 	return task, nil
 }
 
-func printTaskWatchResponse(resp *pbApic.WatchTaskResponse, jsonl bool) error {
-	if jsonl {
+type taskProgressPrinter struct {
+	jsonl   bool
+	started time.Time
+	task    *pbApic.Task
+	seen    map[string]struct{}
+	upload  *taskUploadProgress
+}
+
+type taskUploadProgress struct {
+	bytes uint64
+	at    time.Time
+}
+
+func newTaskProgressPrinter(jsonl bool) *taskProgressPrinter {
+	return &taskProgressPrinter{
+		jsonl:   jsonl,
+		started: time.Now(),
+		seen:    map[string]struct{}{},
+	}
+}
+
+func (p *taskProgressPrinter) print(resp *pbApic.WatchTaskResponse) error {
+	if p.jsonl {
 		raw, err := protojson.MarshalOptions{EmitUnpopulated: false}.Marshal(resp)
 		if err != nil {
 			return err
@@ -243,13 +272,241 @@ func printTaskWatchResponse(resp *pbApic.WatchTaskResponse, jsonl bool) error {
 		return nil
 	}
 	if task := resp.GetTask(); task != nil && task.GetId() != "" {
-		fmt.Printf("task %s: %s %d%% %s\n", task.GetId(), task.GetStatus(), task.GetProgress(), task.GetMessage())
-		return nil
+		p.task = task
+		line := fmt.Sprintf(
+			"watching %s (%s)\n%s\n",
+			task.GetId(),
+			task.GetStream(),
+			p.formatProgress("snapshot", task.GetStatus(), task.GetProgress(), task.GetMessage(), "", task.GetUpdatedAt(), true),
+		)
+		return p.printOnce("snapshot:"+task.GetId()+":"+task.GetUpdatedAt()+":"+task.GetMessage(), line)
 	}
 	if update := resp.GetUpdate(); update != nil {
-		fmt.Printf("task %s: %s %d%% %s\n", update.GetTaskId(), update.GetStatus(), update.GetProgress(), update.GetMessage())
+		source := "live"
+		if update.GetDurable() {
+			source = "saved"
+		}
+		line := p.formatProgress(source, update.GetStatus(), update.GetProgress(), update.GetMessage(), update.GetDetailsJson(), update.GetCreatedAt(), update.GetDurable())
+		key := fmt.Sprintf("update:%d:%s:%d:%s:%t", resp.GetSequence(), update.GetStatus(), update.GetProgress(), update.GetMessage(), update.GetDurable())
+		return p.printOnce(key, line+"\n")
 	}
 	return nil
+}
+
+func (p *taskProgressPrinter) printFinal(task *pbApic.Task) {
+	if p.jsonl || task == nil {
+		return
+	}
+	elapsed := time.Since(p.started).Round(time.Second)
+	message := taskListMessage(task.GetMessage(), task.GetErrorMessage())
+	if message == "" {
+		message = task.GetStatus()
+	}
+	fmt.Printf("finished %s in %s: %s\n", task.GetId(), elapsed, message)
+	if result := taskResultSummary(task.GetResultJson()); result != "" {
+		fmt.Printf("result: %s\n", result)
+	}
+}
+
+func (p *taskProgressPrinter) printOnce(key string, line string) error {
+	if _, found := p.seen[key]; found {
+		return nil
+	}
+	p.seen[key] = struct{}{}
+	_, err := fmt.Fprint(os.Stdout, line)
+	return err
+}
+
+func (p *taskProgressPrinter) formatProgress(source string, status string, progress int32, message string, detailsJSON string, at string, durable bool) string {
+	elapsed := time.Since(p.started).Round(time.Second)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	details := taskDetailsSummary(detailsJSON, p.uploadRate(detailsJSON, durable))
+	if details != "" {
+		details = "  " + details
+	}
+	if message = strings.TrimSpace(message); message == "" {
+		message = status
+	}
+	timestamp := taskClockLabel(at)
+	if timestamp != "" {
+		timestamp = " " + timestamp
+	}
+	return fmt.Sprintf("[%s%s] %-5s %-9s %3d%%  %s%s", elapsed, timestamp, source, status, progress, message, details)
+}
+
+func (p *taskProgressPrinter) uploadRate(detailsJSON string, durable bool) string {
+	if durable || strings.TrimSpace(detailsJSON) == "" {
+		return ""
+	}
+	details, err := decodeTaskJSONMap(detailsJSON)
+	if err != nil {
+		return ""
+	}
+	bytes, ok := numericDetail(details, "bytes_uploaded")
+	if !ok {
+		return ""
+	}
+	now := time.Now()
+	defer func() {
+		p.upload = &taskUploadProgress{bytes: bytes, at: now}
+	}()
+	if p.upload == nil || bytes <= p.upload.bytes {
+		return ""
+	}
+	elapsed := now.Sub(p.upload.at)
+	if elapsed <= 0 {
+		return ""
+	}
+	rate := float64(bytes-p.upload.bytes) / elapsed.Seconds()
+	if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+		return ""
+	}
+	return formatByteCount(uint64(rate)) + "/s"
+}
+
+func taskDetailsSummary(detailsJSON string, rate string) string {
+	detailsJSON = strings.TrimSpace(detailsJSON)
+	if detailsJSON == "" || detailsJSON == "{}" {
+		return ""
+	}
+	details, err := decodeTaskJSONMap(detailsJSON)
+	if err != nil {
+		return detailsJSON
+	}
+	var parts []string
+	if uploaded, ok := numericDetail(details, "bytes_uploaded"); ok {
+		if total, ok := numericDetail(details, "archive_size_bytes"); ok && total > 0 {
+			parts = append(parts, fmt.Sprintf("%s/%s", formatByteCount(uploaded), formatByteCount(total)))
+		} else {
+			parts = append(parts, formatByteCount(uploaded))
+		}
+	}
+	if rate != "" {
+		parts = append(parts, rate)
+	}
+	if imageID, ok := stringDetail(details, "image_id"); ok {
+		parts = append(parts, "image_id="+imageID)
+	}
+	if digest, ok := stringDetail(details, "target_digest"); ok {
+		parts = append(parts, "digest="+digest)
+	}
+	if percent, ok := numericDetail(details, "percent"); ok && percent <= 100 {
+		parts = append(parts, fmt.Sprintf("%d%%", percent))
+	}
+	if len(parts) > 0 {
+		return "(" + strings.Join(parts, ", ") + ")"
+	}
+	compact, err := json.Marshal(details)
+	if err != nil {
+		return detailsJSON
+	}
+	return string(compact)
+}
+
+func taskResultSummary(resultJSON string) string {
+	resultJSON = strings.TrimSpace(resultJSON)
+	if resultJSON == "" || resultJSON == "{}" {
+		return ""
+	}
+	result, err := decodeTaskJSONMap(resultJSON)
+	if err != nil {
+		return resultJSON
+	}
+	var parts []string
+	for _, key := range []string{"image_id", "image_ref", "target_digest", "platform", "instance"} {
+		if value, ok := stringDetail(result, key); ok {
+			parts = append(parts, key+"="+value)
+		}
+	}
+	if bytes, ok := numericDetail(result, "bytes_uploaded"); ok {
+		parts = append(parts, "bytes_uploaded="+formatByteCount(bytes))
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, " ")
+	}
+	compact, err := json.Marshal(result)
+	if err != nil {
+		return resultJSON
+	}
+	return string(compact)
+}
+
+func numericDetail(values map[string]any, key string) (uint64, bool) {
+	value, found := values[key]
+	if !found {
+		return 0, false
+	}
+	switch typed := value.(type) {
+	case float64:
+		if typed < 0 {
+			return 0, false
+		}
+		return uint64(typed), true
+	case int:
+		if typed < 0 {
+			return 0, false
+		}
+		return uint64(typed), true
+	case uint64:
+		return typed, true
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil || parsed < 0 {
+			return 0, false
+		}
+		return uint64(parsed), true
+	default:
+		return 0, false
+	}
+}
+
+func decodeTaskJSONMap(value string) (map[string]any, error) {
+	decoder := json.NewDecoder(strings.NewReader(value))
+	decoder.UseNumber()
+	var out map[string]any
+	if err := decoder.Decode(&out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func stringDetail(values map[string]any, key string) (string, bool) {
+	value, found := values[key]
+	if !found {
+		return "", false
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	text = strings.TrimSpace(text)
+	return text, text != ""
+}
+
+func taskClockLabel(value string) string {
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
+	if err != nil {
+		return ""
+	}
+	local := parsed.Local()
+	return local.Format("15:04:05")
+}
+
+func formatByteCount(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%dB", bytes)
+	}
+	value := float64(bytes)
+	for _, suffix := range []string{"KiB", "MiB", "GiB", "TiB"} {
+		value /= unit
+		if value < unit {
+			return fmt.Sprintf("%.1f%s", value, suffix)
+		}
+	}
+	return fmt.Sprintf("%.1fPiB", value/unit)
 }
 
 func taskStatusTerminal(status string) bool {

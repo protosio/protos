@@ -94,6 +94,7 @@ class AppModel extends ChangeNotifier {
   List<pb.Task> tasks = [];
   String selectedTaskId = '';
   List<pb.TaskEvent> selectedTaskEvents = [];
+  pb.TaskProgressUpdate? selectedTaskLiveUpdate;
   pb.NetworkState? networkState;
   List<pb.ExitRoute> exitRoutes = [];
   List<pb.Release> releases = [];
@@ -391,6 +392,7 @@ class AppModel extends ChangeNotifier {
     _stopTaskWatcher();
     selectedTaskId = id.trim();
     selectedTaskEvents = [];
+    selectedTaskLiveUpdate = null;
     notifyListeners();
     if (selectedTaskId.nonEmpty == null) {
       return;
@@ -403,6 +405,7 @@ class AppModel extends ChangeNotifier {
     final id = selectedTaskId.nonEmpty;
     if (id == null) {
       selectedTaskEvents = [];
+      selectedTaskLiveUpdate = null;
       if (notify) {
         notifyListeners();
       }
@@ -774,6 +777,7 @@ class AppModel extends ChangeNotifier {
     tasks = [];
     selectedTaskId = '';
     selectedTaskEvents = [];
+    selectedTaskLiveUpdate = null;
     networkState = null;
     exitRoutes = [];
     releases = [];
@@ -846,6 +850,8 @@ class AppModel extends ChangeNotifier {
       changed = true;
     }
     if (response.hasUpdate() && response.update.taskId == selectedId) {
+      selectedTaskLiveUpdate = response.update.deepCopy();
+      changed = true;
       final index = tasks.indexWhere((task) => task.id == selectedId);
       if (index >= 0) {
         final task = tasks[index].deepCopy();
@@ -854,7 +860,9 @@ class AppModel extends ChangeNotifier {
         task.progress = response.update.progress;
         task.updatedAt = response.update.createdAt;
         _upsertTask(task);
-        changed = true;
+      }
+      if (response.update.durable) {
+        _upsertSelectedTaskEvent(_taskEventFromUpdate(response.update));
       }
     }
     if (changed) {
@@ -885,6 +893,7 @@ class AppModel extends ChangeNotifier {
     final id = selectedTaskId.nonEmpty;
     if (id == null) {
       selectedTaskEvents = [];
+      selectedTaskLiveUpdate = null;
       return;
     }
     if (tasks.any((task) => task.id == id)) {
@@ -893,6 +902,7 @@ class AppModel extends ChangeNotifier {
     _stopTaskWatcher();
     selectedTaskId = '';
     selectedTaskEvents = [];
+    selectedTaskLiveUpdate = null;
   }
 
   void _upsertTask(pb.Task task) {
@@ -905,6 +915,33 @@ class AppModel extends ChangeNotifier {
     next[index] = task;
     tasks = next;
   }
+
+  void _upsertSelectedTaskEvent(pb.TaskEvent event) {
+    final duplicate = selectedTaskEvents.any(
+      (existing) =>
+          existing.taskId == event.taskId &&
+          existing.status == event.status &&
+          existing.progress == event.progress &&
+          existing.message == event.message &&
+          existing.detailsJson == event.detailsJson &&
+          existing.createdAt == event.createdAt,
+    );
+    if (duplicate) {
+      return;
+    }
+    selectedTaskEvents = [...selectedTaskEvents, event];
+  }
+}
+
+pb.TaskEvent _taskEventFromUpdate(pb.TaskProgressUpdate update) {
+  return pb.TaskEvent(
+    taskId: update.taskId,
+    status: update.status,
+    message: update.message,
+    progress: update.progress,
+    detailsJson: update.detailsJson,
+    createdAt: update.createdAt,
+  );
 }
 
 Future<T?> _optional<T>(Future<T> future) async {
