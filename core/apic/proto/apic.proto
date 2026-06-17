@@ -60,6 +60,7 @@ service ProtosClientApi {
   rpc UploadProvisionerImage(UploadProvisionerImageRequest) returns (UploadProvisionerImageResponse) {}
   rpc RemoveProvisionerImage(RemoveProvisionerImageRequest) returns (RemoveProvisionerImageResponse) {}
   rpc GetInstanceImage(GetInstanceImageRequest) returns (GetInstanceImageResponse) {}
+  rpc UploadInstanceImageArchive(UploadInstanceImageArchiveRequest) returns (UploadInstanceImageArchiveResponse) {}
   rpc UploadInstanceImageArchiveChunk(UploadInstanceImageArchiveChunkRequest) returns (UploadInstanceImageArchiveChunkResponse) {}
   rpc GetSystemStatus(GetSystemStatusRequest) returns (GetSystemStatusResponse) {}
   rpc StartHostAgent(StartHostAgentRequest) returns (StartHostAgentResponse) {}
@@ -931,6 +932,16 @@ message GetInstanceImageResponse {
   bool has_content = 6;
   ImageContentDescriptor target = 7;
   repeated ImageContentDescriptor descriptors = 8;
+}
+
+message UploadInstanceImageArchiveRequest {
+  string instance = 1;
+  string archive_path = 2;
+  string image_ref = 3;
+}
+
+message UploadInstanceImageArchiveResponse {
+  string task_id = 1;
 }
 
 message UploadInstanceImageArchiveChunkRequest {

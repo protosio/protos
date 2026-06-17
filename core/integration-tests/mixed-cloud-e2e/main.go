@@ -175,23 +175,29 @@ type mixedCloudSummaryCleanup struct {
 }
 
 type mixedCloudSummaryTask struct {
-	ID           string                       `json:"id"`
-	Stream       string                       `json:"stream"`
-	SubjectType  string                       `json:"subject_type"`
-	SubjectID    string                       `json:"subject_id"`
-	Status       string                       `json:"status"`
-	Title        string                       `json:"title,omitempty"`
-	Message      string                       `json:"message,omitempty"`
-	ErrorMessage string                       `json:"error_message,omitempty"`
-	Progress     int32                        `json:"progress"`
-	Provider     string                       `json:"provider,omitempty"`
-	Location     string                       `json:"location,omitempty"`
-	ImageName    string                       `json:"image_name,omitempty"`
-	ImageID      string                       `json:"image_id,omitempty"`
-	CreatedAt    string                       `json:"created_at,omitempty"`
-	StartedAt    string                       `json:"started_at,omitempty"`
-	FinishedAt   string                       `json:"finished_at,omitempty"`
-	Events       []mixedCloudSummaryTaskEvent `json:"events,omitempty"`
+	ID               string                       `json:"id"`
+	Stream           string                       `json:"stream"`
+	SubjectType      string                       `json:"subject_type"`
+	SubjectID        string                       `json:"subject_id"`
+	Status           string                       `json:"status"`
+	Title            string                       `json:"title,omitempty"`
+	Message          string                       `json:"message,omitempty"`
+	ErrorMessage     string                       `json:"error_message,omitempty"`
+	Progress         int32                        `json:"progress"`
+	Provider         string                       `json:"provider,omitempty"`
+	Location         string                       `json:"location,omitempty"`
+	ImageName        string                       `json:"image_name,omitempty"`
+	ImageID          string                       `json:"image_id,omitempty"`
+	Instance         string                       `json:"instance,omitempty"`
+	ImageRef         string                       `json:"image_ref,omitempty"`
+	TargetDigest     string                       `json:"target_digest,omitempty"`
+	Platform         string                       `json:"platform,omitempty"`
+	BytesUploaded    uint64                       `json:"bytes_uploaded,omitempty"`
+	ArchiveSizeBytes uint64                       `json:"archive_size_bytes,omitempty"`
+	CreatedAt        string                       `json:"created_at,omitempty"`
+	StartedAt        string                       `json:"started_at,omitempty"`
+	FinishedAt       string                       `json:"finished_at,omitempty"`
+	Events           []mixedCloudSummaryTaskEvent `json:"events,omitempty"`
 }
 
 type mixedCloudSummaryTaskEvent struct {
@@ -331,29 +337,54 @@ func (summary *mixedCloudRunSummary) setImageStatus(provider string, name string
 }
 
 func (summary *mixedCloudRunSummary) addTask(provider string, location string, imageName string, imageID string, result e2eapic.UploadProvisionerImageResult) {
-	if summary == nil || result.Task == nil {
+	summary.addTaskRecord(mixedCloudSummaryTask{
+		Provider:  provider,
+		Location:  location,
+		ImageName: imageName,
+		ImageID:   imageID,
+	}, result.Task, result.Events)
+}
+
+func (summary *mixedCloudRunSummary) addImageArchiveTask(result e2eapic.UploadInstanceImageArchiveResult) {
+	summary.addTaskRecord(mixedCloudSummaryTask{
+		Instance:         result.Instance,
+		ImageRef:         result.ImageRef,
+		TargetDigest:     result.TargetDigest,
+		Platform:         result.Platform,
+		BytesUploaded:    result.BytesUploaded,
+		ArchiveSizeBytes: result.ArchiveSizeBytes,
+	}, result.Task, result.Events)
+}
+
+func (summary *mixedCloudRunSummary) addTaskRecord(meta mixedCloudSummaryTask, task *pbApic.Task, events []*pbApic.TaskEvent) {
+	if summary == nil || task == nil {
 		return
 	}
-	task := result.Task
 	item := mixedCloudSummaryTask{
-		ID:           task.GetId(),
-		Stream:       task.GetStream(),
-		SubjectType:  task.GetSubjectType(),
-		SubjectID:    task.GetSubjectId(),
-		Status:       task.GetStatus(),
-		Title:        task.GetTitle(),
-		Message:      task.GetMessage(),
-		ErrorMessage: task.GetErrorMessage(),
-		Progress:     task.GetProgress(),
-		Provider:     provider,
-		Location:     location,
-		ImageName:    imageName,
-		ImageID:      imageID,
-		CreatedAt:    task.GetCreatedAt(),
-		StartedAt:    task.GetStartedAt(),
-		FinishedAt:   task.GetFinishedAt(),
+		ID:               task.GetId(),
+		Stream:           task.GetStream(),
+		SubjectType:      task.GetSubjectType(),
+		SubjectID:        task.GetSubjectId(),
+		Status:           task.GetStatus(),
+		Title:            task.GetTitle(),
+		Message:          task.GetMessage(),
+		ErrorMessage:     task.GetErrorMessage(),
+		Progress:         task.GetProgress(),
+		Provider:         meta.Provider,
+		Location:         meta.Location,
+		ImageName:        meta.ImageName,
+		ImageID:          meta.ImageID,
+		Instance:         meta.Instance,
+		ImageRef:         meta.ImageRef,
+		TargetDigest:     meta.TargetDigest,
+		Platform:         meta.Platform,
+		BytesUploaded:    meta.BytesUploaded,
+		ArchiveSizeBytes: meta.ArchiveSizeBytes,
+		CreatedAt:        task.GetCreatedAt(),
+		StartedAt:        task.GetStartedAt(),
+		FinishedAt:       task.GetFinishedAt(),
 	}
-	for _, event := range result.Events {
+	for _, event := range events {
 		if event == nil {
 			continue
 		}
@@ -1023,9 +1054,11 @@ func createCloudAppConnectivityPair(
 		return nil, fmt.Errorf("app image cannot be empty")
 	}
 	if strings.TrimSpace(cfg.seedImageArchive) != "" {
-		if err := e2eapic.UploadImageArchive(deadline, client, hetznerVM.GetName(), cfg.seedImageArchive, appImage); err != nil {
+		seedUpload, err := e2eapic.UploadImageArchive(deadline, client, hetznerVM.GetName(), cfg.seedImageArchive, appImage)
+		if err != nil {
 			return nil, err
 		}
+		summary.addImageArchiveTask(seedUpload)
 	}
 
 	hetznerAppName := "app-hetzner-" + suffix

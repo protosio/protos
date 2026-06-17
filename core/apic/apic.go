@@ -35,10 +35,12 @@ type Backend struct {
 }
 
 func NewBackend(protosClient *Services) pbApic.ProtosClientApiServer {
-	return &Backend{
+	backend := &Backend{
 		protosClient:     protosClient,
 		commitIdentities: newCommitIdentityResolver(protosClient),
 	}
+	backend.registerTaskStreamsIfConfigured()
+	return backend
 }
 
 type Services struct {

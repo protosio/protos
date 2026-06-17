@@ -12,6 +12,7 @@ vars:
   E2E_MIXED_CLOUD_SUMMARY: '{{.E2E_MIXED_CLOUD_SUMMARY | default ".tmp/mixed-cloud-e2e-summary.json"}}'
   E2E_HETZNER_ENV: '{{.E2E_HETZNER_ENV | default "../.env-hetzner"}}'
   E2E_SCALEWAY_ENV: '{{.E2E_SCALEWAY_ENV | default "../.env-scaleway"}}'
+  E2E_SCALEWAY_LOCATION: '{{.E2E_SCALEWAY_LOCATION | default "fr-par-1"}}'
   E2E_PROBE_SMOKE_PORT: '{{.E2E_PROBE_SMOKE_PORT | default "18080"}}'
   E2E_PROBE_BUILDER: '{{.E2E_PROBE_BUILDER | default "protos-e2e-probe-builder"}}'
   IMAGE_ARCHIVE: '{{.IMAGE_ARCHIVE | default ""}}'
@@ -214,8 +215,22 @@ tasks:
   e2e:full:
     desc: Run local macOS and mixed-cloud E2E harnesses in the validated order
     cmds:
+      - task: e2e:preflight
       - task: e2e:local-macos
       - task: e2e:mixed-cloud
+      - task: e2e:summary
+
+  e2e:preflight:
+    desc: Validate local, host-agent, Docker, cloud credential, and image prerequisites before E2E
+    deps:
+      - hostagent:build
+    cmds:
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./scripts/e2e-preflight --hostagent-bin "{{.HOSTAGENT_BIN}}" --local-image "../cloud-provisioning/targets/output/mactest" --hetzner-image "../cloud-provisioning/targets/output/hetzner/hetzner-bios.img" --scaleway-image "../cloud-provisioning/targets/output/scaleway/scaleway-efi.iso" --hetzner-env "{{.E2E_HETZNER_ENV}}" --scaleway-env "{{.E2E_SCALEWAY_ENV}}" --scaleway-zone "{{.E2E_SCALEWAY_LOCATION}}" --probe-archive "{{.E2E_PROBE_IMAGE_ARCHIVE}}" --summary "{{.E2E_MIXED_CLOUD_SUMMARY}}"
+
+  e2e:summary:
+    desc: Print and validate the mixed-cloud E2E summary artifact
+    cmds:
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./scripts/e2e-summary --summary "{{.E2E_MIXED_CLOUD_SUMMARY}}"
 
   e2e:local-macos:
     desc: Run the local macOS VM E2E harness
@@ -239,6 +254,7 @@ tasks:
       - hostagent:build
       - e2e:probe-image:archive
     cmds:
+      - task: e2e:preflight
       - task: verify:contracts
       - task -t ../clients/macos/Taskfile.yml build
       - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/mixed-cloud-e2e --flutter-app "{{.FLUTTER_APP}}" --hostagent-bin "{{.HOSTAGENT_BIN}}" --hetzner-env {{.E2E_HETZNER_ENV}} --scaleway-env {{.E2E_SCALEWAY_ENV}} --app-image {{.E2E_PROBE_IMAGE}} --seed-image-archive {{.E2E_PROBE_IMAGE_ARCHIVE}} --summary-artifact "{{.E2E_MIXED_CLOUD_SUMMARY}}" {{.CLI_ARGS}}

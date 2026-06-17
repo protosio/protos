@@ -173,6 +173,14 @@ func NewManager(database *db.DB) *Manager {
 }
 
 func Register[P any, R any](manager *Manager, stream Stream[P, R]) error {
+	return register(manager, stream, false)
+}
+
+func RegisterIfAbsent[P any, R any](manager *Manager, stream Stream[P, R]) error {
+	return register(manager, stream, true)
+}
+
+func register[P any, R any](manager *Manager, stream Stream[P, R], allowExisting bool) error {
 	if manager == nil {
 		return fmt.Errorf("task manager is nil")
 	}
@@ -183,6 +191,9 @@ func Register[P any, R any](manager *Manager, stream Stream[P, R]) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	if _, found := manager.streams[stream.Name]; found {
+		if allowExisting {
+			return nil
+		}
 		return fmt.Errorf("task stream %q is already registered", stream.Name)
 	}
 	manager.streams[stream.Name] = streamAdapter[P, R]{stream: stream}

@@ -596,6 +596,14 @@ package apicv1
 	target?:        #ImageContentDescriptor
 	descriptors?:   [...#ImageContentDescriptor]
 }
+#UploadInstanceImageArchiveRequest: {
+	instance?:     string
+	archive_path?: string
+	image_ref?:    string
+}
+#UploadInstanceImageArchiveResponse: {
+	task_id?: string
+}
 #UploadInstanceImageArchiveChunkRequest: {
 	instance?:  string
 	upload_id?: string
@@ -767,6 +775,7 @@ contract: {
 				{name: "UploadProvisionerImage", request: "UploadProvisionerImageRequest", response: "UploadProvisionerImageResponse"},
 				{name: "RemoveProvisionerImage", request: "RemoveProvisionerImageRequest", response: "RemoveProvisionerImageResponse"},
 				{name: "GetInstanceImage", request: "GetInstanceImageRequest", response: "GetInstanceImageResponse"},
+				{name: "UploadInstanceImageArchive", request: "UploadInstanceImageArchiveRequest", response: "UploadInstanceImageArchiveResponse"},
 				{name: "UploadInstanceImageArchiveChunk", request: "UploadInstanceImageArchiveChunkRequest", response: "UploadInstanceImageArchiveChunkResponse"},
 				{name: "GetSystemStatus", request: "GetSystemStatusRequest", response: "GetSystemStatusResponse"},
 				{name: "StartHostAgent", request: "StartHostAgentRequest", response: "StartHostAgentResponse"},
@@ -1397,6 +1406,14 @@ contract: {
 				{type: "bool", name: "has_content", number: 6},
 				{type: "ImageContentDescriptor", name: "target", number: 7},
 				{rule: "repeated", type: "ImageContentDescriptor", name: "descriptors", number: 8},
+			]},
+			{kind: "message", name: "UploadInstanceImageArchiveRequest", fields: [
+				{type: "string", name: "instance", number: 1},
+				{type: "string", name: "archive_path", number: 2},
+				{type: "string", name: "image_ref", number: 3},
+			]},
+			{kind: "message", name: "UploadInstanceImageArchiveResponse", fields: [
+				{type: "string", name: "task_id", number: 1},
 			]},
 			{kind: "message", name: "UploadInstanceImageArchiveChunkRequest", fields: [
 				{type: "string", name: "instance", number: 1},

@@ -865,93 +865,65 @@ func WaitForNoAppsForInstance(deadline time.Time, client pbApic.ProtosClientApiC
 	return fmt.Errorf("apps remained after instance %v deletion: %w", instanceIDs, lastErr)
 }
 
-func UploadImageArchive(deadline time.Time, client pbApic.ProtosClientApiClient, instanceName string, archivePath string, imageRef string) error {
+type UploadInstanceImageArchiveResult struct {
+	TaskID           string
+	Task             *pbApic.Task
+	Events           []*pbApic.TaskEvent
+	Instance         string
+	ImageRef         string
+	TargetDigest     string
+	Platform         string
+	BytesUploaded    uint64
+	ArchiveSizeBytes uint64
+}
+
+func UploadImageArchive(deadline time.Time, client pbApic.ProtosClientApiClient, instanceName string, archivePath string, imageRef string) (UploadInstanceImageArchiveResult, error) {
 	absPath, err := filepath.Abs(archivePath)
 	if err != nil {
-		return err
+		return UploadInstanceImageArchiveResult{}, err
 	}
 	info, err := os.Stat(absPath)
 	if err != nil {
-		return fmt.Errorf("stat seed image archive %s: %w", absPath, err)
+		return UploadInstanceImageArchiveResult{}, fmt.Errorf("stat seed image archive %s: %w", absPath, err)
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("seed image archive %s is not a regular file", absPath)
+		return UploadInstanceImageArchiveResult{}, fmt.Errorf("seed image archive %s is not a regular file", absPath)
 	}
-	file, err := os.Open(absPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
 
-	uploadID := fmt.Sprintf("seed-%d", time.Now().UnixNano())
-	buf := make([]byte, 1024*1024)
-	var offset uint64
-	total := uint64(info.Size())
-	started := time.Now()
-	lastReport := started
-	var lastReportedBytes uint64
-	reportedProgress := false
-	nextPercentReport := uint64(0)
-	fmt.Printf("remote seed image archive upload started: instance=%s image=%s path=%s size=%s\n", instanceName, imageRef, absPath, formatByteCount(total))
-	reportProgress := func(force bool, received uint64) {
-		percent := uint64(100)
-		if total > 0 && received < total {
-			percent = received * 100 / total
-		}
-		if force && reportedProgress && received == lastReportedBytes {
-			return
-		}
-		if !force && percent < nextPercentReport && time.Since(lastReport) < 15*time.Second {
-			return
-		}
-		lastReport = time.Now()
-		lastReportedBytes = received
-		reportedProgress = true
-		for nextPercentReport <= percent {
-			nextPercentReport += 10
-		}
-		fmt.Printf("remote seed image archive upload progress: instance=%s uploaded=%s/%s percent=%d elapsed=%s\n", instanceName, formatByteCount(received), formatByteCount(total), percent, time.Since(started).Round(time.Second))
+	ctx, cancel := contextWithDeadline(deadline, 30*time.Second)
+	resp, err := client.UploadInstanceImageArchive(ctx, &pbApic.UploadInstanceImageArchiveRequest{
+		Instance:    instanceName,
+		ArchivePath: absPath,
+		ImageRef:    imageRef,
+	})
+	cancel()
+	if err != nil {
+		return UploadInstanceImageArchiveResult{}, err
 	}
-	for {
-		n, readErr := file.Read(buf)
-		eof := readErr == io.EOF
-		if readErr != nil && !eof {
-			return fmt.Errorf("read seed image archive %s: %w", absPath, readErr)
-		}
-		if n == 0 && !eof {
-			continue
-		}
-		if eof {
-			expectedReceived := offset + uint64(n)
-			reportProgress(true, expectedReceived)
-			fmt.Printf("remote seed image archive transfer complete: instance=%s image=%s uploaded=%s; waiting for runtime import\n", instanceName, imageRef, formatByteCount(expectedReceived))
-		}
-		ctx, cancel := contextWithDeadline(deadline, 2*time.Minute)
-		resp, err := client.UploadInstanceImageArchiveChunk(ctx, &pbApic.UploadInstanceImageArchiveChunkRequest{
-			Instance: instanceName,
-			UploadId: uploadID,
-			ImageRef: imageRef,
-			Offset:   offset,
-			Data:     append([]byte(nil), buf[:n]...),
-			Eof:      eof,
-		})
-		cancel()
-		if err != nil {
-			return err
-		}
-		offset = resp.GetReceivedBytes()
-		if !eof {
-			reportProgress(false, offset)
-		}
-		if !eof {
-			continue
-		}
-		if !resp.GetLoaded() {
-			return fmt.Errorf("seed image archive upload to %s reached EOF without loading image", instanceName)
-		}
-		fmt.Printf("remote seed image archive loaded: instance=%s image=%s digest=%s platform=%s bytes=%s elapsed=%s\n", instanceName, resp.GetImageRef(), resp.GetTargetDigest(), resp.GetPlatform(), formatByteCount(offset), time.Since(started).Round(time.Second))
-		return nil
+	taskID := strings.TrimSpace(resp.GetTaskId())
+	if taskID == "" {
+		return UploadInstanceImageArchiveResult{}, fmt.Errorf("image archive upload response did not include a task id")
 	}
+	fmt.Printf("queued remote seed image archive upload task: instance=%s image=%s path=%s size=%s task=%s\n", instanceName, imageRef, absPath, formatByteCount(uint64(info.Size())), taskID)
+	task, events, err := WaitForTaskSucceededWithEvents(deadline, client, taskID)
+	if err != nil {
+		return UploadInstanceImageArchiveResult{}, err
+	}
+	result := uploadInstanceImageArchiveTaskResult(task)
+	result.TaskID = taskID
+	result.Task = task
+	result.Events = events
+	if result.Instance == "" {
+		result.Instance = instanceName
+	}
+	if result.ImageRef == "" {
+		result.ImageRef = imageRef
+	}
+	if result.ArchiveSizeBytes == 0 {
+		result.ArchiveSizeBytes = uint64(info.Size())
+	}
+	fmt.Printf("remote seed image archive loaded: instance=%s image=%s digest=%s platform=%s bytes=%s\n", result.Instance, result.ImageRef, result.TargetDigest, result.Platform, formatByteCount(result.BytesUploaded))
+	return result, nil
 }
 
 func formatByteCount(bytes uint64) string {
@@ -1325,6 +1297,31 @@ func uploadTaskImageID(task *pbApic.Task) string {
 		return ""
 	}
 	return strings.TrimSpace(result.ImageID)
+}
+
+func uploadInstanceImageArchiveTaskResult(task *pbApic.Task) UploadInstanceImageArchiveResult {
+	if task == nil || strings.TrimSpace(task.GetResultJson()) == "" {
+		return UploadInstanceImageArchiveResult{}
+	}
+	var result struct {
+		Instance         string `json:"instance"`
+		ImageRef         string `json:"image_ref"`
+		TargetDigest     string `json:"target_digest"`
+		Platform         string `json:"platform"`
+		BytesUploaded    uint64 `json:"bytes_uploaded"`
+		ArchiveSizeBytes uint64 `json:"archive_size_bytes"`
+	}
+	if err := json.Unmarshal([]byte(task.GetResultJson()), &result); err != nil {
+		return UploadInstanceImageArchiveResult{}
+	}
+	return UploadInstanceImageArchiveResult{
+		Instance:         strings.TrimSpace(result.Instance),
+		ImageRef:         strings.TrimSpace(result.ImageRef),
+		TargetDigest:     strings.TrimSpace(result.TargetDigest),
+		Platform:         strings.TrimSpace(result.Platform),
+		BytesUploaded:    result.BytesUploaded,
+		ArchiveSizeBytes: result.ArchiveSizeBytes,
+	}
 }
 
 func taskTerminalStatus(status string) bool {

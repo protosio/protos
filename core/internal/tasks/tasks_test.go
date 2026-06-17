@@ -140,6 +140,55 @@ func TestTaskProgressSubscriptionDoesNotPersistEvent(t *testing.T) {
 	}
 }
 
+func TestRegisterIfAbsentKeepsExistingStream(t *testing.T) {
+	store := openTaskTestDB(t)
+	manager := NewManager(store)
+
+	runCount := 0
+	if err := Register(manager, Stream[testPayload, testResult]{
+		Name: "test.stream",
+		Run: func(ctx context.Context, task *RunContext[testPayload]) (testResult, error) {
+			runCount++
+			return testResult{Done: "first"}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := RegisterIfAbsent(manager, Stream[testPayload, testResult]{
+		Name: "test.stream",
+		Run: func(ctx context.Context, task *RunContext[testPayload]) (testResult, error) {
+			return testResult{Done: "second"}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+		Stream:      "test.stream",
+		SubjectType: "test-subject",
+		SubjectID:   "subject-1",
+		Title:       "test task",
+		Payload:     testPayload{Value: "input"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	done, err := manager.Get(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result testResult
+	if err := json.Unmarshal(done.Result, &result); err != nil {
+		t.Fatal(err)
+	}
+	if runCount != 1 || result.Done != "first" {
+		t.Fatalf("RegisterIfAbsent replaced existing stream: runCount=%d result=%q", runCount, result.Done)
+	}
+}
+
 func taskEventCount(t *testing.T, store *db.DB, taskID string) int {
 	t.Helper()
 	rows, err := store.QueryContext(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", db.MustUUIDBytes(taskID))

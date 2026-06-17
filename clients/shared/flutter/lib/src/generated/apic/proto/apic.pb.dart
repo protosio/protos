@@ -11079,6 +11079,148 @@ class GetInstanceImageResponse extends $pb.GeneratedMessage {
   $pb.PbList<ImageContentDescriptor> get descriptors => $_getList(7);
 }
 
+class UploadInstanceImageArchiveRequest extends $pb.GeneratedMessage {
+  factory UploadInstanceImageArchiveRequest({
+    $core.String? instance,
+    $core.String? archivePath,
+    $core.String? imageRef,
+  }) {
+    final result = create();
+    if (instance != null) result.instance = instance;
+    if (archivePath != null) result.archivePath = archivePath;
+    if (imageRef != null) result.imageRef = imageRef;
+    return result;
+  }
+
+  UploadInstanceImageArchiveRequest._();
+
+  factory UploadInstanceImageArchiveRequest.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UploadInstanceImageArchiveRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UploadInstanceImageArchiveRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'instance')
+    ..aOS(2, _omitFieldNames ? '' : 'archivePath')
+    ..aOS(3, _omitFieldNames ? '' : 'imageRef')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveRequest copyWith(
+          void Function(UploadInstanceImageArchiveRequest) updates) =>
+      super.copyWith((message) =>
+              updates(message as UploadInstanceImageArchiveRequest))
+          as UploadInstanceImageArchiveRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveRequest create() =>
+      UploadInstanceImageArchiveRequest._();
+  @$core.override
+  UploadInstanceImageArchiveRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UploadInstanceImageArchiveRequest>(
+          create);
+  static UploadInstanceImageArchiveRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get instance => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set instance($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasInstance() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearInstance() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get archivePath => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set archivePath($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasArchivePath() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearArchivePath() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get imageRef => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set imageRef($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasImageRef() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearImageRef() => $_clearField(3);
+}
+
+class UploadInstanceImageArchiveResponse extends $pb.GeneratedMessage {
+  factory UploadInstanceImageArchiveResponse({
+    $core.String? taskId,
+  }) {
+    final result = create();
+    if (taskId != null) result.taskId = taskId;
+    return result;
+  }
+
+  UploadInstanceImageArchiveResponse._();
+
+  factory UploadInstanceImageArchiveResponse.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UploadInstanceImageArchiveResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UploadInstanceImageArchiveResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'taskId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UploadInstanceImageArchiveResponse copyWith(
+          void Function(UploadInstanceImageArchiveResponse) updates) =>
+      super.copyWith((message) =>
+              updates(message as UploadInstanceImageArchiveResponse))
+          as UploadInstanceImageArchiveResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveResponse create() =>
+      UploadInstanceImageArchiveResponse._();
+  @$core.override
+  UploadInstanceImageArchiveResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UploadInstanceImageArchiveResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UploadInstanceImageArchiveResponse>(
+          create);
+  static UploadInstanceImageArchiveResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get taskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set taskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTaskId() => $_clearField(1);
+}
+
 class UploadInstanceImageArchiveChunkRequest extends $pb.GeneratedMessage {
   factory UploadInstanceImageArchiveChunkRequest({
     $core.String? instance,
@@ -13013,6 +13155,14 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetInstanceImageRequest request) =>
       _client.invoke<GetInstanceImageResponse>(ctx, 'ProtosClientApi',
           'GetInstanceImage', request, GetInstanceImageResponse());
+  $async.Future<UploadInstanceImageArchiveResponse> uploadInstanceImageArchive(
+          $pb.ClientContext? ctx, UploadInstanceImageArchiveRequest request) =>
+      _client.invoke<UploadInstanceImageArchiveResponse>(
+          ctx,
+          'ProtosClientApi',
+          'UploadInstanceImageArchive',
+          request,
+          UploadInstanceImageArchiveResponse());
   $async.Future<UploadInstanceImageArchiveChunkResponse>
       uploadInstanceImageArchiveChunk($pb.ClientContext? ctx,
               UploadInstanceImageArchiveChunkRequest request) =>

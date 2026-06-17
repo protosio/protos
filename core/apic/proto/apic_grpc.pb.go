@@ -73,6 +73,7 @@ const (
 	ProtosClientApi_UploadProvisionerImage_FullMethodName          = "/apic.ProtosClientApi/UploadProvisionerImage"
 	ProtosClientApi_RemoveProvisionerImage_FullMethodName          = "/apic.ProtosClientApi/RemoveProvisionerImage"
 	ProtosClientApi_GetInstanceImage_FullMethodName                = "/apic.ProtosClientApi/GetInstanceImage"
+	ProtosClientApi_UploadInstanceImageArchive_FullMethodName      = "/apic.ProtosClientApi/UploadInstanceImageArchive"
 	ProtosClientApi_UploadInstanceImageArchiveChunk_FullMethodName = "/apic.ProtosClientApi/UploadInstanceImageArchiveChunk"
 	ProtosClientApi_GetSystemStatus_FullMethodName                 = "/apic.ProtosClientApi/GetSystemStatus"
 	ProtosClientApi_StartHostAgent_FullMethodName                  = "/apic.ProtosClientApi/StartHostAgent"
@@ -140,6 +141,7 @@ type ProtosClientApiClient interface {
 	UploadProvisionerImage(ctx context.Context, in *UploadProvisionerImageRequest, opts ...grpc.CallOption) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(ctx context.Context, in *RemoveProvisionerImageRequest, opts ...grpc.CallOption) (*RemoveProvisionerImageResponse, error)
 	GetInstanceImage(ctx context.Context, in *GetInstanceImageRequest, opts ...grpc.CallOption) (*GetInstanceImageResponse, error)
+	UploadInstanceImageArchive(ctx context.Context, in *UploadInstanceImageArchiveRequest, opts ...grpc.CallOption) (*UploadInstanceImageArchiveResponse, error)
 	UploadInstanceImageArchiveChunk(ctx context.Context, in *UploadInstanceImageArchiveChunkRequest, opts ...grpc.CallOption) (*UploadInstanceImageArchiveChunkResponse, error)
 	GetSystemStatus(ctx context.Context, in *GetSystemStatusRequest, opts ...grpc.CallOption) (*GetSystemStatusResponse, error)
 	StartHostAgent(ctx context.Context, in *StartHostAgentRequest, opts ...grpc.CallOption) (*StartHostAgentResponse, error)
@@ -715,6 +717,16 @@ func (c *protosClientApiClient) GetInstanceImage(ctx context.Context, in *GetIns
 	return out, nil
 }
 
+func (c *protosClientApiClient) UploadInstanceImageArchive(ctx context.Context, in *UploadInstanceImageArchiveRequest, opts ...grpc.CallOption) (*UploadInstanceImageArchiveResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadInstanceImageArchiveResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_UploadInstanceImageArchive_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) UploadInstanceImageArchiveChunk(ctx context.Context, in *UploadInstanceImageArchiveChunkRequest, opts ...grpc.CallOption) (*UploadInstanceImageArchiveChunkResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UploadInstanceImageArchiveChunkResponse)
@@ -843,6 +855,7 @@ type ProtosClientApiServer interface {
 	UploadProvisionerImage(context.Context, *UploadProvisionerImageRequest) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error)
 	GetInstanceImage(context.Context, *GetInstanceImageRequest) (*GetInstanceImageResponse, error)
+	UploadInstanceImageArchive(context.Context, *UploadInstanceImageArchiveRequest) (*UploadInstanceImageArchiveResponse, error)
 	UploadInstanceImageArchiveChunk(context.Context, *UploadInstanceImageArchiveChunkRequest) (*UploadInstanceImageArchiveChunkResponse, error)
 	GetSystemStatus(context.Context, *GetSystemStatusRequest) (*GetSystemStatusResponse, error)
 	StartHostAgent(context.Context, *StartHostAgentRequest) (*StartHostAgentResponse, error)
@@ -1020,6 +1033,9 @@ func (UnimplementedProtosClientApiServer) RemoveProvisionerImage(context.Context
 }
 func (UnimplementedProtosClientApiServer) GetInstanceImage(context.Context, *GetInstanceImageRequest) (*GetInstanceImageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetInstanceImage not implemented")
+}
+func (UnimplementedProtosClientApiServer) UploadInstanceImageArchive(context.Context, *UploadInstanceImageArchiveRequest) (*UploadInstanceImageArchiveResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UploadInstanceImageArchive not implemented")
 }
 func (UnimplementedProtosClientApiServer) UploadInstanceImageArchiveChunk(context.Context, *UploadInstanceImageArchiveChunkRequest) (*UploadInstanceImageArchiveChunkResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UploadInstanceImageArchiveChunk not implemented")
@@ -2020,6 +2036,24 @@ func _ProtosClientApi_GetInstanceImage_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_UploadInstanceImageArchive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadInstanceImageArchiveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).UploadInstanceImageArchive(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_UploadInstanceImageArchive_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).UploadInstanceImageArchive(ctx, req.(*UploadInstanceImageArchiveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_UploadInstanceImageArchiveChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UploadInstanceImageArchiveChunkRequest)
 	if err := dec(in); err != nil {
@@ -2360,6 +2394,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInstanceImage",
 			Handler:    _ProtosClientApi_GetInstanceImage_Handler,
+		},
+		{
+			MethodName: "UploadInstanceImageArchive",
+			Handler:    _ProtosClientApi_UploadInstanceImageArchive_Handler,
 		},
 		{
 			MethodName: "UploadInstanceImageArchiveChunk",

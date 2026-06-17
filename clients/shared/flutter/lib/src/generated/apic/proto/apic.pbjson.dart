@@ -3011,6 +3011,37 @@ final $typed_data.Uint8List getInstanceImageResponseDescriptor = $convert.base64
     'bnRlbnREZXNjcmlwdG9yUgtkZXNjcmlwdG9ycxo5CgtMYWJlbHNFbnRyeRIQCgNrZXkYASABKA'
     'lSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgB');
 
+@$core.Deprecated('Use uploadInstanceImageArchiveRequestDescriptor instead')
+const UploadInstanceImageArchiveRequest$json = {
+  '1': 'UploadInstanceImageArchiveRequest',
+  '2': [
+    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+    {'1': 'archive_path', '3': 2, '4': 1, '5': 9, '10': 'archivePath'},
+    {'1': 'image_ref', '3': 3, '4': 1, '5': 9, '10': 'imageRef'},
+  ],
+};
+
+/// Descriptor for `UploadInstanceImageArchiveRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadInstanceImageArchiveRequestDescriptor =
+    $convert.base64Decode(
+        'CiFVcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZVJlcXVlc3QSGgoIaW5zdGFuY2UYASABKAlSCG'
+        'luc3RhbmNlEiEKDGFyY2hpdmVfcGF0aBgCIAEoCVILYXJjaGl2ZVBhdGgSGwoJaW1hZ2VfcmVm'
+        'GAMgASgJUghpbWFnZVJlZg==');
+
+@$core.Deprecated('Use uploadInstanceImageArchiveResponseDescriptor instead')
+const UploadInstanceImageArchiveResponse$json = {
+  '1': 'UploadInstanceImageArchiveResponse',
+  '2': [
+    {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+  ],
+};
+
+/// Descriptor for `UploadInstanceImageArchiveResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List uploadInstanceImageArchiveResponseDescriptor =
+    $convert.base64Decode(
+        'CiJVcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZVJlc3BvbnNlEhcKB3Rhc2tfaWQYASABKAlSBn'
+        'Rhc2tJZA==');
+
 @$core
     .Deprecated('Use uploadInstanceImageArchiveChunkRequestDescriptor instead')
 const UploadInstanceImageArchiveChunkRequest$json = {
@@ -3792,6 +3823,12 @@ const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
       '4': {}
     },
     {
+      '1': 'UploadInstanceImageArchive',
+      '2': '.apic.UploadInstanceImageArchiveRequest',
+      '3': '.apic.UploadInstanceImageArchiveResponse',
+      '4': {}
+    },
+    {
       '1': 'UploadInstanceImageArchiveChunk',
       '2': '.apic.UploadInstanceImageArchiveChunkRequest',
       '3': '.apic.UploadInstanceImageArchiveChunkResponse',
@@ -4006,6 +4043,10 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.ImageContentDescriptor': ImageContentDescriptor$json,
   '.apic.ImageContentDescriptor.AnnotationsEntry':
       ImageContentDescriptor_AnnotationsEntry$json,
+  '.apic.UploadInstanceImageArchiveRequest':
+      UploadInstanceImageArchiveRequest$json,
+  '.apic.UploadInstanceImageArchiveResponse':
+      UploadInstanceImageArchiveResponse$json,
   '.apic.UploadInstanceImageArchiveChunkRequest':
       UploadInstanceImageArchiveChunkRequest$json,
   '.apic.UploadInstanceImageArchiveChunkResponse':
@@ -4113,15 +4154,17 @@ final $typed_data.Uint8List protosClientApiServiceDescriptor = $convert.base64De
     'RQcm92aXNpb25lckltYWdlUmVzcG9uc2UiABJlChZSZW1vdmVQcm92aXNpb25lckltYWdlEiMu'
     'YXBpYy5SZW1vdmVQcm92aXNpb25lckltYWdlUmVxdWVzdBokLmFwaWMuUmVtb3ZlUHJvdmlzaW'
     '9uZXJJbWFnZVJlc3BvbnNlIgASUwoQR2V0SW5zdGFuY2VJbWFnZRIdLmFwaWMuR2V0SW5zdGFu'
-    'Y2VJbWFnZVJlcXVlc3QaHi5hcGljLkdldEluc3RhbmNlSW1hZ2VSZXNwb25zZSIAEoABCh9VcG'
-    'xvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW5rEiwuYXBpYy5VcGxvYWRJbnN0YW5jZUltYWdl'
-    'QXJjaGl2ZUNodW5rUmVxdWVzdBotLmFwaWMuVXBsb2FkSW5zdGFuY2VJbWFnZUFyY2hpdmVDaH'
-    'Vua1Jlc3BvbnNlIgASUAoPR2V0U3lzdGVtU3RhdHVzEhwuYXBpYy5HZXRTeXN0ZW1TdGF0dXNS'
-    'ZXF1ZXN0Gh0uYXBpYy5HZXRTeXN0ZW1TdGF0dXNSZXNwb25zZSIAEk0KDlN0YXJ0SG9zdEFnZW'
-    '50EhsuYXBpYy5TdGFydEhvc3RBZ2VudFJlcXVlc3QaHC5hcGljLlN0YXJ0SG9zdEFnZW50UmVz'
-    'cG9uc2UiABJKCg1TdG9wSG9zdEFnZW50EhouYXBpYy5TdG9wSG9zdEFnZW50UmVxdWVzdBobLm'
-    'FwaWMuU3RvcEhvc3RBZ2VudFJlc3BvbnNlIgASUAoPR2V0TG9jYWxDb21taXRzEhwuYXBpYy5H'
-    'ZXRMb2NhbENvbW1pdHNSZXF1ZXN0Gh0uYXBpYy5HZXRMb2NhbENvbW1pdHNSZXNwb25zZSIAEl'
-    'MKEEdldFJlbW90ZUNvbW1pdHMSHS5hcGljLkdldFJlbW90ZUNvbW1pdHNSZXF1ZXN0Gh4uYXBp'
-    'Yy5HZXRSZW1vdGVDb21taXRzUmVzcG9uc2UiABJBCgpFeGVjdXRlU3FsEhcuYXBpYy5FeGVjdX'
-    'RlU3FsUmVxdWVzdBoYLmFwaWMuRXhlY3V0ZVNxbFJlc3BvbnNlIgA=');
+    'Y2VJbWFnZVJlcXVlc3QaHi5hcGljLkdldEluc3RhbmNlSW1hZ2VSZXNwb25zZSIAEnEKGlVwbG'
+    '9hZEluc3RhbmNlSW1hZ2VBcmNoaXZlEicuYXBpYy5VcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2'
+    'ZVJlcXVlc3QaKC5hcGljLlVwbG9hZEluc3RhbmNlSW1hZ2VBcmNoaXZlUmVzcG9uc2UiABKAAQ'
+    'ofVXBsb2FkSW5zdGFuY2VJbWFnZUFyY2hpdmVDaHVuaxIsLmFwaWMuVXBsb2FkSW5zdGFuY2VJ'
+    'bWFnZUFyY2hpdmVDaHVua1JlcXVlc3QaLS5hcGljLlVwbG9hZEluc3RhbmNlSW1hZ2VBcmNoaX'
+    'ZlQ2h1bmtSZXNwb25zZSIAElAKD0dldFN5c3RlbVN0YXR1cxIcLmFwaWMuR2V0U3lzdGVtU3Rh'
+    'dHVzUmVxdWVzdBodLmFwaWMuR2V0U3lzdGVtU3RhdHVzUmVzcG9uc2UiABJNCg5TdGFydEhvc3'
+    'RBZ2VudBIbLmFwaWMuU3RhcnRIb3N0QWdlbnRSZXF1ZXN0GhwuYXBpYy5TdGFydEhvc3RBZ2Vu'
+    'dFJlc3BvbnNlIgASSgoNU3RvcEhvc3RBZ2VudBIaLmFwaWMuU3RvcEhvc3RBZ2VudFJlcXVlc3'
+    'QaGy5hcGljLlN0b3BIb3N0QWdlbnRSZXNwb25zZSIAElAKD0dldExvY2FsQ29tbWl0cxIcLmFw'
+    'aWMuR2V0TG9jYWxDb21taXRzUmVxdWVzdBodLmFwaWMuR2V0TG9jYWxDb21taXRzUmVzcG9uc2'
+    'UiABJTChBHZXRSZW1vdGVDb21taXRzEh0uYXBpYy5HZXRSZW1vdGVDb21taXRzUmVxdWVzdBoe'
+    'LmFwaWMuR2V0UmVtb3RlQ29tbWl0c1Jlc3BvbnNlIgASQQoKRXhlY3V0ZVNxbBIXLmFwaWMuRX'
+    'hlY3V0ZVNxbFJlcXVlc3QaGC5hcGljLkV4ZWN1dGVTcWxSZXNwb25zZSIA');
