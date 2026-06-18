@@ -14,7 +14,6 @@ import (
 	"time"
 
 	scp "github.com/bramvdbogaerde/go-scp"
-	pb "github.com/cheggaaa/pb/v3"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/exp/actionutil"
 	"github.com/pkg/errors"
@@ -373,7 +372,10 @@ func (hz *hetzner) AddImage(url string, hash string, version string, location st
 	return imageID, nil
 }
 
-func (hz *hetzner) UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (id string, err error) {
+func (hz *hetzner) UploadLocalImage(ctx context.Context, imagePath string, imageName string, location string, timeout time.Duration, progress provisioners.UploadProgressFunc) (id string, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	errMsg := "Failed to upload Protos image to Hetzner"
 	names, err := provisioners.NewProtosCloudImageNames(imageName, time.Now())
 	if err != nil {
@@ -428,16 +430,13 @@ func (hz *hetzner) UploadLocalImage(imagePath string, imageName string, location
 
 	remoteImage := "/tmp/" + sanitizeRemoteName(names.ImageName)
 	log.Info("Uploading image to Hetzner rescue server. This can take a while...")
-	bar := pb.Full.Start(0)
 	passThru := func(r io.Reader, total int64) io.Reader {
-		bar.SetTotal(total)
-		return bar.NewProxyReader(r)
+		return provisioners.NewUploadProgressReader(r, total, "scp", progress)
 	}
-	err = client.CopyPassThru(context.TODO(), fdUpload, remoteImage, "0655", fInfo.Size(), passThru)
+	err = client.CopyPassThru(ctx, fdUpload, remoteImage, "0655", fInfo.Size(), passThru)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}
-	bar.Finish()
 
 	sshClient, err := pcrypto.NewConnectionWithHostKeyCallback(hetznerServerPublicIP(server), "root", key.SSHAuth(), 10, hostKeyCallback)
 	if err != nil {

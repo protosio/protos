@@ -2,13 +2,23 @@ package p2pv1
 
 #ExecSQLRequest: {
 	statement?: string
-	msg?:       string
+	max_rows?:  int
 }
 
 #ExecSQLResponse: {
-	commit?: string
-	result?: string
-	err?:    string
+	columns?:   [...string]
+	rows?:      [...#SQLRow]
+	truncated?: bool
+	message?:   string
+}
+
+#SQLCell: {
+	value?:   string
+	is_null?: bool
+}
+
+#SQLRow: {
+	cells?: [...#SQLCell]
 }
 
 #Commit: {
@@ -58,12 +68,20 @@ contract: {
 		declarations: [
 			{kind: "message", name: "ExecSQLRequest", fields: [
 				{type: "string", name: "statement", number: 1},
-				{type: "string", name: "msg", number: 2},
+				{type: "int32", name: "max_rows", number: 2},
 			]},
 			{kind: "message", name: "ExecSQLResponse", fields: [
-				{type: "string", name: "commit", number: 1},
-				{type: "string", name: "result", number: 2},
-				{type: "string", name: "err", number: 3},
+				{rule: "repeated", type: "string", name: "columns", number: 1},
+				{rule: "repeated", type: "SQLRow", name: "rows", number: 2},
+				{type: "bool", name: "truncated", number: 3},
+				{type: "string", name: "message", number: 4},
+			]},
+			{kind: "message", name: "SQLCell", fields: [
+				{type: "string", name: "value", number: 1},
+				{type: "bool", name: "is_null", number: 2},
+			]},
+			{kind: "message", name: "SQLRow", fields: [
+				{rule: "repeated", type: "SQLCell", name: "cells", number: 1},
 			]},
 				{kind: "message", name: "Commit", fields: [
 					{type: "string", name: "hash", number: 1},
@@ -92,6 +110,8 @@ lineage: {
 		schema: {
 			ExecSQLRequest?:          #ExecSQLRequest
 			ExecSQLResponse?:         #ExecSQLResponse
+			SQLCell?:                 #SQLCell
+			SQLRow?:                  #SQLRow
 			Commit?:                  #Commit
 			GetAllCommitsRequest?:    #GetAllCommitsRequest
 			GetAllCommitsResponse?:   #GetAllCommitsResponse

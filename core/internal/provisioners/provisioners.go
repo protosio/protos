@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -38,12 +39,20 @@ func (ct Type) String() string {
 //
 // Concrete provisioners are passed in by the caller so internal/provisioners owns the
 // orchestration contract without importing implementation packages.
-func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2P, provisioners ...ProvisionerFactory) (*Manager, error) {
-	if db == nil || um == nil || sm == nil || p2p == nil {
+func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2P, taskManager *tasks.Manager, provisioners ...ProvisionerFactory) (*Manager, error) {
+	if db == nil || um == nil || sm == nil || p2p == nil || taskManager == nil {
 		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
 	}
 
-	manager := &Manager{db: db, um: um, sm: sm, p2p: p2p, provisioners: newProvisionerRegistry(), tasks: tasks.NewManager(db)}
+	manager := &Manager{
+		db:           db,
+		um:           um,
+		sm:           sm,
+		p2p:          p2p,
+		provisioners: newProvisionerRegistry(),
+		tasks:        taskManager,
+		lifecycleSig: map[string]string{},
+	}
 	for _, provisioner := range provisioners {
 		manager.RegisterProvisioner(provisioner)
 	}
@@ -62,6 +71,8 @@ type Manager struct {
 	p2p          *p2p.P2P
 	provisioners *provisionerRegistry
 	tasks        *tasks.Manager
+	lifecycleMu  sync.Mutex
+	lifecycleSig map[string]string
 }
 
 const instanceSSHKeysDir = "instance-ssh-keys"
@@ -80,7 +91,7 @@ func instanceSSHKeyPath(instanceID string) (string, error) {
 // GetInstanceSSHKey returns the locally persisted private SSH key used for
 // provisioning an instance.
 func (cm *Manager) GetInstanceSSHKey(id string) (string, error) {
-	instance, err := cm.GetInstance(id)
+	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
 		return "", err
 	}
@@ -877,7 +888,7 @@ func firstNonEmptyString(values ...string) string {
 
 // UpdateInstance updates an instance
 func (cm *Manager) UpdateInstance(id string, ip string) error {
-	instance, err := cm.GetInstance(id)
+	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
@@ -893,24 +904,27 @@ func (cm *Manager) UpdateInstance(id string, ip string) error {
 
 }
 
-// DeleteInstance deletes an instance
-func (cm *Manager) DeleteInstance(ctx context.Context, id string) error {
-	return cm.deleteInstance(ctx, id, false)
+// DeleteInstance queues deletion of an instance.
+func (cm *Manager) DeleteInstance(ctx context.Context, id string) (tasks.Record, error) {
+	return cm.QueueDeleteInstance(ctx, id)
 }
 
 // DeleteInstanceLocal deletes only local database and peer state for an instance.
-func (cm *Manager) DeleteInstanceLocal(ctx context.Context, id string) error {
-	return cm.deleteInstance(ctx, id, true)
+func (cm *Manager) DeleteInstanceLocal(ctx context.Context, id string) (tasks.Record, error) {
+	return cm.QueueDeleteInstanceLocal(ctx, id)
 }
 
-func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool) error {
+func (cm *Manager) deleteInstanceImperative(ctx context.Context, progress func(int, string, any) error, id string, localOnly bool) error {
 	ctx, cancel := instanceDeleteContext(ctx)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if progress == nil {
+		progress = func(int, string, any) error { return nil }
+	}
 
-	instance, err := cm.GetInstance(id)
+	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
@@ -925,21 +939,33 @@ func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if err := progress(10, "marking instance deleting", map[string]string{"instance_id": instance.ID, "instance_name": instance.Name}); err != nil {
+		return err
+	}
 	if err := cm.markInstanceDeleting(ctx, instance); err != nil {
 		return err
 	}
 	instance.DesiredStatus = ServerStateDeleting
 
+	if err := progress(20, "removing instance apps", map[string]string{"instance_id": instance.ID}); err != nil {
+		return err
+	}
 	if err := cm.deleteAppsForInstance(ctx, instance.ID); err != nil {
 		return err
 	}
 
 	if strings.TrimSpace(instance.PublicKey) != "" {
 		if cm.p2p != nil {
+			if err := progress(30, "removing p2p peer", map[string]string{"instance_id": instance.ID}); err != nil {
+				return err
+			}
 			err = cm.p2p.RemovePeer(instance)
 			if err != nil {
 				return fmt.Errorf("failed to remove peer: %w", err)
 			}
+		}
+		if err := progress(40, "waiting for durable peer removal", map[string]string{"instance_id": instance.ID}); err != nil {
+			return err
 		}
 		if err := cm.waitForInstancePeerDurableRemovalReady(ctx, instance); err != nil {
 			return err
@@ -967,6 +993,9 @@ func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool
 			return fmt.Errorf("could not init cloud '%s': %w", id, err)
 		}
 
+		if err := progress(50, "loading provider instance", map[string]string{"instance_id": instance.ID, "provisioner": instance.KindID}); err != nil {
+			return err
+		}
 		found := true
 		vmInfo, providerInstanceID, err := getProviderInstanceInfo(computeProvider, instance)
 		if err != nil {
@@ -986,6 +1015,9 @@ func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool
 				if err := ctx.Err(); err != nil {
 					return err
 				}
+				if err := progress(60, "stopping provider instance", map[string]string{"instance_id": instance.ID, "provider_instance_id": providerInstanceID}); err != nil {
+					return err
+				}
 				err = computeProvider.StopInstance(providerInstanceID, instance.Location)
 				if err != nil {
 					log.Warnf("failed to stop instance '%s' before delete; attempting provider delete anyway: %s", id, err.Error())
@@ -994,6 +1026,9 @@ func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool
 			for _, vol := range vmInfo.Volumes {
 				log.Infof("Deleting volume '%s' (%s) for instance '%s'", vol.Name, vol.VolumeID, id)
 				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if err := progress(70, "deleting provider volume", map[string]string{"instance_id": instance.ID, "volume_id": vol.VolumeID}); err != nil {
 					return err
 				}
 				err = volumeProvider.DeleteVolume(vol.VolumeID, instance.Location)
@@ -1005,6 +1040,9 @@ func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			if err := progress(80, "deleting provider instance", map[string]string{"instance_id": instance.ID, "provider_instance_id": providerInstanceID}); err != nil {
+				return err
+			}
 			err = computeProvider.DeleteInstance(providerInstanceID, instance.Location)
 			if err != nil {
 				return fmt.Errorf("could not delete instance '%s': %w", id, err)
@@ -1012,6 +1050,9 @@ func (cm *Manager) deleteInstance(ctx context.Context, id string, localOnly bool
 		}
 	}
 
+	if err := progress(90, "deleting instance records", map[string]string{"instance_id": instance.ID}); err != nil {
+		return err
+	}
 	if err := cm.deleteInstanceRecords(ctx, instance); err != nil {
 		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
 	}
@@ -1250,27 +1291,13 @@ func (cm *Manager) replicationCandidatesExcluding(peerID string) ([]db.Replicati
 }
 
 // StartInstance starts an instance
-func (cm *Manager) StartInstance(id string) error {
-	return cm.setInstanceDesiredStatus(id, ServerStateRunning)
+func (cm *Manager) StartInstance(id string) (tasks.Record, error) {
+	return cm.QueueStartInstance(id)
 }
 
 // StopInstance stops an instance
-func (cm *Manager) StopInstance(id string) error {
-	return cm.setInstanceDesiredStatus(id, ServerStateStopped)
-}
-
-func (cm *Manager) setInstanceDesiredStatus(id string, desiredStatus string) error {
-	instance, err := cm.GetInstance(id)
-	if err != nil {
-		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
-	}
-	instance.DesiredStatus = desiredStatus
-	im, _ := createInstanceUpdateMapper(instance)
-	if err := db.Update(cm.db, im); err != nil {
-		return fmt.Errorf("failed to save instance '%s': %w", id, err)
-	}
-	log.Infof("Set desired status for instance '%s' to '%s'", instance.Name, desiredStatus)
-	return cm.ReconcileDesiredInstances()
+func (cm *Manager) StopInstance(id string) (tasks.Record, error) {
+	return cm.QueueStopInstance(id)
 }
 
 // TunnelInstance creates and SSH tunnel to the instance
@@ -1359,14 +1386,9 @@ func (cm *Manager) sshAuthForInstance(instance InstanceInfo) (ssh.AuthMethod, er
 // GetInstance retrieves an instance from the db and returns it
 func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 
-	iqm := createInstanceQueryMapper(id)
-	instance, err := db.SelectOne(cm.db, iqm)
+	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
-		instanceByName, nameErr := db.SelectOne(cm.db, createInstanceQueryByNameMapper(id))
-		if nameErr != nil {
-			return instance, fmt.Errorf("failed to retrieve instance: %w", err)
-		}
-		instance = instanceByName
+		return instance, err
 	}
 
 	if IsDeletingInstance(instance) {
@@ -1387,6 +1409,19 @@ func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 		instance.Status = status
 	}
 	return instance, nil
+}
+
+func (cm *Manager) getInstanceRecord(id string) (InstanceInfo, error) {
+	iqm := createInstanceQueryMapper(id)
+	instance, err := db.SelectOne(cm.db, iqm)
+	if err == nil {
+		return instance, nil
+	}
+	instanceByName, nameErr := db.SelectOne(cm.db, createInstanceQueryByNameMapper(id))
+	if nameErr != nil {
+		return instance, fmt.Errorf("failed to retrieve instance: %w", err)
+	}
+	return instanceByName, nil
 }
 
 // GetInstances returns all the instances from the db
@@ -1460,53 +1495,63 @@ func (cm *Manager) GetInstancesWithUpdatedStatus() ([]InstanceInfo, error) {
 	return instances, nil
 }
 
-// ReconcileDesiredInstances applies persisted desired machine state through
-// provisioners that expose a declarative reconcile hook.
-func (cm *Manager) ReconcileDesiredInstances() error {
-	instances, err := cm.GetInstances(false)
+func (cm *Manager) reconcileDesiredInstance(ctx context.Context, progress func(int, string, any) error, id string) (bool, InstanceInfo, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if progress == nil {
+		progress = func(int, string, any) error { return nil }
+	}
+	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
-		return err
+		return false, InstanceInfo{}, fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
-
-	var failures []string
-	for _, instance := range instances {
-		if IsDeletingInstance(instance) {
-			continue
-		}
-		desiredStatus := normalizeDesiredInstanceStatus(instance.DesiredStatus)
-		if desiredStatus == "" || strings.TrimSpace(instance.PublicKey) == "" {
-			continue
-		}
-
-		provisioner, err := cm.GetProvisioner(instance.KindID)
-		if err != nil {
-			failures = append(failures, err.Error())
-			continue
-		}
-		if err := provisioner.Init(); err != nil {
-			failures = append(failures, fmt.Sprintf("init provisioner %s: %v", instance.KindID, err))
-			continue
-		}
-
-		instance.DesiredStatus = desiredStatus
-		updated, err := reconcileProvisionerInstance(provisioner, instance)
-		if err != nil {
-			failures = append(failures, fmt.Sprintf("reconcile instance %s: %v", instance.Name, err))
-			continue
-		}
-		updated = mergedReconciledInstance(instance, updated)
-		if persistentInstanceEqual(instance, updated) {
-			continue
-		}
-		im, cmm := createInstanceUpdateMapper(updated)
-		if err := db.Update(cm.db, im, cmm); err != nil {
-			failures = append(failures, fmt.Sprintf("save reconciled instance %s: %v", instance.Name, err))
-		}
+	if IsDeletingInstance(instance) {
+		return false, instance, nil
 	}
-	if len(failures) > 0 {
-		return fmt.Errorf("%s", strings.Join(failures, "; "))
+	desiredStatus := normalizeDesiredInstanceStatus(instance.DesiredStatus)
+	if desiredStatus == "" || strings.TrimSpace(instance.PublicKey) == "" {
+		return false, instance, nil
 	}
-	return nil
+	if err := ctx.Err(); err != nil {
+		return false, instance, err
+	}
+	if err := progress(20, "loading provisioner", map[string]string{"instance_id": instance.ID, "provisioner": instance.KindID}); err != nil {
+		return false, instance, err
+	}
+	provisioner, err := cm.GetProvisioner(instance.KindID)
+	if err != nil {
+		return false, instance, err
+	}
+	if err := provisioner.Init(); err != nil {
+		return false, instance, fmt.Errorf("init provisioner %s: %w", instance.KindID, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return false, instance, err
+	}
+	instance.DesiredStatus = desiredStatus
+	if err := progress(50, "applying desired instance state", map[string]string{
+		"instance_id":    instance.ID,
+		"desired_status": desiredStatus,
+	}); err != nil {
+		return false, instance, err
+	}
+	updated, err := reconcileProvisionerInstance(provisioner, instance)
+	if err != nil {
+		return false, instance, fmt.Errorf("reconcile instance %s: %w", instance.Name, err)
+	}
+	updated = mergedReconciledInstance(instance, updated)
+	if persistentInstanceEqual(instance, updated) {
+		return false, updated, nil
+	}
+	if err := progress(85, "saving observed instance state", map[string]string{"instance_id": instance.ID}); err != nil {
+		return false, updated, err
+	}
+	im, cmm := createInstanceUpdateMapper(updated)
+	if err := db.Update(cm.db, im, cmm); err != nil {
+		return false, updated, fmt.Errorf("save reconciled instance %s: %w", instance.Name, err)
+	}
+	return true, updated, nil
 }
 
 func (cm *Manager) pendingInstanceStatus(instance InstanceInfo) string {
@@ -1586,6 +1631,51 @@ func normalizeDesiredInstanceStatus(status string) string {
 	default:
 		return ""
 	}
+}
+
+func lifecycleDesiredSignature(instance InstanceInfo, desiredStatus string) string {
+	return strings.Join([]string{
+		strings.TrimSpace(instance.ID),
+		strings.TrimSpace(instance.Kind),
+		strings.TrimSpace(instance.KindID),
+		strings.TrimSpace(instance.ProviderResourceID),
+		strings.TrimSpace(instance.PublicKey),
+		strings.TrimSpace(instance.Location),
+		strings.TrimSpace(desiredStatus),
+	}, "|")
+}
+
+func (cm *Manager) lifecycleSignatureCurrent(instanceID string, sig string) bool {
+	if cm == nil {
+		return false
+	}
+	cm.lifecycleMu.Lock()
+	defer cm.lifecycleMu.Unlock()
+	if cm.lifecycleSig == nil {
+		cm.lifecycleSig = map[string]string{}
+	}
+	return cm.lifecycleSig[instanceID] == sig
+}
+
+func (cm *Manager) setLifecycleSignature(instanceID string, sig string) {
+	if cm == nil || strings.TrimSpace(instanceID) == "" || strings.TrimSpace(sig) == "" {
+		return
+	}
+	cm.lifecycleMu.Lock()
+	defer cm.lifecycleMu.Unlock()
+	if cm.lifecycleSig == nil {
+		cm.lifecycleSig = map[string]string{}
+	}
+	cm.lifecycleSig[instanceID] = sig
+}
+
+func (cm *Manager) clearLifecycleSignature(instanceID string) {
+	if cm == nil || strings.TrimSpace(instanceID) == "" {
+		return
+	}
+	cm.lifecycleMu.Lock()
+	defer cm.lifecycleMu.Unlock()
+	delete(cm.lifecycleSig, instanceID)
 }
 
 func mergedReconciledInstance(current InstanceInfo, observed InstanceInfo) InstanceInfo {
@@ -1721,7 +1811,7 @@ func (cm *Manager) uploadLocalImageImperative(ctx context.Context, progress func
 		return "", err
 	}
 	// upload image
-	id, err := imageProvider.UploadLocalImage(imagePath, imageName, cloudLocation, timeout)
+	id, err := imageProvider.UploadLocalImage(ctx, imagePath, imageName, cloudLocation, timeout, uploadTaskProgressSink(progress, uploadDetails))
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", errMsg, err)
 	}
@@ -1734,4 +1824,47 @@ func (cm *Manager) uploadLocalImageImperative(ctx context.Context, progress func
 		return "", err
 	}
 	return id, nil
+}
+
+func uploadTaskProgressSink(progress func(int, string, any, bool) error, baseDetails map[string]string) UploadProgressFunc {
+	lastProgress := -1
+	lastAt := time.Time{}
+	return func(update UploadProgress) error {
+		total := update.TotalBytes
+		transferred := update.BytesTransferred
+		if transferred < 0 {
+			transferred = 0
+		}
+		if total > 0 && transferred > total {
+			transferred = total
+		}
+		taskProgress := 60
+		percent := int64(0)
+		if total > 0 {
+			percent = transferred * 100 / total
+			taskProgress = 60 + int(transferred*30/total)
+			if taskProgress > 90 {
+				taskProgress = 90
+			}
+		}
+		if taskProgress == lastProgress && time.Since(lastAt) < 2*time.Second {
+			return nil
+		}
+		lastProgress = taskProgress
+		lastAt = time.Now()
+		details := map[string]any{
+			"bytes_uploaded":     transferred,
+			"archive_size_bytes": total,
+			"percent":            percent,
+			"phase":              update.Phase,
+		}
+		for key, value := range baseDetails {
+			details[key] = value
+		}
+		message := strings.TrimSpace(update.Message)
+		if message == "" {
+			message = "upload in progress"
+		}
+		return progress(taskProgress, message, details, false)
+	}
 }

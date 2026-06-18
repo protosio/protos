@@ -101,6 +101,7 @@ func selectTaskRecords(database *db.DB, filters taskQueryFilters, includeDetails
 	if status := Status(strings.TrimSpace(string(filters.Status))); status != "" {
 		addPredicate("status = ?", string(status))
 	}
+	query.WriteString(" ORDER BY created_at ASC")
 
 	rows, err := database.QueryContext(context.Background(), query.String(), args...)
 	if err != nil {

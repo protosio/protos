@@ -37,7 +37,7 @@ type ExternalDB interface {
 	AddPeer(peerID string, conn *grpc.ClientConn) error
 	RemovePeer(peerID string) error
 	GetAllCommits() ([]db.Commit, error)
-	ExecSQLAndCommit(statement string, commitMsg string) (string, error)
+	ExecuteSQL(ctx context.Context, statement string, maxRows int) (db.SQLResult, error)
 	GetLastCommit(branch string) (db.Commit, error)
 	CatchUpCheckpoint(ctx context.Context, reason string) error
 	InitFromPeer(peerID string, bootstrapPeers []string) error
@@ -89,11 +89,26 @@ func (s *Server) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingR
 }
 
 func (s *Server) ExecSQL(ctx context.Context, req *proto.ExecSQLRequest) (*proto.ExecSQLResponse, error) {
-	commit, err := s.DB.ExecSQLAndCommit(req.Statement, req.Msg)
+	result, err := s.DB.ExecuteSQL(ctx, req.GetStatement(), int(req.GetMaxRows()))
 	if err != nil {
 		return nil, err
 	}
-	return &proto.ExecSQLResponse{Result: "", Commit: commit}, nil
+	resp := &proto.ExecSQLResponse{
+		Columns:   append([]string(nil), result.Columns...),
+		Truncated: result.Truncated,
+		Message:   result.Message,
+	}
+	for _, row := range result.Rows {
+		respRow := &proto.SQLRow{Cells: make([]*proto.SQLCell, 0, len(row.Cells))}
+		for _, cell := range row.Cells {
+			respRow.Cells = append(respRow.Cells, &proto.SQLCell{
+				Value:  cell.Value,
+				IsNull: cell.Null,
+			})
+		}
+		resp.Rows = append(resp.Rows, respRow)
+	}
+	return resp, nil
 }
 
 func (s *Server) GetAllCommits(ctx context.Context, _ *proto.GetAllCommitsRequest) (*proto.GetAllCommitsResponse, error) {

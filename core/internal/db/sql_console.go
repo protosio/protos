@@ -29,15 +29,15 @@ type SQLResult struct {
 	Message      string
 }
 
-// ExecuteSQL exists only for the user-facing SQL console. Do not use it as an
-// internal ad hoc API surface; application code must use typed domain methods.
+// ExecuteSQL exists only for the user-facing SQL console. It is intentionally
+// read-only and bounded; application code must use typed domain methods.
 func (db *DB) ExecuteSQL(ctx context.Context, statement string, maxRows int) (SQLResult, error) {
 	if db == nil {
 		return SQLResult{}, fmt.Errorf("db is not initialized")
 	}
-	statement = strings.TrimSpace(statement)
-	if statement == "" {
-		return SQLResult{}, fmt.Errorf("sql statement is empty")
+	statement, err := normalizeReadOnlySQL(statement)
+	if err != nil {
+		return SQLResult{}, err
 	}
 	if maxRows <= 0 {
 		maxRows = defaultSQLConsoleMaxRows
@@ -45,26 +45,7 @@ func (db *DB) ExecuteSQL(ctx context.Context, statement string, maxRows int) (SQ
 	if maxRows > hardSQLConsoleMaxRows {
 		maxRows = hardSQLConsoleMaxRows
 	}
-	mayMutate := sqlMayMutate(statement)
-	if mayMutate {
-		db.opMu.Lock()
-		defer db.opMu.Unlock()
-	}
-
-	var result SQLResult
-	var err error
-	if sqlReturnsRows(statement) {
-		result, err = db.executeSQLQuery(ctx, statement, maxRows)
-	} else {
-		result, err = db.executeSQLStatement(ctx, statement)
-	}
-	if err != nil {
-		return SQLResult{}, err
-	}
-	if mayMutate {
-		db.NotifyChanges()
-	}
-	return result, nil
+	return db.executeSQLQuery(ctx, statement, maxRows)
 }
 
 func (db *DB) executeSQLQuery(ctx context.Context, statement string, maxRows int) (SQLResult, error) {
@@ -112,21 +93,6 @@ func (db *DB) executeSQLQuery(ctx context.Context, statement string, maxRows int
 	return result, nil
 }
 
-func (db *DB) executeSQLStatement(ctx context.Context, statement string) (SQLResult, error) {
-	res, err := db.ExecContext(ctx, statement)
-	if err != nil {
-		return SQLResult{}, err
-	}
-	var rowsAffected int64
-	if res != nil {
-		rowsAffected, _ = res.RowsAffected()
-	}
-	return SQLResult{
-		RowsAffected: rowsAffected,
-		Message:      fmt.Sprintf("%d rows affected", rowsAffected),
-	}, nil
-}
-
 func (db *DB) NotifyChanges(tableNames ...string) {
 	if db == nil {
 		return
@@ -147,21 +113,28 @@ func formatSQLCell(value any) SQLCell {
 	}
 }
 
-func sqlReturnsRows(statement string) bool {
-	switch sqlLeadKeyword(statement) {
-	case "SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN", "WITH", "CALL", "VALUES", "TABLE":
-		return true
-	default:
-		return false
+func normalizeReadOnlySQL(statement string) (string, error) {
+	statement = strings.TrimSpace(statement)
+	if statement == "" {
+		return "", fmt.Errorf("sql statement is empty")
 	}
+	statement = strings.TrimSuffix(statement, ";")
+	statement = strings.TrimSpace(statement)
+	if strings.Contains(statement, ";") {
+		return "", fmt.Errorf("only one SQL statement is allowed")
+	}
+	if !sqlReadOnly(statement) {
+		return "", fmt.Errorf("only read-only SQL statements are allowed")
+	}
+	return statement, nil
 }
 
-func sqlMayMutate(statement string) bool {
+func sqlReadOnly(statement string) bool {
 	switch sqlLeadKeyword(statement) {
-	case "SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN", "WITH", "VALUES", "TABLE":
-		return false
-	default:
+	case "SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN":
 		return true
+	default:
+		return false
 	}
 }
 

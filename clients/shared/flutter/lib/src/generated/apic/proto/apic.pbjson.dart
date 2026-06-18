@@ -1392,11 +1392,15 @@ final $typed_data.Uint8List removeInstanceRequestDescriptor = $convert.base64Dec
 @$core.Deprecated('Use removeInstanceResponseDescriptor instead')
 const RemoveInstanceResponse$json = {
   '1': 'RemoveInstanceResponse',
+  '2': [
+    {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+  ],
 };
 
 /// Descriptor for `RemoveInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List removeInstanceResponseDescriptor =
-    $convert.base64Decode('ChZSZW1vdmVJbnN0YW5jZVJlc3BvbnNl');
+    $convert.base64Decode(
+        'ChZSZW1vdmVJbnN0YW5jZVJlc3BvbnNlEhcKB3Rhc2tfaWQYASABKAlSBnRhc2tJZA==');
 
 @$core.Deprecated('Use startInstanceRequestDescriptor instead')
 const StartInstanceRequest$json = {
@@ -1413,11 +1417,15 @@ final $typed_data.Uint8List startInstanceRequestDescriptor = $convert
 @$core.Deprecated('Use startInstanceResponseDescriptor instead')
 const StartInstanceResponse$json = {
   '1': 'StartInstanceResponse',
+  '2': [
+    {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+  ],
 };
 
 /// Descriptor for `StartInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List startInstanceResponseDescriptor =
-    $convert.base64Decode('ChVTdGFydEluc3RhbmNlUmVzcG9uc2U=');
+    $convert.base64Decode(
+        'ChVTdGFydEluc3RhbmNlUmVzcG9uc2USFwoHdGFza19pZBgBIAEoCVIGdGFza0lk');
 
 @$core.Deprecated('Use stopInstanceRequestDescriptor instead')
 const StopInstanceRequest$json = {
@@ -1434,11 +1442,15 @@ final $typed_data.Uint8List stopInstanceRequestDescriptor = $convert
 @$core.Deprecated('Use stopInstanceResponseDescriptor instead')
 const StopInstanceResponse$json = {
   '1': 'StopInstanceResponse',
+  '2': [
+    {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+  ],
 };
 
 /// Descriptor for `StopInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List stopInstanceResponseDescriptor =
-    $convert.base64Decode('ChRTdG9wSW5zdGFuY2VSZXNwb25zZQ==');
+    $convert.base64Decode(
+        'ChRTdG9wSW5zdGFuY2VSZXNwb25zZRIXCgd0YXNrX2lkGAEgASgJUgZ0YXNrSWQ=');
 
 @$core.Deprecated('Use getInstanceKeyRequestDescriptor instead')
 const GetInstanceKeyRequest$json = {

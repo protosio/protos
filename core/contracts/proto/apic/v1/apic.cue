@@ -234,11 +234,11 @@ package apicv1
 	name?:       string
 	local_only?: bool
 }
-#RemoveInstanceResponse: {}
+#RemoveInstanceResponse: task_id?: string
 #StartInstanceRequest: name?: string
-#StartInstanceResponse: {}
+#StartInstanceResponse: task_id?: string
 #StopInstanceRequest: name?: string
-#StopInstanceResponse: {}
+#StopInstanceResponse: task_id?: string
 #GetInstanceKeyRequest: name?: string
 #GetInstanceKeyResponse: key?: string
 #GetInstanceLogsRequest: name?: string
@@ -1029,11 +1029,11 @@ contract: {
 				{type: "string", name: "name", number: 1},
 				{type: "bool", name: "local_only", number: 2},
 			]},
-			{kind: "message", name: "RemoveInstanceResponse", fields: []},
+			{kind: "message", name: "RemoveInstanceResponse", fields: [{type: "string", name: "task_id", number: 1}]},
 			{kind: "message", name: "StartInstanceRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "StartInstanceResponse", fields: []},
+			{kind: "message", name: "StartInstanceResponse", fields: [{type: "string", name: "task_id", number: 1}]},
 			{kind: "message", name: "StopInstanceRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "StopInstanceResponse", fields: []},
+			{kind: "message", name: "StopInstanceResponse", fields: [{type: "string", name: "task_id", number: 1}]},
 			{kind: "message", name: "GetInstanceKeyRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "GetInstanceKeyResponse", fields: [{type: "string", name: "key", number: 1}]},
 			{kind: "message", name: "GetInstanceLogsRequest", fields: [{type: "string", name: "name", number: 1}]},

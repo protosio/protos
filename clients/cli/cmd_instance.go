@@ -283,9 +283,14 @@ func deployInstance(instanceName string, cloudName string, cloudLocation string,
 func deleteInstance(instanceName string, localOnly bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Second)
 	defer cancel()
-	_, err := client.RemoveInstance(ctx, &apic.RemoveInstanceRequest{Name: instanceName, LocalOnly: localOnly})
+	resp, err := client.RemoveInstance(ctx, &apic.RemoveInstanceRequest{Name: instanceName, LocalOnly: localOnly})
 	if err != nil {
 		return fmt.Errorf("could not remove instance '%s': %w", instanceName, err)
+	}
+	if taskID := resp.GetTaskId(); taskID != "" {
+		if _, err = followTaskUntilTerminal(ctx, taskID, false); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -293,9 +298,14 @@ func deleteInstance(instanceName string, localOnly bool) error {
 func startInstance(instanceName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
-	_, err := client.StartInstance(ctx, &apic.StartInstanceRequest{Name: instanceName})
+	resp, err := client.StartInstance(ctx, &apic.StartInstanceRequest{Name: instanceName})
 	if err != nil {
 		return fmt.Errorf("could not start instance '%s': %w", instanceName, err)
+	}
+	if taskID := resp.GetTaskId(); taskID != "" {
+		if _, err = followTaskUntilTerminal(ctx, taskID, false); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -303,9 +313,14 @@ func startInstance(instanceName string) error {
 func stopInstance(instanceName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
-	_, err := client.StopInstance(ctx, &apic.StopInstanceRequest{Name: instanceName})
+	resp, err := client.StopInstance(ctx, &apic.StopInstanceRequest{Name: instanceName})
 	if err != nil {
 		return fmt.Errorf("could not stop instance '%s': %w", instanceName, err)
+	}
+	if taskID := resp.GetTaskId(); taskID != "" {
+		if _, err = followTaskUntilTerminal(ctx, taskID, false); err != nil {
+			return err
+		}
 	}
 	return nil
 }

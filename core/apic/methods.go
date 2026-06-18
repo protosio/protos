@@ -1101,17 +1101,18 @@ func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceR
 		return nil, err
 	}
 	log.Debugf("Removing instance '%s'", in.Name)
+	var task tasks.Record
 	var err error
 	if in.LocalOnly {
-		err = b.protosClient.CloudManager.DeleteInstanceLocal(ctx, in.Name)
+		task, err = b.protosClient.CloudManager.QueueDeleteInstanceLocal(ctx, in.Name)
 	} else {
-		err = b.protosClient.CloudManager.DeleteInstance(ctx, in.Name)
+		task, err = b.protosClient.CloudManager.QueueDeleteInstance(ctx, in.Name)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove instance '%s': %w", in.Name, err)
 	}
 
-	return &pbApic.RemoveInstanceResponse{}, nil
+	return &pbApic.RemoveInstanceResponse{TaskId: task.ID}, nil
 }
 
 func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceRequest) (*pbApic.StartInstanceResponse, error) {
@@ -1119,11 +1120,11 @@ func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceReq
 		return nil, err
 	}
 	log.Debugf("Starting instance '%s'", in.Name)
-	err := b.protosClient.CloudManager.StartInstance(in.Name)
+	task, err := b.protosClient.CloudManager.QueueStartInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start instance '%s': %w", in.Name, err)
 	}
-	return &pbApic.StartInstanceResponse{}, nil
+	return &pbApic.StartInstanceResponse{TaskId: task.ID}, nil
 }
 
 func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceRequest) (*pbApic.StopInstanceResponse, error) {
@@ -1131,11 +1132,11 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 		return nil, err
 	}
 	log.Debugf("Stopping instance '%s'", in.Name)
-	err := b.protosClient.CloudManager.StopInstance(in.Name)
+	task, err := b.protosClient.CloudManager.QueueStopInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stop instance '%s': %w", in.Name, err)
 	}
-	return &pbApic.StopInstanceResponse{}, nil
+	return &pbApic.StopInstanceResponse{TaskId: task.ID}, nil
 }
 
 func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyRequest) (*pbApic.GetInstanceKeyResponse, error) {
@@ -1490,14 +1491,10 @@ func (b *Backend) WatchTask(in *pbApic.WatchTaskRequest, stream pbApic.ProtosCli
 }
 
 func (b *Backend) taskManager() (*tasks.Manager, error) {
-	if b.protosClient == nil || b.protosClient.CloudManager == nil {
+	if b.protosClient == nil || b.protosClient.TaskManager == nil {
 		return nil, fmt.Errorf("task manager is not configured")
 	}
-	manager := b.protosClient.CloudManager.TaskManager()
-	if manager == nil {
-		return nil, fmt.Errorf("task manager is not configured")
-	}
-	return manager, nil
+	return b.protosClient.TaskManager, nil
 }
 
 func taskRecordToProto(record tasks.Record) *pbApic.Task {

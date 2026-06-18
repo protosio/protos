@@ -32,6 +32,7 @@ import (
 	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/release"
 	appruntime "github.com/protosio/protos/internal/runtime"
+	"github.com/protosio/protos/internal/tasks"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
 	"github.com/protosio/protos/provisioners/hetzner"
@@ -149,6 +150,7 @@ type Node struct {
 	NetworkManager *network.Manager
 	CloudManager   *provisioners.Manager
 	P2PManager     *p2p.P2P
+	TaskManager    *tasks.Manager
 	appRuntime     appruntime.RuntimePlatform
 
 	networkMu          sync.Mutex
@@ -237,6 +239,7 @@ func NewNode(configFile string, version *semver.Version, opts Options) (*Node, e
 		DB:             dbcli,
 		KeyManager:     keyManager,
 		Manager:        userManager,
+		TaskManager:    tasks.NewManager(dbcli),
 		networkDesired: caps.Network,
 		inviteManager:  inviteManager,
 	}
@@ -264,7 +267,7 @@ func (n *Node) Start() error {
 	}
 
 	n.appRuntime = appruntime.Create(n.NetworkManager, n.cfg.RuntimeEndpoint)
-	n.AppManager = app.CreateManager(n.localKey.GetID(), n.appRuntime, n.DB)
+	n.AppManager = app.CreateManager(n.localKey.GetID(), n.appRuntime, n.DB, n.TaskManager)
 
 	n.P2PManager, err = p2p.NewManager(n.localKey, n.AppManager, n.DB, n.cfg.P2PPort)
 	if err != nil {
@@ -290,6 +293,7 @@ func (n *Node) Start() error {
 		n.Manager,
 		n.KeyManager,
 		n.P2PManager,
+		n.TaskManager,
 		hetzner.NewFactory(),
 		scaleway.NewFactory(),
 		localmacos.NewFactory(),
@@ -363,8 +367,6 @@ func (n *Node) Start() error {
 		{model: db.CLOUD_MACHINE_METADATA{}, notifier: dbNotifier},
 		{model: db.MACHINE{}, notifier: dbNotifier},
 		{model: db.PEER{}, notifier: dbNotifier},
-		{model: db.TASK{}, notifier: dbNotifier},
-		{model: db.TASK_EVENT{}, notifier: dbNotifier},
 		{model: db.EXIT_ROUTE{}, notifier: dbNotifier},
 		{model: db.USER{}, notifier: dbNotifier},
 		{model: db.USER_DEVICE_METADATA{}, notifier: dbNotifier},
@@ -379,13 +381,16 @@ func (n *Node) Start() error {
 			return fmt.Errorf("failed to register app notifier: %w", err)
 		}
 	}
-	if n.capabilities.Provision {
-		n.stoppers["task-runner"] = n.CloudManager.StartTaskRunner(context.Background(), 2*time.Second)
+	if n.TaskManager != nil {
+		n.stoppers["task-runner"] = n.TaskManager.Start(context.Background(), 2*time.Second)
 	}
 
 	log.Info("Started all servers successfully")
 	if n.DB.Initialized() {
 		dbNotifier.Notify()
+		if n.capabilities.AppRuntime && n.AppManager != nil {
+			n.AppManager.Notify()
+		}
 	} else {
 		log.Info("DB not initialized. Waiting for local init or remote init")
 	}
@@ -403,6 +408,7 @@ func (n *Node) APIServices() *apic.Services {
 		NetworkControl:  n,
 		CloudManager:    n.CloudManager,
 		P2PManager:      n.P2PManager,
+		TaskManager:     n.TaskManager,
 		Invites:         n.inviteManager,
 		CanProvision:    n.capabilities.Provision,
 		WorkDir:         n.cfg.WorkDir,
@@ -580,8 +586,8 @@ func (dbn *DBNotifier) Notify() {
 	cancel()
 
 	if dbn.capabilities.Provision {
-		if err := dbn.cm.ReconcileDesiredInstances(); err != nil {
-			log.Error(fmt.Errorf("failed to reconcile desired instances: %w", err))
+		if err := dbn.cm.QueueDesiredInstanceReconciles(); err != nil {
+			log.Error(fmt.Errorf("failed to queue desired instance reconciliation: %w", err))
 		}
 	}
 
@@ -660,10 +666,6 @@ func (dbn *DBNotifier) Notify() {
 			log.Error(fmt.Errorf("failed to configure network peers: %w", err))
 			return
 		}
-	}
-
-	if dbn.capabilities.AppRuntime && dbn.am != nil {
-		dbn.am.Notify()
 	}
 
 	err = dbn.p2pm.ConfigurePeers(membership.Machines(instances, userDevices))

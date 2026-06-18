@@ -453,6 +453,7 @@ message RemoveInstanceRequest {
 }
 
 message RemoveInstanceResponse {
+  string task_id = 1;
 }
 
 message StartInstanceRequest {
@@ -460,6 +461,7 @@ message StartInstanceRequest {
 }
 
 message StartInstanceResponse {
+  string task_id = 1;
 }
 
 message StopInstanceRequest {
@@ -467,6 +469,7 @@ message StopInstanceRequest {
 }
 
 message StopInstanceResponse {
+  string task_id = 1;
 }
 
 message GetInstanceKeyRequest {

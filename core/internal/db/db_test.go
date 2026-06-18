@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bokwoon95/sq"
 	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -59,10 +60,15 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	}
 
 	userID := db.MustNewUUIDv7()
-	if _, err := store.ExecSQLAndCommit(
-		fmt.Sprintf("INSERT INTO users (id, username, name, is_disabled) VALUES (UNHEX(REPLACE('%s', '-', '')), 'alex', 'Alex', false)", userID),
-		"insert test user",
-	); err != nil {
+	if err := db.Insert(store, func() sq.InsertQuery {
+		u := sq.New[db.USER]("")
+		return sq.InsertInto(u).ColumnValues(func(col *sq.Column) {
+			col.SetBytes(u.ID, db.MustUUIDBytes(userID))
+			col.SetString(u.USERNAME, "alex")
+			col.SetString(u.NAME, "Alex")
+			col.SetBool(u.IS_DISABLED, false)
+		})
+	}); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
 
@@ -99,6 +105,12 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	}
 	if len(result.Rows) != 1 || len(result.Rows[0].Cells) != 2 || result.Rows[0].Cells[0].Value != "alex" {
 		t.Fatalf("rows = %#v, want alex row", result.Rows)
+	}
+	if _, err := store.ExecuteSQL(context.Background(), "INSERT INTO users (username) VALUES ('bad')", 20); err == nil {
+		t.Fatal("expected ExecuteSQL to reject mutating SQL")
+	}
+	if _, err := store.ExecuteSQL(context.Background(), "SELECT username FROM users; SELECT name FROM users", 20); err == nil {
+		t.Fatal("expected ExecuteSQL to reject multiple SQL statements")
 	}
 }
 

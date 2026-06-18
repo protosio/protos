@@ -12,7 +12,6 @@ import (
 	"time"
 
 	scp "github.com/bramvdbogaerde/go-scp"
-	pb "github.com/cheggaaa/pb/v3"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
@@ -544,7 +543,10 @@ func (sw *scaleway) AddImage(url string, hash string, version string, location s
 	return imageResp.Image.ID, nil
 }
 
-func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (id string, err error) {
+func (sw *scaleway) UploadLocalImage(ctx context.Context, imagePath string, imageName string, location string, timeout time.Duration, progress provisioners.UploadProgressFunc) (id string, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	errMsg := "Failed to upload Protos image to Scaleway"
 	names, err := provisioners.NewProtosCloudImageNames(imageName, time.Now())
@@ -637,16 +639,13 @@ func (sw *scaleway) UploadLocalImage(imagePath string, imageName string, locatio
 	log.Info("Uploading image. This can take a while...")
 	remoteImage := "/tmp/" + names.ImageName
 
-	bar := pb.Full.Start(0)
 	passThru := func(r io.Reader, total int64) io.Reader {
-		bar.SetTotal(total)
-		return bar.NewProxyReader(r)
+		return provisioners.NewUploadProgressReader(r, total, "scp", progress)
 	}
-	err = client.CopyPassThru(context.TODO(), fdUpload, remoteImage, "0655", fInfo.Size(), passThru)
+	err = client.CopyPassThru(ctx, fdUpload, remoteImage, "0655", fInfo.Size(), passThru)
 	if err != nil {
 		return "", errors.Wrap(err, errMsg)
 	}
-	bar.Finish()
 
 	//
 	// connect via SSH and check the integrity of the image

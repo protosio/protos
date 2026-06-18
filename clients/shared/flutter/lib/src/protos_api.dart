@@ -296,28 +296,31 @@ class ProtosApi {
     );
   }
 
-  Future<void> removeInstance(String name, {required bool localOnly}) async {
-    await bridge.call(
+  Future<String> removeInstance(String name, {required bool localOnly}) async {
+    final response = await bridge.call(
       'RemoveInstance',
       pb.RemoveInstanceRequest(name: name, localOnly: localOnly),
       pb.RemoveInstanceResponse.create,
     );
+    return response.taskId;
   }
 
-  Future<void> startInstance(String name) async {
-    await bridge.call(
+  Future<String> startInstance(String name) async {
+    final response = await bridge.call(
       'StartInstance',
       pb.StartInstanceRequest(name: name),
       pb.StartInstanceResponse.create,
     );
+    return response.taskId;
   }
 
-  Future<void> stopInstance(String name) async {
-    await bridge.call(
+  Future<String> stopInstance(String name) async {
+    final response = await bridge.call(
       'StopInstance',
       pb.StopInstanceRequest(name: name),
       pb.StopInstanceResponse.create,
     );
+    return response.taskId;
   }
 
   Future<String> instanceKey(String name) async {

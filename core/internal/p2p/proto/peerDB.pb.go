@@ -24,7 +24,7 @@ const (
 type ExecSQLRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Statement     string                 `protobuf:"bytes,1,opt,name=statement,proto3" json:"statement,omitempty"`
-	Msg           string                 `protobuf:"bytes,2,opt,name=msg,proto3" json:"msg,omitempty"`
+	MaxRows       int32                  `protobuf:"varint,2,opt,name=max_rows,json=maxRows,proto3" json:"max_rows,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -66,18 +66,19 @@ func (x *ExecSQLRequest) GetStatement() string {
 	return ""
 }
 
-func (x *ExecSQLRequest) GetMsg() string {
+func (x *ExecSQLRequest) GetMaxRows() int32 {
 	if x != nil {
-		return x.Msg
+		return x.MaxRows
 	}
-	return ""
+	return 0
 }
 
 type ExecSQLResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Commit        string                 `protobuf:"bytes,1,opt,name=commit,proto3" json:"commit,omitempty"`
-	Result        string                 `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
-	Err           string                 `protobuf:"bytes,3,opt,name=err,proto3" json:"err,omitempty"`
+	Columns       []string               `protobuf:"bytes,1,rep,name=columns,proto3" json:"columns,omitempty"`
+	Rows          []*SQLRow              `protobuf:"bytes,2,rep,name=rows,proto3" json:"rows,omitempty"`
+	Truncated     bool                   `protobuf:"varint,3,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -112,25 +113,128 @@ func (*ExecSQLResponse) Descriptor() ([]byte, []int) {
 	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ExecSQLResponse) GetCommit() string {
+func (x *ExecSQLResponse) GetColumns() []string {
 	if x != nil {
-		return x.Commit
+		return x.Columns
+	}
+	return nil
+}
+
+func (x *ExecSQLResponse) GetRows() []*SQLRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+func (x *ExecSQLResponse) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+func (x *ExecSQLResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
 	}
 	return ""
 }
 
-func (x *ExecSQLResponse) GetResult() string {
+type SQLCell struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	IsNull        bool                   `protobuf:"varint,2,opt,name=is_null,json=isNull,proto3" json:"is_null,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLCell) Reset() {
+	*x = SQLCell{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLCell) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLCell) ProtoMessage() {}
+
+func (x *SQLCell) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[2]
 	if x != nil {
-		return x.Result
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLCell.ProtoReflect.Descriptor instead.
+func (*SQLCell) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SQLCell) GetValue() string {
+	if x != nil {
+		return x.Value
 	}
 	return ""
 }
 
-func (x *ExecSQLResponse) GetErr() string {
+func (x *SQLCell) GetIsNull() bool {
 	if x != nil {
-		return x.Err
+		return x.IsNull
 	}
-	return ""
+	return false
+}
+
+type SQLRow struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cells         []*SQLCell             `protobuf:"bytes,1,rep,name=cells,proto3" json:"cells,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLRow) Reset() {
+	*x = SQLRow{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLRow) ProtoMessage() {}
+
+func (x *SQLRow) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLRow.ProtoReflect.Descriptor instead.
+func (*SQLRow) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SQLRow) GetCells() []*SQLCell {
+	if x != nil {
+		return x.Cells
+	}
+	return nil
 }
 
 type Commit struct {
@@ -147,7 +251,7 @@ type Commit struct {
 
 func (x *Commit) Reset() {
 	*x = Commit{}
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[2]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -159,7 +263,7 @@ func (x *Commit) String() string {
 func (*Commit) ProtoMessage() {}
 
 func (x *Commit) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[2]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -172,7 +276,7 @@ func (x *Commit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Commit.ProtoReflect.Descriptor instead.
 func (*Commit) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{2}
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Commit) GetHash() string {
@@ -225,7 +329,7 @@ type GetAllCommitsRequest struct {
 
 func (x *GetAllCommitsRequest) Reset() {
 	*x = GetAllCommitsRequest{}
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[3]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -237,7 +341,7 @@ func (x *GetAllCommitsRequest) String() string {
 func (*GetAllCommitsRequest) ProtoMessage() {}
 
 func (x *GetAllCommitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[3]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -250,7 +354,7 @@ func (x *GetAllCommitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllCommitsRequest.ProtoReflect.Descriptor instead.
 func (*GetAllCommitsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{3}
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{5}
 }
 
 type GetAllCommitsResponse struct {
@@ -262,7 +366,7 @@ type GetAllCommitsResponse struct {
 
 func (x *GetAllCommitsResponse) Reset() {
 	*x = GetAllCommitsResponse{}
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[4]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -274,7 +378,7 @@ func (x *GetAllCommitsResponse) String() string {
 func (*GetAllCommitsResponse) ProtoMessage() {}
 
 func (x *GetAllCommitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[4]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -287,7 +391,7 @@ func (x *GetAllCommitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllCommitsResponse.ProtoReflect.Descriptor instead.
 func (*GetAllCommitsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{4}
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetAllCommitsResponse) GetCommits() []*Commit {
@@ -305,7 +409,7 @@ type GetHeadRequest struct {
 
 func (x *GetHeadRequest) Reset() {
 	*x = GetHeadRequest{}
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[5]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -317,7 +421,7 @@ func (x *GetHeadRequest) String() string {
 func (*GetHeadRequest) ProtoMessage() {}
 
 func (x *GetHeadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[5]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -330,7 +434,7 @@ func (x *GetHeadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHeadRequest.ProtoReflect.Descriptor instead.
 func (*GetHeadRequest) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{5}
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{7}
 }
 
 type GetHeadResponse struct {
@@ -342,7 +446,7 @@ type GetHeadResponse struct {
 
 func (x *GetHeadResponse) Reset() {
 	*x = GetHeadResponse{}
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[6]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -354,7 +458,7 @@ func (x *GetHeadResponse) String() string {
 func (*GetHeadResponse) ProtoMessage() {}
 
 func (x *GetHeadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[6]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -367,7 +471,7 @@ func (x *GetHeadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHeadResponse.ProtoReflect.Descriptor instead.
 func (*GetHeadResponse) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{6}
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetHeadResponse) GetCommit() string {
@@ -381,14 +485,20 @@ var File_internal_p2p_proto_peerDB_proto protoreflect.FileDescriptor
 
 const file_internal_p2p_proto_peerDB_proto_rawDesc = "" +
 	"\n" +
-	"\x1finternal/p2p/proto/peerDB.proto\x12\x05proto\"@\n" +
+	"\x1finternal/p2p/proto/peerDB.proto\x12\x05proto\"I\n" +
 	"\x0eExecSQLRequest\x12\x1c\n" +
-	"\tstatement\x18\x01 \x01(\tR\tstatement\x12\x10\n" +
-	"\x03msg\x18\x02 \x01(\tR\x03msg\"S\n" +
-	"\x0fExecSQLResponse\x12\x16\n" +
-	"\x06commit\x18\x01 \x01(\tR\x06commit\x12\x16\n" +
-	"\x06result\x18\x02 \x01(\tR\x06result\x12\x10\n" +
-	"\x03err\x18\x03 \x01(\tR\x03err\"\xaa\x01\n" +
+	"\tstatement\x18\x01 \x01(\tR\tstatement\x12\x19\n" +
+	"\bmax_rows\x18\x02 \x01(\x05R\amaxRows\"\x86\x01\n" +
+	"\x0fExecSQLResponse\x12\x18\n" +
+	"\acolumns\x18\x01 \x03(\tR\acolumns\x12!\n" +
+	"\x04rows\x18\x02 \x03(\v2\r.proto.SQLRowR\x04rows\x12\x1c\n" +
+	"\ttruncated\x18\x03 \x01(\bR\ttruncated\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"8\n" +
+	"\aSQLCell\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x12\x17\n" +
+	"\ais_null\x18\x02 \x01(\bR\x06isNull\".\n" +
+	"\x06SQLRow\x12$\n" +
+	"\x05cells\x18\x01 \x03(\v2\x0e.proto.SQLCellR\x05cells\"\xaa\x01\n" +
 	"\x06Commit\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\x12\x1c\n" +
 	"\tcommitter\x18\x02 \x01(\tR\tcommitter\x12\x18\n" +
@@ -419,29 +529,33 @@ func file_internal_p2p_proto_peerDB_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_peerDB_proto_rawDescData
 }
 
-var file_internal_p2p_proto_peerDB_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_internal_p2p_proto_peerDB_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_internal_p2p_proto_peerDB_proto_goTypes = []any{
 	(*ExecSQLRequest)(nil),        // 0: proto.ExecSQLRequest
 	(*ExecSQLResponse)(nil),       // 1: proto.ExecSQLResponse
-	(*Commit)(nil),                // 2: proto.Commit
-	(*GetAllCommitsRequest)(nil),  // 3: proto.GetAllCommitsRequest
-	(*GetAllCommitsResponse)(nil), // 4: proto.GetAllCommitsResponse
-	(*GetHeadRequest)(nil),        // 5: proto.GetHeadRequest
-	(*GetHeadResponse)(nil),       // 6: proto.GetHeadResponse
+	(*SQLCell)(nil),               // 2: proto.SQLCell
+	(*SQLRow)(nil),                // 3: proto.SQLRow
+	(*Commit)(nil),                // 4: proto.Commit
+	(*GetAllCommitsRequest)(nil),  // 5: proto.GetAllCommitsRequest
+	(*GetAllCommitsResponse)(nil), // 6: proto.GetAllCommitsResponse
+	(*GetHeadRequest)(nil),        // 7: proto.GetHeadRequest
+	(*GetHeadResponse)(nil),       // 8: proto.GetHeadResponse
 }
 var file_internal_p2p_proto_peerDB_proto_depIdxs = []int32{
-	2, // 0: proto.GetAllCommitsResponse.commits:type_name -> proto.Commit
-	0, // 1: proto.PeerDB.ExecSQL:input_type -> proto.ExecSQLRequest
-	3, // 2: proto.PeerDB.GetAllCommits:input_type -> proto.GetAllCommitsRequest
-	5, // 3: proto.PeerDB.GetHead:input_type -> proto.GetHeadRequest
-	1, // 4: proto.PeerDB.ExecSQL:output_type -> proto.ExecSQLResponse
-	4, // 5: proto.PeerDB.GetAllCommits:output_type -> proto.GetAllCommitsResponse
-	6, // 6: proto.PeerDB.GetHead:output_type -> proto.GetHeadResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3, // 0: proto.ExecSQLResponse.rows:type_name -> proto.SQLRow
+	2, // 1: proto.SQLRow.cells:type_name -> proto.SQLCell
+	4, // 2: proto.GetAllCommitsResponse.commits:type_name -> proto.Commit
+	0, // 3: proto.PeerDB.ExecSQL:input_type -> proto.ExecSQLRequest
+	5, // 4: proto.PeerDB.GetAllCommits:input_type -> proto.GetAllCommitsRequest
+	7, // 5: proto.PeerDB.GetHead:input_type -> proto.GetHeadRequest
+	1, // 6: proto.PeerDB.ExecSQL:output_type -> proto.ExecSQLResponse
+	6, // 7: proto.PeerDB.GetAllCommits:output_type -> proto.GetAllCommitsResponse
+	8, // 8: proto.PeerDB.GetHead:output_type -> proto.GetHeadResponse
+	6, // [6:9] is the sub-list for method output_type
+	3, // [3:6] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_internal_p2p_proto_peerDB_proto_init() }
@@ -455,7 +569,7 @@ func file_internal_p2p_proto_peerDB_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_peerDB_proto_rawDesc), len(file_internal_p2p_proto_peerDB_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

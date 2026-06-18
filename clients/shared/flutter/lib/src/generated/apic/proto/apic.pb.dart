@@ -4973,7 +4973,13 @@ class RemoveInstanceRequest extends $pb.GeneratedMessage {
 }
 
 class RemoveInstanceResponse extends $pb.GeneratedMessage {
-  factory RemoveInstanceResponse() => create();
+  factory RemoveInstanceResponse({
+    $core.String? taskId,
+  }) {
+    final result = create();
+    if (taskId != null) result.taskId = taskId;
+    return result;
+  }
 
   RemoveInstanceResponse._();
 
@@ -4988,6 +4994,7 @@ class RemoveInstanceResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'RemoveInstanceResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'taskId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5009,6 +5016,15 @@ class RemoveInstanceResponse extends $pb.GeneratedMessage {
   static RemoveInstanceResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<RemoveInstanceResponse>(create);
   static RemoveInstanceResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get taskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set taskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTaskId() => $_clearField(1);
 }
 
 class StartInstanceRequest extends $pb.GeneratedMessage {
@@ -5066,7 +5082,13 @@ class StartInstanceRequest extends $pb.GeneratedMessage {
 }
 
 class StartInstanceResponse extends $pb.GeneratedMessage {
-  factory StartInstanceResponse() => create();
+  factory StartInstanceResponse({
+    $core.String? taskId,
+  }) {
+    final result = create();
+    if (taskId != null) result.taskId = taskId;
+    return result;
+  }
 
   StartInstanceResponse._();
 
@@ -5081,6 +5103,7 @@ class StartInstanceResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'StartInstanceResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'taskId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5102,6 +5125,15 @@ class StartInstanceResponse extends $pb.GeneratedMessage {
   static StartInstanceResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<StartInstanceResponse>(create);
   static StartInstanceResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get taskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set taskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTaskId() => $_clearField(1);
 }
 
 class StopInstanceRequest extends $pb.GeneratedMessage {
@@ -5159,7 +5191,13 @@ class StopInstanceRequest extends $pb.GeneratedMessage {
 }
 
 class StopInstanceResponse extends $pb.GeneratedMessage {
-  factory StopInstanceResponse() => create();
+  factory StopInstanceResponse({
+    $core.String? taskId,
+  }) {
+    final result = create();
+    if (taskId != null) result.taskId = taskId;
+    return result;
+  }
 
   StopInstanceResponse._();
 
@@ -5174,6 +5212,7 @@ class StopInstanceResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'StopInstanceResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'taskId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5194,6 +5233,15 @@ class StopInstanceResponse extends $pb.GeneratedMessage {
   static StopInstanceResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<StopInstanceResponse>(create);
   static StopInstanceResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get taskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set taskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTaskId() => $_clearField(1);
 }
 
 class GetInstanceKeyRequest extends $pb.GeneratedMessage {

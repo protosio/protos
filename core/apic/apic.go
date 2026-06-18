@@ -20,6 +20,7 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/release"
+	"github.com/protosio/protos/internal/tasks"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
@@ -52,6 +53,7 @@ type Services struct {
 	NetworkControl NetworkController
 	CloudManager   *provisioners.Manager
 	P2PManager     *p2p.P2P
+	TaskManager    *tasks.Manager
 	Invites        *invitations.Manager
 	CanProvision   bool
 	WorkDir        string

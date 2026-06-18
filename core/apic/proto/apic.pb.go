@@ -3979,6 +3979,7 @@ func (x *RemoveInstanceRequest) GetLocalOnly() bool {
 
 type RemoveInstanceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4011,6 +4012,13 @@ func (x *RemoveInstanceResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RemoveInstanceResponse.ProtoReflect.Descriptor instead.
 func (*RemoveInstanceResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *RemoveInstanceResponse) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
 }
 
 type StartInstanceRequest struct {
@@ -4059,6 +4067,7 @@ func (x *StartInstanceRequest) GetName() string {
 
 type StartInstanceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4091,6 +4100,13 @@ func (x *StartInstanceResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StartInstanceResponse.ProtoReflect.Descriptor instead.
 func (*StartInstanceResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *StartInstanceResponse) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
 }
 
 type StopInstanceRequest struct {
@@ -4139,6 +4155,7 @@ func (x *StopInstanceRequest) GetName() string {
 
 type StopInstanceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4171,6 +4188,13 @@ func (x *StopInstanceResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StopInstanceResponse.ProtoReflect.Descriptor instead.
 func (*StopInstanceResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *StopInstanceResponse) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
 }
 
 type GetInstanceKeyRequest struct {
@@ -10420,14 +10444,17 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x15RemoveInstanceRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
-	"local_only\x18\x02 \x01(\bR\tlocalOnly\"\x18\n" +
-	"\x16RemoveInstanceResponse\"*\n" +
+	"local_only\x18\x02 \x01(\bR\tlocalOnly\"1\n" +
+	"\x16RemoveInstanceResponse\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"*\n" +
 	"\x14StartInstanceRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x17\n" +
-	"\x15StartInstanceResponse\")\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"0\n" +
+	"\x15StartInstanceResponse\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\")\n" +
 	"\x13StopInstanceRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x16\n" +
-	"\x14StopInstanceResponse\"+\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"/\n" +
+	"\x14StopInstanceResponse\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"+\n" +
 	"\x15GetInstanceKeyRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"*\n" +
 	"\x16GetInstanceKeyResponse\x12\x10\n" +

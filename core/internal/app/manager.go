@@ -10,6 +10,7 @@ import (
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/runtime"
+	"github.com/protosio/protos/internal/tasks"
 
 	"github.com/pkg/errors"
 )
@@ -17,6 +18,10 @@ import (
 const (
 	appDS       = "app"
 	TypeProtosd = "protosd"
+
+	AppReconcileTaskStream = "apps.runtime.reconcile"
+
+	taskSubjectAppRuntime = "app_runtime"
 )
 
 // Manager keeps track of all the apps
@@ -25,7 +30,18 @@ type Manager struct {
 	db            *db.DB
 	runtime       runtime.RuntimePlatform
 	imageResolver ImageResolver
+	tasks         *tasks.Manager
 	notifyMu      sync.Mutex
+}
+
+type reconcileRuntimeTaskPayload struct {
+	PeerID string `json:"peer_id"`
+}
+
+type reconcileRuntimeTaskResult struct {
+	PeerID     string `json:"peer_id"`
+	Reconciled int    `json:"reconciled"`
+	Removed    int    `json:"removed"`
 }
 
 type ImageResolver interface {
@@ -37,9 +53,17 @@ type ImageResolver interface {
 //
 
 // CreateManager returns a Manager, which implements the *AppManager interface
-func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB) *Manager {
+func CreateManager(ptype string, runtime runtime.RuntimePlatform, db *db.DB, taskManager *tasks.Manager) *Manager {
 
-	manager := &Manager{ptype: ptype, db: db, runtime: runtime}
+	manager := &Manager{ptype: ptype, db: db, runtime: runtime, tasks: taskManager}
+	if taskManager != nil {
+		if err := tasks.RegisterIfAbsent(taskManager, tasks.Stream[reconcileRuntimeTaskPayload, reconcileRuntimeTaskResult]{
+			Name: AppReconcileTaskStream,
+			Run:  manager.runReconcileRuntimeTask,
+		}); err != nil {
+			log.Errorf("failed to register app runtime task stream: %s", err.Error())
+		}
+	}
 
 	return manager
 }
@@ -163,20 +187,77 @@ func (am *Manager) GetByIntance(instance string) ([]App, error) {
 	return am.bindAll(apps), nil
 }
 
-// Refresh checks the db for new apps and deploys them if they belong to the current instance
+// Notify schedules app runtime reconciliation. Runtime operations can perform
+// image resolution, pulls, and sandbox lifecycle work, so the database notifier
+// must not run them inline.
 func (am *Manager) Notify() {
+	if _, err := am.QueueReconcile(); err != nil {
+		log.Errorf("failed to queue app runtime reconciliation: %s", err.Error())
+	}
+}
+
+func (am *Manager) QueueReconcile() (tasks.Record, error) {
+	if am == nil || am.tasks == nil {
+		return tasks.Record{}, fmt.Errorf("app runtime task manager is not configured")
+	}
+	peerID := strings.TrimSpace(am.ptype)
+	if peerID == "" {
+		peerID = "local"
+	}
+	record, _, err := tasks.EnqueueUnique(am.tasks, tasks.EnqueueUniqueOptions[reconcileRuntimeTaskPayload]{
+		EnqueueOptions: tasks.EnqueueOptions[reconcileRuntimeTaskPayload]{
+			Stream:      AppReconcileTaskStream,
+			SubjectType: taskSubjectAppRuntime,
+			SubjectID:   peerID,
+			Title:       "Reconcile app runtime",
+			Message:     "queued",
+			Payload:     reconcileRuntimeTaskPayload{PeerID: peerID},
+			MaxAttempts: 1,
+		},
+	})
+	return record, err
+}
+
+func (am *Manager) runReconcileRuntimeTask(ctx context.Context, task *tasks.RunContext[reconcileRuntimeTaskPayload]) (reconcileRuntimeTaskResult, error) {
+	payload := task.Payload()
+	if err := task.Update(5, "loading app state", map[string]string{"peer_id": payload.PeerID}); err != nil {
+		return reconcileRuntimeTaskResult{}, err
+	}
+	result, err := am.reconcileRuntime(ctx, func(progress int, message string, details any) error {
+		return task.Progress(progress, message, details)
+	})
+	if err != nil {
+		return reconcileRuntimeTaskResult{}, err
+	}
+	if err := task.Update(95, "app runtime reconciled", result); err != nil {
+		return reconcileRuntimeTaskResult{}, err
+	}
+	return result, nil
+}
+
+// reconcileRuntime checks the db for new apps and deploys them if they belong to the current instance.
+func (am *Manager) reconcileRuntime(ctx context.Context, progress func(int, string, any) error) (reconcileRuntimeTaskResult, error) {
 	am.notifyMu.Lock()
 	defer am.notifyMu.Unlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if progress == nil {
+		progress = func(int, string, any) error { return nil }
+	}
 
 	log.Debug("Syncing apps")
 	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))
 	if err != nil {
-		log.Errorf("Failed to get apps from db: %s", err.Error())
-		return
+		return reconcileRuntimeTaskResult{}, fmt.Errorf("failed to get apps from db: %w", err)
 	}
 
 	appsMap := map[string]App{}
+	result := reconcileRuntimeTaskResult{PeerID: strings.TrimSpace(am.ptype)}
 	for _, app := range dbapps {
+		if err := ctx.Err(); err != nil {
+			return reconcileRuntimeTaskResult{}, err
+		}
 		appsMap[app.ID] = app
 		if !am.shouldReconcile(app) {
 			continue
@@ -184,44 +265,49 @@ func (am *Manager) Notify() {
 
 		app = am.bind(app)
 		log.Infof("App '%s' desired status: '%s'", app.Name, app.DesiredStatus)
-		if app.DesiredStatus == statusRunning {
+		switch app.DesiredStatus {
+		case statusRunning:
+			_ = progress(20, "starting app", map[string]string{"app_id": app.ID, "app": app.Name})
 			err := app.Start()
 			if err != nil {
-				log.Errorf("Failed to start app '%s': '%s'", app.Name, err.Error())
-				continue
+				return reconcileRuntimeTaskResult{}, fmt.Errorf("failed to start app '%s': %w", app.Name, err)
 			}
-		} else if app.DesiredStatus == statusStopped {
+		case statusStopped:
 			if app.GetStatus() != statusStopped {
+				_ = progress(40, "stopping app", map[string]string{"app_id": app.ID, "app": app.Name})
 				err := app.Stop()
 				if err != nil {
-					log.Errorf("Failed to stop app '%s': '%s'", app.Name, err.Error())
-					continue
+					return reconcileRuntimeTaskResult{}, fmt.Errorf("failed to stop app '%s': %w", app.Name, err)
 				}
 			}
 		}
+		result.Reconciled++
 		log.Infof("App '%s' actual status: '%s'", app.Name, app.GetStatus())
 	}
 
 	allSandboxes, err := am.runtime.GetAllSandboxes()
 	if err != nil {
-		log.Errorf("Failed to get all sandboxes: %s", err.Error())
-		return
+		return reconcileRuntimeTaskResult{}, fmt.Errorf("failed to get all sandboxes: %w", err)
 	}
 	for id, sandbox := range allSandboxes {
+		if err := ctx.Err(); err != nil {
+			return reconcileRuntimeTaskResult{}, err
+		}
 		if _, found := appsMap[id]; !found {
 			log.Infof("App '%s' not found. Stopping and removing existing sandbox", id)
+			_ = progress(70, "removing orphan sandbox", map[string]string{"app_id": id})
 			err = sandbox.Stop()
 			if err != nil {
-				log.Errorf("Failed to remove sandbox for app '%s': %s", id, err.Error())
-				continue
+				return reconcileRuntimeTaskResult{}, fmt.Errorf("failed to stop sandbox for app '%s': %w", id, err)
 			}
 			err = sandbox.Remove()
 			if err != nil {
-				log.Errorf("Failed to remove sandbox for app '%s': %s", id, err.Error())
-				continue
+				return reconcileRuntimeTaskResult{}, fmt.Errorf("failed to remove sandbox for app '%s': %w", id, err)
 			}
+			result.Removed++
 		}
 	}
+	return result, nil
 }
 
 func (am *Manager) shouldReconcile(app App) bool {

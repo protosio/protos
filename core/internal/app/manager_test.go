@@ -10,6 +10,7 @@ import (
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
 	appruntime "github.com/protosio/protos/internal/runtime"
+	"github.com/protosio/protos/internal/tasks"
 )
 
 func TestNotifyDoesNotRemoveSandboxForAppOutsideLocalScope(t *testing.T) {
@@ -27,9 +28,12 @@ func TestNotifyDoesNotRemoveSandboxForAppOutsideLocalScope(t *testing.T) {
 			remoteAppID: remoteSandbox,
 		},
 	}
-	manager := CreateManager(localPeerID, runtime, store)
+	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 
 	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 
 	if remoteSandbox.removed {
 		t.Fatal("remote app sandbox was removed even though its declarative row still exists")
@@ -43,7 +47,7 @@ func TestGetReturnsAppWithInstanceID(t *testing.T) {
 	store := newTestAppDB(t)
 	appID := db.MustNewUUIDv7()
 	insertTestApp(t, store, appID, "app", "vm-id", statusStopped)
-	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store)
+	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store, tasks.NewManager(store))
 
 	got, err := manager.Get(appID)
 	if err != nil {
@@ -68,7 +72,7 @@ func TestGetReturnsAppWithInstanceID(t *testing.T) {
 func TestGetStatusForHydratedAppUsesManagerRuntime(t *testing.T) {
 	store := newTestAppDB(t)
 	insertTestApp(t, store, db.MustNewUUIDv7(), "app", "vm-id", statusStopped)
-	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store)
+	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store, tasks.NewManager(store))
 
 	status, err := manager.GetStatus("app")
 	if err != nil {
@@ -81,7 +85,7 @@ func TestGetStatusForHydratedAppUsesManagerRuntime(t *testing.T) {
 
 func TestCreateAssignsAppPublicKeyAndOverlayIP(t *testing.T) {
 	store := newTestAppDB(t)
-	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store)
+	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store, tasks.NewManager(store))
 
 	created, err := manager.Create("docker.io/library/busybox:latest", "app", "vm-id", false, nil)
 	if err != nil {
@@ -110,7 +114,7 @@ func TestStartPullsMissingImage(t *testing.T) {
 	store := newTestAppDB(t)
 	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
 	runtime := &fakeRuntimePlatform{imageExists: false}
-	manager := CreateManager(localPeerID, runtime, store)
+	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 
 	created, err := manager.Create("docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
@@ -120,6 +124,9 @@ func TestStartPullsMissingImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if runtime.pullImageCalls != 1 {
 		t.Fatalf("pullImageCalls = %d, want 1", runtime.pullImageCalls)
 	}
@@ -132,7 +139,7 @@ func TestStartResolvesMissingImageFromPeersBeforePull(t *testing.T) {
 	store := newTestAppDB(t)
 	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
 	runtime := &fakeRuntimePlatform{imageExists: false}
-	manager := CreateManager(localPeerID, runtime, store)
+	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 	manager.SetImageResolver(fakeImageResolver{
 		resolve: func(context.Context, string) error {
 			runtime.imageExists = true
@@ -148,6 +155,9 @@ func TestStartResolvesMissingImageFromPeersBeforePull(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if runtime.pullImageCalls != 0 {
 		t.Fatalf("pullImageCalls = %d, want 0", runtime.pullImageCalls)
 	}
@@ -180,9 +190,12 @@ func TestNotifyRepairsAlreadyRunningLocalApp(t *testing.T) {
 	runtime := &fakeRuntimePlatform{
 		sandboxes: map[string]*fakeRuntimeSandbox{app.ID: sandbox},
 	}
-	manager := CreateManager(localPeerID, runtime, store)
+	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 
 	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 
 	if runtime.newSandboxCalls != 0 {
 		t.Fatalf("newSandboxCalls = %d, want 0", runtime.newSandboxCalls)

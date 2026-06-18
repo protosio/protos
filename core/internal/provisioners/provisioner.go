@@ -1,7 +1,9 @@
 package provisioners
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -108,12 +110,57 @@ type DeploymentDiagnosticsProvider interface {
 	DeploymentDiagnostics(id string, location string) (string, error)
 }
 
+type UploadProgress struct {
+	Phase            string
+	Message          string
+	BytesTransferred int64
+	TotalBytes       int64
+}
+
+type UploadProgressFunc func(UploadProgress) error
+
+type uploadProgressReader struct {
+	reader   io.Reader
+	total    int64
+	phase    string
+	progress UploadProgressFunc
+	read     int64
+}
+
+func NewUploadProgressReader(reader io.Reader, total int64, phase string, progress UploadProgressFunc) io.Reader {
+	if progress == nil {
+		return reader
+	}
+	return &uploadProgressReader{
+		reader:   reader,
+		total:    total,
+		phase:    phase,
+		progress: progress,
+	}
+}
+
+func (r *uploadProgressReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if n > 0 {
+		r.read += int64(n)
+		if progressErr := r.progress(UploadProgress{
+			Phase:            r.phase,
+			Message:          "upload in progress",
+			BytesTransferred: r.read,
+			TotalBytes:       r.total,
+		}); progressErr != nil {
+			return n, progressErr
+		}
+	}
+	return n, err
+}
+
 // ImageProvisioner manages VM images.
 type ImageProvisioner interface {
 	GetImages() (images map[string]ImageInfo, err error)
 	GetProtosImages() (images map[string]ImageInfo, err error)
 	AddImage(url string, hash string, version string, location string) (id string, err error)
-	UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (id string, err error)
+	UploadLocalImage(ctx context.Context, imagePath string, imageName string, location string, timeout time.Duration, progress UploadProgressFunc) (id string, err error)
 	RemoveImage(name string, location string) error
 }
 

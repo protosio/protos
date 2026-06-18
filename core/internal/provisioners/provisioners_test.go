@@ -186,10 +186,7 @@ func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 func TestDeleteLocalInstanceContinuesWhenProviderManifestMissing(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	provider := &fakeMissingLocalMetadataProvider{}
-	cm := &Manager{
-		db:           store,
-		provisioners: newProvisionerRegistry(fakeMissingLocalMetadataFactory{provider: provider}),
-	}
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeMissingLocalMetadataFactory{provider: provider}))
 	if err := cm.AddProvisioner("local-test", fakeMissingLocalMetadataType.String(), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +205,10 @@ func TestDeleteLocalInstanceContinuesWhenProviderManifestMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cm.DeleteInstance(context.Background(), "test1"); err != nil {
+	if _, err := cm.DeleteInstance(context.Background(), "test1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runLifecycleTasks(t, cm); err != nil {
 		t.Fatal(err)
 	}
 	if len(provider.deleted) != 1 || provider.deleted[0] != "vm-missing" {
@@ -232,10 +232,7 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 		},
 		stopErr: fmt.Errorf("provider state transition failed"),
 	}
-	cm := &Manager{
-		db:           store,
-		provisioners: newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}),
-	}
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}))
 	if err := cm.AddProvisioner("cloud-test", fakeStopFailDeleteType.String(), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +251,10 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
+	if _, err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runLifecycleTasks(t, cm); err != nil {
 		t.Fatal(err)
 	}
 	if provider.stopCalls != 1 {
@@ -284,10 +284,7 @@ func TestDeleteInstanceReturnsVolumeDeleteErrorAndKeepsRecord(t *testing.T) {
 		},
 		volumeErr: fmt.Errorf("provider volume is locked"),
 	}
-	cm := &Manager{
-		db:           store,
-		provisioners: newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}),
-	}
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}))
 	if err := cm.AddProvisioner("cloud-test", fakeStopFailDeleteType.String(), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +303,10 @@ func TestDeleteInstanceReturnsVolumeDeleteErrorAndKeepsRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := cm.DeleteInstance(context.Background(), "vm")
+	if _, err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
+		t.Fatal(err)
+	}
+	err := runLifecycleTasks(t, cm)
 	if err == nil {
 		t.Fatal("expected volume delete error")
 	}
@@ -340,10 +340,7 @@ func TestDeleteInstanceTreatsAttachedVolumeCleanupAsRetryable(t *testing.T) {
 		},
 		volumeErr: fmt.Errorf("volume is attached to a server"),
 	}
-	cm := &Manager{
-		db:           store,
-		provisioners: newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}),
-	}
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}))
 	if err := cm.AddProvisioner("cloud-test", fakeStopFailDeleteType.String(), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +359,10 @@ func TestDeleteInstanceTreatsAttachedVolumeCleanupAsRetryable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := cm.DeleteInstance(context.Background(), "vm")
+	if _, err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
+		t.Fatal(err)
+	}
+	err := runLifecycleTasks(t, cm)
 	if err == nil {
 		t.Fatal("expected attached volume cleanup error")
 	}
@@ -400,7 +400,7 @@ func TestDeleteInstanceHonorsCanceledContextBeforeMutatingState(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := cm.DeleteInstance(ctx, "vm")
+	_, err := cm.DeleteInstance(ctx, "vm")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("DeleteInstance error = %v, want context.Canceled", err)
 	}
@@ -608,7 +608,7 @@ func TestReconcileComputeInstanceStartsStoppedInstance(t *testing.T) {
 	}
 }
 
-func TestReconcileDesiredInstancesAppliesLocalVMDesiredStatus(t *testing.T) {
+func TestQueueDesiredInstanceReconcileAppliesLocalVMDesiredStatus(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	provider := &fakeReconcileComputeProvisioner{instances: map[string]InstanceInfo{
 		"provider-vm-id": {
@@ -618,10 +618,7 @@ func TestReconcileDesiredInstancesAppliesLocalVMDesiredStatus(t *testing.T) {
 			PublicIP:           "192.0.2.10",
 		},
 	}}
-	cm := &Manager{
-		db:           store,
-		provisioners: newProvisionerRegistry(fakeReconcileFactory{provider: provider}),
-	}
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeReconcileFactory{provider: provider}))
 	if err := cm.AddProvisioner("local-test", fakeReconcileType.String(), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -642,7 +639,10 @@ func TestReconcileDesiredInstancesAppliesLocalVMDesiredStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cm.ReconcileDesiredInstances(); err != nil {
+	if err := cm.QueueDesiredInstanceReconciles(); err != nil {
+		t.Fatal(err)
+	}
+	if err := runLifecycleTasks(t, cm); err != nil {
 		t.Fatal(err)
 	}
 	if provider.stopCalls != 1 {
@@ -784,7 +784,12 @@ func (p *fakeDeploymentProvider) AddImage(url string, hash string, version strin
 	return "image-id", nil
 }
 
-func (p *fakeDeploymentProvider) UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (string, error) {
+func (p *fakeDeploymentProvider) UploadLocalImage(ctx context.Context, imagePath string, imageName string, location string, timeout time.Duration, progress UploadProgressFunc) (string, error) {
+	if progress != nil {
+		if err := progress(UploadProgress{Phase: "test", Message: "upload in progress", BytesTransferred: 1, TotalBytes: 1}); err != nil {
+			return "", err
+		}
+	}
 	return "image-id", nil
 }
 
@@ -991,4 +996,23 @@ func openProvisionerTestDB(t *testing.T) *db.DB {
 		t.Fatal(err)
 	}
 	return store
+}
+
+func newLifecycleTestManager(t *testing.T, store *db.DB, registry *provisionerRegistry) *Manager {
+	t.Helper()
+	manager := &Manager{
+		db:           store,
+		provisioners: registry,
+		tasks:        tasks.NewManager(store),
+		lifecycleSig: map[string]string{},
+	}
+	if err := manager.registerTaskStreams(); err != nil {
+		t.Fatal(err)
+	}
+	return manager
+}
+
+func runLifecycleTasks(t *testing.T, manager *Manager) error {
+	t.Helper()
+	return manager.tasks.RunPending(context.Background())
 }

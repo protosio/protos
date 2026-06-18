@@ -1011,25 +1011,6 @@ func (db *DB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, erro
 	return sqldb.PrepareContext(ctx, query)
 }
 
-func (db *DB) ExecSQLAndCommit(statement string, commitMsg string) (string, error) {
-	if strings.TrimSpace(statement) == "" {
-		return "", fmt.Errorf("sql statement is empty")
-	}
-
-	db.opMu.Lock()
-	defer db.opMu.Unlock()
-
-	if _, err := db.ExecContext(context.Background(), statement); err != nil {
-		return "", fmt.Errorf("failed to exec sql statement: %w", err)
-	}
-	commit, err := db.commitStaged(context.Background(), commitMsg, false)
-	if err != nil {
-		return "", err
-	}
-
-	return commit, nil
-}
-
 func (db *DB) GetLastCommit(branch string) (Commit, error) {
 	if strings.TrimSpace(branch) == "" {
 		branch = "main"

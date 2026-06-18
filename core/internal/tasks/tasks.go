@@ -85,6 +85,11 @@ type ListOptions struct {
 	MaxResults  int
 }
 
+type EnqueueUniqueOptions[P any] struct {
+	EnqueueOptions[P]
+	ReuseStatuses []Status
+}
+
 type Stream[P any, R any] struct {
 	Name string
 	Run  func(context.Context, *RunContext[P]) (R, error)
@@ -260,6 +265,39 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 	}
 	manager.publishProgress(recordProgressUpdate(record, event.Details, true))
 	return record, nil
+}
+
+func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Record, bool, error) {
+	if manager == nil {
+		return Record{}, false, fmt.Errorf("task manager is nil")
+	}
+	reuseStatuses := opts.ReuseStatuses
+	if len(reuseStatuses) == 0 {
+		reuseStatuses = []Status{StatusPending, StatusRunning}
+	}
+	for _, status := range reuseStatuses {
+		if !validStatus(status) {
+			continue
+		}
+		records, err := selectTaskRecords(manager.db, taskQueryFilters{
+			Stream:      opts.Stream,
+			SubjectType: opts.SubjectType,
+			SubjectID:   opts.SubjectID,
+			Status:      status,
+		}, true)
+		if err != nil {
+			return Record{}, false, err
+		}
+		latest, found, err := latestRecord(records)
+		if err != nil {
+			return Record{}, false, err
+		}
+		if found {
+			return latest, false, nil
+		}
+	}
+	record, err := Enqueue(manager, opts.EnqueueOptions)
+	return record, err == nil, err
 }
 
 func (m *Manager) Start(ctx context.Context, interval time.Duration) func() error {
@@ -456,13 +494,7 @@ func (m *Manager) LatestForSubject(stream string, subjectType string, subjectID 
 	if len(records) == 0 {
 		return Record{}, false, nil
 	}
-	latest := records[0]
-	for _, record := range records[1:] {
-		if record.CreatedAt.After(latest.CreatedAt) {
-			latest = record
-		}
-	}
-	return latest, true, nil
+	return latestRecord(records)
 }
 
 func (m *Manager) Update(id string, status Status, progress int, message string, details any) error {
@@ -688,6 +720,19 @@ func validStatus(status Status) bool {
 	default:
 		return false
 	}
+}
+
+func latestRecord(records []Record) (Record, bool, error) {
+	if len(records) == 0 {
+		return Record{}, false, nil
+	}
+	latest := records[0]
+	for _, record := range records[1:] {
+		if record.CreatedAt.After(latest.CreatedAt) {
+			latest = record
+		}
+	}
+	return latest, true, nil
 }
 
 func normalizeProgress(progress int) int {

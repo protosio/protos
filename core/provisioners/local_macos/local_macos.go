@@ -6,6 +6,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -555,10 +556,13 @@ func (lm *localMacOS) AddImage(url string, hash string, version string, location
 		imagePath = archiveDir
 	}
 
-	return lm.UploadLocalImage(imagePath, version, location, 0)
+	return lm.UploadLocalImage(context.Background(), imagePath, version, location, 0, nil)
 }
 
-func (lm *localMacOS) UploadLocalImage(imagePath string, imageName string, location string, timeout time.Duration) (string, error) {
+func (lm *localMacOS) UploadLocalImage(ctx context.Context, imagePath string, imageName string, location string, timeout time.Duration, progress provisioners.UploadProgressFunc) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := validateLocalMacOSLocation(location); err != nil {
 		return "", err
 	}
@@ -592,14 +596,14 @@ func (lm *localMacOS) UploadLocalImage(imagePath string, imageName string, locat
 		kernelPath = filepath.Join(imageDir, localMacOSImageKernel)
 		initrdPath = filepath.Join(imageDir, localMacOSImageInitrd)
 		cmdlinePath = filepath.Join(imageDir, localMacOSImageCmdline)
-		if err := copyLocalMacOSFile(source.kernel, kernelPath); err != nil {
+		if err := copyLocalMacOSFileWithProgress(ctx, source.kernel, kernelPath, "kernel", progress); err != nil {
 			return "", err
 		}
-		if err := copyLocalMacOSFile(source.initrd, initrdPath); err != nil {
+		if err := copyLocalMacOSFileWithProgress(ctx, source.initrd, initrdPath, "initrd", progress); err != nil {
 			return "", err
 		}
 		if source.cmdline != "" {
-			if err := copyLocalMacOSFile(source.cmdline, cmdlinePath); err != nil {
+			if err := copyLocalMacOSFileWithProgress(ctx, source.cmdline, cmdlinePath, "cmdline", progress); err != nil {
 				return "", err
 			}
 		} else if err := os.WriteFile(cmdlinePath, []byte("console=hvc0\n"), 0644); err != nil {
@@ -610,7 +614,7 @@ func (lm *localMacOS) UploadLocalImage(imagePath string, imageName string, locat
 	bootISOPath := ""
 	if source.bootISO != "" {
 		bootISOPath = filepath.Join(imageDir, localMacOSImageBootISO)
-		if err := copyLocalMacOSFile(source.bootISO, bootISOPath); err != nil {
+		if err := copyLocalMacOSFileWithProgress(ctx, source.bootISO, bootISOPath, "boot_iso", progress); err != nil {
 			return "", err
 		}
 	}
@@ -618,7 +622,7 @@ func (lm *localMacOS) UploadLocalImage(imagePath string, imageName string, locat
 	rootDiskPath := ""
 	if source.rootDisk != "" {
 		rootDiskPath = filepath.Join(imageDir, localMacOSImageRootDisk)
-		if err := copyLocalMacOSFile(source.rootDisk, rootDiskPath); err != nil {
+		if err := copyLocalMacOSFileWithProgress(ctx, source.rootDisk, rootDiskPath, "root_disk", progress); err != nil {
 			return "", err
 		}
 	}
@@ -1546,10 +1550,32 @@ func readJSONFile(path string, value any) error {
 }
 
 func copyLocalMacOSFile(src string, dst string) error {
+	return copyLocalMacOSFileWithProgress(context.Background(), src, dst, "", nil)
+}
+
+func copyLocalMacOSFileWithProgress(ctx context.Context, src string, dst string, phase string, progress provisioners.UploadProgressFunc) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := cloneLocalMacOSFile(src, dst); err == nil {
+		if progress != nil {
+			if info, statErr := os.Stat(dst); statErr == nil {
+				if err := progress(provisioners.UploadProgress{
+					Phase:            phase,
+					Message:          "upload in progress",
+					BytesTransferred: info.Size(),
+					TotalBytes:       info.Size(),
+				}); err != nil {
+					return err
+				}
+			}
+		}
 		return nil
 	} else {
 		log.Debugf("failed to clone local macOS file %s to %s, falling back to stream copy: %v", src, dst, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	srcFile, err := os.Open(src)
@@ -1568,7 +1594,8 @@ func copyLocalMacOSFile(src string, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create '%s': %w", dst, err)
 	}
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
+	reader := provisioners.NewUploadProgressReader(srcFile, info.Size(), phase, progress)
+	if _, err := io.Copy(dstFile, reader); err != nil {
 		_ = dstFile.Close()
 		return err
 	}

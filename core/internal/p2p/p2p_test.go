@@ -299,8 +299,8 @@ type recordingExternalDB struct {
 func (f testExternalDB) AddPeer(string, *grpc.ClientConn) error { return nil }
 func (f testExternalDB) RemovePeer(string) error                { return nil }
 func (f testExternalDB) GetAllCommits() ([]db.Commit, error)    { return nil, nil }
-func (f testExternalDB) ExecSQLAndCommit(string, string) (string, error) {
-	return "", nil
+func (f testExternalDB) ExecuteSQL(context.Context, string, int) (db.SQLResult, error) {
+	return db.SQLResult{}, nil
 }
 func (f testExternalDB) GetLastCommit(string) (db.Commit, error) { return db.Commit{}, nil }
 func (f testExternalDB) CatchUpCheckpoint(context.Context, string) error {

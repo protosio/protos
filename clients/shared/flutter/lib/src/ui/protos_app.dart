@@ -1396,7 +1396,10 @@ class _InstancesViewState extends State<InstancesView> {
                 enabled: selectedName.nonEmpty != null,
                 refresh: false,
                 action: (model) async {
-                  await model.api.startInstance(selectedName);
+                  final taskId = await model.api.startInstance(selectedName);
+                  if (taskId.nonEmpty != null) {
+                    await model.selectTask(taskId);
+                  }
                   await model.refreshInstances(notify: false);
                   await _loadInstanceDetail(model, selectedName);
                 },
@@ -1407,7 +1410,10 @@ class _InstancesViewState extends State<InstancesView> {
                 enabled: selectedName.nonEmpty != null,
                 refresh: false,
                 action: (model) async {
-                  await model.api.stopInstance(selectedName);
+                  final taskId = await model.api.stopInstance(selectedName);
+                  if (taskId.nonEmpty != null) {
+                    await model.selectTask(taskId);
+                  }
                   await model.refreshInstances(notify: false);
                   await _loadInstanceDetail(model, selectedName);
                 },
@@ -1420,7 +1426,13 @@ class _InstancesViewState extends State<InstancesView> {
                 refresh: false,
                 action: (model) async {
                   final removed = selectedName;
-                  await model.api.removeInstance(removed, localOnly: false);
+                  final taskId = await model.api.removeInstance(
+                    removed,
+                    localOnly: false,
+                  );
+                  if (taskId.nonEmpty != null) {
+                    await model.selectTask(taskId);
+                  }
                   await model.refreshInstances(notify: false);
                   if (!mounted) {
                     return;
