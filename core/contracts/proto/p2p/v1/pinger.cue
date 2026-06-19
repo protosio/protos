@@ -5,7 +5,8 @@ package p2pv1
 }
 
 #PingResponse: {
-	pong?: string
+	pong?:         string
+	capabilities?: [...string]
 }
 
 contract: {
@@ -33,6 +34,7 @@ contract: {
 			]},
 			{kind: "message", name: "PingResponse", fields: [
 				{type: "string", name: "pong", number: 1},
+				{rule: "repeated", type: "string", name: "capabilities", number: 2},
 			]},
 		]
 	}

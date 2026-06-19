@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,10 +51,11 @@ type Server struct {
 	networkUp bool
 	closed    bool
 	shutdown  func()
+	activeVMs map[string]struct{}
 }
 
 func NewServer(networkModules ...networkmodule.Module) *Server {
-	server := &Server{}
+	server := &Server{activeVMs: map[string]struct{}{}}
 	if len(networkModules) > 0 {
 		server.network = networkModules[0]
 	}
@@ -137,11 +139,15 @@ func (s *Server) Close() error {
 	}
 	s.closed = true
 
-	if s.network == nil {
-		return nil
+	var err error
+	if stopErr := s.stopActiveVMsLocked(); stopErr != nil {
+		err = errors.Join(err, stopErr)
 	}
 
-	var err error
+	if s.network == nil {
+		return err
+	}
+
 	if downErr := s.network.Down(); downErr != nil {
 		err = errors.Join(err, fmt.Errorf("tear down network: %w", downErr))
 	}
@@ -209,6 +215,7 @@ func (s *Server) startVM(manifestPath string) *hostagentpb.VMObservedState {
 			_ = updateManifest(manifestPath, map[string]any{manifestStatusField: stateRunning})
 			manifest.Status = stateRunning
 		}
+		s.trackActiveVMLocked(manifestPath)
 		return observedFromManifest(manifestPath, manifest, "")
 	}
 
@@ -255,6 +262,7 @@ func (s *Server) startVM(manifestPath string) *hostagentpb.VMObservedState {
 		return observedError(manifest.ID, err.Error())
 	}
 	go waitVMProcess(manifestPath, pid, cmd)
+	s.trackActiveVMLocked(manifestPath)
 
 	manifest.PID = pid
 	manifest.Status = stateRunning
@@ -277,6 +285,7 @@ func (s *Server) stopVM(id string, manifestPath string) *hostagentpb.VMObservedS
 			manifestPIDField:    0,
 			manifestStatusField: stateStopped,
 		})
+		s.untrackActiveVMLocked(manifestPath)
 		manifest.PID = 0
 		manifest.Status = stateStopped
 		return observedFromManifest(manifestPath, manifest, "")
@@ -308,6 +317,7 @@ func (s *Server) stopVM(id string, manifestPath string) *hostagentpb.VMObservedS
 	}); err != nil {
 		return observedError(id, err.Error())
 	}
+	s.untrackActiveVMLocked(manifestPath)
 	manifest.PID = 0
 	manifest.Status = stateStopped
 	return observedFromManifest(manifestPath, manifest, "")
@@ -339,6 +349,7 @@ func (s *Server) observedVMStatus(manifestPath string, manifest vmManifest) *hos
 			_ = updateManifest(manifestPath, map[string]any{manifestStatusField: stateRunning})
 			manifest.Status = stateRunning
 		}
+		s.trackActiveVMLocked(manifestPath)
 		return observedFromManifest(manifestPath, manifest, "")
 	}
 	if manifest.PID != 0 || manifest.Status == stateRunning || manifest.Status == stateChanging {
@@ -346,10 +357,49 @@ func (s *Server) observedVMStatus(manifestPath string, manifest vmManifest) *hos
 			manifestPIDField:    0,
 			manifestStatusField: stateStopped,
 		})
+		s.untrackActiveVMLocked(manifestPath)
 		manifest.PID = 0
 		manifest.Status = stateStopped
 	}
 	return observedFromManifest(manifestPath, manifest, "")
+}
+
+func (s *Server) stopActiveVMsLocked() error {
+	if len(s.activeVMs) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(s.activeVMs))
+	for manifestPath := range s.activeVMs {
+		paths = append(paths, manifestPath)
+	}
+	sort.Strings(paths)
+
+	var err error
+	for _, manifestPath := range paths {
+		state := s.stopVM("", manifestPath)
+		if state.GetStatus() == stateError {
+			err = errors.Join(err, fmt.Errorf("stop VM %s: %s", state.GetId(), state.GetMessage()))
+		}
+	}
+	return err
+}
+
+func (s *Server) trackActiveVMLocked(manifestPath string) {
+	manifestPath = strings.TrimSpace(manifestPath)
+	if manifestPath == "" {
+		return
+	}
+	if s.activeVMs == nil {
+		s.activeVMs = map[string]struct{}{}
+	}
+	s.activeVMs[manifestPath] = struct{}{}
+}
+
+func (s *Server) untrackActiveVMLocked(manifestPath string) {
+	if s.activeVMs == nil {
+		return
+	}
+	delete(s.activeVMs, manifestPath)
 }
 
 func (s *Server) listVMs(rootDir string) []*hostagentpb.VMObservedState {
@@ -372,6 +422,9 @@ func (s *Server) listVMs(rootDir string) []*hostagentpb.VMObservedState {
 		manifestPath := hostAgentVMManifestPath(rootDir, entry.Name())
 		manifest, err := readManifest(manifestPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			states = append(states, observedError(entry.Name(), err.Error()))
 			continue
 		}

@@ -234,6 +234,7 @@ contract: {
 					{name: "task_stream", type: "VARCHAR(255)", not_null: true, go: {name: "TASK_STREAM", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "subject_type", type: "VARCHAR(255)", not_null: true, go: {name: "SUBJECT_TYPE", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "subject_id", type: "VARCHAR(255)", not_null: true, go: {name: "SUBJECT_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "owner_peer_id", type: "VARCHAR(255)", not_null: true, go: {name: "OWNER_PEER_ID", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "status", type: "VARCHAR(64)", not_null: true, go: {name: "STATUS", sq_type: "StringField", ddl: "notnull index"}},
 					{name: "title", type: "VARCHAR(255)", not_null: true, go: {name: "TITLE", sq_type: "StringField", ddl: "notnull"}},
 					{name: "message", type: "TEXT", not_null: true, go: {name: "MESSAGE", sq_type: "StringField", ddl: "notnull"}},
@@ -252,6 +253,7 @@ contract: {
 					{name: "tasks_task_stream_idx", columns: ["task_stream"]},
 					{name: "tasks_subject_type_idx", columns: ["subject_type"]},
 					{name: "tasks_subject_id_idx", columns: ["subject_id"]},
+					{name: "tasks_owner_peer_id_idx", columns: ["owner_peer_id"]},
 					{name: "tasks_status_idx", columns: ["status"]},
 				]
 			},

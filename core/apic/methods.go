@@ -3,7 +3,9 @@ package apic
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
@@ -552,7 +554,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 			log.Errorf("Failed to resolve instance for app '%s': %s", app.Name, err.Error())
 		} else {
 			instanceName = instance.Name
-			client, err := b.protosClient.P2PManager.GetClient(peerID)
+			client, err := b.protosClient.P2PManager.GetClient(ctx, peerID)
 			if err != nil {
 				log.Errorf("Failed to retrieve status for app '%s': %s", app.Name, err.Error())
 			} else {
@@ -585,13 +587,13 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*pbApic.CreateAppResponse, error) {
 
 	log.Debugf("Running app '%s' based on installer '%s', on instance '%s'", in.Name, in.InstallerId, in.InstanceId)
-	_, err := b.protosClient.CloudManager.GetInstance(in.InstanceId)
+	_, err := b.protosClient.CloudManager.GetDeclaredInstance(in.InstanceId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
 	// FIXME: read the installer params from the command line
-	app, err := b.protosClient.AppManager.Create(in.InstallerId, in.Name, in.InstanceId, in.Persistence, map[string]string{})
+	app, err := b.protosClient.AppManager.Create(ctx, in.InstallerId, in.Name, in.InstanceId, in.Persistence, map[string]string{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
@@ -601,7 +603,7 @@ func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*
 
 func (b *Backend) StartApp(ctx context.Context, in *pbApic.StartAppRequest) (*pbApic.StartAppResponse, error) {
 	log.Debugf("Starting app '%s'", in.Name)
-	err := b.protosClient.AppManager.Start(in.Name)
+	err := b.protosClient.AppManager.Start(ctx, in.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -611,7 +613,7 @@ func (b *Backend) StartApp(ctx context.Context, in *pbApic.StartAppRequest) (*pb
 
 func (b *Backend) StopApp(ctx context.Context, in *pbApic.StopAppRequest) (*pbApic.StopAppResponse, error) {
 	log.Debugf("Stopping app '%s'", in.Name)
-	err := b.protosClient.AppManager.Stop(in.Name)
+	err := b.protosClient.AppManager.Stop(ctx, in.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -621,7 +623,7 @@ func (b *Backend) StopApp(ctx context.Context, in *pbApic.StopAppRequest) (*pbAp
 
 func (b *Backend) RemoveApp(ctx context.Context, in *pbApic.RemoveAppRequest) (*pbApic.RemoveAppResponse, error) {
 	log.Debugf("Removing app '%s'", in.Name)
-	err := b.protosClient.AppManager.Remove(in.Name)
+	err := b.protosClient.AppManager.Remove(ctx, in.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -641,7 +643,7 @@ func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) 
 	if err != nil {
 		return nil, fmt.Errorf("could not resolve instance for app '%s': %w", in.Name, err)
 	}
-	client, err := b.protosClient.P2PManager.GetClient(peerID)
+	client, err := b.protosClient.P2PManager.GetClient(ctx, peerID)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve logs for app '%s': %w", in.Name, err)
 	}
@@ -929,23 +931,10 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 	}
 
 	resp := pbApic.GetInstancesResponse{}
+	connectedPeers := b.runtimeConnectedPeerIDs()
 	for _, instance := range instances {
-		internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
-		cloudName, cloudType := b.instanceProvisionerLabels(instance)
-		respInstance := pbApic.CloudInstance{
-			Name:               instance.Name,
-			PublicIp:           instance.PublicIP,
-			InternalIp:         internalIP,
-			VmId:               instance.ID,
-			Location:           instance.Location,
-			PublicKey:          instance.PublicKey,
-			PublicKeyWireguard: wgPublicKey,
-			Architecture:       instance.Architecture,
-			Status:             instance.Status,
-			CloudName:          cloudName,
-			CloudType:          cloudType,
-		}
-		resp.Instances = append(resp.Instances, &respInstance)
+		admin := b.instanceAdminProjection(ctx, instance, false)
+		resp.Instances = append(resp.Instances, b.cloudInstanceToProto(instance, admin, connectedPeers, false))
 	}
 
 	return &resp, nil
@@ -958,56 +947,180 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 		return nil, fmt.Errorf("failed to retrieve instance '%s': %w", in.Name, err)
 	}
 
-	internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
-	var status string
-	peers := map[string]string{}
-	if strings.TrimSpace(instance.PublicKey) == "" || !provisioners.IsActiveInstance(instance) {
-		status = instance.Status
-	} else {
-		client, err := b.protosClient.P2PManager.GetClient(instance.Name)
-		if err != nil {
-			log.Error(err.Error())
-			if peerState, found := b.protosClient.P2PManager.GetPeerState(instance.Name); found {
-				status = fmt.Sprintf("%s (%s)", instance.Status, peerState.Reachability())
-				if peerState.LastError != "" {
-					log.Debugf("last p2p error for instance '%s': %s", instance.Name, peerState.LastError)
-				}
-			} else {
-				status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
-			}
-		} else {
-			resp, err := client.GetPeers(context.TODO(), &p2pproto.GetPeersRequest{})
-			if err != nil {
-				log.Error(err.Error())
-				status = fmt.Sprintf("%s (%s)", instance.Status, "unreachable")
-			} else {
-				status = fmt.Sprintf("%s (%s)", instance.Status, "reachable")
-				for peerID, peerStatus := range resp.GetPeers() {
-					peers[peerID] = peerStatus
-				}
-			}
-		}
-	}
-
-	cloudName, cloudType := b.instanceProvisionerLabels(instance)
+	admin := b.instanceAdminProjection(ctx, instance, true)
+	connectedPeers := b.runtimeConnectedPeerIDs()
 	resp := pbApic.GetInstanceResponse{
-		Instance: &pbApic.CloudInstance{
-			Name:               instance.Name,
-			PublicIp:           instance.PublicIP,
-			InternalIp:         internalIP,
-			VmId:               instance.ID,
-			Location:           instance.Location,
-			PublicKey:          instance.PublicKey,
-			PublicKeyWireguard: wgPublicKey,
-			Status:             status,
-			Architecture:       instance.Architecture,
-			CloudName:          cloudName,
-			CloudType:          cloudType,
-			Peers:              peers,
-		},
+		Instance: b.cloudInstanceToProto(instance, admin, connectedPeers, true),
 	}
 
 	return &resp, nil
+}
+
+type instanceAdminProjection struct {
+	reachability string
+	lastError    string
+	lastSeen     string
+	peers        map[string]string
+}
+
+func (b *Backend) instanceAdminProjection(ctx context.Context, instance provisioners.InstanceInfo, probe bool) instanceAdminProjection {
+	projection := instanceAdminProjection{
+		reachability: "unknown",
+		peers:        map[string]string{},
+	}
+	if strings.TrimSpace(instance.PublicKey) == "" || !provisioners.IsActiveInstance(instance) {
+		projection.reachability = "not_applicable"
+		return projection
+	}
+	if b == nil || b.protosClient == nil || b.protosClient.P2PManager == nil {
+		return projection
+	}
+	if peerState, found := b.protosClient.P2PManager.GetPeerState(instance.Name); found {
+		projection.reachability = peerState.Reachability()
+		projection.lastError = peerState.LastError
+		if !peerState.LastSeen.IsZero() {
+			projection.lastSeen = peerState.LastSeen.UTC().Format(time.RFC3339Nano)
+		}
+	}
+	if !probe {
+		return projection
+	}
+
+	client, err := b.protosClient.P2PManager.GetClient(ctx, instance.Name)
+	if err != nil {
+		log.Error(err.Error())
+		if projection.reachability == "" || projection.reachability == "unknown" {
+			projection.reachability = "unreachable"
+		}
+		if projection.lastError == "" {
+			projection.lastError = err.Error()
+		}
+		return projection
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	resp, err := client.GetRuntimeState(callCtx, &p2pproto.GetRuntimeStateRequest{AllowStale: true})
+	if err != nil {
+		log.Error(err.Error())
+		projection.reachability = "unreachable"
+		projection.lastError = err.Error()
+		return projection
+	}
+	projection.reachability = "reachable"
+	projection.lastError = ""
+	projection.lastSeen = time.Now().UTC().Format(time.RFC3339Nano)
+	projection.peers = runtimePeerMapFromP2PState(resp.GetState())
+	return projection
+}
+
+func runtimePeerMapFromP2PState(state *p2pproto.RuntimeState) map[string]string {
+	peers := map[string]string{}
+	if state == nil {
+		return peers
+	}
+	for _, peerID := range state.GetConnectedPeers() {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			peers[peerID] = "connected"
+		}
+	}
+	for _, status := range state.GetPeerStatuses() {
+		peerID := strings.TrimSpace(status.GetPeerId())
+		if peerID == "" {
+			continue
+		}
+		peers[peerID] = runtimePeerStatusLabel(status, peers[peerID])
+	}
+	return peers
+}
+
+func runtimePeerStatusLabel(status *p2pproto.RuntimePeerStatus, existing string) string {
+	if status == nil {
+		if existing != "" {
+			return existing
+		}
+		return "unknown"
+	}
+	if status.GetConnected() || existing == "connected" {
+		return "connected"
+	}
+	if status.GetIgnored() {
+		return "ignored"
+	}
+	if status.GetIncompatible() {
+		return "incompatible"
+	}
+	if status.GetRelayOnly() {
+		return "relay_only"
+	}
+	if status.GetDialable() {
+		return "dialable"
+	}
+	if strings.TrimSpace(status.GetReason()) != "" || len(status.GetLastDialErrors()) > 0 {
+		return "unreachable"
+	}
+	return "disconnected"
+}
+
+func (b *Backend) cloudInstanceToProto(instance provisioners.InstanceInfo, admin instanceAdminProjection, connectedPeers map[string]struct{}, includeAdminInStatus bool) *pbApic.CloudInstance {
+	internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
+	cloudName, cloudType := b.instanceProvisionerLabels(instance)
+	peerID := instancePeerID(instance)
+	_, replicationConnected := connectedPeers[peerID]
+	status := instance.Status
+	if includeAdminInStatus && admin.reachability != "" && admin.reachability != "not_applicable" {
+		status = fmt.Sprintf("%s (%s)", instance.Status, admin.reachability)
+	}
+	return &pbApic.CloudInstance{
+		Name:                 instance.Name,
+		PublicIp:             instance.PublicIP,
+		InternalIp:           internalIP,
+		VmId:                 instance.ID,
+		Location:             instance.Location,
+		PublicKey:            instance.PublicKey,
+		PublicKeyWireguard:   wgPublicKey,
+		Status:               status,
+		Architecture:         instance.Architecture,
+		CloudName:            cloudName,
+		CloudType:            cloudType,
+		Peers:                admin.peers,
+		ProviderStatus:       instance.Status,
+		AdminApiReachability: admin.reachability,
+		ReplicationConnected: replicationConnected,
+		AdminLastError:       admin.lastError,
+		AdminLastSeen:        admin.lastSeen,
+		PeerId:               peerID,
+	}
+}
+
+func instancePeerID(instance provisioners.InstanceInfo) string {
+	if strings.TrimSpace(instance.PublicKey) == "" {
+		return ""
+	}
+	peerID, err := instance.GetPeerID()
+	if err != nil {
+		log.Debugf("failed to derive peer ID for instance '%s': %v", instance.Name, err)
+		return ""
+	}
+	return peerID
+}
+
+func (b *Backend) runtimeConnectedPeerIDs() map[string]struct{} {
+	out := map[string]struct{}{}
+	if b == nil || b.protosClient == nil || b.protosClient.DB == nil {
+		return out
+	}
+	status, ok := b.protosClient.DB.SwarmionStatus()
+	if !ok {
+		return out
+	}
+	for _, peerID := range status.ConnectedPeers {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			out[peerID] = struct{}{}
+		}
+	}
+	return out
 }
 
 func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceRequest) (*pbApic.DeployInstanceResponse, error) {
@@ -1151,12 +1264,14 @@ func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyR
 func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLogsRequest) (*pbApic.GetInstanceLogsResponse, error) {
 	log.Debugf("Retrieving logs for instance '%s'", in.Name)
 
-	client, err := b.protosClient.P2PManager.GetClient(in.Name)
+	client, err := b.protosClient.P2PManager.GetClient(ctx, in.Name)
 	if err != nil {
 		return b.getInstanceLogsViaSSH(in.Name, err)
 	}
 
-	logs, err := client.GetLogs(context.TODO(), &p2pproto.GetLogsRequest{})
+	logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	logs, err := client.GetLogs(logCtx, &p2pproto.GetLogsRequest{})
 	if err != nil {
 		return b.getInstanceLogsViaSSH(in.Name, err)
 	}
@@ -1165,7 +1280,11 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 		return nil, fmt.Errorf("could not retrieve instance '%s' logs: %w", in.Name, err)
 	}
 
-	return &pbApic.GetInstanceLogsResponse{Logs: string(base64Logs)}, nil
+	decodedLogs := string(base64Logs)
+	if providerLogs, found := b.localInstanceProviderLogs(in.Name); found {
+		decodedLogs = combineInstanceLogs(decodedLogs, providerLogs)
+	}
+	return &pbApic.GetInstanceLogsResponse{Logs: decodedLogs}, nil
 }
 
 func (b *Backend) getInstanceLogsViaSSH(instanceName string, p2pErr error) (*pbApic.GetInstanceLogsResponse, error) {
@@ -1175,6 +1294,37 @@ func (b *Backend) getInstanceLogsViaSSH(instanceName string, p2pErr error) (*pbA
 		return nil, fmt.Errorf("could not retrieve instance '%s' logs: p2p failed: %w; ssh fallback failed: %w", instanceName, p2pErr, err)
 	}
 	return &pbApic.GetInstanceLogsResponse{Logs: logs}, nil
+}
+
+func (b *Backend) localInstanceProviderLogs(instanceName string) (string, bool) {
+	if b == nil || b.protosClient.CloudManager == nil {
+		return "", false
+	}
+	instance, err := b.protosClient.CloudManager.GetInstance(instanceName)
+	if err != nil || instance.Kind != provisioners.KindLocalVM {
+		return "", false
+	}
+	logs, err := b.protosClient.CloudManager.LogsRemoteInstance(instanceName)
+	if err != nil {
+		log.Debugf("failed to retrieve local provider logs for instance '%s': %s", instanceName, err.Error())
+		return "", false
+	}
+	return logs, strings.TrimSpace(logs) != ""
+}
+
+func combineInstanceLogs(primary string, provider string) string {
+	primary = strings.TrimRight(primary, "\n")
+	provider = strings.TrimRight(provider, "\n")
+	if provider == "" {
+		return primary
+	}
+	if primary == "" {
+		return provider
+	}
+	if primary == provider || strings.Contains(primary, provider) {
+		return primary
+	}
+	return primary + "\n\n--- local provider diagnostics ---\n" + provider
 }
 
 func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceRequest) (*pbApic.InitInstanceResponse, error) {
@@ -1221,7 +1371,7 @@ func (b *Backend) GetNetworkState(ctx context.Context, in *pbApic.GetNetworkStat
 		return &pbApic.GetNetworkStateResponse{State: networkStateToProto(state)}, nil
 	}
 
-	client, err := b.protosClient.P2PManager.GetClient(instanceName)
+	client, err := b.protosClient.P2PManager.GetClient(ctx, instanceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
 	}
@@ -1235,7 +1385,7 @@ func (b *Backend) GetNetworkState(ctx context.Context, in *pbApic.GetNetworkStat
 func (b *Backend) GetExitRoutes(ctx context.Context, in *pbApic.GetExitRoutesRequest) (*pbApic.GetExitRoutesResponse, error) {
 	instanceName := in.GetInstance()
 	if instanceName != "" && instanceName != "local" {
-		client, err := b.protosClient.P2PManager.GetClient(instanceName)
+		client, err := b.protosClient.P2PManager.GetClient(ctx, instanceName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
 		}
@@ -1272,18 +1422,18 @@ func (b *Backend) GetExitRoutes(ctx context.Context, in *pbApic.GetExitRoutesReq
 func (b *Backend) GetRuntimeState(ctx context.Context, in *pbApic.GetRuntimeStateRequest) (*pbApic.GetRuntimeStateResponse, error) {
 	instanceName := in.GetInstance()
 	if instanceName == "" || instanceName == "local" {
-		state, err := b.localRuntimeState(ctx)
+		state, err := b.localRuntimeState(ctx, in.GetAllowStale())
 		if err != nil {
 			return nil, err
 		}
 		return &pbApic.GetRuntimeStateResponse{State: state}, nil
 	}
 
-	client, err := b.protosClient.P2PManager.GetClient(instanceName)
+	client, err := b.protosClient.P2PManager.GetClient(ctx, instanceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
 	}
-	resp, err := client.GetRuntimeState(ctx, &p2pproto.GetRuntimeStateRequest{})
+	resp, err := client.GetRuntimeState(ctx, &p2pproto.GetRuntimeStateRequest{AllowStale: in.GetAllowStale()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve runtime state from instance '%s': %w", instanceName, err)
 	}
@@ -1359,6 +1509,9 @@ func (b *Backend) WatchChanges(in *pbApic.WatchChangesRequest, stream pbApic.Pro
 }
 
 func (b *Backend) GetTasks(ctx context.Context, in *pbApic.GetTasksRequest) (*pbApic.GetTasksResponse, error) {
+	if instanceName := strings.TrimSpace(in.GetInstance()); instanceName != "" && instanceName != "local" {
+		return b.getRemoteTasks(ctx, instanceName, in)
+	}
 	manager, err := b.taskManager()
 	if err != nil {
 		return nil, err
@@ -1388,6 +1541,9 @@ func (b *Backend) GetTasks(ctx context.Context, in *pbApic.GetTasksRequest) (*pb
 }
 
 func (b *Backend) GetTask(ctx context.Context, in *pbApic.GetTaskRequest) (*pbApic.GetTaskResponse, error) {
+	if instanceName := strings.TrimSpace(in.GetInstance()); instanceName != "" && instanceName != "local" {
+		return b.getRemoteTask(ctx, instanceName, in)
+	}
 	manager, err := b.taskManager()
 	if err != nil {
 		return nil, err
@@ -1409,6 +1565,47 @@ func (b *Backend) GetTask(ctx context.Context, in *pbApic.GetTaskRequest) (*pbAp
 	return resp, nil
 }
 
+func (b *Backend) getRemoteTasks(ctx context.Context, instanceName string, in *pbApic.GetTasksRequest) (*pbApic.GetTasksResponse, error) {
+	client, err := b.protosClient.P2PManager.GetClient(ctx, instanceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
+	}
+	resp, err := client.GetTasks(ctx, &p2pproto.GetTasksRequest{
+		Status:      in.GetStatus(),
+		Stream:      in.GetStream(),
+		SubjectType: in.GetSubjectType(),
+		SubjectId:   in.GetSubjectId(),
+		MaxResults:  in.GetMaxResults(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve tasks from instance '%s': %w", instanceName, err)
+	}
+	out := &pbApic.GetTasksResponse{Truncated: resp.GetTruncated()}
+	for _, task := range resp.GetTasks() {
+		out.Tasks = append(out.Tasks, taskFromP2PProto(task))
+	}
+	return out, nil
+}
+
+func (b *Backend) getRemoteTask(ctx context.Context, instanceName string, in *pbApic.GetTaskRequest) (*pbApic.GetTaskResponse, error) {
+	client, err := b.protosClient.P2PManager.GetClient(ctx, instanceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to instance '%s' admin API: %w", instanceName, err)
+	}
+	resp, err := client.GetTask(ctx, &p2pproto.GetTaskRequest{
+		Id:            in.GetId(),
+		IncludeEvents: in.GetIncludeEvents(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve task '%s' from instance '%s': %w", in.GetId(), instanceName, err)
+	}
+	out := &pbApic.GetTaskResponse{Task: taskFromP2PProto(resp.GetTask())}
+	for _, event := range resp.GetEvents() {
+		out.Events = append(out.Events, taskEventFromP2PProto(event))
+	}
+	return out, nil
+}
+
 func (b *Backend) WatchTask(in *pbApic.WatchTaskRequest, stream pbApic.ProtosClientApi_WatchTaskServer) error {
 	manager, err := b.taskManager()
 	if err != nil {
@@ -1418,16 +1615,20 @@ func (b *Backend) WatchTask(in *pbApic.WatchTaskRequest, stream pbApic.ProtosCli
 	if id == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "task id is empty")
 	}
+	record, err := manager.Get(id)
+	if err != nil {
+		return grpcstatus.Errorf(codes.NotFound, "failed to retrieve task %q: %v", id, err)
+	}
+	if ownerPeerID := strings.TrimSpace(record.OwnerPeerID); ownerPeerID != "" && ownerPeerID != strings.TrimSpace(manager.ExecutorPeerID()) {
+		return b.watchRemoteTask(ownerPeerID, in, stream)
+	}
+
 	updates, cancel, err := manager.Subscribe(id)
 	if err != nil {
 		return err
 	}
 	defer cancel()
 
-	record, err := manager.Get(id)
-	if err != nil {
-		return grpcstatus.Errorf(codes.NotFound, "failed to retrieve task %q: %v", id, err)
-	}
 	if in.GetIncludeSnapshot() {
 		resp := &pbApic.WatchTaskResponse{Task: taskRecordToProto(record)}
 		if in.GetIncludeEvents() {
@@ -1490,6 +1691,46 @@ func (b *Backend) WatchTask(in *pbApic.WatchTaskRequest, stream pbApic.ProtosCli
 	}
 }
 
+func (b *Backend) watchRemoteTask(ownerPeerID string, in *pbApic.WatchTaskRequest, stream pbApic.ProtosClientApi_WatchTaskServer) error {
+	if b.protosClient == nil || b.protosClient.P2PManager == nil {
+		return fmt.Errorf("p2p manager is not configured")
+	}
+	client, err := b.protosClient.P2PManager.GetClient(stream.Context(), ownerPeerID)
+	if err != nil {
+		return fmt.Errorf("failed to connect to task owner peer %s: %w", ownerPeerID, err)
+	}
+	remote, err := client.WatchTask(stream.Context(), &p2pproto.WatchTaskRequest{
+		Id:                  in.GetId(),
+		IncludeSnapshot:     in.GetIncludeSnapshot(),
+		IncludeEvents:       in.GetIncludeEvents(),
+		HeartbeatIntervalMs: in.GetHeartbeatIntervalMs(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to watch task %s on owner peer %s: %w", in.GetId(), ownerPeerID, err)
+	}
+	for {
+		resp, err := remote.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		out := &pbApic.WatchTaskResponse{
+			Sequence:  resp.GetSequence(),
+			Task:      taskFromP2PProto(resp.GetTask()),
+			Update:    taskProgressUpdateFromP2PProto(resp.GetUpdate()),
+			Heartbeat: resp.GetHeartbeat(),
+		}
+		for _, event := range resp.GetEvents() {
+			out.Events = append(out.Events, taskEventFromP2PProto(event))
+		}
+		if err := stream.Send(out); err != nil {
+			return err
+		}
+	}
+}
+
 func (b *Backend) taskManager() (*tasks.Manager, error) {
 	if b.protosClient == nil || b.protosClient.TaskManager == nil {
 		return nil, fmt.Errorf("task manager is not configured")
@@ -1528,6 +1769,61 @@ func taskEventToProto(event tasks.Event) *pbApic.TaskEvent {
 		Progress:    int32(event.Progress),
 		DetailsJson: rawJSONText(event.Details),
 		CreatedAt:   formatTaskTime(event.CreatedAt),
+	}
+}
+
+func taskFromP2PProto(task *p2pproto.Task) *pbApic.Task {
+	if task == nil {
+		return nil
+	}
+	return &pbApic.Task{
+		Id:           task.GetId(),
+		Stream:       task.GetStream(),
+		SubjectType:  task.GetSubjectType(),
+		SubjectId:    task.GetSubjectId(),
+		Status:       task.GetStatus(),
+		Title:        task.GetTitle(),
+		Message:      task.GetMessage(),
+		Progress:     task.GetProgress(),
+		PayloadJson:  task.GetPayloadJson(),
+		ResultJson:   task.GetResultJson(),
+		ErrorMessage: task.GetErrorMessage(),
+		Attempts:     task.GetAttempts(),
+		MaxAttempts:  task.GetMaxAttempts(),
+		CreatedAt:    task.GetCreatedAt(),
+		UpdatedAt:    task.GetUpdatedAt(),
+		StartedAt:    task.GetStartedAt(),
+		FinishedAt:   task.GetFinishedAt(),
+	}
+}
+
+func taskEventFromP2PProto(event *p2pproto.TaskEvent) *pbApic.TaskEvent {
+	if event == nil {
+		return nil
+	}
+	return &pbApic.TaskEvent{
+		Id:          event.GetId(),
+		TaskId:      event.GetTaskId(),
+		Status:      event.GetStatus(),
+		Message:     event.GetMessage(),
+		Progress:    event.GetProgress(),
+		DetailsJson: event.GetDetailsJson(),
+		CreatedAt:   event.GetCreatedAt(),
+	}
+}
+
+func taskProgressUpdateFromP2PProto(update *p2pproto.TaskProgressUpdate) *pbApic.TaskProgressUpdate {
+	if update == nil {
+		return nil
+	}
+	return &pbApic.TaskProgressUpdate{
+		TaskId:      update.GetTaskId(),
+		Status:      update.GetStatus(),
+		Message:     update.GetMessage(),
+		Progress:    update.GetProgress(),
+		DetailsJson: update.GetDetailsJson(),
+		CreatedAt:   update.GetCreatedAt(),
+		Durable:     update.GetDurable(),
 	}
 }
 
@@ -1732,9 +2028,13 @@ func networkStateFromP2PProto(state *p2pproto.NetworkState) *pbApic.NetworkState
 	return out
 }
 
-func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, error) {
-	if err := b.protosClient.DB.CatchUpCheckpoint(ctx, "apic get runtime state"); err != nil {
-		return nil, err
+func (b *Backend) localRuntimeState(ctx context.Context, allowStale bool) (*pbApic.RuntimeState, error) {
+	var readErr error
+	if err := b.protosClient.DB.CatchUpCheckpointStrict(ctx, "apic get runtime state"); err != nil {
+		if !allowStale || !db.IsRetryableCheckpointCatchUp(err) {
+			return nil, err
+		}
+		readErr = err
 	}
 	status, ok := b.protosClient.DB.SwarmionStatus()
 	if !ok {
@@ -1755,6 +2055,10 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 		RuntimeCheckpointLastError:   status.RuntimeCheckpointMaterializeLastError,
 		RuntimeMaterializationPolicy: status.RuntimeCheckpointMaterializationPolicy.String(),
 		ProtocolCheckpointDigest:     formatRuntimeDigest(status.ProtocolCheckpointDigest),
+		ReadConsistency:              runtimeReadConsistency(readErr),
+	}
+	if readErr != nil {
+		out.ReadError = readErr.Error()
 	}
 	if status.Fatal != nil {
 		out.FatalState = status.Fatal.State
@@ -1762,24 +2066,26 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 		out.FatalState = status.FatalState.String()
 	}
 
-	peerStatuses, err := b.protosClient.DB.SwarmionPeerStatus(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, peerStatus := range peerStatuses {
-		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
-			PeerId:         peerStatus.PeerID,
-			Connected:      peerStatus.Connected,
-			Dialable:       peerStatus.Dialable,
-			StateProvider:  peerStatus.StateProvider,
-			Compatible:     peerStatus.Compatible,
-			Incompatible:   peerStatus.Incompatible,
-			Ignored:        peerStatus.Ignored,
-			RelayOnly:      peerStatus.RelayOnly,
-			Addresses:      append([]string(nil), peerStatus.Addresses...),
-			LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
-			Reason:         peerStatus.Reason,
-		})
+	if readErr == nil || ctx.Err() == nil {
+		peerStatuses, err := b.protosClient.DB.SwarmionPeerStatus(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, peerStatus := range peerStatuses {
+			out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
+				PeerId:         peerStatus.PeerID,
+				Connected:      peerStatus.Connected,
+				Dialable:       peerStatus.Dialable,
+				StateProvider:  peerStatus.StateProvider,
+				Compatible:     peerStatus.Compatible,
+				Incompatible:   peerStatus.Incompatible,
+				Ignored:        peerStatus.Ignored,
+				RelayOnly:      peerStatus.RelayOnly,
+				Addresses:      append([]string(nil), peerStatus.Addresses...),
+				LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
+				Reason:         peerStatus.Reason,
+			})
+		}
 	}
 	peerIDs, err := db.GetActiveRuntimePeerIDs(b.protosClient.DB)
 	if err != nil {
@@ -1789,19 +2095,21 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 	if err != nil {
 		return nil, err
 	}
-	compatibility, err := b.protosClient.DB.SwarmionCompatibility(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, item := range compatibility {
-		out.Compatibility = append(out.Compatibility, &pbApic.RuntimeCompatibility{
-			PeerId:       item.PeerID,
-			LocalDigest:  item.LocalDigest,
-			RemoteDigest: item.RemoteDigest,
-			Compatible:   item.Compatible,
-			Blocking:     item.Blocking,
-			Reason:       item.Reason,
-		})
+	if readErr == nil || ctx.Err() == nil {
+		compatibility, err := b.protosClient.DB.SwarmionCompatibility(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range compatibility {
+			out.Compatibility = append(out.Compatibility, &pbApic.RuntimeCompatibility{
+				PeerId:       item.PeerID,
+				LocalDigest:  item.LocalDigest,
+				RemoteDigest: item.RemoteDigest,
+				Compatible:   item.Compatible,
+				Blocking:     item.Blocking,
+				Reason:       item.Reason,
+			})
+		}
 	}
 	filterRuntimePeerSurface(out, peerIDs)
 	addKnownRuntimePeerStatuses(out, peerIDs)
@@ -1810,6 +2118,13 @@ func (b *Backend) localRuntimeState(ctx context.Context) (*pbApic.RuntimeState, 
 		out.ContentSyncTrace = append([]string(nil), trace...)
 	}
 	return out, nil
+}
+
+func runtimeReadConsistency(readErr error) string {
+	if readErr != nil {
+		return "stale"
+	}
+	return "checkpointed"
 }
 
 func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struct{}) {
@@ -1924,6 +2239,8 @@ func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState
 		RuntimeMaterializationPolicy: state.GetRuntimeMaterializationPolicy(),
 		ContentSyncTrace:             append([]string(nil), state.GetContentSyncTrace()...),
 		ProtocolCheckpointDigest:     state.GetProtocolCheckpointDigest(),
+		ReadConsistency:              state.GetReadConsistency(),
+		ReadError:                    state.GetReadError(),
 	}
 	for _, peerStatus := range state.GetPeerStatuses() {
 		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
@@ -2371,7 +2688,7 @@ func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveP
 }
 
 func (b *Backend) GetInstanceImage(ctx context.Context, in *pbApic.GetInstanceImageRequest) (*pbApic.GetInstanceImageResponse, error) {
-	client, err := b.instanceAdminClient(in.GetInstance(), "get instance image")
+	client, err := b.instanceAdminClient(ctx, in.GetInstance(), "get instance image")
 	if err != nil {
 		return nil, err
 	}
@@ -2387,6 +2704,9 @@ func (b *Backend) GetInstanceImage(ctx context.Context, in *pbApic.GetInstanceIm
 		Labels:       cloneStringMap(describeResp.GetLabels()),
 	}
 	if !describeResp.GetFound() {
+		return resp, nil
+	}
+	if !in.GetIncludeContent() {
 		return resp, nil
 	}
 	contentResp, err := client.GetImageContent(ctx, &p2pproto.GetImageContentRequest{ImageRef: in.GetImageRef()})
@@ -2411,7 +2731,7 @@ func (b *Backend) GetInstanceImage(ctx context.Context, in *pbApic.GetInstanceIm
 }
 
 func (b *Backend) UploadInstanceImageArchiveChunk(ctx context.Context, in *pbApic.UploadInstanceImageArchiveChunkRequest) (*pbApic.UploadInstanceImageArchiveChunkResponse, error) {
-	client, err := b.instanceAdminClient(in.GetInstance(), "upload instance image archive")
+	client, err := b.instanceAdminClient(ctx, in.GetInstance(), "upload instance image archive")
 	if err != nil {
 		return nil, err
 	}
@@ -2434,7 +2754,7 @@ func (b *Backend) UploadInstanceImageArchiveChunk(ctx context.Context, in *pbApi
 	}, nil
 }
 
-func (b *Backend) instanceAdminClient(instance string, action string) (*p2p.Client, error) {
+func (b *Backend) instanceAdminClient(ctx context.Context, instance string, action string) (*p2p.Client, error) {
 	instance = strings.TrimSpace(instance)
 	if instance == "" || instance == "local" {
 		return nil, fmt.Errorf("cannot %s: instance is required", action)
@@ -2442,7 +2762,7 @@ func (b *Backend) instanceAdminClient(instance string, action string) (*p2p.Clie
 	if b.protosClient == nil || b.protosClient.P2PManager == nil {
 		return nil, fmt.Errorf("cannot %s: p2p manager is not configured", action)
 	}
-	client, err := b.protosClient.P2PManager.GetClient(instance)
+	client, err := b.protosClient.P2PManager.GetClient(ctx, instance)
 	if err != nil {
 		return nil, fmt.Errorf("cannot %s for instance %q: %w", action, instance, err)
 	}
@@ -2532,7 +2852,7 @@ func (b *Backend) commitGraphToProto(graph db.CommitGraph) *pbApic.CommitGraph {
 func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteCommitsRequest) (*pbApic.GetRemoteCommitsResponse, error) {
 	log.Debugf("Retrieving commits from instance '%s'", in.Remote)
 
-	client, err := b.protosClient.P2PManager.GetClient(in.Remote)
+	client, err := b.protosClient.P2PManager.GetClient(ctx, in.Remote)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve commits from remote '%s': %w", in.Remote, err)
 	}

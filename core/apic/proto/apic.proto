@@ -391,6 +391,12 @@ message CloudInstance {
   string status = 11;
   string architecture = 12;
   map<string, string> peers = 13;
+  string provider_status = 14;
+  string admin_api_reachability = 15;
+  bool replication_connected = 16;
+  string admin_last_error = 17;
+  string admin_last_seen = 18;
+  string peer_id = 19;
 }
 
 message GetInstancesRequest {
@@ -662,6 +668,7 @@ message GetMobileTunnelConfigResponse {
 
 message GetRuntimeStateRequest {
   string instance = 1;
+  bool allow_stale = 2;
 }
 
 message GetRuntimeStateResponse {
@@ -716,6 +723,7 @@ message GetTasksRequest {
   string subject_type = 3;
   string subject_id = 4;
   int32 max_results = 5;
+  string instance = 6;
 }
 
 message GetTasksResponse {
@@ -726,6 +734,7 @@ message GetTasksResponse {
 message GetTaskRequest {
   string id = 1;
   bool include_events = 2;
+  string instance = 3;
 }
 
 message GetTaskResponse {
@@ -795,6 +804,8 @@ message RuntimeState {
   repeated RuntimeCompatibility compatibility = 19;
   repeated string content_sync_trace = 20;
   string protocol_checkpoint_digest = 24;
+  string read_consistency = 25;
+  string read_error = 26;
 }
 
 message RuntimePeerStatus {
@@ -924,6 +935,7 @@ message ImageContentDescriptor {
 message GetInstanceImageRequest {
   string instance = 1;
   string image_ref = 2;
+  bool include_content = 3;
 }
 
 message GetInstanceImageResponse {

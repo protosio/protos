@@ -17,9 +17,9 @@ package apicv1
 #GetUserDevicesResponse: devices?: [...#UserDevice]
 #GetUserInfoRequest: {}
 #GetUserInfoResponse: {
-	username?:      string
-	name?:          string
-	is_admin?:      bool
+	username?:          string
+	name?:              string
+	is_admin?:          bool
 	organisation_id?:   string
 	organisation_name?: string
 }
@@ -37,11 +37,11 @@ package apicv1
 	username?:        string
 }
 #StartDeviceInviteResponse: {
-	invite_id?:        string
-	expires_at_unix?:  int64
-	advertise_name?:   string
+	invite_id?:         string
+	expires_at_unix?:   int64
+	advertise_name?:    string
 	advertise_service?: string
-	channel?:          string
+	channel?:           string
 	verification_code?: string
 	join_mode?:         string
 }
@@ -98,21 +98,21 @@ package apicv1
 #StopAppResponse: {}
 #RemoveAppRequest: name?: string
 #RemoveAppResponse: {}
-#GetAppLogsRequest: name?: string
+#GetAppLogsRequest: name?:  string
 #GetAppLogsResponse: logs?: bytes
 
 #Installer: {
-	id?:                 string
-	name?:               string
-	version?:            string
-	description?:        string
+	id?:          string
+	name?:        string
+	version?:     string
+	description?: string
 	requires_resources?: [...string]
 	provides_resources?: [...string]
-	capabilities?:       [...string]
+	capabilities?: [...string]
 }
 #GetInstallersRequest: {}
 #GetInstallersResponse: installers?: [...#Installer]
-#GetInstallerRequest: id?: string
+#GetInstallerRequest: id?:         string
 #GetInstallerResponse: installer?: #Installer
 
 #CloudMachineSpec: {
@@ -125,14 +125,14 @@ package apicv1
 	price_monthly?:          number
 }
 #CloudType: {
-	name?:                  string
+	name?: string
 	authentication_fields?: [...string]
 }
 #CloudProvider: {
-	name?:               string
-	type?:               #CloudType
+	name?: string
+	type?: #CloudType
 	supported_locations?: [...string]
-	supported_machines?:  [string]: #CloudMachineSpec
+	supported_machines?: [string]: #CloudMachineSpec
 }
 #ProvisionerMachineSpec: {
 	cores?:                  int
@@ -144,24 +144,24 @@ package apicv1
 	price_monthly?:          number
 }
 #ProvisionerType: {
-	name?:                  string
+	name?: string
 	authentication_fields?: [...string]
 }
 #Provisioner: {
-	name?:               string
-	type?:               #ProvisionerType
+	name?: string
+	type?: #ProvisionerType
 	supported_locations?: [...string]
-	supported_machines?:  [string]: #ProvisionerMachineSpec
+	supported_machines?: [string]: #ProvisionerMachineSpec
 }
 #GetSupportedCloudProvidersRequest: {}
 #GetSupportedCloudProvidersResponse: cloud_types?: [...#CloudType]
 #GetCloudProvidersRequest: {}
 #GetCloudProvidersResponse: cloud_providers?: [...#CloudProvider]
-#GetCloudProviderRequest: name?: string
+#GetCloudProviderRequest: name?:            string
 #GetCloudProviderResponse: cloud_provider?: #CloudProvider
 #AddCloudProviderRequest: {
-	name?:        string
-	type?:        string
+	name?: string
+	type?: string
 	credentials?: [string]: string
 }
 #AddCloudProviderResponse: {}
@@ -171,11 +171,11 @@ package apicv1
 #GetSupportedProvisionersResponse: provisioner_types?: [...#ProvisionerType]
 #GetProvisionersRequest: {}
 #GetProvisionersResponse: provisioners?: [...#Provisioner]
-#GetProvisionerRequest: name?: string
+#GetProvisionerRequest: name?:         string
 #GetProvisionerResponse: provisioner?: #Provisioner
 #AddProvisionerRequest: {
-	name?:        string
-	type?:        string
+	name?: string
+	type?: string
 	credentials?: [string]: string
 }
 #AddProvisionerResponse: {}
@@ -195,11 +195,17 @@ package apicv1
 	protos_version?:       string
 	status?:               string
 	architecture?:         string
-	peers?:                [string]: string
+	peers?: [string]: string
+	provider_status?:        string
+	admin_api_reachability?: string
+	replication_connected?:  bool
+	admin_last_error?:       string
+	admin_last_seen?:        string
+	peer_id?:                string
 }
 #GetInstancesRequest: {}
 #GetInstancesResponse: instances?: [...#CloudInstance]
-#GetInstanceRequest: name?: string
+#GetInstanceRequest: name?:      string
 #GetInstanceResponse: instance?: #CloudInstance
 #InstanceDeployFieldOption: {
 	value?:       string
@@ -214,7 +220,7 @@ package apicv1
 	visible?:  bool
 	value?:    string
 	helper?:   string
-	options?:  [...#InstanceDeployFieldOption]
+	options?: [...#InstanceDeployFieldOption]
 }
 #GetInstanceDeployOptionsRequest: {
 	provisioner?: string
@@ -222,12 +228,12 @@ package apicv1
 }
 #GetInstanceDeployOptionsResponse: fields?: [...#InstanceDeployField]
 #DeployInstanceRequest: {
-	name?:            string
-	cloud_name?:      string
-	cloud_location?:  string
-	machine_type?:    string
-	protos_version?:  string
-	dev_img?:         string
+	name?:           string
+	cloud_name?:     string
+	cloud_location?: string
+	machine_type?:   string
+	protos_version?: string
+	dev_img?:        string
 }
 #DeployInstanceResponse: instance?: #CloudInstance
 #RemoveInstanceRequest: {
@@ -235,14 +241,14 @@ package apicv1
 	local_only?: bool
 }
 #RemoveInstanceResponse: task_id?: string
-#StartInstanceRequest: name?: string
-#StartInstanceResponse: task_id?: string
-#StopInstanceRequest: name?: string
-#StopInstanceResponse: task_id?: string
-#GetInstanceKeyRequest: name?: string
-#GetInstanceKeyResponse: key?: string
-#GetInstanceLogsRequest: name?: string
-#GetInstanceLogsResponse: logs?: string
+#StartInstanceRequest: name?:      string
+#StartInstanceResponse: task_id?:  string
+#StopInstanceRequest: name?:       string
+#StopInstanceResponse: task_id?:   string
+#GetInstanceKeyRequest: name?:     string
+#GetInstanceKeyResponse: key?:     string
+#GetInstanceLogsRequest: name?:    string
+#GetInstanceLogsResponse: logs?:   string
 #InitInstanceRequest: {
 	name?: string
 	ip?:   string
@@ -254,8 +260,8 @@ package apicv1
 }
 #UpdateInstanceResponse: {}
 
-#GetNetworkStateRequest: instance?: string
-#GetNetworkStateResponse: state?: #NetworkState
+#GetNetworkStateRequest: instance?:  string
+#GetNetworkStateResponse: state?:    #NetworkState
 #SetNetworkEnabledRequest: enabled?: bool
 #SetNetworkEnabledResponse: status?: #NetworkRuntimeStatus
 #NetworkRuntimeStatus: {
@@ -267,16 +273,16 @@ package apicv1
 	network_state?:   #NetworkState
 }
 #NetworkState: {
-	module?:          string
-	up?:              bool
-	interface_name?:  string
-	interfaces?:      [...#NetworkInterface]
-	addresses?:       [...#NetworkAddress]
-	routes?:          [...#NetworkRoute]
+	module?:         string
+	up?:             bool
+	interface_name?: string
+	interfaces?: [...#NetworkInterface]
+	addresses?: [...#NetworkAddress]
+	routes?: [...#NetworkRoute]
 	wireguard_peers?: [...#WireGuardPeer]
 	firewall_tables?: [...#FirewallTable]
-	dns?:             [...#DNSState]
-	messages?:        [...string]
+	dns?: [...#DNSState]
+	messages?: [...string]
 }
 #NetworkInterface: {
 	name?:        string
@@ -306,9 +312,9 @@ package apicv1
 	kind?:           string
 }
 #WireGuardPeer: {
-	public_key?:       string
-	endpoint?:         string
-	allowed_ips?:      [...string]
+	public_key?: string
+	endpoint?:   string
+	allowed_ips?: [...string]
 	latest_handshake?: string
 	rx_bytes?:         uint
 	tx_bytes?:         uint
@@ -323,20 +329,20 @@ package apicv1
 	type?:     string
 	hook?:     string
 	priority?: string
-	rules?:    [...#FirewallRule]
+	rules?: [...#FirewallRule]
 }
 #FirewallRule: {
 	expressions?: [...string]
-	packets?:     uint
-	bytes?:       uint
+	packets?: uint
+	bytes?:   uint
 }
 #DNSState: {
-	scope?:   string
-	domain?:  string
+	scope?:  string
+	domain?: string
 	servers?: [...string]
-	port?:    int
-	active?:  bool
-	source?:  string
+	port?:   int
+	active?: bool
+	source?: string
 }
 
 #ExitRoute: {
@@ -348,7 +354,7 @@ package apicv1
 	location?:      string
 	status?:        string
 	dns_server?:    string
-	cidrs?:         [...string]
+	cidrs?: [...string]
 }
 #GetExitRoutesRequest: instance?: string
 #GetExitRoutesResponse: routes?: [...#ExitRoute]
@@ -356,36 +362,39 @@ package apicv1
 	instance?:   string
 	device_id?:  string
 	dns_server?: string
-	cidrs?:      [...string]
+	cidrs?: [...string]
 }
 #MobileTunnelConfig: {
-	config_id?:                    string
-	generated_at_unix?:            int64
-	instance_id?:                  string
-	instance_name?:                string
-	peer_public_key?:              string
-	peer_endpoint?:                string
-	interface_addresses?:          [...string]
-	dns_servers?:                  [...string]
-	included_routes?:              [...string]
-	excluded_routes?:              [...string]
-	mtu?:                          int
-	allowed_ips?:                  [...string]
+	config_id?:         string
+	generated_at_unix?: int64
+	instance_id?:       string
+	instance_name?:     string
+	peer_public_key?:   string
+	peer_endpoint?:     string
+	interface_addresses?: [...string]
+	dns_servers?: [...string]
+	included_routes?: [...string]
+	excluded_routes?: [...string]
+	mtu?: int
+	allowed_ips?: [...string]
 	persistent_keepalive_seconds?: int
 	keychain_access_group?:        string
 	keychain_account?:             string
 	wireguard_private_key?:        string
 }
 #GetMobileTunnelConfigResponse: config?: #MobileTunnelConfig
-#GetRuntimeStateRequest: instance?: string
+#GetRuntimeStateRequest: {
+	instance?:    string
+	allow_stale?: bool
+}
 #GetRuntimeStateResponse: state?: #RuntimeState
 #WatchChangesRequest: {
-	include_snapshot?:       bool
+	include_snapshot?:      bool
 	heartbeat_interval_ms?: uint32
 }
 #WatchChangesResponse: {
-	sequence?:        uint64
-	table_names?:     [...string]
+	sequence?: uint64
+	table_names?: [...string]
 	runtime_changed?: bool
 	reason?:          string
 }
@@ -423,17 +432,19 @@ package apicv1
 	subject_type?: string
 	subject_id?:   string
 	max_results?:  int
+	instance?:     string
 }
 #GetTasksResponse: {
-	tasks?:     [...#Task]
+	tasks?: [...#Task]
 	truncated?: bool
 }
 #GetTaskRequest: {
 	id?:             string
 	include_events?: bool
+	instance?:       string
 }
 #GetTaskResponse: {
-	task?:   #Task
+	task?: #Task
 	events?: [...#TaskEvent]
 }
 #TaskProgressUpdate: {
@@ -452,9 +463,9 @@ package apicv1
 	heartbeat_interval_ms?: uint
 }
 #WatchTaskResponse: {
-	sequence?:  uint
-	task?:      #Task
-	events?:    [...#TaskEvent]
+	sequence?: uint
+	task?:     #Task
+	events?: [...#TaskEvent]
 	update?:    #TaskProgressUpdate
 	heartbeat?: bool
 }
@@ -462,7 +473,7 @@ package apicv1
 	instance?:   string
 	device_id?:  string
 	dns_server?: string
-	cidrs?:      [...string]
+	cidrs?: [...string]
 }
 #SetExitRouteResponse: route?: #ExitRoute
 #ClearExitRouteRequest: {
@@ -471,37 +482,39 @@ package apicv1
 #ClearExitRouteResponse: {}
 
 #RuntimeState: {
-	peer_id?:                         string
-	manifest_digest?:                 string
-	checkpoint_root_hash?:            string
-	tentative_root_hash?:             string
-	protocol_checkpoint_root_hash?:   string
-	durable_main_root_hash?:          string
-	state_providers?:                 [...string]
-	connected_peers?:                 [...string]
-	fatal_state?:                     string
-	runtime_refresh_pending?:         bool
-	runtime_refresh_last_error?:      string
-	runtime_checkpoint_pending?:      bool
-	runtime_checkpoint_last_error?:   string
-	runtime_materialization_policy?:  string
-	peer_statuses?:                  [...#RuntimePeerStatus]
-	compatibility?:                  [...#RuntimeCompatibility]
-	content_sync_trace?:              [...string]
-	protocol_checkpoint_digest?:      string
+	peer_id?:                       string
+	manifest_digest?:               string
+	checkpoint_root_hash?:          string
+	tentative_root_hash?:           string
+	protocol_checkpoint_root_hash?: string
+	durable_main_root_hash?:        string
+	state_providers?: [...string]
+	connected_peers?: [...string]
+	fatal_state?:                    string
+	runtime_refresh_pending?:        bool
+	runtime_refresh_last_error?:     string
+	runtime_checkpoint_pending?:     bool
+	runtime_checkpoint_last_error?:  string
+	runtime_materialization_policy?: string
+	peer_statuses?: [...#RuntimePeerStatus]
+	compatibility?: [...#RuntimeCompatibility]
+	content_sync_trace?: [...string]
+	protocol_checkpoint_digest?: string
+	read_consistency?:           string
+	read_error?:                 string
 }
 #RuntimePeerStatus: {
-	peer_id?:          string
-	connected?:        bool
-	dialable?:         bool
-	state_provider?:   bool
-	compatible?:       bool
-	incompatible?:     bool
-	ignored?:          bool
-	relay_only?:       bool
-	addresses?:        [...string]
+	peer_id?:        string
+	connected?:      bool
+	dialable?:       bool
+	state_provider?: bool
+	compatible?:     bool
+	incompatible?:   bool
+	ignored?:        bool
+	relay_only?:     bool
+	addresses?: [...string]
 	last_dial_errors?: [string]: string
-	reason?:           string
+	reason?:                   string
 	replication_priority?:     int
 	replication_device_class?: string
 }
@@ -553,11 +566,11 @@ package apicv1
 	task_id?: string
 }
 #UploadProvisionerImageRequest: {
-	image_path?: string
-	image_name?: string
+	image_path?:       string
+	image_name?:       string
 	provisioner_name?: string
-	location?:   string
-	timeout?:    int
+	location?:         string
+	timeout?:          int
 }
 #UploadProvisionerImageResponse: {
 	id?:      string
@@ -570,31 +583,32 @@ package apicv1
 }
 #RemoveCloudImageResponse: {}
 #RemoveProvisionerImageRequest: {
-	image_name?:      string
+	image_name?:       string
 	provisioner_name?: string
-	location?:        string
+	location?:         string
 }
 #RemoveProvisionerImageResponse: {}
 #ImageContentDescriptor: {
-	media_type?:  string
-	digest?:      string
-	size_bytes?:  uint
-	platform?:    string
+	media_type?: string
+	digest?:     string
+	size_bytes?: uint
+	platform?:   string
 	annotations?: [string]: string
 }
 #GetInstanceImageRequest: {
-	instance?:  string
-	image_ref?: string
+	instance?:        string
+	image_ref?:       string
+	include_content?: bool
 }
 #GetInstanceImageResponse: {
 	found?:         bool
 	image_ref?:     string
 	target_digest?: string
 	platform?:      string
-	labels?:        [string]: string
-	has_content?:   bool
-	target?:        #ImageContentDescriptor
-	descriptors?:   [...#ImageContentDescriptor]
+	labels?: [string]: string
+	has_content?: bool
+	target?:      #ImageContentDescriptor
+	descriptors?: [...#ImageContentDescriptor]
 }
 #UploadInstanceImageArchiveRequest: {
 	instance?:     string
@@ -624,10 +638,10 @@ package apicv1
 	hash?:      string
 	committer?: string
 	message?:   string
-	states?:    [...string]
+	states?: [...string]
 	date_unix?: int
 	parent_hashes?: [...string]
-	refs?:          [...string]
+	refs?: [...string]
 }
 #CommitGraphRelation: {
 	parent_hash?: string
@@ -637,25 +651,25 @@ package apicv1
 	visible?:     bool
 }
 #CommitGraphItem: {
-	commit?:       #Commit
-	row?:          int
-	lane?:         int
+	commit?: #Commit
+	row?:    int
+	lane?:   int
 	active_lanes?: [...int]
-	relations?:    [...#CommitGraphRelation]
+	relations?: [...#CommitGraphRelation]
 }
 #CommitGraph: {
-	items?:      [...#CommitGraphItem]
+	items?: [...#CommitGraphItem]
 	lane_count?: int
 }
 #GetLocalCommitsRequest: {}
 #GetLocalCommitsResponse: {
 	commits?: [...#Commit]
-	graph?:   #CommitGraph
+	graph?: #CommitGraph
 }
 #GetRemoteCommitsRequest: remote?: string
 #GetRemoteCommitsResponse: {
 	commits?: [...#Commit]
-	graph?:   #CommitGraph
+	graph?: #CommitGraph
 }
 #SqlCell: {
 	value?:   string
@@ -667,8 +681,8 @@ package apicv1
 	max_rows?: int
 }
 #ExecuteSqlResponse: {
-	columns?:       [...string]
-	rows?:          [...#SqlRow]
+	columns?: [...string]
+	rows?: [...#SqlRow]
 	rows_affected?: int
 	truncated?:     bool
 	message?:       string
@@ -690,11 +704,11 @@ package apicv1
 	work_dir?:     string
 	capabilities?: string
 	p2p_port?:     int
-	endpoints?:    [...#CoreEndpoint]
-	host_agent?:   #HostAgentConnectionStatus
-	network_enabled?: bool
+	endpoints?: [...#CoreEndpoint]
+	host_agent?:           #HostAgentConnectionStatus
+	network_enabled?:      bool
 	host_agent_supported?: bool
-	network?: #NetworkRuntimeStatus
+	network?:              #NetworkRuntimeStatus
 }
 #GetSystemStatusRequest: {}
 #GetSystemStatusResponse: status?: #SystemStatus
@@ -989,6 +1003,12 @@ contract: {
 				{type: "string", name: "status", number: 11},
 				{type: "string", name: "architecture", number: 12},
 				{type: "map<string, string>", name: "peers", number: 13},
+				{type: "string", name: "provider_status", number: 14},
+				{type: "string", name: "admin_api_reachability", number: 15},
+				{type: "bool", name: "replication_connected", number: 16},
+				{type: "string", name: "admin_last_error", number: 17},
+				{type: "string", name: "admin_last_seen", number: 18},
+				{type: "string", name: "peer_id", number: 19},
 			]},
 			{kind: "message", name: "GetInstancesRequest", fields: []},
 			{kind: "message", name: "GetInstancesResponse", fields: [{rule: "repeated", type: "CloudInstance", name: "instances", number: 1}]},
@@ -1186,6 +1206,7 @@ contract: {
 			]},
 			{kind: "message", name: "GetRuntimeStateRequest", fields: [
 				{type: "string", name: "instance", number: 1},
+				{type: "bool", name: "allow_stale", number: 2},
 			]},
 			{kind: "message", name: "GetRuntimeStateResponse", fields: [
 				{type: "RuntimeState", name: "state", number: 1},
@@ -1234,6 +1255,7 @@ contract: {
 				{type: "string", name: "subject_type", number: 3},
 				{type: "string", name: "subject_id", number: 4},
 				{type: "int32", name: "max_results", number: 5},
+				{type: "string", name: "instance", number: 6},
 			]},
 			{kind: "message", name: "GetTasksResponse", fields: [
 				{rule: "repeated", type: "Task", name: "tasks", number: 1},
@@ -1242,6 +1264,7 @@ contract: {
 			{kind: "message", name: "GetTaskRequest", fields: [
 				{type: "string", name: "id", number: 1},
 				{type: "bool", name: "include_events", number: 2},
+				{type: "string", name: "instance", number: 3},
 			]},
 			{kind: "message", name: "GetTaskResponse", fields: [
 				{type: "Task", name: "task", number: 1},
@@ -1301,6 +1324,8 @@ contract: {
 				{rule: "repeated", type: "RuntimeCompatibility", name: "compatibility", number: 19},
 				{rule: "repeated", type: "string", name: "content_sync_trace", number: 20},
 				{type: "string", name: "protocol_checkpoint_digest", number: 24},
+				{type: "string", name: "read_consistency", number: 25},
+				{type: "string", name: "read_error", number: 26},
 			]},
 			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
@@ -1396,6 +1421,7 @@ contract: {
 			{kind: "message", name: "GetInstanceImageRequest", fields: [
 				{type: "string", name: "instance", number: 1},
 				{type: "string", name: "image_ref", number: 2},
+				{type: "bool", name: "include_content", number: 3},
 			]},
 			{kind: "message", name: "GetInstanceImageResponse", fields: [
 				{type: "bool", name: "found", number: 1},
@@ -1464,43 +1490,43 @@ contract: {
 			{kind: "message", name: "StopHostAgentResponse", fields: [
 				{type: "HostAgentConnectionStatus", name: "status", number: 1},
 			]},
-				{kind: "message", name: "Commit", fields: [
-					{type: "string", name: "hash", number: 1},
-					{type: "string", name: "committer", number: 2},
-					{type: "string", name: "message", number: 3},
-					{rule: "repeated", type: "string", name: "states", number: 4},
-					{type: "int64", name: "date_unix", number: 5},
-					{rule: "repeated", type: "string", name: "parent_hashes", number: 6},
-					{rule: "repeated", type: "string", name: "refs", number: 7},
-				]},
-				{kind: "message", name: "CommitGraphRelation", fields: [
-					{type: "string", name: "parent_hash", number: 1},
-					{type: "int32", name: "parent_row", number: 2},
-					{type: "int32", name: "from_lane", number: 3},
-					{type: "int32", name: "to_lane", number: 4},
-					{type: "bool", name: "visible", number: 5},
-				]},
-				{kind: "message", name: "CommitGraphItem", fields: [
-					{type: "Commit", name: "commit", number: 1},
-					{type: "int32", name: "row", number: 2},
-					{type: "int32", name: "lane", number: 3},
-					{rule: "repeated", type: "int32", name: "active_lanes", number: 4},
-					{rule: "repeated", type: "CommitGraphRelation", name: "relations", number: 5},
-				]},
-				{kind: "message", name: "CommitGraph", fields: [
-					{rule: "repeated", type: "CommitGraphItem", name: "items", number: 1},
-					{type: "int32", name: "lane_count", number: 2},
-				]},
-				{kind: "message", name: "GetLocalCommitsRequest", fields: []},
-				{kind: "message", name: "GetLocalCommitsResponse", fields: [
-					{rule: "repeated", type: "Commit", name: "commits", number: 1},
-					{type: "CommitGraph", name: "graph", number: 2},
-				]},
-				{kind: "message", name: "GetRemoteCommitsRequest", fields: [{type: "string", name: "remote", number: 1}]},
-				{kind: "message", name: "GetRemoteCommitsResponse", fields: [
-					{rule: "repeated", type: "Commit", name: "commits", number: 1},
-					{type: "CommitGraph", name: "graph", number: 2},
-				]},
+			{kind: "message", name: "Commit", fields: [
+				{type: "string", name: "hash", number: 1},
+				{type: "string", name: "committer", number: 2},
+				{type: "string", name: "message", number: 3},
+				{rule: "repeated", type: "string", name: "states", number: 4},
+				{type: "int64", name: "date_unix", number: 5},
+				{rule: "repeated", type: "string", name: "parent_hashes", number: 6},
+				{rule: "repeated", type: "string", name: "refs", number: 7},
+			]},
+			{kind: "message", name: "CommitGraphRelation", fields: [
+				{type: "string", name: "parent_hash", number: 1},
+				{type: "int32", name: "parent_row", number: 2},
+				{type: "int32", name: "from_lane", number: 3},
+				{type: "int32", name: "to_lane", number: 4},
+				{type: "bool", name: "visible", number: 5},
+			]},
+			{kind: "message", name: "CommitGraphItem", fields: [
+				{type: "Commit", name: "commit", number: 1},
+				{type: "int32", name: "row", number: 2},
+				{type: "int32", name: "lane", number: 3},
+				{rule: "repeated", type: "int32", name: "active_lanes", number: 4},
+				{rule: "repeated", type: "CommitGraphRelation", name: "relations", number: 5},
+			]},
+			{kind: "message", name: "CommitGraph", fields: [
+				{rule: "repeated", type: "CommitGraphItem", name: "items", number: 1},
+				{type: "int32", name: "lane_count", number: 2},
+			]},
+			{kind: "message", name: "GetLocalCommitsRequest", fields: []},
+			{kind: "message", name: "GetLocalCommitsResponse", fields: [
+				{rule: "repeated", type: "Commit", name: "commits", number: 1},
+				{type: "CommitGraph", name: "graph", number: 2},
+			]},
+			{kind: "message", name: "GetRemoteCommitsRequest", fields: [{type: "string", name: "remote", number: 1}]},
+			{kind: "message", name: "GetRemoteCommitsResponse", fields: [
+				{rule: "repeated", type: "Commit", name: "commits", number: 1},
+				{type: "CommitGraph", name: "graph", number: 2},
+			]},
 			{kind: "message", name: "SqlCell", fields: [
 				{type: "string", name: "value", number: 1},
 				{type: "bool", name: "is_null", number: 2},
@@ -1528,172 +1554,172 @@ lineage: {
 	schemas: [{
 		version: [0, 0]
 		schema: {
-			InitRequest?:                         #InitRequest
-			InitResponse?:                        #InitResponse
-			UserDevice?:                          #UserDevice
-			GetUserDevicesRequest?:               #GetUserDevicesRequest
-			GetUserDevicesResponse?:              #GetUserDevicesResponse
-			GetUserInfoRequest?:                  #GetUserInfoRequest
-			GetUserInfoResponse?:                 #GetUserInfoResponse
-			Organisation?:                            #Organisation
-			ListOrganisationsRequest?:                #ListOrganisationsRequest
-			ListOrganisationsResponse?:               #ListOrganisationsResponse
-			StartDeviceInviteRequest?:            #StartDeviceInviteRequest
-			StartDeviceInviteResponse?:           #StartDeviceInviteResponse
-			NearbyOrganisation?:                      #NearbyOrganisation
-			ListNearbyOrganisationsRequest?:          #ListNearbyOrganisationsRequest
-			ListNearbyOrganisationsResponse?:         #ListNearbyOrganisationsResponse
-			JoinOrganisationRequest?:                 #JoinOrganisationRequest
-			JoinOrganisationResponse?:                #JoinOrganisationResponse
-			GetLocalSSHKeyRequest?:               #GetLocalSSHKeyRequest
-			GetLocalSSHKeyResponse?:              #GetLocalSSHKeyResponse
-			App?:                                 #App
-			GetAppsRequest?:                      #GetAppsRequest
-			GetAppsResponse?:                     #GetAppsResponse
-			CreateAppRequest?:                    #CreateAppRequest
-			CreateAppResponse?:                   #CreateAppResponse
-			StartAppRequest?:                     #StartAppRequest
-			StartAppResponse?:                    #StartAppResponse
-			StopAppRequest?:                      #StopAppRequest
-			StopAppResponse?:                     #StopAppResponse
-			RemoveAppRequest?:                    #RemoveAppRequest
-			RemoveAppResponse?:                   #RemoveAppResponse
-			GetAppLogsRequest?:                   #GetAppLogsRequest
-			GetAppLogsResponse?:                  #GetAppLogsResponse
-			Installer?:                           #Installer
-			GetInstallersRequest?:                #GetInstallersRequest
-			GetInstallersResponse?:               #GetInstallersResponse
-			GetInstallerRequest?:                 #GetInstallerRequest
-			GetInstallerResponse?:                #GetInstallerResponse
-			CloudMachineSpec?:                    #CloudMachineSpec
-			CloudType?:                           #CloudType
-			CloudProvider?:                       #CloudProvider
-			GetSupportedCloudProvidersRequest?:   #GetSupportedCloudProvidersRequest
-			GetSupportedCloudProvidersResponse?:  #GetSupportedCloudProvidersResponse
-			GetCloudProvidersRequest?:            #GetCloudProvidersRequest
-			GetCloudProvidersResponse?:           #GetCloudProvidersResponse
-			GetCloudProviderRequest?:             #GetCloudProviderRequest
-			GetCloudProviderResponse?:            #GetCloudProviderResponse
-			AddCloudProviderRequest?:             #AddCloudProviderRequest
-			AddCloudProviderResponse?:            #AddCloudProviderResponse
-			RemoveCloudProviderRequest?:          #RemoveCloudProviderRequest
-			RemoveCloudProviderResponse?:         #RemoveCloudProviderResponse
-			ProvisionerMachineSpec?:              #ProvisionerMachineSpec
-			ProvisionerType?:                     #ProvisionerType
-			Provisioner?:                         #Provisioner
-			GetSupportedProvisionersRequest?:      #GetSupportedProvisionersRequest
-			GetSupportedProvisionersResponse?:     #GetSupportedProvisionersResponse
-			GetProvisionersRequest?:               #GetProvisionersRequest
-			GetProvisionersResponse?:              #GetProvisionersResponse
-			GetProvisionerRequest?:                #GetProvisionerRequest
-			GetProvisionerResponse?:               #GetProvisionerResponse
-			AddProvisionerRequest?:                #AddProvisionerRequest
-			AddProvisionerResponse?:               #AddProvisionerResponse
-			RemoveProvisionerRequest?:             #RemoveProvisionerRequest
-			RemoveProvisionerResponse?:            #RemoveProvisionerResponse
-			CloudInstance?:                       #CloudInstance
-			GetInstancesRequest?:                 #GetInstancesRequest
-			GetInstancesResponse?:                #GetInstancesResponse
-			GetInstanceRequest?:                  #GetInstanceRequest
-			GetInstanceResponse?:                 #GetInstanceResponse
-			InstanceDeployFieldOption?:           #InstanceDeployFieldOption
-			InstanceDeployField?:                 #InstanceDeployField
-			GetInstanceDeployOptionsRequest?:     #GetInstanceDeployOptionsRequest
-			GetInstanceDeployOptionsResponse?:    #GetInstanceDeployOptionsResponse
-			DeployInstanceRequest?:               #DeployInstanceRequest
-			DeployInstanceResponse?:              #DeployInstanceResponse
-			RemoveInstanceRequest?:               #RemoveInstanceRequest
-			RemoveInstanceResponse?:              #RemoveInstanceResponse
-			StartInstanceRequest?:                #StartInstanceRequest
-			StartInstanceResponse?:               #StartInstanceResponse
-			StopInstanceRequest?:                 #StopInstanceRequest
-			StopInstanceResponse?:                #StopInstanceResponse
-			GetInstanceKeyRequest?:               #GetInstanceKeyRequest
-			GetInstanceKeyResponse?:              #GetInstanceKeyResponse
-			GetInstanceLogsRequest?:              #GetInstanceLogsRequest
-			GetInstanceLogsResponse?:             #GetInstanceLogsResponse
-			InitInstanceRequest?:                 #InitInstanceRequest
-			InitInstanceResponse?:                #InitInstanceResponse
-			UpdateInstanceRequest?:               #UpdateInstanceRequest
-			UpdateInstanceResponse?:              #UpdateInstanceResponse
-			GetNetworkStateRequest?:              #GetNetworkStateRequest
-			GetNetworkStateResponse?:             #GetNetworkStateResponse
-			SetNetworkEnabledRequest?:            #SetNetworkEnabledRequest
-			SetNetworkEnabledResponse?:           #SetNetworkEnabledResponse
-			NetworkRuntimeStatus?:                #NetworkRuntimeStatus
-			NetworkState?:                        #NetworkState
-			NetworkInterface?:                    #NetworkInterface
-			NetworkAddress?:                      #NetworkAddress
-			NetworkRoute?:                        #NetworkRoute
-			WireGuardPeer?:                       #WireGuardPeer
-			FirewallTable?:                       #FirewallTable
-			FirewallChain?:                       #FirewallChain
-			FirewallRule?:                        #FirewallRule
-			DNSState?:                            #DNSState
+			InitRequest?:                        #InitRequest
+			InitResponse?:                       #InitResponse
+			UserDevice?:                         #UserDevice
+			GetUserDevicesRequest?:              #GetUserDevicesRequest
+			GetUserDevicesResponse?:             #GetUserDevicesResponse
+			GetUserInfoRequest?:                 #GetUserInfoRequest
+			GetUserInfoResponse?:                #GetUserInfoResponse
+			Organisation?:                       #Organisation
+			ListOrganisationsRequest?:           #ListOrganisationsRequest
+			ListOrganisationsResponse?:          #ListOrganisationsResponse
+			StartDeviceInviteRequest?:           #StartDeviceInviteRequest
+			StartDeviceInviteResponse?:          #StartDeviceInviteResponse
+			NearbyOrganisation?:                 #NearbyOrganisation
+			ListNearbyOrganisationsRequest?:     #ListNearbyOrganisationsRequest
+			ListNearbyOrganisationsResponse?:    #ListNearbyOrganisationsResponse
+			JoinOrganisationRequest?:            #JoinOrganisationRequest
+			JoinOrganisationResponse?:           #JoinOrganisationResponse
+			GetLocalSSHKeyRequest?:              #GetLocalSSHKeyRequest
+			GetLocalSSHKeyResponse?:             #GetLocalSSHKeyResponse
+			App?:                                #App
+			GetAppsRequest?:                     #GetAppsRequest
+			GetAppsResponse?:                    #GetAppsResponse
+			CreateAppRequest?:                   #CreateAppRequest
+			CreateAppResponse?:                  #CreateAppResponse
+			StartAppRequest?:                    #StartAppRequest
+			StartAppResponse?:                   #StartAppResponse
+			StopAppRequest?:                     #StopAppRequest
+			StopAppResponse?:                    #StopAppResponse
+			RemoveAppRequest?:                   #RemoveAppRequest
+			RemoveAppResponse?:                  #RemoveAppResponse
+			GetAppLogsRequest?:                  #GetAppLogsRequest
+			GetAppLogsResponse?:                 #GetAppLogsResponse
+			Installer?:                          #Installer
+			GetInstallersRequest?:               #GetInstallersRequest
+			GetInstallersResponse?:              #GetInstallersResponse
+			GetInstallerRequest?:                #GetInstallerRequest
+			GetInstallerResponse?:               #GetInstallerResponse
+			CloudMachineSpec?:                   #CloudMachineSpec
+			CloudType?:                          #CloudType
+			CloudProvider?:                      #CloudProvider
+			GetSupportedCloudProvidersRequest?:  #GetSupportedCloudProvidersRequest
+			GetSupportedCloudProvidersResponse?: #GetSupportedCloudProvidersResponse
+			GetCloudProvidersRequest?:           #GetCloudProvidersRequest
+			GetCloudProvidersResponse?:          #GetCloudProvidersResponse
+			GetCloudProviderRequest?:            #GetCloudProviderRequest
+			GetCloudProviderResponse?:           #GetCloudProviderResponse
+			AddCloudProviderRequest?:            #AddCloudProviderRequest
+			AddCloudProviderResponse?:           #AddCloudProviderResponse
+			RemoveCloudProviderRequest?:         #RemoveCloudProviderRequest
+			RemoveCloudProviderResponse?:        #RemoveCloudProviderResponse
+			ProvisionerMachineSpec?:             #ProvisionerMachineSpec
+			ProvisionerType?:                    #ProvisionerType
+			Provisioner?:                        #Provisioner
+			GetSupportedProvisionersRequest?:    #GetSupportedProvisionersRequest
+			GetSupportedProvisionersResponse?:   #GetSupportedProvisionersResponse
+			GetProvisionersRequest?:             #GetProvisionersRequest
+			GetProvisionersResponse?:            #GetProvisionersResponse
+			GetProvisionerRequest?:              #GetProvisionerRequest
+			GetProvisionerResponse?:             #GetProvisionerResponse
+			AddProvisionerRequest?:              #AddProvisionerRequest
+			AddProvisionerResponse?:             #AddProvisionerResponse
+			RemoveProvisionerRequest?:           #RemoveProvisionerRequest
+			RemoveProvisionerResponse?:          #RemoveProvisionerResponse
+			CloudInstance?:                      #CloudInstance
+			GetInstancesRequest?:                #GetInstancesRequest
+			GetInstancesResponse?:               #GetInstancesResponse
+			GetInstanceRequest?:                 #GetInstanceRequest
+			GetInstanceResponse?:                #GetInstanceResponse
+			InstanceDeployFieldOption?:          #InstanceDeployFieldOption
+			InstanceDeployField?:                #InstanceDeployField
+			GetInstanceDeployOptionsRequest?:    #GetInstanceDeployOptionsRequest
+			GetInstanceDeployOptionsResponse?:   #GetInstanceDeployOptionsResponse
+			DeployInstanceRequest?:              #DeployInstanceRequest
+			DeployInstanceResponse?:             #DeployInstanceResponse
+			RemoveInstanceRequest?:              #RemoveInstanceRequest
+			RemoveInstanceResponse?:             #RemoveInstanceResponse
+			StartInstanceRequest?:               #StartInstanceRequest
+			StartInstanceResponse?:              #StartInstanceResponse
+			StopInstanceRequest?:                #StopInstanceRequest
+			StopInstanceResponse?:               #StopInstanceResponse
+			GetInstanceKeyRequest?:              #GetInstanceKeyRequest
+			GetInstanceKeyResponse?:             #GetInstanceKeyResponse
+			GetInstanceLogsRequest?:             #GetInstanceLogsRequest
+			GetInstanceLogsResponse?:            #GetInstanceLogsResponse
+			InitInstanceRequest?:                #InitInstanceRequest
+			InitInstanceResponse?:               #InitInstanceResponse
+			UpdateInstanceRequest?:              #UpdateInstanceRequest
+			UpdateInstanceResponse?:             #UpdateInstanceResponse
+			GetNetworkStateRequest?:             #GetNetworkStateRequest
+			GetNetworkStateResponse?:            #GetNetworkStateResponse
+			SetNetworkEnabledRequest?:           #SetNetworkEnabledRequest
+			SetNetworkEnabledResponse?:          #SetNetworkEnabledResponse
+			NetworkRuntimeStatus?:               #NetworkRuntimeStatus
+			NetworkState?:                       #NetworkState
+			NetworkInterface?:                   #NetworkInterface
+			NetworkAddress?:                     #NetworkAddress
+			NetworkRoute?:                       #NetworkRoute
+			WireGuardPeer?:                      #WireGuardPeer
+			FirewallTable?:                      #FirewallTable
+			FirewallChain?:                      #FirewallChain
+			FirewallRule?:                       #FirewallRule
+			DNSState?:                           #DNSState
 			ExitRoute?:                          #ExitRoute
-			GetExitRoutesRequest?:                #GetExitRoutesRequest
-			GetExitRoutesResponse?:               #GetExitRoutesResponse
-			GetMobileTunnelConfigRequest?:        #GetMobileTunnelConfigRequest
-			MobileTunnelConfig?:                  #MobileTunnelConfig
-			GetMobileTunnelConfigResponse?:       #GetMobileTunnelConfigResponse
-			GetRuntimeStateRequest?:              #GetRuntimeStateRequest
-			GetRuntimeStateResponse?:             #GetRuntimeStateResponse
-			WatchChangesRequest?:                 #WatchChangesRequest
-			WatchChangesResponse?:                #WatchChangesResponse
-			Task?:                                #Task
-			TaskEvent?:                           #TaskEvent
-			GetTasksRequest?:                     #GetTasksRequest
-			GetTasksResponse?:                    #GetTasksResponse
-			GetTaskRequest?:                      #GetTaskRequest
-			GetTaskResponse?:                     #GetTaskResponse
-			TaskProgressUpdate?:                  #TaskProgressUpdate
-			WatchTaskRequest?:                    #WatchTaskRequest
-			WatchTaskResponse?:                   #WatchTaskResponse
-			RuntimeState?:                        #RuntimeState
-			RuntimePeerStatus?:                   #RuntimePeerStatus
-			RuntimeCompatibility?:                #RuntimeCompatibility
-			SetExitRouteRequest?:                 #SetExitRouteRequest
-			SetExitRouteResponse?:                #SetExitRouteResponse
-			ClearExitRouteRequest?:               #ClearExitRouteRequest
-			ClearExitRouteResponse?:              #ClearExitRouteResponse
-			CloudImage?:                          #CloudImage
-			CloudSpecificImage?:                  #CloudSpecificImage
-			Release?:                             #Release
-			GetProtosdReleasesRequest?:           #GetProtosdReleasesRequest
-			GetProtosdReleasesResponse?:          #GetProtosdReleasesResponse
-			GetCloudImagesRequest?:               #GetCloudImagesRequest
-			GetCloudImagesResponse?:              #GetCloudImagesResponse
-			GetProvisionerImagesRequest?:          #GetProvisionerImagesRequest
-			GetProvisionerImagesResponse?:         #GetProvisionerImagesResponse
-			UploadCloudImageRequest?:             #UploadCloudImageRequest
-			UploadCloudImageResponse?:            #UploadCloudImageResponse
-			UploadProvisionerImageRequest?:        #UploadProvisionerImageRequest
-			UploadProvisionerImageResponse?:       #UploadProvisionerImageResponse
-			RemoveCloudImageRequest?:             #RemoveCloudImageRequest
-			RemoveCloudImageResponse?:            #RemoveCloudImageResponse
-			RemoveProvisionerImageRequest?:        #RemoveProvisionerImageRequest
-			RemoveProvisionerImageResponse?:       #RemoveProvisionerImageResponse
-			CoreEndpoint?:                         #CoreEndpoint
-			HostAgentConnectionStatus?:            #HostAgentConnectionStatus
-			SystemStatus?:                         #SystemStatus
-			GetSystemStatusRequest?:               #GetSystemStatusRequest
-			GetSystemStatusResponse?:              #GetSystemStatusResponse
-			StartHostAgentRequest?:                #StartHostAgentRequest
-			StartHostAgentResponse?:               #StartHostAgentResponse
-			StopHostAgentRequest?:                 #StopHostAgentRequest
-			StopHostAgentResponse?:                #StopHostAgentResponse
-				Commit?:                              #Commit
-				CommitGraphRelation?:                 #CommitGraphRelation
-				CommitGraphItem?:                     #CommitGraphItem
-				CommitGraph?:                         #CommitGraph
-				GetLocalCommitsRequest?:              #GetLocalCommitsRequest
-			GetLocalCommitsResponse?:             #GetLocalCommitsResponse
-			GetRemoteCommitsRequest?:             #GetRemoteCommitsRequest
-			GetRemoteCommitsResponse?:            #GetRemoteCommitsResponse
-			SqlCell?:                             #SqlCell
-			SqlRow?:                              #SqlRow
-			ExecuteSqlRequest?:                   #ExecuteSqlRequest
-			ExecuteSqlResponse?:                  #ExecuteSqlResponse
+			GetExitRoutesRequest?:               #GetExitRoutesRequest
+			GetExitRoutesResponse?:              #GetExitRoutesResponse
+			GetMobileTunnelConfigRequest?:       #GetMobileTunnelConfigRequest
+			MobileTunnelConfig?:                 #MobileTunnelConfig
+			GetMobileTunnelConfigResponse?:      #GetMobileTunnelConfigResponse
+			GetRuntimeStateRequest?:             #GetRuntimeStateRequest
+			GetRuntimeStateResponse?:            #GetRuntimeStateResponse
+			WatchChangesRequest?:                #WatchChangesRequest
+			WatchChangesResponse?:               #WatchChangesResponse
+			Task?:                               #Task
+			TaskEvent?:                          #TaskEvent
+			GetTasksRequest?:                    #GetTasksRequest
+			GetTasksResponse?:                   #GetTasksResponse
+			GetTaskRequest?:                     #GetTaskRequest
+			GetTaskResponse?:                    #GetTaskResponse
+			TaskProgressUpdate?:                 #TaskProgressUpdate
+			WatchTaskRequest?:                   #WatchTaskRequest
+			WatchTaskResponse?:                  #WatchTaskResponse
+			RuntimeState?:                       #RuntimeState
+			RuntimePeerStatus?:                  #RuntimePeerStatus
+			RuntimeCompatibility?:               #RuntimeCompatibility
+			SetExitRouteRequest?:                #SetExitRouteRequest
+			SetExitRouteResponse?:               #SetExitRouteResponse
+			ClearExitRouteRequest?:              #ClearExitRouteRequest
+			ClearExitRouteResponse?:             #ClearExitRouteResponse
+			CloudImage?:                         #CloudImage
+			CloudSpecificImage?:                 #CloudSpecificImage
+			Release?:                            #Release
+			GetProtosdReleasesRequest?:          #GetProtosdReleasesRequest
+			GetProtosdReleasesResponse?:         #GetProtosdReleasesResponse
+			GetCloudImagesRequest?:              #GetCloudImagesRequest
+			GetCloudImagesResponse?:             #GetCloudImagesResponse
+			GetProvisionerImagesRequest?:        #GetProvisionerImagesRequest
+			GetProvisionerImagesResponse?:       #GetProvisionerImagesResponse
+			UploadCloudImageRequest?:            #UploadCloudImageRequest
+			UploadCloudImageResponse?:           #UploadCloudImageResponse
+			UploadProvisionerImageRequest?:      #UploadProvisionerImageRequest
+			UploadProvisionerImageResponse?:     #UploadProvisionerImageResponse
+			RemoveCloudImageRequest?:            #RemoveCloudImageRequest
+			RemoveCloudImageResponse?:           #RemoveCloudImageResponse
+			RemoveProvisionerImageRequest?:      #RemoveProvisionerImageRequest
+			RemoveProvisionerImageResponse?:     #RemoveProvisionerImageResponse
+			CoreEndpoint?:                       #CoreEndpoint
+			HostAgentConnectionStatus?:          #HostAgentConnectionStatus
+			SystemStatus?:                       #SystemStatus
+			GetSystemStatusRequest?:             #GetSystemStatusRequest
+			GetSystemStatusResponse?:            #GetSystemStatusResponse
+			StartHostAgentRequest?:              #StartHostAgentRequest
+			StartHostAgentResponse?:             #StartHostAgentResponse
+			StopHostAgentRequest?:               #StopHostAgentRequest
+			StopHostAgentResponse?:              #StopHostAgentResponse
+			Commit?:                             #Commit
+			CommitGraphRelation?:                #CommitGraphRelation
+			CommitGraphItem?:                    #CommitGraphItem
+			CommitGraph?:                        #CommitGraph
+			GetLocalCommitsRequest?:             #GetLocalCommitsRequest
+			GetLocalCommitsResponse?:            #GetLocalCommitsResponse
+			GetRemoteCommitsRequest?:            #GetRemoteCommitsRequest
+			GetRemoteCommitsResponse?:           #GetRemoteCommitsResponse
+			SqlCell?:                            #SqlCell
+			SqlRow?:                             #SqlRow
+			ExecuteSqlRequest?:                  #ExecuteSqlRequest
+			ExecuteSqlResponse?:                 #ExecuteSqlResponse
 		}
 	}]
 	lenses: []

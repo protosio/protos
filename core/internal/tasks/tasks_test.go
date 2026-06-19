@@ -2,7 +2,9 @@ package tasks
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -67,18 +69,12 @@ func TestTaskManagerRunsRegisteredStream(t *testing.T) {
 	}
 
 	var eventCount int
-	rows, err := store.QueryContext(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", db.MustUUIDBytes(queued.ID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		t.Fatal("event count query returned no rows")
-	}
-	if err := rows.Scan(&eventCount); err != nil {
-		t.Fatal(err)
-	}
-	if err := rows.Err(); err != nil {
+	if err := store.ReadRows(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", []any{db.MustUUIDBytes(queued.ID)}, func(rows *sql.Rows) error {
+		if !rows.Next() {
+			return errors.New("event count query returned no rows")
+		}
+		return rows.Scan(&eventCount)
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if eventCount < 3 {
@@ -140,6 +136,66 @@ func TestTaskProgressSubscriptionDoesNotPersistEvent(t *testing.T) {
 	}
 }
 
+func TestTaskRunnerOnlyClaimsOwnedTasks(t *testing.T) {
+	store := openTaskTestDB(t)
+	ownerA := NewManager(store)
+	ownerA.SetExecutorPeerID("peer-a")
+	ownerB := NewManager(store)
+	ownerB.SetExecutorPeerID("peer-b")
+
+	runCount := 0
+	for _, manager := range []*Manager{ownerA, ownerB} {
+		if err := Register(manager, Stream[testPayload, testResult]{
+			Name: "test.stream",
+			Run: func(ctx context.Context, task *RunContext[testPayload]) (testResult, error) {
+				runCount++
+				return testResult{Done: task.Payload().Value}, nil
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	queued, err := Enqueue(ownerA, EnqueueOptions[testPayload]{
+		Stream:      "test.stream",
+		SubjectType: "test-subject",
+		SubjectID:   "subject-1",
+		Title:       "test task",
+		Payload:     testPayload{Value: "peer-a-work"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ownerB.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	stillPending, err := ownerA.Get(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stillPending.Status != StatusPending {
+		t.Fatalf("status after wrong owner = %q, want pending", stillPending.Status)
+	}
+	if runCount != 0 {
+		t.Fatalf("run count after wrong owner = %d, want 0", runCount)
+	}
+
+	if err := ownerA.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	done, err := ownerA.Get(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done.Status != StatusSucceeded {
+		t.Fatalf("status after owner run = %q, want succeeded", done.Status)
+	}
+	if runCount != 1 {
+		t.Fatalf("run count after owner run = %d, want 1", runCount)
+	}
+}
+
 func TestRegisterIfAbsentKeepsExistingStream(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
@@ -191,19 +247,13 @@ func TestRegisterIfAbsentKeepsExistingStream(t *testing.T) {
 
 func taskEventCount(t *testing.T, store *db.DB, taskID string) int {
 	t.Helper()
-	rows, err := store.QueryContext(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", db.MustUUIDBytes(taskID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		t.Fatal("event count query returned no rows")
-	}
 	var count int
-	if err := rows.Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if err := rows.Err(); err != nil {
+	if err := store.ReadRows(context.Background(), "SELECT COUNT(*) FROM task_events WHERE task_id = ?", []any{db.MustUUIDBytes(taskID)}, func(rows *sql.Rows) error {
+		if !rows.Next() {
+			return errors.New("event count query returned no rows")
+		}
+		return rows.Scan(&count)
+	}); err != nil {
 		t.Fatal(err)
 	}
 	return count

@@ -4016,6 +4016,12 @@ class CloudInstance extends $pb.GeneratedMessage {
     $core.String? status,
     $core.String? architecture,
     $core.Iterable<$core.MapEntry<$core.String, $core.String>>? peers,
+    $core.String? providerStatus,
+    $core.String? adminApiReachability,
+    $core.bool? replicationConnected,
+    $core.String? adminLastError,
+    $core.String? adminLastSeen,
+    $core.String? peerId,
   }) {
     final result = create();
     if (name != null) result.name = name;
@@ -4032,6 +4038,14 @@ class CloudInstance extends $pb.GeneratedMessage {
     if (status != null) result.status = status;
     if (architecture != null) result.architecture = architecture;
     if (peers != null) result.peers.addEntries(peers);
+    if (providerStatus != null) result.providerStatus = providerStatus;
+    if (adminApiReachability != null)
+      result.adminApiReachability = adminApiReachability;
+    if (replicationConnected != null)
+      result.replicationConnected = replicationConnected;
+    if (adminLastError != null) result.adminLastError = adminLastError;
+    if (adminLastSeen != null) result.adminLastSeen = adminLastSeen;
+    if (peerId != null) result.peerId = peerId;
     return result;
   }
 
@@ -4065,6 +4079,12 @@ class CloudInstance extends $pb.GeneratedMessage {
         keyFieldType: $pb.PbFieldType.OS,
         valueFieldType: $pb.PbFieldType.OS,
         packageName: const $pb.PackageName('apic'))
+    ..aOS(14, _omitFieldNames ? '' : 'providerStatus')
+    ..aOS(15, _omitFieldNames ? '' : 'adminApiReachability')
+    ..aOB(16, _omitFieldNames ? '' : 'replicationConnected')
+    ..aOS(17, _omitFieldNames ? '' : 'adminLastError')
+    ..aOS(18, _omitFieldNames ? '' : 'adminLastSeen')
+    ..aOS(19, _omitFieldNames ? '' : 'peerId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -4196,6 +4216,60 @@ class CloudInstance extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(13)
   $pb.PbMap<$core.String, $core.String> get peers => $_getMap(12);
+
+  @$pb.TagNumber(14)
+  $core.String get providerStatus => $_getSZ(13);
+  @$pb.TagNumber(14)
+  set providerStatus($core.String value) => $_setString(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasProviderStatus() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearProviderStatus() => $_clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get adminApiReachability => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set adminApiReachability($core.String value) => $_setString(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasAdminApiReachability() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearAdminApiReachability() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.bool get replicationConnected => $_getBF(15);
+  @$pb.TagNumber(16)
+  set replicationConnected($core.bool value) => $_setBool(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasReplicationConnected() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearReplicationConnected() => $_clearField(16);
+
+  @$pb.TagNumber(17)
+  $core.String get adminLastError => $_getSZ(16);
+  @$pb.TagNumber(17)
+  set adminLastError($core.String value) => $_setString(16, value);
+  @$pb.TagNumber(17)
+  $core.bool hasAdminLastError() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearAdminLastError() => $_clearField(17);
+
+  @$pb.TagNumber(18)
+  $core.String get adminLastSeen => $_getSZ(17);
+  @$pb.TagNumber(18)
+  set adminLastSeen($core.String value) => $_setString(17, value);
+  @$pb.TagNumber(18)
+  $core.bool hasAdminLastSeen() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearAdminLastSeen() => $_clearField(18);
+
+  @$pb.TagNumber(19)
+  $core.String get peerId => $_getSZ(18);
+  @$pb.TagNumber(19)
+  set peerId($core.String value) => $_setString(18, value);
+  @$pb.TagNumber(19)
+  $core.bool hasPeerId() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearPeerId() => $_clearField(19);
 }
 
 class GetInstancesRequest extends $pb.GeneratedMessage {
@@ -7588,9 +7662,11 @@ class GetMobileTunnelConfigResponse extends $pb.GeneratedMessage {
 class GetRuntimeStateRequest extends $pb.GeneratedMessage {
   factory GetRuntimeStateRequest({
     $core.String? instance,
+    $core.bool? allowStale,
   }) {
     final result = create();
     if (instance != null) result.instance = instance;
+    if (allowStale != null) result.allowStale = allowStale;
     return result;
   }
 
@@ -7608,6 +7684,7 @@ class GetRuntimeStateRequest extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'instance')
+    ..aOB(2, _omitFieldNames ? '' : 'allowStale')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -7638,6 +7715,15 @@ class GetRuntimeStateRequest extends $pb.GeneratedMessage {
   $core.bool hasInstance() => $_has(0);
   @$pb.TagNumber(1)
   void clearInstance() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get allowStale => $_getBF(1);
+  @$pb.TagNumber(2)
+  set allowStale($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAllowStale() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAllowStale() => $_clearField(2);
 }
 
 class GetRuntimeStateResponse extends $pb.GeneratedMessage {
@@ -8229,6 +8315,7 @@ class GetTasksRequest extends $pb.GeneratedMessage {
     $core.String? subjectType,
     $core.String? subjectId,
     $core.int? maxResults,
+    $core.String? instance,
   }) {
     final result = create();
     if (status != null) result.status = status;
@@ -8236,6 +8323,7 @@ class GetTasksRequest extends $pb.GeneratedMessage {
     if (subjectType != null) result.subjectType = subjectType;
     if (subjectId != null) result.subjectId = subjectId;
     if (maxResults != null) result.maxResults = maxResults;
+    if (instance != null) result.instance = instance;
     return result;
   }
 
@@ -8257,6 +8345,7 @@ class GetTasksRequest extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'subjectType')
     ..aOS(4, _omitFieldNames ? '' : 'subjectId')
     ..aI(5, _omitFieldNames ? '' : 'maxResults')
+    ..aOS(6, _omitFieldNames ? '' : 'instance')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8322,6 +8411,15 @@ class GetTasksRequest extends $pb.GeneratedMessage {
   $core.bool hasMaxResults() => $_has(4);
   @$pb.TagNumber(5)
   void clearMaxResults() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get instance => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set instance($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasInstance() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearInstance() => $_clearField(6);
 }
 
 class GetTasksResponse extends $pb.GeneratedMessage {
@@ -8388,10 +8486,12 @@ class GetTaskRequest extends $pb.GeneratedMessage {
   factory GetTaskRequest({
     $core.String? id,
     $core.bool? includeEvents,
+    $core.String? instance,
   }) {
     final result = create();
     if (id != null) result.id = id;
     if (includeEvents != null) result.includeEvents = includeEvents;
+    if (instance != null) result.instance = instance;
     return result;
   }
 
@@ -8410,6 +8510,7 @@ class GetTaskRequest extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOB(2, _omitFieldNames ? '' : 'includeEvents')
+    ..aOS(3, _omitFieldNames ? '' : 'instance')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8448,6 +8549,15 @@ class GetTaskRequest extends $pb.GeneratedMessage {
   $core.bool hasIncludeEvents() => $_has(1);
   @$pb.TagNumber(2)
   void clearIncludeEvents() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get instance => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set instance($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasInstance() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearInstance() => $_clearField(3);
 }
 
 class GetTaskResponse extends $pb.GeneratedMessage {
@@ -9090,6 +9200,8 @@ class RuntimeState extends $pb.GeneratedMessage {
     $core.Iterable<RuntimeCompatibility>? compatibility,
     $core.Iterable<$core.String>? contentSyncTrace,
     $core.String? protocolCheckpointDigest,
+    $core.String? readConsistency,
+    $core.String? readError,
   }) {
     final result = create();
     if (peerId != null) result.peerId = peerId;
@@ -9120,6 +9232,8 @@ class RuntimeState extends $pb.GeneratedMessage {
       result.contentSyncTrace.addAll(contentSyncTrace);
     if (protocolCheckpointDigest != null)
       result.protocolCheckpointDigest = protocolCheckpointDigest;
+    if (readConsistency != null) result.readConsistency = readConsistency;
+    if (readError != null) result.readError = readError;
     return result;
   }
 
@@ -9156,6 +9270,8 @@ class RuntimeState extends $pb.GeneratedMessage {
         subBuilder: RuntimeCompatibility.create)
     ..pPS(20, _omitFieldNames ? '' : 'contentSyncTrace')
     ..aOS(24, _omitFieldNames ? '' : 'protocolCheckpointDigest')
+    ..aOS(25, _omitFieldNames ? '' : 'readConsistency')
+    ..aOS(26, _omitFieldNames ? '' : 'readError')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9309,6 +9425,24 @@ class RuntimeState extends $pb.GeneratedMessage {
   $core.bool hasProtocolCheckpointDigest() => $_has(17);
   @$pb.TagNumber(24)
   void clearProtocolCheckpointDigest() => $_clearField(24);
+
+  @$pb.TagNumber(25)
+  $core.String get readConsistency => $_getSZ(18);
+  @$pb.TagNumber(25)
+  set readConsistency($core.String value) => $_setString(18, value);
+  @$pb.TagNumber(25)
+  $core.bool hasReadConsistency() => $_has(18);
+  @$pb.TagNumber(25)
+  void clearReadConsistency() => $_clearField(25);
+
+  @$pb.TagNumber(26)
+  $core.String get readError => $_getSZ(19);
+  @$pb.TagNumber(26)
+  set readError($core.String value) => $_setString(19, value);
+  @$pb.TagNumber(26)
+  $core.bool hasReadError() => $_has(19);
+  @$pb.TagNumber(26)
+  void clearReadError() => $_clearField(26);
 }
 
 class RuntimePeerStatus extends $pb.GeneratedMessage {
@@ -10929,10 +11063,12 @@ class GetInstanceImageRequest extends $pb.GeneratedMessage {
   factory GetInstanceImageRequest({
     $core.String? instance,
     $core.String? imageRef,
+    $core.bool? includeContent,
   }) {
     final result = create();
     if (instance != null) result.instance = instance;
     if (imageRef != null) result.imageRef = imageRef;
+    if (includeContent != null) result.includeContent = includeContent;
     return result;
   }
 
@@ -10951,6 +11087,7 @@ class GetInstanceImageRequest extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'instance')
     ..aOS(2, _omitFieldNames ? '' : 'imageRef')
+    ..aOB(3, _omitFieldNames ? '' : 'includeContent')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -10990,6 +11127,15 @@ class GetInstanceImageRequest extends $pb.GeneratedMessage {
   $core.bool hasImageRef() => $_has(1);
   @$pb.TagNumber(2)
   void clearImageRef() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get includeContent => $_getBF(2);
+  @$pb.TagNumber(3)
+  set includeContent($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasIncludeContent() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIncludeContent() => $_clearField(3);
 }
 
 class GetInstanceImageResponse extends $pb.GeneratedMessage {

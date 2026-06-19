@@ -147,11 +147,12 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 	}); err != nil {
 		return uploadInstanceImageArchiveTaskResult{}, err
 	}
-	client, err := b.instanceAdminClient(instance, "upload instance image archive")
+	client, err := b.instanceAdminClient(ctx, instance, "upload instance image archive")
 	if err != nil {
 		return uploadInstanceImageArchiveTaskResult{}, err
 	}
 
+	uploadStartedAt := time.Now()
 	if err := task.Update(15, "uploading image archive", imageArchiveUploadDetails(instance, imageRef, absPath, 0, total)); err != nil {
 		return uploadInstanceImageArchiveTaskResult{}, err
 	}
@@ -174,7 +175,7 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 		}
 		expectedReceived := offset + uint64(n)
 		if eof {
-			if err := task.Update(90, "importing image archive", imageArchiveUploadDetails(instance, imageRef, absPath, expectedReceived, total)); err != nil {
+			if err := task.Update(90, "importing image archive", addImageArchiveUploadTiming(imageArchiveUploadDetails(instance, imageRef, absPath, expectedReceived, total), uploadStartedAt, 0, 0)); err != nil {
 				return uploadInstanceImageArchiveTaskResult{}, err
 			}
 		}
@@ -183,6 +184,7 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 			callTimeout = 5 * time.Minute
 		}
 		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
+		chunkStartedAt := time.Now()
 		resp, err := client.UploadImageArchiveChunk(callCtx, &p2pproto.UploadImageArchiveChunkRequest{
 			UploadId: uploadID,
 			ImageRef: imageRef,
@@ -190,6 +192,7 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 			Data:     append([]byte(nil), buf[:n]...),
 			Eof:      eof,
 		})
+		chunkDuration := time.Since(chunkStartedAt)
 		cancel()
 		if err != nil {
 			return uploadInstanceImageArchiveTaskResult{}, fmt.Errorf("upload image archive chunk to instance %q: %w", instance, err)
@@ -200,7 +203,8 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 			if progress != lastLiveProgress || time.Since(lastLiveAt) >= 5*time.Second {
 				lastLiveProgress = progress
 				lastLiveAt = time.Now()
-				if err := task.Progress(progress, "upload in progress", imageArchiveUploadDetails(instance, imageRef, absPath, offset, total)); err != nil {
+				details := addImageArchiveUploadTiming(imageArchiveUploadDetails(instance, imageRef, absPath, offset, total), uploadStartedAt, n, chunkDuration)
+				if err := task.Progress(progress, "upload in progress", details); err != nil {
 					return uploadInstanceImageArchiveTaskResult{}, err
 				}
 			}
@@ -228,6 +232,26 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 			ArchiveSizeBytes: total,
 		}, nil
 	}
+}
+
+func addImageArchiveUploadTiming(details map[string]any, startedAt time.Time, chunkBytes int, chunkDuration time.Duration) map[string]any {
+	if details == nil {
+		details = map[string]any{}
+	}
+	if !startedAt.IsZero() {
+		elapsed := time.Since(startedAt)
+		details["elapsed_ms"] = elapsed.Milliseconds()
+		if elapsed > 0 {
+			if uploaded, ok := details["bytes_uploaded"].(uint64); ok {
+				details["bytes_per_second"] = uint64(float64(uploaded) / elapsed.Seconds())
+			}
+		}
+	}
+	if chunkBytes > 0 {
+		details["chunk_bytes"] = chunkBytes
+		details["chunk_duration_ms"] = chunkDuration.Milliseconds()
+	}
+	return details
 }
 
 func imageArchiveUploadProgress(received uint64, total uint64) int {

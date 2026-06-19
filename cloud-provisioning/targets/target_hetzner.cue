@@ -67,7 +67,7 @@ init: #init_base
 }
 onboot: #onboot & list.FlattenN([#onboot_common, #metadata_hetzner, #format_hetzner, #mount, #rngd_boot], 1)
 
-services: #services & [#getty, #rngd_service, #protos]
+services: #services & [#getty, #rngd_service, #logwrite, #protos]
 
 #file_hetzner_metadata: #file & {
 	path: "/usr/bin/protos-hetzner-metadata"

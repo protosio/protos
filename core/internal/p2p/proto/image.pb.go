@@ -345,29 +345,30 @@ func (x *GetImageContentResponse) GetDescriptors() []*ImageContentDescriptor {
 	return nil
 }
 
-type GetImageBlobChunkRequest struct {
+type GetImageBlobRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Digest        string                 `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
-	Offset        uint64                 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
-	Length        uint64                 `protobuf:"varint,3,opt,name=length,proto3" json:"length,omitempty"`
+	ChunkSize     uint64                 `protobuf:"varint,2,opt,name=chunk_size,json=chunkSize,proto3" json:"chunk_size,omitempty"`
+	Offset        uint64                 `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	Length        uint64                 `protobuf:"varint,4,opt,name=length,proto3" json:"length,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetImageBlobChunkRequest) Reset() {
-	*x = GetImageBlobChunkRequest{}
+func (x *GetImageBlobRequest) Reset() {
+	*x = GetImageBlobRequest{}
 	mi := &file_internal_p2p_proto_image_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetImageBlobChunkRequest) String() string {
+func (x *GetImageBlobRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetImageBlobChunkRequest) ProtoMessage() {}
+func (*GetImageBlobRequest) ProtoMessage() {}
 
-func (x *GetImageBlobChunkRequest) ProtoReflect() protoreflect.Message {
+func (x *GetImageBlobRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_p2p_proto_image_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -379,33 +380,40 @@ func (x *GetImageBlobChunkRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetImageBlobChunkRequest.ProtoReflect.Descriptor instead.
-func (*GetImageBlobChunkRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetImageBlobRequest.ProtoReflect.Descriptor instead.
+func (*GetImageBlobRequest) Descriptor() ([]byte, []int) {
 	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *GetImageBlobChunkRequest) GetDigest() string {
+func (x *GetImageBlobRequest) GetDigest() string {
 	if x != nil {
 		return x.Digest
 	}
 	return ""
 }
 
-func (x *GetImageBlobChunkRequest) GetOffset() uint64 {
+func (x *GetImageBlobRequest) GetChunkSize() uint64 {
+	if x != nil {
+		return x.ChunkSize
+	}
+	return 0
+}
+
+func (x *GetImageBlobRequest) GetOffset() uint64 {
 	if x != nil {
 		return x.Offset
 	}
 	return 0
 }
 
-func (x *GetImageBlobChunkRequest) GetLength() uint64 {
+func (x *GetImageBlobRequest) GetLength() uint64 {
 	if x != nil {
 		return x.Length
 	}
 	return 0
 }
 
-type GetImageBlobChunkResponse struct {
+type GetImageBlobResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Digest        string                 `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
 	Offset        uint64                 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
@@ -415,20 +423,20 @@ type GetImageBlobChunkResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetImageBlobChunkResponse) Reset() {
-	*x = GetImageBlobChunkResponse{}
+func (x *GetImageBlobResponse) Reset() {
+	*x = GetImageBlobResponse{}
 	mi := &file_internal_p2p_proto_image_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetImageBlobChunkResponse) String() string {
+func (x *GetImageBlobResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetImageBlobChunkResponse) ProtoMessage() {}
+func (*GetImageBlobResponse) ProtoMessage() {}
 
-func (x *GetImageBlobChunkResponse) ProtoReflect() protoreflect.Message {
+func (x *GetImageBlobResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_p2p_proto_image_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -440,33 +448,33 @@ func (x *GetImageBlobChunkResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetImageBlobChunkResponse.ProtoReflect.Descriptor instead.
-func (*GetImageBlobChunkResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetImageBlobResponse.ProtoReflect.Descriptor instead.
+func (*GetImageBlobResponse) Descriptor() ([]byte, []int) {
 	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *GetImageBlobChunkResponse) GetDigest() string {
+func (x *GetImageBlobResponse) GetDigest() string {
 	if x != nil {
 		return x.Digest
 	}
 	return ""
 }
 
-func (x *GetImageBlobChunkResponse) GetOffset() uint64 {
+func (x *GetImageBlobResponse) GetOffset() uint64 {
 	if x != nil {
 		return x.Offset
 	}
 	return 0
 }
 
-func (x *GetImageBlobChunkResponse) GetData() []byte {
+func (x *GetImageBlobResponse) GetData() []byte {
 	if x != nil {
 		return x.Data
 	}
 	return nil
 }
 
-func (x *GetImageBlobChunkResponse) GetEof() bool {
+func (x *GetImageBlobResponse) GetEof() bool {
 	if x != nil {
 		return x.Eof
 	}
@@ -775,12 +783,14 @@ const file_internal_p2p_proto_image_proto_rawDesc = "" +
 	"\vdescriptors\x18\x06 \x03(\v2\x1d.proto.ImageContentDescriptorR\vdescriptors\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"b\n" +
-	"\x18GetImageBlobChunkRequest\x12\x16\n" +
-	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x16\n" +
-	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x16\n" +
-	"\x06length\x18\x03 \x01(\x04R\x06length\"q\n" +
-	"\x19GetImageBlobChunkResponse\x12\x16\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"|\n" +
+	"\x13GetImageBlobRequest\x12\x16\n" +
+	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x1d\n" +
+	"\n" +
+	"chunk_size\x18\x02 \x01(\x04R\tchunkSize\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x04R\x06offset\x12\x16\n" +
+	"\x06length\x18\x04 \x01(\x04R\x06length\"l\n" +
+	"\x14GetImageBlobResponse\x12\x16\n" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x12\n" +
 	"\x04data\x18\x03 \x01(\fR\x04data\x12\x10\n" +
@@ -803,11 +813,11 @@ const file_internal_p2p_proto_image_proto_rawDesc = "" +
 	"\x06loaded\x18\x02 \x01(\bR\x06loaded\x12\x1b\n" +
 	"\timage_ref\x18\x03 \x01(\tR\bimageRef\x12#\n" +
 	"\rtarget_digest\x18\x04 \x01(\tR\ftargetDigest\x12\x1a\n" +
-	"\bplatform\x18\x05 \x01(\tR\bplatform2\xc7\x03\n" +
+	"\bplatform\x18\x05 \x01(\tR\bplatform2\xba\x03\n" +
 	"\x06Images\x12L\n" +
 	"\rDescribeImage\x12\x1b.proto.DescribeImageRequest\x1a\x1c.proto.DescribeImageResponse\"\x00\x12R\n" +
-	"\x0fGetImageContent\x12\x1d.proto.GetImageContentRequest\x1a\x1e.proto.GetImageContentResponse\"\x00\x12X\n" +
-	"\x11GetImageBlobChunk\x12\x1f.proto.GetImageBlobChunkRequest\x1a .proto.GetImageBlobChunkResponse\"\x00\x12U\n" +
+	"\x0fGetImageContent\x12\x1d.proto.GetImageContentRequest\x1a\x1e.proto.GetImageContentResponse\"\x00\x12K\n" +
+	"\fGetImageBlob\x12\x1a.proto.GetImageBlobRequest\x1a\x1b.proto.GetImageBlobResponse\"\x000\x01\x12U\n" +
 	"\x10LoadImageArchive\x12\x1e.proto.LoadImageArchiveRequest\x1a\x1f.proto.LoadImageArchiveResponse\"\x00\x12j\n" +
 	"\x17UploadImageArchiveChunk\x12%.proto.UploadImageArchiveChunkRequest\x1a&.proto.UploadImageArchiveChunkResponse\"\x00B\tZ\a./protob\x06proto3"
 
@@ -830,8 +840,8 @@ var file_internal_p2p_proto_image_proto_goTypes = []any{
 	(*ImageContentDescriptor)(nil),          // 2: proto.ImageContentDescriptor
 	(*GetImageContentRequest)(nil),          // 3: proto.GetImageContentRequest
 	(*GetImageContentResponse)(nil),         // 4: proto.GetImageContentResponse
-	(*GetImageBlobChunkRequest)(nil),        // 5: proto.GetImageBlobChunkRequest
-	(*GetImageBlobChunkResponse)(nil),       // 6: proto.GetImageBlobChunkResponse
+	(*GetImageBlobRequest)(nil),             // 5: proto.GetImageBlobRequest
+	(*GetImageBlobResponse)(nil),            // 6: proto.GetImageBlobResponse
 	(*LoadImageArchiveRequest)(nil),         // 7: proto.LoadImageArchiveRequest
 	(*LoadImageArchiveResponse)(nil),        // 8: proto.LoadImageArchiveResponse
 	(*UploadImageArchiveChunkRequest)(nil),  // 9: proto.UploadImageArchiveChunkRequest
@@ -848,12 +858,12 @@ var file_internal_p2p_proto_image_proto_depIdxs = []int32{
 	2,  // 4: proto.GetImageContentResponse.descriptors:type_name -> proto.ImageContentDescriptor
 	0,  // 5: proto.Images.DescribeImage:input_type -> proto.DescribeImageRequest
 	3,  // 6: proto.Images.GetImageContent:input_type -> proto.GetImageContentRequest
-	5,  // 7: proto.Images.GetImageBlobChunk:input_type -> proto.GetImageBlobChunkRequest
+	5,  // 7: proto.Images.GetImageBlob:input_type -> proto.GetImageBlobRequest
 	7,  // 8: proto.Images.LoadImageArchive:input_type -> proto.LoadImageArchiveRequest
 	9,  // 9: proto.Images.UploadImageArchiveChunk:input_type -> proto.UploadImageArchiveChunkRequest
 	1,  // 10: proto.Images.DescribeImage:output_type -> proto.DescribeImageResponse
 	4,  // 11: proto.Images.GetImageContent:output_type -> proto.GetImageContentResponse
-	6,  // 12: proto.Images.GetImageBlobChunk:output_type -> proto.GetImageBlobChunkResponse
+	6,  // 12: proto.Images.GetImageBlob:output_type -> proto.GetImageBlobResponse
 	8,  // 13: proto.Images.LoadImageArchive:output_type -> proto.LoadImageArchiveResponse
 	10, // 14: proto.Images.UploadImageArchiveChunk:output_type -> proto.UploadImageArchiveChunkResponse
 	10, // [10:15] is the sub-list for method output_type

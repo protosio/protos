@@ -110,6 +110,11 @@ type DeploymentDiagnosticsProvider interface {
 	DeploymentDiagnostics(id string, location string) (string, error)
 }
 
+// InstanceLogsProvider can retrieve instance-owned runtime logs without P2P.
+type InstanceLogsProvider interface {
+	InstanceLogs(id string, location string) (string, error)
+}
+
 type UploadProgress struct {
 	Phase            string
 	Message          string

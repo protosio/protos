@@ -39,7 +39,7 @@ init: #init_base
 }
 onboot: #onboot & list.FlattenN([#onboot_common_no_network, #metadata_mactest, #static_network, #format, #mount, #swap], 1)
 
-services: #services & [#getty, #protos]
+services: #services & [#getty, #logwrite, #protos]
 
 //
 // files

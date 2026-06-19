@@ -33,13 +33,14 @@ package p2pv1
 	descriptors?: [...#ImageContentDescriptor]
 }
 
-#GetImageBlobChunkRequest: {
-	digest?: string
-	offset?: uint
-	length?: uint
+#GetImageBlobRequest: {
+	digest?:     string
+	chunk_size?: uint
+	offset?:     uint
+	length?:     uint
 }
 
-#GetImageBlobChunkResponse: {
+#GetImageBlobResponse: {
 	digest?: string
 	offset?: uint
 	data?:   bytes
@@ -93,7 +94,7 @@ contract: {
 			rpcs: [
 				{name: "DescribeImage", request: "DescribeImageRequest", response: "DescribeImageResponse"},
 				{name: "GetImageContent", request: "GetImageContentRequest", response: "GetImageContentResponse"},
-				{name: "GetImageBlobChunk", request: "GetImageBlobChunkRequest", response: "GetImageBlobChunkResponse"},
+				{name: "GetImageBlob", request: "GetImageBlobRequest", response: "GetImageBlobResponse", response_stream: true},
 				{name: "LoadImageArchive", request: "LoadImageArchiveRequest", response: "LoadImageArchiveResponse"},
 				{name: "UploadImageArchiveChunk", request: "UploadImageArchiveChunkRequest", response: "UploadImageArchiveChunkResponse"},
 			]
@@ -127,12 +128,13 @@ contract: {
 				{type: "map<string, string>", name: "labels", number: 5},
 				{rule: "repeated", type: "ImageContentDescriptor", name: "descriptors", number: 6},
 			]},
-			{kind: "message", name: "GetImageBlobChunkRequest", fields: [
+			{kind: "message", name: "GetImageBlobRequest", fields: [
 				{type: "string", name: "digest", number: 1},
-				{type: "uint64", name: "offset", number: 2},
-				{type: "uint64", name: "length", number: 3},
+				{type: "uint64", name: "chunk_size", number: 2},
+				{type: "uint64", name: "offset", number: 3},
+				{type: "uint64", name: "length", number: 4},
 			]},
-			{kind: "message", name: "GetImageBlobChunkResponse", fields: [
+			{kind: "message", name: "GetImageBlobResponse", fields: [
 				{type: "string", name: "digest", number: 1},
 				{type: "uint64", name: "offset", number: 2},
 				{type: "bytes", name: "data", number: 3},
@@ -175,8 +177,8 @@ lineage: {
 			ImageContentDescriptor?:      #ImageContentDescriptor
 			GetImageContentRequest?:      #GetImageContentRequest
 			GetImageContentResponse?:     #GetImageContentResponse
-			GetImageBlobChunkRequest?:    #GetImageBlobChunkRequest
-			GetImageBlobChunkResponse?:   #GetImageBlobChunkResponse
+			GetImageBlobRequest?:         #GetImageBlobRequest
+			GetImageBlobResponse?:        #GetImageBlobResponse
 			LoadImageArchiveRequest?:     #LoadImageArchiveRequest
 			LoadImageArchiveResponse?:    #LoadImageArchiveResponse
 			UploadImageArchiveChunkRequest?:  #UploadImageArchiveChunkRequest

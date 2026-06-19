@@ -3234,22 +3234,28 @@ func (*RemoveProvisionerResponse) Descriptor() ([]byte, []int) {
 }
 
 type CloudInstance struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Name               string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	PublicIp           string                 `protobuf:"bytes,2,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
-	InternalIp         string                 `protobuf:"bytes,3,opt,name=internal_ip,json=internalIp,proto3" json:"internal_ip,omitempty"`
-	CloudName          string                 `protobuf:"bytes,4,opt,name=cloud_name,json=cloudName,proto3" json:"cloud_name,omitempty"`
-	CloudType          string                 `protobuf:"bytes,5,opt,name=cloud_type,json=cloudType,proto3" json:"cloud_type,omitempty"`
-	VmId               string                 `protobuf:"bytes,6,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
-	Location           string                 `protobuf:"bytes,7,opt,name=location,proto3" json:"location,omitempty"`
-	PublicKey          string                 `protobuf:"bytes,8,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	PublicKeyWireguard string                 `protobuf:"bytes,9,opt,name=public_key_wireguard,json=publicKeyWireguard,proto3" json:"public_key_wireguard,omitempty"`
-	ProtosVersion      string                 `protobuf:"bytes,10,opt,name=protos_version,json=protosVersion,proto3" json:"protos_version,omitempty"`
-	Status             string                 `protobuf:"bytes,11,opt,name=status,proto3" json:"status,omitempty"`
-	Architecture       string                 `protobuf:"bytes,12,opt,name=architecture,proto3" json:"architecture,omitempty"`
-	Peers              map[string]string      `protobuf:"bytes,13,rep,name=peers,proto3" json:"peers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Name                 string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	PublicIp             string                 `protobuf:"bytes,2,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
+	InternalIp           string                 `protobuf:"bytes,3,opt,name=internal_ip,json=internalIp,proto3" json:"internal_ip,omitempty"`
+	CloudName            string                 `protobuf:"bytes,4,opt,name=cloud_name,json=cloudName,proto3" json:"cloud_name,omitempty"`
+	CloudType            string                 `protobuf:"bytes,5,opt,name=cloud_type,json=cloudType,proto3" json:"cloud_type,omitempty"`
+	VmId                 string                 `protobuf:"bytes,6,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
+	Location             string                 `protobuf:"bytes,7,opt,name=location,proto3" json:"location,omitempty"`
+	PublicKey            string                 `protobuf:"bytes,8,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	PublicKeyWireguard   string                 `protobuf:"bytes,9,opt,name=public_key_wireguard,json=publicKeyWireguard,proto3" json:"public_key_wireguard,omitempty"`
+	ProtosVersion        string                 `protobuf:"bytes,10,opt,name=protos_version,json=protosVersion,proto3" json:"protos_version,omitempty"`
+	Status               string                 `protobuf:"bytes,11,opt,name=status,proto3" json:"status,omitempty"`
+	Architecture         string                 `protobuf:"bytes,12,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	Peers                map[string]string      `protobuf:"bytes,13,rep,name=peers,proto3" json:"peers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProviderStatus       string                 `protobuf:"bytes,14,opt,name=provider_status,json=providerStatus,proto3" json:"provider_status,omitempty"`
+	AdminApiReachability string                 `protobuf:"bytes,15,opt,name=admin_api_reachability,json=adminApiReachability,proto3" json:"admin_api_reachability,omitempty"`
+	ReplicationConnected bool                   `protobuf:"varint,16,opt,name=replication_connected,json=replicationConnected,proto3" json:"replication_connected,omitempty"`
+	AdminLastError       string                 `protobuf:"bytes,17,opt,name=admin_last_error,json=adminLastError,proto3" json:"admin_last_error,omitempty"`
+	AdminLastSeen        string                 `protobuf:"bytes,18,opt,name=admin_last_seen,json=adminLastSeen,proto3" json:"admin_last_seen,omitempty"`
+	PeerId               string                 `protobuf:"bytes,19,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *CloudInstance) Reset() {
@@ -3371,6 +3377,48 @@ func (x *CloudInstance) GetPeers() map[string]string {
 		return x.Peers
 	}
 	return nil
+}
+
+func (x *CloudInstance) GetProviderStatus() string {
+	if x != nil {
+		return x.ProviderStatus
+	}
+	return ""
+}
+
+func (x *CloudInstance) GetAdminApiReachability() string {
+	if x != nil {
+		return x.AdminApiReachability
+	}
+	return ""
+}
+
+func (x *CloudInstance) GetReplicationConnected() bool {
+	if x != nil {
+		return x.ReplicationConnected
+	}
+	return false
+}
+
+func (x *CloudInstance) GetAdminLastError() string {
+	if x != nil {
+		return x.AdminLastError
+	}
+	return ""
+}
+
+func (x *CloudInstance) GetAdminLastSeen() string {
+	if x != nil {
+		return x.AdminLastSeen
+	}
+	return ""
+}
+
+func (x *CloudInstance) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
 }
 
 type GetInstancesRequest struct {
@@ -6040,6 +6088,7 @@ func (x *GetMobileTunnelConfigResponse) GetConfig() *MobileTunnelConfig {
 type GetRuntimeStateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Instance      string                 `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
+	AllowStale    bool                   `protobuf:"varint,2,opt,name=allow_stale,json=allowStale,proto3" json:"allow_stale,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6079,6 +6128,13 @@ func (x *GetRuntimeStateRequest) GetInstance() string {
 		return x.Instance
 	}
 	return ""
+}
+
+func (x *GetRuntimeStateRequest) GetAllowStale() bool {
+	if x != nil {
+		return x.AllowStale
+	}
+	return false
 }
 
 type GetRuntimeStateResponse struct {
@@ -6516,6 +6572,7 @@ type GetTasksRequest struct {
 	SubjectType   string                 `protobuf:"bytes,3,opt,name=subject_type,json=subjectType,proto3" json:"subject_type,omitempty"`
 	SubjectId     string                 `protobuf:"bytes,4,opt,name=subject_id,json=subjectId,proto3" json:"subject_id,omitempty"`
 	MaxResults    int32                  `protobuf:"varint,5,opt,name=max_results,json=maxResults,proto3" json:"max_results,omitempty"`
+	Instance      string                 `protobuf:"bytes,6,opt,name=instance,proto3" json:"instance,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6585,6 +6642,13 @@ func (x *GetTasksRequest) GetMaxResults() int32 {
 	return 0
 }
 
+func (x *GetTasksRequest) GetInstance() string {
+	if x != nil {
+		return x.Instance
+	}
+	return ""
+}
+
 type GetTasksResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Tasks         []*Task                `protobuf:"bytes,1,rep,name=tasks,proto3" json:"tasks,omitempty"`
@@ -6641,6 +6705,7 @@ type GetTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	IncludeEvents bool                   `protobuf:"varint,2,opt,name=include_events,json=includeEvents,proto3" json:"include_events,omitempty"`
+	Instance      string                 `protobuf:"bytes,3,opt,name=instance,proto3" json:"instance,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6687,6 +6752,13 @@ func (x *GetTaskRequest) GetIncludeEvents() bool {
 		return x.IncludeEvents
 	}
 	return false
+}
+
+func (x *GetTaskRequest) GetInstance() string {
+	if x != nil {
+		return x.Instance
+	}
+	return ""
 }
 
 type GetTaskResponse struct {
@@ -7189,6 +7261,8 @@ type RuntimeState struct {
 	Compatibility                []*RuntimeCompatibility `protobuf:"bytes,19,rep,name=compatibility,proto3" json:"compatibility,omitempty"`
 	ContentSyncTrace             []string                `protobuf:"bytes,20,rep,name=content_sync_trace,json=contentSyncTrace,proto3" json:"content_sync_trace,omitempty"`
 	ProtocolCheckpointDigest     string                  `protobuf:"bytes,24,opt,name=protocol_checkpoint_digest,json=protocolCheckpointDigest,proto3" json:"protocol_checkpoint_digest,omitempty"`
+	ReadConsistency              string                  `protobuf:"bytes,25,opt,name=read_consistency,json=readConsistency,proto3" json:"read_consistency,omitempty"`
+	ReadError                    string                  `protobuf:"bytes,26,opt,name=read_error,json=readError,proto3" json:"read_error,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -7345,6 +7419,20 @@ func (x *RuntimeState) GetContentSyncTrace() []string {
 func (x *RuntimeState) GetProtocolCheckpointDigest() string {
 	if x != nil {
 		return x.ProtocolCheckpointDigest
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetReadConsistency() string {
+	if x != nil {
+		return x.ReadConsistency
+	}
+	return ""
+}
+
+func (x *RuntimeState) GetReadError() string {
+	if x != nil {
+		return x.ReadError
 	}
 	return ""
 }
@@ -8582,11 +8670,12 @@ func (x *ImageContentDescriptor) GetAnnotations() map[string]string {
 }
 
 type GetInstanceImageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Instance      string                 `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
-	ImageRef      string                 `protobuf:"bytes,2,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Instance       string                 `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
+	ImageRef       string                 `protobuf:"bytes,2,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
+	IncludeContent bool                   `protobuf:"varint,3,opt,name=include_content,json=includeContent,proto3" json:"include_content,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetInstanceImageRequest) Reset() {
@@ -8631,6 +8720,13 @@ func (x *GetInstanceImageRequest) GetImageRef() string {
 		return x.ImageRef
 	}
 	return ""
+}
+
+func (x *GetInstanceImageRequest) GetIncludeContent() bool {
+	if x != nil {
+		return x.IncludeContent
+	}
+	return false
 }
 
 type GetInstanceImageResponse struct {
@@ -10382,7 +10478,7 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x16AddProvisionerResponse\".\n" +
 	"\x18RemoveProvisionerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"\x1b\n" +
-	"\x19RemoveProvisionerResponse\"\xf4\x03\n" +
+	"\x19RemoveProvisionerResponse\"\xf3\x05\n" +
 	"\rCloudInstance\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tpublic_ip\x18\x02 \x01(\tR\bpublicIp\x12\x1f\n" +
@@ -10401,7 +10497,13 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	" \x01(\tR\rprotosVersion\x12\x16\n" +
 	"\x06status\x18\v \x01(\tR\x06status\x12\"\n" +
 	"\farchitecture\x18\f \x01(\tR\farchitecture\x124\n" +
-	"\x05peers\x18\r \x03(\v2\x1e.apic.CloudInstance.PeersEntryR\x05peers\x1a8\n" +
+	"\x05peers\x18\r \x03(\v2\x1e.apic.CloudInstance.PeersEntryR\x05peers\x12'\n" +
+	"\x0fprovider_status\x18\x0e \x01(\tR\x0eproviderStatus\x124\n" +
+	"\x16admin_api_reachability\x18\x0f \x01(\tR\x14adminApiReachability\x123\n" +
+	"\x15replication_connected\x18\x10 \x01(\bR\x14replicationConnected\x12(\n" +
+	"\x10admin_last_error\x18\x11 \x01(\tR\x0eadminLastError\x12&\n" +
+	"\x0fadmin_last_seen\x18\x12 \x01(\tR\radminLastSeen\x12\x17\n" +
+	"\apeer_id\x18\x13 \x01(\tR\x06peerId\x1a8\n" +
 	"\n" +
 	"PeersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -10600,9 +10702,11 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x10keychain_account\x18\x0f \x01(\tR\x0fkeychainAccount\x122\n" +
 	"\x15wireguard_private_key\x18\x10 \x01(\tR\x13wireguardPrivateKey\"Q\n" +
 	"\x1dGetMobileTunnelConfigResponse\x120\n" +
-	"\x06config\x18\x01 \x01(\v2\x18.apic.MobileTunnelConfigR\x06config\"4\n" +
+	"\x06config\x18\x01 \x01(\v2\x18.apic.MobileTunnelConfigR\x06config\"U\n" +
 	"\x16GetRuntimeStateRequest\x12\x1a\n" +
-	"\binstance\x18\x01 \x01(\tR\binstance\"C\n" +
+	"\binstance\x18\x01 \x01(\tR\binstance\x12\x1f\n" +
+	"\vallow_stale\x18\x02 \x01(\bR\n" +
+	"allowStale\"C\n" +
 	"\x17GetRuntimeStateResponse\x12(\n" +
 	"\x05state\x18\x01 \x01(\v2\x12.apic.RuntimeStateR\x05state\"t\n" +
 	"\x13WatchChangesRequest\x12)\n" +
@@ -10647,7 +10751,7 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\bprogress\x18\x05 \x01(\x05R\bprogress\x12!\n" +
 	"\fdetails_json\x18\x06 \x01(\tR\vdetailsJson\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\a \x01(\tR\tcreatedAt\"\xa4\x01\n" +
+	"created_at\x18\a \x01(\tR\tcreatedAt\"\xc0\x01\n" +
 	"\x0fGetTasksRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x16\n" +
 	"\x06stream\x18\x02 \x01(\tR\x06stream\x12!\n" +
@@ -10655,14 +10759,16 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\n" +
 	"subject_id\x18\x04 \x01(\tR\tsubjectId\x12\x1f\n" +
 	"\vmax_results\x18\x05 \x01(\x05R\n" +
-	"maxResults\"R\n" +
+	"maxResults\x12\x1a\n" +
+	"\binstance\x18\x06 \x01(\tR\binstance\"R\n" +
 	"\x10GetTasksResponse\x12 \n" +
 	"\x05tasks\x18\x01 \x03(\v2\n" +
 	".apic.TaskR\x05tasks\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"G\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"c\n" +
 	"\x0eGetTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
-	"\x0einclude_events\x18\x02 \x01(\bR\rincludeEvents\"Z\n" +
+	"\x0einclude_events\x18\x02 \x01(\bR\rincludeEvents\x12\x1a\n" +
+	"\binstance\x18\x03 \x01(\tR\binstance\"Z\n" +
 	"\x0fGetTaskResponse\x12\x1e\n" +
 	"\x04task\x18\x01 \x01(\v2\n" +
 	".apic.TaskR\x04task\x12'\n" +
@@ -10698,7 +10804,7 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x05route\x18\x01 \x01(\v2\x0f.apic.ExitRouteR\x05route\"4\n" +
 	"\x15ClearExitRouteRequest\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\"\x18\n" +
-	"\x16ClearExitRouteResponse\"\xc5\a\n" +
+	"\x16ClearExitRouteResponse\"\x8f\b\n" +
 	"\fRuntimeState\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12'\n" +
 	"\x0fmanifest_digest\x18\x02 \x01(\tR\x0emanifestDigest\x120\n" +
@@ -10719,7 +10825,10 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\rpeer_statuses\x18\x12 \x03(\v2\x17.apic.RuntimePeerStatusR\fpeerStatuses\x12@\n" +
 	"\rcompatibility\x18\x13 \x03(\v2\x1a.apic.RuntimeCompatibilityR\rcompatibility\x12,\n" +
 	"\x12content_sync_trace\x18\x14 \x03(\tR\x10contentSyncTrace\x12<\n" +
-	"\x1aprotocol_checkpoint_digest\x18\x18 \x01(\tR\x18protocolCheckpointDigest\"\xc7\x04\n" +
+	"\x1aprotocol_checkpoint_digest\x18\x18 \x01(\tR\x18protocolCheckpointDigest\x12)\n" +
+	"\x10read_consistency\x18\x19 \x01(\tR\x0freadConsistency\x12\x1d\n" +
+	"\n" +
+	"read_error\x18\x1a \x01(\tR\treadError\"\xc7\x04\n" +
 	"\x11RuntimePeerStatus\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1c\n" +
 	"\tconnected\x18\x02 \x01(\bR\tconnected\x12\x1a\n" +
@@ -10836,10 +10945,11 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\vannotations\x18\x05 \x03(\v2-.apic.ImageContentDescriptor.AnnotationsEntryR\vannotations\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"R\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"{\n" +
 	"\x17GetInstanceImageRequest\x12\x1a\n" +
 	"\binstance\x18\x01 \x01(\tR\binstance\x12\x1b\n" +
-	"\timage_ref\x18\x02 \x01(\tR\bimageRef\"\xa4\x03\n" +
+	"\timage_ref\x18\x02 \x01(\tR\bimageRef\x12'\n" +
+	"\x0finclude_content\x18\x03 \x01(\bR\x0eincludeContent\"\xa4\x03\n" +
 	"\x18GetInstanceImageResponse\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\bR\x05found\x12\x1b\n" +
 	"\timage_ref\x18\x02 \x01(\tR\bimageRef\x12#\n" +

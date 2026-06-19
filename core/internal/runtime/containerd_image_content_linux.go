@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/content"
@@ -20,8 +21,6 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/imageregistry"
 )
-
-const maxServedImageBlobChunkBytes uint64 = 4 << 20
 
 func (cdp *containerdPlatform) DescribeImage(ctx context.Context, imageRef string) (string, string, string, map[string]string, bool, error) {
 	imageRef = strings.TrimSpace(imageRef)
@@ -89,18 +88,27 @@ func (cdp *containerdPlatform) imageContentDescriptors(ctx context.Context, targ
 		descriptors = append(descriptors, descriptorFromOCI(desc))
 		return nil, nil
 	})
-	children := images.ChildrenHandler(cs)
-	children = images.FilterPlatforms(children, platforms.DefaultStrict())
-	children = images.LimitManifests(children, platforms.DefaultStrict(), 1)
+	children := platformImageChildrenHandler(cs)
 
-	if err := images.Dispatch(ctx, images.Handlers(collector, children), nil, target); err != nil {
+	if err := images.Walk(ctx, images.Handlers(collector, children), target); err != nil {
 		return nil, err
 	}
 	return descriptors, nil
 }
 
+func platformImageChildrenHandler(cs content.Store) images.HandlerFunc {
+	children := images.ChildrenHandler(cs)
+	children = images.FilterPlatforms(children, platforms.DefaultStrict())
+	children = images.LimitManifests(children, platforms.DefaultStrict(), 1)
+	return children
+}
+
 func (cdp *containerdPlatform) MissingImageContent(ctx context.Context, descriptors []imageregistry.Descriptor) ([]imageregistry.Descriptor, error) {
 	ctx = namespacesContext(ctx)
+	return cdp.missingImageContent(ctx, descriptors)
+}
+
+func (cdp *containerdPlatform) missingImageContent(ctx context.Context, descriptors []imageregistry.Descriptor) ([]imageregistry.Descriptor, error) {
 	cs := cdp.client.ContentStore()
 	missing := make([]imageregistry.Descriptor, 0)
 	seen := map[string]struct{}{}
@@ -113,60 +121,46 @@ func (cdp *containerdPlatform) MissingImageContent(ctx context.Context, descript
 			continue
 		}
 		seen[desc.Digest.String()] = struct{}{}
-		exists, err := content.Exists(ctx, cs, desc)
+		ready, err := contentBlobReady(ctx, cs, desc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to inspect content blob %s: %w", desc.Digest, err)
 		}
-		if !exists {
+		if !ready {
 			missing = append(missing, descriptor)
 		}
 	}
 	return missing, nil
 }
 
-func (cdp *containerdPlatform) ReadImageBlobChunk(ctx context.Context, digest string, offset uint64, length uint64) ([]byte, bool, error) {
+func (cdp *containerdPlatform) OpenImageBlob(ctx context.Context, digest string) (imageregistry.ImageBlobReader, error) {
 	digest = strings.TrimSpace(digest)
 	if digest == "" {
-		return nil, false, fmt.Errorf("digest is empty")
-	}
-	if length == 0 || length > maxServedImageBlobChunkBytes {
-		length = maxServedImageBlobChunkBytes
+		return nil, fmt.Errorf("digest is empty")
 	}
 	desc, err := descriptorToOCI(imageregistry.Descriptor{Digest: digest})
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	ctx = namespacesContext(ctx)
 
 	reader, err := cdp.client.ContentStore().ReaderAt(ctx, desc)
 	if err != nil {
-		return nil, false, err
-	}
-	defer reader.Close()
-
-	size := reader.Size()
-	if size < 0 {
-		return nil, false, fmt.Errorf("content blob %s has unknown size", digest)
-	}
-	if offset >= uint64(size) {
-		return nil, true, nil
-	}
-	remaining := uint64(size) - offset
-	if length > remaining {
-		length = remaining
+		return nil, err
 	}
 
-	data := make([]byte, int(length))
-	n, err := reader.ReadAt(data, int64(offset))
-	if err != nil && err != io.EOF {
-		return nil, false, err
+	if reader.Size() < 0 {
+		_ = reader.Close()
+		return nil, fmt.Errorf("content blob %s has unknown size", digest)
 	}
-	data = data[:n]
-	eof := offset+uint64(n) >= uint64(size)
-	return data, eof, nil
+	return reader, nil
 }
 
 func (cdp *containerdPlatform) ImportImageBlob(ctx context.Context, descriptor imageregistry.Descriptor, blobPath string) error {
+	ctx = namespacesContext(ctx)
+	return cdp.importImageBlob(ctx, descriptor, blobPath)
+}
+
+func (cdp *containerdPlatform) importImageBlob(ctx context.Context, descriptor imageregistry.Descriptor, blobPath string) error {
 	desc, err := descriptorToOCI(descriptor)
 	if err != nil {
 		return err
@@ -174,14 +168,16 @@ func (cdp *containerdPlatform) ImportImageBlob(ctx context.Context, descriptor i
 	if desc.Size <= 0 {
 		return fmt.Errorf("content blob %s has invalid size %d", desc.Digest, desc.Size)
 	}
-	ctx = namespacesContext(ctx)
 	cs := cdp.client.ContentStore()
-	exists, err := content.Exists(ctx, cs, desc)
+	ready, err := contentBlobReady(ctx, cs, desc)
 	if err != nil {
 		return fmt.Errorf("failed to inspect content blob %s: %w", desc.Digest, err)
 	}
-	if exists {
+	if ready {
 		return nil
+	}
+	if err := cs.Delete(ctx, desc.Digest); err != nil && !errdefs.IsNotFound(err) {
+		return fmt.Errorf("failed to remove unreadable content blob %s before import: %w", desc.Digest, err)
 	}
 
 	file, err := os.Open(blobPath)
@@ -200,6 +196,177 @@ func (cdp *containerdPlatform) ImportImageBlob(ctx context.Context, descriptor i
 	return nil
 }
 
+func contentBlobReady(ctx context.Context, cs content.Store, desc ocispec.Descriptor) (bool, error) {
+	reader, err := cs.ReaderAt(ctx, desc)
+	if err != nil {
+		if errdefs.IsNotFound(err) || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return false, nil
+		}
+		return false, err
+	}
+	defer reader.Close()
+
+	if desc.Size > 0 && reader.Size() != desc.Size {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (cdp *containerdPlatform) EnsureImageContent(ctx context.Context, request imageregistry.ImageContentImport, progress func(int, string, any) error) error {
+	imageRef := strings.TrimSpace(request.ImageRef)
+	if imageRef == "" {
+		return fmt.Errorf("image ref is empty")
+	}
+	if len(request.Descriptors) == 0 {
+		return fmt.Errorf("image content descriptor list is empty")
+	}
+	targetDesc, err := descriptorToOCI(request.Target)
+	if err != nil {
+		return err
+	}
+
+	ctx = namespacesContext(ctx)
+	leaseCtx, releaseLease, err := cdp.client.WithLease(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create containerd lease for image content import %s: %w", imageRef, err)
+	}
+	ctx = leaseCtx
+	defer func() {
+		if err := releaseLease(context.WithoutCancel(ctx)); err != nil {
+			log.Warnf("failed to release containerd image content import lease for %s: %v", imageRef, err)
+		}
+	}()
+	labels := copyLabels(request.Labels)
+	if labels == nil {
+		labels = map[string]string{}
+	}
+
+	for i, blob := range request.Blobs {
+		if strings.TrimSpace(blob.Path) == "" {
+			return fmt.Errorf("downloaded image blob path is empty for %s", blob.Descriptor.Digest)
+		}
+		reportImageContentProgress(progress, 64+(i*4)/max(1, len(request.Blobs)), "importing image blob", map[string]any{
+			"image":           imageRef,
+			"completed_blobs": i,
+			"total_blobs":     len(request.Blobs),
+			"digest":          blob.Descriptor.Digest,
+			"size_bytes":      blob.Descriptor.SizeBytes,
+		})
+		startedAt := time.Now()
+		if err := cdp.importImageBlob(ctx, blob.Descriptor, blob.Path); err != nil {
+			return fmt.Errorf("failed to import content blob %s for image %s: %w", blob.Descriptor.Digest, imageRef, err)
+		}
+		duration := time.Since(startedAt)
+		log.Infof("imported image content blob %s for image %s: size=%d duration=%s throughput=%dB/s", blob.Descriptor.Digest, imageRef, blob.Descriptor.SizeBytes, duration.Round(time.Millisecond), imageContentBytesPerSecond(blob.Descriptor.SizeBytes, duration))
+		reportImageContentProgress(progress, 64+((i+1)*4)/max(1, len(request.Blobs)), "imported image blob", map[string]any{
+			"image":            imageRef,
+			"completed_blobs":  i + 1,
+			"total_blobs":      len(request.Blobs),
+			"digest":           blob.Descriptor.Digest,
+			"size_bytes":       blob.Descriptor.SizeBytes,
+			"duration_ms":      duration.Milliseconds(),
+			"bytes_per_second": imageContentBytesPerSecond(blob.Descriptor.SizeBytes, duration),
+		})
+	}
+	reportImageContentProgress(progress, 69, "verifying image content", map[string]any{"image": imageRef, "descriptors": len(request.Descriptors)})
+	verifyStartedAt := time.Now()
+	if missing, err := cdp.MissingImageContent(ctx, request.Descriptors); err != nil {
+		return err
+	} else if len(missing) > 0 {
+		return fmt.Errorf("image content import for %s is missing %d blob(s), first missing digest %s", imageRef, len(missing), missing[0].Digest)
+	}
+	log.Infof("verified image content for %s: descriptors=%d duration=%s", imageRef, len(request.Descriptors), time.Since(verifyStartedAt).Round(time.Millisecond))
+
+	reportImageContentProgress(progress, 70, "linking image content", map[string]string{"image": imageRef})
+	linkStartedAt := time.Now()
+	if err := cdp.labelImageContentChildren(ctx, targetDesc); err != nil {
+		return fmt.Errorf("failed to link image content %s for containerd GC: %w", imageRef, err)
+	}
+	log.Infof("linked image content graph for %s: duration=%s", imageRef, time.Since(linkStartedAt).Round(time.Millisecond))
+
+	reportImageContentProgress(progress, 70, "creating image record", map[string]string{"image": imageRef})
+	recordStartedAt := time.Now()
+	record := images.Image{Name: imageRef, Target: targetDesc, Labels: labels}
+	previous, hadPrevious, err := cdp.createOrUpdateImageRecord(ctx, record)
+	if err != nil {
+		return err
+	}
+	log.Infof("created image record for %s: duration=%s", imageRef, time.Since(recordStartedAt).Round(time.Millisecond))
+
+	reportImageContentProgress(progress, 72, "unpacking image", map[string]string{"image": imageRef})
+	unpackStartedAt := time.Now()
+	createdImage := client.NewImageWithPlatform(cdp.client, record, platforms.DefaultStrict())
+	if err := cdp.ensureImageReadyForSandbox(ctx, createdImage); err != nil {
+		cdp.restoreImageRecordAfterFailedImport(ctx, imageRef, targetDesc, previous, hadPrevious)
+		return fmt.Errorf("failed to prepare image %s for sandbox after content import: %w", imageRef, err)
+	}
+	unpackDuration := time.Since(unpackStartedAt)
+	log.Infof("unpacked and verified image %s with snapshotter %s: duration=%s", imageRef, cdp.snapshotter, unpackDuration.Round(time.Millisecond))
+	reportImageContentProgress(progress, 73, "unpacked image", map[string]any{"image": imageRef, "snapshotter": cdp.snapshotter, "duration_ms": unpackDuration.Milliseconds()})
+	reportImageContentProgress(progress, 74, "verified image snapshot", map[string]string{"image": imageRef})
+	reportImageContentProgress(progress, 74, "verifying image record", map[string]string{"image": imageRef})
+	recordVerifyStartedAt := time.Now()
+	if _, err := cdp.imageContentDescriptors(ctx, targetDesc); err != nil {
+		cdp.restoreImageRecordAfterFailedImport(ctx, imageRef, targetDesc, previous, hadPrevious)
+		return fmt.Errorf("failed to verify image ref %s after content import: %w", imageRef, err)
+	}
+	log.Infof("verified image record for %s: duration=%s", imageRef, time.Since(recordVerifyStartedAt).Round(time.Millisecond))
+	return nil
+}
+
+func (cdp *containerdPlatform) labelImageContentChildren(ctx context.Context, target ocispec.Descriptor) error {
+	cs := cdp.client.ContentStore()
+	return images.Walk(ctx, images.SetChildrenLabels(cs, platformImageChildrenHandler(cs)), target)
+}
+
+func reportImageContentProgress(progress func(int, string, any) error, value int, message string, details any) {
+	if progress == nil {
+		return
+	}
+	if err := progress(value, message, details); err != nil {
+		log.Debugf("failed to report image content progress: %s", err.Error())
+	}
+}
+
+func imageContentBytesPerSecond(bytes uint64, duration time.Duration) uint64 {
+	if bytes == 0 || duration <= 0 {
+		return 0
+	}
+	return uint64(float64(bytes) / duration.Seconds())
+}
+
+func (cdp *containerdPlatform) createOrUpdateImageRecord(ctx context.Context, record images.Image) (images.Image, bool, error) {
+	_, err := cdp.client.ImageService().Create(ctx, record)
+	if err == nil {
+		return images.Image{}, false, nil
+	}
+	if !errdefs.IsAlreadyExists(err) {
+		return images.Image{}, false, fmt.Errorf("failed to create image ref %s: %w", record.Name, err)
+	}
+
+	previous, getErr := cdp.client.ImageService().Get(ctx, record.Name)
+	if getErr != nil {
+		return images.Image{}, false, fmt.Errorf("failed to retrieve existing image ref %s: %w", record.Name, getErr)
+	}
+	_, updateErr := cdp.client.ImageService().Update(ctx, record, "target", "labels")
+	if updateErr != nil {
+		return images.Image{}, false, fmt.Errorf("failed to update image ref %s: %w", record.Name, updateErr)
+	}
+	return previous, true, nil
+}
+
+func (cdp *containerdPlatform) restoreImageRecordAfterFailedImport(ctx context.Context, imageRef string, target ocispec.Descriptor, previous images.Image, hadPrevious bool) {
+	if hadPrevious {
+		if _, err := cdp.client.ImageService().Update(ctx, previous, "target", "labels"); err != nil {
+			log.Warnf("failed to restore image ref %s after failed content import: %v", imageRef, err)
+		}
+		return
+	}
+	if err := cdp.client.ImageService().Delete(ctx, imageRef, images.DeleteTarget(&target), images.SynchronousDelete()); err != nil && !errdefs.IsNotFound(err) {
+		log.Warnf("failed to remove partial image ref %s after failed content import: %v", imageRef, err)
+	}
+}
+
 func (cdp *containerdPlatform) CreateImageFromContent(ctx context.Context, imageRef string, target imageregistry.Descriptor, labels map[string]string) error {
 	imageRef = strings.TrimSpace(imageRef)
 	if imageRef == "" {
@@ -210,8 +377,21 @@ func (cdp *containerdPlatform) CreateImageFromContent(ctx context.Context, image
 		return err
 	}
 	ctx = namespacesContext(ctx)
+	leaseCtx, releaseLease, err := cdp.client.WithLease(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create containerd lease for image ref %s: %w", imageRef, err)
+	}
+	ctx = leaseCtx
+	defer func() {
+		if err := releaseLease(context.WithoutCancel(ctx)); err != nil {
+			log.Warnf("failed to release containerd image ref lease for %s: %v", imageRef, err)
+		}
+	}()
 	if labels == nil {
 		labels = map[string]string{}
+	}
+	if err := cdp.labelImageContentChildren(ctx, targetDesc); err != nil {
+		return fmt.Errorf("failed to link image content %s for containerd GC: %w", imageRef, err)
 	}
 
 	record := images.Image{Name: imageRef, Target: targetDesc, Labels: labels}
@@ -227,8 +407,8 @@ func (cdp *containerdPlatform) CreateImageFromContent(ctx context.Context, image
 	}
 
 	image := client.NewImageWithPlatform(cdp.client, created, platforms.DefaultStrict())
-	if err := image.Unpack(ctx, cdp.snapshotter); err != nil && !errdefs.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to unpack image ref %s after content import: %w", imageRef, err)
+	if err := cdp.ensureImageReadyForSandbox(ctx, image); err != nil {
+		return fmt.Errorf("failed to prepare image %s for sandbox after content import: %w", imageRef, err)
 	}
 	return nil
 }

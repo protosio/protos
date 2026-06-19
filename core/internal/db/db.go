@@ -24,6 +24,7 @@ import (
 	"github.com/bokwoon95/sq"
 	"github.com/dolthub/vitess/go/vt/sqlparser"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	libp2ppeer "github.com/libp2p/go-libp2p/core/peer"
 	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	swarmionadmin "github.com/nustiueudinastea/swarmion/runtime/adminrpc"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
@@ -44,11 +45,16 @@ const (
 	swarmionPortOffset             = 1
 	swarmionStateDirName           = ".swarmion"
 
-	committedWriteMaxAttempts    = 3
-	checkpointCatchUpMaxAttempts = 4
+	committedWriteMaxAttempts       = 20
+	committedWriteCheckpointTimeout = 45 * time.Second
+	checkpointCatchUpMaxAttempts    = 4
 )
 
-var errSwarmionCheckpointCatchUpRetryable = errors.New("swarmion checkpoint catch-up retryable")
+var (
+	errSwarmionCheckpointCatchUpRetryable  = errors.New("swarmion checkpoint catch-up retryable")
+	errSwarmionCheckpointedWriteRejected   = errors.New("swarmion checkpointed write rejected")
+	errSwarmionCheckpointedWriteIncomplete = errors.New("swarmion checkpointed write incomplete")
+)
 
 type Signer interface {
 	Sign(commit string) (string, error)
@@ -127,11 +133,54 @@ type DB struct {
 	signer     Signer
 
 	mu                   sync.Mutex
-	opMu                 sync.Mutex
+	opMu                 contextMutex
 	initialized          bool
 	watchCancel          context.CancelFunc
 	tableChangeCallbacks *util.Map[string, tableChangeCallback]
+	runtimeCallbacks     *util.Map[string, Notifier]
 	replicationNoticeSig string
+	notificationMu       sync.Mutex
+	notificationDepth    int
+	pendingNotifyAll     bool
+	pendingNotifyTables  map[string]struct{}
+}
+
+type contextMutex struct {
+	once sync.Once
+	ch   chan struct{}
+}
+
+func (m *contextMutex) init() {
+	m.once.Do(func() {
+		m.ch = make(chan struct{}, 1)
+		m.ch <- struct{}{}
+	})
+}
+
+func (m *contextMutex) Lock() {
+	_ = m.LockContext(context.Background())
+}
+
+func (m *contextMutex) LockContext(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m.init()
+	select {
+	case <-m.ch:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (m *contextMutex) Unlock() {
+	m.init()
+	select {
+	case m.ch <- struct{}{}:
+	default:
+		panic("db operation mutex unlocked while not locked")
+	}
 }
 
 //go:embed migrations/*.sql
@@ -155,6 +204,7 @@ func Open(workDir string, dbName string, signer Signer) (*DB, error) {
 		workingDir:           absWorkDir,
 		signer:               signer,
 		tableChangeCallbacks: util.NewMap[string, tableChangeCallback](),
+		runtimeCallbacks:     util.NewMap[string, Notifier](),
 	}
 
 	if err := quarantineIncompleteDatabase(absWorkDir, dbName); err != nil {
@@ -274,7 +324,7 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 		Namespace:                       fmt.Sprintf(swarmionNamespaceTemplate, db.name),
 		AdminNamespace:                  fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name),
 		HeartbeatInterval:               5 * time.Second,
-		CheckpointMaterializationPolicy: swarmionapp.CheckpointMaterializationEager,
+		CheckpointMaterializationPolicy: swarmionapp.CheckpointMaterializationManualLazy,
 		SchemaEngine:                    cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
 		OnWriteNotification:             db.handleWriteNotification,
 		Logger:                          logger,
@@ -295,11 +345,22 @@ func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
 	db.app = app
 	db.network = network
 	db.sqldb = app.SQLDB()
+	configureEmbeddedSQLDB(db.sqldb)
 	db.initialized = true
 	watchCtx, watchCancel := context.WithCancel(context.Background())
 	db.watchCancel = watchCancel
 	db.startSwarmionWatchers(watchCtx, app)
 	return nil
+}
+
+func configureEmbeddedSQLDB(sqldb *sql.DB) {
+	if sqldb == nil {
+		return
+	}
+	sqldb.SetMaxOpenConns(1)
+	sqldb.SetMaxIdleConns(1)
+	sqldb.SetConnMaxLifetime(0)
+	sqldb.SetConnMaxIdleTime(0)
 }
 
 func (db *DB) swarmionManifestPath() string {
@@ -367,21 +428,15 @@ func (db *DB) startSwarmionWatchers(ctx context.Context, app *swarmionapp.App) {
 	if db == nil || app == nil {
 		return
 	}
-	if events, err := app.WatchCheckpointRoots(ctx); err == nil {
-		go db.forwardCheckpointRootEvents(events)
-	} else {
-		notifyLog.Warnf("failed to watch swarmion checkpoint roots: %s", err.Error())
-	}
 	if events, err := app.WatchStatus(ctx); err == nil {
 		go db.forwardSwarmionStatusEvents(events)
 	} else {
 		notifyLog.Warnf("failed to watch swarmion status: %s", err.Error())
 	}
-}
-
-func (db *DB) forwardCheckpointRootEvents(events <-chan swarmionapp.CheckpointRootEvent) {
-	for event := range events {
-		db.triggerTableChangeCallbacks(event.ChangedTables...)
+	if events, err := app.WatchCheckpointRoots(ctx); err == nil {
+		go db.forwardSwarmionCheckpointRootEvents(events)
+	} else {
+		notifyLog.Warnf("failed to watch swarmion checkpoint roots: %s", err.Error())
 	}
 }
 
@@ -392,8 +447,14 @@ func (db *DB) forwardSwarmionStatusEvents(events <-chan swarmionapp.StatusEvent)
 			swarmionapp.StatusEventTentativeRootChanged,
 			swarmionapp.StatusEventFatalChanged,
 			swarmionapp.StatusEventStateProvidersChanged:
-			db.triggerTableChangeCallbacks()
+			db.triggerRuntimeChangeCallbacks()
 		}
+	}
+}
+
+func (db *DB) forwardSwarmionCheckpointRootEvents(events <-chan swarmionapp.CheckpointRootEvent) {
+	for event := range events {
+		db.triggerPublishedTableChangeCallbacks(event.ChangedTables...)
 	}
 }
 
@@ -447,8 +508,12 @@ PRIMARY KEY (filename)
 		appliedAny = true
 	}
 	if appliedAny {
-		if _, err := db.commitStaged(ctx, "run migrations", true); err != nil {
+		commit, err := db.commitStaged(ctx, "run migrations", true)
+		if err != nil {
 			return fmt.Errorf("commit migrations: %w", err)
+		}
+		if err := db.waitForCommittedRoot(ctx, commit, "run migrations"); err != nil {
+			return fmt.Errorf("checkpoint migrations: %w", err)
 		}
 	}
 
@@ -544,7 +609,6 @@ func (db *DB) Close() error {
 	db.initialized = false
 	db.watchCancel = nil
 	db.mu.Unlock()
-
 	if watchCancel != nil {
 		watchCancel()
 	}
@@ -552,7 +616,7 @@ func (db *DB) Close() error {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	if err := evictSwarmionPeer(ctx, app, app.PeerID()); err != nil {
+	if err := db.evictSwarmionPeer(ctx, app, app.PeerID()); err != nil {
 		notifyLog.Debugf("failed to evict local swarmion peer before close: %s", err.Error())
 	}
 	cancel()
@@ -575,7 +639,7 @@ func (db *DB) InitFromPeer(peerID string, bootstrapPeers []string) error {
 	if err := db.openSwarmion(context.Background(), bootstrapPeers); err != nil {
 		return fmt.Errorf("failed to initialize swarmion db from peer %s: %w", peerID, err)
 	}
-	db.triggerTableChangeCallbacks()
+	db.triggerAllTableChangeCallbacks()
 	return nil
 }
 
@@ -605,7 +669,7 @@ func (db *DB) RemovePeer(peerID string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return evictSwarmionPeer(ctx, app, peerID)
+	return db.evictSwarmionPeer(ctx, app, peerID)
 }
 
 func (db *DB) PrepareSwarmionShutdown(ctx context.Context) error {
@@ -621,7 +685,7 @@ func (db *DB) PrepareSwarmionShutdown(ctx context.Context) error {
 	if app == nil {
 		return nil
 	}
-	return evictSwarmionPeer(ctx, app, app.PeerID())
+	return db.evictSwarmionPeer(ctx, app, app.PeerID())
 }
 
 func (db *DB) ReconcileRemovedSwarmionPeers(ctx context.Context, activePeerIDs map[string]struct{}) error {
@@ -660,7 +724,7 @@ func (db *DB) ReconcileRemovedSwarmionPeers(ctx context.Context, activePeerIDs m
 		if _, found := active[peerID]; found {
 			continue
 		}
-		if err := evictSwarmionPeer(ctx, app, peerID); err != nil {
+		if err := db.evictSwarmionPeer(ctx, app, peerID); err != nil {
 			failures = append(failures, err.Error())
 		}
 	}
@@ -670,15 +734,42 @@ func (db *DB) ReconcileRemovedSwarmionPeers(ctx context.Context, activePeerIDs m
 	return nil
 }
 
-func evictSwarmionPeer(ctx context.Context, app *swarmionapp.App, peerID string) error {
+func (db *DB) evictSwarmionPeer(ctx context.Context, app swarmionPeerEvictor, peerID string) error {
 	peerID = strings.TrimSpace(peerID)
 	if app == nil || peerID == "" {
 		return nil
+	}
+	if db != nil {
+		if err := db.closeSwarmionTransportPeer(peerID); err != nil {
+			notifyLog.Debugf("failed to close swarmion transport peer %s before eviction: %s", peerID, err.Error())
+		}
 	}
 	if _, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID}); err != nil {
 		return fmt.Errorf("evict swarmion peer %s: %w", peerID, err)
 	}
 	return nil
+}
+
+func (db *DB) closeSwarmionTransportPeer(peerID string) error {
+	peerID = strings.TrimSpace(peerID)
+	if db == nil || peerID == "" {
+		return nil
+	}
+	db.mu.Lock()
+	network := db.network
+	db.mu.Unlock()
+	if network == nil || network.ID() == peerID {
+		return nil
+	}
+	host := network.Host()
+	if host == nil || host.Network() == nil {
+		return nil
+	}
+	pid, err := libp2ppeer.Decode(peerID)
+	if err != nil {
+		return fmt.Errorf("decode swarmion peer id %s: %w", peerID, err)
+	}
+	return host.Network().ClosePeer(pid)
 }
 
 func (db *DB) ConnectPeer(peerID string, publicIP string) error {
@@ -813,7 +904,10 @@ func (db *DB) SwarmionStatus() (swarmionapp.Status, bool) {
 }
 
 func (db *DB) CatchUpCheckpoint(ctx context.Context, reason string) error {
-	if err := db.CatchUpCheckpointStrict(ctx, reason); err != nil {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	if err := db.catchUpCheckpointStrict(ctx, reason); err != nil {
 		if errors.Is(err, errSwarmionCheckpointCatchUpRetryable) {
 			notifyLog.Debugf("deferred swarmion checkpoint catch-up for %q after retryable response: %s", reason, err.Error())
 			return nil
@@ -824,6 +918,13 @@ func (db *DB) CatchUpCheckpoint(ctx context.Context, reason string) error {
 }
 
 func (db *DB) CatchUpCheckpointStrict(ctx context.Context, reason string) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	return db.catchUpCheckpointStrict(ctx, reason)
+}
+
+func (db *DB) catchUpCheckpointStrict(ctx context.Context, reason string) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
@@ -849,7 +950,9 @@ func IsRetryableCheckpointCatchUp(err error) bool {
 	return errors.Is(err, errSwarmionCheckpointCatchUpRetryable)
 }
 
-func catchUpSwarmionCheckpoint(ctx context.Context, app *swarmionapp.App, reason string) error {
+func catchUpSwarmionCheckpoint(ctx context.Context, app interface {
+	CatchUpCheckpoint(context.Context, string) (swarmionadmin.CheckpointCatchUpResponse, error)
+}, reason string) error {
 	if app == nil {
 		return nil
 	}
@@ -872,7 +975,9 @@ func catchUpSwarmionCheckpoint(ctx context.Context, app *swarmionapp.App, reason
 	return lastErr
 }
 
-func catchUpSwarmionCheckpointOnce(ctx context.Context, app *swarmionapp.App, reason string) error {
+func catchUpSwarmionCheckpointOnce(ctx context.Context, app interface {
+	CatchUpCheckpoint(context.Context, string) (swarmionadmin.CheckpointCatchUpResponse, error)
+}, reason string) error {
 	resp, err := app.CatchUpCheckpoint(ctx, reason)
 	if opErr := checkpointCatchUpOperationalError(resp); opErr != nil {
 		if err != nil {
@@ -988,6 +1093,17 @@ func (db *DB) GetSqlDB() *sql.DB {
 }
 
 func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	if db == nil {
+		return nil, fmt.Errorf("db is not initialized")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := db.opMu.LockContext(ctx); err != nil {
+		return nil, err
+	}
+	defer db.opMu.Unlock()
+
 	sqldb := db.GetSqlDB()
 	if sqldb == nil {
 		return nil, fmt.Errorf("db is not initialized")
@@ -995,18 +1111,76 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.R
 	return sqldb.ExecContext(ctx, query, args...)
 }
 
-func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+// ReadRows runs a query and keeps the database operation lock until consume
+// returns and the result rows have been closed.
+func (db *DB) ReadRows(ctx context.Context, query string, args []any, consume func(*sql.Rows) error) error {
+	if db == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	if consume == nil {
+		return fmt.Errorf("row consumer is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := db.opMu.LockContext(ctx); err != nil {
+		return err
+	}
+	defer db.opMu.Unlock()
+
 	sqldb := db.GetSqlDB()
 	if sqldb == nil {
+		return fmt.Errorf("db is not initialized")
+	}
+	rows, err := sqldb.QueryContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if err := consume(rows); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type lockedSQLDB struct {
+	db *DB
+}
+
+func (q lockedSQLDB) sqlDB() (*sql.DB, error) {
+	if q.db == nil {
 		return nil, fmt.Errorf("db is not initialized")
+	}
+	sqldb := q.db.GetSqlDB()
+	if sqldb == nil {
+		return nil, fmt.Errorf("db is not initialized")
+	}
+	return sqldb, nil
+}
+
+func (q lockedSQLDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	sqldb, err := q.sqlDB()
+	if err != nil {
+		return nil, err
 	}
 	return sqldb.QueryContext(ctx, query, args...)
 }
 
-func (db *DB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
-	sqldb := db.GetSqlDB()
-	if sqldb == nil {
-		return nil, fmt.Errorf("db is not initialized")
+func (q lockedSQLDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	sqldb, err := q.sqlDB()
+	if err != nil {
+		return nil, err
+	}
+	return sqldb.ExecContext(ctx, query, args...)
+}
+
+func (q lockedSQLDB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
+	sqldb, err := q.sqlDB()
+	if err != nil {
+		return nil, err
 	}
 	return sqldb.PrepareContext(ctx, query)
 }
@@ -1039,26 +1213,22 @@ func (db *DB) GetCommits(branch string) ([]Commit, error) {
 }
 
 func (db *DB) getCommits(query string) ([]Commit, error) {
-	rows, err := db.QueryContext(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve commits: %w", err)
-	}
-	defer rows.Close()
-
 	var commits []Commit
-	for rows.Next() {
-		var commit Commit
-		var parents sql.NullString
-		var refs sql.NullString
-		if err := rows.Scan(&commit.Hash, &commit.Committer, &commit.Email, &commit.Date, &commit.Message, &parents, &refs); err != nil {
-			return nil, fmt.Errorf("failed to scan commit: %w", err)
+	if err := db.ReadRows(context.Background(), query, nil, func(rows *sql.Rows) error {
+		for rows.Next() {
+			var commit Commit
+			var parents sql.NullString
+			var refs sql.NullString
+			if err := rows.Scan(&commit.Hash, &commit.Committer, &commit.Email, &commit.Date, &commit.Message, &parents, &refs); err != nil {
+				return fmt.Errorf("failed to scan commit: %w", err)
+			}
+			commit.SignerPublicKey = ExtractCommitSignerPublicKey(commit.Message)
+			commit.ParentHashes = splitCommitList(parents.String)
+			commit.Refs = splitCommitList(refs.String)
+			commits = append(commits, commit)
 		}
-		commit.SignerPublicKey = ExtractCommitSignerPublicKey(commit.Message)
-		commit.ParentHashes = splitCommitList(parents.String)
-		commit.Refs = splitCommitList(refs.String)
-		commits = append(commits, commit)
-	}
-	if err := rows.Err(); err != nil {
+		return nil
+	}); err != nil {
 		return nil, fmt.Errorf("failed to read commits: %w", err)
 	}
 	return commits, nil
@@ -1076,29 +1246,42 @@ func splitCommitList(value string) []string {
 	return items
 }
 
-func (db *DB) commitStaged(ctx context.Context, message string, allowNoop bool) (string, error) {
+type stagedCommitResult struct {
+	Committed                bool
+	Hash                     string
+	EventID                  string
+	PublishedRootHash        string
+	WriteBaseRootHash        string
+	WorkspaceHeadRootHash    string
+	WorkspaceStagedRootHash  string
+	WorkspaceWorkingRootHash string
+}
+
+func (r stagedCommitResult) hasPublishedContent() bool {
+	return r.Committed && (strings.TrimSpace(r.Hash) != "" || strings.TrimSpace(r.PublishedRootHash) != "")
+}
+
+func (db *DB) commitStaged(ctx context.Context, message string, allowNoop bool) (stagedCommitResult, error) {
 	sqldb := db.GetSqlDB()
 	if sqldb == nil {
-		return "", fmt.Errorf("db is not initialized")
+		return stagedCommitResult{}, fmt.Errorf("db is not initialized")
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	if strings.TrimSpace(message) == "" {
 		message = "swarmion commit"
 	}
 
-	call := "CALL swarmion_commit('-Am', ?)"
-	if allowNoop {
-		call = "CALL swarmion_commit_info('-Am', ?)"
-	}
-
-	rows, err := sqldb.QueryContext(ctx, call, message)
+	rows, err := sqldb.QueryContext(ctx, "CALL swarmion_commit_info('-Am', ?)", message)
 	if err != nil {
-		return "", err
+		return stagedCommitResult{}, err
 	}
 	defer rows.Close()
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return "", err
+		return stagedCommitResult{}, err
 	}
 	values := make([]any, len(cols))
 	scan := make([]any, len(cols))
@@ -1107,30 +1290,309 @@ func (db *DB) commitStaged(ctx context.Context, message string, allowNoop bool) 
 	}
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return "", err
+			return stagedCommitResult{}, err
 		}
-		return "", nil
+		if allowNoop {
+			return stagedCommitResult{}, nil
+		}
+		return stagedCommitResult{}, fmt.Errorf("nothing to commit")
 	}
 	if err := rows.Scan(scan...); err != nil {
-		return "", err
+		return stagedCommitResult{}, err
 	}
+	result := parseStagedCommitResult(cols, values)
+	if !result.Committed && !allowNoop {
+		return result, fmt.Errorf("nothing to commit")
+	}
+	return result, nil
+}
+
+func parseStagedCommitResult(cols []string, values []any) stagedCommitResult {
+	var result stagedCommitResult
 	for i, col := range cols {
-		if strings.EqualFold(col, "hash") {
-			return fmt.Sprint(values[i]), nil
+		if i >= len(values) {
+			break
+		}
+		switch strings.ToLower(strings.TrimSpace(col)) {
+		case "committed":
+			result.Committed = commitInfoBool(values[i])
+		case "hash":
+			result.Hash = commitInfoString(values[i])
+		case "event_id":
+			result.EventID = commitInfoString(values[i])
+		case "published_root_hash":
+			result.PublishedRootHash = commitInfoString(values[i])
+		case "write_base_root_hash":
+			result.WriteBaseRootHash = commitInfoString(values[i])
+		case "workspace_head_root_hash":
+			result.WorkspaceHeadRootHash = commitInfoString(values[i])
+		case "workspace_staged_root_hash":
+			result.WorkspaceStagedRootHash = commitInfoString(values[i])
+		case "workspace_working_root_hash":
+			result.WorkspaceWorkingRootHash = commitInfoString(values[i])
 		}
 	}
-	return "", nil
+	return result
+}
+
+func commitInfoString(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	case []byte:
+		return strings.TrimSpace(string(v))
+	default:
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func commitInfoBool(value any) bool {
+	switch v := value.(type) {
+	case nil:
+		return false
+	case bool:
+		return v
+	case int:
+		return v != 0
+	case int8:
+		return v != 0
+	case int16:
+		return v != 0
+	case int32:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint8:
+		return v != 0
+	case uint16:
+		return v != 0
+	case uint32:
+		return v != 0
+	case uint64:
+		return v != 0
+	case []byte:
+		return commitInfoBool(string(v))
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "1", "t", "true", "y", "yes":
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}
+
+func (db *DB) waitForCommittedRoot(ctx context.Context, commit stagedCommitResult, reason string) error {
+	if !commit.hasPublishedContent() {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, committedWriteCheckpointTimeout)
+	defer cancel()
+
+	return db.waitForCommittedRootObserved(waitCtx, commit, reason)
+}
+
+func (db *DB) waitForCommittedRootObserved(ctx context.Context, commit stagedCommitResult, reason string) error {
+	if db == nil || !commit.hasPublishedContent() {
+		return nil
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return nil
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "protos committed write"
+	}
+
+	var lastErr error
+	for {
+		catchUpErr := catchUpSwarmionCheckpoint(ctx, app, reason)
+		if catchUpErr != nil && !errors.Is(catchUpErr, errSwarmionCheckpointCatchUpRetryable) {
+			return fmt.Errorf("catch up swarmion checkpoint view for published write: %w", catchUpErr)
+		}
+
+		status := app.Status()
+		snapshot := app.Snapshot()
+		reached, checkpointErr := stagedCommitCheckpointReached(status, snapshot, commit)
+		if checkpointErr != nil {
+			return checkpointErr
+		}
+		if reached {
+			return nil
+		}
+		if catchUpErr != nil {
+			lastErr = catchUpErr
+		} else if lastErr == nil || !isRetryableCommittedWriteError(lastErr) {
+			lastErr = stagedCommitCheckpointWaitError(status, snapshot, commit)
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return fmt.Errorf("published write did not reach local checkpoint for %q: %w", reason, lastErr)
+			}
+			return fmt.Errorf("published write did not reach local checkpoint for %q: %w", reason, ctx.Err())
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
+func stableDurableCheckpoint(status swarmionapp.Status) bool {
+	if status.CheckpointRootHash.IsZero() || status.TentativeRootHash != status.CheckpointRootHash {
+		return false
+	}
+	return !status.DurableMainRootHash.IsZero() && status.DurableMainRootHash == status.CheckpointRootHash
+}
+
+func stagedCommitCheckpointReached(status swarmionapp.Status, snapshot *swarmionprotocol.NodeState, commit stagedCommitResult) (bool, error) {
+	if !commit.hasPublishedContent() || !stableDurableCheckpoint(status) {
+		return false, nil
+	}
+	eventID := swarmionprotocol.ParseEventID(commit.EventID)
+	expectedRoot := swarmionprotocol.ParseRootHash(commit.PublishedRootHash)
+	if eventID.IsZero() || expectedRoot.IsZero() {
+		return false, fmt.Errorf(
+			"%w: event_id=%q published_root=%q",
+			errSwarmionCheckpointedWriteIncomplete,
+			commit.EventID,
+			commit.PublishedRootHash,
+		)
+	}
+	if snapshot == nil || snapshot.CheckpointCommitID.IsZero() {
+		return false, nil
+	}
+	checkpointRoot, ok := snapshot.CheckpointEventRoots[eventID]
+	if !ok {
+		return false, nil
+	}
+	if checkpointRoot == expectedRoot && snapshotCurrentCheckpointCoversEventRoot(snapshot, eventID, expectedRoot) {
+		return true, nil
+	}
+	decision := stagedCommitCheckpointDecisionString(snapshot, eventID)
+	if !stagedCommitCheckpointDecisionRejected(decision) && checkpointRoot != expectedRoot {
+		decision = swarmionprotocol.CheckpointEventDecisionRejectedConflict.String()
+	}
+	if stagedCommitCheckpointDecisionRejected(decision) || checkpointRoot != expectedRoot {
+		return false, fmt.Errorf(
+			"%w: event_id=%s decision=%s checkpoint_root=%s expected_root=%s checkpoint=%s",
+			errSwarmionCheckpointedWriteRejected,
+			eventID,
+			decision,
+			checkpointRoot,
+			expectedRoot,
+			status.CheckpointRootHash,
+		)
+	}
+	return false, nil
+}
+
+func stagedCommitCheckpointWaitError(status swarmionapp.Status, snapshot *swarmionprotocol.NodeState, commit stagedCommitResult) error {
+	eventID := swarmionprotocol.ParseEventID(commit.EventID)
+	expectedRoot := swarmionprotocol.ParseRootHash(commit.PublishedRootHash)
+	checkpointRoot := swarmionprotocol.RootHash{}
+	decision := ""
+	currentCoversEventRoot := false
+	if snapshot != nil && !eventID.IsZero() {
+		checkpointRoot = snapshot.CheckpointEventRoots[eventID]
+		decision = stagedCommitCheckpointDecisionString(snapshot, eventID)
+		if !expectedRoot.IsZero() {
+			currentCoversEventRoot = snapshotCurrentCheckpointCoversEventRoot(snapshot, eventID, expectedRoot)
+		}
+	}
+	return fmt.Errorf(
+		"expected event_id=%s published_root=%s commit=%s checkpoint_event_root=%s decision=%s current_covers_event=%t checkpoint=%s tentative=%s durable=%s desired=%s pending=%t",
+		commit.EventID,
+		commit.PublishedRootHash,
+		commit.Hash,
+		checkpointRoot,
+		decision,
+		currentCoversEventRoot,
+		status.CheckpointRootHash,
+		status.TentativeRootHash,
+		status.DurableMainRootHash,
+		status.RuntimeCheckpointDesiredRootHash,
+		status.RuntimeCheckpointMaterializePending,
+	)
+}
+
+func stagedCommitCheckpointDecisionString(snapshot *swarmionprotocol.NodeState, eventID swarmionprotocol.EventID) string {
+	decision := swarmionprotocol.CheckpointEventDecisionAccepted
+	if snapshot != nil && snapshot.CheckpointEventDecisions != nil {
+		if value, ok := snapshot.CheckpointEventDecisions[eventID]; ok {
+			decision = value
+		}
+	}
+	return decision.String()
+}
+
+func stagedCommitCheckpointDecisionRejected(decision string) bool {
+	return decision == swarmionprotocol.CheckpointEventDecisionRejectedConflict.String() ||
+		decision == swarmionprotocol.CheckpointEventDecisionRejectedDependency.String()
+}
+
+func snapshotCurrentCheckpointCoversEventRoot(snapshot *swarmionprotocol.NodeState, eventID swarmionprotocol.EventID, rootHash swarmionprotocol.RootHash) bool {
+	if snapshot == nil || eventID.IsZero() || rootHash.IsZero() || snapshot.CheckpointCommitID.IsZero() {
+		return false
+	}
+	visited := make(map[swarmionprotocol.CheckpointCommitID]struct{})
+	var walk func(swarmionprotocol.CheckpointCommitID) bool
+	walk = func(commitID swarmionprotocol.CheckpointCommitID) bool {
+		if commitID.IsZero() {
+			return false
+		}
+		if _, ok := visited[commitID]; ok {
+			return false
+		}
+		visited[commitID] = struct{}{}
+		if events := snapshot.CheckpointCommitEvents[commitID]; events != nil {
+			if root, ok := events[eventID]; ok && root == rootHash {
+				return true
+			}
+		}
+		for parent := range snapshot.CheckpointCommitParents[commitID] {
+			if walk(parent) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(snapshot.CheckpointCommitID)
 }
 
 func (db *DB) RegisterTableChangeCallback(tableName string, notifier Notifier) {
 	if db == nil || notifier == nil {
 		return
 	}
+	if db.tableChangeCallbacks == nil {
+		db.tableChangeCallbacks = util.NewMap[string, tableChangeCallback]()
+	}
 	guid := xid.New()
 	db.tableChangeCallbacks.Set(guid.String(), tableChangeCallback{
 		tableName: tableName,
 		notifier:  notifier,
 	})
+}
+
+func (db *DB) RegisterRuntimeChangeCallback(notifier Notifier) {
+	if db == nil || notifier == nil {
+		return
+	}
+	if db.runtimeCallbacks == nil {
+		db.runtimeCallbacks = util.NewMap[string, Notifier]()
+	}
+	guid := xid.New()
+	db.runtimeCallbacks.Set(guid.String(), notifier)
 }
 
 func (db *DB) WatchChanges(ctx context.Context) (<-chan ChangeEvent, func()) {
@@ -1141,6 +1603,9 @@ func (db *DB) WatchChanges(ctx context.Context) (<-chan ChangeEvent, func()) {
 	}
 	notifier := &changeWatchNotifier{ch: ch}
 	guid := xid.New().String()
+	if db.tableChangeCallbacks == nil {
+		db.tableChangeCallbacks = util.NewMap[string, tableChangeCallback]()
+	}
 	db.tableChangeCallbacks.Set(guid, tableChangeCallback{notifier: notifier})
 
 	var once sync.Once
@@ -1175,15 +1640,84 @@ func (n *changeWatchNotifier) NotifyChange(tableNames []string) {
 }
 
 func (db *DB) handleWriteNotification(_ context.Context, notification swarmionapp.WriteNotification) error {
-	if !notification.Accepted || len(notification.ChangedTables) == 0 {
+	if !notification.Accepted {
 		return nil
 	}
-	db.triggerTableChangeCallbacks(notification.ChangedTables...)
 	return nil
+}
+
+func (db *DB) triggerPublishedTableChangeCallbacks(tableNames ...string) {
+	if len(tableNames) == 0 {
+		db.triggerAllTableChangeCallbacks()
+		return
+	}
+	db.triggerTableChangeCallbacks(tableNames...)
 }
 
 func (db *DB) triggerTableChangeCallbacks(tableNames ...string) {
 	if db == nil {
+		return
+	}
+	if len(tableNames) == 0 {
+		db.triggerRuntimeChangeCallbacks()
+		return
+	}
+	if db.deferTableChangeCallbacks(tableNames...) {
+		return
+	}
+	db.dispatchTableChangeCallbacks(true, tableNames...)
+}
+
+func (db *DB) triggerAllTableChangeCallbacks() {
+	if db == nil {
+		return
+	}
+	if db.deferTableChangeCallbacks() {
+		return
+	}
+	db.dispatchTableChangeCallbacks(true)
+}
+
+func (db *DB) triggerRuntimeChangeCallbacks() {
+	if db == nil {
+		return
+	}
+	db.dispatchRuntimeChangeCallbacks(true)
+}
+
+func (db *DB) dispatchRuntimeChangeCallbacks(async bool) {
+	seen := map[uintptr]struct{}{}
+	notify := func(notifier Notifier) {
+		if id, ok := notifierIdentity(notifier); ok {
+			if _, found := seen[id]; found {
+				return
+			}
+			seen[id] = struct{}{}
+		}
+		if async {
+			notifyChangeAsync(notifier, nil)
+		} else {
+			notifySafely(notifier, nil)
+		}
+	}
+
+	if db.tableChangeCallbacks != nil {
+		for _, callback := range db.tableChangeCallbacks.Snapshot() {
+			if callback.tableName != "" {
+				continue
+			}
+			notify(callback.notifier)
+		}
+	}
+	if db.runtimeCallbacks != nil {
+		for _, notifier := range db.runtimeCallbacks.Snapshot() {
+			notify(notifier)
+		}
+	}
+}
+
+func (db *DB) dispatchTableChangeCallbacks(async bool, tableNames ...string) {
+	if db.tableChangeCallbacks == nil {
 		return
 	}
 	tableSet := make(map[string]struct{}, len(tableNames))
@@ -1204,7 +1738,85 @@ func (db *DB) triggerTableChangeCallbacks(tableNames ...string) {
 			}
 			seen[id] = struct{}{}
 		}
-		notifyChangeAsync(callback.notifier, tableNames)
+		if async {
+			notifyChangeAsync(callback.notifier, tableNames)
+		} else {
+			notifySafely(callback.notifier, tableNames)
+		}
+	}
+}
+
+func (db *DB) DeferNotifications() func(async bool) {
+	if db == nil {
+		return func(bool) {}
+	}
+	db.notificationMu.Lock()
+	db.notificationDepth++
+	db.notificationMu.Unlock()
+
+	var once sync.Once
+	return func(async bool) {
+		once.Do(func() {
+			tableNames, flush := db.releaseDeferredNotifications()
+			if flush {
+				db.dispatchTableChangeCallbacks(async, tableNames...)
+			}
+		})
+	}
+}
+
+func (db *DB) deferTableChangeCallbacks(tableNames ...string) bool {
+	db.notificationMu.Lock()
+	defer db.notificationMu.Unlock()
+	if db.notificationDepth == 0 {
+		return false
+	}
+	db.addPendingNotificationLocked(tableNames...)
+	return true
+}
+
+func (db *DB) releaseDeferredNotifications() ([]string, bool) {
+	db.notificationMu.Lock()
+	defer db.notificationMu.Unlock()
+	if db.notificationDepth > 0 {
+		db.notificationDepth--
+	}
+	if db.notificationDepth > 0 {
+		return nil, false
+	}
+	if db.pendingNotifyAll {
+		db.pendingNotifyAll = false
+		db.pendingNotifyTables = nil
+		return nil, true
+	}
+	if len(db.pendingNotifyTables) == 0 {
+		return nil, false
+	}
+	tableNames := make([]string, 0, len(db.pendingNotifyTables))
+	for tableName := range db.pendingNotifyTables {
+		tableNames = append(tableNames, tableName)
+	}
+	sort.Strings(tableNames)
+	db.pendingNotifyTables = nil
+	return tableNames, true
+}
+
+func (db *DB) addPendingNotificationLocked(tableNames ...string) {
+	if len(tableNames) == 0 {
+		db.pendingNotifyAll = true
+		db.pendingNotifyTables = nil
+		return
+	}
+	if db.pendingNotifyAll {
+		return
+	}
+	if db.pendingNotifyTables == nil {
+		db.pendingNotifyTables = map[string]struct{}{}
+	}
+	for _, tableName := range tableNames {
+		if tableName != "" {
+			db.pendingNotifyTables[tableName] = struct{}{}
+		}
 	}
 }
 
@@ -1217,21 +1829,79 @@ func escapeSQL(value string) string {
 //
 
 func SelectOne[T any](db *DB, mc QueryMapper[T]) (T, error) {
-	query, mapper := mc()
-	res, err := sq.FetchOne(db, query.SetDialect(sq.DialectMySQL), mapper)
-	if err != nil {
-		return res, fmt.Errorf("failed to select one: %w", err)
+	return SelectOneContext(context.Background(), db, mc)
+}
+
+func SelectOneContext[T any](ctx context.Context, db *DB, mc QueryMapper[T]) (T, error) {
+	if db == nil {
+		return *new(T), fmt.Errorf("db is nil")
 	}
-	return res, nil
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	query, mapper := mc()
+	lockStart := time.Now()
+	if err := db.opMu.LockContext(ctx); err != nil {
+		return *new(T), fmt.Errorf("failed to select one: %w", err)
+	}
+	defer db.opMu.Unlock()
+	if elapsed := time.Since(lockStart); elapsed > time.Second {
+		notifyLog.Debugf("select one waited %s for db operation lock", elapsed)
+	}
+
+	var res T
+	var err error
+	for attempt := 1; attempt <= 2; attempt++ {
+		res, err = sq.FetchOneContext(ctx, lockedSQLDB{db: db}, query.SetDialect(sq.DialectMySQL), mapper)
+		if err == nil {
+			return res, nil
+		}
+		if attempt == 2 || !isRetryableCommittedWriteError(err) {
+			return res, fmt.Errorf("failed to select one: %w", err)
+		}
+		if waitErr := waitBeforeCommittedWriteRetryContext(ctx, attempt); waitErr != nil {
+			return res, fmt.Errorf("failed to select one: %w", waitErr)
+		}
+	}
+	return res, fmt.Errorf("failed to select one: %w", err)
 }
 
 func SelectMultiple[T any](db *DB, mc QueryMapper[T]) ([]T, error) {
+	return SelectMultipleContext(context.Background(), db, mc)
+}
+
+func SelectMultipleContext[T any](ctx context.Context, db *DB, mc QueryMapper[T]) ([]T, error) {
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	query, mapper := mc()
-	res, err := sq.FetchAll(db, query.SetDialect(sq.DialectMySQL), mapper)
-	if err != nil {
+	lockStart := time.Now()
+	if err := db.opMu.LockContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to select multiple: %w", err)
 	}
-	return res, nil
+	defer db.opMu.Unlock()
+	if elapsed := time.Since(lockStart); elapsed > time.Second {
+		notifyLog.Debugf("select multiple waited %s for db operation lock", elapsed)
+	}
+
+	var res []T
+	var err error
+	for attempt := 1; attempt <= 2; attempt++ {
+		res, err = sq.FetchAllContext(ctx, lockedSQLDB{db: db}, query.SetDialect(sq.DialectMySQL), mapper)
+		if err == nil {
+			return res, nil
+		}
+		if attempt == 2 || !isRetryableCommittedWriteError(err) {
+			return nil, fmt.Errorf("failed to select multiple: %w", err)
+		}
+		if waitErr := waitBeforeCommittedWriteRetryContext(ctx, attempt); waitErr != nil {
+			return nil, fmt.Errorf("failed to select multiple: %w", waitErr)
+		}
+	}
+	return nil, fmt.Errorf("failed to select multiple: %w", err)
 }
 
 //
@@ -1243,11 +1913,37 @@ func Insert(db *DB, mappers ...InsertMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	return db.committedWrite("insert", "insert", false, func(sqldb *sql.DB) error {
+	return db.committedWrite("insert", "insert", false, true, func(ctx context.Context, sqldb *sql.DB) error {
+		staged := false
 		for _, mapper := range mappers {
-			if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
-				return err
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
 			}
+			staged = true
+		}
+		return nil
+	})
+}
+
+// InsertPublished commits and publishes a declarative write, but does not wait
+// for the local durable checkpoint view to include that write. Use this for
+// user-facing desired-state and durable feedback writes whose effects are
+// observed by a reconciler or task stream.
+func InsertPublished(db *DB, mappers ...InsertMapper) error {
+	return InsertPublishedContext(context.Background(), db, mappers...)
+}
+
+func InsertPublishedContext(ctx context.Context, db *DB, mappers ...InsertMapper) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	return db.committedWriteContext(ctx, "insert", "insert", false, false, func(ctx context.Context, sqldb *sql.DB) error {
+		staged := false
+		for _, mapper := range mappers {
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
+			}
+			staged = true
 		}
 		return nil
 	})
@@ -1257,11 +1953,57 @@ func Update(db *DB, mappers ...UpdateMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	return db.committedWrite("update", "update", true, func(sqldb *sql.DB) error {
+	return db.committedWrite("update", "update", true, true, func(ctx context.Context, sqldb *sql.DB) error {
+		staged := false
 		for _, mapper := range mappers {
-			if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
-				return err
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
 			}
+			staged = true
+		}
+		return nil
+	})
+}
+
+func UpdatePublishedContext(ctx context.Context, db *DB, mappers ...UpdateMapper) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	return db.committedWriteContext(ctx, "update", "update", true, false, func(ctx context.Context, sqldb *sql.DB) error {
+		staged := false
+		for _, mapper := range mappers {
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
+			}
+			staged = true
+		}
+		return nil
+	})
+}
+
+// UpdateAndInsertPublished commits update and insert mappers as one published
+// write, without synchronously waiting for local checkpoint visibility.
+func UpdateAndInsertPublished(db *DB, updates []UpdateMapper, inserts []InsertMapper) error {
+	return UpdateAndInsertPublishedContext(context.Background(), db, updates, inserts)
+}
+
+func UpdateAndInsertPublishedContext(ctx context.Context, db *DB, updates []UpdateMapper, inserts []InsertMapper) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	return db.committedWriteContext(ctx, "update", "update", true, false, func(ctx context.Context, sqldb *sql.DB) error {
+		staged := false
+		for _, mapper := range updates {
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
+			}
+			staged = true
+		}
+		for _, mapper := range inserts {
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
+			}
+			staged = true
 		}
 		return nil
 	})
@@ -1271,54 +2013,205 @@ func Delete(db *DB, mappers ...DeleteMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	return db.committedWrite("delete", "delete", true, func(sqldb *sql.DB) error {
+	return db.committedWrite("delete", "delete", true, true, func(ctx context.Context, sqldb *sql.DB) error {
+		staged := false
 		for _, mapper := range mappers {
-			if err := execWriteMapper(sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
-				return err
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
 			}
+			staged = true
 		}
 		return nil
 	})
 }
 
-func (db *DB) committedWrite(operation string, commitMessage string, allowNoop bool, apply func(*sql.DB) error) error {
-	db.opMu.Lock()
-	defer db.opMu.Unlock()
+func DeletePublishedContext(ctx context.Context, db *DB, mappers ...DeleteMapper) error {
+	if db == nil {
+		return fmt.Errorf("db is nil")
+	}
+	return db.committedWriteContext(ctx, "delete", "delete", true, false, func(ctx context.Context, sqldb *sql.DB) error {
+		staged := false
+		for _, mapper := range mappers {
+			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
+				return writeApplyError{err: err, staged: staged}
+			}
+			staged = true
+		}
+		return nil
+	})
+}
 
-	sqldb := db.GetSqlDB()
-	if sqldb == nil {
-		return fmt.Errorf("db is not initialized")
+type writeApplyError struct {
+	err    error
+	staged bool
+}
+
+func (e writeApplyError) Error() string {
+	if e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e writeApplyError) Unwrap() error {
+	return e.err
+}
+
+func (db *DB) committedWrite(operation string, commitMessage string, allowNoop bool, waitForCheckpoint bool, apply func(context.Context, *sql.DB) error) error {
+	return db.committedWriteContext(context.Background(), operation, commitMessage, allowNoop, waitForCheckpoint, apply)
+}
+
+func (db *DB) committedWriteContext(ctx context.Context, operation string, commitMessage string, allowNoop bool, waitForCheckpoint bool, apply func(context.Context, *sql.DB) error) error {
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	var lastErr error
 	for attempt := 1; attempt <= committedWriteMaxAttempts; attempt++ {
-		if err := apply(sqldb); err != nil {
+		lockStart := time.Now()
+		if err := db.opMu.LockContext(ctx); err != nil {
 			return fmt.Errorf("failed to %s: %w", operation, err)
 		}
+		locked := true
+		unlock := func() {
+			if locked {
+				db.opMu.Unlock()
+				locked = false
+			}
+		}
+		if elapsed := time.Since(lockStart); elapsed > time.Second {
+			notifyLog.Debugf("committed %s waited %s for db operation lock on attempt %d", operation, elapsed, attempt)
+		}
 
-		_, err := db.commitStaged(context.Background(), commitMessage, allowNoop)
+		sqldb := db.GetSqlDB()
+		if sqldb == nil {
+			unlock()
+			return fmt.Errorf("db is not initialized")
+		}
+		applyStart := time.Now()
+		if err := apply(ctx, sqldb); err != nil {
+			lastErr = err
+			if attempt == committedWriteMaxAttempts || !isRetryableCommittedWriteError(err) {
+				unlock()
+				return fmt.Errorf("failed to %s: %w", operation, err)
+			}
+			notifyLog.Debugf("retrying committed %s after apply failure on attempt %d/%d: %s", operation, attempt, committedWriteMaxAttempts, err.Error())
+			if retryableApplyRequiresReset(err) {
+				if resetErr := db.resetAfterRetryableWriteError(operation, lastErr); resetErr != nil {
+					unlock()
+					return fmt.Errorf("failed to %s: %w", operation, resetErr)
+				}
+			}
+			unlock()
+			if waitErr := waitBeforeCommittedWriteRetryContext(ctx, attempt); waitErr != nil {
+				return fmt.Errorf("failed to %s: %w", operation, waitErr)
+			}
+			continue
+		}
+		if elapsed := time.Since(applyStart); elapsed > time.Second {
+			notifyLog.Debugf("committed %s apply phase took %s on attempt %d", operation, elapsed, attempt)
+		}
+
+		commitStart := time.Now()
+		commit, err := db.commitStaged(ctx, commitMessage, allowNoop)
+		if elapsed := time.Since(commitStart); elapsed > time.Second {
+			notifyLog.Debugf("committed %s publish phase took %s on attempt %d", operation, elapsed, attempt)
+		}
 		if err == nil {
+			unlock()
+			if waitForCheckpoint {
+				checkpointCtx, cancel := context.WithTimeout(ctx, committedWriteCheckpointTimeout)
+				err = db.waitForCommittedRootObserved(checkpointCtx, commit, commitMessage)
+				cancel()
+				if err != nil {
+					return fmt.Errorf("failed to %s: %w", operation, err)
+				}
+			}
+			return nil
+		}
+		if allowNoop && isNoopCommitError(err) {
+			unlock()
 			return nil
 		}
 		lastErr = err
 		if attempt == committedWriteMaxAttempts || !isRetryableCommittedWriteError(err) {
+			unlock()
 			return fmt.Errorf("failed to %s: %w", operation, err)
 		}
+		notifyLog.Debugf("retrying committed %s after commit failure on attempt %d/%d: %s", operation, attempt, committedWriteMaxAttempts, err.Error())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		resetErr := db.resetWorkingSet(ctx)
-		catchUpErr := db.CatchUpCheckpoint(ctx, operation+" retry after stale write")
-		cancel()
-		if resetErr != nil {
-			return fmt.Errorf("failed to %s: %w", operation, errors.Join(lastErr, resetErr))
+		if resetErr := db.resetAfterRetryableWriteError(operation, lastErr); resetErr != nil {
+			unlock()
+			return fmt.Errorf("failed to %s: %w", operation, resetErr)
 		}
-		if catchUpErr != nil {
-			lastErr = errors.Join(lastErr, catchUpErr)
+		unlock()
+		if waitErr := waitBeforeCommittedWriteRetryContext(ctx, attempt); waitErr != nil {
+			return fmt.Errorf("failed to %s: %w", operation, waitErr)
 		}
-		time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
 	}
 
 	return fmt.Errorf("failed to %s: %w", operation, lastErr)
+}
+
+func isNoopCommitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "nothing to commit")
+}
+
+func retryableApplyRequiresReset(err error) bool {
+	if err == nil {
+		return false
+	}
+	var applyErr writeApplyError
+	if errors.As(err, &applyErr) && !applyErr.staged && isTransientWorkspaceAccessError(applyErr.err) {
+		return false
+	}
+	return true
+}
+
+func waitBeforeCommittedWriteRetryContext(ctx context.Context, attempt int) error {
+	if attempt < 1 {
+		attempt = 1
+	}
+	delay := 100 * time.Millisecond
+	for i := 1; i < attempt; i++ {
+		delay *= 2
+		if delay >= time.Second {
+			delay = time.Second
+			break
+		}
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (db *DB) resetAfterRetryableWriteError(operation string, cause error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	resetErr := db.resetWorkingSet(ctx)
+	catchUpErr := db.catchUpCheckpointStrict(ctx, operation+" retry after stale write")
+	if errors.Is(catchUpErr, errSwarmionCheckpointCatchUpRetryable) {
+		notifyLog.Debugf("deferred swarmion checkpoint catch-up for %q after retryable response: %s", operation, catchUpErr.Error())
+		catchUpErr = nil
+	}
+	if resetErr != nil {
+		return errors.Join(cause, resetErr)
+	}
+	if catchUpErr != nil {
+		return errors.Join(cause, catchUpErr)
+	}
+	return nil
 }
 
 func (db *DB) resetWorkingSet(ctx context.Context) error {
@@ -1336,19 +2229,37 @@ func isRetryableCommittedWriteError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, errSwarmionCheckpointedWriteRejected) {
+		return true
+	}
 	lower := strings.ToLower(err.Error())
 	return strings.Contains(lower, "stale write context") ||
 		strings.Contains(lower, "replay-base conflict") ||
 		strings.Contains(lower, "checkpoint target changed before catch-up") ||
-		strings.Contains(lower, "conflicts with protocol root")
+		strings.Contains(lower, "conflicts with protocol root") ||
+		isTransientWorkspaceAccessError(err)
 }
 
-func execWriteMapper(sqldb *sql.DB, query sq.Query) error {
+func isTransientWorkspaceAccessError(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "re-open tentative dolt db") ||
+		strings.Contains(lower, "database is locked") ||
+		strings.Contains(lower, "database is read only") ||
+		strings.Contains(lower, "cannot update manifest")
+}
+
+func execWriteMapperContext(ctx context.Context, sqldb *sql.DB, query sq.Query) error {
 	statement, args, err := sq.ToSQL(sq.DialectMySQL, query, nil)
 	if err != nil {
 		return err
 	}
-	if _, err := sqldb.ExecContext(context.Background(), statement, args...); err != nil {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := sqldb.ExecContext(ctx, statement, args...); err != nil {
 		return err
 	}
 	return nil

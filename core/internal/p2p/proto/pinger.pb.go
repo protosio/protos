@@ -68,6 +68,7 @@ func (x *PingRequest) GetPing() string {
 type PingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pong          string                 `protobuf:"bytes,1,opt,name=pong,proto3" json:"pong,omitempty"`
+	Capabilities  []string               `protobuf:"bytes,2,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -109,15 +110,23 @@ func (x *PingResponse) GetPong() string {
 	return ""
 }
 
+func (x *PingResponse) GetCapabilities() []string {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
 var File_internal_p2p_proto_pinger_proto protoreflect.FileDescriptor
 
 const file_internal_p2p_proto_pinger_proto_rawDesc = "" +
 	"\n" +
 	"\x1finternal/p2p/proto/pinger.proto\x12\x05proto\"!\n" +
 	"\vPingRequest\x12\x12\n" +
-	"\x04ping\x18\x01 \x01(\tR\x04ping\"\"\n" +
+	"\x04ping\x18\x01 \x01(\tR\x04ping\"F\n" +
 	"\fPingResponse\x12\x12\n" +
-	"\x04pong\x18\x01 \x01(\tR\x04pong2;\n" +
+	"\x04pong\x18\x01 \x01(\tR\x04pong\x12\"\n" +
+	"\fcapabilities\x18\x02 \x03(\tR\fcapabilities2;\n" +
 	"\x06Pinger\x121\n" +
 	"\x04Ping\x12\x12.proto.PingRequest\x1a\x13.proto.PingResponse\"\x00B\tZ\a./protob\x06proto3"
 

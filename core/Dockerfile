@@ -40,6 +40,29 @@ RUN apk add --no-cache ca-certificates \
 ARG PROTOS_BUILD_DIR=.
 COPY --from=build /go/src/github.com/protos/${PROTOS_BUILD_DIR}/bin/protosd /opt/protos/protosd
 COPY --from=build /go/src/github.com/protos/${PROTOS_BUILD_DIR}/configs/protosd.yaml /opt/protos/protosd.yaml
-RUN chmod +x /opt/protos/protosd
+RUN cat > /opt/protos/entrypoint.sh <<'EOF'
+#!/bin/sh
+set -u
 
-ENTRYPOINT ["/opt/protos/protosd", "--loglevel", "debug", "--config", "/opt/protos/protosd.yaml"]
+mkdir -p /var/log /var/lib/protos/tmp
+log_file=/var/log/protos.log
+fifo="$(mktemp -u /tmp/protos-log.XXXXXX)"
+mkfifo "$fifo"
+
+if (: > /dev/console) 2>/dev/null; then
+  tee -a "$log_file" /dev/console < "$fifo" >/dev/null &
+else
+  tee -a "$log_file" < "$fifo" &
+fi
+tee_pid=$!
+
+/opt/protos/protosd --loglevel debug --config /opt/protos/protosd.yaml > "$fifo" 2>&1
+status=$?
+
+wait "$tee_pid" >/dev/null 2>&1 || true
+rm -f "$fifo"
+exit "$status"
+EOF
+RUN chmod +x /opt/protos/protosd /opt/protos/entrypoint.sh
+
+ENTRYPOINT ["/opt/protos/entrypoint.sh"]

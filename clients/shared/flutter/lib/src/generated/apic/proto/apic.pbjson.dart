@@ -1164,6 +1164,24 @@ const CloudInstance$json = {
       '6': '.apic.CloudInstance.PeersEntry',
       '10': 'peers'
     },
+    {'1': 'provider_status', '3': 14, '4': 1, '5': 9, '10': 'providerStatus'},
+    {
+      '1': 'admin_api_reachability',
+      '3': 15,
+      '4': 1,
+      '5': 9,
+      '10': 'adminApiReachability'
+    },
+    {
+      '1': 'replication_connected',
+      '3': 16,
+      '4': 1,
+      '5': 8,
+      '10': 'replicationConnected'
+    },
+    {'1': 'admin_last_error', '3': 17, '4': 1, '5': 9, '10': 'adminLastError'},
+    {'1': 'admin_last_seen', '3': 18, '4': 1, '5': 9, '10': 'adminLastSeen'},
+    {'1': 'peer_id', '3': 19, '4': 1, '5': 9, '10': 'peerId'},
   ],
   '3': [CloudInstance_PeersEntry$json],
 };
@@ -1187,9 +1205,13 @@ final $typed_data.Uint8List cloudInstanceDescriptor = $convert.base64Decode(
     'GAggASgJUglwdWJsaWNLZXkSMAoUcHVibGljX2tleV93aXJlZ3VhcmQYCSABKAlSEnB1YmxpY0'
     'tleVdpcmVndWFyZBIlCg5wcm90b3NfdmVyc2lvbhgKIAEoCVINcHJvdG9zVmVyc2lvbhIWCgZz'
     'dGF0dXMYCyABKAlSBnN0YXR1cxIiCgxhcmNoaXRlY3R1cmUYDCABKAlSDGFyY2hpdGVjdHVyZR'
-    'I0CgVwZWVycxgNIAMoCzIeLmFwaWMuQ2xvdWRJbnN0YW5jZS5QZWVyc0VudHJ5UgVwZWVycxo4'
-    'CgpQZWVyc0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgJUgV2YWx1ZToCOA'
-    'E=');
+    'I0CgVwZWVycxgNIAMoCzIeLmFwaWMuQ2xvdWRJbnN0YW5jZS5QZWVyc0VudHJ5UgVwZWVycxIn'
+    'Cg9wcm92aWRlcl9zdGF0dXMYDiABKAlSDnByb3ZpZGVyU3RhdHVzEjQKFmFkbWluX2FwaV9yZW'
+    'FjaGFiaWxpdHkYDyABKAlSFGFkbWluQXBpUmVhY2hhYmlsaXR5EjMKFXJlcGxpY2F0aW9uX2Nv'
+    'bm5lY3RlZBgQIAEoCFIUcmVwbGljYXRpb25Db25uZWN0ZWQSKAoQYWRtaW5fbGFzdF9lcnJvch'
+    'gRIAEoCVIOYWRtaW5MYXN0RXJyb3ISJgoPYWRtaW5fbGFzdF9zZWVuGBIgASgJUg1hZG1pbkxh'
+    'c3RTZWVuEhcKB3BlZXJfaWQYEyABKAlSBnBlZXJJZBo4CgpQZWVyc0VudHJ5EhAKA2tleRgBIA'
+    'EoCVIDa2V5EhQKBXZhbHVlGAIgASgJUgV2YWx1ZToCOAE=');
 
 @$core.Deprecated('Use getInstancesRequestDescriptor instead')
 const GetInstancesRequest$json = {
@@ -2036,13 +2058,15 @@ const GetRuntimeStateRequest$json = {
   '1': 'GetRuntimeStateRequest',
   '2': [
     {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
+    {'1': 'allow_stale', '3': 2, '4': 1, '5': 8, '10': 'allowStale'},
   ],
 };
 
 /// Descriptor for `GetRuntimeStateRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List getRuntimeStateRequestDescriptor =
     $convert.base64Decode(
-        'ChZHZXRSdW50aW1lU3RhdGVSZXF1ZXN0EhoKCGluc3RhbmNlGAEgASgJUghpbnN0YW5jZQ==');
+        'ChZHZXRSdW50aW1lU3RhdGVSZXF1ZXN0EhoKCGluc3RhbmNlGAEgASgJUghpbnN0YW5jZRIfCg'
+        'thbGxvd19zdGFsZRgCIAEoCFIKYWxsb3dTdGFsZQ==');
 
 @$core.Deprecated('Use getRuntimeStateResponseDescriptor instead')
 const GetRuntimeStateResponse$json = {
@@ -2170,6 +2194,7 @@ const GetTasksRequest$json = {
     {'1': 'subject_type', '3': 3, '4': 1, '5': 9, '10': 'subjectType'},
     {'1': 'subject_id', '3': 4, '4': 1, '5': 9, '10': 'subjectId'},
     {'1': 'max_results', '3': 5, '4': 1, '5': 5, '10': 'maxResults'},
+    {'1': 'instance', '3': 6, '4': 1, '5': 9, '10': 'instance'},
   ],
 };
 
@@ -2177,7 +2202,8 @@ const GetTasksRequest$json = {
 final $typed_data.Uint8List getTasksRequestDescriptor = $convert.base64Decode(
     'Cg9HZXRUYXNrc1JlcXVlc3QSFgoGc3RhdHVzGAEgASgJUgZzdGF0dXMSFgoGc3RyZWFtGAIgAS'
     'gJUgZzdHJlYW0SIQoMc3ViamVjdF90eXBlGAMgASgJUgtzdWJqZWN0VHlwZRIdCgpzdWJqZWN0'
-    'X2lkGAQgASgJUglzdWJqZWN0SWQSHwoLbWF4X3Jlc3VsdHMYBSABKAVSCm1heFJlc3VsdHM=');
+    'X2lkGAQgASgJUglzdWJqZWN0SWQSHwoLbWF4X3Jlc3VsdHMYBSABKAVSCm1heFJlc3VsdHMSGg'
+    'oIaW5zdGFuY2UYBiABKAlSCGluc3RhbmNl');
 
 @$core.Deprecated('Use getTasksResponseDescriptor instead')
 const GetTasksResponse$json = {
@@ -2199,13 +2225,14 @@ const GetTaskRequest$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
     {'1': 'include_events', '3': 2, '4': 1, '5': 8, '10': 'includeEvents'},
+    {'1': 'instance', '3': 3, '4': 1, '5': 9, '10': 'instance'},
   ],
 };
 
 /// Descriptor for `GetTaskRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List getTaskRequestDescriptor = $convert.base64Decode(
     'Cg5HZXRUYXNrUmVxdWVzdBIOCgJpZBgBIAEoCVICaWQSJQoOaW5jbHVkZV9ldmVudHMYAiABKA'
-    'hSDWluY2x1ZGVFdmVudHM=');
+    'hSDWluY2x1ZGVFdmVudHMSGgoIaW5zdGFuY2UYAyABKAlSCGluc3RhbmNl');
 
 @$core.Deprecated('Use getTaskResponseDescriptor instead')
 const GetTaskResponse$json = {
@@ -2466,6 +2493,8 @@ const RuntimeState$json = {
       '5': 9,
       '10': 'protocolCheckpointDigest'
     },
+    {'1': 'read_consistency', '3': 25, '4': 1, '5': 9, '10': 'readConsistency'},
+    {'1': 'read_error', '3': 26, '4': 1, '5': 9, '10': 'readError'},
   ],
 };
 
@@ -2488,7 +2517,8 @@ final $typed_data.Uint8List runtimeStateDescriptor = $convert.base64Decode(
     'UgxwZWVyU3RhdHVzZXMSQAoNY29tcGF0aWJpbGl0eRgTIAMoCzIaLmFwaWMuUnVudGltZUNvbX'
     'BhdGliaWxpdHlSDWNvbXBhdGliaWxpdHkSLAoSY29udGVudF9zeW5jX3RyYWNlGBQgAygJUhBj'
     'b250ZW50U3luY1RyYWNlEjwKGnByb3RvY29sX2NoZWNrcG9pbnRfZGlnZXN0GBggASgJUhhwcm'
-    '90b2NvbENoZWNrcG9pbnREaWdlc3Q=');
+    '90b2NvbENoZWNrcG9pbnREaWdlc3QSKQoQcmVhZF9jb25zaXN0ZW5jeRgZIAEoCVIPcmVhZENv'
+    'bnNpc3RlbmN5Eh0KCnJlYWRfZXJyb3IYGiABKAlSCXJlYWRFcnJvcg==');
 
 @$core.Deprecated('Use runtimePeerStatusDescriptor instead')
 const RuntimePeerStatus$json = {
@@ -2956,14 +2986,15 @@ const GetInstanceImageRequest$json = {
   '2': [
     {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
     {'1': 'image_ref', '3': 2, '4': 1, '5': 9, '10': 'imageRef'},
+    {'1': 'include_content', '3': 3, '4': 1, '5': 8, '10': 'includeContent'},
   ],
 };
 
 /// Descriptor for `GetInstanceImageRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List getInstanceImageRequestDescriptor =
-    $convert.base64Decode(
-        'ChdHZXRJbnN0YW5jZUltYWdlUmVxdWVzdBIaCghpbnN0YW5jZRgBIAEoCVIIaW5zdGFuY2USGw'
-        'oJaW1hZ2VfcmVmGAIgASgJUghpbWFnZVJlZg==');
+final $typed_data.Uint8List getInstanceImageRequestDescriptor = $convert.base64Decode(
+    'ChdHZXRJbnN0YW5jZUltYWdlUmVxdWVzdBIaCghpbnN0YW5jZRgBIAEoCVIIaW5zdGFuY2USGw'
+    'oJaW1hZ2VfcmVmGAIgASgJUghpbWFnZVJlZhInCg9pbmNsdWRlX2NvbnRlbnQYAyABKAhSDmlu'
+    'Y2x1ZGVDb250ZW50');
 
 @$core.Deprecated('Use getInstanceImageResponseDescriptor instead')
 const GetInstanceImageResponse$json = {

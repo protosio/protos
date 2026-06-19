@@ -84,6 +84,7 @@ type TASK struct {
 	TASK_STREAM    sq.StringField `ddl:"notnull index"`
 	SUBJECT_TYPE   sq.StringField `ddl:"notnull index"`
 	SUBJECT_ID     sq.StringField `ddl:"notnull index"`
+	OWNER_PEER_ID  sq.StringField `ddl:"notnull index"`
 	STATUS         sq.StringField `ddl:"notnull index"`
 	TITLE          sq.StringField `ddl:"notnull"`
 	MESSAGE        sq.StringField `ddl:"notnull"`

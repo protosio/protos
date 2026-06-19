@@ -3,8 +3,8 @@ package p2pv1
 #InitRequest: {
 	origin_device?:            string
 	origin_device_public_key?: string
-	origin_swarmion_addrs?:    [...string]
-	instance_name?:            string
+	origin_swarmion_addrs?: [...string]
+	instance_name?: string
 }
 
 #InitResponse: {
@@ -27,19 +27,88 @@ package p2pv1
 #GetNetworkStateResponse: state?: #NetworkState
 #GetExitRoutesRequest: {}
 #GetExitRoutesResponse: routes?: [...#ExitRoute]
-#GetRuntimeStateRequest: {}
-#GetRuntimeStateResponse: state?: #RuntimeState
+#GetRuntimeStateRequest: allow_stale?: bool
+#GetRuntimeStateResponse: state?:      #RuntimeState
+#Task: {
+	id?:            string
+	stream?:        string
+	subject_type?:  string
+	subject_id?:    string
+	status?:        string
+	title?:         string
+	message?:       string
+	progress?:      int
+	payload_json?:  string
+	result_json?:   string
+	error_message?: string
+	attempts?:      int
+	max_attempts?:  int
+	created_at?:    string
+	updated_at?:    string
+	started_at?:    string
+	finished_at?:   string
+}
+#TaskEvent: {
+	id?:           string
+	task_id?:      string
+	status?:       string
+	message?:      string
+	progress?:     int
+	details_json?: string
+	created_at?:   string
+}
+#GetTasksRequest: {
+	status?:       string
+	stream?:       string
+	subject_type?: string
+	subject_id?:   string
+	max_results?:  int
+}
+#GetTasksResponse: {
+	tasks?: [...#Task]
+	truncated?: bool
+}
+#GetTaskRequest: {
+	id?:             string
+	include_events?: bool
+}
+#GetTaskResponse: {
+	task?: #Task
+	events?: [...#TaskEvent]
+}
+#TaskProgressUpdate: {
+	task_id?:      string
+	status?:       string
+	message?:      string
+	progress?:     int
+	details_json?: string
+	created_at?:   string
+	durable?:      bool
+}
+#WatchTaskRequest: {
+	id?:                    string
+	include_snapshot?:      bool
+	include_events?:        bool
+	heartbeat_interval_ms?: uint
+}
+#WatchTaskResponse: {
+	sequence?: uint
+	task?:     #Task
+	events?: [...#TaskEvent]
+	update?:    #TaskProgressUpdate
+	heartbeat?: bool
+}
 #NetworkState: {
-	module?:          string
-	up?:              bool
-	interface_name?:  string
-	interfaces?:      [...#NetworkInterface]
-	addresses?:       [...#NetworkAddress]
-	routes?:          [...#NetworkRoute]
+	module?:         string
+	up?:             bool
+	interface_name?: string
+	interfaces?: [...#NetworkInterface]
+	addresses?: [...#NetworkAddress]
+	routes?: [...#NetworkRoute]
 	wireguard_peers?: [...#WireGuardPeer]
 	firewall_tables?: [...#FirewallTable]
-	dns?:             [...#DNSState]
-	messages?:        [...string]
+	dns?: [...#DNSState]
+	messages?: [...string]
 }
 #NetworkInterface: {
 	name?:        string
@@ -69,9 +138,9 @@ package p2pv1
 	kind?:           string
 }
 #WireGuardPeer: {
-	public_key?:       string
-	endpoint?:         string
-	allowed_ips?:      [...string]
+	public_key?: string
+	endpoint?:   string
+	allowed_ips?: [...string]
 	latest_handshake?: string
 	rx_bytes?:         uint
 	tx_bytes?:         uint
@@ -86,20 +155,20 @@ package p2pv1
 	type?:     string
 	hook?:     string
 	priority?: string
-	rules?:    [...#FirewallRule]
+	rules?: [...#FirewallRule]
 }
 #FirewallRule: {
 	expressions?: [...string]
-	packets?:     uint
-	bytes?:       uint
+	packets?: uint
+	bytes?:   uint
 }
 #DNSState: {
-	scope?:   string
-	domain?:  string
+	scope?:  string
+	domain?: string
 	servers?: [...string]
-	port?:    int
-	active?:  bool
-	source?:  string
+	port?:   int
+	active?: bool
+	source?: string
 }
 #ExitRoute: {
 	id?:          string
@@ -107,40 +176,42 @@ package p2pv1
 	instance_id?: string
 	status?:      string
 	dns_server?:  string
-	cidrs?:       [...string]
+	cidrs?: [...string]
 }
 #RuntimeState: {
-	peer_id?:                         string
-	manifest_digest?:                 string
-	checkpoint_root_hash?:            string
-	tentative_root_hash?:             string
-	protocol_checkpoint_root_hash?:   string
-	durable_main_root_hash?:          string
-	state_providers?:                 [...string]
-	connected_peers?:                 [...string]
-	fatal_state?:                     string
-	runtime_refresh_pending?:         bool
-	runtime_refresh_last_error?:      string
-	runtime_checkpoint_pending?:      bool
-	runtime_checkpoint_last_error?:   string
-	runtime_materialization_policy?:  string
-	peer_statuses?:                  [...#RuntimePeerStatus]
-	compatibility?:                  [...#RuntimeCompatibility]
-	content_sync_trace?:              [...string]
-	protocol_checkpoint_digest?:      string
+	peer_id?:                       string
+	manifest_digest?:               string
+	checkpoint_root_hash?:          string
+	tentative_root_hash?:           string
+	protocol_checkpoint_root_hash?: string
+	durable_main_root_hash?:        string
+	state_providers?: [...string]
+	connected_peers?: [...string]
+	fatal_state?:                    string
+	runtime_refresh_pending?:        bool
+	runtime_refresh_last_error?:     string
+	runtime_checkpoint_pending?:     bool
+	runtime_checkpoint_last_error?:  string
+	runtime_materialization_policy?: string
+	peer_statuses?: [...#RuntimePeerStatus]
+	compatibility?: [...#RuntimeCompatibility]
+	content_sync_trace?: [...string]
+	protocol_checkpoint_digest?: string
+	read_consistency?:           string
+	read_error?:                 string
 }
 #RuntimePeerStatus: {
-	peer_id?:          string
-	connected?:        bool
-	dialable?:         bool
-	state_provider?:   bool
-	compatible?:       bool
-	incompatible?:     bool
-	ignored?:          bool
-	relay_only?:       bool
-	addresses?:        [...string]
+	peer_id?:        string
+	connected?:      bool
+	dialable?:       bool
+	state_provider?: bool
+	compatible?:     bool
+	incompatible?:   bool
+	ignored?:        bool
+	relay_only?:     bool
+	addresses?: [...string]
 	last_dial_errors?: [string]: string
-	reason?:           string
+	reason?: string
 }
 #RuntimeCompatibility: {
 	peer_id?:       string
@@ -175,6 +246,9 @@ contract: {
 				{name: "GetNetworkState", request: "GetNetworkStateRequest", response: "GetNetworkStateResponse"},
 				{name: "GetExitRoutes", request: "GetExitRoutesRequest", response: "GetExitRoutesResponse"},
 				{name: "GetRuntimeState", request: "GetRuntimeStateRequest", response: "GetRuntimeStateResponse"},
+				{name: "GetTasks", request: "GetTasksRequest", response: "GetTasksResponse"},
+				{name: "GetTask", request: "GetTaskRequest", response: "GetTaskResponse"},
+				{name: "WatchTask", request: "WatchTaskRequest", response: "WatchTaskResponse", response_stream: true},
 			]
 		}]
 		declarations: [
@@ -203,9 +277,80 @@ contract: {
 			{kind: "message", name: "GetExitRoutesResponse", fields: [
 				{rule: "repeated", type: "ExitRoute", name: "routes", number: 1},
 			]},
-			{kind: "message", name: "GetRuntimeStateRequest", fields: []},
+			{kind: "message", name: "GetRuntimeStateRequest", fields: [
+				{type: "bool", name: "allow_stale", number: 1},
+			]},
 			{kind: "message", name: "GetRuntimeStateResponse", fields: [
 				{type: "RuntimeState", name: "state", number: 1},
+			]},
+			{kind: "message", name: "Task", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "stream", number: 2},
+				{type: "string", name: "subject_type", number: 3},
+				{type: "string", name: "subject_id", number: 4},
+				{type: "string", name: "status", number: 5},
+				{type: "string", name: "title", number: 6},
+				{type: "string", name: "message", number: 7},
+				{type: "int32", name: "progress", number: 8},
+				{type: "string", name: "payload_json", number: 9},
+				{type: "string", name: "result_json", number: 10},
+				{type: "string", name: "error_message", number: 11},
+				{type: "int32", name: "attempts", number: 12},
+				{type: "int32", name: "max_attempts", number: 13},
+				{type: "string", name: "created_at", number: 14},
+				{type: "string", name: "updated_at", number: 15},
+				{type: "string", name: "started_at", number: 16},
+				{type: "string", name: "finished_at", number: 17},
+			]},
+			{kind: "message", name: "TaskEvent", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "task_id", number: 2},
+				{type: "string", name: "status", number: 3},
+				{type: "string", name: "message", number: 4},
+				{type: "int32", name: "progress", number: 5},
+				{type: "string", name: "details_json", number: 6},
+				{type: "string", name: "created_at", number: 7},
+			]},
+			{kind: "message", name: "GetTasksRequest", fields: [
+				{type: "string", name: "status", number: 1},
+				{type: "string", name: "stream", number: 2},
+				{type: "string", name: "subject_type", number: 3},
+				{type: "string", name: "subject_id", number: 4},
+				{type: "int32", name: "max_results", number: 5},
+			]},
+			{kind: "message", name: "GetTasksResponse", fields: [
+				{rule: "repeated", type: "Task", name: "tasks", number: 1},
+				{type: "bool", name: "truncated", number: 2},
+			]},
+			{kind: "message", name: "GetTaskRequest", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "bool", name: "include_events", number: 2},
+			]},
+			{kind: "message", name: "GetTaskResponse", fields: [
+				{type: "Task", name: "task", number: 1},
+				{rule: "repeated", type: "TaskEvent", name: "events", number: 2},
+			]},
+			{kind: "message", name: "TaskProgressUpdate", fields: [
+				{type: "string", name: "task_id", number: 1},
+				{type: "string", name: "status", number: 2},
+				{type: "string", name: "message", number: 3},
+				{type: "int32", name: "progress", number: 4},
+				{type: "string", name: "details_json", number: 5},
+				{type: "string", name: "created_at", number: 6},
+				{type: "bool", name: "durable", number: 7},
+			]},
+			{kind: "message", name: "WatchTaskRequest", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "bool", name: "include_snapshot", number: 2},
+				{type: "bool", name: "include_events", number: 3},
+				{type: "uint32", name: "heartbeat_interval_ms", number: 4},
+			]},
+			{kind: "message", name: "WatchTaskResponse", fields: [
+				{type: "uint64", name: "sequence", number: 1},
+				{type: "Task", name: "task", number: 2},
+				{rule: "repeated", type: "TaskEvent", name: "events", number: 3},
+				{type: "TaskProgressUpdate", name: "update", number: 4},
+				{type: "bool", name: "heartbeat", number: 5},
 			]},
 			{kind: "message", name: "NetworkState", fields: [
 				{type: "string", name: "module", number: 1},
@@ -306,6 +451,8 @@ contract: {
 				{rule: "repeated", type: "RuntimeCompatibility", name: "compatibility", number: 19},
 				{rule: "repeated", type: "string", name: "content_sync_trace", number: 20},
 				{type: "string", name: "protocol_checkpoint_digest", number: 24},
+				{type: "string", name: "read_consistency", number: 25},
+				{type: "string", name: "read_error", number: 26},
 			]},
 			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
@@ -337,12 +484,12 @@ lineage: {
 	schemas: [{
 		version: [0, 0]
 		schema: {
-			InitRequest?:       #InitRequest
-			InitResponse?:      #InitResponse
-			GetPeersRequest?:   #GetPeersRequest
-			GetPeersResponse?:  #GetPeersResponse
-			GetLogsRequest?:    #GetLogsRequest
-			GetLogsResponse?:   #GetLogsResponse
+			InitRequest?:             #InitRequest
+			InitResponse?:            #InitResponse
+			GetPeersRequest?:         #GetPeersRequest
+			GetPeersResponse?:        #GetPeersResponse
+			GetLogsRequest?:          #GetLogsRequest
+			GetLogsResponse?:         #GetLogsResponse
 			GetNetworkStateRequest?:  #GetNetworkStateRequest
 			GetNetworkStateResponse?: #GetNetworkStateResponse
 			NetworkState?:            #NetworkState
@@ -355,13 +502,22 @@ lineage: {
 			FirewallRule?:            #FirewallRule
 			DNSState?:                #DNSState
 			ExitRoute?:               #ExitRoute
-			GetExitRoutesRequest?:     #GetExitRoutesRequest
-			GetExitRoutesResponse?:    #GetExitRoutesResponse
-			GetRuntimeStateRequest?:   #GetRuntimeStateRequest
-			GetRuntimeStateResponse?:  #GetRuntimeStateResponse
-			RuntimeState?:             #RuntimeState
-			RuntimePeerStatus?:        #RuntimePeerStatus
-			RuntimeCompatibility?:     #RuntimeCompatibility
+			GetExitRoutesRequest?:    #GetExitRoutesRequest
+			GetExitRoutesResponse?:   #GetExitRoutesResponse
+			GetRuntimeStateRequest?:  #GetRuntimeStateRequest
+			GetRuntimeStateResponse?: #GetRuntimeStateResponse
+			Task?:                    #Task
+			TaskEvent?:               #TaskEvent
+			GetTasksRequest?:         #GetTasksRequest
+			GetTasksResponse?:        #GetTasksResponse
+			GetTaskRequest?:          #GetTaskRequest
+			GetTaskResponse?:         #GetTaskResponse
+			TaskProgressUpdate?:      #TaskProgressUpdate
+			WatchTaskRequest?:        #WatchTaskRequest
+			WatchTaskResponse?:       #WatchTaskResponse
+			RuntimeState?:            #RuntimeState
+			RuntimePeerStatus?:       #RuntimePeerStatus
+			RuntimeCompatibility?:    #RuntimeCompatibility
 		}
 	}]
 	lenses: []

@@ -204,6 +204,7 @@ package cloudkit
 		"/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt",
 		"/run/config/protos:/run/config/protos:ro",
 		"/run/containerd/containerd.sock:/run/containerd/containerd.sock",
+		"/sys:/sys",
 		"/var/log:/var/log",
 	]
 	mounts: [

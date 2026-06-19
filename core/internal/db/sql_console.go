@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -49,41 +50,37 @@ func (db *DB) ExecuteSQL(ctx context.Context, statement string, maxRows int) (SQ
 }
 
 func (db *DB) executeSQLQuery(ctx context.Context, statement string, maxRows int) (SQLResult, error) {
-	rows, err := db.QueryContext(ctx, statement)
-	if err != nil {
-		return SQLResult{}, err
-	}
-	defer rows.Close()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return SQLResult{}, err
-	}
-	values := make([]any, len(columns))
-	scan := make([]any, len(columns))
-	for i := range values {
-		scan[i] = &values[i]
-	}
-
-	result := SQLResult{Columns: columns}
-	for rows.Next() {
-		if len(result.Rows) >= maxRows {
-			result.Truncated = true
-			break
+	var result SQLResult
+	if err := db.ReadRows(ctx, statement, nil, func(rows *sql.Rows) error {
+		columns, err := rows.Columns()
+		if err != nil {
+			return err
 		}
+		values := make([]any, len(columns))
+		scan := make([]any, len(columns))
 		for i := range values {
-			values[i] = nil
+			scan[i] = &values[i]
 		}
-		if err := rows.Scan(scan...); err != nil {
-			return SQLResult{}, err
+		result = SQLResult{Columns: columns}
+		for rows.Next() {
+			if len(result.Rows) >= maxRows {
+				result.Truncated = true
+				break
+			}
+			for i := range values {
+				values[i] = nil
+			}
+			if err := rows.Scan(scan...); err != nil {
+				return err
+			}
+			resultRow := SQLRow{Cells: make([]SQLCell, len(columns))}
+			for i, value := range values {
+				resultRow.Cells[i] = formatSQLCell(value)
+			}
+			result.Rows = append(result.Rows, resultRow)
 		}
-		resultRow := SQLRow{Cells: make([]SQLCell, len(columns))}
-		for i, value := range values {
-			resultRow.Cells[i] = formatSQLCell(value)
-		}
-		result.Rows = append(result.Rows, resultRow)
-	}
-	if err := rows.Err(); err != nil {
+		return nil
+	}); err != nil {
 		return SQLResult{}, err
 	}
 	result.Message = fmt.Sprintf("%d rows", len(result.Rows))

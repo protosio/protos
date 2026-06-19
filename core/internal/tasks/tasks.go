@@ -30,6 +30,7 @@ type Record struct {
 	Stream       string
 	SubjectType  string
 	SubjectID    string
+	OwnerPeerID  string
 	Status       Status
 	Title        string
 	Message      string
@@ -71,6 +72,7 @@ type EnqueueOptions[P any] struct {
 	Stream      string
 	SubjectType string
 	SubjectID   string
+	OwnerPeerID string
 	Title       string
 	Message     string
 	Payload     P
@@ -161,6 +163,7 @@ type Manager struct {
 	db               *db.DB
 	mu               sync.RWMutex
 	streams          map[string]registeredStream
+	executorPeerID   string
 	progressMu       sync.Mutex
 	progressSeq      uint64
 	nextWatcherID    uint64
@@ -172,9 +175,32 @@ func NewManager(database *db.DB) *Manager {
 	return &Manager{
 		db:               database,
 		streams:          map[string]registeredStream{},
+		executorPeerID:   "local",
 		progressWatchers: map[string]map[uint64]chan ProgressUpdate{},
 		latestProgress:   map[string]ProgressUpdate{},
 	}
+}
+
+func (m *Manager) SetExecutorPeerID(peerID string) {
+	if m == nil {
+		return
+	}
+	peerID = strings.TrimSpace(peerID)
+	if peerID == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.executorPeerID = peerID
+}
+
+func (m *Manager) ExecutorPeerID() string {
+	if m == nil {
+		return ""
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return strings.TrimSpace(m.executorPeerID)
 }
 
 func Register[P any, R any](manager *Manager, stream Stream[P, R]) error {
@@ -212,6 +238,10 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 	opts.Stream = strings.TrimSpace(opts.Stream)
 	opts.SubjectType = strings.TrimSpace(opts.SubjectType)
 	opts.SubjectID = strings.TrimSpace(opts.SubjectID)
+	opts.OwnerPeerID = strings.TrimSpace(opts.OwnerPeerID)
+	if opts.OwnerPeerID == "" {
+		opts.OwnerPeerID = manager.ExecutorPeerID()
+	}
 	opts.Title = strings.TrimSpace(opts.Title)
 	if opts.Stream == "" {
 		return Record{}, fmt.Errorf("task stream is empty")
@@ -221,6 +251,9 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 	}
 	if opts.SubjectID == "" {
 		return Record{}, fmt.Errorf("task subject id is empty")
+	}
+	if opts.OwnerPeerID == "" {
+		return Record{}, fmt.Errorf("task owner peer id is empty")
 	}
 	if opts.Title == "" {
 		opts.Title = opts.Stream
@@ -246,6 +279,7 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 		Stream:      opts.Stream,
 		SubjectType: opts.SubjectType,
 		SubjectID:   opts.SubjectID,
+		OwnerPeerID: opts.OwnerPeerID,
 		Status:      StatusPending,
 		Title:       opts.Title,
 		Message:     strings.TrimSpace(opts.Message),
@@ -260,7 +294,7 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 		record.Message = "queued"
 	}
 	event := taskEvent(record, nil)
-	if err := db.Insert(manager.db, createTaskInsertMapper(record), createTaskEventInsertMapper(event)); err != nil {
+	if err := db.InsertPublished(manager.db, createTaskInsertMapper(record), createTaskEventInsertMapper(event)); err != nil {
 		return Record{}, err
 	}
 	manager.publishProgress(recordProgressUpdate(record, event.Details, true))
@@ -270,6 +304,10 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Record, bool, error) {
 	if manager == nil {
 		return Record{}, false, fmt.Errorf("task manager is nil")
+	}
+	opts.OwnerPeerID = strings.TrimSpace(opts.OwnerPeerID)
+	if opts.OwnerPeerID == "" {
+		opts.OwnerPeerID = manager.ExecutorPeerID()
 	}
 	reuseStatuses := opts.ReuseStatuses
 	if len(reuseStatuses) == 0 {
@@ -283,6 +321,7 @@ func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Recor
 			Stream:      opts.Stream,
 			SubjectType: opts.SubjectType,
 			SubjectID:   opts.SubjectID,
+			OwnerPeerID: opts.OwnerPeerID,
 			Status:      status,
 		}, true)
 		if err != nil {
@@ -332,7 +371,11 @@ func (m *Manager) RunPending(ctx context.Context) error {
 	if m == nil || m.db == nil || !m.db.Initialized() {
 		return nil
 	}
-	records, err := selectTaskRecords(m.db, taskQueryFilters{Status: StatusPending}, true)
+	ownerPeerID := m.ExecutorPeerID()
+	if ownerPeerID == "" {
+		return fmt.Errorf("task executor peer id is empty")
+	}
+	records, err := selectTaskRecords(m.db, taskQueryFilters{Status: StatusPending, OwnerPeerID: ownerPeerID}, true)
 	if err != nil {
 		return err
 	}
@@ -615,10 +658,7 @@ func (m *Manager) markRunning(record Record) error {
 }
 
 func (m *Manager) saveTaskUpdate(record Record, event Event) error {
-	if err := db.Update(m.db, createTaskUpdateMapper(record)); err != nil {
-		return err
-	}
-	if err := db.Insert(m.db, createTaskEventInsertMapper(event)); err != nil {
+	if err := db.UpdateAndInsertPublished(m.db, []db.UpdateMapper{createTaskUpdateMapper(record)}, []db.InsertMapper{createTaskEventInsertMapper(event)}); err != nil {
 		return err
 	}
 	m.publishProgress(recordProgressUpdate(record, event.Details, true))

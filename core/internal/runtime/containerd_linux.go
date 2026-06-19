@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/images"
@@ -27,8 +29,10 @@ import (
 
 const (
 	protosNamespace              string = "protos"
+	containerdAppCgroupRoot      string = "/protos-apps"
 	defaultContainerdSnapshotter string = "native"
 	containerdSnapshotterEnv     string = "PROTOS_CONTAINERD_SNAPSHOTTER"
+	imageReadinessMaxAttempts    int    = 3
 )
 
 var log = util.GetLogger("platform")
@@ -109,6 +113,7 @@ func (cdp *containerdPlatform) NewSandbox(name string, appID string, imageRef st
 	opts := []oci.SpecOpts{
 		oci.WithImageConfig(image),
 		oci.WithEnv([]string{fmt.Sprintf("APPID=%s", appID)}),
+		oci.WithCgroup(path.Join(containerdAppCgroupRoot, appID)),
 	}
 
 	if persistence {
@@ -181,15 +186,142 @@ func (cdp *containerdPlatform) GetImage(imageRef string) (PlatformImage, error) 
 }
 
 func (cdp *containerdPlatform) ImageExistsLocally(id string) (bool, error) {
-	_, err := cdp.GetImage(id)
+	ctx := namespaces.WithNamespace(context.Background(), protosNamespace)
+	image, err := cdp.client.GetImage(ctx, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errdefs.IsNotFound(err) || strings.Contains(strings.ToLower(err.Error()), "not found") {
 			return false, nil
 		}
-		return false, fmt.Errorf("failed to check local image for installer %s: %w", id, err)
+		return false, fmt.Errorf("failed to retrieve local image %s: %w", id, err)
 	}
 
+	cs := cdp.client.ContentStore()
+	architectures, err := images.Platforms(ctx, cs, image.Target())
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect local image %s platforms: %w", id, err)
+	}
+	archFound := false
+	for _, architecture := range architectures {
+		if architecture.Architecture == runtime.GOARCH {
+			archFound = true
+			break
+		}
+	}
+	if !archFound {
+		return false, fmt.Errorf("image %s with arch %s not found", id, runtime.GOARCH)
+	}
+
+	if err := cdp.verifyImageReady(ctx, image); err != nil {
+		log.Infof("local image %s is not ready and will be resolved again: %v", id, err)
+		return false, nil
+	}
 	return true, nil
+}
+
+func (cdp *containerdPlatform) verifyImageReady(ctx context.Context, image client.Image) error {
+	descriptors, err := cdp.imageContentDescriptors(ctx, image.Target())
+	if err != nil {
+		return fmt.Errorf("inspect content descriptors: %w", err)
+	}
+	missing, err := cdp.missingImageContent(ctx, descriptors)
+	if err != nil {
+		return err
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing %d content blob(s), first missing digest %s", len(missing), missing[0].Digest)
+	}
+	if err := cdp.ensureImageReadyForSandbox(ctx, image); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cdp *containerdPlatform) ensureImageUnpacked(ctx context.Context, image client.Image) error {
+	if err := image.Unpack(ctx, cdp.snapshotter); err != nil && !errdefs.IsAlreadyExists(err) {
+		return fmt.Errorf("unpack image: %w", err)
+	}
+	unpacked, err := image.IsUnpacked(ctx, cdp.snapshotter)
+	if err != nil {
+		return fmt.Errorf("check unpacked image: %w", err)
+	}
+	if !unpacked {
+		return fmt.Errorf("image is not unpacked for snapshotter %s", cdp.snapshotter)
+	}
+	return nil
+}
+
+func (cdp *containerdPlatform) ensureImageReadyForSandbox(ctx context.Context, image client.Image) error {
+	var lastErr error
+	for attempt := 1; attempt <= imageReadinessMaxAttempts; attempt++ {
+		if err := cdp.ensureImageUnpacked(ctx, image); err != nil {
+			return err
+		}
+		if err := cdp.verifyImageSnapshot(ctx, image); err != nil {
+			lastErr = err
+			if !retryableImageSnapshotReadinessError(err) || attempt == imageReadinessMaxAttempts {
+				return err
+			}
+			delay := time.Duration(attempt) * 250 * time.Millisecond
+			log.Warnf("image %s snapshot readiness failed after unpack; retrying unpack attempt %d/%d after %s: %v", image.Name(), attempt+1, imageReadinessMaxAttempts, delay, err)
+			if err := sleepContext(ctx, delay); err != nil {
+				return err
+			}
+			continue
+		}
+		if attempt > 1 {
+			log.Infof("image %s snapshot readiness recovered on attempt %d/%d", image.Name(), attempt, imageReadinessMaxAttempts)
+		}
+		return nil
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return nil
+}
+
+func (cdp *containerdPlatform) verifyImageSnapshot(ctx context.Context, image client.Image) error {
+	checkID := fmt.Sprintf("protos-image-check-%d", time.Now().UnixNano())
+	cnt, err := cdp.client.NewContainer(
+		ctx,
+		checkID,
+		client.WithImage(image),
+		client.WithSnapshotter(cdp.snapshotter),
+		client.WithNewSnapshot(checkID, image),
+		client.WithNewSpec(oci.WithImageConfig(image), oci.WithProcessArgs("true")),
+		client.WithContainerLabels(map[string]string{"platform": protosNamespace, "purpose": "image-readiness-check"}),
+	)
+	if err != nil {
+		return fmt.Errorf("create verification snapshot: %w", err)
+	}
+	if err := cnt.Delete(ctx, client.WithSnapshotCleanup); err != nil {
+		log.Warnf("failed to delete image verification snapshot %s: %v", checkID, err)
+	}
+	return nil
+}
+
+func retryableImageSnapshotReadinessError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errdefs.IsNotFound(err) {
+		message := strings.ToLower(err.Error())
+		return strings.Contains(message, "snapshot")
+	}
+	return false
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) {

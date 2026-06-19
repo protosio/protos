@@ -28,6 +28,7 @@ import (
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/tasks"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
 )
@@ -35,14 +36,18 @@ import (
 var log = util.GetLogger("p2p")
 
 const (
-	protosRPCProtocol           = "/protos/rpc/0.0.1"
-	swarmionBootstrapProtocol   = "/protos/swarmion-bootstrap/0.0.1"
-	destinationQUICIPv4Template = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
-	destinationQUICIPv6Template = "/ip6/%s/udp/%d/quic-v1/p2p/%s"
-	destinationTCPIPv4Template  = "/ip4/%s/tcp/%d/p2p/%s"
-	destinationTCPIPv6Template  = "/ip6/%s/tcp/%d/p2p/%s"
-	peerRetryInterval           = 10 * time.Second
-	peerRetryMaxBackoff         = time.Minute
+	protosRPCProtocol               = "/protos/rpc/0.0.1"
+	swarmionBootstrapProtocol       = "/protos/swarmion-bootstrap/0.0.1"
+	imageBlobStreamProtocol         = "/protos/image-blob/0.0.1"
+	peerCapabilityImageContent      = "image.content"
+	peerCapabilitySwarmionTransport = "swarmion.transport"
+	destinationQUICIPv4Template     = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
+	destinationQUICIPv6Template     = "/ip6/%s/udp/%d/quic-v1/p2p/%s"
+	destinationTCPIPv4Template      = "/ip4/%s/tcp/%d/p2p/%s"
+	destinationTCPIPv6Template      = "/ip6/%s/tcp/%d/p2p/%s"
+	peerRetryInterval               = 10 * time.Second
+	peerRetryMaxBackoff             = time.Minute
+	peerConnectDialTimeout          = 10 * time.Second
 )
 
 type AppManager interface {
@@ -53,10 +58,9 @@ type AppManager interface {
 type ImageManager interface {
 	DescribeImage(ctx context.Context, imageRef string) (imageRefOut string, targetDigest string, platform string, labels map[string]string, found bool, err error)
 	GetImageContent(ctx context.Context, imageRef string) (imageregistry.ImageContent, bool, error)
-	ReadImageBlobChunk(ctx context.Context, digest string, offset uint64, length uint64) ([]byte, bool, error)
+	OpenImageBlob(ctx context.Context, digest string) (imageregistry.ImageBlobReader, error)
 	MissingImageContent(ctx context.Context, descriptors []imageregistry.Descriptor) ([]imageregistry.Descriptor, error)
-	ImportImageBlob(ctx context.Context, descriptor imageregistry.Descriptor, blobPath string) error
-	CreateImageFromContent(ctx context.Context, imageRef string, target imageregistry.Descriptor, labels map[string]string) error
+	EnsureImageContent(ctx context.Context, request imageregistry.ImageContentImport, progress func(int, string, any) error) error
 	LoadImageArchive(ctx context.Context, archivePath string, imageRef string) (imageregistry.LoadedImage, error)
 }
 
@@ -91,7 +95,36 @@ type Client struct {
 	p2pproto.ImagesClient
 	p2pproto.InstanceClient
 
+	capabilitiesMu sync.RWMutex
+	capabilities   map[string]struct{}
+
 	grpcConnection *grpc.ClientConn
+}
+
+func (client *Client) setCapabilities(capabilities []string) {
+	if client == nil {
+		return
+	}
+	next := map[string]struct{}{}
+	for _, capability := range capabilities {
+		capability = strings.TrimSpace(capability)
+		if capability != "" {
+			next[capability] = struct{}{}
+		}
+	}
+	client.capabilitiesMu.Lock()
+	client.capabilities = next
+	client.capabilitiesMu.Unlock()
+}
+
+func (client *Client) supportsCapability(capability string) bool {
+	if client == nil {
+		return false
+	}
+	client.capabilitiesMu.RLock()
+	defer client.capabilitiesMu.RUnlock()
+	_, found := client.capabilities[capability]
+	return found
 }
 
 type PeerStatus string
@@ -133,6 +166,7 @@ type P2P struct {
 	host         host.Host
 	appManager   AppManager
 	imageManager ImageManager
+	taskManager  *tasks.Manager
 	grpcServer   *grpc.Server
 	externalDB   ExternalDB
 	network      NetworkInspector
@@ -142,6 +176,8 @@ type P2P struct {
 
 	initMu     sync.RWMutex
 	initPeerID peer.ID
+	grpcMu     sync.Mutex
+	grpcGen    uint64
 
 	// the index is the peer ID
 	machines *util.Map[string, Machine]
@@ -172,6 +208,13 @@ func (p2p *P2P) SetImageManager(imageManager ImageManager) {
 		return
 	}
 	p2p.imageManager = imageManager
+}
+
+func (p2p *P2P) SetTaskManager(taskManager *tasks.Manager) {
+	if p2p == nil {
+		return
+	}
+	p2p.taskManager = taskManager
 }
 
 func (p2p *P2P) PeerID() string {
@@ -236,22 +279,48 @@ func (p2p *P2P) pubKeyToPeerID(pubKey string) (peer.ID, error) {
 	return peerID, nil
 }
 
-func (p2p *P2P) GetClient(id string) (*Client, error) {
+func (p2p *P2P) GetClient(ctx context.Context, id string) (*Client, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if p2p == nil {
+		return nil, fmt.Errorf("p2p manager is not configured")
+	}
 	client, found := p2p.connectedClient(id)
-	if !found {
-		for peerID, machine := range p2p.machines.Snapshot() {
-			if machine.GetID() != id && machine.GetName() != id {
-				continue
-			}
-			client, found = p2p.connectedClient(peerID)
-			if found {
-				return client, nil
-			}
-		}
-		return nil, fmt.Errorf("could not find RPC client for instance '%s'", id)
+	if found {
+		return client, nil
 	}
 
+	machinePeerID, machine, found := p2p.resolveMachineByIdentity(id)
+	if !found {
+		return nil, fmt.Errorf("could not find RPC client for instance '%s'", id)
+	}
+	if client, found = p2p.connectedClient(machinePeerID); found {
+		return client, nil
+	}
+	client, err := p2p.connectPeer(ctx, machinePeerID, machine)
+	if err != nil {
+		p2p.requestReconcile()
+		return nil, fmt.Errorf("could not connect RPC client for instance '%s': %w", id, err)
+	}
+	if client == nil {
+		p2p.requestReconcile()
+		return nil, fmt.Errorf("could not find RPC client for instance '%s'", id)
+	}
 	return client, nil
+}
+
+func (p2p *P2P) resolveMachineByIdentity(id string) (string, Machine, bool) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "", nil, false
+	}
+	for peerID, machine := range p2p.machines.Snapshot() {
+		if peerID == id || machine.GetID() == id || machine.GetName() == id {
+			return peerID, machine, true
+		}
+	}
+	return "", nil, false
 }
 
 func (p2p *P2P) connectedClient(peerIDString string) (*Client, bool) {
@@ -267,13 +336,22 @@ func (p2p *P2P) connectedClient(peerIDString string) (*Client, bool) {
 		p2p.clients.Delete(peerIDString)
 		return nil, false
 	}
-	if p2p.host.Network().Connectedness(peerID) != network.Connected {
+	if !usablePeerConnectedness(p2p.host.Network().Connectedness(peerID)) {
 		p2p.clients.Delete(peerIDString)
 		p2p.markPeerDisconnected(peerIDString)
 		p2p.requestReconcile()
 		return nil, false
 	}
 	return client, true
+}
+
+func usablePeerConnectedness(connectedness network.Connectedness) bool {
+	switch connectedness {
+	case network.Connected, network.Limited:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p2p *P2P) GetPeerState(id string) (PeerState, bool) {
@@ -327,6 +405,18 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	log.Debugf("configuring p2p peers: %v", machines)
 
 	for _, machine := range machines {
+		localPeerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
+		if err != nil {
+			return fmt.Errorf("failed to get peer ID from public key: %w", err)
+		}
+		localPeerIDString := localPeerID.String()
+		if p2p.isLocalPeerID(localPeerIDString) {
+			p2p.machines.Delete(localPeerIDString)
+			p2p.peerStates.Delete(localPeerIDString)
+			p2p.clients.Delete(localPeerIDString)
+			p2p.pendingPeers.Delete(localPeerIDString)
+			continue
+		}
 		peerID, err := p2p.trackPeer(machine)
 		if err != nil {
 			return err
@@ -369,6 +459,11 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	return nil
 }
 
+func (p2p *P2P) isLocalPeerID(peerID string) bool {
+	peerID = strings.TrimSpace(peerID)
+	return peerID != "" && peerID == strings.TrimSpace(p2p.PeerID())
+}
+
 // AddPeer adds a peer to the p2p manager
 func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 	peerIDString, err := p2p.trackPeer(machine)
@@ -384,8 +479,11 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 	return client, err
 }
 
-func (p2p *P2P) connectExternalDBPeer(machine Machine) {
+func (p2p *P2P) connectExternalDBPeer(peerIDString string, machine Machine, client *Client) {
 	if p2p == nil || p2p.externalDB == nil || machine == nil {
+		return
+	}
+	if client == nil || !client.supportsCapability(peerCapabilitySwarmionTransport) {
 		return
 	}
 	ips := p2p.knownPeerIPStrings(machine)
@@ -395,6 +493,10 @@ func (p2p *P2P) connectExternalDBPeer(machine Machine) {
 	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
 	if err != nil {
 		log.Debugf("failed to get DB peer ID for %s: %v", machine.GetID(), err)
+		return
+	}
+	if peerIDString = strings.TrimSpace(peerIDString); peerIDString != "" && peerID.String() != peerIDString {
+		log.Debugf("skipping DB peer connect for %s: machine public key resolves to peer %s", peerIDString, peerID.String())
 		return
 	}
 
@@ -447,7 +549,7 @@ func (p2p *P2P) connectPeer(ctx context.Context, peerIDString string, machine Ma
 	client, found := p2p.connectedClient(peerIDString)
 	if found {
 		p2p.markPeerConnected(peerIDString, machine)
-		p2p.connectExternalDBPeer(machine)
+		p2p.connectExternalDBPeer(peerIDString, machine, client)
 		return client, nil
 	}
 
@@ -464,64 +566,96 @@ func (p2p *P2P) connectPeer(ctx context.Context, peerIDString string, machine Ma
 		state.Attempts++
 	})
 
-	var lastErr error
-	for _, destinationString := range destinations {
-		client, err := p2p.connectPeerAt(ctx, peerIDString, machine, destinationString)
-		if err == nil {
-			return client, nil
-		}
-		lastErr = err
-		log.Debugf("failed to connect to peer %s via %s: %v", peerIDString, destinationString, err)
+	peerInfo, err := peerAddrInfoFromDestinations(peerIDString, destinations)
+	if err != nil {
+		p2p.markPeerFailed(peerIDString, machine, err)
+		return nil, fmt.Errorf("failed to connect to peer %s: %w", peerIDString, err)
 	}
-
-	if lastErr == nil {
-		lastErr = fmt.Errorf("no usable peer addresses")
+	client, err = p2p.connectPeerWithAddrInfo(ctx, peerIDString, machine, peerInfo, destinations)
+	if err != nil {
+		p2p.markPeerFailed(peerIDString, machine, err)
+		return nil, fmt.Errorf("failed to connect to peer %s: %w", peerIDString, err)
 	}
-	p2p.markPeerFailed(peerIDString, machine, lastErr)
-	return nil, fmt.Errorf("failed to connect to peer %s: %w", peerIDString, lastErr)
+	return client, nil
 }
 
-func (p2p *P2P) connectPeerAt(ctx context.Context, peerIDString string, machine Machine, destinationString string) (*Client, error) {
-	maddr, err := multiaddr.NewMultiaddr(destinationString)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create multi address: %w", err)
-	}
-
-	peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract info from address: %w", err)
-	}
-
+func (p2p *P2P) connectPeerWithAddrInfo(ctx context.Context, peerIDString string, machine Machine, peerInfo peer.AddrInfo, destinations []string) (*Client, error) {
 	p2p.host.Peerstore().ClearAddrs(peerInfo.ID)
 	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.TempAddrTTL)
 	if swarm, ok := p2p.host.Network().(*libp2pswarm.Swarm); ok {
 		swarm.Backoff().Clear(peerInfo.ID)
 	}
 
-	log.Debugf("dialing peer id %s at %s", peerIDString, destinationString)
+	log.Debugf("dialing peer id %s using %d destination(s): %s", peerIDString, len(destinations), strings.Join(destinations, ", "))
 
-	connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	connectCtx, cancel := context.WithTimeout(ctx, peerConnectDialTimeout)
 	defer cancel()
 
-	if err := p2p.host.Connect(connectCtx, *peerInfo); err != nil {
+	if err := p2p.host.Connect(connectCtx, peerInfo); err != nil {
 		return nil, err
 	}
 
-	for tries := 0; tries < 5; tries++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(1 * time.Second):
-		}
-		client, found := p2p.clients.Get(peerIDString)
-		if found {
-			p2p.markPeerConnected(peerIDString, machine)
-			p2p.connectExternalDBPeer(machine)
-			return client, nil
-		}
+	if client, found := p2p.connectedClient(peerIDString); found {
+		p2p.markPeerConnected(peerIDString, machine)
+		p2p.connectExternalDBPeer(peerIDString, machine, client)
+		return client, nil
 	}
 
-	return nil, fmt.Errorf("client not found")
+	client, err := p2p.createClientForPeer(ctx, peerInfo.ID)
+	if err != nil {
+		return nil, err
+	}
+	p2p.clients.Set(peerIDString, client)
+	p2p.markPeerConnected(peerIDString, machine)
+	p2p.connectExternalDBPeer(peerIDString, machine, client)
+	if p2p.externalDB != nil {
+		if err := p2p.externalDB.AddPeer(peerIDString, client.grpcConnection); err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
+}
+
+func peerAddrInfoFromDestinations(peerIDString string, destinations []string) (peer.AddrInfo, error) {
+	peerID, err := peer.Decode(peerIDString)
+	if err != nil {
+		return peer.AddrInfo{}, fmt.Errorf("failed to decode peer ID %s: %w", peerIDString, err)
+	}
+
+	seen := map[string]struct{}{}
+	addrs := make([]multiaddr.Multiaddr, 0, len(destinations))
+	var parseErrors []string
+	for _, destinationString := range destinations {
+		maddr, err := multiaddr.NewMultiaddr(destinationString)
+		if err != nil {
+			parseErrors = append(parseErrors, fmt.Sprintf("%s: %v", destinationString, err))
+			continue
+		}
+		peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
+		if err != nil {
+			parseErrors = append(parseErrors, fmt.Sprintf("%s: %v", destinationString, err))
+			continue
+		}
+		if peerInfo.ID != peerID {
+			parseErrors = append(parseErrors, fmt.Sprintf("%s: destination peer %s does not match %s", destinationString, peerInfo.ID, peerIDString))
+			continue
+		}
+		for _, addr := range peerInfo.Addrs {
+			key := addr.String()
+			if _, found := seen[key]; found {
+				continue
+			}
+			seen[key] = struct{}{}
+			addrs = append(addrs, addr)
+		}
+	}
+	if len(addrs) == 0 {
+		if len(parseErrors) == 0 {
+			return peer.AddrInfo{}, fmt.Errorf("no usable peer addresses")
+		}
+		return peer.AddrInfo{}, fmt.Errorf("no usable peer addresses: %s", strings.Join(parseErrors, "; "))
+	}
+	return peer.AddrInfo{ID: peerID, Addrs: addrs}, nil
 }
 
 func (p2p *P2P) destinationStrings(peerIDString string, machine Machine) []string {
@@ -704,9 +838,9 @@ func (p2p *P2P) reconcileLoop() {
 func (p2p *P2P) reconcilePeers() {
 	p2p.pruneStaleClients()
 	for peerIDString, machine := range p2p.machines.Snapshot() {
-		if _, found := p2p.connectedClient(peerIDString); found {
+		if client, found := p2p.connectedClient(peerIDString); found {
 			p2p.markPeerConnected(peerIDString, machine)
-			p2p.connectExternalDBPeer(machine)
+			p2p.connectExternalDBPeer(peerIDString, machine, client)
 			p2p.ensureRelayReservation(peerIDString, machine)
 			continue
 		}
@@ -810,17 +944,29 @@ func (p2p *P2P) removeExternalDBPeer(peerIDString string) {
 //
 
 func (p2p *P2P) startGRPCServer() error {
+	p2p.grpcMu.Lock()
+	defer p2p.grpcMu.Unlock()
+
+	return p2p.startGRPCServerLocked()
+}
+
+func (p2p *P2P) startGRPCServerLocked() error {
+	if p2p.grpcServer == nil {
+		p2p.grpcServer = newP2PGRPCServer()
+	}
+
+	server := p2p.grpcServer
 
 	// register internal grpc servers
 	srv := &Server{DB: p2p.externalDB, p2p: p2p}
-	p2pproto.RegisterPingerServer(p2p.grpcServer, srv)
-	p2pproto.RegisterPeerDBServer(p2p.grpcServer, srv)
-	p2pproto.RegisterAppsServer(p2p.grpcServer, srv)
-	p2pproto.RegisterImagesServer(p2p.grpcServer, srv)
-	p2pproto.RegisterInstanceServer(p2p.grpcServer, srv)
+	p2pproto.RegisterPingerServer(server, srv)
+	p2pproto.RegisterPeerDBServer(server, srv)
+	p2pproto.RegisterAppsServer(server, srv)
+	p2pproto.RegisterImagesServer(server, srv)
+	p2pproto.RegisterInstanceServer(server, srv)
 
 	if p2p.externalDB.Initialized() {
-		err := p2p.externalDB.EnableGRPCServers(p2p.grpcServer)
+		err := p2p.externalDB.EnableGRPCServers(server)
 		if err != nil {
 			return fmt.Errorf("failed to enable grpc servers: %w", err)
 		}
@@ -828,15 +974,40 @@ func (p2p *P2P) startGRPCServer() error {
 
 	// serve grpc server over libp2p host
 	grpcListener := p2pgrpc.NewListener(context.Background(), p2p.host, protosRPCProtocol)
+	p2p.grpcGen++
+	generation := p2p.grpcGen
 	go func() {
-		err := p2p.grpcServer.Serve(grpcListener)
-		if err != nil {
-			log.Error("grpc serve error: ", err)
-			panic(err)
+		if err := server.Serve(grpcListener); err != nil {
+			p2p.handleGRPCServeError(server, generation, err)
 		}
 	}()
 
 	return nil
+}
+
+func (p2p *P2P) handleGRPCServeError(server *grpc.Server, generation uint64, err error) {
+	select {
+	case <-p2p.stopCh:
+		log.Debugf("p2p grpc server stopped: %v", err)
+		return
+	default:
+	}
+
+	p2p.grpcMu.Lock()
+	if p2p.grpcServer != server || p2p.grpcGen != generation {
+		p2p.grpcMu.Unlock()
+		log.Debugf("stale p2p grpc server generation %d stopped: %v", generation, err)
+		return
+	}
+	log.Errorf("p2p grpc server stopped unexpectedly; restarting: %v", err)
+	p2p.grpcServer = newP2PGRPCServer()
+	p2p.grpcMu.Unlock()
+	server.Stop()
+
+	time.Sleep(time.Second)
+	if restartErr := p2p.startGRPCServer(); restartErr != nil {
+		log.Errorf("failed to restart p2p grpc server after serve error: %v", restartErr)
+	}
 }
 
 // StartServer starts listening for p2p connections
@@ -857,6 +1028,13 @@ func (p2p *P2P) StartServer() (func() error, error) {
 	stopper := func() error {
 		log.Debug("Stopping p2p server")
 		_ = stopReconciler()
+		p2p.grpcMu.Lock()
+		server := p2p.grpcServer
+		p2p.grpcGen++
+		p2p.grpcMu.Unlock()
+		if server != nil {
+			server.GracefulStop()
+		}
 		return p2p.host.Close()
 	}
 	return stopper, nil
@@ -872,8 +1050,14 @@ func (p2p *P2P) restartServerAfterInit() {
 
 		log.Info("restarting grpc server")
 
-		p2p.grpcServer.GracefulStop()
-		p2p.grpcServer = grpc.NewServer(p2pgrpc.WithP2PCredentials())
+		p2p.grpcMu.Lock()
+		oldServer := p2p.grpcServer
+		p2p.grpcServer = newP2PGRPCServer()
+		p2p.grpcGen++
+		p2p.grpcMu.Unlock()
+		if oldServer != nil {
+			oldServer.GracefulStop()
+		}
 
 		peerID, err := p2p.pubKeyToPeerID(im.GetPublicKey())
 		if err != nil {
@@ -899,7 +1083,7 @@ func (p2p *P2P) restartServerAfterInit() {
 func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, p2pPort int) (*P2P, error) {
 	p2p := &P2P{
 		appManager: appManager,
-		grpcServer: grpc.NewServer(p2pgrpc.WithP2PCredentials()),
+		grpcServer: newP2PGRPCServer(),
 		externalDB: externalDB,
 		p2pPort:    p2pPort,
 
@@ -943,6 +1127,7 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 
 	p2p.host = host
 	p2p.host.SetStreamHandler(swarmionBootstrapProtocol, p2p.handleSwarmionBootstrapStream)
+	p2p.host.SetStreamHandler(imageBlobStreamProtocol, p2p.handleImageBlobStream)
 	nb := network.NotifyBundle{
 		ConnectedF:    p2p.newConnectionHandler,
 		DisconnectedF: p2p.closeConnectionHandler,

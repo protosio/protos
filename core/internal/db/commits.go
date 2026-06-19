@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 )
@@ -107,19 +108,16 @@ func (db *DB) branchesHaveDataDiff(baseBranch string, compareBranch string) (boo
 		escapeSQL(baseBranch),
 		escapeSQL(compareBranch),
 	)
-	rows, err := db.QueryContext(context.Background(), query)
-	if err != nil {
-		return true, err
-	}
-	defer rows.Close()
 
 	var count int
-	if rows.Next() {
-		if err := rows.Scan(&count); err != nil {
-			return true, err
+	if err := db.ReadRows(context.Background(), query, nil, func(rows *sql.Rows) error {
+		if rows.Next() {
+			if err := rows.Scan(&count); err != nil {
+				return err
+			}
 		}
-	}
-	if err := rows.Err(); err != nil {
+		return nil
+	}); err != nil {
 		return true, err
 	}
 	return count > 0, nil

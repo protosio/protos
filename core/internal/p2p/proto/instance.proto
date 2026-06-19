@@ -12,6 +12,9 @@ service Instance {
   rpc GetNetworkState(GetNetworkStateRequest) returns (GetNetworkStateResponse) {}
   rpc GetExitRoutes(GetExitRoutesRequest) returns (GetExitRoutesResponse) {}
   rpc GetRuntimeState(GetRuntimeStateRequest) returns (GetRuntimeStateResponse) {}
+  rpc GetTasks(GetTasksRequest) returns (GetTasksResponse) {}
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {}
+  rpc WatchTask(WatchTaskRequest) returns (stream WatchTaskResponse) {}
 }
 
 message InitRequest {
@@ -54,10 +57,89 @@ message GetExitRoutesResponse {
 }
 
 message GetRuntimeStateRequest {
+  bool allow_stale = 1;
 }
 
 message GetRuntimeStateResponse {
   RuntimeState state = 1;
+}
+
+message Task {
+  string id = 1;
+  string stream = 2;
+  string subject_type = 3;
+  string subject_id = 4;
+  string status = 5;
+  string title = 6;
+  string message = 7;
+  int32 progress = 8;
+  string payload_json = 9;
+  string result_json = 10;
+  string error_message = 11;
+  int32 attempts = 12;
+  int32 max_attempts = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  string started_at = 16;
+  string finished_at = 17;
+}
+
+message TaskEvent {
+  string id = 1;
+  string task_id = 2;
+  string status = 3;
+  string message = 4;
+  int32 progress = 5;
+  string details_json = 6;
+  string created_at = 7;
+}
+
+message GetTasksRequest {
+  string status = 1;
+  string stream = 2;
+  string subject_type = 3;
+  string subject_id = 4;
+  int32 max_results = 5;
+}
+
+message GetTasksResponse {
+  repeated Task tasks = 1;
+  bool truncated = 2;
+}
+
+message GetTaskRequest {
+  string id = 1;
+  bool include_events = 2;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+  repeated TaskEvent events = 2;
+}
+
+message TaskProgressUpdate {
+  string task_id = 1;
+  string status = 2;
+  string message = 3;
+  int32 progress = 4;
+  string details_json = 5;
+  string created_at = 6;
+  bool durable = 7;
+}
+
+message WatchTaskRequest {
+  string id = 1;
+  bool include_snapshot = 2;
+  bool include_events = 3;
+  uint32 heartbeat_interval_ms = 4;
+}
+
+message WatchTaskResponse {
+  uint64 sequence = 1;
+  Task task = 2;
+  repeated TaskEvent events = 3;
+  TaskProgressUpdate update = 4;
+  bool heartbeat = 5;
 }
 
 message NetworkState {
@@ -169,6 +251,8 @@ message RuntimeState {
   repeated RuntimeCompatibility compatibility = 19;
   repeated string content_sync_trace = 20;
   string protocol_checkpoint_digest = 24;
+  string read_consistency = 25;
+  string read_error = 26;
 }
 
 message RuntimePeerStatus {

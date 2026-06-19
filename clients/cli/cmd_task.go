@@ -25,20 +25,32 @@ var cmdTask *cli.Command = &cli.Command{
 		{
 			Name:  "ls",
 			Usage: "List tasks",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "instance",
+					Usage: "Read tasks from a remote instance admin API",
+				},
+			},
 			Action: func(c *cli.Context) error {
-				return listTasks()
+				return listTasks(c.String("instance"))
 			},
 		},
 		{
 			Name:      "info",
 			ArgsUsage: "<task id>",
 			Usage:     "Display task details and events",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "instance",
+					Usage: "Read the task from a remote instance admin API",
+				},
+			},
 			Action: func(c *cli.Context) error {
 				id := c.Args().Get(0)
 				if id == "" {
 					return showSubcommandHelp(c)
 				}
-				return taskInfo(id)
+				return taskInfo(id, c.String("instance"))
 			},
 		},
 		{
@@ -63,10 +75,10 @@ var cmdTask *cli.Command = &cli.Command{
 	},
 }
 
-func listTasks() error {
+func listTasks(instance string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp, err := client.GetTasks(ctx, &pbApic.GetTasksRequest{MaxResults: 200})
+	resp, err := client.GetTasks(ctx, &pbApic.GetTasksRequest{MaxResults: 200, Instance: instance})
 	if err != nil {
 		return fmt.Errorf("failed to list tasks: %w", err)
 	}
@@ -105,14 +117,14 @@ func taskListMessage(message string, errorMessage string) string {
 	return message + ": " + errorMessage
 }
 
-func taskInfo(id string) error {
+func taskInfo(id string, instance string) error {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return fmt.Errorf("task id is empty")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp, err := client.GetTask(ctx, &pbApic.GetTaskRequest{Id: id, IncludeEvents: true})
+	resp, err := client.GetTask(ctx, &pbApic.GetTaskRequest{Id: id, IncludeEvents: true, Instance: instance})
 	if err != nil {
 		return fmt.Errorf("failed to retrieve task '%s': %w", id, err)
 	}

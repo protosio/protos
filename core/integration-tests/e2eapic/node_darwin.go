@@ -378,28 +378,25 @@ func WaitForRemoteFullMesh(deadline time.Time, client pbApic.ProtosClientApiClie
 		return err
 	}
 	var lastErr error
+	var lastReport time.Time
 	for time.Now().Before(deadline) {
 		ready := true
 		for _, source := range instances {
 			sourcePeerID := peerIDs[source.GetName()]
-			ctx, cancel := contextWithDeadline(deadline, 10*time.Second)
-			resp, err := client.GetInstance(ctx, &pbApic.GetInstanceRequest{Name: source.GetName()})
-			cancel()
+			state, err := RuntimeState(deadline, client, source.GetName())
 			if err != nil {
-				lastErr = fmt.Errorf("get remote peers for %s: %w", source.GetName(), err)
+				lastErr = fmt.Errorf("get remote runtime state for %s: %w", source.GetName(), err)
 				ready = false
 				break
 			}
-			peers := resp.GetInstance().GetPeers()
-			fmt.Printf("remote p2p peers for %s: %v\n", source.GetName(), peers)
+			fmt.Printf("remote runtime peers for %s: connected=%v\n", source.GetName(), state.GetConnectedPeers())
 			for _, target := range instances {
 				targetPeerID := peerIDs[target.GetName()]
 				if targetPeerID == sourcePeerID {
 					continue
 				}
-				if peers[targetPeerID] != "connected" {
-					diagnostic := RemotePeerDiagnostic(deadline, client, source.GetName(), targetPeerID)
-					lastErr = fmt.Errorf("%s sees %s (%s) as %q; runtime=%s", source.GetName(), target.GetName(), targetPeerID, peers[targetPeerID], diagnostic)
+				if !runtimePeerConnected(state, targetPeerID) {
+					lastErr = fmt.Errorf("%s runtime does not see %s (%s) connected: %s", source.GetName(), target.GetName(), targetPeerID, RuntimeStateSummary(state))
 					ready = false
 					break
 				}
@@ -411,59 +408,40 @@ func WaitForRemoteFullMesh(deadline time.Time, client pbApic.ProtosClientApiClie
 		if ready {
 			return nil
 		}
+		if time.Since(lastReport) >= 30*time.Second {
+			lastReport = time.Now()
+			fmt.Printf("waiting for VM runtime full mesh: %v\n", lastErr)
+		}
 		time.Sleep(3 * time.Second)
 	}
 	return fmt.Errorf("VM full mesh did not become connected: %w", lastErr)
 }
 
-func RemotePeerDiagnostic(deadline time.Time, client pbApic.ProtosClientApiClient, instanceName string, peerID string) string {
-	state, err := RuntimeState(deadline, client, instanceName)
-	if err != nil {
-		return fmt.Sprintf("runtime state unavailable: %v", err)
-	}
-	status := RuntimePeerStatus(state, peerID)
-	if status == nil {
-		return RuntimeStateSummary(state)
-	}
-	return fmt.Sprintf(
-		"peer=%s connected=%t dialable=%t provider=%t compatible=%t relay_only=%t reason=%q addresses=%v last_dial_errors=%v state=%s",
-		status.GetPeerId(),
-		status.GetConnected(),
-		status.GetDialable(),
-		status.GetStateProvider(),
-		status.GetCompatible(),
-		status.GetRelayOnly(),
-		status.GetReason(),
-		status.GetAddresses(),
-		status.GetLastDialErrors(),
-		RuntimeStateSummary(state),
-	)
-}
-
 func WaitForRemotePeerConnection(deadline time.Time, client pbApic.ProtosClientApiClient, instances []*pbApic.CloudInstance, peerID string) error {
 	var lastErr error
+	var lastReport time.Time
 	for time.Now().Before(deadline) {
 		ready := true
 		for _, source := range instances {
-			ctx, cancel := contextWithDeadline(deadline, 10*time.Second)
-			resp, err := client.GetInstance(ctx, &pbApic.GetInstanceRequest{Name: source.GetName()})
-			cancel()
+			state, err := RuntimeState(deadline, client, source.GetName())
 			if err != nil {
 				ready = false
-				lastErr = fmt.Errorf("get remote peers for %s: %w", source.GetName(), err)
+				lastErr = fmt.Errorf("get remote runtime state for %s: %w", source.GetName(), err)
 				break
 			}
-			peers := resp.GetInstance().GetPeers()
-			fmt.Printf("remote p2p peers for %s: %v\n", source.GetName(), peers)
-			status := peers[peerID]
-			if status != "connected" {
+			fmt.Printf("remote runtime peers for %s: connected=%v\n", source.GetName(), state.GetConnectedPeers())
+			if !runtimePeerConnected(state, peerID) {
 				ready = false
-				lastErr = fmt.Errorf("%s sees peer id %s as %q", source.GetName(), peerID, status)
+				lastErr = fmt.Errorf("%s runtime does not see peer id %s connected: %s", source.GetName(), peerID, RuntimeStateSummary(state))
 				break
 			}
 		}
 		if ready {
 			return nil
+		}
+		if time.Since(lastReport) >= 30*time.Second {
+			lastReport = time.Now()
+			fmt.Printf("waiting for remote runtime peer connection: %v\n", lastErr)
 		}
 		time.Sleep(3 * time.Second)
 	}
@@ -482,12 +460,7 @@ func WaitForRemoteRuntimeConnection(deadline time.Time, client pbApic.ProtosClie
 				lastErr = fmt.Errorf("get remote runtime state for %s: %w", source.GetName(), err)
 				break
 			}
-			peerStatus := RuntimePeerStatus(state, peerID)
-			connected := stringSet(state.GetConnectedPeers())[peerID]
-			if peerStatus != nil {
-				connected = connected || peerStatus.GetConnected()
-			}
-			if !connected {
+			if !runtimePeerConnected(state, peerID) {
 				ready = false
 				lastErr = fmt.Errorf("%s runtime does not see peer %s connected: %s", source.GetName(), peerID, RuntimeStateSummary(state))
 				break
@@ -547,7 +520,7 @@ func WaitForPeerRemoved(deadline time.Time, client pbApic.ProtosClientApiClient,
 	for time.Now().Before(deadline) {
 		state, err := RuntimeState(deadline, client, "")
 		if err != nil {
-			lastErr = err
+			lastErr = runtimeStateQueryError(deadline, client, "", err)
 		} else if stringSet(state.GetStateProviders())[peerID] {
 			lastErr = fmt.Errorf("state providers still contain %s", peerID)
 		} else if stringSet(state.GetConnectedPeers())[peerID] {
@@ -579,7 +552,7 @@ func WaitForPeerRemovedFromRuntimes(deadline time.Time, client pbApic.ProtosClie
 			}
 			state, err := RuntimeState(deadline, client, instance.GetName())
 			if err != nil {
-				remaining = append(remaining, instance.GetName()+": "+err.Error())
+				remaining = append(remaining, instance.GetName()+": "+runtimeStateQueryError(deadline, client, instance.GetName(), err).Error())
 				continue
 			}
 			if err := peerAbsentFromRuntimeState(state, peerID); err != nil {
@@ -616,9 +589,13 @@ func peerAbsentFromRuntimeState(state *pbApic.RuntimeState, peerID string) error
 }
 
 func RuntimeState(deadline time.Time, client pbApic.ProtosClientApiClient, instance string) (*pbApic.RuntimeState, error) {
+	return RuntimeStateWithOptions(deadline, client, instance, false)
+}
+
+func RuntimeStateWithOptions(deadline time.Time, client pbApic.ProtosClientApiClient, instance string, allowStale bool) (*pbApic.RuntimeState, error) {
 	ctx, cancel := contextWithDeadline(deadline, 15*time.Second)
 	defer cancel()
-	resp, err := client.GetRuntimeState(ctx, &pbApic.GetRuntimeStateRequest{Instance: instance})
+	resp, err := client.GetRuntimeState(ctx, &pbApic.GetRuntimeStateRequest{Instance: instance, AllowStale: allowStale})
 	if err != nil {
 		return nil, err
 	}
@@ -626,6 +603,20 @@ func RuntimeState(deadline time.Time, client pbApic.ProtosClientApiClient, insta
 		return nil, fmt.Errorf("empty runtime state")
 	}
 	return resp.GetState(), nil
+}
+
+func runtimeStateQueryError(deadline time.Time, client pbApic.ProtosClientApiClient, instance string, err error) error {
+	state, diagErr := RuntimeStateWithOptions(deadline, client, instance, true)
+	if diagErr != nil {
+		return fmt.Errorf("runtime state query/catch-up failed: %w; stale diagnostic failed: %w", err, diagErr)
+	}
+	return fmt.Errorf(
+		"runtime state query/catch-up failed: %w; stale diagnostic consistency=%s read_error=%q summary={%s}",
+		err,
+		state.GetReadConsistency(),
+		state.GetReadError(),
+		RuntimeStateSummary(state),
+	)
 }
 
 func AssertReplicationPriorities(state *pbApic.RuntimeState, expected map[string]int) error {
@@ -689,73 +680,75 @@ func WaitForAllRemoteHeads(deadline time.Time, client pbApic.ProtosClientApiClie
 	var lastErr error
 	var lastReport time.Time
 	for time.Now().Before(deadline) {
-		localHead, err := LocalFinalizedHead(deadline, client)
+		localState, err := RuntimeState(deadline, client, "")
 		if err != nil {
 			lastErr = err
-			reportRemoteHeadWait(&lastReport, "", nil, lastErr)
+			reportRemoteCheckpointWait(&lastReport, "", nil, lastErr)
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		localRoot, err := checkpointedRuntimeRoot(localState)
+		if err != nil {
+			lastErr = fmt.Errorf("local runtime checkpoint not ready: %w", err)
+			reportRemoteCheckpointWait(&lastReport, "", localState, lastErr)
 			time.Sleep(3 * time.Second)
 			continue
 		}
 		ready := true
 		for _, instance := range instances {
-			remoteHead, err := RemoteFinalizedHead(deadline, client, instance.GetName())
+			remoteState, err := RuntimeState(deadline, client, instance.GetName())
 			if err != nil {
-				lastErr = fmt.Errorf("%s get remote DB head: %w", instance.GetName(), err)
+				lastErr = fmt.Errorf("%s get remote runtime checkpoint: %w", instance.GetName(), err)
 				ready = false
-				reportRemoteHeadWait(&lastReport, instance.GetName(), nil, lastErr)
+				reportRemoteCheckpointWait(&lastReport, instance.GetName(), nil, lastErr)
 				break
 			}
-			if remoteHead != localHead {
-				state, _ := RuntimeState(deadline, client, instance.GetName())
-				lastErr = fmt.Errorf("%s remote head %q did not match local head %q", instance.GetName(), remoteHead, localHead)
+			remoteRoot, err := checkpointedRuntimeRoot(remoteState)
+			if err != nil {
+				lastErr = fmt.Errorf("%s remote runtime checkpoint not ready: %w", instance.GetName(), err)
 				ready = false
-				reportRemoteHeadWait(&lastReport, instance.GetName(), state, lastErr)
+				reportRemoteCheckpointWait(&lastReport, instance.GetName(), remoteState, lastErr)
+				break
+			}
+			if remoteRoot != localRoot {
+				lastErr = fmt.Errorf("%s remote checkpoint root %q did not match local checkpoint root %q", instance.GetName(), remoteRoot, localRoot)
+				ready = false
+				reportRemoteCheckpointWait(&lastReport, instance.GetName(), remoteState, lastErr)
 				break
 			}
 		}
 		if ready {
 			for _, instance := range instances {
-				fmt.Printf("remote DB head matched local head for %s: %s\n", instance.GetName(), localHead)
+				fmt.Printf("remote runtime checkpoint matched local root for %s: %s\n", instance.GetName(), localRoot)
 			}
 			return nil
 		}
 		time.Sleep(3 * time.Second)
 	}
-	return fmt.Errorf("remote DB head did not match current local DB head: %w", lastErr)
+	return fmt.Errorf("remote runtime checkpoint did not match current local runtime checkpoint: %w", lastErr)
 }
 
-func LocalFinalizedHead(deadline time.Time, client pbApic.ProtosClientApiClient) (string, error) {
-	if _, err := RuntimeState(deadline, client, ""); err != nil {
+func checkpointedRuntimeRoot(state *pbApic.RuntimeState) (string, error) {
+	if state == nil {
+		return "", fmt.Errorf("empty runtime state")
+	}
+	if fatal := strings.TrimSpace(state.GetFatalState()); fatal != "" && fatal != "none" {
+		return "", fmt.Errorf("fatal runtime state: %s", fatal)
+	}
+	if err := AssertNoBlockingCompatibility(state); err != nil {
 		return "", err
 	}
-	ctx, cancel := contextWithDeadline(deadline, 10*time.Second)
-	defer cancel()
-	resp, err := client.GetLocalCommits(ctx, &pbApic.GetLocalCommitsRequest{})
-	if err != nil {
-		return "", err
+	root := strings.TrimSpace(state.GetCheckpointRootHash())
+	if root == "" {
+		return "", fmt.Errorf("checkpoint root is empty")
 	}
-	return firstFinalizedCommit(resp.GetCommits())
-}
-
-func RemoteFinalizedHead(deadline time.Time, client pbApic.ProtosClientApiClient, instance string) (string, error) {
-	ctx, cancel := contextWithDeadline(deadline, 10*time.Second)
-	defer cancel()
-	resp, err := client.GetRemoteCommits(ctx, &pbApic.GetRemoteCommitsRequest{Remote: instance})
-	if err != nil {
-		return "", err
+	if tentative := strings.TrimSpace(state.GetTentativeRootHash()); tentative != root {
+		return "", fmt.Errorf("tentative root %q did not match checkpoint root %q", tentative, root)
 	}
-	return firstFinalizedCommit(resp.GetCommits())
-}
-
-func firstFinalizedCommit(commits []*pbApic.Commit) (string, error) {
-	for _, commit := range commits {
-		if stringSet(commit.GetStates())["finalized"] {
-			if hash := strings.TrimSpace(commit.GetHash()); hash != "" {
-				return hash, nil
-			}
-		}
+	if durable := strings.TrimSpace(state.GetDurableMainRootHash()); durable != "" && durable != root {
+		return "", fmt.Errorf("durable root %q did not match checkpoint root %q", durable, root)
 	}
-	return "", fmt.Errorf("no finalized commit found")
+	return root, nil
 }
 
 func CreateAndStartApp(deadline time.Time, client pbApic.ProtosClientApiClient, image string, name string, instanceID string) error {
@@ -946,7 +939,7 @@ func WaitForRemoteImageContentReady(deadline time.Time, client pbApic.ProtosClie
 	var lastReport time.Time
 	for time.Now().Before(deadline) {
 		ctx, cancel := contextWithDeadline(deadline, 30*time.Second)
-		resp, err := client.GetInstanceImage(ctx, &pbApic.GetInstanceImageRequest{Instance: instanceName, ImageRef: imageRef})
+		resp, err := client.GetInstanceImage(ctx, &pbApic.GetInstanceImageRequest{Instance: instanceName, ImageRef: imageRef, IncludeContent: true})
 		cancel()
 		if err == nil && resp.GetFound() && resp.GetHasContent() && resp.GetTarget() != nil && len(resp.GetDescriptors()) > 0 {
 			fmt.Printf("remote image content ready: instance=%s image=%s digest=%s blobs=%d\n", instanceName, imageRef, resp.GetTargetDigest(), len(resp.GetDescriptors()))
@@ -1126,6 +1119,17 @@ func RuntimePeerStatus(state *pbApic.RuntimeState, peerID string) *pbApic.Runtim
 	return nil
 }
 
+func runtimePeerConnected(state *pbApic.RuntimeState, peerID string) bool {
+	if state == nil || strings.TrimSpace(peerID) == "" {
+		return false
+	}
+	if stringSet(state.GetConnectedPeers())[peerID] {
+		return true
+	}
+	status := RuntimePeerStatus(state, peerID)
+	return status != nil && status.GetConnected()
+}
+
 func RuntimeCompatibility(state *pbApic.RuntimeState, peerID string) *pbApic.RuntimeCompatibility {
 	if state == nil {
 		return nil
@@ -1147,10 +1151,12 @@ func RuntimeStateSummary(state *pbApic.RuntimeState) string {
 		trace = trace[len(trace)-8:]
 	}
 	return fmt.Sprintf(
-		"peer=%s providers=%v connected=%v checkpoint_root=%s protocol_root=%s durable_root=%s pending_checkpoint=%t checkpoint_error=%q refresh_pending=%t refresh_error=%q fatal=%q trace=%v",
+		"peer=%s providers=%v connected=%v read_consistency=%s read_error=%q checkpoint_root=%s protocol_root=%s durable_root=%s pending_checkpoint=%t checkpoint_error=%q refresh_pending=%t refresh_error=%q fatal=%q trace=%v",
 		state.GetPeerId(),
 		state.GetStateProviders(),
 		state.GetConnectedPeers(),
+		state.GetReadConsistency(),
+		state.GetReadError(),
 		state.GetCheckpointRootHash(),
 		state.GetProtocolCheckpointRootHash(),
 		state.GetDurableMainRootHash(),
@@ -1251,11 +1257,11 @@ func waitForTaskSucceeded(deadline time.Time, client pbApic.ProtosClientApiClien
 		}
 		if task := resp.GetTask(); task != nil && task.GetId() != "" {
 			latestStatus = task.GetStatus()
-			fmt.Printf("task snapshot: id=%s stream=%s status=%s progress=%d message=%s\n", task.GetId(), task.GetStream(), task.GetStatus(), task.GetProgress(), task.GetMessage())
+			fmt.Printf("%s task snapshot: id=%s stream=%s status=%s progress=%d message=%s\n", time.Now().UTC().Format(time.RFC3339Nano), task.GetId(), task.GetStream(), task.GetStatus(), task.GetProgress(), task.GetMessage())
 		}
 		if update := resp.GetUpdate(); update != nil {
 			latestStatus = update.GetStatus()
-			fmt.Printf("task progress: id=%s status=%s progress=%d durable=%t message=%s\n", update.GetTaskId(), update.GetStatus(), update.GetProgress(), update.GetDurable(), update.GetMessage())
+			fmt.Printf("%s task progress: id=%s status=%s progress=%d durable=%t message=%s%s\n", time.Now().UTC().Format(time.RFC3339Nano), update.GetTaskId(), update.GetStatus(), update.GetProgress(), update.GetDurable(), update.GetMessage(), taskProgressDetailsSummary(update.GetDetailsJson()))
 		}
 		if taskTerminalStatus(latestStatus) {
 			return fetchTaskResult(deadline, client, taskID, latestStatus, includeEvents)
@@ -1354,6 +1360,39 @@ func taskErrorSummary(task *pbApic.Task) string {
 	return message + ": " + errMessage
 }
 
+func taskProgressDetailsSummary(detailsJSON string) string {
+	detailsJSON = strings.TrimSpace(detailsJSON)
+	if detailsJSON == "" || detailsJSON == "{}" {
+		return ""
+	}
+	var values map[string]any
+	if err := json.Unmarshal([]byte(detailsJSON), &values); err != nil {
+		return " details=" + detailsJSON
+	}
+	var parts []string
+	for _, key := range []string{
+		"percent",
+		"bytes_uploaded",
+		"archive_size_bytes",
+		"chunk_bytes",
+		"chunk_duration_ms",
+		"bytes_per_second",
+		"elapsed_ms",
+		"instance",
+		"image_ref",
+	} {
+		value, found := values[key]
+		if !found || value == nil {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=%v", key, value))
+	}
+	if len(parts) == 0 {
+		return " details=" + detailsJSON
+	}
+	return " details={" + strings.Join(parts, " ") + "}"
+}
+
 func contextWithDeadline(deadline time.Time, max time.Duration) (context.Context, context.CancelFunc) {
 	timeout := time.Until(deadline)
 	if timeout <= 0 {
@@ -1380,7 +1419,15 @@ func containsInstance(instances []*pbApic.CloudInstance, id string) bool {
 
 func terminalStatus(status string) bool {
 	status = strings.ToLower(strings.TrimSpace(status))
-	return strings.Contains(status, "failed") || strings.Contains(status, "cancelled")
+	if idx := strings.Index(status, ":"); idx >= 0 {
+		status = strings.TrimSpace(status[:idx])
+	}
+	switch status {
+	case "failed", "cancelled", "canceled":
+		return true
+	default:
+		return false
+	}
 }
 
 func reportReplicationProgress(lastReport *time.Time, label string, state *pbApic.RuntimeState, err error) {
@@ -1395,16 +1442,16 @@ func reportReplicationProgress(lastReport *time.Time, label string, state *pbApi
 	fmt.Printf("waiting for checkpoint state: label=%s err=%v %s\n", label, err, RuntimeStateSummary(state))
 }
 
-func reportRemoteHeadWait(lastReport *time.Time, instanceName string, state *pbApic.RuntimeState, err error) {
+func reportRemoteCheckpointWait(lastReport *time.Time, instanceName string, state *pbApic.RuntimeState, err error) {
 	if !lastReport.IsZero() && time.Since(*lastReport) < 30*time.Second {
 		return
 	}
 	*lastReport = time.Now()
 	if state != nil {
-		fmt.Printf("waiting for remote DB head: instance=%s err=%v runtime={%s}\n", instanceName, err, RuntimeStateSummary(state))
+		fmt.Printf("waiting for remote runtime checkpoint: instance=%s err=%v runtime={%s}\n", instanceName, err, RuntimeStateSummary(state))
 		return
 	}
-	fmt.Printf("waiting for remote DB head: instance=%s err=%v\n", instanceName, err)
+	fmt.Printf("waiting for remote runtime checkpoint: instance=%s err=%v\n", instanceName, err)
 }
 
 func sortedPeerPriorityKeys(priorities map[string]int) []string {

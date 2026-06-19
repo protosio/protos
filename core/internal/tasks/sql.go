@@ -12,8 +12,8 @@ import (
 	"github.com/protosio/protos/internal/db"
 )
 
-const taskSelectColumns = "id, task_stream, subject_type, subject_id, status, title, message, progress, CAST(payload AS CHAR), CAST(result AS CHAR), error_message, attempts, max_attempts, created_at, updated_at, started_at, finished_at"
-const taskSummarySelectColumns = "id, task_stream, subject_type, subject_id, status, title, message, progress, '{}', '{}', error_message, attempts, max_attempts, created_at, updated_at, started_at, finished_at"
+const taskSelectColumns = "id, task_stream, subject_type, subject_id, owner_peer_id, status, title, message, progress, CAST(payload AS CHAR), CAST(result AS CHAR), error_message, attempts, max_attempts, created_at, updated_at, started_at, finished_at"
+const taskSummarySelectColumns = "id, task_stream, subject_type, subject_id, owner_peer_id, status, title, message, progress, '{}', '{}', error_message, attempts, max_attempts, created_at, updated_at, started_at, finished_at"
 const taskEventSelectColumns = "id, task_id, status, message, progress, CAST(details AS CHAR), created_at"
 
 type taskQueryFilters struct {
@@ -21,6 +21,7 @@ type taskQueryFilters struct {
 	Stream      string
 	SubjectType string
 	SubjectID   string
+	OwnerPeerID string
 	Status      Status
 }
 
@@ -98,26 +99,25 @@ func selectTaskRecords(database *db.DB, filters taskQueryFilters, includeDetails
 	if subjectID := strings.TrimSpace(filters.SubjectID); subjectID != "" {
 		addPredicate("subject_id = ?", subjectID)
 	}
+	if ownerPeerID := strings.TrimSpace(filters.OwnerPeerID); ownerPeerID != "" {
+		addPredicate("owner_peer_id = ?", ownerPeerID)
+	}
 	if status := Status(strings.TrimSpace(string(filters.Status))); status != "" {
 		addPredicate("status = ?", string(status))
 	}
 	query.WriteString(" ORDER BY created_at ASC")
 
-	rows, err := database.QueryContext(context.Background(), query.String(), args...)
-	if err != nil {
-		return nil, fmt.Errorf("select tasks: %w", err)
-	}
-	defer rows.Close()
-
 	var records []Record
-	for rows.Next() {
-		record, err := scanTaskRow(rows)
-		if err != nil {
-			return nil, err
+	if err := database.ReadRows(context.Background(), query.String(), args, func(rows *stdsql.Rows) error {
+		for rows.Next() {
+			record, err := scanTaskRow(rows)
+			if err != nil {
+				return err
+			}
+			records = append(records, record)
 		}
-		records = append(records, record)
-	}
-	if err := rows.Err(); err != nil {
+		return nil
+	}); err != nil {
 		return nil, fmt.Errorf("read tasks: %w", err)
 	}
 	return records, nil
@@ -126,27 +126,24 @@ func selectTaskRecords(database *db.DB, filters taskQueryFilters, includeDetails
 func selectTaskEvents(database *db.DB, taskID string) ([]Event, error) {
 	taskIDBytes, err := db.UUIDBytes(strings.TrimSpace(taskID))
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("invalid task id %q: %w", taskID, err)
 	}
-	rows, err := database.QueryContext(
+	var events []Event
+	if err := database.ReadRows(
 		context.Background(),
 		"SELECT "+taskEventSelectColumns+" FROM task_events WHERE task_id = ?",
-		taskIDBytes,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("select task events: %w", err)
-	}
-	defer rows.Close()
-
-	var events []Event
-	for rows.Next() {
-		event, err := scanTaskEventRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
+		[]any{taskIDBytes},
+		func(rows *stdsql.Rows) error {
+			for rows.Next() {
+				event, err := scanTaskEventRow(rows)
+				if err != nil {
+					return err
+				}
+				events = append(events, event)
+			}
+			return nil
+		},
+	); err != nil {
 		return nil, fmt.Errorf("read task events: %w", err)
 	}
 	return events, nil
@@ -162,6 +159,7 @@ func scanTaskRow(rows *stdsql.Rows) (Record, error) {
 		&record.Stream,
 		&record.SubjectType,
 		&record.SubjectID,
+		&record.OwnerPeerID,
 		&record.Status,
 		&record.Title,
 		&record.Message,
@@ -216,6 +214,7 @@ func setTaskColumns(col *sq.Column, t db.TASK, record Record) {
 	col.SetString(t.TASK_STREAM, record.Stream)
 	col.SetString(t.SUBJECT_TYPE, record.SubjectType)
 	col.SetString(t.SUBJECT_ID, record.SubjectID)
+	col.SetString(t.OWNER_PEER_ID, record.OwnerPeerID)
 	col.SetString(t.STATUS, string(record.Status))
 	col.SetString(t.TITLE, record.Title)
 	col.SetString(t.MESSAGE, record.Message)

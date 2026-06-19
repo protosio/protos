@@ -15,4 +15,5 @@ message PingRequest {
 
 message PingResponse {
   string pong = 1;
+  repeated string capabilities = 2;
 }

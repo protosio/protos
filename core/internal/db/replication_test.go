@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -210,6 +211,74 @@ func TestPeerRemovalReadinessErrorAllowsStaleTransportObservation(t *testing.T) 
 	if !errors.Is(err, errSwarmionPeerRemovalNotReady) {
 		t.Fatalf("connected state provider error = %v, want not-ready error", err)
 	}
+}
+
+func TestRemoveReplicationPeerStateRereadsReadinessAfterEviction(t *testing.T) {
+	app := &fakePeerRemovalApp{
+		readiness: []swarmionapp.PeerRemovalReadinessResponse{
+			{
+				PeerID:                  "peer-a",
+				StillStateProvider:      true,
+				RemainingObligations:    []string{"peer is still a state provider"},
+				BlockingReason:          "peer is still a state provider",
+				StillCheckpointProvider: true,
+			},
+			{
+				PeerID:                      "peer-a",
+				SafeToRemoveDurableResource: true,
+			},
+		},
+	}
+
+	if err := (&DB{}).removeReplicationPeerStateWithApp(context.Background(), app, "peer-a"); err != nil {
+		t.Fatalf("removeReplicationPeerStateWithApp error = %v", err)
+	}
+	if app.evictCalls != 1 {
+		t.Fatalf("evict calls = %d, want 1", app.evictCalls)
+	}
+	if app.readinessCalls != 2 {
+		t.Fatalf("readiness calls = %d, want 2", app.readinessCalls)
+	}
+}
+
+type fakePeerRemovalApp struct {
+	readiness      []swarmionapp.PeerRemovalReadinessResponse
+	readinessCalls int
+	evictCalls     int
+}
+
+func (a *fakePeerRemovalApp) Status() swarmionapp.Status {
+	return swarmionapp.Status{}
+}
+
+func (a *fakePeerRemovalApp) CatchUpCheckpoint(context.Context, string) (swarmionadmin.CheckpointCatchUpResponse, error) {
+	return swarmionadmin.CheckpointCatchUpResponse{Status: string(swarmionadmin.CheckpointCatchUpStatusAlreadyCurrent)}, nil
+}
+
+func (a *fakePeerRemovalApp) Compatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error) {
+	return nil, nil
+}
+
+func (a *fakePeerRemovalApp) PeerRemovalReadiness(context.Context, swarmionapp.PeerRemovalReadinessRequest) (swarmionapp.PeerRemovalReadinessResponse, error) {
+	if len(a.readiness) == 0 {
+		return swarmionapp.PeerRemovalReadinessResponse{}, nil
+	}
+	idx := a.readinessCalls
+	a.readinessCalls++
+	if idx >= len(a.readiness) {
+		idx = len(a.readiness) - 1
+	}
+	return a.readiness[idx], nil
+}
+
+func (a *fakePeerRemovalApp) EvictPeer(_ context.Context, req swarmionapp.PeerEvictionRequest) (swarmionapp.PeerEvictionResponse, error) {
+	a.evictCalls++
+	resp := swarmionapp.PeerEvictionResponse{PeerID: req.PeerID, Evicted: true}
+	if len(a.readiness) > 0 {
+		readiness := a.readiness[0]
+		resp.RemovalReadiness = &readiness
+	}
+	return resp, nil
 }
 
 func TestCompatibilityBoundaryDetailsIncludesInitialBoundaries(t *testing.T) {

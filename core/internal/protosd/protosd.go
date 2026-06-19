@@ -273,6 +273,10 @@ func (n *Node) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create p2p manager: %w", err)
 	}
+	if n.TaskManager != nil {
+		n.TaskManager.SetExecutorPeerID(n.P2PManager.PeerID())
+	}
+	n.P2PManager.SetTaskManager(n.TaskManager)
 	if !n.DB.Initialized() {
 		initOriginPublicKey, err := readInitOriginPublicKey()
 		if err != nil {
@@ -380,6 +384,7 @@ func (n *Node) Start() error {
 		if err := n.DB.RegisterNotifier(db.APP{}, n.AppManager); err != nil {
 			return fmt.Errorf("failed to register app notifier: %w", err)
 		}
+		n.DB.RegisterRuntimeChangeCallback(n.AppManager)
 	}
 	if n.TaskManager != nil {
 		n.stoppers["task-runner"] = n.TaskManager.Start(context.Background(), 2*time.Second)
@@ -422,6 +427,9 @@ func (n *Node) APIServices() *apic.Services {
 
 func (n *Node) Init(username string, name string, organisation string) error {
 	log.Debug("Performing initialization")
+	flushNotifications := n.DB.DeferNotifications()
+	defer flushNotifications(true)
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("failed to init. Could not retrieve hostname: %w", err)
@@ -441,6 +449,7 @@ func (n *Node) Init(username string, name string, organisation string) error {
 		return fmt.Errorf("failed to add user. Error while creating user device: %w", err)
 	}
 	n.markInitialized()
+	flushNotifications(false)
 	return nil
 }
 
@@ -577,13 +586,17 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 
-	catchUpCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	if err := dbn.database.CatchUpCheckpoint(catchUpCtx, "protosd reconcile desired state"); err != nil {
-		cancel()
-		log.Error(fmt.Errorf("failed to catch up checkpoint DB state: %w", err))
+	catchUpCtx, catchUpCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	catchUpErr := dbn.database.CatchUpCheckpointStrict(catchUpCtx, "database notifier reconcile")
+	catchUpCancel()
+	if catchUpErr != nil {
+		if db.IsRetryableCheckpointCatchUp(catchUpErr) {
+			log.Debugf("deferred database notifier reconcile after retryable checkpoint catch-up: %s", catchUpErr.Error())
+		} else {
+			log.Error(fmt.Errorf("failed to catch up checkpoint before database notifier reconcile: %w", catchUpErr))
+		}
 		return
 	}
-	cancel()
 
 	if dbn.capabilities.Provision {
 		if err := dbn.cm.QueueDesiredInstanceReconciles(); err != nil {
@@ -676,6 +689,9 @@ func (dbn *DBNotifier) Notify() {
 
 	if err := dbn.database.ReconcileReplicationPeers(context.Background(), membership.ReplicationCandidates(replicationInstances, userDevices)); err != nil {
 		log.Error(fmt.Errorf("failed to reconcile swarmion replication metadata: %w", err))
+	}
+	if dbn.capabilities.AppRuntime && dbn.am != nil {
+		dbn.am.Notify()
 	}
 }
 

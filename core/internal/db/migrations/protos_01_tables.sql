@@ -96,6 +96,7 @@ CREATE TABLE tasks (
     task_stream VARCHAR(255) NOT NULL,
     subject_type VARCHAR(255) NOT NULL,
     subject_id VARCHAR(255) NOT NULL,
+    owner_peer_id VARCHAR(255) NOT NULL,
     status VARCHAR(64) NOT NULL,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
@@ -116,6 +117,8 @@ CREATE INDEX tasks_task_stream_idx ON tasks (task_stream);
 CREATE INDEX tasks_subject_type_idx ON tasks (subject_type);
 
 CREATE INDEX tasks_subject_id_idx ON tasks (subject_id);
+
+CREATE INDEX tasks_owner_peer_id_idx ON tasks (owner_peer_id);
 
 CREATE INDEX tasks_status_idx ON tasks (status);
 

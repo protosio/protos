@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"reflect"
+	"sort"
 	"sync"
 	"time"
 
@@ -29,6 +30,19 @@ type tableChangeCallback struct {
 
 var notifyLog = util.GetLogger("db")
 
+var asyncNotify = struct {
+	mu     sync.Mutex
+	states map[uintptr]*asyncNotifyState
+}{
+	states: map[uintptr]*asyncNotifyState{},
+}
+
+type asyncNotifyState struct {
+	running       bool
+	pendingAll    bool
+	pendingTables map[string]struct{}
+}
+
 func (db *DB) RegisterNotifier(model any, notifier Notifier) error {
 	tableName := getTableName(model)
 	if tableName == "" {
@@ -54,18 +68,95 @@ func getTableName(model any) string {
 }
 
 func notifyChangeAsync(notifier Notifier, tableNames []string) {
+	id, ok := notifierIdentity(notifier)
+	if !ok {
+		go notifySafely(notifier, tableNames)
+		return
+	}
+
+	asyncNotify.mu.Lock()
+	state := asyncNotify.states[id]
+	if state == nil {
+		state = &asyncNotifyState{}
+		asyncNotify.states[id] = state
+	}
+	state.add(tableNames)
+	if state.running {
+		asyncNotify.mu.Unlock()
+		return
+	}
+	state.running = true
+	nextTables := state.drain()
+	asyncNotify.mu.Unlock()
+
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				notifyLog.Errorf("database notifier panic: %v", r)
+		for {
+			notifySafely(notifier, nextTables)
+
+			asyncNotify.mu.Lock()
+			if !state.hasPending() {
+				state.running = false
+				asyncNotify.mu.Unlock()
+				return
 			}
-		}()
-		if changeNotifier, ok := notifier.(ChangeNotifier); ok {
-			changeNotifier.NotifyChange(tableNames)
-			return
+			nextTables = state.drain()
+			asyncNotify.mu.Unlock()
 		}
-		notifier.Notify()
 	}()
+}
+
+func (s *asyncNotifyState) add(tableNames []string) {
+	if len(tableNames) == 0 {
+		s.pendingAll = true
+		s.pendingTables = nil
+		return
+	}
+	if s.pendingAll {
+		return
+	}
+	if s.pendingTables == nil {
+		s.pendingTables = map[string]struct{}{}
+	}
+	for _, tableName := range tableNames {
+		if tableName != "" {
+			s.pendingTables[tableName] = struct{}{}
+		}
+	}
+}
+
+func (s *asyncNotifyState) hasPending() bool {
+	return s.pendingAll || len(s.pendingTables) > 0
+}
+
+func (s *asyncNotifyState) drain() []string {
+	if s.pendingAll {
+		s.pendingAll = false
+		s.pendingTables = nil
+		return nil
+	}
+	if len(s.pendingTables) == 0 {
+		return nil
+	}
+	tableNames := make([]string, 0, len(s.pendingTables))
+	for tableName := range s.pendingTables {
+		tableNames = append(tableNames, tableName)
+	}
+	sort.Strings(tableNames)
+	s.pendingTables = nil
+	return tableNames
+}
+
+func notifySafely(notifier Notifier, tableNames []string) {
+	defer func() {
+		if r := recover(); r != nil {
+			notifyLog.Errorf("database notifier panic: %v", r)
+		}
+	}()
+	if changeNotifier, ok := notifier.(ChangeNotifier); ok {
+		changeNotifier.NotifyChange(tableNames)
+		return
+	}
+	notifier.Notify()
 }
 
 func StartPeriodicNotifier(notifier Notifier, interval time.Duration) func() error {

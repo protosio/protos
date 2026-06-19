@@ -1382,7 +1382,15 @@ class _InstancesViewState extends State<InstancesView> {
               RowColumn('Name', (row) => row.name),
               RowColumn('Provisioner', (row) => row.cloudName),
               RowColumn('Location', (row) => row.location),
-              RowColumn('Status', (row) => row.status),
+              RowColumn(
+                'Provider',
+                (row) => row.providerStatus.nonEmpty ?? row.status,
+              ),
+              RowColumn(
+                'Admin',
+                (row) => row.adminApiReachability.nonEmpty ?? 'unknown',
+              ),
+              RowColumn('Replication', _instanceReplicationText),
               RowColumn('Public IP', (row) => row.publicIp),
               RowColumn('Internal IP', (row) => row.internalIp),
             ],
@@ -1979,6 +1987,12 @@ class InstanceDetailPanel extends StatelessWidget {
           items: [
             KeyValueItem('Name', selected.name),
             KeyValueItem('Status', selected.status),
+            KeyValueItem('Provider status', selected.providerStatus),
+            KeyValueItem('Admin API', selected.adminApiReachability),
+            KeyValueItem('Admin last seen', selected.adminLastSeen),
+            KeyValueItem('Admin last error', selected.adminLastError),
+            KeyValueItem('Replication', _instanceReplicationText(selected)),
+            KeyValueItem('Peer ID', selected.peerId),
             KeyValueItem('Provisioner', selected.cloudName),
             KeyValueItem('Type', selected.cloudType),
             KeyValueItem('Location', selected.location),
@@ -4498,6 +4512,13 @@ String _byteCount(int bytes) {
     }
   }
   return '${(value / unit).toStringAsFixed(1)}PiB';
+}
+
+String _instanceReplicationText(pb.CloudInstance instance) {
+  if (instance.peerId.nonEmpty == null) {
+    return 'not applicable';
+  }
+  return instance.replicationConnected ? 'connected' : 'not connected';
 }
 
 String? _statusText(String? status) {

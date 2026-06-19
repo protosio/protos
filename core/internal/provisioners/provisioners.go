@@ -1338,29 +1338,72 @@ func (cm *Manager) TunnelInstance(id string) error {
 	return nil
 }
 
-// LogsRemoteInstance retrieves the Protos logs from an instance, via SSH
+// LogsRemoteInstance retrieves the Protos logs from an instance.
 func (cm *Manager) LogsRemoteInstance(id string) (string, error) {
-	instanceInfo, err := cm.GetInstance(id)
+	instanceInfo, err := cm.getInstanceRecord(id)
 	if err != nil {
 		return "", err
 	}
 
+	var providerLogsErr error
+	if logs, handled, err := cm.logsRemoteInstanceViaProvisioner(instanceInfo); handled {
+		if err == nil {
+			return logs, nil
+		}
+		providerLogsErr = err
+	}
+
 	auth, err := cm.sshAuthForInstance(instanceInfo)
 	if err != nil {
+		if providerLogsErr != nil {
+			return "", fmt.Errorf("provisioner log retrieval failed: %w; SSH auth failed: %w", providerLogsErr, err)
+		}
 		return "", err
 	}
 
 	sshCon, err := pcrypto.NewConnection(instanceInfo.PublicIP, "root", auth, 10)
 	if err != nil {
+		if providerLogsErr != nil {
+			return "", fmt.Errorf("provisioner log retrieval failed: %w; SSH connection failed: %w", providerLogsErr, err)
+		}
 		return "", err
 	}
 	defer sshCon.Close()
 
 	output, err := pcrypto.ExecuteCommand("cat /var/log/protos.log", sshCon)
 	if err != nil {
+		if providerLogsErr != nil {
+			return "", fmt.Errorf("provisioner log retrieval failed: %w; SSH log retrieval failed: %w", providerLogsErr, err)
+		}
 		return "", err
 	}
 	return output, nil
+}
+
+func (cm *Manager) logsRemoteInstanceViaProvisioner(instanceInfo InstanceInfo) (string, bool, error) {
+	provider, err := cm.GetProvider(instanceInfo.KindID)
+	if err != nil && instanceInfo.Kind == KindLocalVM {
+		provider, err = cm.GetProvisionerOrDefault(instanceInfo.KindID)
+	}
+	if err != nil {
+		return "", false, err
+	}
+	logsProvider, ok := provider.(InstanceLogsProvider)
+	if !ok {
+		return "", false, nil
+	}
+	if err := provider.Init(); err != nil {
+		return "", true, fmt.Errorf("failed to initialize provisioner '%s': %w", instanceInfo.KindID, err)
+	}
+	ref := firstNonEmptyString(instanceInfo.ProviderResourceID, instanceInfo.Name, instanceInfo.ID)
+	if ref == "" {
+		return "", true, fmt.Errorf("instance log reference is empty for '%s'", instanceInfo.Name)
+	}
+	logs, err := logsProvider.InstanceLogs(ref, instanceInfo.Location)
+	if err != nil {
+		return "", true, err
+	}
+	return logs, true, nil
 }
 
 func (cm *Manager) sshAuthForInstance(instance InstanceInfo) (ssh.AuthMethod, error) {
@@ -1409,6 +1452,12 @@ func (cm *Manager) GetInstance(id string) (InstanceInfo, error) {
 		instance.Status = status
 	}
 	return instance, nil
+}
+
+// GetDeclaredInstance retrieves an instance from declarative state without
+// asking the provider for live runtime status.
+func (cm *Manager) GetDeclaredInstance(id string) (InstanceInfo, error) {
+	return cm.getInstanceRecord(id)
 }
 
 func (cm *Manager) getInstanceRecord(id string) (InstanceInfo, error) {

@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	stdsql "database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -22,6 +23,7 @@ import (
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	"github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/tasks"
 	"google.golang.org/grpc"
 )
 
@@ -31,7 +33,11 @@ var _ proto.AppsServer = (*Server)(nil)
 var _ proto.ImagesServer = (*Server)(nil)
 var _ proto.InstanceServer = (*Server)(nil)
 
-const imageArchiveUploadMaxChunkSize = 1024 * 1024
+const (
+	imageArchiveUploadMaxChunkSize  = 1024 * 1024
+	imageBlobStreamDefaultChunkSize = 4 * 1024 * 1024
+	imageBlobStreamMaxChunkSize     = 4 * 1024 * 1024
+)
 
 type ExternalDB interface {
 	AddPeer(peerID string, conn *grpc.ClientConn) error
@@ -40,6 +46,7 @@ type ExternalDB interface {
 	ExecuteSQL(ctx context.Context, statement string, maxRows int) (db.SQLResult, error)
 	GetLastCommit(branch string) (db.Commit, error)
 	CatchUpCheckpoint(ctx context.Context, reason string) error
+	CatchUpCheckpointStrict(ctx context.Context, reason string) error
 	InitFromPeer(peerID string, bootstrapPeers []string) error
 	EnableGRPCServers(server *grpc.Server) error
 	Initialized() bool
@@ -83,9 +90,24 @@ func (s *Server) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingR
 	}
 
 	res := &proto.PingResponse{
-		Pong: "Ping: " + req.Ping + "!",
+		Pong:         "Ping: " + req.Ping + "!",
+		Capabilities: s.peerCapabilities(),
 	}
 	return res, nil
+}
+
+func (s *Server) peerCapabilities() []string {
+	if s == nil || s.p2p == nil {
+		return nil
+	}
+	var capabilities []string
+	if s.p2p.imageManager != nil {
+		capabilities = append(capabilities, peerCapabilityImageContent)
+	}
+	if s.DB != nil && s.DB.Initialized() {
+		capabilities = append(capabilities, peerCapabilitySwarmionTransport)
+	}
+	return capabilities
 }
 
 func (s *Server) ExecSQL(ctx context.Context, req *proto.ExecSQLRequest) (*proto.ExecSQLResponse, error) {
@@ -199,19 +221,162 @@ func (s *Server) GetExitRoutes(ctx context.Context, _ *proto.GetExitRoutesReques
 	return resp, nil
 }
 
-func (s *Server) GetRuntimeState(ctx context.Context, _ *proto.GetRuntimeStateRequest) (*proto.GetRuntimeStateResponse, error) {
+func (s *Server) GetRuntimeState(ctx context.Context, req *proto.GetRuntimeStateRequest) (*proto.GetRuntimeStateResponse, error) {
 	reader, ok := s.DB.(swarmionRuntimeReader)
 	if !ok || reader == nil {
 		return nil, fmt.Errorf("runtime state reader is not configured")
 	}
-	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get runtime state"); err != nil {
-		return nil, err
+	var readErr error
+	if err := s.DB.CatchUpCheckpointStrict(ctx, "p2p get runtime state"); err != nil {
+		if !req.GetAllowStale() || !db.IsRetryableCheckpointCatchUp(err) {
+			return nil, err
+		}
+		readErr = err
 	}
-	state, err := runtimeStateToP2PProto(ctx, reader)
+	state, err := runtimeStateToP2PProto(ctx, reader, readErr)
 	if err != nil {
 		return nil, err
 	}
 	return &proto.GetRuntimeStateResponse{State: state}, nil
+}
+
+func (s *Server) GetTasks(_ context.Context, req *proto.GetTasksRequest) (*proto.GetTasksResponse, error) {
+	manager := s.taskManager()
+	if manager == nil {
+		return nil, fmt.Errorf("task manager is not configured")
+	}
+	maxResults := int(req.GetMaxResults())
+	if maxResults <= 0 {
+		maxResults = 200
+	}
+	if maxResults > 1000 {
+		maxResults = 1000
+	}
+	records, truncated, err := manager.List(tasks.ListOptions{
+		Stream:      req.GetStream(),
+		SubjectType: req.GetSubjectType(),
+		SubjectID:   req.GetSubjectId(),
+		Status:      tasks.Status(req.GetStatus()),
+		MaxResults:  maxResults,
+	})
+	if err != nil {
+		return nil, err
+	}
+	resp := &proto.GetTasksResponse{Truncated: truncated}
+	for _, record := range records {
+		resp.Tasks = append(resp.Tasks, taskRecordToP2PProto(record))
+	}
+	return resp, nil
+}
+
+func (s *Server) GetTask(_ context.Context, req *proto.GetTaskRequest) (*proto.GetTaskResponse, error) {
+	manager := s.taskManager()
+	if manager == nil {
+		return nil, fmt.Errorf("task manager is not configured")
+	}
+	record, err := manager.Get(req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	resp := &proto.GetTaskResponse{Task: taskRecordToP2PProto(record)}
+	if req.GetIncludeEvents() {
+		events, err := manager.Events(record.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, event := range events {
+			resp.Events = append(resp.Events, taskEventToP2PProto(event))
+		}
+	}
+	return resp, nil
+}
+
+func (s *Server) WatchTask(req *proto.WatchTaskRequest, stream proto.Instance_WatchTaskServer) error {
+	manager := s.taskManager()
+	if manager == nil {
+		return fmt.Errorf("task manager is not configured")
+	}
+	id := strings.TrimSpace(req.GetId())
+	if id == "" {
+		return fmt.Errorf("task id is empty")
+	}
+	updates, cancel, err := manager.Subscribe(id)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+
+	record, err := manager.Get(id)
+	if err != nil {
+		return err
+	}
+	if req.GetIncludeSnapshot() {
+		resp := &proto.WatchTaskResponse{Task: taskRecordToP2PProto(record)}
+		if req.GetIncludeEvents() {
+			events, err := manager.Events(record.ID)
+			if err != nil {
+				return err
+			}
+			for _, event := range events {
+				resp.Events = append(resp.Events, taskEventToP2PProto(event))
+			}
+		}
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+	}
+
+	var lastSequence uint64
+	if latest, found := manager.LatestProgress(id); found {
+		lastSequence = latest.Sequence
+		if err := stream.Send(&proto.WatchTaskResponse{
+			Sequence: latest.Sequence,
+			Update:   taskProgressUpdateToP2PProto(latest),
+		}); err != nil {
+			return err
+		}
+	}
+
+	var ticks <-chan time.Time
+	var ticker *time.Ticker
+	if intervalMillis := req.GetHeartbeatIntervalMs(); intervalMillis > 0 {
+		ticker = time.NewTicker(time.Duration(intervalMillis) * time.Millisecond)
+		defer ticker.Stop()
+		ticks = ticker.C
+	}
+
+	ctx := stream.Context()
+	for {
+		select {
+		case update, ok := <-updates:
+			if !ok {
+				return nil
+			}
+			if update.Sequence <= lastSequence {
+				continue
+			}
+			lastSequence = update.Sequence
+			if err := stream.Send(&proto.WatchTaskResponse{
+				Sequence: update.Sequence,
+				Update:   taskProgressUpdateToP2PProto(update),
+			}); err != nil {
+				return err
+			}
+		case <-ticks:
+			if err := stream.Send(&proto.WatchTaskResponse{Heartbeat: true}); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (s *Server) taskManager() *tasks.Manager {
+	if s == nil || s.p2p == nil {
+		return nil
+	}
+	return s.p2p.taskManager
 }
 
 func (s *Server) DescribeImage(ctx context.Context, req *proto.DescribeImageRequest) (*proto.DescribeImageResponse, error) {
@@ -249,20 +414,26 @@ func (s *Server) GetImageContent(ctx context.Context, req *proto.GetImageContent
 	}, nil
 }
 
-func (s *Server) GetImageBlobChunk(ctx context.Context, req *proto.GetImageBlobChunkRequest) (*proto.GetImageBlobChunkResponse, error) {
+func (s *Server) GetImageBlob(req *proto.GetImageBlobRequest, stream proto.Images_GetImageBlobServer) error {
 	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
-		return nil, fmt.Errorf("image manager is not configured")
+		return fmt.Errorf("image manager is not configured")
 	}
-	data, eof, err := s.p2p.imageManager.ReadImageBlobChunk(ctx, req.GetDigest(), req.GetOffset(), req.GetLength())
-	if err != nil {
-		return nil, err
+	ctx := stream.Context()
+	digest := strings.TrimSpace(req.GetDigest())
+	if digest == "" {
+		return fmt.Errorf("image blob digest is empty")
 	}
-	return &proto.GetImageBlobChunkResponse{
-		Digest: req.GetDigest(),
-		Offset: req.GetOffset(),
-		Data:   data,
-		Eof:    eof,
-	}, nil
+
+	chunkSize := req.GetChunkSize()
+	if chunkSize == 0 {
+		chunkSize = imageBlobStreamDefaultChunkSize
+	}
+	if chunkSize > imageBlobStreamMaxChunkSize {
+		chunkSize = imageBlobStreamMaxChunkSize
+	}
+
+	_, err := s.p2p.sendImageBlobRange(ctx, digest, req.GetOffset(), req.GetLength(), chunkSize, stream.Send)
+	return err
 }
 
 func (s *Server) LoadImageArchive(ctx context.Context, req *proto.LoadImageArchiveRequest) (*proto.LoadImageArchiveResponse, error) {
@@ -502,27 +673,23 @@ type p2pExitRoute struct {
 }
 
 func readExitRoutes(ctx context.Context, database *db.DB) ([]p2pExitRoute, error) {
-	rows, err := database.QueryContext(ctx, "SELECT id, device_id, instance_id, desired_status, dns_server, cidrs FROM exit_routes")
-	if err != nil {
-		return nil, fmt.Errorf("retrieve exit routes: %w", err)
-	}
-	defer rows.Close()
-
 	var routes []p2pExitRoute
-	for rows.Next() {
-		var route p2pExitRoute
-		var id, deviceID, instanceID []byte
-		var cidrsJSON string
-		if err := rows.Scan(&id, &deviceID, &instanceID, &route.DesiredStatus, &route.DNSServer, &cidrsJSON); err != nil {
-			return nil, fmt.Errorf("scan exit route: %w", err)
+	if err := database.ReadRows(ctx, "SELECT id, device_id, instance_id, desired_status, dns_server, cidrs FROM exit_routes", nil, func(rows *stdsql.Rows) error {
+		for rows.Next() {
+			var route p2pExitRoute
+			var id, deviceID, instanceID []byte
+			var cidrsJSON string
+			if err := rows.Scan(&id, &deviceID, &instanceID, &route.DesiredStatus, &route.DNSServer, &cidrsJSON); err != nil {
+				return fmt.Errorf("scan exit route: %w", err)
+			}
+			route.ID = db.UUIDString(id)
+			route.DeviceID = db.UUIDString(deviceID)
+			route.InstanceID = db.UUIDString(instanceID)
+			route.CIDRs = parseExitRouteCIDRS(cidrsJSON)
+			routes = append(routes, route)
 		}
-		route.ID = db.UUIDString(id)
-		route.DeviceID = db.UUIDString(deviceID)
-		route.InstanceID = db.UUIDString(instanceID)
-		route.CIDRs = parseExitRouteCIDRS(cidrsJSON)
-		routes = append(routes, route)
-	}
-	if err := rows.Err(); err != nil {
+		return nil
+	}); err != nil {
 		return nil, fmt.Errorf("read exit routes: %w", err)
 	}
 	return routes, nil
@@ -551,7 +718,67 @@ func exitRouteToP2PProto(route p2pExitRoute) *proto.ExitRoute {
 	}
 }
 
-func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (*proto.RuntimeState, error) {
+func taskRecordToP2PProto(record tasks.Record) *proto.Task {
+	return &proto.Task{
+		Id:           record.ID,
+		Stream:       record.Stream,
+		SubjectType:  record.SubjectType,
+		SubjectId:    record.SubjectID,
+		Status:       string(record.Status),
+		Title:        record.Title,
+		Message:      record.Message,
+		Progress:     int32(record.Progress),
+		PayloadJson:  rawJSONText(record.Payload),
+		ResultJson:   rawJSONText(record.Result),
+		ErrorMessage: record.ErrorMessage,
+		Attempts:     int32(record.Attempts),
+		MaxAttempts:  int32(record.MaxAttempts),
+		CreatedAt:    formatTaskTime(record.CreatedAt),
+		UpdatedAt:    formatTaskTime(record.UpdatedAt),
+		StartedAt:    formatTaskTime(record.StartedAt),
+		FinishedAt:   formatTaskTime(record.FinishedAt),
+	}
+}
+
+func taskEventToP2PProto(event tasks.Event) *proto.TaskEvent {
+	return &proto.TaskEvent{
+		Id:          event.ID,
+		TaskId:      event.TaskID,
+		Status:      string(event.Status),
+		Message:     event.Message,
+		Progress:    int32(event.Progress),
+		DetailsJson: rawJSONText(event.Details),
+		CreatedAt:   formatTaskTime(event.CreatedAt),
+	}
+}
+
+func taskProgressUpdateToP2PProto(update tasks.ProgressUpdate) *proto.TaskProgressUpdate {
+	return &proto.TaskProgressUpdate{
+		TaskId:      update.TaskID,
+		Status:      string(update.Status),
+		Message:     update.Message,
+		Progress:    int32(update.Progress),
+		DetailsJson: rawJSONText(update.Details),
+		CreatedAt:   formatTaskTime(update.CreatedAt),
+		Durable:     update.Durable,
+	}
+}
+
+func rawJSONText(raw []byte) string {
+	if len(raw) == 0 {
+		return "{}"
+	}
+	return string(raw)
+}
+
+func formatTaskTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339Nano)
+}
+
+func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader, readErr error) (*proto.RuntimeState, error) {
 	status, ok := reader.SwarmionStatus()
 	if !ok {
 		return nil, fmt.Errorf("swarmion status is not available")
@@ -571,6 +798,10 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 		RuntimeCheckpointLastError:   status.RuntimeCheckpointMaterializeLastError,
 		RuntimeMaterializationPolicy: status.RuntimeCheckpointMaterializationPolicy.String(),
 		ProtocolCheckpointDigest:     formatRuntimeDigest(status.ProtocolCheckpointDigest),
+		ReadConsistency:              runtimeReadConsistency(readErr),
+	}
+	if readErr != nil {
+		out.ReadError = readErr.Error()
 	}
 	if status.Fatal != nil {
 		out.FatalState = status.Fatal.State
@@ -578,46 +809,51 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 		out.FatalState = status.FatalState.String()
 	}
 
-	peerStatuses, err := reader.SwarmionPeerStatus(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, peerStatus := range peerStatuses {
-		out.PeerStatuses = append(out.PeerStatuses, &proto.RuntimePeerStatus{
-			PeerId:         peerStatus.PeerID,
-			Connected:      peerStatus.Connected,
-			Dialable:       peerStatus.Dialable,
-			StateProvider:  peerStatus.StateProvider,
-			Compatible:     peerStatus.Compatible,
-			Incompatible:   peerStatus.Incompatible,
-			Ignored:        peerStatus.Ignored,
-			RelayOnly:      peerStatus.RelayOnly,
-			Addresses:      append([]string(nil), peerStatus.Addresses...),
-			LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
-			Reason:         peerStatus.Reason,
-		})
+	if readErr == nil || ctx.Err() == nil {
+		peerStatuses, err := reader.SwarmionPeerStatus(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, peerStatus := range peerStatuses {
+			out.PeerStatuses = append(out.PeerStatuses, &proto.RuntimePeerStatus{
+				PeerId:         peerStatus.PeerID,
+				Connected:      peerStatus.Connected,
+				Dialable:       peerStatus.Dialable,
+				StateProvider:  peerStatus.StateProvider,
+				Compatible:     peerStatus.Compatible,
+				Incompatible:   peerStatus.Incompatible,
+				Ignored:        peerStatus.Ignored,
+				RelayOnly:      peerStatus.RelayOnly,
+				Addresses:      append([]string(nil), peerStatus.Addresses...),
+				LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
+				Reason:         peerStatus.Reason,
+			})
+		}
 	}
 	var peerIDs map[string]struct{}
 	if database, ok := reader.(*db.DB); ok {
+		var err error
 		peerIDs, err = db.GetActiveRuntimePeerIDs(database)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	compatibility, err := reader.SwarmionCompatibility(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, item := range compatibility {
-		out.Compatibility = append(out.Compatibility, &proto.RuntimeCompatibility{
-			PeerId:       item.PeerID,
-			LocalDigest:  item.LocalDigest,
-			RemoteDigest: item.RemoteDigest,
-			Compatible:   item.Compatible,
-			Blocking:     item.Blocking,
-			Reason:       item.Reason,
-		})
+	if readErr == nil || ctx.Err() == nil {
+		compatibility, err := reader.SwarmionCompatibility(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range compatibility {
+			out.Compatibility = append(out.Compatibility, &proto.RuntimeCompatibility{
+				PeerId:       item.PeerID,
+				LocalDigest:  item.LocalDigest,
+				RemoteDigest: item.RemoteDigest,
+				Compatible:   item.Compatible,
+				Blocking:     item.Blocking,
+				Reason:       item.Reason,
+			})
+		}
 	}
 	if peerIDs != nil {
 		filterRuntimePeerSurface(out, peerIDs)
@@ -628,6 +864,13 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader) (
 	}
 	sanitizeRuntimeStateStrings(out)
 	return out, nil
+}
+
+func runtimeReadConsistency(readErr error) string {
+	if readErr != nil {
+		return "stale"
+	}
+	return "checkpointed"
 }
 
 func sanitizeRuntimeStateStrings(out *proto.RuntimeState) {
@@ -648,6 +891,8 @@ func sanitizeRuntimeStateStrings(out *proto.RuntimeState) {
 	out.RuntimeMaterializationPolicy = validProtoString(out.GetRuntimeMaterializationPolicy())
 	out.ContentSyncTrace = validProtoStrings(out.GetContentSyncTrace())
 	out.ProtocolCheckpointDigest = validProtoString(out.GetProtocolCheckpointDigest())
+	out.ReadConsistency = validProtoString(out.GetReadConsistency())
+	out.ReadError = validProtoString(out.GetReadError())
 
 	for _, item := range out.GetCompatibility() {
 		if item == nil {
@@ -939,7 +1184,7 @@ func (s *Server) GetAppLogs(ctx context.Context, req *proto.GetAppLogsRequest) (
 }
 
 func (s *Server) GetAppStatus(ctx context.Context, req *proto.GetAppStatusRequest) (*proto.GetAppStatusResponse, error) {
-	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get app status"); err != nil {
+	if err := s.DB.CatchUpCheckpointStrict(ctx, "p2p get app status"); err != nil {
 		return nil, err
 	}
 

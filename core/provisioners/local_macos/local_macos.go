@@ -472,6 +472,10 @@ func (lm *localMacOS) DeploymentDiagnostics(id string, location string) (string,
 	return strings.Join(lines, "\n"), nil
 }
 
+func (lm *localMacOS) InstanceLogs(id string, location string) (string, error) {
+	return lm.DeploymentDiagnostics(id, location)
+}
+
 func (lm *localMacOS) ReconcileInstance(instance provisioners.InstanceInfo) (provisioners.InstanceInfo, error) {
 	ref := firstNonEmptyLocalMacOSString(instance.ProviderResourceID, instance.Name, instance.ID)
 	if ref == "" {

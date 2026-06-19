@@ -2,7 +2,9 @@ package apic
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/invitations"
+	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/user"
@@ -171,6 +174,44 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 	}
 	if got := state.GetCompatibility(); len(got) != 1 || got[0].GetPeerId() != "provider-peer" {
 		t.Fatalf("compatibility = %#v, want only provider peer", got)
+	}
+}
+
+func TestRuntimePeerMapFromP2PStateUsesCanonicalRuntimeState(t *testing.T) {
+	t.Parallel()
+
+	peers := runtimePeerMapFromP2PState(&p2pproto.RuntimeState{
+		ConnectedPeers: []string{"peer-connected-list", "  "},
+		PeerStatuses: []*p2pproto.RuntimePeerStatus{
+			{PeerId: "peer-connected-list", Dialable: false, Reason: "old dial error"},
+			{PeerId: "peer-connected-status", Connected: true},
+			{PeerId: "peer-dialable", Dialable: true},
+			{PeerId: "peer-unreachable", Reason: "dial failed"},
+			{PeerId: "peer-ignored", Ignored: true},
+			{PeerId: "peer-incompatible", Incompatible: true},
+			{PeerId: "peer-relay", RelayOnly: true},
+			{PeerId: "peer-disconnected"},
+			{PeerId: "  ", Connected: true},
+		},
+	})
+
+	want := map[string]string{
+		"peer-connected-list":   "connected",
+		"peer-connected-status": "connected",
+		"peer-dialable":         "dialable",
+		"peer-unreachable":      "unreachable",
+		"peer-ignored":          "ignored",
+		"peer-incompatible":     "incompatible",
+		"peer-relay":            "relay_only",
+		"peer-disconnected":     "disconnected",
+	}
+	if len(peers) != len(want) {
+		t.Fatalf("peer count = %d, want %d: %#v", len(peers), len(want), peers)
+	}
+	for peerID, label := range want {
+		if peers[peerID] != label {
+			t.Fatalf("peer %s label = %q, want %q (all=%#v)", peerID, peers[peerID], label, peers)
+		}
 	}
 }
 
@@ -439,17 +480,14 @@ func libp2pPublicKeyString(t *testing.T, key *pcrypto.Key) string {
 func countUsersByUsername(t *testing.T, store *db.DB, username string) int {
 	t.Helper()
 
-	rows, err := store.QueryContext(context.Background(), "SELECT COUNT(*) FROM users WHERE username = ?", username)
-	if err != nil {
-		t.Fatalf("query users count: %v", err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		t.Fatal("query users count returned no rows")
-	}
 	var count int
-	if err := rows.Scan(&count); err != nil {
-		t.Fatalf("scan users count: %v", err)
+	if err := store.ReadRows(context.Background(), "SELECT COUNT(*) FROM users WHERE username = ?", []any{username}, func(rows *sql.Rows) error {
+		if !rows.Next() {
+			return errors.New("query users count returned no rows")
+		}
+		return rows.Scan(&count)
+	}); err != nil {
+		t.Fatalf("query users count: %v", err)
 	}
 	return count
 }

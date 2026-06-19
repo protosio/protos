@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -32,6 +33,7 @@ type Manager struct {
 	imageResolver ImageResolver
 	tasks         *tasks.Manager
 	notifyMu      sync.Mutex
+	reconcileSig  string
 }
 
 type reconcileRuntimeTaskPayload struct {
@@ -45,7 +47,7 @@ type reconcileRuntimeTaskResult struct {
 }
 
 type ImageResolver interface {
-	ResolveImage(ctx context.Context, imageRef string) error
+	ResolveImage(ctx context.Context, imageRef string, progress func(int, string, any) error) error
 }
 
 //
@@ -94,8 +96,11 @@ func (am *Manager) bindAll(apps []App) []App {
 // Client methods
 //
 
-// Create takes an image and creates an application, without starting it
-func (am *Manager) Create(installer string, name string, instanceName string, persistence bool, installerParams map[string]string) (*App, error) {
+// Create takes an image and creates an application, without starting it.
+func (am *Manager) Create(ctx context.Context, installer string, name string, instanceName string, persistence bool, installerParams map[string]string) (*App, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	var app *App
 	if name == "" || installer == "" || instanceName == "" {
@@ -126,7 +131,7 @@ func (am *Manager) Create(installer string, name string, instanceName string, pe
 		Persistence:   persistence,
 	}
 
-	err = db.Insert(am.db, createAppInsertMapper(*app))
+	err = db.InsertPublishedContext(ctx, am.db, createAppInsertMapper(*app))
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create application '%s'", name)
 	}
@@ -152,13 +157,20 @@ func (am *Manager) GetByID(id string) (App, error) {
 
 // Get returns a copy of an application based on its name or id
 func (am *Manager) Get(id string) (App, error) {
+	return am.GetContext(context.Background(), id)
+}
+
+func (am *Manager) GetContext(ctx context.Context, id string) (App, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	appModel := sq.New[db.APP]("")
-	app, err := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{db.UUIDEq(appModel.ID, id)}))
+	app, err := db.SelectOneContext(ctx, am.db, createAppQueryMapper([]sq.Predicate{db.UUIDEq(appModel.ID, id)}))
 	if err == nil {
 		return am.bind(app), nil
 	}
 
-	app, nameErr := db.SelectOne(am.db, createAppQueryMapper([]sq.Predicate{appModel.NAME.EqString(id)}))
+	app, nameErr := db.SelectOneContext(ctx, am.db, createAppQueryMapper([]sq.Predicate{appModel.NAME.EqString(id)}))
 	if nameErr != nil {
 		return app, fmt.Errorf("failed to retrieve app by id or name %q: id lookup: %w; name lookup: %w", id, err, nameErr)
 	}
@@ -191,9 +203,74 @@ func (am *Manager) GetByIntance(instance string) ([]App, error) {
 // image resolution, pulls, and sandbox lifecycle work, so the database notifier
 // must not run them inline.
 func (am *Manager) Notify() {
+	shouldQueue, err := am.shouldQueueReconcile()
+	if err != nil {
+		log.Errorf("failed to inspect app runtime reconciliation state: %s", err.Error())
+		return
+	}
+	if !shouldQueue {
+		return
+	}
 	if _, err := am.QueueReconcile(); err != nil {
+		am.clearReconcileSignature()
 		log.Errorf("failed to queue app runtime reconciliation: %s", err.Error())
 	}
+}
+
+func (am *Manager) shouldQueueReconcile() (bool, error) {
+	if am == nil {
+		return false, nil
+	}
+	am.notifyMu.Lock()
+	defer am.notifyMu.Unlock()
+
+	signature, err := am.reconcileSignature()
+	if err != nil {
+		return false, err
+	}
+	if signature == "" || signature == am.reconcileSig {
+		return false, nil
+	}
+	am.reconcileSig = signature
+	return true, nil
+}
+
+func (am *Manager) clearReconcileSignature() {
+	if am == nil {
+		return
+	}
+	am.notifyMu.Lock()
+	defer am.notifyMu.Unlock()
+	am.reconcileSig = ""
+}
+
+func (am *Manager) reconcileSignature() (string, error) {
+	if am == nil || am.db == nil {
+		return "", nil
+	}
+	dbapps, err := db.SelectMultiple(am.db, createAppQueryMapper(nil))
+	if err != nil {
+		return "", fmt.Errorf("failed to get apps from db: %w", err)
+	}
+
+	parts := make([]string, 0, len(dbapps))
+	for _, application := range dbapps {
+		if !am.shouldReconcile(application) {
+			continue
+		}
+		application = am.bind(application)
+		parts = append(parts, strings.Join([]string{
+			"app",
+			application.ID,
+			application.Name,
+			application.InstallerRef,
+			application.InstanceID,
+			application.DesiredStatus,
+			application.PublicKey,
+		}, "\x00"))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "\n"), nil
 }
 
 func (am *Manager) QueueReconcile() (tasks.Record, error) {
@@ -227,9 +304,11 @@ func (am *Manager) runReconcileRuntimeTask(ctx context.Context, task *tasks.RunC
 		return task.Progress(progress, message, details)
 	})
 	if err != nil {
+		am.clearReconcileSignature()
 		return reconcileRuntimeTaskResult{}, err
 	}
 	if err := task.Update(95, "app runtime reconciled", result); err != nil {
+		am.clearReconcileSignature()
 		return reconcileRuntimeTaskResult{}, err
 	}
 	return result, nil
@@ -237,13 +316,19 @@ func (am *Manager) runReconcileRuntimeTask(ctx context.Context, task *tasks.RunC
 
 // reconcileRuntime checks the db for new apps and deploys them if they belong to the current instance.
 func (am *Manager) reconcileRuntime(ctx context.Context, progress func(int, string, any) error) (reconcileRuntimeTaskResult, error) {
-	am.notifyMu.Lock()
-	defer am.notifyMu.Unlock()
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if progress == nil {
 		progress = func(int, string, any) error { return nil }
+	}
+	if am == nil {
+		return reconcileRuntimeTaskResult{}, nil
+	}
+	result := reconcileRuntimeTaskResult{PeerID: strings.TrimSpace(am.ptype)}
+	if am.runtime == nil {
+		_ = progress(10, "app runtime not configured", map[string]string{"peer_id": result.PeerID})
+		return result, nil
 	}
 
 	log.Debug("Syncing apps")
@@ -253,7 +338,6 @@ func (am *Manager) reconcileRuntime(ctx context.Context, progress func(int, stri
 	}
 
 	appsMap := map[string]App{}
-	result := reconcileRuntimeTaskResult{PeerID: strings.TrimSpace(am.ptype)}
 	for _, app := range dbapps {
 		if err := ctx.Err(); err != nil {
 			return reconcileRuntimeTaskResult{}, err
@@ -268,7 +352,7 @@ func (am *Manager) reconcileRuntime(ctx context.Context, progress func(int, stri
 		switch app.DesiredStatus {
 		case statusRunning:
 			_ = progress(20, "starting app", map[string]string{"app_id": app.ID, "app": app.Name})
-			err := app.Start()
+			err := app.StartWithProgress(progress)
 			if err != nil {
 				return reconcileRuntimeTaskResult{}, fmt.Errorf("failed to start app '%s': %w", app.Name, err)
 			}
@@ -336,15 +420,18 @@ func (am *Manager) shouldReconcile(app App) bool {
 	return peerID == am.ptype
 }
 
-// Start sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance
-func (am *Manager) Start(name string) error {
-	app, err := am.Get(name)
+// Start sets the desired status of the app to running, which triggers the app reconciler on the hosting instance.
+func (am *Manager) Start(ctx context.Context, name string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	app, err := am.GetContext(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	app.DesiredStatus = statusRunning
-	err = db.Update(am.db, createAppUpdateMapper(app))
+	err = db.UpdatePublishedContext(ctx, am.db, createAppUpdateMapper(app))
 	if err != nil {
 		return fmt.Errorf("failed to set desired application status to '%s'(%s): %w", statusRunning, app.Name, err)
 	}
@@ -353,14 +440,17 @@ func (am *Manager) Start(name string) error {
 }
 
 // Stop sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance
-func (am *Manager) Stop(name string) error {
-	app, err := am.Get(name)
+func (am *Manager) Stop(ctx context.Context, name string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	app, err := am.GetContext(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	app.DesiredStatus = statusStopped
-	err = db.Update(am.db, createAppUpdateMapper(app))
+	err = db.UpdatePublishedContext(ctx, am.db, createAppUpdateMapper(app))
 	if err != nil {
 		return fmt.Errorf("failed to set desired application status to '%s'(%s): %w", statusStopped, app.Name, err)
 	}
@@ -368,8 +458,11 @@ func (am *Manager) Stop(name string) error {
 }
 
 // Remove removes an application based on the provided id
-func (am *Manager) Remove(id string) error {
-	app, err := am.Get(id)
+func (am *Manager) Remove(ctx context.Context, id string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	app, err := am.GetContext(ctx, id)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to remove application %s", id)
 	}
@@ -378,7 +471,7 @@ func (am *Manager) Remove(id string) error {
 		return fmt.Errorf("application '%s' should be stopped before being removed", id)
 	}
 
-	err = db.Delete(am.db, createAppDeleteByNameQuery(app.ID))
+	err = db.DeletePublishedContext(ctx, am.db, createAppDeleteByNameQuery(app.ID))
 	if err != nil {
 		return errors.Wrapf(err, "Failed to remove application %s", id)
 	}

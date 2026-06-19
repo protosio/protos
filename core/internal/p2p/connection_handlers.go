@@ -14,8 +14,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// createClientForPeer returns the remote client that can reach all remote handlers
-func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) {
+const peerClientPingTimeout = 3 * time.Second
+
+// createClientForPeer returns the remote client that can reach all remote handlers.
+func (p2p *P2P) createClientForPeer(ctx context.Context, peerID peer.ID) (client *Client, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	// grpc conn
 	conn, err := grpc.NewClient(
@@ -35,24 +40,27 @@ func (p2p *P2P) createClientForPeer(peerID peer.ID) (client *Client, err error) 
 		InstanceClient: p2pproto.NewInstanceClient(conn),
 	}
 
-	tries := 0
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		_, err = client.Ping(ctx, &p2pproto.PingRequest{
+		pingCtx, cancel := context.WithTimeout(ctx, peerClientPingTimeout)
+		resp, pingErr := client.Ping(pingCtx, &p2pproto.PingRequest{
 			Ping: "pong",
 		})
 		cancel()
-		if err != nil {
-			if tries < 60 {
-				time.Sleep(200 * time.Millisecond)
-				tries++
-				continue
-			} else {
-				return nil, fmt.Errorf("failed to ping peer %s: %w", peerID.String(), err)
+		if pingErr != nil {
+			if ctx.Err() != nil {
+				_ = conn.Close()
+				return nil, fmt.Errorf("failed to ping peer %s: %w", peerID.String(), pingErr)
 			}
-		} else {
-			break
+			select {
+			case <-ctx.Done():
+				_ = conn.Close()
+				return nil, fmt.Errorf("failed to ping peer %s: %w", peerID.String(), pingErr)
+			case <-time.After(200 * time.Millisecond):
+			}
+			continue
 		}
+		client.setCapabilities(resp.GetCapabilities())
+		break
 	}
 	client.grpcConnection = conn
 
@@ -66,11 +74,12 @@ func (p2p *P2P) withP2PDialer() grpc.DialOption {
 			return nil, err
 		}
 
-		switch connectedness := p2p.host.Network().Connectedness(peerID); connectedness {
-		case network.Connected:
-		case network.Limited:
-			ctx = network.WithAllowLimitedConn(ctx, "protos p2p grpc")
-		default:
+		connectedness := p2p.host.Network().Connectedness(peerID)
+		if usablePeerConnectedness(connectedness) {
+			if connectedness == network.Limited {
+				ctx = network.WithAllowLimitedConn(ctx, "protos p2p grpc")
+			}
+		} else {
 			return nil, fmt.Errorf("not connected to peer %s: %s", peerIDString, connectedness)
 		}
 
@@ -102,7 +111,9 @@ func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
 		}
 
 		log.Debugf("new connection with peer %s. Creating client", conn.RemotePeer().String())
-		client, err := p2p.createClientForPeer(conn.RemotePeer())
+		clientCtx, cancel := context.WithTimeout(context.Background(), peerClientReconnectAttemptTimeout)
+		client, err := p2p.createClientForPeer(clientCtx, conn.RemotePeer())
+		cancel()
 		if err != nil {
 			p2p.markPeerFailed(conn.RemotePeer().String(), nil, err)
 			log.Errorf("failed to create client for new peer %s: %s", conn.RemotePeer().String(), err.Error())

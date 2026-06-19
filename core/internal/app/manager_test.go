@@ -43,6 +43,24 @@ func TestNotifyDoesNotRemoveSandboxForAppOutsideLocalScope(t *testing.T) {
 	}
 }
 
+func TestNotifyNoopsWhenRuntimeUnavailable(t *testing.T) {
+	store := newTestAppDB(t)
+	taskManager := tasks.NewManager(store)
+	manager := CreateManager("local-node", nil, store, taskManager)
+
+	manager.Notify()
+	if err := taskManager.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	records, _, err := taskManager.List(tasks.ListOptions{Stream: AppReconcileTaskStream, MaxResults: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 0 {
+		t.Fatalf("task count = %d, want 0", len(records))
+	}
+}
+
 func TestGetReturnsAppWithInstanceID(t *testing.T) {
 	store := newTestAppDB(t)
 	appID := db.MustNewUUIDv7()
@@ -87,7 +105,7 @@ func TestCreateAssignsAppPublicKeyAndOverlayIP(t *testing.T) {
 	store := newTestAppDB(t)
 	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store, tasks.NewManager(store))
 
-	created, err := manager.Create("docker.io/library/busybox:latest", "app", "vm-id", false, nil)
+	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", "vm-id", false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,11 +134,11 @@ func TestStartPullsMissingImage(t *testing.T) {
 	runtime := &fakeRuntimePlatform{imageExists: false}
 	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 
-	created, err := manager.Create("docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.Start(created.Name); err != nil {
+	if err := manager.Start(context.Background(), created.Name); err != nil {
 		t.Fatal(err)
 	}
 	manager.Notify()
@@ -132,6 +150,45 @@ func TestStartPullsMissingImage(t *testing.T) {
 	}
 	if runtime.newSandboxCalls != 1 {
 		t.Fatalf("newSandboxCalls = %d, want 1", runtime.newSandboxCalls)
+	}
+}
+
+func TestReconcileDoesNotConsumeDesiredStateWrittenDuringTask(t *testing.T) {
+	store := newTestAppDB(t)
+	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
+	runtime := &fakeRuntimePlatform{imageExists: true}
+	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
+
+	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedDuringReconcile := false
+	runtime.getAllSandboxesHook = func() {
+		if updatedDuringReconcile {
+			return
+		}
+		updatedDuringReconcile = true
+		if err := manager.Start(context.Background(), created.Name); err != nil {
+			t.Fatalf("start app during reconcile: %v", err)
+		}
+	}
+
+	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.newSandboxCalls != 0 {
+		t.Fatalf("newSandboxCalls after stopped reconcile = %d, want 0", runtime.newSandboxCalls)
+	}
+
+	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.newSandboxCalls != 1 {
+		t.Fatalf("newSandboxCalls after follow-up reconcile = %d, want 1", runtime.newSandboxCalls)
 	}
 }
 
@@ -147,11 +204,11 @@ func TestStartResolvesMissingImageFromPeersBeforePull(t *testing.T) {
 		},
 	})
 
-	created, err := manager.Create("docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.Start(created.Name); err != nil {
+	if err := manager.Start(context.Background(), created.Name); err != nil {
 		t.Fatal(err)
 	}
 	manager.Notify()
@@ -291,17 +348,18 @@ func insertTestMachine(t *testing.T, store *db.DB, name string) (string, string)
 }
 
 type fakeRuntimePlatform struct {
-	sandboxes       map[string]*fakeRuntimeSandbox
-	newSandboxCalls int
-	imageExists     bool
-	pullImageCalls  int
+	sandboxes           map[string]*fakeRuntimeSandbox
+	newSandboxCalls     int
+	imageExists         bool
+	pullImageCalls      int
+	getAllSandboxesHook func()
 }
 
 type fakeImageResolver struct {
 	resolve func(context.Context, string) error
 }
 
-func (f fakeImageResolver) ResolveImage(ctx context.Context, imageRef string) error {
+func (f fakeImageResolver) ResolveImage(ctx context.Context, imageRef string, _ func(int, string, any) error) error {
 	return f.resolve(ctx, imageRef)
 }
 
@@ -319,6 +377,9 @@ func (f *fakeRuntimePlatform) GetSandbox(id string) (appruntime.RuntimeSandbox, 
 }
 
 func (f *fakeRuntimePlatform) GetAllSandboxes() (map[string]appruntime.RuntimeSandbox, error) {
+	if f.getAllSandboxesHook != nil {
+		f.getAllSandboxesHook()
+	}
 	result := map[string]appruntime.RuntimeSandbox{}
 	for id, sandbox := range f.sandboxes {
 		result[id] = sandbox

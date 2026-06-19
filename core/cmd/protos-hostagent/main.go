@@ -32,18 +32,20 @@ var log = util.GetLogger("protos-hostagent")
 
 func main() {
 	var (
-		runVM        bool
-		manifestPath string
-		hostSocket   string
-		socketMode   string
-		socketUID    int
-		socketGID    int
-		workDir      string
-		logLevel     string
-		stopExisting bool
+		runVM                         bool
+		manifestPath                  string
+		hostSocket                    string
+		socketMode                    string
+		socketUID                     int
+		socketGID                     int
+		workDir                       string
+		logLevel                      string
+		stopExisting                  bool
+		cleanupVMRunnerManifestPrefix string
 	)
 	flag.BoolVar(&runVM, "run-vm", false, "run one VM from a manifest and block until it exits")
 	flag.BoolVar(&stopExisting, "stop-existing", false, "stop existing host agent daemon processes and exit")
+	flag.StringVar(&cleanupVMRunnerManifestPrefix, "cleanup-vm-runners-manifest-prefix", "", "stop VM runner processes whose manifest path has this prefix and exit")
 	flag.StringVar(&manifestPath, "manifest", "", "path to a local macOS VM manifest")
 	flag.StringVar(&hostSocket, "socket", hostagentipc.SocketPath(), "Unix socket path for host agent IPC")
 	flag.StringVar(&workDir, "work-dir", defaultWorkDir(), "root-owned host agent state directory")
@@ -58,6 +60,13 @@ func main() {
 		log.Fatal(err)
 	}
 	util.SetLogLevel(level)
+
+	if cleanupVMRunnerManifestPrefix != "" {
+		if err := stopVMRunnersByManifestPrefix(cleanupVMRunnerManifestPrefix); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	if stopExisting {
 		if err := stopExistingDaemons(hostSocket); err != nil {
@@ -83,7 +92,7 @@ func main() {
 
 func stopExistingDaemons(hostSocket string) error {
 	if err := requestExistingDaemonShutdown(hostSocket); err == nil {
-		if waitForNoHostAgentDaemons(5 * time.Second) {
+		if waitForNoHostAgentDaemons(time.Minute) {
 			log.Info("Stopped host agent daemon via shutdown RPC")
 			return nil
 		}
@@ -112,7 +121,7 @@ func stopExistingDaemons(hostSocket string) error {
 		}
 	}
 
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for _, pid := range pids {
 		for time.Now().Before(deadline) {
 			if !processExists(pid) {
@@ -191,6 +200,154 @@ func hostAgentDaemonPIDs() ([]int, error) {
 		pids = append(pids, pid)
 	}
 	return pids, nil
+}
+
+type vmRunnerProcess struct {
+	pid          int
+	manifestPath string
+}
+
+func stopVMRunnersByManifestPrefix(prefix string) error {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return fmt.Errorf("manifest prefix is required")
+	}
+	runners, err := hostAgentVMRunnerProcessesByManifestPrefix(prefix)
+	if err != nil {
+		return err
+	}
+	if len(runners) == 0 {
+		log.Infof("No VM runners found for manifest prefix %s", prefix)
+		return nil
+	}
+
+	for _, runner := range runners {
+		process, err := os.FindProcess(runner.pid)
+		if err != nil {
+			return fmt.Errorf("find VM runner process %d: %w", runner.pid, err)
+		}
+		log.Infof("Stopping VM runner pid=%d manifest=%s", runner.pid, runner.manifestPath)
+		if err := process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("stop VM runner process %d: %w", runner.pid, err)
+		}
+	}
+
+	deadline := time.Now().Add(15 * time.Second)
+	for _, runner := range runners {
+		for time.Now().Before(deadline) {
+			if !processExists(runner.pid) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if processExists(runner.pid) {
+			process, err := os.FindProcess(runner.pid)
+			if err != nil {
+				return fmt.Errorf("find VM runner process %d for force stop: %w", runner.pid, err)
+			}
+			log.Warnf("Force stopping VM runner pid=%d manifest=%s", runner.pid, runner.manifestPath)
+			if err := process.Signal(syscall.SIGKILL); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				return fmt.Errorf("force stop VM runner process %d: %w", runner.pid, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func hostAgentVMRunnerProcessesByManifestPrefix(prefix string) ([]vmRunnerProcess, error) {
+	out, err := exec.Command("/bin/ps", "-axo", "pid=,command=").Output()
+	if err != nil {
+		return nil, fmt.Errorf("list processes: %w", err)
+	}
+
+	self := os.Getpid()
+	var runners []vmRunnerProcess
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil || pid == self {
+			continue
+		}
+		exe := filepath.Base(fields[1])
+		if exe != "protos-hostagent" {
+			continue
+		}
+		args := fields[2:]
+		manifest := vmRunnerManifestArg(args)
+		if manifest == "" || !pathHasPrefixVariant(manifest, prefix) {
+			continue
+		}
+		runners = append(runners, vmRunnerProcess{pid: pid, manifestPath: manifest})
+	}
+	return runners, nil
+}
+
+func vmRunnerManifestArg(args []string) string {
+	for i, arg := range args {
+		if arg == "-manifest" || arg == "--manifest" {
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+			return ""
+		}
+		if strings.HasPrefix(arg, "-manifest=") {
+			return strings.TrimPrefix(arg, "-manifest=")
+		}
+		if strings.HasPrefix(arg, "--manifest=") {
+			return strings.TrimPrefix(arg, "--manifest=")
+		}
+	}
+	return ""
+}
+
+func pathHasPrefixVariant(path string, prefix string) bool {
+	for _, pathVariant := range pathAliasVariants(path) {
+		for _, prefixVariant := range pathAliasVariants(prefix) {
+			if strings.HasPrefix(pathVariant, prefixVariant) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func pathAliasVariants(path string) []string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	cleaned := filepath.Clean(path)
+	variants := []string{cleaned}
+	if strings.HasPrefix(cleaned, "/tmp/") {
+		variants = append(variants, "/private"+cleaned)
+	}
+	if strings.HasPrefix(cleaned, "/private/tmp/") {
+		variants = append(variants, strings.TrimPrefix(cleaned, "/private"))
+	}
+	return uniqueStrings(variants)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func processExists(pid int) bool {

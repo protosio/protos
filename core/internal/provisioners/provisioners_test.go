@@ -138,6 +138,37 @@ func TestGetLocalInstanceReportsObservedStatus(t *testing.T) {
 	}
 }
 
+func TestLogsRemoteInstanceUsesProvisionerLogs(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	cm := &Manager{
+		db:           store,
+		provisioners: newProvisionerRegistry(fakeDeploymentFactory{}),
+	}
+	if err := cm.AddProvisioner("local-test", "fake", nil); err != nil {
+		t.Fatal(err)
+	}
+	instance := InstanceInfo{
+		ID:                 db.MustNewUUIDv7(),
+		Name:               "local-vm",
+		Kind:               KindLocalVM,
+		KindID:             "local-test",
+		ProviderResourceID: "provider-vm-id",
+		Location:           "test-location",
+	}
+	im, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(store, im, cmm); err != nil {
+		t.Fatal(err)
+	}
+
+	logs, err := cm.LogsRemoteInstance("local-vm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logs != "logs for provider-vm-id in test-location" {
+		t.Fatalf("unexpected logs: %q", logs)
+	}
+}
+
 func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	cm := &Manager{
@@ -411,6 +442,41 @@ func TestDeleteInstanceHonorsCanceledContextBeforeMutatingState(t *testing.T) {
 	}
 	if stored.DesiredStatus != ServerStateRunning {
 		t.Fatalf("desired status = %q, want %q", stored.DesiredStatus, ServerStateRunning)
+	}
+}
+
+func TestGetDeclaredInstanceDoesNotRequireLiveProviderStatus(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	cm := &Manager{db: store}
+	instance := InstanceInfo{
+		ID:                 db.MustNewUUIDv7(),
+		Name:               "vm",
+		Kind:               KindCloudVM,
+		KindID:             "cloud-test",
+		ProviderResourceID: "provider-vm-id",
+		DesiredStatus:      ServerStateRunning,
+		Location:           "test-location",
+		Architecture:       "arm64",
+	}
+	im, cmm := createInstanceInsertMapper(instance)
+	if err := db.Insert(store, im, cmm); err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := cm.GetDeclaredInstance(instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.ID != instance.ID || stored.Name != instance.Name || stored.Status != "" {
+		t.Fatalf("declared instance = %#v, want local record without live status", stored)
+	}
+
+	stored, err = cm.GetDeclaredInstance(instance.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.ID != instance.ID || stored.Name != instance.Name || stored.Status != "" {
+		t.Fatalf("declared instance by name = %#v, want local record without live status", stored)
 	}
 }
 
@@ -770,6 +836,10 @@ func (p *fakeDeploymentProvider) StopInstance(id string, location string) error 
 
 func (p *fakeDeploymentProvider) GetInstanceInfo(id string, location string) (InstanceInfo, error) {
 	return InstanceInfo{ID: id, ProviderResourceID: id, Name: "vm", PublicIP: "192.0.2.10", Status: ServerStateRunning, Location: location}, nil
+}
+
+func (p *fakeDeploymentProvider) InstanceLogs(id string, location string) (string, error) {
+	return fmt.Sprintf("logs for %s in %s", id, location), nil
 }
 
 func (p *fakeDeploymentProvider) GetImages() (map[string]ImageInfo, error) {

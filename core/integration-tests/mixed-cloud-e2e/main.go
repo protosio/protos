@@ -536,7 +536,7 @@ func (summary *mixedCloudRunSummary) captureImageSource(deadline time.Time, clie
 		return
 	}
 	ctx, cancel := contextBefore(deadline, 20*time.Second)
-	resp, err := client.GetInstanceImage(ctx, &pbApic.GetInstanceImageRequest{Instance: instance, ImageRef: imageRef})
+	resp, err := client.GetInstanceImage(ctx, &pbApic.GetInstanceImageRequest{Instance: instance, ImageRef: imageRef, IncludeContent: true})
 	cancel()
 	item := mixedCloudImageSource{
 		Phase:      phase,

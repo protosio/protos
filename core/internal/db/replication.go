@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	swarmionadmin "github.com/nustiueudinastea/swarmion/runtime/adminrpc"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
 )
 
@@ -37,6 +38,18 @@ type prioritizedReplicationCandidate struct {
 	PeerID      string
 	DeviceClass string
 	Priority    int
+}
+
+type swarmionPeerRemovalApp interface {
+	Status() swarmionapp.Status
+	CatchUpCheckpoint(context.Context, string) (swarmionadmin.CheckpointCatchUpResponse, error)
+	Compatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error)
+	PeerRemovalReadiness(context.Context, swarmionapp.PeerRemovalReadinessRequest) (swarmionapp.PeerRemovalReadinessResponse, error)
+	EvictPeer(context.Context, swarmionapp.PeerEvictionRequest) (swarmionapp.PeerEvictionResponse, error)
+}
+
+type swarmionPeerEvictor interface {
+	EvictPeer(context.Context, swarmionapp.PeerEvictionRequest) (swarmionapp.PeerEvictionResponse, error)
 }
 
 func ReplicationPriorityForDeviceClass(deviceClass string) (int, bool) {
@@ -113,9 +126,6 @@ func (db *DB) ReconcileReplicationPeers(ctx context.Context, candidates []Replic
 		return nil
 	}
 
-	if err := catchUpSwarmionCheckpoint(ctx, app, "reconcile Protos replication metadata"); err != nil {
-		return fmt.Errorf("catch up swarmion checkpoint state for replication metadata reconciliation: %w", err)
-	}
 	status := app.Status()
 	if status.Fatal != nil {
 		return fmt.Errorf("swarmion fatal state blocks replication metadata reconciliation: %s", status.Fatal.State)
@@ -188,7 +198,7 @@ func (db *DB) RemoveReplicationPeerState(ctx context.Context, peerID string, _ [
 	var lastErr error
 	for attempt := 0; ; attempt++ {
 		attemptCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		err := removeReplicationPeerStateWithApp(attemptCtx, app, peerID)
+		err := db.removeReplicationPeerStateWithApp(attemptCtx, app, peerID)
 		cancel()
 		if err == nil {
 			return nil
@@ -211,7 +221,7 @@ func (db *DB) RemoveReplicationPeerState(ctx context.Context, peerID string, _ [
 
 var errSwarmionPeerRemovalNotReady = errors.New("swarmion peer removal not ready")
 
-func removeReplicationPeerStateWithApp(ctx context.Context, app *swarmionapp.App, peerID string) error {
+func (db *DB) removeReplicationPeerStateWithApp(ctx context.Context, app swarmionPeerRemovalApp, peerID string) error {
 	if err := catchUpSwarmionCheckpoint(ctx, app, "remove Protos replication peer state"); err != nil {
 		return fmt.Errorf("catch up swarmion checkpoint state for replication peer removal: %w", err)
 	}
@@ -234,17 +244,12 @@ func removeReplicationPeerStateWithApp(ctx context.Context, app *swarmionapp.App
 		notifyLog.Debugf("swarmion peer %s requires eviction before durable removal: %s", peerID, PeerRemovalReadinessSummary(readiness))
 	}
 
-	eviction, err := app.EvictPeer(ctx, swarmionapp.PeerEvictionRequest{PeerID: peerID})
-	if err != nil {
+	if err := db.evictSwarmionPeer(ctx, app, peerID); err != nil {
 		return fmt.Errorf("evict swarmion peer %s after removal: %w", peerID, err)
 	}
-	if eviction.RemovalReadiness != nil {
-		readiness = *eviction.RemovalReadiness
-	} else {
-		readiness, err = app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
-		if err != nil {
-			return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
-		}
+	readiness, err = app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
+	if err != nil {
+		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
 	}
 	if err := PeerRemovalReadinessError(readiness); err != nil {
 		notifyLog.Debugf("swarmion peer %s is not ready after eviction: %s", peerID, PeerRemovalReadinessSummary(readiness))
@@ -386,7 +391,9 @@ func peerRemovalReadinessOnlyStaleCheckpointObservation(readiness swarmionapp.Pe
 	return true
 }
 
-func blockOnIncompatiblePeers(ctx context.Context, app *swarmionapp.App) error {
+func blockOnIncompatiblePeers(ctx context.Context, app interface {
+	Compatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error)
+}) error {
 	compatibility, err := app.Compatibility(ctx)
 	if err != nil {
 		return fmt.Errorf("check swarmion compatibility: %w", err)

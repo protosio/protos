@@ -25,6 +25,9 @@ const (
 	Instance_GetNetworkState_FullMethodName = "/proto.Instance/GetNetworkState"
 	Instance_GetExitRoutes_FullMethodName   = "/proto.Instance/GetExitRoutes"
 	Instance_GetRuntimeState_FullMethodName = "/proto.Instance/GetRuntimeState"
+	Instance_GetTasks_FullMethodName        = "/proto.Instance/GetTasks"
+	Instance_GetTask_FullMethodName         = "/proto.Instance/GetTask"
+	Instance_WatchTask_FullMethodName       = "/proto.Instance/WatchTask"
 )
 
 // InstanceClient is the client API for Instance service.
@@ -37,6 +40,9 @@ type InstanceClient interface {
 	GetNetworkState(ctx context.Context, in *GetNetworkStateRequest, opts ...grpc.CallOption) (*GetNetworkStateResponse, error)
 	GetExitRoutes(ctx context.Context, in *GetExitRoutesRequest, opts ...grpc.CallOption) (*GetExitRoutesResponse, error)
 	GetRuntimeState(ctx context.Context, in *GetRuntimeStateRequest, opts ...grpc.CallOption) (*GetRuntimeStateResponse, error)
+	GetTasks(ctx context.Context, in *GetTasksRequest, opts ...grpc.CallOption) (*GetTasksResponse, error)
+	GetTask(ctx context.Context, in *GetTaskRequest, opts ...grpc.CallOption) (*GetTaskResponse, error)
+	WatchTask(ctx context.Context, in *WatchTaskRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchTaskResponse], error)
 }
 
 type instanceClient struct {
@@ -107,6 +113,45 @@ func (c *instanceClient) GetRuntimeState(ctx context.Context, in *GetRuntimeStat
 	return out, nil
 }
 
+func (c *instanceClient) GetTasks(ctx context.Context, in *GetTasksRequest, opts ...grpc.CallOption) (*GetTasksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTasksResponse)
+	err := c.cc.Invoke(ctx, Instance_GetTasks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *instanceClient) GetTask(ctx context.Context, in *GetTaskRequest, opts ...grpc.CallOption) (*GetTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTaskResponse)
+	err := c.cc.Invoke(ctx, Instance_GetTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *instanceClient) WatchTask(ctx context.Context, in *WatchTaskRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchTaskResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Instance_ServiceDesc.Streams[0], Instance_WatchTask_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchTaskRequest, WatchTaskResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Instance_WatchTaskClient = grpc.ServerStreamingClient[WatchTaskResponse]
+
 // InstanceServer is the server API for Instance service.
 // All implementations should embed UnimplementedInstanceServer
 // for forward compatibility.
@@ -117,6 +162,9 @@ type InstanceServer interface {
 	GetNetworkState(context.Context, *GetNetworkStateRequest) (*GetNetworkStateResponse, error)
 	GetExitRoutes(context.Context, *GetExitRoutesRequest) (*GetExitRoutesResponse, error)
 	GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error)
+	GetTasks(context.Context, *GetTasksRequest) (*GetTasksResponse, error)
+	GetTask(context.Context, *GetTaskRequest) (*GetTaskResponse, error)
+	WatchTask(*WatchTaskRequest, grpc.ServerStreamingServer[WatchTaskResponse]) error
 }
 
 // UnimplementedInstanceServer should be embedded to have
@@ -143,6 +191,15 @@ func (UnimplementedInstanceServer) GetExitRoutes(context.Context, *GetExitRoutes
 }
 func (UnimplementedInstanceServer) GetRuntimeState(context.Context, *GetRuntimeStateRequest) (*GetRuntimeStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRuntimeState not implemented")
+}
+func (UnimplementedInstanceServer) GetTasks(context.Context, *GetTasksRequest) (*GetTasksResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTasks not implemented")
+}
+func (UnimplementedInstanceServer) GetTask(context.Context, *GetTaskRequest) (*GetTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTask not implemented")
+}
+func (UnimplementedInstanceServer) WatchTask(*WatchTaskRequest, grpc.ServerStreamingServer[WatchTaskResponse]) error {
+	return status.Error(codes.Unimplemented, "method WatchTask not implemented")
 }
 func (UnimplementedInstanceServer) testEmbeddedByValue() {}
 
@@ -272,6 +329,53 @@ func _Instance_GetRuntimeState_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Instance_GetTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTasksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstanceServer).GetTasks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Instance_GetTasks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstanceServer).GetTasks(ctx, req.(*GetTasksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Instance_GetTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstanceServer).GetTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Instance_GetTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstanceServer).GetTask(ctx, req.(*GetTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Instance_WatchTask_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchTaskRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(InstanceServer).WatchTask(m, &grpc.GenericServerStream[WatchTaskRequest, WatchTaskResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Instance_WatchTaskServer = grpc.ServerStreamingServer[WatchTaskResponse]
+
 // Instance_ServiceDesc is the grpc.ServiceDesc for Instance service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -303,7 +407,21 @@ var Instance_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetRuntimeState",
 			Handler:    _Instance_GetRuntimeState_Handler,
 		},
+		{
+			MethodName: "GetTasks",
+			Handler:    _Instance_GetTasks_Handler,
+		},
+		{
+			MethodName: "GetTask",
+			Handler:    _Instance_GetTask_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchTask",
+			Handler:       _Instance_WatchTask_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "internal/p2p/proto/instance.proto",
 }

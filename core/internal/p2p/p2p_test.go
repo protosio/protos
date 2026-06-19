@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
+	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
@@ -94,6 +97,40 @@ func TestGetPeersKeysByPeerID(t *testing.T) {
 	}
 }
 
+func TestConfigurePeersIgnoresLocalPeer(t *testing.T) {
+	localKey, err := pcrypto.GetLocalKey(t.TempDir())
+	if err != nil {
+		t.Fatalf("local key: %v", err)
+	}
+	p2p, err := NewManager(localKey, nil, testExternalDB{initialized: true}, 0)
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	defer p2p.host.Close()
+
+	localMachine := testMachine{
+		id:        "local",
+		name:      "local-device",
+		publicKey: base64.StdEncoding.EncodeToString(localKey.Public()),
+		publicIP:  "127.0.0.1",
+	}
+	remoteMachine, remotePeerID, _ := newTestMachine(t, "203.0.113.10")
+
+	if err := p2p.ConfigurePeers([]Machine{localMachine, remoteMachine}); err != nil {
+		t.Fatalf("configure peers: %v", err)
+	}
+
+	if _, found := p2p.machines.Get(p2p.PeerID()); found {
+		t.Fatalf("local peer %s was tracked as a remote machine", p2p.PeerID())
+	}
+	if _, found := p2p.peerStates.Get(p2p.PeerID()); found {
+		t.Fatalf("local peer %s has remote peer state", p2p.PeerID())
+	}
+	if _, found := p2p.machines.Get(remotePeerID); !found {
+		t.Fatalf("remote peer %s was not tracked", remotePeerID)
+	}
+}
+
 func TestDisconnectedKnownPeerCountIgnoresExtraPendingClients(t *testing.T) {
 	known := map[string]Machine{
 		"peer-a": testMachine{id: "peer-a"},
@@ -105,6 +142,17 @@ func TestDisconnectedKnownPeerCountIgnoresExtraPendingClients(t *testing.T) {
 	}
 	if got := disconnectedKnownPeerCount(known, connected); got != 1 {
 		t.Fatalf("disconnectedKnownPeerCount() = %d, want 1", got)
+	}
+}
+
+func TestUsablePeerConnectednessAcceptsLimitedConnections(t *testing.T) {
+	for _, connectedness := range []network.Connectedness{network.Connected, network.Limited} {
+		if !usablePeerConnectedness(connectedness) {
+			t.Fatalf("usablePeerConnectedness(%s) = false, want true", connectedness)
+		}
+	}
+	if usablePeerConnectedness(network.NotConnected) {
+		t.Fatalf("usablePeerConnectedness(%s) = true, want false", network.NotConnected)
 	}
 }
 
@@ -161,6 +209,68 @@ func TestDestinationStringsPreferWireGuardIPv6BeforePublicIP(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("destinationStrings()[%d] = %s, want %s; all destinations: %v", i, got[i], want[i], got)
 		}
+	}
+}
+
+func TestDestinationStringsDoNotPromotePrivatePublicIPBeforeWireGuardIPv6(t *testing.T) {
+	machine, peerID, derivedInternalIP := newTestMachine(t, "192.168.64.10")
+	p2p := newTestP2P()
+
+	got := p2p.destinationStrings(peerID, machine)
+	want := []string{
+		fmt.Sprintf(destinationTCPIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv6Template, derivedInternalIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationTCPIPv4Template, machine.publicIP, config.Get().P2PPort, peerID),
+		fmt.Sprintf(destinationQUICIPv4Template, machine.publicIP, config.Get().P2PPort, peerID),
+	}
+	if len(got) < len(want) {
+		t.Fatalf("destinationStrings() = %v, want at least %d destinations", got, len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("destinationStrings()[%d] = %s, want %s; all destinations: %v", i, got[i], want[i], got)
+		}
+	}
+}
+
+func TestPeerAddrInfoFromDestinationsCombinesPeerAddresses(t *testing.T) {
+	_, peerID, _ := newTestMachine(t, "")
+	destinations := []string{
+		fmt.Sprintf(destinationTCPIPv4Template, "192.0.2.10", 10500, peerID),
+		fmt.Sprintf(destinationTCPIPv4Template, "192.0.2.10", 10500, peerID),
+		fmt.Sprintf(destinationQUICIPv4Template, "192.0.2.11", 10500, peerID),
+	}
+
+	info, err := peerAddrInfoFromDestinations(peerID, destinations)
+	if err != nil {
+		t.Fatalf("peerAddrInfoFromDestinations() error = %v", err)
+	}
+
+	if info.ID.String() != peerID {
+		t.Fatalf("AddrInfo ID = %s, want %s", info.ID, peerID)
+	}
+	var addrs []string
+	for _, addr := range info.Addrs {
+		addrs = append(addrs, addr.String())
+	}
+	want := []string{
+		"/ip4/192.0.2.10/tcp/10500",
+		"/ip4/192.0.2.11/udp/10500/quic-v1",
+	}
+	if !slices.Equal(addrs, want) {
+		t.Fatalf("AddrInfo addrs = %v, want %v", addrs, want)
+	}
+}
+
+func TestPeerAddrInfoFromDestinationsRejectsWrongPeerID(t *testing.T) {
+	_, peerID, _ := newTestMachine(t, "")
+	_, otherPeerID, _ := newTestMachine(t, "")
+	destinations := []string{
+		fmt.Sprintf(destinationTCPIPv4Template, "192.0.2.10", 10500, otherPeerID),
+	}
+
+	if _, err := peerAddrInfoFromDestinations(peerID, destinations); err == nil {
+		t.Fatal("peerAddrInfoFromDestinations() returned nil error for wrong destination peer")
 	}
 }
 
@@ -274,6 +384,80 @@ func TestTofuTransportAddrsPreferTCPBeforeQUIC(t *testing.T) {
 	}
 }
 
+func TestGetRuntimeStateRequiresStrictCatchUp(t *testing.T) {
+	wantErr := fmt.Errorf("strict catch-up failed")
+	server := &Server{DB: runtimeStateExternalDB{strictErr: wantErr}}
+
+	_, err := server.GetRuntimeState(context.Background(), &p2pproto.GetRuntimeStateRequest{})
+	if err == nil {
+		t.Fatal("GetRuntimeState returned nil error, want strict catch-up error")
+	}
+	if err.Error() != wantErr.Error() {
+		t.Fatalf("GetRuntimeState error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestImageCapableClientsRequireAdvertisedCapability(t *testing.T) {
+	withCapability := &Client{ImagesClient: fakeImagesClient{}}
+	withCapability.setCapabilities([]string{peerCapabilityImageContent})
+	withoutCapability := &Client{ImagesClient: fakeImagesClient{}}
+
+	got := imageCapableClients(map[string]*Client{
+		"with":    withCapability,
+		"without": withoutCapability,
+		"nil":     nil,
+	})
+
+	if _, found := got["with"]; !found {
+		t.Fatal("client advertising image content capability was not selected")
+	}
+	if _, found := got["without"]; found {
+		t.Fatal("client without image content capability was selected")
+	}
+	if _, found := got["nil"]; found {
+		t.Fatal("nil client was selected")
+	}
+}
+
+func TestPeerCapabilitiesAdvertiseSwarmionTransportWhenDBInitialized(t *testing.T) {
+	uninitialized := (&Server{
+		DB:  testExternalDB{initialized: false},
+		p2p: &P2P{},
+	}).peerCapabilities()
+	if slices.Contains(uninitialized, peerCapabilitySwarmionTransport) {
+		t.Fatalf("uninitialized DB capabilities = %v, should not include %s", uninitialized, peerCapabilitySwarmionTransport)
+	}
+
+	initialized := (&Server{
+		DB:  testExternalDB{initialized: true},
+		p2p: &P2P{},
+	}).peerCapabilities()
+	if !slices.Contains(initialized, peerCapabilitySwarmionTransport) {
+		t.Fatalf("initialized DB capabilities = %v, want %s", initialized, peerCapabilitySwarmionTransport)
+	}
+}
+
+func TestConnectExternalDBPeerRequiresSwarmionTransportCapability(t *testing.T) {
+	machine, peerID, _ := newTestMachine(t, "203.0.113.10")
+	externalDB := &recordingExternalDB{}
+	manager := &P2P{externalDB: externalDB}
+
+	manager.connectExternalDBPeer(peerID, machine, &Client{})
+	if len(externalDB.connectedIPs) != 0 {
+		t.Fatalf("DB peer connects without capability = %#v, want none", externalDB.connectedIPs)
+	}
+
+	client := &Client{}
+	client.setCapabilities([]string{peerCapabilitySwarmionTransport})
+	manager.connectExternalDBPeer(peerID, machine, client)
+	if len(externalDB.connectedIPs) != 1 {
+		t.Fatalf("DB peer connects with capability = %#v, want one call", externalDB.connectedIPs)
+	}
+	if externalDB.connectedIPs[0].peerID != peerID {
+		t.Fatalf("connected peer ID = %s, want %s", externalDB.connectedIPs[0].peerID, peerID)
+	}
+}
+
 func loopbackQUICAddr(t *testing.T, p2p *P2P) string {
 	t.Helper()
 	for _, addr := range p2p.host.Addrs() {
@@ -293,7 +477,40 @@ type testExternalDB struct {
 
 type recordingExternalDB struct {
 	testExternalDB
-	removed []string
+	removed      []string
+	connectedIPs []recordedDBPeerConnect
+}
+
+type runtimeStateExternalDB struct {
+	testExternalDB
+	strictErr error
+}
+
+type recordedDBPeerConnect struct {
+	peerID string
+	ips    []string
+}
+
+type fakeImagesClient struct{}
+
+func (fakeImagesClient) DescribeImage(context.Context, *p2pproto.DescribeImageRequest, ...grpc.CallOption) (*p2pproto.DescribeImageResponse, error) {
+	return nil, nil
+}
+
+func (fakeImagesClient) GetImageContent(context.Context, *p2pproto.GetImageContentRequest, ...grpc.CallOption) (*p2pproto.GetImageContentResponse, error) {
+	return nil, nil
+}
+
+func (fakeImagesClient) GetImageBlob(context.Context, *p2pproto.GetImageBlobRequest, ...grpc.CallOption) (grpc.ServerStreamingClient[p2pproto.GetImageBlobResponse], error) {
+	return nil, nil
+}
+
+func (fakeImagesClient) LoadImageArchive(context.Context, *p2pproto.LoadImageArchiveRequest, ...grpc.CallOption) (*p2pproto.LoadImageArchiveResponse, error) {
+	return nil, nil
+}
+
+func (fakeImagesClient) UploadImageArchiveChunk(context.Context, *p2pproto.UploadImageArchiveChunkRequest, ...grpc.CallOption) (*p2pproto.UploadImageArchiveChunkResponse, error) {
+	return nil, nil
 }
 
 func (f testExternalDB) AddPeer(string, *grpc.ClientConn) error { return nil }
@@ -306,6 +523,9 @@ func (f testExternalDB) GetLastCommit(string) (db.Commit, error) { return db.Com
 func (f testExternalDB) CatchUpCheckpoint(context.Context, string) error {
 	return nil
 }
+func (f testExternalDB) CatchUpCheckpointStrict(context.Context, string) error {
+	return nil
+}
 func (f testExternalDB) InitFromPeer(string, []string) error { return nil }
 func (f testExternalDB) EnableGRPCServers(*grpc.Server) error {
 	return nil
@@ -315,4 +535,32 @@ func (f testExternalDB) Initialized() bool { return f.initialized }
 func (f *recordingExternalDB) RemovePeer(peerID string) error {
 	f.removed = append(f.removed, peerID)
 	return nil
+}
+
+func (f *recordingExternalDB) ConnectPeerIPs(peerID string, ips []string) error {
+	f.connectedIPs = append(f.connectedIPs, recordedDBPeerConnect{
+		peerID: peerID,
+		ips:    append([]string(nil), ips...),
+	})
+	return nil
+}
+
+func (f runtimeStateExternalDB) CatchUpCheckpointStrict(context.Context, string) error {
+	return f.strictErr
+}
+
+func (f runtimeStateExternalDB) SwarmionStatus() (swarmionapp.Status, bool) {
+	return swarmionapp.Status{}, true
+}
+
+func (f runtimeStateExternalDB) SwarmionCompatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error) {
+	return nil, nil
+}
+
+func (f runtimeStateExternalDB) SwarmionPeerStatus(context.Context) ([]swarmionapp.PeerStatus, error) {
+	return nil, nil
+}
+
+func (f runtimeStateExternalDB) SwarmionContentSyncTrace() ([]string, bool) {
+	return nil, false
 }

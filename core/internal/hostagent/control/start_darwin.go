@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 )
 
 type StartOptions struct {
@@ -35,6 +37,54 @@ func Start(ctx context.Context, opts StartOptions) error {
 	if gid < 0 {
 		gid = os.Getgid()
 	}
+	if err := startWithSudo(ctx, binary, logPath, uid, gid); err == nil {
+		return nil
+	}
+	return startWithAppleScript(ctx, binary, logPath, uid, gid)
+}
+
+func startWithSudo(ctx context.Context, binary string, logPath string, uid int, gid int) error {
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(checkCtx, "sudo", "-n", binary, "--help").CombinedOutput()
+	if err != nil {
+		message := strings.TrimSpace(string(out))
+		if message == "" {
+			return fmt.Errorf("host-agent sudo rule is not usable: %w", err)
+		}
+		return fmt.Errorf("host-agent sudo rule is not usable: %w: %s", err, message)
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	args := []string{
+		"-n",
+		binary,
+		"--socket-mode", "0660",
+		"--socket-uid", fmt.Sprintf("%d", uid),
+		"--socket-gid", fmt.Sprintf("%d", gid),
+	}
+	cmd := exec.Command("sudo", args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if logFile, closeLog := hostAgentLogFile(logPath); logFile != nil {
+		defer closeLog()
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start host agent with sudo: %w", err)
+	}
+	if err := cmd.Process.Release(); err != nil {
+		return fmt.Errorf("release host agent process: %w", err)
+	}
+	return nil
+}
+
+func startWithAppleScript(ctx context.Context, binary string, logPath string, uid int, gid int) error {
 	command := fmt.Sprintf(
 		"/usr/bin/nohup %s --socket-mode 0660 --socket-uid %d --socket-gid %d >> %s 2>&1 &",
 		shellQuote(binary),
@@ -55,6 +105,16 @@ func Start(ctx context.Context, opts StartOptions) error {
 		return fmt.Errorf("start host agent: %w: %s", err, message)
 	}
 	return nil
+}
+
+func hostAgentLogFile(logPath string) (*os.File, func()) {
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return nil, func() {}
+	}
+	return file, func() {
+		_ = file.Close()
+	}
 }
 
 func resolveBinary(value string) (string, error) {

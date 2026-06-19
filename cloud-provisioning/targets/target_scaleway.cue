@@ -48,6 +48,6 @@ init: #init_base
 }
 onboot: #onboot & list.FlattenN([#onboot_common, #metadata_scaleway, #format_scaleway, #mount, #rngd_boot], 1)
 
-services: #services & [#getty, #rngd_service, #protos]
+services: #services & [#getty, #rngd_service, #logwrite, #protos]
 
 files: #files

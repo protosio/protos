@@ -7,7 +7,7 @@ import (
 
 const (
 	peerClientRefreshRetryDelay       = 2 * time.Second
-	peerClientReconnectAttemptTimeout = 15 * time.Second
+	peerClientReconnectAttemptTimeout = 30 * time.Second
 )
 
 type peerClientSelection struct {
@@ -94,7 +94,7 @@ func (p2p *P2P) connectedClientsSnapshot() map[string]*Client {
 func imageCapableClients(clients map[string]*Client) map[string]*Client {
 	out := map[string]*Client{}
 	for peerID, client := range clients {
-		if client == nil || client.ImagesClient == nil {
+		if client == nil || client.ImagesClient == nil || !client.supportsCapability(peerCapabilityImageContent) {
 			continue
 		}
 		out[peerID] = client

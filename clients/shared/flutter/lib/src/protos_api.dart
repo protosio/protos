@@ -238,6 +238,7 @@ class ProtosApi {
     String subjectType = '',
     String subjectId = '',
     int maxResults = 200,
+    String instance = '',
   }) {
     return bridge.call(
       'GetTasks',
@@ -247,15 +248,24 @@ class ProtosApi {
         subjectType: subjectType,
         subjectId: subjectId,
         maxResults: maxResults,
+        instance: instance,
       ),
       pb.GetTasksResponse.create,
     );
   }
 
-  Future<pb.GetTaskResponse> task(String id, {bool includeEvents = true}) {
+  Future<pb.GetTaskResponse> task(
+    String id, {
+    bool includeEvents = true,
+    String instance = '',
+  }) {
     return bridge.call(
       'GetTask',
-      pb.GetTaskRequest(id: id, includeEvents: includeEvents),
+      pb.GetTaskRequest(
+        id: id,
+        includeEvents: includeEvents,
+        instance: instance,
+      ),
       pb.GetTaskResponse.create,
     );
   }
@@ -471,10 +481,13 @@ class ProtosApi {
     );
   }
 
-  Future<pb.GetRuntimeStateResponse> runtimeState({String instance = ''}) {
+  Future<pb.GetRuntimeStateResponse> runtimeState({
+    String instance = '',
+    bool allowStale = false,
+  }) {
     return bridge.call(
       'GetRuntimeState',
-      pb.GetRuntimeStateRequest(instance: instance),
+      pb.GetRuntimeStateRequest(instance: instance, allowStale: allowStale),
       pb.GetRuntimeStateResponse.create,
     );
   }

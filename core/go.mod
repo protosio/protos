@@ -3,8 +3,6 @@ module github.com/protosio/protos
 go 1.26.4
 
 replace (
-	github.com/dolthub/dolt/go => github.com/nustiueudinastea/dolt/go v0.0.0-20260519092250-dc384c58ba80
-	github.com/dolthub/driver => github.com/nustiueudinastea/doltsqldriver v0.0.0-20260513100158-ab0b5e5fa8c2
 	github.com/protosio/protos/network/modules/ipc => ./network/modules/ipc
 	github.com/protosio/protos/network/modules/networkextension => ./network/modules/networkextension
 	github.com/protosio/protos/network/modules/wireguard => ./network/modules/wireguard
@@ -68,10 +66,12 @@ require (
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.11 // indirect
+	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/cockroachdb/apd/v2 v2.0.2 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/cockroachdb/errors v1.13.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
 	github.com/cockroachdb/redact v1.1.8 // indirect
@@ -81,6 +81,7 @@ require (
 	github.com/containerd/plugin v1.1.0 // indirect
 	github.com/containernetworking/plugins v1.9.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
+	github.com/dolthub/driver/v2 v2.1.4 // indirect
 	github.com/dolthub/eventsapi_schema v0.0.0-20260310172945-37a9265ade69 // indirect
 	github.com/dolthub/ishell v0.0.0-20260414231531-5f031e3e9037 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
@@ -201,15 +202,14 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1 // indirect
 	github.com/dennwc/ioctl v1.0.1 // indirect
 	github.com/dolthub/aws-sdk-go-ini-parser v0.0.0-20250305001723-2821c37f6c12 // indirect
-	github.com/dolthub/dolt/go v0.40.5-0.20260507231811-577c666cc34c // indirect
-	github.com/dolthub/driver v0.0.0-00010101000000-000000000000 // indirect
+	github.com/dolthub/dolt/go v0.51.14-0.20260618144749-e33adf34a994 // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
-	github.com/dolthub/fslock v0.0.3 // indirect
-	github.com/dolthub/go-icu-regex v0.0.0-20260412212219-49724d547866 // indirect
-	github.com/dolthub/go-mysql-server v0.20.1-0.20260507202550-43d6daf5958b // indirect
+	github.com/dolthub/fslock v0.0.5 // indirect
+	github.com/dolthub/go-icu-regex v0.0.0-20260610153742-72563bc7ca83 // indirect
+	github.com/dolthub/go-mysql-server v0.20.1-0.20260617190629-08b4d4af38db // indirect
 	github.com/dolthub/gozstd v0.0.0-20240423170813-23a2903bca63 // indirect
 	github.com/dolthub/jsonpath v0.0.2-0.20240227200619-19675ab05c71 // indirect
-	github.com/dolthub/vitess v0.0.0-20260505163811-77e5224be390
+	github.com/dolthub/vitess v0.0.0-20260617012411-2f308f6cdc23
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/esote/minmaxheap v1.0.0 // indirect
 	github.com/fatih/color v1.19.0 // indirect
@@ -247,7 +247,7 @@ require (
 	github.com/koron/go-ssdp v0.9.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/lestrrat-go/strftime v1.1.1 // indirect
+	github.com/lestrrat-go/strftime v1.2.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.3.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
@@ -282,8 +282,8 @@ require (
 	github.com/multiformats/go-varint v0.1.0 // indirect
 	github.com/nustiueudinastea/swarmion/protocol v0.0.0
 	github.com/nustiueudinastea/swarmion/runtime v0.0.0
-	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615120532-bf5069d914c0
-	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615120532-bf5069d914c0
+	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260618162502-7cf4014bbd8e
+	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260618162502-7cf4014bbd8e
 	github.com/nustiueudinastea/swarmion/transports v0.0.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -301,7 +301,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
-	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/tidwall/gjson v1.19.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
@@ -349,12 +348,16 @@ replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014
 
 replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b
 
-replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260615120532-bf5069d914c0
+replace github.com/dolthub/dolt/go => github.com/nustiueudinastea/dolt/go v0.0.0-20260618144749-e33adf34a994
 
-replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260615120532-bf5069d914c0
+replace github.com/dolthub/driver/v2 => github.com/nustiueudinastea/doltsqldriver/v2 v2.0.0-20260618154213-1ce90ff21070
 
-replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260615120532-bf5069d914c0
+replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260618162502-7cf4014bbd8e
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260615120532-bf5069d914c0
+replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260618162502-7cf4014bbd8e
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260615120532-bf5069d914c0
+replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260618162502-7cf4014bbd8e
+
+replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260618162502-7cf4014bbd8e
+
+replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260618162502-7cf4014bbd8e
