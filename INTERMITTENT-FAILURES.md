@@ -361,7 +361,7 @@ limited path are still a follow-up to capture there. The probe image here is
 small (6.4 MiB, 5 blobs), so this run validates correctness/convergence/cleanup
 and P2P resolution on real cloud instances rather than relay throughput.
 
-## Local VM Direct Networking (Design A / "Path B") — 2026-06-19 (in progress)
+## Local VM Direct Networking (Design A / "Path B") — 2026-06-19 (complete)
 
 ### Goal and why
 
