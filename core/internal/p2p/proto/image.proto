@@ -9,8 +9,6 @@ service Images {
   rpc DescribeImage(DescribeImageRequest) returns (DescribeImageResponse) {}
   rpc GetImageContent(GetImageContentRequest) returns (GetImageContentResponse) {}
   rpc GetImageBlob(GetImageBlobRequest) returns (stream GetImageBlobResponse) {}
-  rpc LoadImageArchive(LoadImageArchiveRequest) returns (LoadImageArchiveResponse) {}
-  rpc UploadImageArchiveChunk(UploadImageArchiveChunkRequest) returns (UploadImageArchiveChunkResponse) {}
 }
 
 message DescribeImageRequest {
@@ -58,17 +56,6 @@ message GetImageBlobResponse {
   uint64 offset = 2;
   bytes data = 3;
   bool eof = 4;
-}
-
-message LoadImageArchiveRequest {
-  string archive_path = 1;
-  string image_ref = 2;
-}
-
-message LoadImageArchiveResponse {
-  string image_ref = 1;
-  string target_digest = 2;
-  string platform = 3;
 }
 
 message UploadImageArchiveChunkRequest {

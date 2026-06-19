@@ -29,6 +29,11 @@ tasks:
     cmds:
       - ./scripts/build.sh {{.BUILD_ARGS}} {{.CLI_ARGS}}
 
+  protobuf:verify:
+    desc: Verify shared Flutter protobuf output matches generated APIC proto
+    cmds:
+      - ../shared/flutter/scripts/verify-protobuf.sh
+
   launch:built:
     desc: Launch the already-built macOS app bundle
     cmds:

@@ -3,14 +3,13 @@ package apic
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	pbApic "github.com/protosio/protos/apic/proto"
-	p2pproto "github.com/protosio/protos/internal/p2p/proto"
+	"github.com/protosio/protos/internal/p2p"
 	"github.com/protosio/protos/internal/tasks"
 )
 
@@ -18,8 +17,6 @@ const (
 	InstanceImageArchiveUploadTaskStream = "instances.image_archive.upload"
 
 	taskSubjectInstanceImageArchive = "instance_image_archive"
-
-	defaultInstanceImageArchiveChunkSize = 1024 * 1024
 )
 
 type uploadInstanceImageArchiveTaskPayload struct {
@@ -135,21 +132,14 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 	}
 	total := uint64(info.Size())
 
-	file, err := os.Open(absPath)
-	if err != nil {
-		return uploadInstanceImageArchiveTaskResult{}, fmt.Errorf("open image archive %s: %w", absPath, err)
-	}
-	defer file.Close()
-
 	if err := task.Update(10, "connecting to instance", map[string]any{
 		"instance":  instance,
 		"image_ref": imageRef,
 	}); err != nil {
 		return uploadInstanceImageArchiveTaskResult{}, err
 	}
-	client, err := b.instanceAdminClient(ctx, instance, "upload instance image archive")
-	if err != nil {
-		return uploadInstanceImageArchiveTaskResult{}, err
+	if b.protosClient == nil || b.protosClient.P2PManager == nil {
+		return uploadInstanceImageArchiveTaskResult{}, fmt.Errorf("cannot upload instance image archive: p2p manager is not configured")
 	}
 
 	uploadStartedAt := time.Now()
@@ -157,81 +147,49 @@ func (b *Backend) runUploadInstanceImageArchiveTask(ctx context.Context, task *t
 		return uploadInstanceImageArchiveTaskResult{}, err
 	}
 	uploadID := "task-" + task.Task().ID
-	buf := make([]byte, defaultInstanceImageArchiveChunkSize)
-	var offset uint64
 	lastLiveProgress := -1
 	lastLiveAt := time.Time{}
-	for {
-		if err := ctx.Err(); err != nil {
-			return uploadInstanceImageArchiveTaskResult{}, err
-		}
-		n, readErr := file.Read(buf)
-		eof := readErr == io.EOF
-		if readErr != nil && !eof {
-			return uploadInstanceImageArchiveTaskResult{}, fmt.Errorf("read image archive %s: %w", absPath, readErr)
-		}
-		if n == 0 && !eof {
-			continue
-		}
-		expectedReceived := offset + uint64(n)
-		if eof {
-			if err := task.Update(90, "importing image archive", addImageArchiveUploadTiming(imageArchiveUploadDetails(instance, imageRef, absPath, expectedReceived, total), uploadStartedAt, 0, 0)); err != nil {
-				return uploadInstanceImageArchiveTaskResult{}, err
+	result, err := b.protosClient.P2PManager.UploadImageArchiveToInstance(ctx, p2p.ImageArchiveUploadRequest{
+		Instance:    instance,
+		ArchivePath: absPath,
+		ImageRef:    imageRef,
+		UploadID:    uploadID,
+		Progress: func(progress p2p.ImageArchiveUploadProgress) error {
+			if progress.Importing {
+				details := addImageArchiveUploadTiming(imageArchiveUploadDetails(instance, imageRef, absPath, progress.BytesUploaded, total), uploadStartedAt, 0, 0)
+				return task.Update(90, "importing image archive", details)
 			}
-		}
-		callTimeout := 2 * time.Minute
-		if eof {
-			callTimeout = 5 * time.Minute
-		}
-		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
-		chunkStartedAt := time.Now()
-		resp, err := client.UploadImageArchiveChunk(callCtx, &p2pproto.UploadImageArchiveChunkRequest{
-			UploadId: uploadID,
-			ImageRef: imageRef,
-			Offset:   offset,
-			Data:     append([]byte(nil), buf[:n]...),
-			Eof:      eof,
-		})
-		chunkDuration := time.Since(chunkStartedAt)
-		cancel()
-		if err != nil {
-			return uploadInstanceImageArchiveTaskResult{}, fmt.Errorf("upload image archive chunk to instance %q: %w", instance, err)
-		}
-		offset = resp.GetReceivedBytes()
-		if !eof {
-			progress := imageArchiveUploadProgress(offset, total)
-			if progress != lastLiveProgress || time.Since(lastLiveAt) >= 5*time.Second {
-				lastLiveProgress = progress
-				lastLiveAt = time.Now()
-				details := addImageArchiveUploadTiming(imageArchiveUploadDetails(instance, imageRef, absPath, offset, total), uploadStartedAt, n, chunkDuration)
-				if err := task.Progress(progress, "upload in progress", details); err != nil {
-					return uploadInstanceImageArchiveTaskResult{}, err
-				}
+			progressValue := imageArchiveUploadProgress(progress.BytesUploaded, total)
+			if progressValue == lastLiveProgress && time.Since(lastLiveAt) < 5*time.Second {
+				return nil
 			}
-			continue
-		}
-		if !resp.GetLoaded() {
-			return uploadInstanceImageArchiveTaskResult{}, fmt.Errorf("image archive upload to %s reached EOF without loading image", instance)
-		}
-		if err := task.Update(95, "image archive loaded", map[string]any{
-			"instance":           instance,
-			"image_ref":          resp.GetImageRef(),
-			"target_digest":      resp.GetTargetDigest(),
-			"platform":           resp.GetPlatform(),
-			"bytes_uploaded":     offset,
-			"archive_size_bytes": total,
-		}); err != nil {
-			return uploadInstanceImageArchiveTaskResult{}, err
-		}
-		return uploadInstanceImageArchiveTaskResult{
-			Instance:         instance,
-			ImageRef:         resp.GetImageRef(),
-			TargetDigest:     resp.GetTargetDigest(),
-			Platform:         resp.GetPlatform(),
-			BytesUploaded:    offset,
-			ArchiveSizeBytes: total,
-		}, nil
+			lastLiveProgress = progressValue
+			lastLiveAt = time.Now()
+			details := addImageArchiveUploadTiming(imageArchiveUploadDetails(instance, imageRef, absPath, progress.BytesUploaded, total), uploadStartedAt, progress.ChunkBytes, progress.ChunkDuration)
+			return task.Progress(progressValue, "upload in progress", details)
+		},
+	})
+	if err != nil {
+		return uploadInstanceImageArchiveTaskResult{}, fmt.Errorf("upload image archive to instance %q: %w", instance, err)
 	}
+	if err := task.Update(95, "image archive loaded", map[string]any{
+		"instance":           instance,
+		"image_ref":          result.ImageRef,
+		"target_digest":      result.TargetDigest,
+		"platform":           result.Platform,
+		"bytes_uploaded":     result.BytesUploaded,
+		"archive_size_bytes": result.ArchiveSizeBytes,
+	}); err != nil {
+		return uploadInstanceImageArchiveTaskResult{}, err
+	}
+	return uploadInstanceImageArchiveTaskResult{
+		Instance:         instance,
+		ImageRef:         result.ImageRef,
+		TargetDigest:     result.TargetDigest,
+		Platform:         result.Platform,
+		BytesUploaded:    result.BytesUploaded,
+		ArchiveSizeBytes: result.ArchiveSizeBytes,
+	}, nil
 }
 
 func addImageArchiveUploadTiming(details map[string]any, startedAt time.Time, chunkBytes int, chunkDuration time.Duration) map[string]any {

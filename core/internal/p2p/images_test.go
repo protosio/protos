@@ -6,10 +6,13 @@ import (
 	"context"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/protosio/protos/internal/imageregistry"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 )
@@ -227,6 +230,180 @@ func TestImageBlobLimitedRangeLength(t *testing.T) {
 	}
 }
 
+func TestServeImageArchiveUploadStreamLoadsArchive(t *testing.T) {
+	uploadID := "test-archive-upload"
+	imageRef := "example/app:latest"
+	content := []byte("archive-content-over-stream")
+	if path, err := imageArchiveUploadPath(uploadID); err == nil {
+		_ = os.Remove(path)
+		defer os.Remove(path)
+	}
+
+	manager := &fakeImageManager{
+		loadedImage: imageregistry.LoadedImage{
+			ImageRef:     imageRef,
+			TargetDigest: "sha256:archive",
+			Platform:     "linux/amd64",
+		},
+	}
+	p := &P2P{imageManager: manager}
+
+	client, server := net.Pipe()
+	defer client.Close()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- p.serveImageArchiveUploadStream(&testNetworkStream{conn: server})
+	}()
+
+	writer := bufio.NewWriterSize(client, 64*1024)
+	reader := bufio.NewReaderSize(client, 64*1024)
+	resp := writeImageArchiveUploadFrame(t, writer, reader, &p2pproto.UploadImageArchiveChunkRequest{
+		UploadId: uploadID,
+		ImageRef: imageRef,
+		Offset:   0,
+		Data:     content[:8],
+	})
+	if resp.GetReceivedBytes() != 8 || resp.GetLoaded() {
+		t.Fatalf("first response = %+v, want received=8 loaded=false", resp)
+	}
+	resp = writeImageArchiveUploadFrame(t, writer, reader, &p2pproto.UploadImageArchiveChunkRequest{
+		UploadId: uploadID,
+		ImageRef: imageRef,
+		Offset:   8,
+		Data:     content[8:],
+	})
+	if resp.GetReceivedBytes() != uint64(len(content)) || resp.GetLoaded() {
+		t.Fatalf("second response = %+v, want received=%d loaded=false", resp, len(content))
+	}
+	resp = writeImageArchiveUploadFrame(t, writer, reader, &p2pproto.UploadImageArchiveChunkRequest{
+		UploadId: uploadID,
+		ImageRef: imageRef,
+		Offset:   uint64(len(content)),
+		Eof:      true,
+	})
+	if !resp.GetLoaded() {
+		t.Fatalf("final response loaded = false, want true")
+	}
+	if resp.GetImageRef() != imageRef || resp.GetTargetDigest() != "sha256:archive" || resp.GetPlatform() != "linux/amd64" {
+		t.Fatalf("final response = %+v, want loaded metadata", resp)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("serveImageArchiveUploadStream error = %v", err)
+	}
+	if manager.loadCalls != 1 {
+		t.Fatalf("load calls = %d, want 1", manager.loadCalls)
+	}
+	if manager.loadImageRef != imageRef {
+		t.Fatalf("loaded image ref = %q, want %q", manager.loadImageRef, imageRef)
+	}
+	if !bytes.Equal(manager.loadArchiveContent, content) {
+		t.Fatalf("loaded archive content = %q, want %q", manager.loadArchiveContent, content)
+	}
+	if _, err := os.Stat(manager.loadArchivePath); !os.IsNotExist(err) {
+		t.Fatalf("archive temp path still exists after import: err=%v", err)
+	}
+}
+
+func TestImageArchiveUploadServerStateResumesAcrossStreams(t *testing.T) {
+	uploadID := "test-archive-resume"
+	imageRef := "example/app:latest"
+	content := []byte("resumable archive content")
+	if path, err := imageArchiveUploadPath(uploadID); err == nil {
+		_ = os.Remove(path)
+		defer os.Remove(path)
+	}
+
+	manager := &fakeImageManager{}
+	p := &P2P{imageManager: manager}
+
+	first := &imageArchiveUploadServerState{p2p: p}
+	resp, err := first.accept(context.Background(), &p2pproto.UploadImageArchiveChunkRequest{
+		UploadId: uploadID,
+		ImageRef: imageRef,
+		Offset:   0,
+		Data:     content[:9],
+	})
+	if err != nil {
+		t.Fatalf("first chunk error = %v", err)
+	}
+	if resp.GetReceivedBytes() != 9 {
+		t.Fatalf("first received = %d, want 9", resp.GetReceivedBytes())
+	}
+	if err := first.close(); err != nil {
+		t.Fatalf("close first upload state: %v", err)
+	}
+
+	second := &imageArchiveUploadServerState{p2p: p}
+	resp, err = second.accept(context.Background(), &p2pproto.UploadImageArchiveChunkRequest{
+		UploadId: uploadID,
+		ImageRef: imageRef,
+		Offset:   9,
+		Data:     content[9:],
+	})
+	if err != nil {
+		t.Fatalf("resumed chunk error = %v", err)
+	}
+	if resp.GetReceivedBytes() != uint64(len(content)) {
+		t.Fatalf("resumed received = %d, want %d", resp.GetReceivedBytes(), len(content))
+	}
+	resp, err = second.accept(context.Background(), &p2pproto.UploadImageArchiveChunkRequest{
+		UploadId: uploadID,
+		ImageRef: imageRef,
+		Offset:   uint64(len(content)),
+		Eof:      true,
+	})
+	if err != nil {
+		t.Fatalf("eof chunk error = %v", err)
+	}
+	if !resp.GetLoaded() {
+		t.Fatalf("loaded = false, want true")
+	}
+	if !bytes.Equal(manager.loadArchiveContent, content) {
+		t.Fatalf("loaded archive content = %q, want %q", manager.loadArchiveContent, content)
+	}
+}
+
+func writeImageArchiveUploadFrame(t *testing.T, writer *bufio.Writer, reader *bufio.Reader, req *p2pproto.UploadImageArchiveChunkRequest) *p2pproto.UploadImageArchiveChunkResponse {
+	t.Helper()
+	if err := writeImageBlobFrame(writer, req); err != nil {
+		t.Fatalf("write upload request: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		t.Fatalf("flush upload request: %v", err)
+	}
+	var resp p2pproto.UploadImageArchiveChunkResponse
+	if err := readImageBlobFrame(reader, imageArchiveUploadResponseFrameBytes, &resp); err != nil {
+		t.Fatalf("read upload response: %v", err)
+	}
+	return &resp
+}
+
+type testNetworkStream struct {
+	conn net.Conn
+}
+
+func (s *testNetworkStream) Read(data []byte) (int, error)      { return s.conn.Read(data) }
+func (s *testNetworkStream) Write(data []byte) (int, error)     { return s.conn.Write(data) }
+func (s *testNetworkStream) Close() error                       { return s.conn.Close() }
+func (s *testNetworkStream) LocalAddr() net.Addr                { return s.conn.LocalAddr() }
+func (s *testNetworkStream) RemoteAddr() net.Addr               { return s.conn.RemoteAddr() }
+func (s *testNetworkStream) SetDeadline(t time.Time) error      { return s.conn.SetDeadline(t) }
+func (s *testNetworkStream) SetReadDeadline(t time.Time) error  { return s.conn.SetReadDeadline(t) }
+func (s *testNetworkStream) SetWriteDeadline(t time.Time) error { return s.conn.SetWriteDeadline(t) }
+func (s *testNetworkStream) CloseWrite() error                  { return nil }
+func (s *testNetworkStream) CloseRead() error                   { return nil }
+func (s *testNetworkStream) Reset() error                       { return s.Close() }
+func (s *testNetworkStream) ResetWithError(network.StreamErrorCode) error {
+	return s.Close()
+}
+func (s *testNetworkStream) ID() string                    { return "test-stream" }
+func (s *testNetworkStream) Protocol() protocol.ID         { return imageArchiveUploadProtocol }
+func (s *testNetworkStream) SetProtocol(protocol.ID) error { return nil }
+func (s *testNetworkStream) Stat() network.Stats           { return network.Stats{} }
+func (s *testNetworkStream) Conn() network.Conn            { return nil }
+func (s *testNetworkStream) Scope() network.StreamScope    { return nil }
+
 type scriptedImageBlobReceiver struct {
 	responses []*p2pproto.GetImageBlobResponse
 	err       error
@@ -246,9 +423,15 @@ func (s *scriptedImageBlobReceiver) Recv() (*p2pproto.GetImageBlobResponse, erro
 }
 
 type fakeImageManager struct {
-	blob   []byte
-	opens  int
-	closes int
+	blob               []byte
+	opens              int
+	closes             int
+	loadedImage        imageregistry.LoadedImage
+	loadArchivePath    string
+	loadImageRef       string
+	loadArchiveContent []byte
+	loadCalls          int
+	loadErr            error
 }
 
 func (f *fakeImageManager) DescribeImage(context.Context, string) (string, string, string, map[string]string, bool, error) {
@@ -277,8 +460,28 @@ func (f *fakeImageManager) EnsureImageContent(context.Context, imageregistry.Ima
 	return nil
 }
 
-func (f *fakeImageManager) LoadImageArchive(context.Context, string, string) (imageregistry.LoadedImage, error) {
-	return imageregistry.LoadedImage{}, nil
+func (f *fakeImageManager) LoadImageArchive(_ context.Context, archivePath string, imageRef string) (imageregistry.LoadedImage, error) {
+	f.loadCalls++
+	f.loadArchivePath = archivePath
+	f.loadImageRef = imageRef
+	data, err := os.ReadFile(archivePath)
+	if err == nil {
+		f.loadArchiveContent = data
+	}
+	if f.loadErr != nil {
+		return imageregistry.LoadedImage{}, f.loadErr
+	}
+	loaded := f.loadedImage
+	if loaded.ImageRef == "" {
+		loaded.ImageRef = imageRef
+	}
+	if loaded.TargetDigest == "" {
+		loaded.TargetDigest = "sha256:loaded"
+	}
+	if loaded.Platform == "" {
+		loaded.Platform = "linux/amd64"
+	}
+	return loaded, nil
 }
 
 type fakeImageBlobReader struct {

@@ -3085,49 +3085,6 @@ final $typed_data.Uint8List uploadInstanceImageArchiveResponseDescriptor =
         'CiJVcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZVJlc3BvbnNlEhcKB3Rhc2tfaWQYASABKAlSBn'
         'Rhc2tJZA==');
 
-@$core
-    .Deprecated('Use uploadInstanceImageArchiveChunkRequestDescriptor instead')
-const UploadInstanceImageArchiveChunkRequest$json = {
-  '1': 'UploadInstanceImageArchiveChunkRequest',
-  '2': [
-    {'1': 'instance', '3': 1, '4': 1, '5': 9, '10': 'instance'},
-    {'1': 'upload_id', '3': 2, '4': 1, '5': 9, '10': 'uploadId'},
-    {'1': 'image_ref', '3': 3, '4': 1, '5': 9, '10': 'imageRef'},
-    {'1': 'offset', '3': 4, '4': 1, '5': 4, '10': 'offset'},
-    {'1': 'data', '3': 5, '4': 1, '5': 12, '10': 'data'},
-    {'1': 'eof', '3': 6, '4': 1, '5': 8, '10': 'eof'},
-  ],
-};
-
-/// Descriptor for `UploadInstanceImageArchiveChunkRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List uploadInstanceImageArchiveChunkRequestDescriptor =
-    $convert.base64Decode(
-        'CiZVcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW5rUmVxdWVzdBIaCghpbnN0YW5jZRgBIA'
-        'EoCVIIaW5zdGFuY2USGwoJdXBsb2FkX2lkGAIgASgJUgh1cGxvYWRJZBIbCglpbWFnZV9yZWYY'
-        'AyABKAlSCGltYWdlUmVmEhYKBm9mZnNldBgEIAEoBFIGb2Zmc2V0EhIKBGRhdGEYBSABKAxSBG'
-        'RhdGESEAoDZW9mGAYgASgIUgNlb2Y=');
-
-@$core
-    .Deprecated('Use uploadInstanceImageArchiveChunkResponseDescriptor instead')
-const UploadInstanceImageArchiveChunkResponse$json = {
-  '1': 'UploadInstanceImageArchiveChunkResponse',
-  '2': [
-    {'1': 'received_bytes', '3': 1, '4': 1, '5': 4, '10': 'receivedBytes'},
-    {'1': 'loaded', '3': 2, '4': 1, '5': 8, '10': 'loaded'},
-    {'1': 'image_ref', '3': 3, '4': 1, '5': 9, '10': 'imageRef'},
-    {'1': 'target_digest', '3': 4, '4': 1, '5': 9, '10': 'targetDigest'},
-    {'1': 'platform', '3': 5, '4': 1, '5': 9, '10': 'platform'},
-  ],
-};
-
-/// Descriptor for `UploadInstanceImageArchiveChunkResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List uploadInstanceImageArchiveChunkResponseDescriptor =
-    $convert.base64Decode(
-        'CidVcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2ZUNodW5rUmVzcG9uc2USJQoOcmVjZWl2ZWRfYn'
-        'l0ZXMYASABKARSDXJlY2VpdmVkQnl0ZXMSFgoGbG9hZGVkGAIgASgIUgZsb2FkZWQSGwoJaW1h'
-        'Z2VfcmVmGAMgASgJUghpbWFnZVJlZhIjCg10YXJnZXRfZGlnZXN0GAQgASgJUgx0YXJnZXREaW'
-        'dlc3QSGgoIcGxhdGZvcm0YBSABKAlSCHBsYXRmb3Jt');
-
 @$core.Deprecated('Use coreEndpointDescriptor instead')
 const CoreEndpoint$json = {
   '1': 'CoreEndpoint',
@@ -3872,12 +3829,6 @@ const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
       '4': {}
     },
     {
-      '1': 'UploadInstanceImageArchiveChunk',
-      '2': '.apic.UploadInstanceImageArchiveChunkRequest',
-      '3': '.apic.UploadInstanceImageArchiveChunkResponse',
-      '4': {}
-    },
-    {
       '1': 'GetSystemStatus',
       '2': '.apic.GetSystemStatusRequest',
       '3': '.apic.GetSystemStatusResponse',
@@ -4090,10 +4041,6 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
       UploadInstanceImageArchiveRequest$json,
   '.apic.UploadInstanceImageArchiveResponse':
       UploadInstanceImageArchiveResponse$json,
-  '.apic.UploadInstanceImageArchiveChunkRequest':
-      UploadInstanceImageArchiveChunkRequest$json,
-  '.apic.UploadInstanceImageArchiveChunkResponse':
-      UploadInstanceImageArchiveChunkResponse$json,
   '.apic.GetSystemStatusRequest': GetSystemStatusRequest$json,
   '.apic.GetSystemStatusResponse': GetSystemStatusResponse$json,
   '.apic.SystemStatus': SystemStatus$json,
@@ -4199,15 +4146,13 @@ final $typed_data.Uint8List protosClientApiServiceDescriptor = $convert.base64De
     '9uZXJJbWFnZVJlc3BvbnNlIgASUwoQR2V0SW5zdGFuY2VJbWFnZRIdLmFwaWMuR2V0SW5zdGFu'
     'Y2VJbWFnZVJlcXVlc3QaHi5hcGljLkdldEluc3RhbmNlSW1hZ2VSZXNwb25zZSIAEnEKGlVwbG'
     '9hZEluc3RhbmNlSW1hZ2VBcmNoaXZlEicuYXBpYy5VcGxvYWRJbnN0YW5jZUltYWdlQXJjaGl2'
-    'ZVJlcXVlc3QaKC5hcGljLlVwbG9hZEluc3RhbmNlSW1hZ2VBcmNoaXZlUmVzcG9uc2UiABKAAQ'
-    'ofVXBsb2FkSW5zdGFuY2VJbWFnZUFyY2hpdmVDaHVuaxIsLmFwaWMuVXBsb2FkSW5zdGFuY2VJ'
-    'bWFnZUFyY2hpdmVDaHVua1JlcXVlc3QaLS5hcGljLlVwbG9hZEluc3RhbmNlSW1hZ2VBcmNoaX'
-    'ZlQ2h1bmtSZXNwb25zZSIAElAKD0dldFN5c3RlbVN0YXR1cxIcLmFwaWMuR2V0U3lzdGVtU3Rh'
-    'dHVzUmVxdWVzdBodLmFwaWMuR2V0U3lzdGVtU3RhdHVzUmVzcG9uc2UiABJNCg5TdGFydEhvc3'
-    'RBZ2VudBIbLmFwaWMuU3RhcnRIb3N0QWdlbnRSZXF1ZXN0GhwuYXBpYy5TdGFydEhvc3RBZ2Vu'
-    'dFJlc3BvbnNlIgASSgoNU3RvcEhvc3RBZ2VudBIaLmFwaWMuU3RvcEhvc3RBZ2VudFJlcXVlc3'
-    'QaGy5hcGljLlN0b3BIb3N0QWdlbnRSZXNwb25zZSIAElAKD0dldExvY2FsQ29tbWl0cxIcLmFw'
-    'aWMuR2V0TG9jYWxDb21taXRzUmVxdWVzdBodLmFwaWMuR2V0TG9jYWxDb21taXRzUmVzcG9uc2'
-    'UiABJTChBHZXRSZW1vdGVDb21taXRzEh0uYXBpYy5HZXRSZW1vdGVDb21taXRzUmVxdWVzdBoe'
-    'LmFwaWMuR2V0UmVtb3RlQ29tbWl0c1Jlc3BvbnNlIgASQQoKRXhlY3V0ZVNxbBIXLmFwaWMuRX'
-    'hlY3V0ZVNxbFJlcXVlc3QaGC5hcGljLkV4ZWN1dGVTcWxSZXNwb25zZSIA');
+    'ZVJlcXVlc3QaKC5hcGljLlVwbG9hZEluc3RhbmNlSW1hZ2VBcmNoaXZlUmVzcG9uc2UiABJQCg'
+    '9HZXRTeXN0ZW1TdGF0dXMSHC5hcGljLkdldFN5c3RlbVN0YXR1c1JlcXVlc3QaHS5hcGljLkdl'
+    'dFN5c3RlbVN0YXR1c1Jlc3BvbnNlIgASTQoOU3RhcnRIb3N0QWdlbnQSGy5hcGljLlN0YXJ0SG'
+    '9zdEFnZW50UmVxdWVzdBocLmFwaWMuU3RhcnRIb3N0QWdlbnRSZXNwb25zZSIAEkoKDVN0b3BI'
+    'b3N0QWdlbnQSGi5hcGljLlN0b3BIb3N0QWdlbnRSZXF1ZXN0GhsuYXBpYy5TdG9wSG9zdEFnZW'
+    '50UmVzcG9uc2UiABJQCg9HZXRMb2NhbENvbW1pdHMSHC5hcGljLkdldExvY2FsQ29tbWl0c1Jl'
+    'cXVlc3QaHS5hcGljLkdldExvY2FsQ29tbWl0c1Jlc3BvbnNlIgASUwoQR2V0UmVtb3RlQ29tbW'
+    'l0cxIdLmFwaWMuR2V0UmVtb3RlQ29tbWl0c1JlcXVlc3QaHi5hcGljLkdldFJlbW90ZUNvbW1p'
+    'dHNSZXNwb25zZSIAEkEKCkV4ZWN1dGVTcWwSFy5hcGljLkV4ZWN1dGVTcWxSZXF1ZXN0GhguYX'
+    'BpYy5FeGVjdXRlU3FsUmVzcG9uc2UiAA==');

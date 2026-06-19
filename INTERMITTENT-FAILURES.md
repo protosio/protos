@@ -58,6 +58,228 @@ should be available for local VMs even when peer connectivity is broken, and
 guest protosd logs should be retrievable through a path independent of the
 control channel being investigated.
 
+## Full E2E Run Observation (2026-06-19, networking model changes)
+
+Command flow:
+
+- Rebuilt local macOS test image with
+  `task -t cloud-provisioning/Taskfile.yml mactest`.
+- Rebuilt Scaleway and Hetzner cloud images with
+  `task -t cloud-provisioning/Taskfile.yml cloud`.
+- Ran `task -t core/Taskfile.yaml e2e:full`.
+
+Result: **passed** on the first full run. Local macOS VM e2e passed, mixed
+local plus Hetzner plus Scaleway e2e passed, and `e2e:summary` validated the
+summary artifact. Cleanup removed all instances, provisioner images, and
+temporary provisioners.
+
+Artifacts:
+
+- Full run log: `.tmp/e2e-full-20260619-networking.log`.
+- Mixed-cloud summary: `core/.tmp/mixed-cloud-e2e-summary.json`.
+
+Upload timing observations:
+
+- Local provider image uploads remained fast: about 10.1 MB completed in under
+  a second for both local upload tasks.
+- Hetzner provider image upload succeeded for the 185.6 MB raw image. The task
+  spent about 49 seconds in provider upload setup before the first byte-level
+  progress event, about 24 seconds transferring bytes from first byte to 100%,
+  and about 28 seconds finalizing after bytes reached 100%. Total task time was
+  about 1m43s.
+- Scaleway provider image upload succeeded for the 508.6 MB ISO. The task spent
+  about 42 seconds in provider upload setup before first bytes, about 1m50s
+  transferring bytes from first byte to 100%, and about 1m22s finalizing after
+  bytes reached 100%. Total task time was about 3m56s.
+- Remote app-image seed upload from the local node into the Hetzner instance
+  succeeded but remained slow: 6.7 MB uploaded in about 15.5 seconds, roughly
+  0.43 MB/s. This is still worth tracking as a data-transfer performance
+  concern even though the run passed.
+
+Recoverable transient signals seen during the passed run:
+
+- Some instances initially reported provider status `running (unreachable)`
+  immediately after deployment, including one local VM and the Hetzner VM. The
+  runtime peer checks and checkpoint assertions then succeeded without manual
+  intervention.
+- Hetzner and Scaleway each had one checkpoint wait poll where the remote root
+  did not yet match the local root. Both converged on the next observed wait
+  cycle and no checkpoint error or pending checkpoint state remained.
+- Scaleway app startup briefly reported `stopped (running)` before the next app
+  status poll returned `running (running)`. This did not fail the run, but it
+  is the same status-shape as previous app-runtime convergence issues and should
+  remain on the intermittent watch list.
+
+Positive signals:
+
+- P2P image resolution from the seeded Hetzner instance to the Scaleway
+  instance was verified. The Scaleway image reported
+  `protos.io/image.source=p2p` with the expected digest and content
+  descriptors.
+- All four runtime peers observed the expected peer sets before cleanup.
+- The explicit daemon-shutdown peer-removal check passed for the stopped local
+  VM.
+- Cloud-priority metadata remained correct as local VMs and then cloud VMs were
+  deleted.
+
+## Full E2E Run Observation (2026-06-19, archive upload data plane)
+
+Implementation context:
+
+- The canonical remote app-image seed upload no longer drives image archive
+  transfer from APIC with one gRPC request per chunk. APIC now validates the
+  request, owns the task/progress surface, and delegates the data plane to the
+  p2p manager.
+- P2P now owns a dedicated raw libp2p image-archive upload stream
+  (`/protos/image-archive-upload/0.0.1`) with 4 MiB framed chunks, per-chunk
+  acknowledgements, stream reopen/retry, and resume from the last acknowledged
+  offset. The peer side keeps the temp archive file open for a stream, imports
+  on the final EOF frame, and removes the temp archive after the successful
+  final response is flushed back to the sender.
+- Focused tests cover the framed server stream path and resume across stream
+  boundaries.
+
+Verification:
+
+- Rebuilt local mactest and cloud images with
+  `task -t cloud-provisioning/Taskfile.yml mactest cloud`.
+- Ran `task -t core/Taskfile.yaml test`.
+- Ran `task -t core/Taskfile.yaml lint` and
+  `task -t core/Taskfile.yaml deadcode`.
+- Rebuilt local mactest and cloud images again after the final upload-stream
+  robustness change.
+- Ran `task -t core/Taskfile.yaml e2e:full`.
+
+Result: **passed**. Full run log:
+`.tmp/e2e-full-20260619-archive-upload-final.log`. Mixed-cloud summary:
+`core/.tmp/mixed-cloud-e2e-summary.json`. Mixed-cloud run suffix:
+`1781883179087003000`.
+
+Archive upload timing:
+
+- The remote seed archive upload to the Hetzner instance uploaded 6,741,473
+  bytes. The upload entered the transfer phase at
+  `2026-06-19T15:43:13.283Z`, reached 100% bytes at
+  `2026-06-19T15:43:15.206Z`, reported import at
+  `2026-06-19T15:43:15.655Z`, and finished at
+  `2026-06-19T15:43:18.402Z`.
+- Byte transfer reached 4 MiB in 1.482s and the full 6.4 MiB archive in about
+  2.403s, reporting about 2.80 MB/s. The earlier validation run of the same
+  stream reported about 3.34 MB/s. The old APIC unary chunk path transferred
+  the same class of archive at roughly 0.43 MB/s, so the new p2p data-plane
+  transfer is about 6-8x faster for this e2e artifact.
+- Import/final task completion took roughly another 3.2 seconds after bytes
+  reached 100%.
+
+Positive signals:
+
+- P2P image resolution from the seeded Hetzner instance to the Scaleway puller
+  was verified again. The Scaleway image reported
+  `protos.io/image.source=p2p` with the expected digest and descriptors.
+- Bidirectional app connectivity between Hetzner and Scaleway returned HTTP
+  200 both ways.
+- Daemon-shutdown peer removal was verified for the stopped local VM.
+- All instances, provider images, and temporary provisioners were removed by
+  cleanup.
+
+Recoverable transient signals seen during the passed run:
+
+- One local VM in the local-only leg, one local VM in the mixed-cloud leg, and
+  the Scaleway VM initially reported provider status `running (unreachable)`
+  right after deployment. Runtime peer checks, checkpoint assertions, and later
+  app checks succeeded without intervention.
+- The Scaleway app briefly reported `stopped (running)` before the next
+  app-status poll returned `running (running)`.
+- Hetzner and one local VM each had a checkpoint wait that observed an older
+  root while traces already showed event/root closure progress; later waits
+  matched the local root. This is the expected snapshot-in-time convergence
+  behavior and was not a failure.
+- During daemon shutdown peer-removal verification, one runtime-state query hit
+  a `DeadlineExceeded` while using a stale-but-healthy diagnostic, and one
+  event closure on the observer took about 30s before succeeding. The peer
+  removal assertion passed, but this remains worth tracking as a shutdown
+  convergence latency signal.
+
+Remaining follow-up:
+
+- This validates the new archive-upload stream with the current 6.4 MiB e2e
+  probe artifact. A larger archive would be useful later to measure sustained
+  throughput and retry behavior over a longer libp2p data-plane transfer.
+
+### Contract cleanup validation
+
+Follow-up cleanup removed the legacy archive-upload RPC path entirely:
+
+- APIC no longer exposes `UploadInstanceImageArchiveChunk`; clients use the
+  task-based `UploadInstanceImageArchive` API and receive progress through the
+  task stream.
+- The p2p Images gRPC service no longer exposes `LoadImageArchive` or
+  `UploadImageArchiveChunk`; archive transfer is owned by the raw libp2p
+  `/protos/image-archive-upload/0.0.1` transport. The protobuf request/response
+  messages remain only as the raw stream frame schema.
+- Generated Go protobuf artifacts were regenerated from the CUE contracts. The
+  contract verifier now also checks `internal/p2p/proto/image.proto`, which was
+  previously generated but not covered by `verify:contracts`.
+- Shared Flutter APIC protobuf artifacts were regenerated from the generated
+  APIC proto, and a shared verifier now diffs regenerated Dart output against
+  the checked-in generated files.
+
+Verification after contract cleanup:
+
+- Ran `task -t core/Taskfile.yaml verify:contracts`.
+- Ran `task -t clients/macos/Taskfile.yml protobuf:verify` and
+  `task -t clients/ios/Taskfile.yml protobuf:verify`.
+- Ran `task -t clients/macos/Taskfile.yml test`.
+- Ran `task -t core/Taskfile.yaml test`, `task -t core/Taskfile.yaml lint`,
+  and `task -t core/Taskfile.yaml deadcode`.
+- Rebuilt local mactest, Scaleway, and Hetzner images with
+  `task -t cloud-provisioning/Taskfile.yml mactest cloud`.
+- Ran `task -t core/Taskfile.yaml e2e:full`.
+
+Result: **passed**. Full run log:
+`.tmp/e2e-full-20260619-contract-cleanup.log`. Mixed-cloud summary:
+`core/.tmp/mixed-cloud-e2e-summary.json`. Mixed-cloud run suffix:
+`1781884967838940000`.
+
+Archive upload timing after contract cleanup:
+
+- The remote seed archive upload to the Hetzner instance uploaded 6,741,473
+  bytes. The upload entered the transfer phase at
+  `2026-06-19T16:07:57.506Z`, reached 100% bytes at
+  `2026-06-19T16:07:59.018Z`, reported import at
+  `2026-06-19T16:07:59.379Z`, and finished at
+  `2026-06-19T16:08:01.924Z`.
+- Byte transfer reached 4 MiB in 1.167s and the full 6.4 MiB archive in about
+  1.900s, reporting about 3.55 MB/s. This is the strongest observed result for
+  the new raw libp2p upload stream so far.
+
+Recoverable transient signals seen during the passed run:
+
+- In the mixed-cloud leg, the second local VM initially reported provider status
+  `running (unreachable)` and the first checkpoint wait briefly missed its
+  runtime peer status. The next checkpoint assertion included the peer and
+  matched the expected metadata.
+- The Scaleway VM initially reported `running (unreachable)` immediately after
+  deployment, while runtime peer checks and later application checks succeeded.
+- Hetzner and one local VM each had a checkpoint wait that observed an older
+  root before a later wait matched the local root. This is normal snapshot-time
+  convergence behavior and did not indicate a failed checkpoint.
+- The Scaleway app briefly reported `stopped (running)` before the next
+  app-status poll returned `running (running)`.
+
+Positive signals:
+
+- P2P image resolution from the seeded Hetzner instance to the Scaleway puller
+  was verified with `protos.io/image.source=p2p`.
+- Bidirectional app connectivity between Hetzner and Scaleway returned HTTP
+  200 both ways.
+- Daemon-shutdown peer removal was verified promptly for the stopped local VM.
+- Cleanup removed all instances, provider images, and temporary provisioners.
+- No `DeadlineExceeded`, `RST_STREAM`, panic, registry fallback, or durable peer
+  removal stall was observed in this run.
+- Final pre-commit quality pass reran `task -t core/Taskfile.yaml lint` and
+  `task -t core/Taskfile.yaml deadcode`; both passed with no issues.
+
 ## Code Verification (2026-06-19)
 
 The fixes recorded below were verified against the working tree. **Verdict: the
@@ -678,6 +900,10 @@ To close this: run `task e2e:mixed-cloud` with `/tmp/protos-local-net-mode` set.
 Deferred by decision (real cloud spend); the shared-vmnet code only changes the
 local-VM network device, and cloud connectivity uses the untouched direct-peer
 WG path, so the risk is considered low for now.
+
+Superseded by later validation: the old network toggle and fallback path were
+removed, and the full e2e run `1781883179087003000` passed with 2 local macOS
+VMs, 1 Hetzner VM, and 1 Scaleway VM on the canonical local networking path.
 
 ## 2026-06-19
 

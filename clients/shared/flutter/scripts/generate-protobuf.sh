@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${SHARED_DIR}/../../.." && pwd)"
 CORE_DIR="${REPO_ROOT}/core"
-OUT_DIR="${SHARED_DIR}/lib/src/generated"
+OUT_DIR="${PROTOS_FLUTTER_PROTO_OUT_DIR:-${SHARED_DIR}/lib/src/generated}"
 
 mkdir -p "${OUT_DIR}"
 

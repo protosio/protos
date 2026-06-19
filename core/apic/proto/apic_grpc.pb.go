@@ -19,68 +19,67 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProtosClientApi_Init_FullMethodName                            = "/apic.ProtosClientApi/Init"
-	ProtosClientApi_GetUserDevices_FullMethodName                  = "/apic.ProtosClientApi/GetUserDevices"
-	ProtosClientApi_GetUserInfo_FullMethodName                     = "/apic.ProtosClientApi/GetUserInfo"
-	ProtosClientApi_ListOrganisations_FullMethodName               = "/apic.ProtosClientApi/ListOrganisations"
-	ProtosClientApi_StartDeviceInvite_FullMethodName               = "/apic.ProtosClientApi/StartDeviceInvite"
-	ProtosClientApi_ListNearbyOrganisations_FullMethodName         = "/apic.ProtosClientApi/ListNearbyOrganisations"
-	ProtosClientApi_JoinOrganisation_FullMethodName                = "/apic.ProtosClientApi/JoinOrganisation"
-	ProtosClientApi_GetLocalSSHKey_FullMethodName                  = "/apic.ProtosClientApi/GetLocalSSHKey"
-	ProtosClientApi_GetApps_FullMethodName                         = "/apic.ProtosClientApi/GetApps"
-	ProtosClientApi_CreateApp_FullMethodName                       = "/apic.ProtosClientApi/CreateApp"
-	ProtosClientApi_StartApp_FullMethodName                        = "/apic.ProtosClientApi/StartApp"
-	ProtosClientApi_StopApp_FullMethodName                         = "/apic.ProtosClientApi/StopApp"
-	ProtosClientApi_RemoveApp_FullMethodName                       = "/apic.ProtosClientApi/RemoveApp"
-	ProtosClientApi_GetAppLogs_FullMethodName                      = "/apic.ProtosClientApi/GetAppLogs"
-	ProtosClientApi_GetSupportedCloudProviders_FullMethodName      = "/apic.ProtosClientApi/GetSupportedCloudProviders"
-	ProtosClientApi_GetCloudProviders_FullMethodName               = "/apic.ProtosClientApi/GetCloudProviders"
-	ProtosClientApi_GetCloudProvider_FullMethodName                = "/apic.ProtosClientApi/GetCloudProvider"
-	ProtosClientApi_AddCloudProvider_FullMethodName                = "/apic.ProtosClientApi/AddCloudProvider"
-	ProtosClientApi_RemoveCloudProvider_FullMethodName             = "/apic.ProtosClientApi/RemoveCloudProvider"
-	ProtosClientApi_GetSupportedProvisioners_FullMethodName        = "/apic.ProtosClientApi/GetSupportedProvisioners"
-	ProtosClientApi_GetProvisioners_FullMethodName                 = "/apic.ProtosClientApi/GetProvisioners"
-	ProtosClientApi_GetProvisioner_FullMethodName                  = "/apic.ProtosClientApi/GetProvisioner"
-	ProtosClientApi_AddProvisioner_FullMethodName                  = "/apic.ProtosClientApi/AddProvisioner"
-	ProtosClientApi_RemoveProvisioner_FullMethodName               = "/apic.ProtosClientApi/RemoveProvisioner"
-	ProtosClientApi_GetInstances_FullMethodName                    = "/apic.ProtosClientApi/GetInstances"
-	ProtosClientApi_GetInstance_FullMethodName                     = "/apic.ProtosClientApi/GetInstance"
-	ProtosClientApi_GetInstanceDeployOptions_FullMethodName        = "/apic.ProtosClientApi/GetInstanceDeployOptions"
-	ProtosClientApi_DeployInstance_FullMethodName                  = "/apic.ProtosClientApi/DeployInstance"
-	ProtosClientApi_RemoveInstance_FullMethodName                  = "/apic.ProtosClientApi/RemoveInstance"
-	ProtosClientApi_StartInstance_FullMethodName                   = "/apic.ProtosClientApi/StartInstance"
-	ProtosClientApi_StopInstance_FullMethodName                    = "/apic.ProtosClientApi/StopInstance"
-	ProtosClientApi_GetInstanceKey_FullMethodName                  = "/apic.ProtosClientApi/GetInstanceKey"
-	ProtosClientApi_GetInstanceLogs_FullMethodName                 = "/apic.ProtosClientApi/GetInstanceLogs"
-	ProtosClientApi_InitInstance_FullMethodName                    = "/apic.ProtosClientApi/InitInstance"
-	ProtosClientApi_UpdateInstance_FullMethodName                  = "/apic.ProtosClientApi/UpdateInstance"
-	ProtosClientApi_GetNetworkState_FullMethodName                 = "/apic.ProtosClientApi/GetNetworkState"
-	ProtosClientApi_SetNetworkEnabled_FullMethodName               = "/apic.ProtosClientApi/SetNetworkEnabled"
-	ProtosClientApi_GetExitRoutes_FullMethodName                   = "/apic.ProtosClientApi/GetExitRoutes"
-	ProtosClientApi_GetMobileTunnelConfig_FullMethodName           = "/apic.ProtosClientApi/GetMobileTunnelConfig"
-	ProtosClientApi_GetRuntimeState_FullMethodName                 = "/apic.ProtosClientApi/GetRuntimeState"
-	ProtosClientApi_WatchChanges_FullMethodName                    = "/apic.ProtosClientApi/WatchChanges"
-	ProtosClientApi_GetTasks_FullMethodName                        = "/apic.ProtosClientApi/GetTasks"
-	ProtosClientApi_GetTask_FullMethodName                         = "/apic.ProtosClientApi/GetTask"
-	ProtosClientApi_WatchTask_FullMethodName                       = "/apic.ProtosClientApi/WatchTask"
-	ProtosClientApi_SetExitRoute_FullMethodName                    = "/apic.ProtosClientApi/SetExitRoute"
-	ProtosClientApi_ClearExitRoute_FullMethodName                  = "/apic.ProtosClientApi/ClearExitRoute"
-	ProtosClientApi_GetProtosdReleases_FullMethodName              = "/apic.ProtosClientApi/GetProtosdReleases"
-	ProtosClientApi_GetCloudImages_FullMethodName                  = "/apic.ProtosClientApi/GetCloudImages"
-	ProtosClientApi_UploadCloudImage_FullMethodName                = "/apic.ProtosClientApi/UploadCloudImage"
-	ProtosClientApi_RemoveCloudImage_FullMethodName                = "/apic.ProtosClientApi/RemoveCloudImage"
-	ProtosClientApi_GetProvisionerImages_FullMethodName            = "/apic.ProtosClientApi/GetProvisionerImages"
-	ProtosClientApi_UploadProvisionerImage_FullMethodName          = "/apic.ProtosClientApi/UploadProvisionerImage"
-	ProtosClientApi_RemoveProvisionerImage_FullMethodName          = "/apic.ProtosClientApi/RemoveProvisionerImage"
-	ProtosClientApi_GetInstanceImage_FullMethodName                = "/apic.ProtosClientApi/GetInstanceImage"
-	ProtosClientApi_UploadInstanceImageArchive_FullMethodName      = "/apic.ProtosClientApi/UploadInstanceImageArchive"
-	ProtosClientApi_UploadInstanceImageArchiveChunk_FullMethodName = "/apic.ProtosClientApi/UploadInstanceImageArchiveChunk"
-	ProtosClientApi_GetSystemStatus_FullMethodName                 = "/apic.ProtosClientApi/GetSystemStatus"
-	ProtosClientApi_StartHostAgent_FullMethodName                  = "/apic.ProtosClientApi/StartHostAgent"
-	ProtosClientApi_StopHostAgent_FullMethodName                   = "/apic.ProtosClientApi/StopHostAgent"
-	ProtosClientApi_GetLocalCommits_FullMethodName                 = "/apic.ProtosClientApi/GetLocalCommits"
-	ProtosClientApi_GetRemoteCommits_FullMethodName                = "/apic.ProtosClientApi/GetRemoteCommits"
-	ProtosClientApi_ExecuteSql_FullMethodName                      = "/apic.ProtosClientApi/ExecuteSql"
+	ProtosClientApi_Init_FullMethodName                       = "/apic.ProtosClientApi/Init"
+	ProtosClientApi_GetUserDevices_FullMethodName             = "/apic.ProtosClientApi/GetUserDevices"
+	ProtosClientApi_GetUserInfo_FullMethodName                = "/apic.ProtosClientApi/GetUserInfo"
+	ProtosClientApi_ListOrganisations_FullMethodName          = "/apic.ProtosClientApi/ListOrganisations"
+	ProtosClientApi_StartDeviceInvite_FullMethodName          = "/apic.ProtosClientApi/StartDeviceInvite"
+	ProtosClientApi_ListNearbyOrganisations_FullMethodName    = "/apic.ProtosClientApi/ListNearbyOrganisations"
+	ProtosClientApi_JoinOrganisation_FullMethodName           = "/apic.ProtosClientApi/JoinOrganisation"
+	ProtosClientApi_GetLocalSSHKey_FullMethodName             = "/apic.ProtosClientApi/GetLocalSSHKey"
+	ProtosClientApi_GetApps_FullMethodName                    = "/apic.ProtosClientApi/GetApps"
+	ProtosClientApi_CreateApp_FullMethodName                  = "/apic.ProtosClientApi/CreateApp"
+	ProtosClientApi_StartApp_FullMethodName                   = "/apic.ProtosClientApi/StartApp"
+	ProtosClientApi_StopApp_FullMethodName                    = "/apic.ProtosClientApi/StopApp"
+	ProtosClientApi_RemoveApp_FullMethodName                  = "/apic.ProtosClientApi/RemoveApp"
+	ProtosClientApi_GetAppLogs_FullMethodName                 = "/apic.ProtosClientApi/GetAppLogs"
+	ProtosClientApi_GetSupportedCloudProviders_FullMethodName = "/apic.ProtosClientApi/GetSupportedCloudProviders"
+	ProtosClientApi_GetCloudProviders_FullMethodName          = "/apic.ProtosClientApi/GetCloudProviders"
+	ProtosClientApi_GetCloudProvider_FullMethodName           = "/apic.ProtosClientApi/GetCloudProvider"
+	ProtosClientApi_AddCloudProvider_FullMethodName           = "/apic.ProtosClientApi/AddCloudProvider"
+	ProtosClientApi_RemoveCloudProvider_FullMethodName        = "/apic.ProtosClientApi/RemoveCloudProvider"
+	ProtosClientApi_GetSupportedProvisioners_FullMethodName   = "/apic.ProtosClientApi/GetSupportedProvisioners"
+	ProtosClientApi_GetProvisioners_FullMethodName            = "/apic.ProtosClientApi/GetProvisioners"
+	ProtosClientApi_GetProvisioner_FullMethodName             = "/apic.ProtosClientApi/GetProvisioner"
+	ProtosClientApi_AddProvisioner_FullMethodName             = "/apic.ProtosClientApi/AddProvisioner"
+	ProtosClientApi_RemoveProvisioner_FullMethodName          = "/apic.ProtosClientApi/RemoveProvisioner"
+	ProtosClientApi_GetInstances_FullMethodName               = "/apic.ProtosClientApi/GetInstances"
+	ProtosClientApi_GetInstance_FullMethodName                = "/apic.ProtosClientApi/GetInstance"
+	ProtosClientApi_GetInstanceDeployOptions_FullMethodName   = "/apic.ProtosClientApi/GetInstanceDeployOptions"
+	ProtosClientApi_DeployInstance_FullMethodName             = "/apic.ProtosClientApi/DeployInstance"
+	ProtosClientApi_RemoveInstance_FullMethodName             = "/apic.ProtosClientApi/RemoveInstance"
+	ProtosClientApi_StartInstance_FullMethodName              = "/apic.ProtosClientApi/StartInstance"
+	ProtosClientApi_StopInstance_FullMethodName               = "/apic.ProtosClientApi/StopInstance"
+	ProtosClientApi_GetInstanceKey_FullMethodName             = "/apic.ProtosClientApi/GetInstanceKey"
+	ProtosClientApi_GetInstanceLogs_FullMethodName            = "/apic.ProtosClientApi/GetInstanceLogs"
+	ProtosClientApi_InitInstance_FullMethodName               = "/apic.ProtosClientApi/InitInstance"
+	ProtosClientApi_UpdateInstance_FullMethodName             = "/apic.ProtosClientApi/UpdateInstance"
+	ProtosClientApi_GetNetworkState_FullMethodName            = "/apic.ProtosClientApi/GetNetworkState"
+	ProtosClientApi_SetNetworkEnabled_FullMethodName          = "/apic.ProtosClientApi/SetNetworkEnabled"
+	ProtosClientApi_GetExitRoutes_FullMethodName              = "/apic.ProtosClientApi/GetExitRoutes"
+	ProtosClientApi_GetMobileTunnelConfig_FullMethodName      = "/apic.ProtosClientApi/GetMobileTunnelConfig"
+	ProtosClientApi_GetRuntimeState_FullMethodName            = "/apic.ProtosClientApi/GetRuntimeState"
+	ProtosClientApi_WatchChanges_FullMethodName               = "/apic.ProtosClientApi/WatchChanges"
+	ProtosClientApi_GetTasks_FullMethodName                   = "/apic.ProtosClientApi/GetTasks"
+	ProtosClientApi_GetTask_FullMethodName                    = "/apic.ProtosClientApi/GetTask"
+	ProtosClientApi_WatchTask_FullMethodName                  = "/apic.ProtosClientApi/WatchTask"
+	ProtosClientApi_SetExitRoute_FullMethodName               = "/apic.ProtosClientApi/SetExitRoute"
+	ProtosClientApi_ClearExitRoute_FullMethodName             = "/apic.ProtosClientApi/ClearExitRoute"
+	ProtosClientApi_GetProtosdReleases_FullMethodName         = "/apic.ProtosClientApi/GetProtosdReleases"
+	ProtosClientApi_GetCloudImages_FullMethodName             = "/apic.ProtosClientApi/GetCloudImages"
+	ProtosClientApi_UploadCloudImage_FullMethodName           = "/apic.ProtosClientApi/UploadCloudImage"
+	ProtosClientApi_RemoveCloudImage_FullMethodName           = "/apic.ProtosClientApi/RemoveCloudImage"
+	ProtosClientApi_GetProvisionerImages_FullMethodName       = "/apic.ProtosClientApi/GetProvisionerImages"
+	ProtosClientApi_UploadProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/UploadProvisionerImage"
+	ProtosClientApi_RemoveProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/RemoveProvisionerImage"
+	ProtosClientApi_GetInstanceImage_FullMethodName           = "/apic.ProtosClientApi/GetInstanceImage"
+	ProtosClientApi_UploadInstanceImageArchive_FullMethodName = "/apic.ProtosClientApi/UploadInstanceImageArchive"
+	ProtosClientApi_GetSystemStatus_FullMethodName            = "/apic.ProtosClientApi/GetSystemStatus"
+	ProtosClientApi_StartHostAgent_FullMethodName             = "/apic.ProtosClientApi/StartHostAgent"
+	ProtosClientApi_StopHostAgent_FullMethodName              = "/apic.ProtosClientApi/StopHostAgent"
+	ProtosClientApi_GetLocalCommits_FullMethodName            = "/apic.ProtosClientApi/GetLocalCommits"
+	ProtosClientApi_GetRemoteCommits_FullMethodName           = "/apic.ProtosClientApi/GetRemoteCommits"
+	ProtosClientApi_ExecuteSql_FullMethodName                 = "/apic.ProtosClientApi/ExecuteSql"
 )
 
 // ProtosClientApiClient is the client API for ProtosClientApi service.
@@ -142,7 +141,6 @@ type ProtosClientApiClient interface {
 	RemoveProvisionerImage(ctx context.Context, in *RemoveProvisionerImageRequest, opts ...grpc.CallOption) (*RemoveProvisionerImageResponse, error)
 	GetInstanceImage(ctx context.Context, in *GetInstanceImageRequest, opts ...grpc.CallOption) (*GetInstanceImageResponse, error)
 	UploadInstanceImageArchive(ctx context.Context, in *UploadInstanceImageArchiveRequest, opts ...grpc.CallOption) (*UploadInstanceImageArchiveResponse, error)
-	UploadInstanceImageArchiveChunk(ctx context.Context, in *UploadInstanceImageArchiveChunkRequest, opts ...grpc.CallOption) (*UploadInstanceImageArchiveChunkResponse, error)
 	GetSystemStatus(ctx context.Context, in *GetSystemStatusRequest, opts ...grpc.CallOption) (*GetSystemStatusResponse, error)
 	StartHostAgent(ctx context.Context, in *StartHostAgentRequest, opts ...grpc.CallOption) (*StartHostAgentResponse, error)
 	StopHostAgent(ctx context.Context, in *StopHostAgentRequest, opts ...grpc.CallOption) (*StopHostAgentResponse, error)
@@ -727,16 +725,6 @@ func (c *protosClientApiClient) UploadInstanceImageArchive(ctx context.Context, 
 	return out, nil
 }
 
-func (c *protosClientApiClient) UploadInstanceImageArchiveChunk(ctx context.Context, in *UploadInstanceImageArchiveChunkRequest, opts ...grpc.CallOption) (*UploadInstanceImageArchiveChunkResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UploadInstanceImageArchiveChunkResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_UploadInstanceImageArchiveChunk_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *protosClientApiClient) GetSystemStatus(ctx context.Context, in *GetSystemStatusRequest, opts ...grpc.CallOption) (*GetSystemStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSystemStatusResponse)
@@ -856,7 +844,6 @@ type ProtosClientApiServer interface {
 	RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error)
 	GetInstanceImage(context.Context, *GetInstanceImageRequest) (*GetInstanceImageResponse, error)
 	UploadInstanceImageArchive(context.Context, *UploadInstanceImageArchiveRequest) (*UploadInstanceImageArchiveResponse, error)
-	UploadInstanceImageArchiveChunk(context.Context, *UploadInstanceImageArchiveChunkRequest) (*UploadInstanceImageArchiveChunkResponse, error)
 	GetSystemStatus(context.Context, *GetSystemStatusRequest) (*GetSystemStatusResponse, error)
 	StartHostAgent(context.Context, *StartHostAgentRequest) (*StartHostAgentResponse, error)
 	StopHostAgent(context.Context, *StopHostAgentRequest) (*StopHostAgentResponse, error)
@@ -1036,9 +1023,6 @@ func (UnimplementedProtosClientApiServer) GetInstanceImage(context.Context, *Get
 }
 func (UnimplementedProtosClientApiServer) UploadInstanceImageArchive(context.Context, *UploadInstanceImageArchiveRequest) (*UploadInstanceImageArchiveResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UploadInstanceImageArchive not implemented")
-}
-func (UnimplementedProtosClientApiServer) UploadInstanceImageArchiveChunk(context.Context, *UploadInstanceImageArchiveChunkRequest) (*UploadInstanceImageArchiveChunkResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UploadInstanceImageArchiveChunk not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetSystemStatus(context.Context, *GetSystemStatusRequest) (*GetSystemStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSystemStatus not implemented")
@@ -2054,24 +2038,6 @@ func _ProtosClientApi_UploadInstanceImageArchive_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProtosClientApi_UploadInstanceImageArchiveChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UploadInstanceImageArchiveChunkRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).UploadInstanceImageArchiveChunk(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_UploadInstanceImageArchiveChunk_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).UploadInstanceImageArchiveChunk(ctx, req.(*UploadInstanceImageArchiveChunkRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ProtosClientApi_GetSystemStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSystemStatusRequest)
 	if err := dec(in); err != nil {
@@ -2398,10 +2364,6 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UploadInstanceImageArchive",
 			Handler:    _ProtosClientApi_UploadInstanceImageArchive_Handler,
-		},
-		{
-			MethodName: "UploadInstanceImageArchiveChunk",
-			Handler:    _ProtosClientApi_UploadInstanceImageArchiveChunk_Handler,
 		},
 		{
 			MethodName: "GetSystemStatus",

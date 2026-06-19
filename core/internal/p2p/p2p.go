@@ -39,6 +39,7 @@ const (
 	protosRPCProtocol               = "/protos/rpc/0.0.1"
 	swarmionBootstrapProtocol       = "/protos/swarmion-bootstrap/0.0.1"
 	imageBlobStreamProtocol         = "/protos/image-blob/0.0.1"
+	imageArchiveUploadProtocol      = "/protos/image-archive-upload/0.0.1"
 	peerCapabilityImageContent      = "image.content"
 	peerCapabilitySwarmionTransport = "swarmion.transport"
 	destinationQUICIPv4Template     = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
@@ -1137,6 +1138,7 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 	p2p.host = host
 	p2p.host.SetStreamHandler(swarmionBootstrapProtocol, p2p.handleSwarmionBootstrapStream)
 	p2p.host.SetStreamHandler(imageBlobStreamProtocol, p2p.handleImageBlobStream)
+	p2p.host.SetStreamHandler(imageArchiveUploadProtocol, p2p.handleImageArchiveUploadStream)
 	nb := network.NotifyBundle{
 		ConnectedF:    p2p.newConnectionHandler,
 		DisconnectedF: p2p.closeConnectionHandler,

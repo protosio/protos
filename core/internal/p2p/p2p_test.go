@@ -505,14 +505,6 @@ func (fakeImagesClient) GetImageBlob(context.Context, *p2pproto.GetImageBlobRequ
 	return nil, nil
 }
 
-func (fakeImagesClient) LoadImageArchive(context.Context, *p2pproto.LoadImageArchiveRequest, ...grpc.CallOption) (*p2pproto.LoadImageArchiveResponse, error) {
-	return nil, nil
-}
-
-func (fakeImagesClient) UploadImageArchiveChunk(context.Context, *p2pproto.UploadImageArchiveChunkRequest, ...grpc.CallOption) (*p2pproto.UploadImageArchiveChunkResponse, error) {
-	return nil, nil
-}
-
 func (f testExternalDB) AddPeer(string, *grpc.ClientConn) error { return nil }
 func (f testExternalDB) RemovePeer(string) error                { return nil }
 func (f testExternalDB) GetAllCommits() ([]db.Commit, error)    { return nil, nil }

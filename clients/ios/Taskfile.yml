@@ -59,6 +59,11 @@ tasks:
           TASK_ARGS: '{{.BUILD_ARGS}} {{.CLI_ARGS}}'
       - ./scripts/build.sh --without-tunnel {{.BUILD_ARGS}} {{.CLI_ARGS}}
 
+  protobuf:verify:
+    desc: Verify shared Flutter protobuf output matches generated APIC proto
+    cmds:
+      - ../shared/flutter/scripts/verify-protobuf.sh
+
   run:
     desc: Run the iOS app with the Packet Tunnel extension enabled
     env:

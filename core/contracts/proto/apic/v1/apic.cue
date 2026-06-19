@@ -618,21 +618,6 @@ package apicv1
 #UploadInstanceImageArchiveResponse: {
 	task_id?: string
 }
-#UploadInstanceImageArchiveChunkRequest: {
-	instance?:  string
-	upload_id?: string
-	image_ref?: string
-	offset?:    uint
-	data?:      bytes
-	eof?:       bool
-}
-#UploadInstanceImageArchiveChunkResponse: {
-	received_bytes?: uint
-	loaded?:         bool
-	image_ref?:      string
-	target_digest?:  string
-	platform?:       string
-}
 
 #Commit: {
 	hash?:      string
@@ -790,7 +775,6 @@ contract: {
 				{name: "RemoveProvisionerImage", request: "RemoveProvisionerImageRequest", response: "RemoveProvisionerImageResponse"},
 				{name: "GetInstanceImage", request: "GetInstanceImageRequest", response: "GetInstanceImageResponse"},
 				{name: "UploadInstanceImageArchive", request: "UploadInstanceImageArchiveRequest", response: "UploadInstanceImageArchiveResponse"},
-				{name: "UploadInstanceImageArchiveChunk", request: "UploadInstanceImageArchiveChunkRequest", response: "UploadInstanceImageArchiveChunkResponse"},
 				{name: "GetSystemStatus", request: "GetSystemStatusRequest", response: "GetSystemStatusResponse"},
 				{name: "StartHostAgent", request: "StartHostAgentRequest", response: "StartHostAgentResponse"},
 				{name: "StopHostAgent", request: "StopHostAgentRequest", response: "StopHostAgentResponse"},
@@ -1440,21 +1424,6 @@ contract: {
 			]},
 			{kind: "message", name: "UploadInstanceImageArchiveResponse", fields: [
 				{type: "string", name: "task_id", number: 1},
-			]},
-			{kind: "message", name: "UploadInstanceImageArchiveChunkRequest", fields: [
-				{type: "string", name: "instance", number: 1},
-				{type: "string", name: "upload_id", number: 2},
-				{type: "string", name: "image_ref", number: 3},
-				{type: "uint64", name: "offset", number: 4},
-				{type: "bytes", name: "data", number: 5},
-				{type: "bool", name: "eof", number: 6},
-			]},
-			{kind: "message", name: "UploadInstanceImageArchiveChunkResponse", fields: [
-				{type: "uint64", name: "received_bytes", number: 1},
-				{type: "bool", name: "loaded", number: 2},
-				{type: "string", name: "image_ref", number: 3},
-				{type: "string", name: "target_digest", number: 4},
-				{type: "string", name: "platform", number: 5},
 			]},
 			{kind: "message", name: "CoreEndpoint", fields: [
 				{type: "string", name: "kind", number: 1},

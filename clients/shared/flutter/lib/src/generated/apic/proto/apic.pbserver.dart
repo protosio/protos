@@ -133,9 +133,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
   $async.Future<$0.UploadInstanceImageArchiveResponse>
       uploadInstanceImageArchive(
           $pb.ServerContext ctx, $0.UploadInstanceImageArchiveRequest request);
-  $async.Future<$0.UploadInstanceImageArchiveChunkResponse>
-      uploadInstanceImageArchiveChunk($pb.ServerContext ctx,
-          $0.UploadInstanceImageArchiveChunkRequest request);
   $async.Future<$0.GetSystemStatusResponse> getSystemStatus(
       $pb.ServerContext ctx, $0.GetSystemStatusRequest request);
   $async.Future<$0.StartHostAgentResponse> startHostAgent(
@@ -261,8 +258,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.GetInstanceImageRequest();
       case 'UploadInstanceImageArchive':
         return $0.UploadInstanceImageArchiveRequest();
-      case 'UploadInstanceImageArchiveChunk':
-        return $0.UploadInstanceImageArchiveChunkRequest();
       case 'GetSystemStatus':
         return $0.GetSystemStatusRequest();
       case 'StartHostAgent':
@@ -403,9 +398,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       case 'UploadInstanceImageArchive':
         return uploadInstanceImageArchive(
             ctx, request as $0.UploadInstanceImageArchiveRequest);
-      case 'UploadInstanceImageArchiveChunk':
-        return uploadInstanceImageArchiveChunk(
-            ctx, request as $0.UploadInstanceImageArchiveChunkRequest);
       case 'GetSystemStatus':
         return getSystemStatus(ctx, request as $0.GetSystemStatusRequest);
       case 'StartHostAgent':

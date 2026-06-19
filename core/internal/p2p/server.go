@@ -7,9 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -34,7 +32,6 @@ var _ proto.ImagesServer = (*Server)(nil)
 var _ proto.InstanceServer = (*Server)(nil)
 
 const (
-	imageArchiveUploadMaxChunkSize  = 1024 * 1024
 	imageBlobStreamDefaultChunkSize = 4 * 1024 * 1024
 	imageBlobStreamMaxChunkSize     = 4 * 1024 * 1024
 )
@@ -436,107 +433,6 @@ func (s *Server) GetImageBlob(req *proto.GetImageBlobRequest, stream proto.Image
 	return err
 }
 
-func (s *Server) LoadImageArchive(ctx context.Context, req *proto.LoadImageArchiveRequest) (*proto.LoadImageArchiveResponse, error) {
-	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
-		return nil, fmt.Errorf("image manager is not configured")
-	}
-	loaded, err := s.p2p.imageManager.LoadImageArchive(ctx, req.GetArchivePath(), req.GetImageRef())
-	if err != nil {
-		return nil, err
-	}
-	return &proto.LoadImageArchiveResponse{
-		ImageRef:     loaded.ImageRef,
-		TargetDigest: loaded.TargetDigest,
-		Platform:     loaded.Platform,
-	}, nil
-}
-
-func (s *Server) UploadImageArchiveChunk(ctx context.Context, req *proto.UploadImageArchiveChunkRequest) (*proto.UploadImageArchiveChunkResponse, error) {
-	if s == nil || s.p2p == nil || s.p2p.imageManager == nil {
-		return nil, fmt.Errorf("image manager is not configured")
-	}
-	if len(req.GetData()) > imageArchiveUploadMaxChunkSize {
-		return nil, fmt.Errorf("image archive chunk is too large: %d bytes", len(req.GetData()))
-	}
-	archivePath, err := imageArchiveUploadPath(req.GetUploadId())
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(filepath.Dir(archivePath), 0700); err != nil {
-		return nil, err
-	}
-
-	offset := req.GetOffset()
-	flags := os.O_CREATE | os.O_WRONLY
-	if offset == 0 {
-		flags |= os.O_TRUNC
-	}
-	file, err := os.OpenFile(archivePath, flags, 0600)
-	if err != nil {
-		return nil, err
-	}
-	if offset > 0 {
-		info, statErr := file.Stat()
-		if statErr != nil {
-			_ = file.Close()
-			return nil, statErr
-		}
-		if uint64(info.Size()) != offset {
-			_ = file.Close()
-			return nil, fmt.Errorf("image archive upload offset mismatch: got %d, current size %d", offset, info.Size())
-		}
-		if _, seekErr := file.Seek(int64(offset), io.SeekStart); seekErr != nil {
-			_ = file.Close()
-			return nil, seekErr
-		}
-	}
-	written, err := file.Write(req.GetData())
-	closeErr := file.Close()
-	if err != nil {
-		return nil, err
-	}
-	if closeErr != nil {
-		return nil, closeErr
-	}
-	if written != len(req.GetData()) {
-		return nil, io.ErrShortWrite
-	}
-
-	received := offset + uint64(written)
-	resp := &proto.UploadImageArchiveChunkResponse{ReceivedBytes: received}
-	if !req.GetEof() {
-		return resp, nil
-	}
-	log.Infof("image archive upload complete: upload=%s image=%s bytes=%d; importing into runtime", req.GetUploadId(), req.GetImageRef(), received)
-	loaded, err := s.p2p.imageManager.LoadImageArchive(ctx, archivePath, req.GetImageRef())
-	_ = os.Remove(archivePath)
-	if err != nil {
-		return nil, err
-	}
-	resp.Loaded = true
-	resp.ImageRef = loaded.ImageRef
-	resp.TargetDigest = loaded.TargetDigest
-	resp.Platform = loaded.Platform
-	log.Infof("image archive import complete: upload=%s image=%s digest=%s platform=%s bytes=%d", req.GetUploadId(), loaded.ImageRef, loaded.TargetDigest, loaded.Platform, received)
-	return resp, nil
-}
-
-func imageArchiveUploadPath(uploadID string) (string, error) {
-	uploadID = strings.TrimSpace(uploadID)
-	if uploadID == "" {
-		return "", fmt.Errorf("image archive upload id is empty")
-	}
-	if len(uploadID) > 96 {
-		return "", fmt.Errorf("image archive upload id is too long")
-	}
-	for _, r := range uploadID {
-		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
-			continue
-		}
-		return "", fmt.Errorf("image archive upload id contains invalid character %q", r)
-	}
-	return filepath.Join(os.TempDir(), "protos-p2p-image-upload-"+uploadID+".tar.gz"), nil
-}
 
 func imageDescriptorToProto(desc imageregistry.Descriptor) *proto.ImageContentDescriptor {
 	if desc.Digest == "" {

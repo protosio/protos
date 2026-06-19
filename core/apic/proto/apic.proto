@@ -61,7 +61,6 @@ service ProtosClientApi {
   rpc RemoveProvisionerImage(RemoveProvisionerImageRequest) returns (RemoveProvisionerImageResponse) {}
   rpc GetInstanceImage(GetInstanceImageRequest) returns (GetInstanceImageResponse) {}
   rpc UploadInstanceImageArchive(UploadInstanceImageArchiveRequest) returns (UploadInstanceImageArchiveResponse) {}
-  rpc UploadInstanceImageArchiveChunk(UploadInstanceImageArchiveChunkRequest) returns (UploadInstanceImageArchiveChunkResponse) {}
   rpc GetSystemStatus(GetSystemStatusRequest) returns (GetSystemStatusResponse) {}
   rpc StartHostAgent(StartHostAgentRequest) returns (StartHostAgentResponse) {}
   rpc StopHostAgent(StopHostAgentRequest) returns (StopHostAgentResponse) {}
@@ -957,23 +956,6 @@ message UploadInstanceImageArchiveRequest {
 
 message UploadInstanceImageArchiveResponse {
   string task_id = 1;
-}
-
-message UploadInstanceImageArchiveChunkRequest {
-  string instance = 1;
-  string upload_id = 2;
-  string image_ref = 3;
-  uint64 offset = 4;
-  bytes data = 5;
-  bool eof = 6;
-}
-
-message UploadInstanceImageArchiveChunkResponse {
-  uint64 received_bytes = 1;
-  bool loaded = 2;
-  string image_ref = 3;
-  string target_digest = 4;
-  string platform = 5;
 }
 
 message CoreEndpoint {

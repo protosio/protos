@@ -47,17 +47,6 @@ package p2pv1
 	eof?:    bool
 }
 
-#LoadImageArchiveRequest: {
-	archive_path?: string
-	image_ref?:     string
-}
-
-#LoadImageArchiveResponse: {
-	image_ref?:      string
-	target_digest?:  string
-	platform?:       string
-}
-
 #UploadImageArchiveChunkRequest: {
 	upload_id?: string
 	image_ref?:  string
@@ -95,8 +84,6 @@ contract: {
 				{name: "DescribeImage", request: "DescribeImageRequest", response: "DescribeImageResponse"},
 				{name: "GetImageContent", request: "GetImageContentRequest", response: "GetImageContentResponse"},
 				{name: "GetImageBlob", request: "GetImageBlobRequest", response: "GetImageBlobResponse", response_stream: true},
-				{name: "LoadImageArchive", request: "LoadImageArchiveRequest", response: "LoadImageArchiveResponse"},
-				{name: "UploadImageArchiveChunk", request: "UploadImageArchiveChunkRequest", response: "UploadImageArchiveChunkResponse"},
 			]
 		}]
 		declarations: [
@@ -140,15 +127,6 @@ contract: {
 				{type: "bytes", name: "data", number: 3},
 				{type: "bool", name: "eof", number: 4},
 			]},
-			{kind: "message", name: "LoadImageArchiveRequest", fields: [
-				{type: "string", name: "archive_path", number: 1},
-				{type: "string", name: "image_ref", number: 2},
-			]},
-			{kind: "message", name: "LoadImageArchiveResponse", fields: [
-				{type: "string", name: "image_ref", number: 1},
-				{type: "string", name: "target_digest", number: 2},
-				{type: "string", name: "platform", number: 3},
-			]},
 			{kind: "message", name: "UploadImageArchiveChunkRequest", fields: [
 				{type: "string", name: "upload_id", number: 1},
 				{type: "string", name: "image_ref", number: 2},
@@ -179,8 +157,6 @@ lineage: {
 			GetImageContentResponse?:     #GetImageContentResponse
 			GetImageBlobRequest?:         #GetImageBlobRequest
 			GetImageBlobResponse?:        #GetImageBlobResponse
-			LoadImageArchiveRequest?:     #LoadImageArchiveRequest
-			LoadImageArchiveResponse?:    #LoadImageArchiveResponse
 			UploadImageArchiveChunkRequest?:  #UploadImageArchiveChunkRequest
 			UploadImageArchiveChunkResponse?: #UploadImageArchiveChunkResponse
 		}

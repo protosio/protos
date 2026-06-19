@@ -2730,30 +2730,6 @@ func (b *Backend) GetInstanceImage(ctx context.Context, in *pbApic.GetInstanceIm
 	return resp, nil
 }
 
-func (b *Backend) UploadInstanceImageArchiveChunk(ctx context.Context, in *pbApic.UploadInstanceImageArchiveChunkRequest) (*pbApic.UploadInstanceImageArchiveChunkResponse, error) {
-	client, err := b.instanceAdminClient(ctx, in.GetInstance(), "upload instance image archive")
-	if err != nil {
-		return nil, err
-	}
-	resp, err := client.UploadImageArchiveChunk(ctx, &p2pproto.UploadImageArchiveChunkRequest{
-		UploadId: in.GetUploadId(),
-		ImageRef: in.GetImageRef(),
-		Offset:   in.GetOffset(),
-		Data:     append([]byte(nil), in.GetData()...),
-		Eof:      in.GetEof(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("upload image archive chunk to instance %q: %w", in.GetInstance(), err)
-	}
-	return &pbApic.UploadInstanceImageArchiveChunkResponse{
-		ReceivedBytes: resp.GetReceivedBytes(),
-		Loaded:        resp.GetLoaded(),
-		ImageRef:      resp.GetImageRef(),
-		TargetDigest:  resp.GetTargetDigest(),
-		Platform:      resp.GetPlatform(),
-	}, nil
-}
-
 func (b *Backend) instanceAdminClient(ctx context.Context, instance string, action string) (*p2p.Client, error) {
 	instance = strings.TrimSpace(instance)
 	if instance == "" || instance == "local" {

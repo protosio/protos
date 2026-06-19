@@ -19,11 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Images_DescribeImage_FullMethodName           = "/proto.Images/DescribeImage"
-	Images_GetImageContent_FullMethodName         = "/proto.Images/GetImageContent"
-	Images_GetImageBlob_FullMethodName            = "/proto.Images/GetImageBlob"
-	Images_LoadImageArchive_FullMethodName        = "/proto.Images/LoadImageArchive"
-	Images_UploadImageArchiveChunk_FullMethodName = "/proto.Images/UploadImageArchiveChunk"
+	Images_DescribeImage_FullMethodName   = "/proto.Images/DescribeImage"
+	Images_GetImageContent_FullMethodName = "/proto.Images/GetImageContent"
+	Images_GetImageBlob_FullMethodName    = "/proto.Images/GetImageBlob"
 )
 
 // ImagesClient is the client API for Images service.
@@ -33,8 +31,6 @@ type ImagesClient interface {
 	DescribeImage(ctx context.Context, in *DescribeImageRequest, opts ...grpc.CallOption) (*DescribeImageResponse, error)
 	GetImageContent(ctx context.Context, in *GetImageContentRequest, opts ...grpc.CallOption) (*GetImageContentResponse, error)
 	GetImageBlob(ctx context.Context, in *GetImageBlobRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetImageBlobResponse], error)
-	LoadImageArchive(ctx context.Context, in *LoadImageArchiveRequest, opts ...grpc.CallOption) (*LoadImageArchiveResponse, error)
-	UploadImageArchiveChunk(ctx context.Context, in *UploadImageArchiveChunkRequest, opts ...grpc.CallOption) (*UploadImageArchiveChunkResponse, error)
 }
 
 type imagesClient struct {
@@ -84,26 +80,6 @@ func (c *imagesClient) GetImageBlob(ctx context.Context, in *GetImageBlobRequest
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Images_GetImageBlobClient = grpc.ServerStreamingClient[GetImageBlobResponse]
 
-func (c *imagesClient) LoadImageArchive(ctx context.Context, in *LoadImageArchiveRequest, opts ...grpc.CallOption) (*LoadImageArchiveResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LoadImageArchiveResponse)
-	err := c.cc.Invoke(ctx, Images_LoadImageArchive_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *imagesClient) UploadImageArchiveChunk(ctx context.Context, in *UploadImageArchiveChunkRequest, opts ...grpc.CallOption) (*UploadImageArchiveChunkResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UploadImageArchiveChunkResponse)
-	err := c.cc.Invoke(ctx, Images_UploadImageArchiveChunk_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ImagesServer is the server API for Images service.
 // All implementations should embed UnimplementedImagesServer
 // for forward compatibility.
@@ -111,8 +87,6 @@ type ImagesServer interface {
 	DescribeImage(context.Context, *DescribeImageRequest) (*DescribeImageResponse, error)
 	GetImageContent(context.Context, *GetImageContentRequest) (*GetImageContentResponse, error)
 	GetImageBlob(*GetImageBlobRequest, grpc.ServerStreamingServer[GetImageBlobResponse]) error
-	LoadImageArchive(context.Context, *LoadImageArchiveRequest) (*LoadImageArchiveResponse, error)
-	UploadImageArchiveChunk(context.Context, *UploadImageArchiveChunkRequest) (*UploadImageArchiveChunkResponse, error)
 }
 
 // UnimplementedImagesServer should be embedded to have
@@ -130,12 +104,6 @@ func (UnimplementedImagesServer) GetImageContent(context.Context, *GetImageConte
 }
 func (UnimplementedImagesServer) GetImageBlob(*GetImageBlobRequest, grpc.ServerStreamingServer[GetImageBlobResponse]) error {
 	return status.Error(codes.Unimplemented, "method GetImageBlob not implemented")
-}
-func (UnimplementedImagesServer) LoadImageArchive(context.Context, *LoadImageArchiveRequest) (*LoadImageArchiveResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method LoadImageArchive not implemented")
-}
-func (UnimplementedImagesServer) UploadImageArchiveChunk(context.Context, *UploadImageArchiveChunkRequest) (*UploadImageArchiveChunkResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UploadImageArchiveChunk not implemented")
 }
 func (UnimplementedImagesServer) testEmbeddedByValue() {}
 
@@ -204,42 +172,6 @@ func _Images_GetImageBlob_Handler(srv interface{}, stream grpc.ServerStream) err
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Images_GetImageBlobServer = grpc.ServerStreamingServer[GetImageBlobResponse]
 
-func _Images_LoadImageArchive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LoadImageArchiveRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ImagesServer).LoadImageArchive(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Images_LoadImageArchive_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ImagesServer).LoadImageArchive(ctx, req.(*LoadImageArchiveRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Images_UploadImageArchiveChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UploadImageArchiveChunkRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ImagesServer).UploadImageArchiveChunk(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Images_UploadImageArchiveChunk_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ImagesServer).UploadImageArchiveChunk(ctx, req.(*UploadImageArchiveChunkRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Images_ServiceDesc is the grpc.ServiceDesc for Images service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -254,14 +186,6 @@ var Images_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetImageContent",
 			Handler:    _Images_GetImageContent_Handler,
-		},
-		{
-			MethodName: "LoadImageArchive",
-			Handler:    _Images_LoadImageArchive_Handler,
-		},
-		{
-			MethodName: "UploadImageArchiveChunk",
-			Handler:    _Images_UploadImageArchiveChunk_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

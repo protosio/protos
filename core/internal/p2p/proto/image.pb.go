@@ -481,118 +481,6 @@ func (x *GetImageBlobResponse) GetEof() bool {
 	return false
 }
 
-type LoadImageArchiveRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ArchivePath   string                 `protobuf:"bytes,1,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
-	ImageRef      string                 `protobuf:"bytes,2,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LoadImageArchiveRequest) Reset() {
-	*x = LoadImageArchiveRequest{}
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LoadImageArchiveRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LoadImageArchiveRequest) ProtoMessage() {}
-
-func (x *LoadImageArchiveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LoadImageArchiveRequest.ProtoReflect.Descriptor instead.
-func (*LoadImageArchiveRequest) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *LoadImageArchiveRequest) GetArchivePath() string {
-	if x != nil {
-		return x.ArchivePath
-	}
-	return ""
-}
-
-func (x *LoadImageArchiveRequest) GetImageRef() string {
-	if x != nil {
-		return x.ImageRef
-	}
-	return ""
-}
-
-type LoadImageArchiveResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ImageRef      string                 `protobuf:"bytes,1,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
-	TargetDigest  string                 `protobuf:"bytes,2,opt,name=target_digest,json=targetDigest,proto3" json:"target_digest,omitempty"`
-	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LoadImageArchiveResponse) Reset() {
-	*x = LoadImageArchiveResponse{}
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LoadImageArchiveResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LoadImageArchiveResponse) ProtoMessage() {}
-
-func (x *LoadImageArchiveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LoadImageArchiveResponse.ProtoReflect.Descriptor instead.
-func (*LoadImageArchiveResponse) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *LoadImageArchiveResponse) GetImageRef() string {
-	if x != nil {
-		return x.ImageRef
-	}
-	return ""
-}
-
-func (x *LoadImageArchiveResponse) GetTargetDigest() string {
-	if x != nil {
-		return x.TargetDigest
-	}
-	return ""
-}
-
-func (x *LoadImageArchiveResponse) GetPlatform() string {
-	if x != nil {
-		return x.Platform
-	}
-	return ""
-}
-
 type UploadImageArchiveChunkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UploadId      string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
@@ -606,7 +494,7 @@ type UploadImageArchiveChunkRequest struct {
 
 func (x *UploadImageArchiveChunkRequest) Reset() {
 	*x = UploadImageArchiveChunkRequest{}
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[9]
+	mi := &file_internal_p2p_proto_image_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -618,7 +506,7 @@ func (x *UploadImageArchiveChunkRequest) String() string {
 func (*UploadImageArchiveChunkRequest) ProtoMessage() {}
 
 func (x *UploadImageArchiveChunkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[9]
+	mi := &file_internal_p2p_proto_image_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,7 +519,7 @@ func (x *UploadImageArchiveChunkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadImageArchiveChunkRequest.ProtoReflect.Descriptor instead.
 func (*UploadImageArchiveChunkRequest) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{9}
+	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UploadImageArchiveChunkRequest) GetUploadId() string {
@@ -682,7 +570,7 @@ type UploadImageArchiveChunkResponse struct {
 
 func (x *UploadImageArchiveChunkResponse) Reset() {
 	*x = UploadImageArchiveChunkResponse{}
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[10]
+	mi := &file_internal_p2p_proto_image_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -694,7 +582,7 @@ func (x *UploadImageArchiveChunkResponse) String() string {
 func (*UploadImageArchiveChunkResponse) ProtoMessage() {}
 
 func (x *UploadImageArchiveChunkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_image_proto_msgTypes[10]
+	mi := &file_internal_p2p_proto_image_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -707,7 +595,7 @@ func (x *UploadImageArchiveChunkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadImageArchiveChunkResponse.ProtoReflect.Descriptor instead.
 func (*UploadImageArchiveChunkResponse) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{10}
+	return file_internal_p2p_proto_image_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UploadImageArchiveChunkResponse) GetReceivedBytes() uint64 {
@@ -794,14 +682,7 @@ const file_internal_p2p_proto_image_proto_rawDesc = "" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x12\n" +
 	"\x04data\x18\x03 \x01(\fR\x04data\x12\x10\n" +
-	"\x03eof\x18\x04 \x01(\bR\x03eof\"Y\n" +
-	"\x17LoadImageArchiveRequest\x12!\n" +
-	"\farchive_path\x18\x01 \x01(\tR\varchivePath\x12\x1b\n" +
-	"\timage_ref\x18\x02 \x01(\tR\bimageRef\"x\n" +
-	"\x18LoadImageArchiveResponse\x12\x1b\n" +
-	"\timage_ref\x18\x01 \x01(\tR\bimageRef\x12#\n" +
-	"\rtarget_digest\x18\x02 \x01(\tR\ftargetDigest\x12\x1a\n" +
-	"\bplatform\x18\x03 \x01(\tR\bplatform\"\x98\x01\n" +
+	"\x03eof\x18\x04 \x01(\bR\x03eof\"\x98\x01\n" +
 	"\x1eUploadImageArchiveChunkRequest\x12\x1b\n" +
 	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x1b\n" +
 	"\timage_ref\x18\x02 \x01(\tR\bimageRef\x12\x16\n" +
@@ -813,13 +694,11 @@ const file_internal_p2p_proto_image_proto_rawDesc = "" +
 	"\x06loaded\x18\x02 \x01(\bR\x06loaded\x12\x1b\n" +
 	"\timage_ref\x18\x03 \x01(\tR\bimageRef\x12#\n" +
 	"\rtarget_digest\x18\x04 \x01(\tR\ftargetDigest\x12\x1a\n" +
-	"\bplatform\x18\x05 \x01(\tR\bplatform2\xba\x03\n" +
+	"\bplatform\x18\x05 \x01(\tR\bplatform2\xf7\x01\n" +
 	"\x06Images\x12L\n" +
 	"\rDescribeImage\x12\x1b.proto.DescribeImageRequest\x1a\x1c.proto.DescribeImageResponse\"\x00\x12R\n" +
 	"\x0fGetImageContent\x12\x1d.proto.GetImageContentRequest\x1a\x1e.proto.GetImageContentResponse\"\x00\x12K\n" +
-	"\fGetImageBlob\x12\x1a.proto.GetImageBlobRequest\x1a\x1b.proto.GetImageBlobResponse\"\x000\x01\x12U\n" +
-	"\x10LoadImageArchive\x12\x1e.proto.LoadImageArchiveRequest\x1a\x1f.proto.LoadImageArchiveResponse\"\x00\x12j\n" +
-	"\x17UploadImageArchiveChunk\x12%.proto.UploadImageArchiveChunkRequest\x1a&.proto.UploadImageArchiveChunkResponse\"\x00B\tZ\a./protob\x06proto3"
+	"\fGetImageBlob\x12\x1a.proto.GetImageBlobRequest\x1a\x1b.proto.GetImageBlobResponse\"\x000\x01B\tZ\a./protob\x06proto3"
 
 var (
 	file_internal_p2p_proto_image_proto_rawDescOnce sync.Once
@@ -833,7 +712,7 @@ func file_internal_p2p_proto_image_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_image_proto_rawDescData
 }
 
-var file_internal_p2p_proto_image_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_internal_p2p_proto_image_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_internal_p2p_proto_image_proto_goTypes = []any{
 	(*DescribeImageRequest)(nil),            // 0: proto.DescribeImageRequest
 	(*DescribeImageResponse)(nil),           // 1: proto.DescribeImageResponse
@@ -842,32 +721,26 @@ var file_internal_p2p_proto_image_proto_goTypes = []any{
 	(*GetImageContentResponse)(nil),         // 4: proto.GetImageContentResponse
 	(*GetImageBlobRequest)(nil),             // 5: proto.GetImageBlobRequest
 	(*GetImageBlobResponse)(nil),            // 6: proto.GetImageBlobResponse
-	(*LoadImageArchiveRequest)(nil),         // 7: proto.LoadImageArchiveRequest
-	(*LoadImageArchiveResponse)(nil),        // 8: proto.LoadImageArchiveResponse
-	(*UploadImageArchiveChunkRequest)(nil),  // 9: proto.UploadImageArchiveChunkRequest
-	(*UploadImageArchiveChunkResponse)(nil), // 10: proto.UploadImageArchiveChunkResponse
-	nil,                                     // 11: proto.DescribeImageResponse.LabelsEntry
-	nil,                                     // 12: proto.ImageContentDescriptor.AnnotationsEntry
-	nil,                                     // 13: proto.GetImageContentResponse.LabelsEntry
+	(*UploadImageArchiveChunkRequest)(nil),  // 7: proto.UploadImageArchiveChunkRequest
+	(*UploadImageArchiveChunkResponse)(nil), // 8: proto.UploadImageArchiveChunkResponse
+	nil,                                     // 9: proto.DescribeImageResponse.LabelsEntry
+	nil,                                     // 10: proto.ImageContentDescriptor.AnnotationsEntry
+	nil,                                     // 11: proto.GetImageContentResponse.LabelsEntry
 }
 var file_internal_p2p_proto_image_proto_depIdxs = []int32{
-	11, // 0: proto.DescribeImageResponse.labels:type_name -> proto.DescribeImageResponse.LabelsEntry
-	12, // 1: proto.ImageContentDescriptor.annotations:type_name -> proto.ImageContentDescriptor.AnnotationsEntry
+	9,  // 0: proto.DescribeImageResponse.labels:type_name -> proto.DescribeImageResponse.LabelsEntry
+	10, // 1: proto.ImageContentDescriptor.annotations:type_name -> proto.ImageContentDescriptor.AnnotationsEntry
 	2,  // 2: proto.GetImageContentResponse.target:type_name -> proto.ImageContentDescriptor
-	13, // 3: proto.GetImageContentResponse.labels:type_name -> proto.GetImageContentResponse.LabelsEntry
+	11, // 3: proto.GetImageContentResponse.labels:type_name -> proto.GetImageContentResponse.LabelsEntry
 	2,  // 4: proto.GetImageContentResponse.descriptors:type_name -> proto.ImageContentDescriptor
 	0,  // 5: proto.Images.DescribeImage:input_type -> proto.DescribeImageRequest
 	3,  // 6: proto.Images.GetImageContent:input_type -> proto.GetImageContentRequest
 	5,  // 7: proto.Images.GetImageBlob:input_type -> proto.GetImageBlobRequest
-	7,  // 8: proto.Images.LoadImageArchive:input_type -> proto.LoadImageArchiveRequest
-	9,  // 9: proto.Images.UploadImageArchiveChunk:input_type -> proto.UploadImageArchiveChunkRequest
-	1,  // 10: proto.Images.DescribeImage:output_type -> proto.DescribeImageResponse
-	4,  // 11: proto.Images.GetImageContent:output_type -> proto.GetImageContentResponse
-	6,  // 12: proto.Images.GetImageBlob:output_type -> proto.GetImageBlobResponse
-	8,  // 13: proto.Images.LoadImageArchive:output_type -> proto.LoadImageArchiveResponse
-	10, // 14: proto.Images.UploadImageArchiveChunk:output_type -> proto.UploadImageArchiveChunkResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
+	1,  // 8: proto.Images.DescribeImage:output_type -> proto.DescribeImageResponse
+	4,  // 9: proto.Images.GetImageContent:output_type -> proto.GetImageContentResponse
+	6,  // 10: proto.Images.GetImageBlob:output_type -> proto.GetImageBlobResponse
+	8,  // [8:11] is the sub-list for method output_type
+	5,  // [5:8] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -884,7 +757,7 @@ func file_internal_p2p_proto_image_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_image_proto_rawDesc), len(file_internal_p2p_proto_image_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
