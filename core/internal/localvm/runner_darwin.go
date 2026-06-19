@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -61,9 +60,12 @@ func Run(manifestPath string) error {
 		return err
 	}
 	instanceDir := filepath.Dir(manifestPath)
-	config, err := buildVMConfig(instanceDir, manifest)
+	config, netCleanup, err := buildVMConfig(instanceDir, manifest)
 	if err != nil {
 		return err
+	}
+	if netCleanup != nil {
+		defer netCleanup()
 	}
 	if err := vzvm.Validate(config); err != nil {
 		return fmt.Errorf("VM configuration validation failed: %w", err)
@@ -135,48 +137,58 @@ func readManifest(path string) (instanceManifest, error) {
 	return manifest, nil
 }
 
-func buildVMConfig(instanceDir string, manifest instanceManifest) (vz.VZVirtualMachineConfiguration, error) {
+// buildVMConfig builds the VM configuration and returns a network cleanup func
+// (nil unless the shared-vmnet datapath is active) that the caller must invoke
+// when the VM exits.
+func buildVMConfig(instanceDir string, manifest instanceManifest) (vz.VZVirtualMachineConfiguration, func(), error) {
 	config := vz.NewVZVirtualMachineConfiguration()
 	if config.ID == 0 {
-		return config, fmt.Errorf("failed to create VM configuration")
+		return config, nil, fmt.Errorf("failed to create VM configuration")
 	}
 
 	platformConfig := vz.NewVZGenericPlatformConfiguration()
 	if platformConfig.ID == 0 {
-		return config, fmt.Errorf("failed to create generic platform configuration")
+		return config, nil, fmt.Errorf("failed to create generic platform configuration")
 	}
 	machineID, err := loadOrCreateMachineID(instanceDir)
 	if err != nil {
-		return config, err
+		return config, nil, err
 	}
 	platformConfig.SetMachineIdentifier(&machineID)
 	config.SetPlatform(&platformConfig.VZPlatformConfiguration)
 
 	if strings.TrimSpace(manifest.BootISOPath) != "" {
 		if err := configureEFIBootLoader(config, instanceDir); err != nil {
-			return config, err
+			return config, nil, err
 		}
 	} else {
 		if err := configureLinuxBootLoader(config, instanceDir, manifest); err != nil {
-			return config, err
+			return config, nil, err
 		}
 	}
 	config.SetCPUCount(uint(manifest.Cores))
 	config.SetMemorySize(uint64(manifest.MemoryMiB) * 1048576)
 
 	if err := configureConsole(config, instanceDir); err != nil {
-		return config, err
+		return config, nil, err
 	}
-	if err := configureNetwork(config, manifest.MACAddress); err != nil {
-		return config, err
+	netCleanup, err := configureSharedVMNetNetwork(config)
+	if err != nil {
+		return config, nil, err
 	}
 	if err := configureStorage(config, manifest); err != nil {
-		return config, err
+		if netCleanup != nil {
+			netCleanup()
+		}
+		return config, nil, err
 	}
 	if err := configureDevices(config); err != nil {
-		return config, err
+		if netCleanup != nil {
+			netCleanup()
+		}
+		return config, nil, err
 	}
-	return config, nil
+	return config, netCleanup, nil
 }
 
 func configureLinuxBootLoader(config vz.VZVirtualMachineConfiguration, instanceDir string, manifest instanceManifest) error {
@@ -290,31 +302,6 @@ func configureConsole(config vz.VZVirtualMachineConfiguration, instanceDir strin
 	}
 	consoleConfig.SetAttachment(serialPortAttachment)
 	config.SetSerialPorts([]vz.VZSerialPortConfiguration{consoleConfig.VZSerialPortConfiguration})
-	return nil
-}
-
-func configureNetwork(config vz.VZVirtualMachineConfiguration, macAddress string) error {
-	attachment := vz.NewVZNATNetworkDeviceAttachment()
-	if attachment.ID == 0 {
-		return fmt.Errorf("failed to create NAT network attachment")
-	}
-	attachment.Retain()
-
-	networkConfig := vz.NewVZVirtioNetworkDeviceConfiguration()
-	if networkConfig.ID == 0 {
-		return fmt.Errorf("failed to create network device")
-	}
-	networkConfig.SetAttachment(&attachment.VZNetworkDeviceAttachment)
-	hardwareAddress, err := net.ParseMAC(macAddress)
-	if err != nil {
-		return fmt.Errorf("failed to parse VM MAC address '%s': %w", macAddress, err)
-	}
-	vzMAC := vz.NewMACAddressWithString(hardwareAddress.String())
-	if vzMAC.ID == 0 {
-		return fmt.Errorf("failed to create VZ MAC address")
-	}
-	networkConfig.SetMACAddress(&vzMAC)
-	config.SetNetworkDevices([]vz.VZNetworkDeviceConfiguration{networkConfig.VZNetworkDeviceConfiguration})
 	return nil
 }
 

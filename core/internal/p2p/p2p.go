@@ -720,6 +720,15 @@ func (p2p *P2P) knownPeerIPStrings(machine Machine) []string {
 	return out
 }
 
+// knownPeerIPs is the single owner of peer transport-address ordering. Peer
+// reachability is a lower-layer concern: callers (image resolver, DB transport,
+// admin/APIC clients) must consume this ordered list rather than infer
+// reachability from raw machine fields themselves. Ordering is overlay-first:
+// (1) the internal overlay IP, (2) the derived WireGuard IPv6, then (3) the
+// provider-reported public IP last. The provider public IP can actually be a
+// host-only/private address (e.g. local macOS 192.168.64.x) that is reachable
+// from the host but not guest-to-guest; ordering it last keeps the overlay path
+// authoritative while still letting libp2p race it where it is reachable.
 func (p2p *P2P) knownPeerIPs(machine Machine) []net.IP {
 	if machine == nil {
 		return nil

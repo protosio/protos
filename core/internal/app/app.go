@@ -210,7 +210,7 @@ func (app *App) Stop() error {
 	}
 	cnt, err := platform.GetSandbox(app.ID)
 	if err != nil {
-		if !util.IsErrorType(err, runtime.ErrContainerNotFound) {
+		if !errors.Is(err, runtime.ErrSandboxNotFound) {
 			return err
 		}
 		log.Warnf("Application '%s'(%s) has no sandbox to stop", app.Name, app.ID)

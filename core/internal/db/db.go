@@ -2096,13 +2096,24 @@ func (db *DB) committedWriteContext(ctx context.Context, operation string, commi
 				return fmt.Errorf("failed to %s: %w", operation, err)
 			}
 			notifyLog.Debugf("retrying committed %s after apply failure on attempt %d/%d: %s", operation, attempt, committedWriteMaxAttempts, err.Error())
-			if retryableApplyRequiresReset(err) {
-				if resetErr := db.resetAfterRetryableWriteError(operation, lastErr); resetErr != nil {
+			needsCatchUp := retryableApplyRequiresReset(err)
+			if needsCatchUp {
+				// The local working-set reset only touches local SQL/staging, so
+				// it stays under the operation lock.
+				if resetErr := db.resetWorkingSetForRetry(operation, lastErr); resetErr != nil {
 					unlock()
 					return fmt.Errorf("failed to %s: %w", operation, resetErr)
 				}
 			}
 			unlock()
+			// The checkpoint catch-up does network/admin RPCs; it runs without the
+			// operation lock so it cannot starve local readers/writers (APIC reads,
+			// task watchers) while it waits on peers.
+			if needsCatchUp {
+				if catchUpErr := db.catchUpCheckpointForRetry(operation, lastErr); catchUpErr != nil {
+					return fmt.Errorf("failed to %s: %w", operation, catchUpErr)
+				}
+			}
 			if waitErr := waitBeforeCommittedWriteRetryContext(ctx, attempt); waitErr != nil {
 				return fmt.Errorf("failed to %s: %w", operation, waitErr)
 			}
@@ -2140,11 +2151,16 @@ func (db *DB) committedWriteContext(ctx context.Context, operation string, commi
 		}
 		notifyLog.Debugf("retrying committed %s after commit failure on attempt %d/%d: %s", operation, attempt, committedWriteMaxAttempts, err.Error())
 
-		if resetErr := db.resetAfterRetryableWriteError(operation, lastErr); resetErr != nil {
+		// Local working-set reset stays under the operation lock.
+		if resetErr := db.resetWorkingSetForRetry(operation, lastErr); resetErr != nil {
 			unlock()
 			return fmt.Errorf("failed to %s: %w", operation, resetErr)
 		}
 		unlock()
+		// Network checkpoint catch-up runs without the operation lock.
+		if catchUpErr := db.catchUpCheckpointForRetry(operation, lastErr); catchUpErr != nil {
+			return fmt.Errorf("failed to %s: %w", operation, catchUpErr)
+		}
 		if waitErr := waitBeforeCommittedWriteRetryContext(ctx, attempt); waitErr != nil {
 			return fmt.Errorf("failed to %s: %w", operation, waitErr)
 		}
@@ -2196,17 +2212,30 @@ func waitBeforeCommittedWriteRetryContext(ctx context.Context, attempt int) erro
 	}
 }
 
-func (db *DB) resetAfterRetryableWriteError(operation string, cause error) error {
+// resetWorkingSetForRetry hard-resets the local Dolt working set after a
+// retryable write failure. It performs only local SQL/staging work and is meant
+// to run while the operation lock is held.
+func (db *DB) resetWorkingSetForRetry(operation string, cause error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	resetErr := db.resetWorkingSet(ctx)
+	if resetErr := db.resetWorkingSet(ctx); resetErr != nil {
+		return errors.Join(cause, resetErr)
+	}
+	return nil
+}
+
+// catchUpCheckpointForRetry performs the network checkpoint catch-up after a
+// retryable write failure. It does network/admin RPCs and MUST run without the
+// operation lock held so that the wait on peers cannot starve local readers or
+// writers. A retryable catch-up response is treated as deferred (non-fatal): the
+// surrounding write loop will retry the whole operation.
+func (db *DB) catchUpCheckpointForRetry(operation string, cause error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 	catchUpErr := db.catchUpCheckpointStrict(ctx, operation+" retry after stale write")
 	if errors.Is(catchUpErr, errSwarmionCheckpointCatchUpRetryable) {
 		notifyLog.Debugf("deferred swarmion checkpoint catch-up for %q after retryable response: %s", operation, catchUpErr.Error())
-		catchUpErr = nil
-	}
-	if resetErr != nil {
-		return errors.Join(cause, resetErr)
+		return nil
 	}
 	if catchUpErr != nil {
 		return errors.Join(cause, catchUpErr)

@@ -335,6 +335,7 @@ func (cdp *containerdPlatform) GetAllImages() (map[string]PlatformImage, error) 
 
 	for _, img := range listImagesResponse {
 		image := platformImage{
+			id:      img.Name(),
 			localID: img.Name(),
 			labels:  img.Labels(),
 		}

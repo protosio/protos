@@ -400,6 +400,15 @@ func (n *Node) Start() error {
 		log.Info("DB not initialized. Waiting for local init or remote init")
 	}
 	n.stoppers["db-reconcile"] = db.StartPeriodicNotifier(dbNotifier, 5*time.Second)
+	// App-runtime reconciliation gets its own periodic notifier so that
+	// convergence of the imperative app lifecycle does not depend on the database
+	// notifier's control-plane path (checkpoint catch-up and network/peer
+	// reconfiguration), which can fail under cleanup/load. This is the safety net
+	// that recovers any reconcile notification dropped while a reconcile task was
+	// already in flight.
+	if n.capabilities.AppRuntime && n.AppManager != nil {
+		n.stoppers["app-reconcile"] = db.StartPeriodicNotifier(n.AppManager, 5*time.Second)
+	}
 	return nil
 }
 

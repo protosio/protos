@@ -150,6 +150,19 @@ func (s streamAdapter[P, R]) run(ctx context.Context, manager *Manager, record R
 	}
 	result, err := s.stream.Run(ctx, runCtx)
 	if err != nil {
+		// Bounded auto-retry: if the stream opted into multiple attempts and the
+		// run was not cancelled, requeue the task so the next RunPending tick
+		// resumes it. This makes idempotent lifecycle work (e.g. instance delete)
+		// self-resumable instead of terminally failing on a transient
+		// control-plane error. Streams that keep MaxAttempts=1 fail terminally,
+		// exactly as before.
+		if ctx.Err() == nil && record.Attempts < record.MaxAttempts {
+			if requeueErr := manager.requeueForRetry(record, err); requeueErr == nil {
+				return err
+			} else {
+				log.Errorf("failed to requeue task %s for retry: %s", record.ID, requeueErr.Error())
+			}
+		}
 		_ = manager.Fail(record.ID, err, nil)
 		return err
 	}
@@ -624,6 +637,22 @@ func (m *Manager) Fail(id string, cause error, details any) error {
 	record.UpdatedAt = now
 	record.FinishedAt = now
 	return m.saveTaskUpdate(record, taskEvent(record, eventDetails))
+}
+
+// requeueForRetry returns a task to the pending queue after a retryable failure
+// so the next RunPending tick resumes it. Attempts is not incremented here; it
+// is incremented by markRunning on the next run, which also enforces the
+// MaxAttempts ceiling. This is the engine primitive behind self-resumable
+// idempotent lifecycle work.
+func (m *Manager) requeueForRetry(record Record, cause error) error {
+	now := time.Now().UTC()
+	record.Status = StatusPending
+	record.Message = fmt.Sprintf("retrying after error (attempt %d/%d)", record.Attempts, record.MaxAttempts)
+	if cause != nil {
+		record.ErrorMessage = cause.Error()
+	}
+	record.UpdatedAt = now
+	return m.saveTaskUpdate(record, taskEvent(record, nil))
 }
 
 func (m *Manager) Cancel(id string, message string) error {

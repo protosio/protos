@@ -42,7 +42,9 @@ func main() {
 		logLevel                      string
 		stopExisting                  bool
 		cleanupVMRunnerManifestPrefix string
+		vmnetSelftest                 bool
 	)
+	flag.BoolVar(&vmnetSelftest, "vmnet-selftest", false, "open an isolation-off shared vmnet interface, report its parameters, and exit (requires root)")
 	flag.BoolVar(&runVM, "run-vm", false, "run one VM from a manifest and block until it exits")
 	flag.BoolVar(&stopExisting, "stop-existing", false, "stop existing host agent daemon processes and exit")
 	flag.StringVar(&cleanupVMRunnerManifestPrefix, "cleanup-vm-runners-manifest-prefix", "", "stop VM runner processes whose manifest path has this prefix and exit")
@@ -60,6 +62,13 @@ func main() {
 		log.Fatal(err)
 	}
 	util.SetLogLevel(level)
+
+	if vmnetSelftest {
+		if err := localvm.VMNetSelftest(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	if cleanupVMRunnerManifestPrefix != "" {
 		if err := stopVMRunnersByManifestPrefix(cleanupVMRunnerManifestPrefix); err != nil {

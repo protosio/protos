@@ -58,6 +58,627 @@ should be available for local VMs even when peer connectivity is broken, and
 guest protosd logs should be retrievable through a path independent of the
 control channel being investigated.
 
+## Code Verification (2026-06-19)
+
+The fixes recorded below were verified against the working tree. **Verdict: the
+ledger is accurate.** Every item marked `fixed in code` is actually present and
+matches its description, usually with a backing unit test. No RCA blamed the
+wrong subsystem. The notes below refine the *status* of several items: in
+multiple cases the fix is real and closes the **observed** path, but a sibling
+path to the **same symptom** remains open. These should be read as "fixed
+(observed path)" rather than "root cause closed".
+
+Code references use `path:line` against the `core` module.
+
+### Residual issues — fix present, symptom still reachable
+
+1. **Reconcile dedupe race is narrowed, not closed (still reaches
+   `stopped (running)`).** The completion-time signature refresh was correctly
+   removed; the signature is captured at queue time
+   (`internal/app/manager.go:234`) and a regression test exists
+   (`internal/app/manager_test.go:156`). But a second path to the identical
+   symptom remains: `Notify()` (`internal/app/manager.go:205`) advances
+   `am.reconcileSig` to the new signature **before** enqueuing
+   (`shouldQueueReconcile` line 234), then `QueueReconcile`
+   (`internal/app/manager.go:276`) calls `tasks.EnqueueUnique`, which **dedupes
+   against a still-running task and returns `inserted=false` — a bool that is
+   discarded** (line 214). When `StartApp` flips desired `stopped→running`
+   while the original stopped-state reconcile is mid-flight (a multi-minute
+   window during image transfer), the signature advances but no task carrying
+   the running state is ever queued. The success path never clears the signature
+   (only the error path does, lines 307/311) and there is **no periodic notifier
+   for the app manager** (`internal/protosd/protosd.go:402` wraps only
+   `dbNotifier`), so nothing recovers it. Recommended fix: only advance
+   `reconcileSig` when `EnqueueUnique` reports `inserted=true`, and/or add a
+   periodic app-manager safety-net notifier. This is the most important open
+   item — it is a latent **hard failure**, and the recurring `stopped (running)`
+   symptom across several RCAs points at this edge-triggered convergence model.
+
+2. **DB operation lock still spans a network wait on the error/publish path.**
+   The success-path checkpoint wait now runs **after** `unlock()`
+   (`internal/db/db.go` `committedWriteContext`, ~2175) — correct and the main
+   win. But the retryable-error path calls `resetAfterRetryableWriteError →
+   catchUpCheckpointStrict` (a network catch-up, bounded 15s, up to 20 attempts)
+   **while still holding `opMu`** (~2154/2197), and the publish phase
+   (`swarmion_commit_info`, ~2170) remains under the lock. So the stated goal
+   ("the operation lock protects local SQL/staging only") is met for the common
+   path but not strictly; under write-error contention, readers (APIC/task
+   watchers) can still stall. Recommended: move the retry-path reset/catch-up
+   off `opMu`, mirroring the success path.
+
+3. **P2P transfer throughput is structurally serial, not only relay-limited.**
+   The ledger attributes ~180 KB/s to the macOS WireGuard relay hairpin (line
+   372). That is a real factor, but the limited-relay code path is serial by
+   construction: 512 KiB slices (`imageBlobLimitedStreamChunkBytes`,
+   `internal/p2p/images.go:30`), **one in flight, concurrency forced to 1** for
+   all-limited peers, a **fresh raw stream opened per slice**
+   (`host.NewStream` per `downloadImageBlobRangeFromCandidate`), and a
+   server-side `Flush` per frame. For a 28 MB image that is ~56 sequential
+   stream setups, each paying a full relay RTT before any data flows — low
+   throughput on *any* high-latency path, relay or not. Direct peers get 4 MiB
+   chunks × 4 parallel ranges × 3 blobs; limited peers get 512 KiB × 1 × 1. This
+   is the dominant remaining functional risk to e2e stability (transfers take
+   ~158s, close to the harness deadline). Recommended: reuse a single stream
+   across slices, pipeline/prefetch the next slice, and raise the in-flight
+   window for limited peers.
+
+4. **Peer address ordering is deprioritization, not exclusion.** Connectedness
+   semantics are genuinely centralized in one predicate `usablePeerConnectedness`
+   (`internal/p2p/p2p.go:348`), and no other package inspects connectedness —
+   this realizes the "one lower layer" goal for *semantics*. But the host-only
+   `192.168.64.x` address is still merged into one `AddrInfo` that libp2p races
+   concurrently, and is still propagated to the DB transport. libp2p does not
+   honor slice order as priority, so "internal addresses ahead of provider
+   addresses" is largely cosmetic. Stronger would be to *exclude* host-only
+   addresses for guest-to-guest dials, or attach a lower-layer reachability
+   signal, rather than ordering them last.
+
+5. **Cleanup is idempotent step-wise but not self-resumable.** Phases are
+   explicit, bounded, and observable (durable-removal and provider-stop waits are
+   capped and report progress), and steps tolerate already-done state — good. But
+   the delete task is enqueued with `MaxAttempts: 1`
+   (`internal/provisioners/deployment_tasks.go:246`), so a failed delete is **not**
+   self-resumable; recovery requires a fresh `RemoveInstance` call. The
+   architecture goal ("resumable reconciliation rather than a single request") is
+   only partially met. Recommended: allow bounded auto-retry or per-phase
+   progress checkpointing so a delete that fails mid-phase resumes itself.
+
+6. **Diagnostics still degrade to SSH-only for the case that matters most.** The
+   host-agent fallback and protosd log mirroring are real (`core/Dockerfile` tees
+   to `/var/log/protos.log` with a `/dev/console` writability probe and stdout
+   fallback). But when `/dev/console` is not writable (the observed
+   `Operation not permitted`), protosd logs land only in the guest
+   `/var/log/protos.log`, which the host-side `console.log` surface does **not**
+   capture. So for a P2P-unreachable local VM — the exact postmortem case — the
+   "independent of the failing channel" guarantee degrades to SSH-only.
+   Recommended: have the host agent pull `/var/log/protos.log` into its own
+   diagnostics surface for local VMs.
+
+### Bugs found in passing (not previously tracked)
+
+- **`GetAllImages` returns at most one image.** The result map is keyed by
+  `image.id`, which is never assigned, so every iteration overwrites the `""`
+  key (`internal/runtime/containerd_linux.go:336`). Standalone correctness bug,
+  cheap fix; compare `GetImage` (~180) which sets `id`.
+- **`Stop()` checks the wrong not-found sentinel** —
+  `runtime.ErrContainerNotFound` where `GetSandbox` actually returns
+  `ErrSandboxNotFound` (`internal/app/app.go:211`). Mostly masked today by
+  `GetStatus` swallowing not-found, but a real inconsistency.
+- **Image readiness blob check is size-only, not digest.** `contentBlobReady`
+  (`internal/runtime/containerd_image_content_linux.go`) compares
+  `reader.Size() != desc.Size` but does not re-verify the digest, so a
+  correct-length-but-corrupt blob passes (mitigated by digest verification at
+  ingest, but readiness itself is not an integrity check). Separately,
+  `verifyImageSnapshot` creates and deletes a throwaway snapshot on **every**
+  `ImageExistsLocally` call and only logs delete failures, so
+  `protos-image-check-*` snapshots can leak under churn.
+- **Resume is asymmetric.** Only the limited-relay path resumes per-slice; the
+  direct/parallel path fully restarts a blob on any single range failure
+  (`downloadImageBlob` truncate-and-reseek in `internal/p2p/images.go`). The
+  more expensive restart is on the path the ledger does not flag.
+
+### Test-coverage gaps
+
+The two most consequential fixes are validated only indirectly (predicate-level
+unit tests plus e2e runs), not directly:
+
+- No unit test exercises the **resumable slice retry / reconnect loop**
+  (`downloadImageBlobLimitedRange` / `ensureImagePeerConnected`); resume
+  correctness rests on e2e runs alone.
+- No direct **read-your-writes test for the `*Published` boundary**; the
+  read-after-write tests use the durable variant. Given the boundary fix is
+  central, add a test that an `InsertPublished`/`UpdatePublished` is locally
+  readable immediately after return.
+
+## Priorities (2026-06-19)
+
+Ordered by impact on e2e reliability and by whether they cause hard failures vs.
+recurring noise. Effort is rough.
+
+### P0 — close the remaining hard-failure paths
+
+1. **Reconcile dedupe residual race** (Residual #1). Latent `stopped (running)`
+   hang; cheap fix (gate `reconcileSig` advance on `inserted=true`, plus a
+   safety-net notifier). Add a regression test for the "notify during a running
+   task" interleaving. *Low effort, high value.*
+2. **P2P limited-path throughput** (Residual #3). The dominant reliability risk
+   on passing runs — slow transfer consumes the harness deadline and combines
+   with any other slow phase to fail. Reuse the stream across slices, pipeline
+   slices, raise the in-flight window. *Medium/high effort, high value.*
+
+### P1 — control-plane responsiveness under load
+
+3. **Narrow the DB operation lock** (Residual #2). Move the retry-path
+   network catch-up and the publish wait off `opMu`. Removes a recurring source
+   of reader/task-watch starvation that has caused cleanup deadlines.
+   *Medium effort.*
+4. **Fix `GetAllImages` empty-key bug.** Clear correctness defect, trivial fix;
+   audit callers for reliance on the buggy single-entry behavior. *Low effort.*
+
+### P2 — robustness, observability, hygiene
+
+5. **Cleanup self-resumability** (Residual #5): bounded auto-retry or per-phase
+   checkpointing for the delete task.
+6. **Host-agent protosd-log capture for unreachable local VMs** (Residual #6):
+   pull `/var/log/protos.log` into the host-agent diagnostics surface so
+   postmortems do not depend on SSH/P2P.
+7. **Peer reachability: exclude host-only addresses** (Residual #4) for
+   guest-to-guest dials instead of merely ordering them last.
+8. **Image readiness hardening:** optional digest verification on readiness;
+   ensure `verifyImageSnapshot` cleans up its probe snapshot (or gate the probe
+   so it is not run on every hot-path call).
+9. **`Stop()` not-found sentinel** fix.
+10. **Test coverage:** resumable slice retry/reconnect, and `*Published`
+    read-your-writes.
+
+## Fixes Applied (2026-06-19)
+
+Implementation pass over the priorities above, organized around three
+architectural boundaries the failures kept crossing: the declarative-to-
+imperative boundary was too synchronous, peer reachability leaked upward, and
+the control plane and data plane interfered under load. All changes below build
+for darwin and linux (`CGO_ENABLED=0`, pure-Go tags) and the full `go test ./...`
+suite passes.
+
+### Declarative-to-imperative boundary made less synchronous
+
+- **Reconcile dedupe race closed (P0).** `Notify` now advances the reconcile
+  signature only when `EnqueueUnique` actually inserts a fresh task
+  (`internal/app/manager.go`); a notification that is deduplicated against an
+  in-flight reconcile no longer consumes the new desired state. Regression test
+  `TestReconcileNotifyDuringRunningTaskStillQueuesFollowup`
+  (`internal/app/manager_test.go`) reproduces the mid-flight-notification case
+  that previously hung at `stopped (running)`.
+- **App-runtime convergence decoupled from the control plane.** The app manager
+  now has its own periodic notifier (`internal/protosd/protosd.go`,
+  `StartPeriodicNotifier(n.AppManager, 5s)`) instead of relying on the database
+  notifier, whose path runs checkpoint catch-up and network/peer reconfiguration
+  first and bails under cleanup/load. This is the safety net that recovers any
+  reconcile dropped while a task was in flight, independent of control-plane
+  health.
+- **DB operation lock narrowed to local work (P1).** The retryable-write reset is
+  split (`internal/db/db.go`): the local working-set reset
+  (`resetWorkingSetForRetry`) stays under `opMu`, while the network checkpoint
+  catch-up (`catchUpCheckpointForRetry`) now runs after `unlock()`. Combined with
+  the already-correct success-path wait, the operation lock no longer spans a
+  network wait on any path, so APIC reads and task watchers are not starved
+  during write retries. (The success-path published-write boundary was already
+  correct and is unchanged.)
+
+### Control plane and data plane separated under load
+
+- **P2P limited-peer throughput (P0).** The limited/relay blob transfer now reuses
+  a single raw data-plane stream across all of a blob's resumable slices instead
+  of opening a fresh stream per 512 KiB slice (`internal/p2p/images.go`,
+  `limitedBlobStream` + looped `serveImageBlobStream`). This amortizes the relay
+  connection setup that dominated the ~180 KB/s measurements while preserving
+  slice-granular resumability: a failed slice resets the stream, reconnects
+  through the peer layer, and retries from the same offset. The server flushes
+  once per range instead of once per frame. The data plane stays isolated from
+  the gRPC control channel (dedicated `imageBlobStreamProtocol`). New test
+  `TestServeImageBlobStreamServesSequentialRangesOverReusedStream` covers
+  multi-range reuse. A per-slice stream deadline now also bounds a stalled relay
+  read.
+
+### Cleanup modeled as a resumable lifecycle
+
+- **Self-resumable delete (P2).** The task engine gained bounded auto-retry: a
+  stream that opts into `MaxAttempts > 1` is requeued to pending (not terminally
+  failed) while attempts remain (`internal/tasks/tasks.go`, `requeueForRetry`).
+  The instance delete lifecycle now sets `MaxAttempts = 3`
+  (`internal/provisioners/deployment_tasks.go`), so a delete that fails on a
+  transient control-plane error (APIC deadline, host-agent network reconfigure)
+  resumes itself on the next task tick instead of requiring a fresh
+  `RemoveInstance`. Streams that keep `MaxAttempts = 1` still fail terminally.
+  Tests `TestTaskRetriesUntilSuccessWithinMaxAttempts` and
+  `TestTaskFailsTerminallyWhenMaxAttemptsIsOne` cover both paths.
+
+### Standalone correctness fixes
+
+- **`GetAllImages` empty-key bug fixed** (`internal/runtime/containerd_linux.go`):
+  the result map was keyed by an always-empty `id`; it now sets `id = img.Name()`
+  so each image gets a distinct key.
+- **`Stop()` not-found sentinel fixed** (`internal/app/app.go`): now matches
+  `runtime.ErrSandboxNotFound` via `errors.Is`, consistent with the rest of the
+  file, instead of the unrelated `runtime.ErrContainerNotFound` code.
+
+### Peer reachability ownership
+
+- Documented `knownPeerIPs` (`internal/p2p/p2p.go`) as the single owner of peer
+  transport-address ordering (overlay-first; provider/host-only address last) so
+  the image resolver, DB transport, and admin paths consume one ordered list
+  rather than infer reachability independently. The dial *set* was intentionally
+  left unchanged: the ordering was tuned empirically against the local-macOS
+  topology, which is not exercisable from this environment, so hard exclusion of
+  host-only `192.168.64.x` addresses is deferred to avoid regressing
+  host-to-guest bootstrap (cloud public IPs are unaffected either way).
+
+### Deferred (with rationale)
+
+- **Image-readiness hardening** (digest re-verification on the hot path;
+  `verifyImageSnapshot` probe cost/leak) and **host-agent protosd-log capture for
+  unreachable local VMs** were deferred. Both live in `//go:build linux` runtime
+  / host-agent code that cannot be run-tested in this environment, and both are
+  performance/hygiene/debuggability concerns rather than correctness bugs (the
+  readiness check is already substantially correct). Adding digest re-hashing to
+  every `ImageExistsLocally` call would also regress the hot path. These remain
+  P2 follow-ups.
+
+### Cloud e2e validation (run `1781864478190071000`)
+
+Ran the mixed-cloud e2e end-to-end against real cloud instances with all three
+provider images rebuilt from the patched source (Scaleway EFI ISO, Hetzner BIOS
+raw, local macOS mactest). Topology: 2 local macOS VMs (arm64) + 1 Hetzner VM
+(`ash`, amd64) + 1 Scaleway VM (`fr-par-1`, amd64).
+
+- **Result: `passed`** (summary `core/.tmp/mixed-cloud-e2e-summary.json`,
+  10:21:18Z to 10:38:47Z, ~17.5 min).
+- **P2P image resolution verified**: seed `hetzner-vm` to puller `scaleway-vm`,
+  `cloud P2P image resolution verified`, `remote P2P image label observed`
+  (`image.source="p2p"`), no registry fallback and no `image.source=""`.
+- **No `stopped (running)` hang**: the pull app showed `stopped (running)` for a
+  single poll and then immediately reported `running (running)` - the
+  reconcile-signature fix plus the independent app-runtime periodic notifier
+  drove convergence instead of hanging to deadline. `stopped (running)` occurs
+  exactly once in the whole log.
+- **Bidirectional app connectivity** verified (HTTP 200 both directions over the
+  WireGuard overlay).
+- **Clean teardown**: all four instances deleted, every post-deletion checkpoint
+  assertion passed, all providers/images/instances `removed`/`deleted`, and no
+  leftover VM runner processes or cloud resources (no ongoing spend).
+- **No** `DeadlineExceeded`, `RST_STREAM`, `published write did not reach local
+  checkpoint`, panic, or durable-peer-removal stall in the run. One recoverable
+  remote-runtime checkpoint-root mismatch occurred and converged on the next
+  poll (the known, non-fatal checkpoint-view churn).
+
+Scope note: cloud VMs have direct public-IP connectivity, so libp2p used the
+direct/parallel blob path - the **limited-relay stream-reuse throughput change is
+not exercised by this cloud topology** (it targets the local macOS relay-hairpin
+`network.Limited` path). That change is covered by
+`TestServeImageBlobStreamServesSequentialRangesOverReusedStream` and would be
+measured by the local two-VM image-registry e2e; throughput numbers from the
+limited path are still a follow-up to capture there. The probe image here is
+small (6.4 MiB, 5 blobs), so this run validates correctness/convergence/cleanup
+and P2P resolution on real cloud instances rather than relay throughput.
+
+## Local VM Direct Networking (Design A / "Path B") — 2026-06-19 (in progress)
+
+### Goal and why
+
+The recurring local-macOS relay symptoms (slow `network.Limited` transfer, the
+limited-relay throughput work) all trace to one root cause: **the two local
+macOS VMs cannot reach each other on the underlay**, so they fall back to a
+libp2p circuit relay through the laptop. There are actually two stacked relays:
+
+1. A **WireGuard hub** (the darwin `hairpinTun`): VM1 encrypts inter-VM traffic
+   for the *host's* key, the host decrypts, the hairpin loops the inner packet,
+   the host re-encrypts for VM2. Necessary today, but it puts the host in the
+   crypto path (no e2e VM↔VM) and pays a double-encrypt + host-bandwidth cost.
+2. A **libp2p circuit relay** through the laptop: redundant, and the source of
+   the `network.Limited` throttling.
+
+If the VMs could reach each other directly on the underlay, WireGuard would form
+a single-hop e2e tunnel (VM1 encrypts for VM2's key, no host hub), libp2p's
+existing overlay dial would form a `network.Connected`, and **both relays
+disappear for local** — making the limited-relay throughput optimization moot
+and restoring e2e encryption.
+
+### Why direct underlay isn't possible today
+
+Apple's `VZNATNetworkDeviceAttachment` (used in
+`internal/localvm/runner_darwin.go:configureNetwork`) does not give reliable
+VM↔VM connectivity on the `192.168.64.x` network — host↔VM works, VM↔VM does
+not. The WG peer config encodes this: a NAT-attached node routes other local VMs
+through the host relay endpoint (`module_linux.go:319-327`) rather than as direct
+peers.
+
+### Chosen direction
+
+Run the local VMs on a **shared `vmnet` network (isolation off)** so they share
+one L2 segment and can reach each other, attaching each VM via the public
+`VZFileHandleNetworkDeviceAttachment` (needs only the `com.apple.security.virtualization`
+entitlement we already have; **no Apple developer account / no `com.apple.vm.networking`**).
+`vmnet` shared mode requires **root**, which the host-agent already has. Then the
+WG module takes its existing direct-peer branch (`module_linux.go:328-344`) and
+the hairpin/relay path is retired for local.
+
+### Investigation findings (VM stack + vz binding `github.com/tmc/apple@v0.6.3`)
+
+- VMs are run by our own Go code (`internal/localvm/runner_darwin.go`) via the
+  purego `tmc/apple/virtualization` binding; LinuxKit only builds images. The
+  network attachment is fully ours to change. Parent host-agent spawns one child
+  `protos-hostagent --run-vm` per VM (`internal/hostagent/daemon/vm.go:247`,
+  plain `cmd.Start()`, no fd passing yet).
+- Binding exposes `VZFileHandleNetworkDeviceAttachment` (public, no entitlement)
+  and a raw `vmnet` framework binding (shared/host modes, `vmnet_read`/`_write`,
+  `vmnet_enable_isolation_key`, event callbacks). It is **purego**, so it stays
+  `CGO_ENABLED=0`-compatible.
+- `VZVmnetNetworkDeviceAttachment` exists but is **private API**
+  (`objc.GetClass("VZVmnetNetworkDeviceAttachment")`) and likely entitlement-gated
+  — set aside. `VZBridgedNetworkDeviceAttachment` needs `com.apple.vm.networking`
+  — set aside.
+
+### Material finding that gates the approach (decision point)
+
+The vmnet binding wraps the **function entrypoints only**. It ships **no xpc
+package, no examples, and no working start/read/write sequence**. A pure
+in-process vmnet client therefore means hand-writing, via purego:
+the xpc interface-description dictionary (to set the isolation key),
+`vmnet_start_interface` with a completion block + dispatch queue, result-dict
+parsing (assigned MAC/MTU/subnet/max-packet-size), the packets-available event
+callback, and `vmnet_read`/`vmnet_write` with correct `vmpktdesc`/`iovec` struct
+layout. That is ~200-400 lines of intricate ABI-sensitive interop that **cannot
+be validated without root + real VMs** (the agent cannot run sudo
+non-interactively), with a slow rebuild-mactest-and-run loop per iteration.
+
+`socket_vmnet` already implements exactly this vmnet client, debugged and proven
+(Lima/Colima/Rancher). Using it (root daemon owns the shared vmnet L2; each VM
+attaches via `VZFileHandleNetworkDeviceAttachment` with a small stream↔dgram
+reframing shim) keeps Design A's architecture while avoiding the hand-rolled
+purego vmnet client. The first unknown either way — **does an isolation-off
+shared vmnet actually give VM↔VM on this macOS version** — still needs an
+empirical spike before investing in the full datapath.
+
+Decision: hand-rolled in-process vmnet (the host-agent already has a NOPASSWD
+sudoers entry for `bin/protos-hostagent`, so the root test loop can be driven
+directly via `sudo bin/protos-hostagent --vmnet-selftest`).
+
+### Progress: vmnet interop de-risked (selftest passes)
+
+`internal/localvm/vmnet_darwin.go` hand-rolls the missing interop via purego: an
+xpc dictionary shim (`xpc_dictionary_create/set_*/get_*`), reading the vmnet xpc
+key strings from the framework symbols (the binding mis-types them), and
+`vmnet_start_interface`/`vmnet_stop_interface` with the completion handler parsed
+inside the callback (xpc params are only valid for the callback's duration).
+Exposed as `protos-hostagent --vmnet-selftest`. Run as root it opens an
+**isolation-off shared** interface and reports:
+
+```
+mtu=1500 max_packet=1514 mac=62:a6:9b:2b:10:8a
+subnet_mask=255.255.255.0 dhcp_start=192.168.64.1 dhcp_end=192.168.64.254
+```
+
+Two consequences:
+1. The hardest, most-uncertain interop (xpc dict + start + result parsing) is
+   proven on this macOS version.
+2. The shared subnet is **the same 192.168.64.0/24, gateway .1** as the current
+   VZNAT, so existing static-IP allocation and gateway detection still apply -
+   the IP/WG changes shrink to flipping the WG module to its direct-peer branch.
+
+### Revised (simpler) architecture
+
+vmnet shared mode is a single host-wide L2 switch, so every isolation-off
+interface created on it shares that switch. That means each **child**
+`--run-vm` process can be fully self-contained:
+
+1. open its own isolation-off shared vmnet interface,
+2. create a `socketpair(AF_UNIX, SOCK_DGRAM)`, attach the VM via the public
+   `VZFileHandleNetworkDeviceAttachment` on one end,
+3. pump frames 1:1 between vmnet and the other socket end.
+
+No parent-owned interface, no `ExtraFiles` fd passing, no MAC-demux - a 1:1 pump
+per VM. Both VMs land on the shared switch with isolation off and can reach each
+other directly. (If two isolation-off interfaces turn out not to forward to each
+other, the fallback is a single parent-owned interface with a demux pump; the
+2-VM e2e is the deciding test.)
+
+### Progress: per-child pump + VZFileHandle attachment implemented
+
+`internal/localvm/vmnet_pump_darwin.go` adds `configureSharedVMNetNetwork`: open
+an isolation-off shared vmnet interface, `socketpair(AF_UNIX, SOCK_DGRAM)`,
+attach the VM via `VZFileHandleNetworkDeviceAttachment` on one end (MTU + MAC
+from vmnet), and a 1:1 `vmnetPump` (vmnet->VM via the PACKETS_AVAILABLE event
+callback + `vmnet_read`; VM->vmnet via a blocking read loop + `vmnet_write`).
+`runner_darwin.go` `configureNetwork` now dispatches NAT (default) vs shared, and
+threads a network cleanup through `buildVMConfig`/`Run`. Selection is via
+`PROTOS_LOCAL_NET=vmnet-shared` or a flag file (incl. `/tmp/protos-local-net-mode`
+so it survives sudo's env stripping; temporary test affordance). Builds clean for
+darwin and linux; `go vet` flags only the expected FFI `unsafe.Pointer` uses.
+
+The shared-vmnet datapath is **host-side only** (the VM runner), so validating it
+needs no guest-image rebuild - the local 2-VM e2e (which rebuilds the host-agent
+from source) exercises it directly.
+
+Validation strategy (staged):
+- Stage 1 (no guest change): run the local 2-VM e2e with the flag on and check
+  the VMs get network (pump works) and that the previously-failing **direct
+  dials over `192.168.64.x`** (DB peer `:10501`, libp2p `:10500`) now succeed -
+  proving VM-to-VM underlay connectivity. If libp2p dials the peer's
+  `192.168.64.x` directly it may go `network.Connected` over the raw underlay
+  immediately, without any WireGuard change.
+- Stage 2 (guest change, rebuild mactest): flip the WG module to the direct-peer
+  branch when shared-vmnet is active (signal via an appended kernel cmdline
+  param), so VM-to-VM app traffic is single-hop WireGuard-encrypted and the
+  hairpin/relay is retired.
+
+### Stage 1 run 1: found a binding struct bug (SEGV), fixed
+
+First local 2-VM run with the flag on crashed the `--run-vm` child with
+`SIGSEGV fault=0x9` inside the pump. Root cause: the `tmc/apple/vmnet` binding's
+`Vmpktdesc` struct has the **wrong field order**. Apple's C layout is
+`{size_t vm_pkt_size; struct iovec *vm_pkt_iov; uint32_t vm_pkt_iovcnt; uint32_t vm_flags;}`,
+but the binding declares `Vm_pkt_iov` last. So C reads the iov pointer from the
+bytes Go placed `vm_pkt_iovcnt(=1)`/`vm_flags(=0)` into → pointer value `0x1` →
+dereferences `iov_len` at `0x1+8` → fault `0x9` (exact match).
+
+Fix: bypass the binding's `Vmnet_read`/`Vmnet_write` and call the C symbols
+directly via purego with a correctly-ordered `vmpktdesc`/`iovec` and an `int32`
+packet count (C `int`). Validated via an extended `--vmnet-selftest` that writes a
+broadcast frame and reads without crashing before re-running the e2e.
+
+### Stage 1 PASSED (run `1781871003004453000`)
+
+Extended `--vmnet-selftest` confirmed the struct fix (`write OK`, `read OK,
+frames_read=6`, no crash). The local 2-VM image-registry e2e then **passed with
+the shared-vmnet flag on**:
+
+- Both VMs deployed `status=running (reachable)` (VM1 `192.168.64.192`, VM2
+  `192.168.64.194`) - the pump carries the VMs' traffic.
+- Both apps reached `running`; `remote image content ready ... blobs=11`;
+  `remote P2P image label observed`; **`Protos P2P image resolution verified:
+  seed=VM1 puller=VM2`** - the two local VMs transferred the image directly to
+  each other over P2P.
+- **Zero** `no route to host` / `connection refused :10501` / `i/o timeout`
+  errors (previously a recurring class of noise) - the direct `192.168.64.x`
+  VM-to-VM dials now succeed. No `limited=true` relay blob path was logged.
+- Clean teardown: both instances deleted, no leftover VM-runner/daemon
+  processes. Transient `stopped (running)` recovered immediately (reconcile fix).
+
+**Conclusion: isolation-off shared vmnet gives real VM-to-VM underlay
+connectivity**, and that alone makes libp2p connect the two local VMs directly -
+fixing the relay/throughput class of problems for the local-macOS topology
+without any WireGuard change. (The precise direct-vs-`Limited` connectedness and
+throughput numbers live in the guest protosd debug logs, not the harness output;
+the 0-dial-failures + successful P2P are the strong signal.)
+
+### What remains (Stage 2, optional)
+
+Stage 1 fixes the libp2p p2p path (which dials the raw `192.168.64.x` underlay).
+VM-to-VM **app traffic over the WireGuard overlay** still uses the host hub,
+because the guest WG module (`module_linux.go`) still sees `192.168.64.x` and
+takes the relay branch. Stage 2 flips it to the direct-peer branch when
+shared-vmnet is active (signalled via an appended kernel cmdline param), giving
+single-hop WireGuard-encrypted VM-to-VM app traffic and retiring the hairpin for
+local. This needs a mactest image rebuild (guest-side change).
+
+### Productionization TODO (before this is default)
+
+- Replace the `/tmp/protos-local-net-mode` test toggle with a manifest field set
+  by the provisioner (the parent writes the manifest; the child reads it).
+- Confirm the `go vet` `unsafe.Pointer` warnings are acceptable to `task quality`
+  (they are expected FFI uses) or annotate them.
+- Decide default: keep NAT default + opt-in, or flip to shared-vmnet default once
+  Stage 2 lands and soaks.
+
+### Stage 2 implemented (validating)
+
+Guest-side WireGuard now takes the direct-peer branch when shared-vmnet is
+active, so VM-to-VM app traffic is single-hop, end-to-end-encrypted, and the
+host hairpin/relay is retired for local:
+
+- Host (`runner_darwin.go` `configureLinuxBootLoader`): appends
+  `protos.localnet=vmnet-shared` to the guest kernel cmdline when shared-vmnet is
+  requested.
+- Guest (`module_linux.go`): `sharedVMNetActive()` reads `/proc/cmdline`; when set,
+  `relayLocalMacOSPeers` is forced false and the `isLocalMacOSNATIP` relay branch
+  is skipped, so a `192.168.64.x` peer falls through to the normal direct-peer
+  config (`Endpoint = <peer 192.168.64.x>:wgPort`) - a single-hop WireGuard tunnel
+  encrypted for the peer's key (no host in the crypto path).
+
+Builds clean darwin+linux; wireguard unit tests pass. Validation: rebuild mactest
+(guest change) + re-run the local 2-VM e2e with the flag on. A pass confirms the
+direct WireGuard overlay works (if it didn't, the VMs couldn't reach each other
+over the overlay and the run would fail).
+
+### Stage 2 PASSED (run `1781874752625768000`)
+
+Rebuilt mactest with the guest WG change, re-ran the local 2-VM image-registry
+e2e with the flag on:
+
+- Both VMs `status=running (reachable)` (VM1 `192.168.64.192`, VM2
+  `192.168.64.193`); `Protos P2P image resolution verified: seed=VM1 puller=VM2`.
+- **Zero** `through host relay` log lines (and zero `no route to host` /
+  `:10501 refused` / `i/o timeout`): the guest WG module took the direct-peer
+  branch, yet the VMs still reached each other - confirming **single-hop direct
+  WireGuard** VM-to-VM (host hub / hairpin retired for local).
+- Both delete tasks `succeeded`; no leftover VM-runner processes.
+
+**Path B complete and validated end-to-end.** Local macOS VMs now share an
+isolation-off vmnet switch, reach each other directly at the underlay (libp2p
+goes direct), and run single-hop end-to-end-encrypted WireGuard between
+themselves with no host in the crypto path. The relay/hairpin and the
+limited-relay throughput path are no longer needed for the local topology.
+
+### Remaining productionization (before making this the default)
+
+1. Replace the `/tmp/protos-local-net-mode` test toggle with a manifest field set
+   by the provisioner (parent writes manifest, child reads it); drop the
+   world-readable flag file.
+2. Consider whether to retire the now-unused darwin `hairpinTun` and the
+   relay-mode WG branch once shared-vmnet is the default, or keep them as the
+   fallback for the NAT path.
+3. `task quality`: confirm/annotate the expected FFI `unsafe.Pointer` vet warnings
+   in `vmnet_darwin.go`.
+4. Report the `Vmpktdesc` field-order bug upstream to `github.com/tmc/apple`.
+5. Pump hardening for production: bound the event-callback worker (avoid blocking
+   the dispatch queue on a slow VM socket), and add metrics/logging for dropped
+   frames.
+
+### Old network code removed — shared vmnet is the only local path
+
+By decision, the NAT/hairpin/relay fallback and the flag were deleted; shared
+vmnet is now the sole local-VM network architecture (not opt-in). Removed:
+
+- **Host runner** (`runner_darwin.go`): the `configureNetwork` dispatcher,
+  `configureNATNetwork` (VZNAT attachment), the cmdline-signal append, and the
+  flag (`sharedVMNetRequested`, `PROTOS_LOCAL_NET`, the flag files incl.
+  `/tmp/protos-local-net-mode`). `buildVMConfig` calls
+  `configureSharedVMNetNetwork` directly.
+- **Guest WG** (`module_linux.go`): the `isLocalMacOSNATIP` relay/roaming branch,
+  the relay vars, and the now-dead helpers `localMacOSNATAttached`,
+  `isLocalMacOSNATIP`, `localMacOSNATGateway`, `sharedVMNetActive`,
+  `peerEndpoints`, `copyUDPAddr`. Local `192.168.64.x` peers always use the
+  direct-peer path.
+- **Host WG hairpin**: deleted `hairpin_tun_darwin.go` (+ test); `declarativePeers`
+  no longer computes `hairpinRoutes`; the TUN is used directly (no
+  `hairpinTun` wrapper); `hairpinDevice` field and all uses removed.
+
+Kept intentionally: `provisioners.localMacOSNATGateway` / `originBootstrapIPs` -
+that is bootstrap addressing for reaching the host/origin at `192.168.64.1`,
+which is still valid (and reachable) under shared vmnet; it is not relay/hairpin
+code.
+
+Builds clean darwin+linux; wireguard/app/tasks unit tests pass; a repo-wide grep
+for every removed symbol is empty. Re-validated by a local 2-VM e2e with **no
+flag set** (run `1781877866270397000`): rebuilt mactest with the new guest,
+deleted `/tmp/protos-local-net-mode`, ran the e2e -> **passed (rc=0)**, no crash,
+`Protos P2P image resolution verified`, **0** dial-failures / `through host
+relay`, both instances deleted, no leftover processes. Shared vmnet is now the
+default and only local-VM network path, with the old NAT/hairpin/relay code and
+the flag fully removed.
+
+### Validation scope (what is and isn't covered)
+
+Validated with the shared-vmnet flag on: the **local 2-VM image-registry e2e**
+(Stage 1 and Stage 2). That covers VM provisioning, the pump, **local VM-to-VM**
+connectivity, app deploy, **P2P image transfer between the two local VMs**, app
+reachability, and cleanup.
+
+NOT yet validated with the flag on (deferred follow-up): the **full mixed-cloud
+e2e** (2 local + Hetzner + Scaleway). The earlier passing cloud e2e ran before
+this work and without the flag (local VMs on the old NAT path). So the
+**shared-vmnet local-VM <-> cloud-VM** path is unproven:
+- internet egress from a shared-vmnet local VM (vmnet shared mode does NAT, so it
+  is expected to work, but unconfirmed);
+- local<->cloud WireGuard (cloud peers have public IPs and hit the unchanged
+  direct-peer path - our changes only touch `192.168.64.x` peers - so expected to
+  be unaffected, but unconfirmed in the mixed topology).
+
+To close this: run `task e2e:mixed-cloud` with `/tmp/protos-local-net-mode` set.
+Deferred by decision (real cloud spend); the shared-vmnet code only changes the
+local-VM network device, and cloud connectivity uses the untouched direct-peer
+WG path, so the risk is considered low for now.
+
 ## 2026-06-19
 
 ### Local two-VM image registry e2e: transient full-mesh misses

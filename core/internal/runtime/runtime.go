@@ -11,15 +11,6 @@ import (
 
 var ErrSandboxNotFound = errors.New("sandbox not found")
 
-const (
-	// ErrImageNotFound means the requested docker image is not found locally
-	ErrImageNotFound = 101
-	// ErrNetworkNotFound means the requested docker network is not found locally
-	ErrNetworkNotFound = 102
-	// ErrContainerNotFound means the requested docker container is not found locally
-	ErrContainerNotFound = 103
-)
-
 // RuntimeSandbox represents the abstract concept of a running program: it can be a container, VM or process.
 type RuntimeSandbox interface {
 	Start(ip net.IP) error

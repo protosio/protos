@@ -32,7 +32,6 @@ const (
 
 type platformState struct {
 	tunDevice              wgtun.Device
-	hairpinDevice          *hairpinTun
 	wgDevice               *wgdevice.Device
 	interfaceName          string
 	address                string
@@ -130,13 +129,11 @@ func (m *Module) Down() error {
 		m.wgDevice.Close()
 		m.wgDevice = nil
 		m.tunDevice = nil
-		m.hairpinDevice = nil
 	} else if m.tunDevice != nil {
 		if closeErr := m.tunDevice.Close(); closeErr != nil {
 			err = errors.Join(err, fmt.Errorf("failed to close utun device: %w", closeErr))
 		}
 		m.tunDevice = nil
-		m.hairpinDevice = nil
 	}
 
 	m.interfaceName = ""
@@ -160,7 +157,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		return err
 	}
 
-	peers, routes, hairpinRoutes, localExitNeedsIPv4, localExitDNSActive, err := m.declarativePeers(config, peerSet)
+	peers, routes, localExitNeedsIPv4, localExitDNSActive, err := m.declarativePeers(config, peerSet)
 	if err != nil {
 		return err
 	}
@@ -170,9 +167,6 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 
 	log.Debugf("Applying WireGuard peer set with %d peers and %d routes", len(peers), len(routes))
 	logDeclarativePeerState(peers)
-	if m.hairpinDevice != nil {
-		m.hairpinDevice.setHairpinRoutes(hairpinRoutes)
-	}
 	if err := m.applyPeerConfigLocked(peers); err != nil {
 		return fmt.Errorf("failed to configure embedded WireGuard device: %w", err)
 	}
@@ -182,10 +176,6 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 	}
 	if err := m.syncExitDNSLocked(localExitDNSActive); err != nil {
 		return fmt.Errorf("failed to reconcile exit DNS: %w", err)
-	}
-	if m.hairpinDevice != nil {
-		stats := m.hairpinDevice.stats()
-		log.Debugf("WireGuard hairpin state: routes=%d hairpinned_packets=%d dropped_packets=%d", stats.HairpinRoutes, stats.HairpinnedPackets, stats.DroppedPackets)
 	}
 
 	return nil
@@ -239,11 +229,9 @@ func (m *Module) ensureDeviceLocked() error {
 		Verbosef: log.Debugf,
 		Errorf:   log.Errorf,
 	}
-	hairpinDevice := newHairpinTun(tunDevice)
-	wgDevice := wgdevice.NewDevice(hairpinDevice, wgconn.NewDefaultBind(), wgLogger)
+	wgDevice := wgdevice.NewDevice(tunDevice, wgconn.NewDefaultBind(), wgLogger)
 
-	m.tunDevice = hairpinDevice
-	m.hairpinDevice = hairpinDevice
+	m.tunDevice = tunDevice
 	m.wgDevice = wgDevice
 	m.interfaceName = interfaceName
 	if m.routes == nil {
@@ -353,9 +341,6 @@ func (m *Module) configureAddressLocked(address string) error {
 	}
 
 	m.address = address
-	if m.hairpinDevice != nil {
-		m.hairpinDevice.setLocalAddress(address)
-	}
 	return nil
 }
 
@@ -478,10 +463,9 @@ func (m *Module) syncExitDNSLocked(enabled bool) error {
 	return nil
 }
 
-func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmodule.Peers) ([]declarativePeer, map[string]routeSpec, map[string]struct{}, bool, bool, error) {
+func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmodule.Peers) ([]declarativePeer, map[string]routeSpec, bool, bool, error) {
 	peers := make([]declarativePeer, 0, len(peerSet.Instances)+len(peerSet.Devices))
 	routes := map[string]routeSpec{}
-	hairpinRoutes := map[string]struct{}{}
 	exitRoute, localExitActive := localExitRoute(config, peerSet)
 	localExitNeedsIPv4 := false
 	localExitDNSActive := false
@@ -494,7 +478,7 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 
 		pubKeyAddr, err := ipv6AddressFromPublicKeyBase64(instance.PublicKey)
 		if err != nil {
-			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+			return nil, nil, false, false, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}
 		if pubKeyAddr == config.IPv6Address {
 			log.Debugf("Skipping local instance peer %s (%s)", instance.Name, pubKeyAddr.String())
@@ -503,23 +487,22 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 
 		allowedIP := createIPv6Net(pubKeyAddr)
 		if allowedIP == nil {
-			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", instance.Name)
+			return nil, nil, false, false, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", instance.Name)
 		}
 
 		publicKeyHex, err := publicWireGuardKeyHex(instance.PublicKey)
 		if err != nil {
-			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
+			return nil, nil, false, false, fmt.Errorf("failed to configure network (%s): %w", instance.Name, err)
 		}
 
 		instancePublicIP := net.ParseIP(instance.PublicIP)
 		if instancePublicIP == nil {
-			return nil, nil, nil, false, false, fmt.Errorf("failed to parse public IP while configuring VPN interface '%s': bad IP %s", instance.Name, instance.PublicIP)
+			return nil, nil, false, false, fmt.Errorf("failed to parse public IP while configuring VPN interface '%s': bad IP %s", instance.Name, instance.PublicIP)
 		}
 
 		route := allowedIP.String()
 		allowedIPs := []string{route}
 		addInterfaceRoute(routes, inet6Route, route, m.interfaceName, 20)
-		hairpinRoutes[route] = struct{}{}
 		for _, routeAddr := range instance.Routes {
 			if routeAddr == pubKeyAddr || routeAddr == config.IPv6Address {
 				continue
@@ -530,17 +513,16 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 			}
 			route := appRoute.String()
 			addInterfaceRoute(routes, inet6Route, route, m.interfaceName, 20)
-			hairpinRoutes[route] = struct{}{}
 			allowedIPs = append(allowedIPs, route)
 		}
 		if localExitActive && exitRoute.InstanceID == instance.ID {
 			exitCIDRs, err := normalizedExitRouteCIDRs(exitRoute)
 			if err != nil {
-				return nil, nil, nil, false, false, fmt.Errorf("failed to configure exit route through %s: %w", instance.Name, err)
+				return nil, nil, false, false, fmt.Errorf("failed to configure exit route through %s: %w", instance.Name, err)
 			}
 			allowedIPs = append(allowedIPs, exitCIDRs...)
 			if err := addExitCIDRRoutes(routes, exitCIDRs, instancePublicIP, m.interfaceName); err != nil {
-				return nil, nil, nil, false, false, fmt.Errorf("failed to configure exit route through %s: %w", instance.Name, err)
+				return nil, nil, false, false, fmt.Errorf("failed to configure exit route through %s: %w", instance.Name, err)
 			}
 			localExitNeedsIPv4 = exitRouteCIDRsNeedIPv4(exitCIDRs)
 			localExitDNSActive = exitRouteCIDRsUseFullTunnel(exitCIDRs)
@@ -562,29 +544,28 @@ func (m *Module) declarativePeers(config networkmodule.Config, peerSet networkmo
 
 		pubKeyAddr, err := ipv6AddressFromPublicKeyBase64(device.PublicKey)
 		if err != nil {
-			return nil, nil, nil, false, false, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
+			return nil, nil, false, false, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
 		}
 
 		allowedIP := createIPv6Net(pubKeyAddr)
 		if allowedIP == nil {
-			return nil, nil, nil, false, false, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", device.Name)
+			return nil, nil, false, false, fmt.Errorf("failed to configure network (%s): public key did not map to an IPv6 route", device.Name)
 		}
 
 		publicKeyHex, err := publicWireGuardKeyHex(device.PublicKey)
 		if err != nil {
-			return nil, nil, nil, false, false, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
+			return nil, nil, false, false, fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", device.Name, err)
 		}
 
 		route := allowedIP.String()
 		addInterfaceRoute(routes, inet6Route, route, m.interfaceName, 20)
-		hairpinRoutes[route] = struct{}{}
 		peers = append(peers, declarativePeer{
 			publicKeyHex: publicKeyHex,
 			allowedIPs:   []string{route},
 		})
 	}
 
-	return peers, routes, hairpinRoutes, localExitNeedsIPv4, localExitDNSActive, nil
+	return peers, routes, localExitNeedsIPv4, localExitDNSActive, nil
 }
 
 const (

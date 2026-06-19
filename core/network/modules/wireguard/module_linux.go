@@ -23,7 +23,6 @@ const (
 	bridgeNetworkInterface        = "protosBR"
 	bridgeMTU                     = 1500
 	namespacedGatewayIPv6         = "fe80::7072:6f74:6f73"
-	localMacOSNATGatewayHost      = 1
 )
 
 var wgPort int = 10999
@@ -268,10 +267,6 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 	newRoutes := []netlink.Route{}
 	wgPeers := []wgtypes.PeerConfig{}
 	activeDevice := activeWireGuardDevice(lnk)
-	existingPeerEndpoints := peerEndpoints(activeDevice)
-	relayAllowedIPs := []net.IPNet{}
-	var relayEndpoint *net.UDPAddr
-	relayLocalMacOSPeers := localMacOSNATAttached()
 	exitGatewayRoutesByDevice, err := exitGatewayRouteCIDRsByDevice(config, peerSet)
 	if err != nil {
 		return fmt.Errorf("failed to resolve exit gateway routes: %w", err)
@@ -316,34 +311,6 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 			allowedIPs = append(allowedIPs, routeNet)
 			newRoutes = append(newRoutes, netlink.Route{Dst: &routeNet, LinkIndex: lnk.Index()})
 		}
-		if isLocalMacOSNATIP(instancePublicIP) {
-			if relayLocalMacOSPeers {
-				relayAllowedIPs = append(relayAllowedIPs, allowedIPs...)
-				if relayEndpoint == nil {
-					relayEndpoint = &net.UDPAddr{IP: localMacOSNATGateway(instancePublicIP), Port: wgPort}
-				}
-				log.Debugf("Routing local macOS VM peer %s (%d routes) through host relay endpoint %s", instance.Name, len(allowedIPs), relayEndpoint.String())
-				continue
-			}
-			endpoint := existingPeerEndpoints[pubKeyWG]
-			var keepalive *time.Duration
-			if endpoint != nil {
-				interval := peerKeepaliveInterval()
-				keepalive = &interval
-				log.Debugf("Preserving learned endpoint %s for roaming local macOS VM peer %s (%s)", endpoint.String(), instance.Name, instanceInternalNet.String())
-			} else {
-				log.Debugf("Routing local macOS VM peer %s (%s) without a fixed endpoint; waiting for WireGuard roaming", instance.Name, instanceInternalNet.String())
-			}
-			wgPeers = append(wgPeers, wgtypes.PeerConfig{
-				PublicKey:                   pubKeyWG,
-				ReplaceAllowedIPs:           true,
-				AllowedIPs:                  allowedIPs,
-				Endpoint:                    endpoint,
-				PersistentKeepaliveInterval: keepalive,
-			})
-			continue
-		}
-
 		keepalive := peerKeepaliveInterval()
 		peerConf := wgtypes.PeerConfig{
 			PublicKey:                   pubKeyWG,
@@ -356,10 +323,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		wgPeers = append(wgPeers, peerConf)
 	}
 
-	if len(relayAllowedIPs) > 0 && len(peerSet.Devices) == 0 {
-		log.Warnf("Local macOS relay routes are desired but no user device peer is available to relay %d routes", len(relayAllowedIPs))
-	}
-	for deviceIndex, userDevice := range peerSet.Devices {
+	for _, userDevice := range peerSet.Devices {
 		pubKeyAddr, err := ipv6AddressFromPublicKeyBase64(userDevice.PublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to decode base64 encoded key for device '%s': %w", userDevice.Name, err)
@@ -396,12 +360,6 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		}
 		var endpoint *net.UDPAddr
 		var keepalive *time.Duration
-		if deviceIndex == 0 && len(relayAllowedIPs) > 0 {
-			allowedIPs = append(allowedIPs, relayAllowedIPs...)
-			endpoint = relayEndpoint
-			interval := peerKeepaliveInterval()
-			keepalive = &interval
-		}
 		peerConf := wgtypes.PeerConfig{
 			PublicKey:                   publicKeyWG,
 			ReplaceAllowedIPs:           true,
@@ -413,7 +371,7 @@ func (m *Module) ConfigurePeers(config networkmodule.Config, peerSet networkmodu
 		newRoutes = append(newRoutes, netlink.Route{Dst: &instanceInternalNet, LinkIndex: lnk.Index()})
 	}
 	wgPeers = appendStalePeerRemovals(wgPeers, activeDevice)
-	log.Debugf("Applying WireGuard peer set on %s with peers=%d desired_routes=%d relay_routes=%d", wireguardNetworkInterfaceName, len(wgPeers), len(newRoutes), len(relayAllowedIPs))
+	log.Debugf("Applying WireGuard peer set on %s with peers=%d desired_routes=%d", wireguardNetworkInterfaceName, len(wgPeers), len(newRoutes))
 	logLinuxPeerConfigs(wgPeers)
 
 	wgKey, err := privateWireGuardKey(config.WireGuardPrivateKey)
@@ -486,20 +444,6 @@ func activeWireGuardDevice(lnk wglink.Link) *wgtypes.Device {
 	return device
 }
 
-func peerEndpoints(device *wgtypes.Device) map[wgtypes.Key]*net.UDPAddr {
-	endpoints := map[wgtypes.Key]*net.UDPAddr{}
-	if device == nil {
-		return endpoints
-	}
-	for _, peer := range device.Peers {
-		if peer.Endpoint == nil {
-			continue
-		}
-		endpoints[peer.PublicKey] = copyUDPAddr(peer.Endpoint)
-	}
-	return endpoints
-}
-
 func appendStalePeerRemovals(desired []wgtypes.PeerConfig, activeDevice *wgtypes.Device) []wgtypes.PeerConfig {
 	if activeDevice == nil {
 		return desired
@@ -518,17 +462,6 @@ func appendStalePeerRemovals(desired []wgtypes.PeerConfig, activeDevice *wgtypes
 		})
 	}
 	return desired
-}
-
-func copyUDPAddr(addr *net.UDPAddr) *net.UDPAddr {
-	if addr == nil {
-		return nil
-	}
-	return &net.UDPAddr{
-		IP:   append(net.IP(nil), addr.IP...),
-		Port: addr.Port,
-		Zone: addr.Zone,
-	}
 }
 
 func logLinuxPeerConfigs(peers []wgtypes.PeerConfig) {
@@ -719,52 +652,6 @@ func shortWireGuardKey(key wgtypes.Key) string {
 		return value
 	}
 	return value[:12]
-}
-
-func isLocalMacOSNATIP(ip net.IP) bool {
-	ip4 := ip.To4()
-	if ip4 == nil {
-		return false
-	}
-	return ip4[0] == 192 && ip4[1] == 168 && ip4[2] == 64
-}
-
-func localMacOSNATGateway(ip net.IP) net.IP {
-	ip4 := ip.To4()
-	if ip4 == nil {
-		return nil
-	}
-	gateway := append(net.IP(nil), ip4...)
-	gateway[3] = localMacOSNATGatewayHost
-	return gateway
-}
-
-func localMacOSNATAttached() bool {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		log.Debugf("failed to inspect interfaces for local macOS NAT attachment: %v", err)
-		return false
-	}
-	for _, iface := range ifaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			log.Debugf("failed to inspect addresses for interface %s: %v", iface.Name, err)
-			continue
-		}
-		for _, addr := range addrs {
-			var ip net.IP
-			switch value := addr.(type) {
-			case *net.IPNet:
-				ip = value.IP
-			case *net.IPAddr:
-				ip = value.IP
-			}
-			if ip != nil && isLocalMacOSNATIP(ip) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (m *Module) CreateNamespacedInterface(config networkmodule.Config, netNSpath string, IP net.IP) error {

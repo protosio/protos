@@ -82,6 +82,108 @@ func TestTaskManagerRunsRegisteredStream(t *testing.T) {
 	}
 }
 
+func TestTaskRetriesUntilSuccessWithinMaxAttempts(t *testing.T) {
+	store := openTaskTestDB(t)
+	manager := NewManager(store)
+
+	runs := 0
+	if err := Register(manager, Stream[testPayload, testResult]{
+		Name: "test.retry",
+		Run: func(ctx context.Context, task *RunContext[testPayload]) (testResult, error) {
+			runs++
+			if runs < 3 {
+				return testResult{}, errors.New("transient failure")
+			}
+			return testResult{Done: "yes"}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+		Stream:      "test.retry",
+		SubjectType: "test-subject",
+		SubjectID:   "subject-retry",
+		Title:       "retry task",
+		Payload:     testPayload{Value: "input"},
+		MaxAttempts: 3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// First two runs fail but requeue to pending; the third succeeds.
+	for i := 0; i < 2; i++ {
+		_ = manager.RunPending(context.Background())
+		record, err := manager.Get(queued.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if record.Status != StatusPending {
+			t.Fatalf("after attempt %d status = %q, want pending (requeued)", i+1, record.Status)
+		}
+	}
+	if err := manager.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	done, err := manager.Get(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done.Status != StatusSucceeded {
+		t.Fatalf("status = %q, want succeeded after retries", done.Status)
+	}
+	if done.Attempts != 3 {
+		t.Fatalf("attempts = %d, want 3", done.Attempts)
+	}
+	if runs != 3 {
+		t.Fatalf("runs = %d, want 3", runs)
+	}
+}
+
+func TestTaskFailsTerminallyWhenMaxAttemptsIsOne(t *testing.T) {
+	store := openTaskTestDB(t)
+	manager := NewManager(store)
+
+	runs := 0
+	if err := Register(manager, Stream[testPayload, testResult]{
+		Name: "test.noretry",
+		Run: func(ctx context.Context, task *RunContext[testPayload]) (testResult, error) {
+			runs++
+			return testResult{}, errors.New("boom")
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+		Stream:      "test.noretry",
+		SubjectType: "test-subject",
+		SubjectID:   "subject-noretry",
+		Title:       "no retry task",
+		Payload:     testPayload{Value: "input"},
+		MaxAttempts: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = manager.RunPending(context.Background())
+	// A second RunPending must not pick the failed task back up.
+	_ = manager.RunPending(context.Background())
+
+	done, err := manager.Get(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done.Status != StatusFailed {
+		t.Fatalf("status = %q, want failed", done.Status)
+	}
+	if runs != 1 {
+		t.Fatalf("runs = %d, want 1 (no retry when MaxAttempts=1)", runs)
+	}
+}
+
 func TestTaskProgressSubscriptionDoesNotPersistEvent(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)

@@ -21,6 +21,13 @@ const (
 
 	instanceLifecycleOperationReconcile = "reconcile"
 	instanceLifecycleOperationDelete    = "delete"
+
+	// Instance delete is an idempotent multi-phase lifecycle (mark deleting,
+	// remove apps, durable peer removal, provider stop, record deletion). Allowing
+	// a bounded number of attempts lets a delete that fails on a transient
+	// control-plane error (APIC deadline, host-agent network reconfigure) resume
+	// itself on the next task tick instead of needing a fresh RemoveInstance call.
+	instanceDeleteMaxAttempts = 3
 )
 
 type deployInstanceTaskPayload struct {
@@ -224,8 +231,10 @@ func (cm *Manager) queueInstanceLifecycle(instance InstanceInfo, operation strin
 	}
 	title := fmt.Sprintf("Reconcile instance %s", instance.Name)
 	message := "queued"
+	maxAttempts := 1
 	if operation == instanceLifecycleOperationDelete {
 		title = fmt.Sprintf("Delete instance %s", instance.Name)
+		maxAttempts = instanceDeleteMaxAttempts
 	}
 	record, _, err := tasks.EnqueueUnique(cm.tasks, tasks.EnqueueUniqueOptions[instanceLifecycleTaskPayload]{
 		EnqueueOptions: tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
@@ -243,7 +252,7 @@ func (cm *Manager) queueInstanceLifecycle(instance InstanceInfo, operation strin
 				DesiredSig:     desiredSig,
 				RequestedByAPI: requestedByAPI,
 			},
-			MaxAttempts: 1,
+			MaxAttempts: maxAttempts,
 		},
 	})
 	return record, err

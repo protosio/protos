@@ -203,36 +203,37 @@ func (am *Manager) GetByIntance(instance string) ([]App, error) {
 // image resolution, pulls, and sandbox lifecycle work, so the database notifier
 // must not run them inline.
 func (am *Manager) Notify() {
-	shouldQueue, err := am.shouldQueueReconcile()
-	if err != nil {
-		log.Errorf("failed to inspect app runtime reconciliation state: %s", err.Error())
-		return
-	}
-	if !shouldQueue {
-		return
-	}
-	if _, err := am.QueueReconcile(); err != nil {
-		am.clearReconcileSignature()
-		log.Errorf("failed to queue app runtime reconciliation: %s", err.Error())
-	}
-}
-
-func (am *Manager) shouldQueueReconcile() (bool, error) {
 	if am == nil {
-		return false, nil
+		return
 	}
 	am.notifyMu.Lock()
 	defer am.notifyMu.Unlock()
 
 	signature, err := am.reconcileSignature()
 	if err != nil {
-		return false, err
+		log.Errorf("failed to inspect app runtime reconciliation state: %s", err.Error())
+		return
 	}
 	if signature == "" || signature == am.reconcileSig {
-		return false, nil
+		return
 	}
-	am.reconcileSig = signature
-	return true, nil
+
+	_, inserted, err := am.enqueueReconcileTask()
+	if err != nil {
+		log.Errorf("failed to queue app runtime reconciliation: %s", err.Error())
+		return
+	}
+
+	// Only record the signature once a fresh task was actually queued. When the
+	// enqueue is deduplicated against a reconcile that is already pending or
+	// running, that in-flight task may have already observed an older desired
+	// state, so advancing the signature here would silently drop the new desired
+	// state (the "stopped (running)" hang). Leaving the signature untouched on a
+	// dedupe lets a later Notify - including the periodic safety-net notifier -
+	// re-evaluate and queue a follow-up once the in-flight reconcile finishes.
+	if inserted {
+		am.reconcileSig = signature
+	}
 }
 
 func (am *Manager) clearReconcileSignature() {
@@ -273,15 +274,19 @@ func (am *Manager) reconcileSignature() (string, error) {
 	return strings.Join(parts, "\n"), nil
 }
 
-func (am *Manager) QueueReconcile() (tasks.Record, error) {
+// enqueueReconcileTask enqueues a runtime reconcile task, deduplicated against
+// any reconcile that is already pending or running. It returns whether a fresh
+// task was actually inserted so callers can decide whether to advance the
+// reconcile signature.
+func (am *Manager) enqueueReconcileTask() (tasks.Record, bool, error) {
 	if am == nil || am.tasks == nil {
-		return tasks.Record{}, fmt.Errorf("app runtime task manager is not configured")
+		return tasks.Record{}, false, fmt.Errorf("app runtime task manager is not configured")
 	}
 	peerID := strings.TrimSpace(am.ptype)
 	if peerID == "" {
 		peerID = "local"
 	}
-	record, _, err := tasks.EnqueueUnique(am.tasks, tasks.EnqueueUniqueOptions[reconcileRuntimeTaskPayload]{
+	return tasks.EnqueueUnique(am.tasks, tasks.EnqueueUniqueOptions[reconcileRuntimeTaskPayload]{
 		EnqueueOptions: tasks.EnqueueOptions[reconcileRuntimeTaskPayload]{
 			Stream:      AppReconcileTaskStream,
 			SubjectType: taskSubjectAppRuntime,
@@ -292,7 +297,6 @@ func (am *Manager) QueueReconcile() (tasks.Record, error) {
 			MaxAttempts: 1,
 		},
 	})
-	return record, err
 }
 
 func (am *Manager) runReconcileRuntimeTask(ctx context.Context, task *tasks.RunContext[reconcileRuntimeTaskPayload]) (reconcileRuntimeTaskResult, error) {

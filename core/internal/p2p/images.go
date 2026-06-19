@@ -614,52 +614,157 @@ func (p2p *P2P) downloadImageBlobLimitedFromCandidate(ctx context.Context, file 
 
 	startedAt := time.Now()
 	rangeCount := 0
+
+	// A limited (relay/circuit) peer transfers the blob as small resumable slices
+	// over a single reused raw stream. Reusing the stream amortizes the relay
+	// connection setup that previously dominated cost (one fresh stream per
+	// slice), while keeping slice-granular resumability: a failed slice resets
+	// the stream, reconnects through the peer layer, and retries from the same
+	// offset without re-fetching completed slices.
+	var stream *limitedBlobStream
+	defer func() {
+		if stream != nil {
+			stream.close()
+		}
+	}()
+
 	for offset := uint64(0); offset < desc.SizeBytes; {
 		length := imageBlobLimitedRangeLength(desc.SizeBytes - offset)
 		if length == 0 {
 			return fmt.Errorf("image blob %s limited transfer made no progress at offset %d", desc.Digest, offset)
 		}
-		if err := p2p.downloadImageBlobLimitedRange(ctx, file, candidate, desc.Digest, offset, length, onBytes); err != nil {
-			return err
+
+		var sliceErr error
+		for attempt := 1; attempt <= imageBlobLimitedRangeAttempts; attempt++ {
+			if stream == nil {
+				opened, err := p2p.openLimitedBlobStream(ctx, candidate.peerID)
+				if err != nil {
+					sliceErr = err
+				} else {
+					stream = opened
+				}
+			}
+			if stream != nil {
+				writer := &imageBlobRangeWriter{file: file, offset: offset}
+				if err := stream.downloadRange(writer, desc.Digest, offset, length, onBytes); err != nil {
+					sliceErr = err
+					// The reused stream is no longer trustworthy after a failure;
+					// drop it so the next attempt reconnects and reopens.
+					stream.reset()
+					stream = nil
+				} else {
+					sliceErr = nil
+					break
+				}
+			}
+
+			if attempt < imageBlobLimitedRangeAttempts {
+				log.Debugf("retrying image blob %s limited slice offset=%d length=%d from peer %s: attempt=%d err=%v", desc.Digest, offset, length, candidate.peerID, attempt+1, sliceErr)
+				p2p.requestReconcile()
+				if err := sleepContext(ctx, time.Duration(attempt)*250*time.Millisecond); err != nil {
+					return errors.Join(sliceErr, err)
+				}
+			}
+		}
+		if sliceErr != nil {
+			return fmt.Errorf("download image blob %s slice offset=%d length=%d from limited peer %s: %w", desc.Digest, offset, length, candidate.peerID, sliceErr)
 		}
 		offset += length
 		rangeCount++
 	}
 
 	duration := time.Since(startedAt)
-	log.Infof("downloaded image blob %s from limited peer %s using %d resumable stream slice(s): size=%d slice_size=%d duration=%s throughput=%dB/s", desc.Digest, candidate.peerID, rangeCount, desc.SizeBytes, imageBlobLimitedStreamChunkBytes, duration.Round(time.Millisecond), bytesPerSecond(desc.SizeBytes, duration))
+	log.Infof("downloaded image blob %s from limited peer %s using %d resumable stream slice(s) over a reused stream: size=%d slice_size=%d duration=%s throughput=%dB/s", desc.Digest, candidate.peerID, rangeCount, desc.SizeBytes, imageBlobLimitedStreamChunkBytes, duration.Round(time.Millisecond), bytesPerSecond(desc.SizeBytes, duration))
 	return nil
 }
 
-func (p2p *P2P) downloadImageBlobLimitedRange(ctx context.Context, file *os.File, candidate imageContentCandidate, digest string, offset uint64, length uint64, onBytes func(uint64)) error {
-	var errs []error
-	for attempt := 1; attempt <= imageBlobLimitedRangeAttempts; attempt++ {
-		if err := p2p.ensureImagePeerConnected(ctx, candidate.peerID); err != nil {
-			errs = append(errs, err)
-		} else {
-			if offset > uint64(1<<63-1) {
-				return fmt.Errorf("image blob range offset is too large: %d", offset)
-			}
-			if _, err := file.Seek(int64(offset), io.SeekStart); err != nil {
-				return err
-			}
-			err := p2p.downloadImageBlobRangeFromCandidate(ctx, file, candidate, digest, offset, length, onBytes)
-			if err == nil {
-				return nil
-			}
-			errs = append(errs, err)
-		}
+// limitedBlobStream is a reusable raw blob data stream to a single limited peer.
+// It carries many sequential range requests so the data plane amortizes the
+// relay stream setup across slices. It is part of the data plane only: it runs
+// on imageBlobStreamProtocol, never on the gRPC control channel.
+type limitedBlobStream struct {
+	stream network.Stream
+	reader *bufio.Reader
+	writer *bufio.Writer
+}
 
-		if attempt < imageBlobLimitedRangeAttempts {
-			log.Debugf("retrying image blob %s limited range offset=%d length=%d from peer %s: attempt=%d err=%v", digest, offset, length, candidate.peerID, attempt+1, errs[len(errs)-1])
-			p2p.requestReconcile()
-			if err := sleepContext(ctx, time.Duration(attempt)*250*time.Millisecond); err != nil {
-				errs = append(errs, err)
-				break
-			}
-		}
+func (p2p *P2P) openLimitedBlobStream(ctx context.Context, peerIDString string) (*limitedBlobStream, error) {
+	if p2p == nil || p2p.host == nil {
+		return nil, fmt.Errorf("p2p host is not configured")
 	}
-	return fmt.Errorf("download image blob %s range offset=%d length=%d from limited peer %s: %w", digest, offset, length, candidate.peerID, errors.Join(errs...))
+	if err := p2p.ensureImagePeerConnected(ctx, peerIDString); err != nil {
+		return nil, err
+	}
+	peerID, err := peer.Decode(peerIDString)
+	if err != nil {
+		return nil, err
+	}
+	connectedness := p2p.host.Network().Connectedness(peerID)
+	if !usablePeerConnectedness(connectedness) {
+		return nil, fmt.Errorf("not connected to image peer %s: %s", peerIDString, connectedness)
+	}
+	streamCtx := ctx
+	if connectedness == network.Limited {
+		streamCtx = network.WithAllowLimitedConn(ctx, "protos image blob stream")
+	}
+	stream, err := p2p.host.NewStream(streamCtx, peerID, imageBlobStreamProtocol)
+	if err != nil {
+		return nil, err
+	}
+	conn := stream.Conn()
+	log.Infof("opened reusable image blob stream to limited peer %s: local=%s remote=%s limited=%t", peerIDString, conn.LocalMultiaddr().String(), conn.RemoteMultiaddr().String(), conn.Stat().Limited)
+	return &limitedBlobStream{
+		stream: stream,
+		reader: bufio.NewReaderSize(stream, 256*1024),
+		writer: bufio.NewWriterSize(stream, 64*1024),
+	}, nil
+}
+
+// downloadRange sends one range request over the reused stream and writes its
+// eof-terminated data frames at the requested offset. A per-slice deadline
+// bounds a stalled relay read so a stuck slice fails fast and is retried.
+func (s *limitedBlobStream) downloadRange(writer io.Writer, digest string, offset uint64, length uint64, onBytes func(uint64)) error {
+	if s == nil || s.stream == nil {
+		return fmt.Errorf("limited blob stream is closed")
+	}
+	if err := s.stream.SetDeadline(time.Now().Add(imageBlobStreamTimeout(length))); err != nil {
+		return err
+	}
+	request := &p2pproto.GetImageBlobRequest{
+		Digest:    digest,
+		ChunkSize: imageBlobStreamChunkBytes,
+		Offset:    offset,
+		Length:    length,
+	}
+	if err := writeImageBlobFrame(s.writer, request); err != nil {
+		return err
+	}
+	if err := s.writer.Flush(); err != nil {
+		return err
+	}
+	progressWriter := imageBlobProgressWriter{writer: writer, onBytes: onBytes}
+	return receiveImageBlobDataRange(progressWriter, digest, offset, length, func() (uint64, []byte, bool, error) {
+		return readImageBlobDataFrame(s.reader)
+	})
+}
+
+// close cleanly half-closes the stream so the server's serve loop observes EOF
+// at a frame boundary and shuts down its side.
+func (s *limitedBlobStream) close() {
+	if s == nil || s.stream == nil {
+		return
+	}
+	_ = s.stream.Close()
+	s.stream = nil
+}
+
+// reset aborts the stream after a failure so neither side keeps using it.
+func (s *limitedBlobStream) reset() {
+	if s == nil || s.stream == nil {
+		return
+	}
+	_ = s.stream.Reset()
+	s.stream = nil
 }
 
 func (p2p *P2P) ensureImagePeerConnected(ctx context.Context, peerIDString string) error {
@@ -943,10 +1048,26 @@ func (p2p *P2P) serveImageBlobStream(stream network.Stream) error {
 		return fmt.Errorf("image manager is not configured")
 	}
 	reader := bufio.NewReaderSize(stream, 64*1024)
-	var req p2pproto.GetImageBlobRequest
-	if err := readImageBlobFrame(reader, imageBlobRequestFrameMaxBytes, &req); err != nil {
-		return err
+	writer := bufio.NewWriterSize(stream, 256*1024)
+	// Serve range requests in a loop so a single stream can carry many sequential
+	// slices. Reusing the stream amortizes the (relay) connection setup that
+	// otherwise dominates limited-peer transfer cost. A clean EOF at a frame
+	// boundary means the client finished sending range requests.
+	for {
+		var req p2pproto.GetImageBlobRequest
+		if err := readImageBlobFrame(reader, imageBlobRequestFrameMaxBytes, &req); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if err := p2p.serveImageBlobRangeRequest(stream.Conn(), writer, &req); err != nil {
+			return err
+		}
 	}
+}
+
+func (p2p *P2P) serveImageBlobRangeRequest(conn network.Conn, writer *bufio.Writer, req *p2pproto.GetImageBlobRequest) error {
 	digest := strings.TrimSpace(req.GetDigest())
 	if digest == "" {
 		return fmt.Errorf("image blob digest is empty")
@@ -964,19 +1085,21 @@ func (p2p *P2P) serveImageBlobStream(stream network.Stream) error {
 	startOffset := offset
 	startedAt := time.Now()
 
-	writer := bufio.NewWriterSize(stream, 256*1024)
 	servedBytes, err := p2p.sendImageBlobRange(context.Background(), digest, offset, remaining, chunkSize, func(resp *p2pproto.GetImageBlobResponse) error {
-		if err := writeImageBlobDataFrame(writer, resp.GetOffset(), resp.GetData(), resp.GetEof()); err != nil {
-			return err
-		}
-		return writer.Flush()
+		return writeImageBlobDataFrame(writer, resp.GetOffset(), resp.GetData(), resp.GetEof())
 	})
 	if err != nil {
 		return err
 	}
+	// Flush once per range request rather than once per data frame: the client
+	// waits for the whole range's eof before issuing the next request, so a
+	// single flush at the range boundary is sufficient and avoids a relay packet
+	// boundary per frame.
+	if err := writer.Flush(); err != nil {
+		return err
+	}
 	duration := time.Since(startedAt)
-	if duration >= 5*time.Second || requestedLength >= imageBlobParallelThresholdBytes {
-		conn := stream.Conn()
+	if conn != nil && (duration >= 5*time.Second || requestedLength >= imageBlobParallelThresholdBytes) {
 		log.Infof("served image blob %s to peer %s: offset=%d length=%d bytes=%d duration=%s throughput=%dB/s local=%s remote=%s limited=%t", digest, conn.RemotePeer().String(), startOffset, requestedLength, servedBytes, duration.Round(time.Millisecond), bytesPerSecond(servedBytes, duration), conn.LocalMultiaddr().String(), conn.RemoteMultiaddr().String(), conn.Stat().Limited)
 	}
 	return nil

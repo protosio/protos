@@ -192,6 +192,56 @@ func TestReconcileDoesNotConsumeDesiredStateWrittenDuringTask(t *testing.T) {
 	}
 }
 
+// TestReconcileNotifyDuringRunningTaskStillQueuesFollowup reproduces the
+// residual dedupe race: a desired-state change that both writes and *notifies*
+// while a reconcile task is already running. The mid-flight Notify is
+// deduplicated against the in-flight task and must NOT advance the reconcile
+// signature, otherwise the follow-up that observes the new desired state is
+// silently dropped and the app hangs in "stopped (running)".
+func TestReconcileNotifyDuringRunningTaskStillQueuesFollowup(t *testing.T) {
+	store := newTestAppDB(t)
+	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")
+	runtime := &fakeRuntimePlatform{imageExists: true}
+	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
+
+	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	notifiedDuringReconcile := false
+	runtime.getAllSandboxesHook = func() {
+		if notifiedDuringReconcile {
+			return
+		}
+		notifiedDuringReconcile = true
+		if err := manager.Start(context.Background(), created.Name); err != nil {
+			t.Fatalf("start app during reconcile: %v", err)
+		}
+		// This notification is deduplicated against the running reconcile task.
+		manager.Notify()
+	}
+
+	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.newSandboxCalls != 0 {
+		t.Fatalf("newSandboxCalls after stopped reconcile = %d, want 0", runtime.newSandboxCalls)
+	}
+
+	// A single Notify here stands in for the periodic safety-net notifier tick
+	// after the in-flight reconcile completes; it must queue a fresh reconcile
+	// that observes the running desired state.
+	manager.Notify()
+	if err := manager.tasks.RunPending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.newSandboxCalls != 1 {
+		t.Fatalf("newSandboxCalls after follow-up reconcile = %d, want 1", runtime.newSandboxCalls)
+	}
+}
+
 func TestStartResolvesMissingImageFromPeersBeforePull(t *testing.T) {
 	store := newTestAppDB(t)
 	localInstanceID, localPeerID := insertTestMachine(t, store, "local-instance")

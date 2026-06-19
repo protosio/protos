@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
 	"strings"
 	"testing"
 
@@ -80,6 +81,66 @@ func TestSendImageBlobRangeOpensReaderOnce(t *testing.T) {
 	}
 	if !responses[2].GetEof() {
 		t.Fatal("last response did not set eof")
+	}
+}
+
+// TestServeImageBlobStreamServesSequentialRangesOverReusedStream verifies the
+// data-plane stream-reuse path: a single connection carries multiple sequential
+// range requests (as the limited-peer transfer now does), the server serves
+// each eof-terminated range in a loop, and the client reassembles the full blob.
+func TestServeImageBlobStreamServesSequentialRangesOverReusedStream(t *testing.T) {
+	blob := []byte("abcdefghijklmnopqrstuvwxyz0123456789")
+	manager := &fakeImageManager{blob: blob}
+	p := &P2P{imageManager: manager}
+	digest := "sha256:test"
+
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		reader := bufio.NewReaderSize(server, 64*1024)
+		writer := bufio.NewWriterSize(server, 64*1024)
+		for {
+			var req p2pproto.GetImageBlobRequest
+			if err := readImageBlobFrame(reader, imageBlobRequestFrameMaxBytes, &req); err != nil {
+				return
+			}
+			if err := p.serveImageBlobRangeRequest(nil, writer, &req); err != nil {
+				return
+			}
+		}
+	}()
+
+	cw := bufio.NewWriterSize(client, 64*1024)
+	cr := bufio.NewReaderSize(client, 64*1024)
+	var got []byte
+	for _, rng := range [][2]uint64{{0, 10}, {10, 10}, {20, uint64(len(blob)) - 20}} {
+		req := &p2pproto.GetImageBlobRequest{Digest: digest, ChunkSize: imageBlobStreamChunkBytes, Offset: rng[0], Length: rng[1]}
+		if err := writeImageBlobFrame(cw, req); err != nil {
+			t.Fatalf("write request offset=%d: %v", rng[0], err)
+		}
+		if err := cw.Flush(); err != nil {
+			t.Fatalf("flush request offset=%d: %v", rng[0], err)
+		}
+		var buf bytes.Buffer
+		if err := receiveImageBlobDataRange(&buf, digest, rng[0], rng[1], func() (uint64, []byte, bool, error) {
+			return readImageBlobDataFrame(cr)
+		}); err != nil {
+			t.Fatalf("receive range offset=%d length=%d: %v", rng[0], rng[1], err)
+		}
+		got = append(got, buf.Bytes()...)
+	}
+	client.Close()
+	<-serverDone
+
+	if !bytes.Equal(got, blob) {
+		t.Fatalf("reassembled %q, want %q", got, blob)
+	}
+	if manager.opens != 3 {
+		t.Fatalf("reader opens = %d, want 3 (one per range request)", manager.opens)
 	}
 }
 
