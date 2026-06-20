@@ -108,6 +108,26 @@ func (s *Server) Status(ctx context.Context, req *hostagentpb.StatusRequest) (*h
 	return resp, nil
 }
 
+func (s *Server) VMLogs(ctx context.Context, req *hostagentpb.VMLogsRequest) (*hostagentpb.VMLogsResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, fmt.Errorf("host agent is shutting down")
+	}
+	if req == nil || req.GetVm() == nil {
+		return nil, fmt.Errorf("vm reference is required")
+	}
+	manifestPath, _, err := resolveVMManifest(req.GetVm())
+	if err != nil {
+		return nil, err
+	}
+	logs, err := readVMConsoleLog(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	return &hostagentpb.VMLogsResponse{Logs: logs}, nil
+}
+
 func (s *Server) SetShutdownFunc(shutdown func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -431,6 +451,18 @@ func (s *Server) listVMs(rootDir string) []*hostagentpb.VMObservedState {
 		states = append(states, s.observedVMStatus(manifestPath, manifest))
 	}
 	return states
+}
+
+func readVMConsoleLog(manifestPath string) (string, error) {
+	manifestPath = strings.TrimSpace(manifestPath)
+	if manifestPath == "" {
+		return "", fmt.Errorf("VM manifest path is empty")
+	}
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(manifestPath), consoleLogFile))
+	if err != nil {
+		return "", fmt.Errorf("read VM console log: %w", err)
+	}
+	return string(data), nil
 }
 
 func (s *Server) applyNetwork(desired *hostagentpb.NetworkDesiredState) *hostagentpb.NetworkObservedState {

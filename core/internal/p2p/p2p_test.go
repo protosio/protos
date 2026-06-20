@@ -518,7 +518,7 @@ func (f testExternalDB) CatchUpCheckpoint(context.Context, string) error {
 func (f testExternalDB) CatchUpCheckpointStrict(context.Context, string) error {
 	return nil
 }
-func (f testExternalDB) InitFromPeer(string, []string) error { return nil }
+func (f testExternalDB) InitFromPeerContext(context.Context, string, []string) error { return nil }
 func (f testExternalDB) EnableGRPCServers(*grpc.Server) error {
 	return nil
 }

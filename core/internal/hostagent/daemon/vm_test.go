@@ -1,11 +1,14 @@
 package daemon
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
+
+	hostagentpb "github.com/protosio/protos/internal/hostagent/proto"
 )
 
 func TestCloseStopsActiveVMs(t *testing.T) {
@@ -72,5 +75,31 @@ func TestListVMsSkipsInstanceDirectoriesWithoutManifest(t *testing.T) {
 	states := server.listVMs(rootDir)
 	if len(states) != 0 {
 		t.Fatalf("expected no VM states, got %d: %#v", len(states), states)
+	}
+}
+
+func TestVMLogsReadsConsoleLog(t *testing.T) {
+	rootDir := t.TempDir()
+	manifestPath := hostAgentVMManifestPath(rootDir, "test-vm")
+	if err := writeManifest(manifestPath, vmManifest{
+		ID:     "test-vm",
+		Name:   "Test VM",
+		Status: stateStopped,
+	}); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(manifestPath), consoleLogFile), []byte("protosd log line\n"), 0644); err != nil {
+		t.Fatalf("write console log: %v", err)
+	}
+
+	server := NewServer()
+	resp, err := server.VMLogs(context.Background(), &hostagentpb.VMLogsRequest{
+		Vm: &hostagentpb.VMRef{Id: "test-vm", RootDir: rootDir},
+	})
+	if err != nil {
+		t.Fatalf("VMLogs: %v", err)
+	}
+	if resp.GetLogs() != "protosd log line\n" {
+		t.Fatalf("logs = %q", resp.GetLogs())
 	}
 }

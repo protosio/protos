@@ -3,21 +3,30 @@
 package localvm
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/protosio/protos/internal/util"
 	"github.com/tmc/apple/foundation"
 	"github.com/tmc/apple/objectivec"
 	vz "github.com/tmc/apple/virtualization"
 	"github.com/tmc/apple/vmnet"
+	"golang.org/x/sys/unix"
 )
 
 var vmnetLog = util.GetLogger("localvm")
 
 const vmnetFrameBufferSize = 2048
+
+const (
+	vmnetPumpDrainQueueDepth = 1
+	vmnetPumpWriteTimeout    = 100 * time.Millisecond
+	vmnetPumpLogInterval     = 30 * time.Second
+)
 
 // configureSharedVMNetNetwork attaches the VM to a private, isolation-off shared
 // vmnet network via a socketpair + VZFileHandleNetworkDeviceAttachment, and
@@ -101,22 +110,56 @@ func configureSharedVMNetNetwork(config vz.VZVirtualMachineConfiguration) (func(
 // vmnet is a blocking read loop. Each AF_UNIX SOCK_DGRAM datagram is exactly one
 // ethernet frame, matching what VZFileHandleNetworkDeviceAttachment expects.
 type vmnetPump struct {
-	net      *sharedVMNet
-	fd       int
-	readMu   sync.Mutex
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	net           *sharedVMNet
+	fd            int
+	readMu        sync.Mutex
+	stopCh        chan struct{}
+	drainCh       chan struct{}
+	stopOnce      sync.Once
+	statsMu       sync.Mutex
+	vmnetToVM     uint64
+	vmToVMNet     uint64
+	droppedToVM   uint64
+	coalescedWake uint64
+	writeFailures uint64
+	lastStatsLog  time.Time
 }
 
 func newVMNetPump(n *sharedVMNet, fd int) *vmnetPump {
-	return &vmnetPump{net: n, fd: fd, stopCh: make(chan struct{})}
+	return &vmnetPump{
+		net:          n,
+		fd:           fd,
+		stopCh:       make(chan struct{}),
+		drainCh:      make(chan struct{}, vmnetPumpDrainQueueDepth),
+		lastStatsLog: time.Now(),
+	}
 }
 
 func (p *vmnetPump) start() {
 	vmnet.Vmnet_interface_set_event_callback(p.net.iface, vmnet.VMNET_INTERFACE_PACKETS_AVAILABLE, p.net.queue, func(_ vmnet.Interface_event_t, _ objectivec.Object) {
-		p.drainToVM()
+		p.queueDrain()
 	})
+	go p.drainLoop()
 	go p.pumpToVMNet()
+}
+
+func (p *vmnetPump) queueDrain() {
+	select {
+	case p.drainCh <- struct{}{}:
+	default:
+		p.recordPumpStat(func() { p.coalescedWake++ })
+	}
+}
+
+func (p *vmnetPump) drainLoop() {
+	for {
+		select {
+		case <-p.stopCh:
+			return
+		case <-p.drainCh:
+			p.drainToVM()
+		}
+	}
 }
 
 // drainToVM reads all currently-available vmnet packets and writes each as one
@@ -136,9 +179,14 @@ func (p *vmnetPump) drainToVM() {
 		if !ok || n <= 0 {
 			return
 		}
-		if _, err := syscall.Write(p.fd, buf[:n]); err != nil {
-			return
+		if err := p.writeFrameToVM(buf[:n]); err != nil {
+			p.recordPumpStat(func() {
+				p.droppedToVM++
+				p.writeFailures++
+			})
+			continue
 		}
+		p.recordPumpStat(func() { p.vmnetToVM++ })
 	}
 }
 
@@ -160,10 +208,75 @@ func (p *vmnetPump) pumpToVMNet() {
 		if n <= 0 {
 			continue
 		}
-		p.net.writePacket(buf[:n])
+		if p.net.writePacket(buf[:n]) {
+			p.recordPumpStat(func() { p.vmToVMNet++ })
+		}
 	}
 }
 
 func (p *vmnetPump) stop() {
-	p.stopOnce.Do(func() { close(p.stopCh) })
+	p.stopOnce.Do(func() {
+		close(p.stopCh)
+		p.logStats(true)
+	})
+}
+
+func (p *vmnetPump) writeFrameToVM(frame []byte) error {
+	for {
+		select {
+		case <-p.stopCh:
+			return syscall.EPIPE
+		default:
+		}
+		var writeFDs unix.FdSet
+		fdSet(p.fd, &writeFDs)
+		timeout := unix.NsecToTimeval(vmnetPumpWriteTimeout.Nanoseconds())
+		ready, err := unix.Select(p.fd+1, nil, &writeFDs, nil, &timeout)
+		if errors.Is(err, unix.EINTR) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if ready == 0 {
+			return unix.EAGAIN
+		}
+		_, err = syscall.Write(p.fd, frame)
+		return err
+	}
+}
+
+func fdSet(fd int, set *unix.FdSet) {
+	const fdSetBits = 32
+	if fd < 0 || fd/fdSetBits >= len(set.Bits) {
+		return
+	}
+	set.Bits[fd/fdSetBits] |= int32(1 << (uint(fd) % fdSetBits))
+}
+
+func (p *vmnetPump) recordPumpStat(update func()) {
+	p.statsMu.Lock()
+	update()
+	shouldLog := time.Since(p.lastStatsLog) >= vmnetPumpLogInterval
+	p.statsMu.Unlock()
+	if shouldLog {
+		p.logStats(false)
+	}
+}
+
+func (p *vmnetPump) logStats(force bool) {
+	p.statsMu.Lock()
+	defer p.statsMu.Unlock()
+	if !force && time.Since(p.lastStatsLog) < vmnetPumpLogInterval {
+		return
+	}
+	p.lastStatsLog = time.Now()
+	vmnetLog.Debugf(
+		"shared vmnet pump stats: vmnet_to_vm=%d vm_to_vmnet=%d dropped_to_vm=%d coalesced_wakeups=%d write_failures=%d",
+		p.vmnetToVM,
+		p.vmToVMNet,
+		p.droppedToVM,
+		p.coalescedWake,
+		p.writeFailures,
+	)
 }

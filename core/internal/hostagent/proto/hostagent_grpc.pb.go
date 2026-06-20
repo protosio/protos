@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	HostAgent_Apply_FullMethodName    = "/hostagent.HostAgent/Apply"
 	HostAgent_Status_FullMethodName   = "/hostagent.HostAgent/Status"
+	HostAgent_VMLogs_FullMethodName   = "/hostagent.HostAgent/VMLogs"
 	HostAgent_Shutdown_FullMethodName = "/hostagent.HostAgent/Shutdown"
 )
 
@@ -30,6 +31,7 @@ const (
 type HostAgentClient interface {
 	Apply(ctx context.Context, in *ApplyRequest, opts ...grpc.CallOption) (*ApplyResponse, error)
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
+	VMLogs(ctx context.Context, in *VMLogsRequest, opts ...grpc.CallOption) (*VMLogsResponse, error)
 	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
 }
 
@@ -61,6 +63,16 @@ func (c *hostAgentClient) Status(ctx context.Context, in *StatusRequest, opts ..
 	return out, nil
 }
 
+func (c *hostAgentClient) VMLogs(ctx context.Context, in *VMLogsRequest, opts ...grpc.CallOption) (*VMLogsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VMLogsResponse)
+	err := c.cc.Invoke(ctx, HostAgent_VMLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *hostAgentClient) Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ShutdownResponse)
@@ -77,6 +89,7 @@ func (c *hostAgentClient) Shutdown(ctx context.Context, in *ShutdownRequest, opt
 type HostAgentServer interface {
 	Apply(context.Context, *ApplyRequest) (*ApplyResponse, error)
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
+	VMLogs(context.Context, *VMLogsRequest) (*VMLogsResponse, error)
 	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
 }
 
@@ -92,6 +105,9 @@ func (UnimplementedHostAgentServer) Apply(context.Context, *ApplyRequest) (*Appl
 }
 func (UnimplementedHostAgentServer) Status(context.Context, *StatusRequest) (*StatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Status not implemented")
+}
+func (UnimplementedHostAgentServer) VMLogs(context.Context, *VMLogsRequest) (*VMLogsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VMLogs not implemented")
 }
 func (UnimplementedHostAgentServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Shutdown not implemented")
@@ -152,6 +168,24 @@ func _HostAgent_Status_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostAgent_VMLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VMLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostAgentServer).VMLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostAgent_VMLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostAgentServer).VMLogs(ctx, req.(*VMLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _HostAgent_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ShutdownRequest)
 	if err := dec(in); err != nil {
@@ -184,6 +218,10 @@ var HostAgent_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Status",
 			Handler:    _HostAgent_Status_Handler,
+		},
+		{
+			MethodName: "VMLogs",
+			Handler:    _HostAgent_VMLogs_Handler,
 		},
 		{
 			MethodName: "Shutdown",

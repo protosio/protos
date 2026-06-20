@@ -212,6 +212,90 @@ func contentBlobReady(ctx context.Context, cs content.Store, desc ocispec.Descri
 	return true, nil
 }
 
+func (cdp *containerdPlatform) verifyImageContentDigestsOnce(ctx context.Context, targetDigest string, descriptors []imageregistry.Descriptor) error {
+	targetDigest = strings.TrimSpace(targetDigest)
+	if targetDigest == "" {
+		return fmt.Errorf("image target digest is empty")
+	}
+	cdp.readinessLock.Lock()
+	if cdp.verifiedImages == nil {
+		cdp.verifiedImages = map[string]struct{}{}
+	}
+	if _, found := cdp.verifiedImages[targetDigest]; found {
+		cdp.readinessLock.Unlock()
+		return nil
+	}
+	cdp.readinessLock.Unlock()
+
+	startedAt := time.Now()
+	if err := cdp.verifyImageContentDigests(ctx, descriptors); err != nil {
+		return err
+	}
+	cdp.readinessLock.Lock()
+	cdp.verifiedImages[targetDigest] = struct{}{}
+	cdp.readinessLock.Unlock()
+	log.Infof("verified image content digests for target %s: descriptors=%d duration=%s", targetDigest, len(descriptors), time.Since(startedAt).Round(time.Millisecond))
+	return nil
+}
+
+func (cdp *containerdPlatform) verifyImageContentDigests(ctx context.Context, descriptors []imageregistry.Descriptor) error {
+	cs := cdp.client.ContentStore()
+	seen := map[string]struct{}{}
+	for _, descriptor := range descriptors {
+		desc, err := descriptorToOCI(descriptor)
+		if err != nil {
+			return err
+		}
+		key := desc.Digest.String()
+		if key == "" {
+			return fmt.Errorf("content descriptor has empty digest")
+		}
+		if _, found := seen[key]; found {
+			continue
+		}
+		seen[key] = struct{}{}
+		if err := verifyContentBlobDigest(ctx, cs, desc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyContentBlobDigest(ctx context.Context, cs content.Store, desc ocispec.Descriptor) error {
+	reader, err := cs.ReaderAt(ctx, desc)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+	if desc.Size > 0 && reader.Size() != desc.Size {
+		return fmt.Errorf("content blob %s size=%d, want %d", desc.Digest, reader.Size(), desc.Size)
+	}
+	verifier := desc.Digest.Verifier()
+	section := io.NewSectionReader(reader, 0, reader.Size())
+	buf := make([]byte, 256*1024)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		n, readErr := section.Read(buf)
+		if n > 0 {
+			if _, err := verifier.Write(buf[:n]); err != nil {
+				return err
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
+	if !verifier.Verified() {
+		return fmt.Errorf("content blob %s digest verification failed", desc.Digest)
+	}
+	return nil
+}
+
 func (cdp *containerdPlatform) EnsureImageContent(ctx context.Context, request imageregistry.ImageContentImport, progress func(int, string, any) error) error {
 	imageRef := strings.TrimSpace(request.ImageRef)
 	if imageRef == "" {

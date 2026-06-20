@@ -5,10 +5,13 @@ vars:
   GO_TEST_CACHE: '{{.GO_TEST_CACHE | default "/tmp/protos-gocache"}}'
   NATIVE_GO_TAGS: '{{.NATIVE_GO_TAGS | default "dolt_purego_zstd,gms_pure_go"}}'
   E2E_PROBE_IMAGE: '{{.E2E_PROBE_IMAGE | default "docker.io/protosio/protos-e2e-probe:latest"}}'
+  E2E_PROBE_LARGE_IMAGE: '{{.E2E_PROBE_LARGE_IMAGE | default "docker.io/protosio/protos-e2e-probe:large-local"}}'
   E2E_IMAGE_REGISTRY_IMAGE: '{{.E2E_IMAGE_REGISTRY_IMAGE | default "docker.io/library/nginx:alpine"}}'
   E2E_PROBE_IMAGE_PLATFORM: '{{.E2E_PROBE_IMAGE_PLATFORM | default "linux/amd64"}}'
   E2E_PROBE_IMAGE_PLATFORMS: '{{.E2E_PROBE_IMAGE_PLATFORMS | default "linux/amd64,linux/arm64"}}'
   E2E_PROBE_IMAGE_ARCHIVE: '{{.E2E_PROBE_IMAGE_ARCHIVE | default ".tmp/protos-e2e-probe.tar.gz"}}'
+  E2E_PROBE_LARGE_IMAGE_ARCHIVE: '{{.E2E_PROBE_LARGE_IMAGE_ARCHIVE | default ".tmp/protos-e2e-probe-large.tar.gz"}}'
+  E2E_PROBE_LARGE_PAYLOAD_MIB: '{{.E2E_PROBE_LARGE_PAYLOAD_MIB | default "128"}}'
   E2E_MIXED_CLOUD_SUMMARY: '{{.E2E_MIXED_CLOUD_SUMMARY | default ".tmp/mixed-cloud-e2e-summary.json"}}'
   E2E_HETZNER_ENV: '{{.E2E_HETZNER_ENV | default "../.env-hetzner"}}'
   E2E_SCALEWAY_ENV: '{{.E2E_SCALEWAY_ENV | default "../.env-scaleway"}}'
@@ -264,6 +267,11 @@ tasks:
     cmds:
       - docker buildx build --platform {{.E2E_PROBE_IMAGE_PLATFORM}} --load -f cmd/protos-e2e-probe/Dockerfile -t {{.E2E_PROBE_IMAGE}} .
 
+  e2e:probe-image:build:large:
+    desc: Build a large Protos E2E probe image for sustained P2P transfer validation
+    cmds:
+      - docker buildx build --platform {{.E2E_PROBE_IMAGE_PLATFORM}} --build-arg PROTOS_E2E_PROBE_PAYLOAD_MIB={{.E2E_PROBE_LARGE_PAYLOAD_MIB}} --load -f cmd/protos-e2e-probe/Dockerfile -t {{.E2E_PROBE_LARGE_IMAGE}} .
+
   e2e:probe-image:archive:
     desc: Build and save the Protos E2E app probe image as a local tar.gz archive
     deps:
@@ -274,6 +282,28 @@ tasks:
         mkdir -p "$(dirname "{{.E2E_PROBE_IMAGE_ARCHIVE}}")"
         docker save {{.E2E_PROBE_IMAGE}} | gzip -c > "{{.E2E_PROBE_IMAGE_ARCHIVE}}"
         test -s "{{.E2E_PROBE_IMAGE_ARCHIVE}}"
+
+  e2e:probe-image:archive:large:
+    desc: Build and save a large Protos E2E probe image archive for sustained P2P transfer validation
+    deps:
+      - e2e:probe-image:build:large
+    cmds:
+      - |
+        set -e
+        mkdir -p "$(dirname "{{.E2E_PROBE_LARGE_IMAGE_ARCHIVE}}")"
+        docker save {{.E2E_PROBE_LARGE_IMAGE}} | gzip -c > "{{.E2E_PROBE_LARGE_IMAGE_ARCHIVE}}"
+        test -s "{{.E2E_PROBE_LARGE_IMAGE_ARCHIVE}}"
+
+  e2e:mixed-cloud:large-transfer:
+    desc: Run mixed-cloud E2E with a larger app-image archive to validate sustained P2P transfer
+    cmds:
+      - task: e2e:probe-image:archive:large
+      - task: e2e:preflight
+        vars:
+          E2E_PROBE_IMAGE_ARCHIVE: "{{.E2E_PROBE_LARGE_IMAGE_ARCHIVE}}"
+      - task: verify:contracts
+      - task -t ../clients/macos/Taskfile.yml build
+      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go run ./integration-tests/mixed-cloud-e2e --flutter-app "{{.FLUTTER_APP}}" --hostagent-bin "{{.HOSTAGENT_BIN}}" --hetzner-env {{.E2E_HETZNER_ENV}} --scaleway-env {{.E2E_SCALEWAY_ENV}} --app-image {{.E2E_PROBE_LARGE_IMAGE}} --seed-image-archive {{.E2E_PROBE_LARGE_IMAGE_ARCHIVE}} --summary-artifact "{{.E2E_MIXED_CLOUD_SUMMARY}}" {{.CLI_ARGS}}
 
   e2e:probe-image:push:
     desc: Build and push the Protos E2E app probe container image to Docker Hub

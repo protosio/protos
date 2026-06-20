@@ -58,6 +58,213 @@ should be available for local VMs even when peer connectivity is broken, and
 guest protosd logs should be retrievable through a path independent of the
 control channel being investigated.
 
+## Current Active Backlog (updated 2026-06-19)
+
+The historical RCA sections below are intentionally preserved, including their
+original `open`/`monitor` labels. Use this section as the current source of
+truth for what remains actionable.
+
+### Completed in the current hardening pass
+
+- **Shared-vmnet pump production hardening:** the vmnet event callback now only
+  enqueues bounded drain work; packet draining runs on a worker, writes to the VM
+  socket are bounded by a short readiness wait, and the pump logs counters for
+  vmnet->VM frames, VM->vmnet frames, coalesced wakeups, drops, and write
+  failures. This removes the previous risk that a slow VM socket could block the
+  vmnet dispatch callback indefinitely.
+- **Host-agent-owned local VM diagnostics:** host-agent now exposes local VM
+  console logs through its API, and the local macOS provisioner uses that API
+  instead of reading host-agent-owned files directly. The protosd container
+  entrypoint now tries `/dev/console`, `/dev/hvc0`, and `/dev/ttyS0` before
+  falling back to container stdout, so local and cloud serial logs are more
+  likely to contain protosd output when APIC/P2P is unavailable.
+- **Image readiness hardening:** image readiness now verifies containerd content
+  digests once per image target before declaring an image ready, while caching
+  successful verification to avoid re-hashing the same immutable target on every
+  status check. The snapshot readiness probe now also attempts direct snapshot
+  cleanup if the temporary verification container cannot be created or deleted
+  cleanly.
+- **Cleanup and e2e observability:** mixed-cloud cleanup summary records now
+  include start time, completion time, and duration, and the summary printer
+  displays cleanup duration. This gives future runs concrete timing evidence for
+  provider stop, peer-removal, image removal, and provisioner removal phases.
+  Explicit successful instance deletes now record the start time from before the
+  APIC delete request, so their summary entries measure the delete assertion path
+  instead of showing zero-duration cleanup records.
+- **Large-transfer validation path:** the Taskfile now has a large probe image
+  archive path for sustained P2P transfer validation:
+  `task -t core/Taskfile.yaml e2e:mixed-cloud:large-transfer`. It builds an
+  intentionally larger app image archive and runs the normal mixed-cloud e2e
+  topology with that archive as the seeded P2P image. The archive build path was
+  validated locally with the default 128 MiB random payload and produced
+  `core/.tmp/protos-e2e-probe-large.tar.gz` at about 134 MiB compressed.
+- **Large-transfer mixed-cloud validation:** after rebuilding local, Hetzner, and
+  Scaleway images, `task -t core/Taskfile.yaml e2e:mixed-cloud:large-transfer`
+  passed with suffix `1781899842639273000`. The seeded archive upload moved
+  141,000,383 bytes in about 57.8s before import, the Scaleway puller verified
+  `protos.io/image.source=p2p`, and bidirectional Hetzner/Scaleway app
+  connectivity returned HTTP 200 both ways.
+- **Harness-side upload progress evidence:** mixed-cloud e2e now captures
+  non-durable task progress updates from the task watch stream into the summary
+  artifact under task `updates`, separate from durable task `events`. The summary
+  printer reports task duration, durable phase durations, and byte-transfer
+  throughput when updates include byte counters. This keeps progress evidence out
+  of the storage layer while preserving it for post-run reliability analysis.
+- **Summary update capture validated in cloud e2e:** run `1781901729962622000`
+  passed and `core/.tmp/mixed-cloud-e2e-summary.json` contained transient
+  progress updates for every upload task: local image upload `10` updates / `1`
+  byte update, Hetzner image upload `40` / `31`, Scaleway image upload `40` /
+  `31`, and remote archive upload `42` / `38`. The summary printer reported
+  provider byte-transfer durations and archive throughput without creating
+  durable task events for every progress tick.
+
+### Still active
+
+- **Keep trending provider upload variance.** The same Hetzner raw image upload
+  has ranged from tens of seconds to more than ten minutes in recent runs. Treat
+  this as provider/upload-path variability rather than P2P transfer until a run
+  shows otherwise.
+- **Keep trending startup/convergence noise.** One-poll states such as
+  `running (unreachable)`, temporary full-mesh misses, and snapshot-time
+  checkpoint root mismatches are not current hard failures, but they remain
+  useful reliability signals and should be recorded with run IDs when they
+  repeat.
+- **Keep trending cleanup latency.** The cleanup path is now self-retryable and
+  better instrumented, but durable peer removal, provider stop, and host-agent
+  network reconfiguration should continue to be watched through the new summary
+  duration fields.
+- **Keep validating local VM protosd diagnostic capture.** Host-agent console
+  logs are now available through the host-agent API and protosd attempts to mirror
+  stdout/stderr to serial devices, but the next unreachable-local-VM postmortem
+  should confirm whether that serial path contains enough protosd detail before
+  adding a heavier guest-log extraction mechanism.
+- **Upstream vmnet binding bug report:** intentionally not done here by request.
+  The local workaround remains in place: Protos calls the vmnet C symbols
+  directly with a correctly ordered packet descriptor instead of using the
+  incorrect `github.com/tmc/apple/vmnet.Vmpktdesc` layout.
+
+## Full E2E Run Observation (2026-06-19, large-transfer mixed cloud)
+
+Command flow:
+
+- Rebuilt local macOS, Hetzner, and Scaleway images with
+  `task -t cloud-provisioning/Taskfile.yml mactest cloud`.
+- Ran `task -t core/Taskfile.yaml e2e:mixed-cloud:large-transfer`.
+- Validated the resulting summary with `task -t core/Taskfile.yaml e2e:summary`.
+
+First attempt: **failed** with suffix `1781899052036112000`. Provider image
+uploads and local VM deployment completed, but Hetzner first boot failed while
+initializing its database from the bootstrap peer:
+`fetch checkpoint history from bootstrap state ... sync_checkpoint_history ... no
+connected providers`. RCA: remote `InitFromPeer` treated a transient Swarmion
+bootstrap-provider gap as fatal during first boot. The fix made remote init
+context-aware, retried only that specific bootstrap history failure for a bounded
+window, and quarantined the partially created repo before each retry so the next
+attempt started from a clean database directory.
+
+Second attempt after the bootstrap retry fix: **passed** with suffix
+`1781899842639273000`. Summary artifact:
+`core/.tmp/mixed-cloud-e2e-summary.json`.
+
+Timing and transfer evidence:
+
+- Local image upload: about 310ms total.
+- Hetzner provider image upload: 185.6 MB raw image, about 10m34s total in this
+  run. This was much slower than earlier runs and remains provider/upload-path
+  variance to watch.
+- Scaleway provider image upload: 508.6 MB ISO, about 2m09s total.
+- Remote seed archive upload to Hetzner: 141,000,383 bytes; transfer phase
+  `2026-06-19T20:25:24.057Z` to `2026-06-19T20:26:21.833Z`, about 57.8s, roughly
+  2.3-2.4 MiB/s before import. Import completed about 3.4s later.
+- P2P image resolution from Hetzner seed to Scaleway puller was verified with
+  `protos.io/image.source=p2p`, matching digest
+  `sha256:83808d527b70a8a6b5f3fc9fdcf7d3210f9c620ee40ee7edf11797144a5e1763`.
+- Bidirectional app connectivity between Hetzner and Scaleway returned HTTP 200
+  both ways.
+
+Recoverable transients:
+
+- Local VMs initially reported `running (unreachable)` before runtime/checkpoint
+  convergence.
+- The first local VM checkpoint wait briefly missed runtime peer status before
+  matching.
+- Remote checkpoint mismatches appeared during waits after app start and then
+  converged.
+- Scaleway app status briefly reported `stopped (running)` before `running
+  (running)`.
+- During daemon-shutdown peer-removal verification, one remote runtime query hit
+  `DeadlineExceeded`, then recovered and the peer shutdown assertion passed.
+
+Follow-up from this run:
+
+- Repeat with the new summary `updates` capture so byte-level provider upload
+  progress and archive upload progress are preserved in the JSON artifact, not
+  only in live terminal output.
+- Keep watching Hetzner provider image upload duration separately from P2P image
+  transfer; this run's slow provider upload did not prevent P2P resolution from
+  passing.
+
+## Full E2E Run Observation (2026-06-19, large-transfer summary updates)
+
+Command flow:
+
+- Ran `task -t core/Taskfile.yaml e2e:mixed-cloud:large-transfer` after the
+  harness began recording transient task progress updates in memory.
+- Validated the resulting summary with `task -t core/Taskfile.yaml e2e:summary`.
+
+Result: **passed** with suffix `1781901729962622000`. Summary artifact:
+`core/.tmp/mixed-cloud-e2e-summary.json`.
+
+Upload and transfer evidence from the summary:
+
+- Local image upload: 9.6 MiB, 278ms total.
+- Hetzner provider image upload: 177.0 MiB, 1m25s total; byte-transfer phase
+  13.568s at about 13.0 MiB/s; provider-side phase took about 1m25s including
+  setup/finalization.
+- Scaleway provider image upload: 485.0 MiB, 1m44s total; byte-transfer phase
+  20.283s at about 23.9 MiB/s.
+- Remote seed archive upload to Hetzner: 134.5 MiB, 43.449s total; byte-transfer
+  phase 38.383s at about 3.5 MiB/s; import took about 3.49s.
+- Summary `updates` captured non-durable byte progress without storage writes:
+  Hetzner provider upload `31` byte updates, Scaleway provider upload `31`, and
+  archive upload `38`.
+
+Positive signals:
+
+- All four remote runtime peers reached full mesh and matched the local
+  checkpoint root before app deployment.
+- P2P image resolution from Hetzner seed to Scaleway puller was verified again
+  with `protos.io/image.source=p2p` and the expected digest
+  `sha256:83808d527b70a8a6b5f3fc9fdcf7d3210f9c620ee40ee7edf11797144a5e1763`.
+- Bidirectional app connectivity between Hetzner and Scaleway returned HTTP 200
+  both ways.
+- Daemon-shutdown peer removal was eventually verified, and all instances,
+  provider images, and temporary provisioners were removed.
+- This run predated the explicit-instance-delete duration fix, so instance
+  cleanup entries still printed without durations; future runs should include
+  those durations in the summary.
+
+Recoverable transient signals:
+
+- Local VM 1, local VM 2, Hetzner, and Scaleway all initially reported `running
+  (unreachable)` before later runtime/checkpoint convergence.
+- Hetzner seed-app checkpoint verification and local VM 1 pull-app checkpoint
+  verification each observed an older remote checkpoint root before converging.
+- Hetzner and Scaleway apps each briefly reported `stopped (running)` before
+  reporting `running (running)`.
+- Daemon-shutdown peer-removal verification again saw a transient
+  `DeadlineExceeded` querying local VM 2's runtime state; the next checks
+  recovered and the peer-removal assertion passed.
+
+Follow-up from this run:
+
+- Provider image upload throughput looked healthy in this run, while the
+  preceding Hetzner run was much slower. Keep trending provider-upload timing as
+  variance, not as a P2P image-transfer regression.
+- The repeated `running (unreachable)`, checkpoint-mismatch, and shutdown
+  runtime-query deadline signals remain useful cleanup/startup convergence
+  indicators.
+
 ## Full E2E Run Observation (2026-06-19, networking model changes)
 
 Command flow:
@@ -535,16 +742,18 @@ suite passes.
   host-only `192.168.64.x` addresses is deferred to avoid regressing
   host-to-guest bootstrap (cloud public IPs are unaffected either way).
 
-### Deferred (with rationale)
+### Deferred / monitored after this pass
 
-- **Image-readiness hardening** (digest re-verification on the hot path;
-  `verifyImageSnapshot` probe cost/leak) and **host-agent protosd-log capture for
-  unreachable local VMs** were deferred. Both live in `//go:build linux` runtime
-  / host-agent code that cannot be run-tested in this environment, and both are
-  performance/hygiene/debuggability concerns rather than correctness bugs (the
-  readiness check is already substantially correct). Adding digest re-hashing to
-  every `ImageExistsLocally` call would also regress the hot path. These remain
-  P2 follow-ups.
+- **Image-readiness hardening** is no longer deferred: the runtime now verifies
+  image content digests once per image target before declaring readiness and
+  caches successful verification for the immutable target. Snapshot probe cleanup
+  was also tightened.
+- **Host-agent protosd-log capture for unreachable local VMs** remains a
+  monitoring item rather than a correctness blocker. Local provider diagnostics
+  now go through the host-agent API and protosd mirrors stdout/stderr to
+  `/var/log/protos.log` plus the first writable serial device. The next
+  unreachable-local-VM failure should confirm whether the serial path contains
+  enough protosd detail before adding a heavier guest-log extraction mechanism.
 
 ### Cloud e2e validation (run `1781864478190071000`)
 
@@ -773,7 +982,7 @@ without any WireGuard change. (The precise direct-vs-`Limited` connectedness and
 throughput numbers live in the guest protosd debug logs, not the harness output;
 the 0-dial-failures + successful P2P are the strong signal.)
 
-### What remains (Stage 2, optional)
+### What remained before Stage 2 (historical)
 
 Stage 1 fixes the libp2p p2p path (which dials the raw `192.168.64.x` underlay).
 VM-to-VM **app traffic over the WireGuard overlay** still uses the host hub,
@@ -781,9 +990,10 @@ because the guest WG module (`module_linux.go`) still sees `192.168.64.x` and
 takes the relay branch. Stage 2 flips it to the direct-peer branch when
 shared-vmnet is active (signalled via an appended kernel cmdline param), giving
 single-hop WireGuard-encrypted VM-to-VM app traffic and retiring the hairpin for
-local. This needs a mactest image rebuild (guest-side change).
+local. This needed a mactest image rebuild (guest-side change) and was completed
+in the Stage 2 work below.
 
-### Productionization TODO (before this is default)
+### Productionization TODO before default (historical, superseded)
 
 - Replace the `/tmp/protos-local-net-mode` test toggle with a manifest field set
   by the provisioner (the parent writes the manifest; the child reads it).
@@ -791,6 +1001,9 @@ local. This needs a mactest image rebuild (guest-side change).
   (they are expected FFI uses) or annotate them.
 - Decide default: keep NAT default + opt-in, or flip to shared-vmnet default once
   Stage 2 lands and soaks.
+
+Superseded by the later decision to make shared vmnet the only local path and by
+the current active backlog section above.
 
 ### Stage 2 implemented (validating)
 
@@ -831,7 +1044,7 @@ goes direct), and run single-hop end-to-end-encrypted WireGuard between
 themselves with no host in the crypto path. The relay/hairpin and the
 limited-relay throughput path are no longer needed for the local topology.
 
-### Remaining productionization (before making this the default)
+### Remaining productionization before default (historical, superseded)
 
 1. Replace the `/tmp/protos-local-net-mode` test toggle with a manifest field set
    by the provisioner (parent writes manifest, child reads it); drop the
@@ -845,6 +1058,10 @@ limited-relay throughput path are no longer needed for the local topology.
 5. Pump hardening for production: bound the event-callback worker (avoid blocking
    the dispatch queue on a slow VM socket), and add metrics/logging for dropped
    frames.
+
+Current status: the flag/fallback path was deleted, shared vmnet is canonical,
+the pump hardening and metrics/logging are implemented, and the upstream report
+is intentionally not being done in this pass.
 
 ### Old network code removed — shared vmnet is the only local path
 

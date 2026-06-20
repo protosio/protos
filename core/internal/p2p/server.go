@@ -44,7 +44,7 @@ type ExternalDB interface {
 	GetLastCommit(branch string) (db.Commit, error)
 	CatchUpCheckpoint(ctx context.Context, reason string) error
 	CatchUpCheckpointStrict(ctx context.Context, reason string) error
-	InitFromPeer(peerID string, bootstrapPeers []string) error
+	InitFromPeerContext(ctx context.Context, peerID string, bootstrapPeers []string) error
 	EnableGRPCServers(server *grpc.Server) error
 	Initialized() bool
 }
@@ -432,7 +432,6 @@ func (s *Server) GetImageBlob(req *proto.GetImageBlobRequest, stream proto.Image
 	_, err := s.p2p.sendImageBlobRange(ctx, digest, req.GetOffset(), req.GetLength(), chunkSize, stream.Send)
 	return err
 }
-
 
 func imageDescriptorToProto(desc imageregistry.Descriptor) *proto.ImageContentDescriptor {
 	if desc.Digest == "" {
@@ -1052,7 +1051,7 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		originSwarmionAddrs = append([]string{tunnelAddr}, originSwarmionAddrs...)
 	}
 
-	err = s.DB.InitFromPeer(im.GetID(), originSwarmionAddrs)
+	err = s.DB.InitFromPeerContext(ctx, im.GetID(), originSwarmionAddrs)
 	if err != nil {
 		err = fmt.Errorf("failed to initialize database from peer %s(%s): %w", im.GetID(), pubKey.GetID(), err)
 		log.Error(err.Error())

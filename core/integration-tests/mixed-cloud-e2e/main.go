@@ -171,33 +171,36 @@ type mixedCloudSummaryCleanup struct {
 	Location     string `json:"location,omitempty"`
 	Status       string `json:"status"`
 	Error        string `json:"error,omitempty"`
+	StartedAt    string `json:"started_at"`
 	CompletedAt  string `json:"completed_at"`
+	DurationMs   int64  `json:"duration_ms"`
 }
 
 type mixedCloudSummaryTask struct {
-	ID               string                       `json:"id"`
-	Stream           string                       `json:"stream"`
-	SubjectType      string                       `json:"subject_type"`
-	SubjectID        string                       `json:"subject_id"`
-	Status           string                       `json:"status"`
-	Title            string                       `json:"title,omitempty"`
-	Message          string                       `json:"message,omitempty"`
-	ErrorMessage     string                       `json:"error_message,omitempty"`
-	Progress         int32                        `json:"progress"`
-	Provider         string                       `json:"provider,omitempty"`
-	Location         string                       `json:"location,omitempty"`
-	ImageName        string                       `json:"image_name,omitempty"`
-	ImageID          string                       `json:"image_id,omitempty"`
-	Instance         string                       `json:"instance,omitempty"`
-	ImageRef         string                       `json:"image_ref,omitempty"`
-	TargetDigest     string                       `json:"target_digest,omitempty"`
-	Platform         string                       `json:"platform,omitempty"`
-	BytesUploaded    uint64                       `json:"bytes_uploaded,omitempty"`
-	ArchiveSizeBytes uint64                       `json:"archive_size_bytes,omitempty"`
-	CreatedAt        string                       `json:"created_at,omitempty"`
-	StartedAt        string                       `json:"started_at,omitempty"`
-	FinishedAt       string                       `json:"finished_at,omitempty"`
-	Events           []mixedCloudSummaryTaskEvent `json:"events,omitempty"`
+	ID               string                        `json:"id"`
+	Stream           string                        `json:"stream"`
+	SubjectType      string                        `json:"subject_type"`
+	SubjectID        string                        `json:"subject_id"`
+	Status           string                        `json:"status"`
+	Title            string                        `json:"title,omitempty"`
+	Message          string                        `json:"message,omitempty"`
+	ErrorMessage     string                        `json:"error_message,omitempty"`
+	Progress         int32                         `json:"progress"`
+	Provider         string                        `json:"provider,omitempty"`
+	Location         string                        `json:"location,omitempty"`
+	ImageName        string                        `json:"image_name,omitempty"`
+	ImageID          string                        `json:"image_id,omitempty"`
+	Instance         string                        `json:"instance,omitempty"`
+	ImageRef         string                        `json:"image_ref,omitempty"`
+	TargetDigest     string                        `json:"target_digest,omitempty"`
+	Platform         string                        `json:"platform,omitempty"`
+	BytesUploaded    uint64                        `json:"bytes_uploaded,omitempty"`
+	ArchiveSizeBytes uint64                        `json:"archive_size_bytes,omitempty"`
+	CreatedAt        string                        `json:"created_at,omitempty"`
+	StartedAt        string                        `json:"started_at,omitempty"`
+	FinishedAt       string                        `json:"finished_at,omitempty"`
+	Events           []mixedCloudSummaryTaskEvent  `json:"events,omitempty"`
+	Updates          []mixedCloudSummaryTaskUpdate `json:"updates,omitempty"`
 }
 
 type mixedCloudSummaryTaskEvent struct {
@@ -207,6 +210,15 @@ type mixedCloudSummaryTaskEvent struct {
 	Progress    int32  `json:"progress"`
 	DetailsJSON string `json:"details_json,omitempty"`
 	CreatedAt   string `json:"created_at,omitempty"`
+}
+
+type mixedCloudSummaryTaskUpdate struct {
+	Status      string `json:"status"`
+	Message     string `json:"message,omitempty"`
+	Progress    int32  `json:"progress"`
+	DetailsJSON string `json:"details_json,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	Durable     bool   `json:"durable"`
 }
 
 type mixedCloudRuntimeSnapshot struct {
@@ -342,7 +354,7 @@ func (summary *mixedCloudRunSummary) addTask(provider string, location string, i
 		Location:  location,
 		ImageName: imageName,
 		ImageID:   imageID,
-	}, result.Task, result.Events)
+	}, result.Task, result.Events, result.ProgressUpdates)
 }
 
 func (summary *mixedCloudRunSummary) addImageArchiveTask(result e2eapic.UploadInstanceImageArchiveResult) {
@@ -353,10 +365,10 @@ func (summary *mixedCloudRunSummary) addImageArchiveTask(result e2eapic.UploadIn
 		Platform:         result.Platform,
 		BytesUploaded:    result.BytesUploaded,
 		ArchiveSizeBytes: result.ArchiveSizeBytes,
-	}, result.Task, result.Events)
+	}, result.Task, result.Events, result.ProgressUpdates)
 }
 
-func (summary *mixedCloudRunSummary) addTaskRecord(meta mixedCloudSummaryTask, task *pbApic.Task, events []*pbApic.TaskEvent) {
+func (summary *mixedCloudRunSummary) addTaskRecord(meta mixedCloudSummaryTask, task *pbApic.Task, events []*pbApic.TaskEvent, updates []*pbApic.TaskProgressUpdate) {
 	if summary == nil || task == nil {
 		return
 	}
@@ -397,6 +409,19 @@ func (summary *mixedCloudRunSummary) addTaskRecord(meta mixedCloudSummaryTask, t
 			CreatedAt:   event.GetCreatedAt(),
 		})
 	}
+	for _, update := range updates {
+		if update == nil {
+			continue
+		}
+		item.Updates = append(item.Updates, mixedCloudSummaryTaskUpdate{
+			Status:      update.GetStatus(),
+			Message:     update.GetMessage(),
+			Progress:    update.GetProgress(),
+			DetailsJSON: update.GetDetailsJson(),
+			CreatedAt:   update.GetCreatedAt(),
+			Durable:     update.GetDurable(),
+		})
+	}
 	summary.Tasks = append(summary.Tasks, item)
 }
 
@@ -429,9 +454,13 @@ func (summary *mixedCloudRunSummary) setInstanceStatus(name string, status strin
 	}
 }
 
-func (summary *mixedCloudRunSummary) recordCleanup(resourceType string, name string, id string, provider string, location string, err error) {
+func (summary *mixedCloudRunSummary) recordCleanup(resourceType string, name string, id string, provider string, location string, startedAt time.Time, err error) {
 	if summary == nil {
 		return
+	}
+	completedAt := time.Now().UTC()
+	if startedAt.IsZero() {
+		startedAt = completedAt
 	}
 	item := mixedCloudSummaryCleanup{
 		ResourceType: resourceType,
@@ -440,7 +469,9 @@ func (summary *mixedCloudRunSummary) recordCleanup(resourceType string, name str
 		Provider:     provider,
 		Location:     location,
 		Status:       "removed",
-		CompletedAt:  time.Now().UTC().Format(time.RFC3339Nano),
+		StartedAt:    startedAt.UTC().Format(time.RFC3339Nano),
+		CompletedAt:  completedAt.Format(time.RFC3339Nano),
+		DurationMs:   completedAt.Sub(startedAt).Milliseconds(),
 	}
 	if err != nil {
 		item.Status = "failed"
@@ -681,23 +712,26 @@ func run(cfg harnessConfig) (runErr error) {
 		defer cleanupCancel()
 		for i := len(cleanupInstances) - 1; i >= 0; i-- {
 			cleanupName := cleanupInstances[i]
+			startedAt := time.Now()
 			_, err := client.RemoveInstance(cleanupCtx, &pbApic.RemoveInstanceRequest{Name: cleanupName})
-			summary.recordCleanup("instance", cleanupName, "", "", "", err)
+			summary.recordCleanup("instance", cleanupName, "", "", "", startedAt, err)
 		}
 		for _, image := range cleanupImages {
+			startedAt := time.Now()
 			_, err := client.RemoveProvisionerImage(cleanupCtx, &pbApic.RemoveProvisionerImageRequest{
 				ImageName:       image.name,
 				ProvisionerName: image.provider,
 				Location:        image.location,
 			})
-			summary.recordCleanup("image", image.name, image.id, image.provider, image.location, err)
+			summary.recordCleanup("image", image.name, image.id, image.provider, image.location, startedAt, err)
 			if err == nil {
 				summary.setImageStatus(image.provider, image.name, image.location, "removed")
 			}
 		}
 		for _, providerName := range cleanupProviders {
+			startedAt := time.Now()
 			_, err := client.RemoveProvisioner(cleanupCtx, &pbApic.RemoveProvisionerRequest{Name: providerName})
-			summary.recordCleanup("provisioner", providerName, "", providerName, "", err)
+			summary.recordCleanup("provisioner", providerName, "", providerName, "", startedAt, err)
 			if err == nil {
 				summary.setProviderStatus(providerName, "removed")
 			}
@@ -805,12 +839,12 @@ func run(cfg harnessConfig) (runErr error) {
 		fmt.Printf("deployed instance: name=%s id=%s provider=%s ip=%s arch=%s status=%s\n", instance.GetName(), instance.GetVmId(), provider, instance.GetPublicIp(), instance.GetArchitecture(), instance.GetStatus())
 		return instance, nil
 	}
-	recordInstanceDeleted := func(instance *pbApic.CloudInstance) {
+	recordInstanceDeleted := func(instance *pbApic.CloudInstance, startedAt time.Time) {
 		if instance == nil {
 			return
 		}
 		summary.setInstanceStatus(instance.GetName(), "deleted")
-		summary.recordCleanup("instance", instance.GetName(), instance.GetVmId(), instance.GetCloudName(), instance.GetLocation(), nil)
+		summary.recordCleanup("instance", instance.GetName(), instance.GetVmId(), instance.GetCloudName(), instance.GetLocation(), startedAt, nil)
 	}
 
 	localVM1, err := deploy("local-vm-1-"+suffix, localProviderName, "local", cfg.localMachine)
@@ -927,10 +961,11 @@ func run(cfg harnessConfig) (runErr error) {
 	}
 	summary.setInstanceStatus(localVM1.GetName(), "stopped-peer-removed")
 
-	if err := deleteInstanceAndVerify(deadline, client, localVM1, removeCleanupInstance); err != nil {
+	startedAt, err := deleteInstanceAndVerify(deadline, client, localVM1, removeCleanupInstance)
+	if err != nil {
 		return err
 	}
-	recordInstanceDeleted(localVM1)
+	recordInstanceDeleted(localVM1, startedAt)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "cloud-priority metadata remains after first local VM deletion",
 		Priorities: map[string]int{
@@ -943,10 +978,11 @@ func run(cfg harnessConfig) (runErr error) {
 		return err
 	}
 
-	if err := deleteInstanceAndVerify(deadline, client, localVM2, removeCleanupInstance); err != nil {
+	startedAt, err = deleteInstanceAndVerify(deadline, client, localVM2, removeCleanupInstance)
+	if err != nil {
 		return err
 	}
-	recordInstanceDeleted(localVM2)
+	recordInstanceDeleted(localVM2, startedAt)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "cloud-priority metadata remains after second local VM deletion",
 		Priorities: map[string]int{
@@ -958,10 +994,11 @@ func run(cfg harnessConfig) (runErr error) {
 		return err
 	}
 
-	if err := deleteInstanceAndVerify(deadline, client, hetznerVM, removeCleanupInstance); err != nil {
+	startedAt, err = deleteInstanceAndVerify(deadline, client, hetznerVM, removeCleanupInstance)
+	if err != nil {
 		return err
 	}
-	recordInstanceDeleted(hetznerVM)
+	recordInstanceDeleted(hetznerVM, startedAt)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "single remaining cloud VM keeps cloud priority metadata after Hetzner deletion",
 		Priorities: map[string]int{
@@ -972,10 +1009,11 @@ func run(cfg harnessConfig) (runErr error) {
 		return err
 	}
 
-	if err := deleteInstanceAndVerify(deadline, client, scalewayVM, removeCleanupInstance); err != nil {
+	startedAt, err = deleteInstanceAndVerify(deadline, client, scalewayVM, removeCleanupInstance)
+	if err != nil {
 		return err
 	}
-	recordInstanceDeleted(scalewayVM)
+	recordInstanceDeleted(scalewayVM, startedAt)
 	if err := e2eapic.WaitForReplicationState(deadline, client, e2eapic.ReplicationExpectation{
 		Label: "local client remains after all VM deletion",
 		Priorities: map[string]int{
@@ -1124,32 +1162,33 @@ func verifyCloudAppConnectivity(deadline time.Time, hetznerVM *pbApic.CloudInsta
 	return nil
 }
 
-func deleteInstanceAndVerify(deadline time.Time, client pbApic.ProtosClientApiClient, instance *pbApic.CloudInstance, removeCleanup func(string)) error {
+func deleteInstanceAndVerify(deadline time.Time, client pbApic.ProtosClientApiClient, instance *pbApic.CloudInstance, removeCleanup func(string)) (time.Time, error) {
 	fmt.Printf("deleting instance: name=%s id=%s provider=%s\n", instance.GetName(), instance.GetVmId(), instance.GetCloudName())
+	startedAt := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	_, err := client.RemoveInstance(ctx, &pbApic.RemoveInstanceRequest{Name: instance.GetName()})
 	cancel()
 	if err != nil {
-		return fmt.Errorf("delete instance %s: %w", instance.GetName(), err)
+		return startedAt, fmt.Errorf("delete instance %s: %w", instance.GetName(), err)
 	}
 	if removeCleanup != nil {
 		removeCleanup(instance.GetName())
 	}
 	if err := e2eapic.WaitForInstanceAbsent(deadline, client, instance); err != nil {
-		return err
+		return startedAt, err
 	}
 	if err := e2eapic.WaitForNoAppsForInstance(deadline, client, instance.GetName(), instance.GetVmId()); err != nil {
-		return err
+		return startedAt, err
 	}
 	peerID, err := e2eapic.PeerIDForInstance(instance)
 	if err != nil {
-		return err
+		return startedAt, err
 	}
 	if err := e2eapic.WaitForPeerRemoved(deadline, client, peerID); err != nil {
-		return err
+		return startedAt, err
 	}
 	fmt.Printf("delete assertion ok: name=%s id=%s\n", instance.GetName(), instance.GetVmId())
-	return nil
+	return startedAt, nil
 }
 
 func uploadImagePath(imagePath string, defaultFile string) (string, error) {

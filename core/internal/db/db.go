@@ -48,6 +48,9 @@ const (
 	committedWriteMaxAttempts       = 20
 	committedWriteCheckpointTimeout = 45 * time.Second
 	checkpointCatchUpMaxAttempts    = 4
+	initFromPeerRetryBudget         = 45 * time.Second
+	initFromPeerRetryInitialBackoff = time.Second
+	initFromPeerRetryMaxBackoff     = 5 * time.Second
 )
 
 var (
@@ -633,13 +636,87 @@ func (db *DB) Initialized() bool {
 }
 
 func (db *DB) InitFromPeer(peerID string, bootstrapPeers []string) error {
+	return db.InitFromPeerContext(context.Background(), peerID, bootstrapPeers)
+}
+
+func (db *DB) InitFromPeerContext(ctx context.Context, peerID string, bootstrapPeers []string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if len(bootstrapPeers) == 0 {
 		return fmt.Errorf("cannot initialize swarmion db from peer %s without bootstrap addresses", peerID)
 	}
-	if err := db.openSwarmion(context.Background(), bootstrapPeers); err != nil {
-		return fmt.Errorf("failed to initialize swarmion db from peer %s: %w", peerID, err)
+	attemptCtx, cancel := context.WithTimeout(ctx, initFromPeerRetryBudget)
+	defer cancel()
+
+	var lastErr error
+	backoff := initFromPeerRetryInitialBackoff
+	for attempt := 1; ; attempt++ {
+		if err := quarantineIncompleteDatabase(db.workingDir, db.name); err != nil {
+			return err
+		}
+		err := db.openSwarmion(attemptCtx, bootstrapPeers)
+		if err == nil {
+			db.triggerAllTableChangeCallbacks()
+			if attempt > 1 {
+				notifyLog.Infof("initialized swarmion db from peer %s after %d attempts", peerID, attempt)
+			}
+			return nil
+		}
+		lastErr = err
+		if !retryableSwarmionBootstrapError(err) {
+			return fmt.Errorf("failed to initialize swarmion db from peer %s: %w", peerID, err)
+		}
+		if attemptCtx.Err() != nil {
+			return fmt.Errorf("failed to initialize swarmion db from peer %s after %d attempts: %w", peerID, attempt, lastErr)
+		}
+		notifyLog.Warnf("retryable swarmion bootstrap failure from peer %s on attempt %d: %s", peerID, attempt, err.Error())
+		if err := db.quarantineBootstrapRetryDatabaseDir(); err != nil {
+			return fmt.Errorf("reset retryable swarmion bootstrap attempt from peer %s: %w", peerID, err)
+		}
+		select {
+		case <-attemptCtx.Done():
+			return fmt.Errorf("failed to initialize swarmion db from peer %s after %d attempts: %w", peerID, attempt, lastErr)
+		case <-time.After(backoff):
+		}
+		if backoff < initFromPeerRetryMaxBackoff {
+			backoff *= 2
+			if backoff > initFromPeerRetryMaxBackoff {
+				backoff = initFromPeerRetryMaxBackoff
+			}
+		}
 	}
-	db.triggerAllTableChangeCallbacks()
+}
+
+func retryableSwarmionBootstrapError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "fetch checkpoint history from bootstrap state") &&
+		strings.Contains(message, "sync_checkpoint_history") &&
+		strings.Contains(message, "no connected providers")
+}
+
+func (db *DB) quarantineBootstrapRetryDatabaseDir() error {
+	if db == nil || db.Initialized() {
+		return nil
+	}
+	dbDir := filepath.Join(db.workingDir, db.name)
+	if _, err := os.Stat(dbDir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("inspect bootstrap database directory %q: %w", dbDir, err)
+	}
+	quarantineDir := filepath.Join(
+		db.workingDir,
+		fmt.Sprintf("%s.bootstrap-retry.%d", db.name, time.Now().UnixNano()),
+	)
+	if err := os.Rename(dbDir, quarantineDir); err != nil {
+		return fmt.Errorf("quarantine retryable bootstrap database %q: %w", dbDir, err)
+	}
+	notifyLog.Warnf("quarantined retryable bootstrap database %q to %q", dbDir, quarantineDir)
 	return nil
 }
 

@@ -29,6 +29,14 @@ package hostagentv1
 	message?: string
 }
 
+#VMLogsRequest: {
+	vm?: #VMRef
+}
+
+#VMLogsResponse: {
+	logs?: string
+}
+
 #HostDesiredState: {
 	vms?: [...#VMDesiredState]
 	network?: #NetworkDesiredState
@@ -247,6 +255,7 @@ contract: {
 			rpcs: [
 				{name: "Apply", request: "ApplyRequest", response: "ApplyResponse"},
 				{name: "Status", request: "StatusRequest", response: "StatusResponse"},
+				{name: "VMLogs", request: "VMLogsRequest", response: "VMLogsResponse"},
 				{name: "Shutdown", request: "ShutdownRequest", response: "ShutdownResponse"},
 			]
 		}]
@@ -273,6 +282,12 @@ contract: {
 			{kind: "message", name: "ShutdownRequest", fields: []},
 			{kind: "message", name: "ShutdownResponse", fields: [
 				{type: "string", name: "message", number: 1},
+			]},
+			{kind: "message", name: "VMLogsRequest", fields: [
+				{type: "VMRef", name: "vm", number: 1},
+			]},
+			{kind: "message", name: "VMLogsResponse", fields: [
+				{type: "string", name: "logs", number: 1},
 			]},
 			{kind: "message", name: "HostDesiredState", fields: [
 				{rule: "repeated", type: "VMDesiredState", name: "vms", number: 1},
@@ -462,6 +477,8 @@ lineage: {
 			ApplyResponse?:        #ApplyResponse
 			StatusRequest?:        #StatusRequest
 			StatusResponse?:       #StatusResponse
+			VMLogsRequest?:        #VMLogsRequest
+			VMLogsResponse?:       #VMLogsResponse
 			HostDesiredState?:     #HostDesiredState
 			VMDesiredState?:       #VMDesiredState
 			VMRef?:                #VMRef

@@ -49,8 +49,16 @@ log_file=/var/log/protos.log
 fifo="$(mktemp -u /tmp/protos-log.XXXXXX)"
 mkfifo "$fifo"
 
-if (: > /dev/console) 2>/dev/null; then
-  tee -a "$log_file" /dev/console < "$fifo" >/dev/null &
+console_sink=""
+for candidate in /dev/console /dev/hvc0 /dev/ttyS0; do
+  if [ -e "$candidate" ] && (printf '' > "$candidate") 2>/dev/null; then
+    console_sink="$candidate"
+    break
+  fi
+done
+
+if [ -n "$console_sink" ]; then
+  tee -a "$log_file" "$console_sink" < "$fifo" >/dev/null &
 else
   tee -a "$log_file" < "$fifo" &
 fi

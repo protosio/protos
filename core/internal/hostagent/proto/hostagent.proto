@@ -8,6 +8,7 @@ option go_package = "github.com/protosio/protos/internal/hostagent/proto;proto";
 service HostAgent {
   rpc Apply(ApplyRequest) returns (ApplyResponse) {}
   rpc Status(StatusRequest) returns (StatusResponse) {}
+  rpc VMLogs(VMLogsRequest) returns (VMLogsResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
 }
 
@@ -39,6 +40,14 @@ message ShutdownRequest {
 
 message ShutdownResponse {
   string message = 1;
+}
+
+message VMLogsRequest {
+  VMRef vm = 1;
+}
+
+message VMLogsResponse {
+  string logs = 1;
 }
 
 message HostDesiredState {

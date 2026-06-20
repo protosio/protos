@@ -107,6 +107,23 @@ func (c *Client) ListVMs(rootDir string) ([]*hostagentpb.VMObservedState, error)
 	return resp.GetVms(), nil
 }
 
+func (c *Client) VMLogs(id string, name string, rootDir string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer cancel()
+
+	resp, err := c.client.VMLogs(ctx, &hostagentpb.VMLogsRequest{
+		Vm: &hostagentpb.VMRef{
+			Id:      id,
+			Name:    name,
+			RootDir: rootDir,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("host agent VM logs via %s: %w", c.socket, err)
+	}
+	return resp.GetLogs(), nil
+}
+
 func (c *Client) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -40,7 +40,6 @@ const (
 	localMacOSImageBootISO  = "boot.iso"
 	localMacOSMetadataISO   = "metadata.iso"
 	localMacOSMetadataFile  = "metadata.json"
-	localMacOSConsoleLog    = "console.log"
 	localMacOSDiagMaxBytes  = 8192
 
 	localMacOSNetworkInterface    = "eth0"
@@ -463,12 +462,12 @@ func (lm *localMacOS) DeploymentDiagnostics(id string, location string) (string,
 		fmt.Sprintf("network: %s/%d via %s", firstNonEmptyLocalMacOSString(vmConfig.Network.IPAddress, "unknown"), vmConfig.Network.PrefixLength, firstNonEmptyLocalMacOSString(vmConfig.Network.Gateway, "unknown")),
 		fmt.Sprintf("mac: %s", firstNonEmptyLocalMacOSString(vmConfig.MACAddress, "unknown")),
 	}
-	data, err := os.ReadFile(filepath.Join(lm.instanceDir(vmConfig.ID), localMacOSConsoleLog))
+	logs, err := lm.hostAgentVMLogs(vmConfig.ID, vmConfig.Name)
 	if err != nil {
 		lines = append(lines, fmt.Sprintf("console: unavailable: %s", err.Error()))
 		return strings.Join(lines, "\n"), nil
 	}
-	lines = append(lines, "console output:", tailLocalMacOSDiagnostics(data, localMacOSDiagMaxBytes))
+	lines = append(lines, "host-agent console output:", tailLocalMacOSDiagnostics([]byte(logs), localMacOSDiagMaxBytes))
 	return strings.Join(lines, "\n"), nil
 }
 
@@ -1194,6 +1193,20 @@ func (lm *localMacOS) hostAgentVMs() ([]*hostagentpb.VMObservedState, error) {
 		return nil, fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
 	}
 	return states, nil
+}
+
+func (lm *localMacOS) hostAgentVMLogs(id string, name string) (string, error) {
+	client, err := hostagentclient.New()
+	if err != nil {
+		return "", err
+	}
+	defer client.Close()
+
+	logs, err := client.VMLogs(id, name, lm.vmDir)
+	if err != nil {
+		return "", fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
+	}
+	return logs, nil
 }
 
 func (lm *localMacOS) vmConfigFromState(state *hostagentpb.VMObservedState) (localMacOSVMConfig, error) {

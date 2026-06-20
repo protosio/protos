@@ -47,6 +47,8 @@ type containerdPlatform struct {
 	networkManager *network.Manager
 	client         *client.Client
 	initLock       *sync.RWMutex
+	readinessLock  sync.Mutex
+	verifiedImages map[string]struct{}
 }
 
 func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUnixSocket string) *containerdPlatform {
@@ -61,6 +63,7 @@ func createContainerdRuntimePlatform(networkManager *network.Manager, runtimeUni
 			snapshotter:    containerdSnapshotter(),
 			initSignal:     make(chan net.IP, 1),
 			initLock:       &sync.RWMutex{},
+			verifiedImages: map[string]struct{}{},
 			networkManager: networkManager,
 		}
 	}
@@ -230,6 +233,9 @@ func (cdp *containerdPlatform) verifyImageReady(ctx context.Context, image clien
 	if len(missing) > 0 {
 		return fmt.Errorf("missing %d content blob(s), first missing digest %s", len(missing), missing[0].Digest)
 	}
+	if err := cdp.verifyImageContentDigestsOnce(ctx, image.Target().Digest.String(), descriptors); err != nil {
+		return fmt.Errorf("verify content digests: %w", err)
+	}
 	if err := cdp.ensureImageReadyForSandbox(ctx, image); err != nil {
 		return err
 	}
@@ -291,12 +297,23 @@ func (cdp *containerdPlatform) verifyImageSnapshot(ctx context.Context, image cl
 		client.WithContainerLabels(map[string]string{"platform": protosNamespace, "purpose": "image-readiness-check"}),
 	)
 	if err != nil {
+		cdp.cleanupImageVerificationSnapshot(ctx, checkID)
 		return fmt.Errorf("create verification snapshot: %w", err)
 	}
 	if err := cnt.Delete(ctx, client.WithSnapshotCleanup); err != nil {
-		log.Warnf("failed to delete image verification snapshot %s: %v", checkID, err)
+		log.Warnf("failed to delete image verification container %s: %v", checkID, err)
+		cdp.cleanupImageVerificationSnapshot(ctx, checkID)
 	}
 	return nil
+}
+
+func (cdp *containerdPlatform) cleanupImageVerificationSnapshot(ctx context.Context, checkID string) {
+	if cdp == nil || cdp.client == nil || strings.TrimSpace(checkID) == "" {
+		return
+	}
+	if err := cdp.client.SnapshotService(cdp.snapshotter).Remove(ctx, checkID); err != nil && !errdefs.IsNotFound(err) {
+		log.Warnf("failed to remove image verification snapshot %s: %v", checkID, err)
+	}
 }
 
 func retryableImageSnapshotReadinessError(err error) bool {
