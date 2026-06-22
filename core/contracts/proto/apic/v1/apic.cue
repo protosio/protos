@@ -403,6 +403,7 @@ package apicv1
 	stream?:        string
 	subject_type?:  string
 	subject_id?:    string
+	owner_peer_id?: string
 	status?:        string
 	title?:         string
 	message?:       string
@@ -656,6 +657,62 @@ package apicv1
 	commits?: [...#Commit]
 	graph?: #CommitGraph
 }
+#CommitDiffValue: {
+	value?:   string
+	is_null?: bool
+}
+#CommitDiffField: {
+	name?:        string
+	before?:      #CommitDiffValue
+	after?:       #CommitDiffValue
+	before_cue?:  string
+	after_cue?:   string
+	changed?:     bool
+}
+#CommitDiffRow: {
+	change_type?: string
+	key?:         string
+	fields?:      [...#CommitDiffField]
+	before_cue?:  string
+	after_cue?:   string
+	cue?:         string
+}
+#CommitDiffTable: {
+	name?: string
+	rows?: [...#CommitDiffRow]
+	cue?:  string
+}
+#CommitDiffTaskContext: {
+	id?:             string
+	stream?:         string
+	subject_type?:   string
+	subject_id?:     string
+	owner_peer_id?:  string
+	status?:         string
+	title?:          string
+	message?:        string
+	progress?:       int
+	change_sources?: [...string]
+	event_count?:    int
+	summary?:        string
+}
+#CommitDiff: {
+	base_hash?:     string
+	target_hash?:   string
+	tables?:        [...#CommitDiffTable]
+	cue?:           string
+	truncated?:     bool
+	message?:       string
+	unified_diff?: string
+	related_tasks?: [...#CommitDiffTaskContext]
+	sql?: string
+}
+#GetCommitDiffRequest: {
+	commit_hash?: string
+	base_hash?:   string
+	remote?:      string
+}
+#GetCommitDiffResponse: diff?: #CommitDiff
 #SqlCell: {
 	value?:   string
 	is_null?: bool
@@ -780,6 +837,7 @@ contract: {
 				{name: "StopHostAgent", request: "StopHostAgentRequest", response: "StopHostAgentResponse"},
 				{name: "GetLocalCommits", request: "GetLocalCommitsRequest", response: "GetLocalCommitsResponse"},
 				{name: "GetRemoteCommits", request: "GetRemoteCommitsRequest", response: "GetRemoteCommitsResponse"},
+				{name: "GetCommitDiff", request: "GetCommitDiffRequest", response: "GetCommitDiffResponse"},
 				{name: "ExecuteSql", request: "ExecuteSqlRequest", response: "ExecuteSqlResponse"},
 			]
 		}]
@@ -1223,6 +1281,7 @@ contract: {
 				{type: "string", name: "updated_at", number: 15},
 				{type: "string", name: "started_at", number: 16},
 				{type: "string", name: "finished_at", number: 17},
+				{type: "string", name: "owner_peer_id", number: 18},
 			]},
 			{kind: "message", name: "TaskEvent", fields: [
 				{type: "string", name: "id", number: 1},
@@ -1496,6 +1555,64 @@ contract: {
 				{rule: "repeated", type: "Commit", name: "commits", number: 1},
 				{type: "CommitGraph", name: "graph", number: 2},
 			]},
+			{kind: "message", name: "CommitDiffValue", fields: [
+				{type: "string", name: "value", number: 1},
+				{type: "bool", name: "is_null", number: 2},
+			]},
+			{kind: "message", name: "CommitDiffField", fields: [
+				{type: "string", name: "name", number: 1},
+				{type: "CommitDiffValue", name: "before", number: 2},
+				{type: "CommitDiffValue", name: "after", number: 3},
+				{type: "string", name: "before_cue", number: 4},
+				{type: "string", name: "after_cue", number: 5},
+				{type: "bool", name: "changed", number: 6},
+			]},
+			{kind: "message", name: "CommitDiffRow", fields: [
+				{type: "string", name: "change_type", number: 1},
+				{type: "string", name: "key", number: 2},
+				{rule: "repeated", type: "CommitDiffField", name: "fields", number: 3},
+				{type: "string", name: "before_cue", number: 4},
+				{type: "string", name: "after_cue", number: 5},
+				{type: "string", name: "cue", number: 6},
+			]},
+			{kind: "message", name: "CommitDiffTable", fields: [
+				{type: "string", name: "name", number: 1},
+				{rule: "repeated", type: "CommitDiffRow", name: "rows", number: 2},
+				{type: "string", name: "cue", number: 3},
+			]},
+			{kind: "message", name: "CommitDiffTaskContext", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "stream", number: 2},
+				{type: "string", name: "subject_type", number: 3},
+				{type: "string", name: "subject_id", number: 4},
+				{type: "string", name: "owner_peer_id", number: 5},
+				{type: "string", name: "status", number: 6},
+				{type: "string", name: "title", number: 7},
+				{type: "string", name: "message", number: 8},
+				{type: "int32", name: "progress", number: 9},
+				{rule: "repeated", type: "string", name: "change_sources", number: 10},
+				{type: "int32", name: "event_count", number: 11},
+				{type: "string", name: "summary", number: 12},
+			]},
+			{kind: "message", name: "CommitDiff", fields: [
+				{type: "string", name: "base_hash", number: 1},
+				{type: "string", name: "target_hash", number: 2},
+				{rule: "repeated", type: "CommitDiffTable", name: "tables", number: 3},
+				{type: "string", name: "cue", number: 4},
+				{type: "bool", name: "truncated", number: 5},
+				{type: "string", name: "message", number: 6},
+				{type: "string", name: "unified_diff", number: 7},
+				{rule: "repeated", type: "CommitDiffTaskContext", name: "related_tasks", number: 8},
+				{type: "string", name: "sql", number: 9},
+			]},
+			{kind: "message", name: "GetCommitDiffRequest", fields: [
+				{type: "string", name: "commit_hash", number: 1},
+				{type: "string", name: "base_hash", number: 2},
+				{type: "string", name: "remote", number: 3},
+			]},
+			{kind: "message", name: "GetCommitDiffResponse", fields: [
+				{type: "CommitDiff", name: "diff", number: 1},
+			]},
 			{kind: "message", name: "SqlCell", fields: [
 				{type: "string", name: "value", number: 1},
 				{type: "bool", name: "is_null", number: 2},
@@ -1685,6 +1802,14 @@ lineage: {
 			GetLocalCommitsResponse?:            #GetLocalCommitsResponse
 			GetRemoteCommitsRequest?:            #GetRemoteCommitsRequest
 			GetRemoteCommitsResponse?:           #GetRemoteCommitsResponse
+			CommitDiffValue?:                    #CommitDiffValue
+			CommitDiffField?:                    #CommitDiffField
+			CommitDiffRow?:                      #CommitDiffRow
+			CommitDiffTable?:                    #CommitDiffTable
+			CommitDiffTaskContext?:              #CommitDiffTaskContext
+			CommitDiff?:                         #CommitDiff
+			GetCommitDiffRequest?:               #GetCommitDiffRequest
+			GetCommitDiffResponse?:              #GetCommitDiffResponse
 			SqlCell?:                            #SqlCell
 			SqlRow?:                             #SqlRow
 			ExecuteSqlRequest?:                  #ExecuteSqlRequest

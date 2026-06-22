@@ -560,6 +560,7 @@ type Task struct {
 	UpdatedAt     string                 `protobuf:"bytes,15,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	StartedAt     string                 `protobuf:"bytes,16,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	FinishedAt    string                 `protobuf:"bytes,17,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	OwnerPeerId   string                 `protobuf:"bytes,18,opt,name=owner_peer_id,json=ownerPeerId,proto3" json:"owner_peer_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -709,6 +710,13 @@ func (x *Task) GetStartedAt() string {
 func (x *Task) GetFinishedAt() string {
 	if x != nil {
 		return x.FinishedAt
+	}
+	return ""
+}
+
+func (x *Task) GetOwnerPeerId() string {
+	if x != nil {
+		return x.OwnerPeerId
 	}
 	return ""
 }
@@ -2549,7 +2557,7 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\vallow_stale\x18\x01 \x01(\bR\n" +
 	"allowStale\"D\n" +
 	"\x17GetRuntimeStateResponse\x12)\n" +
-	"\x05state\x18\x01 \x01(\v2\x13.proto.RuntimeStateR\x05state\"\xfa\x03\n" +
+	"\x05state\x18\x01 \x01(\v2\x13.proto.RuntimeStateR\x05state\"\x9e\x04\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06stream\x18\x02 \x01(\tR\x06stream\x12!\n" +
@@ -2574,7 +2582,8 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\n" +
 	"started_at\x18\x10 \x01(\tR\tstartedAt\x12\x1f\n" +
 	"\vfinished_at\x18\x11 \x01(\tR\n" +
-	"finishedAt\"\xc4\x01\n" +
+	"finishedAt\x12\"\n" +
+	"\rowner_peer_id\x18\x12 \x01(\tR\vownerPeerId\"\xc4\x01\n" +
 	"\tTaskEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x16\n" +

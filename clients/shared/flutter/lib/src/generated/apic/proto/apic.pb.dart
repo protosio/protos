@@ -7957,6 +7957,7 @@ class Task extends $pb.GeneratedMessage {
     $core.String? updatedAt,
     $core.String? startedAt,
     $core.String? finishedAt,
+    $core.String? ownerPeerId,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -7976,6 +7977,7 @@ class Task extends $pb.GeneratedMessage {
     if (updatedAt != null) result.updatedAt = updatedAt;
     if (startedAt != null) result.startedAt = startedAt;
     if (finishedAt != null) result.finishedAt = finishedAt;
+    if (ownerPeerId != null) result.ownerPeerId = ownerPeerId;
     return result;
   }
 
@@ -8009,6 +8011,7 @@ class Task extends $pb.GeneratedMessage {
     ..aOS(15, _omitFieldNames ? '' : 'updatedAt')
     ..aOS(16, _omitFieldNames ? '' : 'startedAt')
     ..aOS(17, _omitFieldNames ? '' : 'finishedAt')
+    ..aOS(18, _omitFieldNames ? '' : 'ownerPeerId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8181,6 +8184,15 @@ class Task extends $pb.GeneratedMessage {
   $core.bool hasFinishedAt() => $_has(16);
   @$pb.TagNumber(17)
   void clearFinishedAt() => $_clearField(17);
+
+  @$pb.TagNumber(18)
+  $core.String get ownerPeerId => $_getSZ(17);
+  @$pb.TagNumber(18)
+  set ownerPeerId($core.String value) => $_setString(17, value);
+  @$pb.TagNumber(18)
+  $core.bool hasOwnerPeerId() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearOwnerPeerId() => $_clearField(18);
 }
 
 class TaskEvent extends $pb.GeneratedMessage {
@@ -12613,6 +12625,830 @@ class GetRemoteCommitsResponse extends $pb.GeneratedMessage {
   CommitGraph ensureGraph() => $_ensure(1);
 }
 
+class CommitDiffValue extends $pb.GeneratedMessage {
+  factory CommitDiffValue({
+    $core.String? value,
+    $core.bool? isNull,
+  }) {
+    final result = create();
+    if (value != null) result.value = value;
+    if (isNull != null) result.isNull = isNull;
+    return result;
+  }
+
+  CommitDiffValue._();
+
+  factory CommitDiffValue.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitDiffValue.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitDiffValue',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'value')
+    ..aOB(2, _omitFieldNames ? '' : 'isNull')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffValue clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffValue copyWith(void Function(CommitDiffValue) updates) =>
+      super.copyWith((message) => updates(message as CommitDiffValue))
+          as CommitDiffValue;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffValue create() => CommitDiffValue._();
+  @$core.override
+  CommitDiffValue createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffValue getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitDiffValue>(create);
+  static CommitDiffValue? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get value => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set value($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasValue() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearValue() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get isNull => $_getBF(1);
+  @$pb.TagNumber(2)
+  set isNull($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasIsNull() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearIsNull() => $_clearField(2);
+}
+
+class CommitDiffField extends $pb.GeneratedMessage {
+  factory CommitDiffField({
+    $core.String? name,
+    CommitDiffValue? before,
+    CommitDiffValue? after,
+    $core.String? beforeCue,
+    $core.String? afterCue,
+    $core.bool? changed,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (before != null) result.before = before;
+    if (after != null) result.after = after;
+    if (beforeCue != null) result.beforeCue = beforeCue;
+    if (afterCue != null) result.afterCue = afterCue;
+    if (changed != null) result.changed = changed;
+    return result;
+  }
+
+  CommitDiffField._();
+
+  factory CommitDiffField.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitDiffField.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitDiffField',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..aOM<CommitDiffValue>(2, _omitFieldNames ? '' : 'before',
+        subBuilder: CommitDiffValue.create)
+    ..aOM<CommitDiffValue>(3, _omitFieldNames ? '' : 'after',
+        subBuilder: CommitDiffValue.create)
+    ..aOS(4, _omitFieldNames ? '' : 'beforeCue')
+    ..aOS(5, _omitFieldNames ? '' : 'afterCue')
+    ..aOB(6, _omitFieldNames ? '' : 'changed')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffField clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffField copyWith(void Function(CommitDiffField) updates) =>
+      super.copyWith((message) => updates(message as CommitDiffField))
+          as CommitDiffField;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffField create() => CommitDiffField._();
+  @$core.override
+  CommitDiffField createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffField getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitDiffField>(create);
+  static CommitDiffField? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  CommitDiffValue get before => $_getN(1);
+  @$pb.TagNumber(2)
+  set before(CommitDiffValue value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBefore() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBefore() => $_clearField(2);
+  @$pb.TagNumber(2)
+  CommitDiffValue ensureBefore() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  CommitDiffValue get after => $_getN(2);
+  @$pb.TagNumber(3)
+  set after(CommitDiffValue value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAfter() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAfter() => $_clearField(3);
+  @$pb.TagNumber(3)
+  CommitDiffValue ensureAfter() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  $core.String get beforeCue => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set beforeCue($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasBeforeCue() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearBeforeCue() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get afterCue => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set afterCue($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasAfterCue() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAfterCue() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get changed => $_getBF(5);
+  @$pb.TagNumber(6)
+  set changed($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasChanged() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearChanged() => $_clearField(6);
+}
+
+class CommitDiffRow extends $pb.GeneratedMessage {
+  factory CommitDiffRow({
+    $core.String? changeType,
+    $core.String? key,
+    $core.Iterable<CommitDiffField>? fields,
+    $core.String? beforeCue,
+    $core.String? afterCue,
+    $core.String? cue,
+  }) {
+    final result = create();
+    if (changeType != null) result.changeType = changeType;
+    if (key != null) result.key = key;
+    if (fields != null) result.fields.addAll(fields);
+    if (beforeCue != null) result.beforeCue = beforeCue;
+    if (afterCue != null) result.afterCue = afterCue;
+    if (cue != null) result.cue = cue;
+    return result;
+  }
+
+  CommitDiffRow._();
+
+  factory CommitDiffRow.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitDiffRow.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitDiffRow',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'changeType')
+    ..aOS(2, _omitFieldNames ? '' : 'key')
+    ..pPM<CommitDiffField>(3, _omitFieldNames ? '' : 'fields',
+        subBuilder: CommitDiffField.create)
+    ..aOS(4, _omitFieldNames ? '' : 'beforeCue')
+    ..aOS(5, _omitFieldNames ? '' : 'afterCue')
+    ..aOS(6, _omitFieldNames ? '' : 'cue')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffRow clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffRow copyWith(void Function(CommitDiffRow) updates) =>
+      super.copyWith((message) => updates(message as CommitDiffRow))
+          as CommitDiffRow;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffRow create() => CommitDiffRow._();
+  @$core.override
+  CommitDiffRow createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffRow getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitDiffRow>(create);
+  static CommitDiffRow? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get changeType => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set changeType($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasChangeType() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearChangeType() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get key => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set key($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasKey() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearKey() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<CommitDiffField> get fields => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.String get beforeCue => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set beforeCue($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasBeforeCue() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearBeforeCue() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get afterCue => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set afterCue($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasAfterCue() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAfterCue() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get cue => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set cue($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCue() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCue() => $_clearField(6);
+}
+
+class CommitDiffTable extends $pb.GeneratedMessage {
+  factory CommitDiffTable({
+    $core.String? name,
+    $core.Iterable<CommitDiffRow>? rows,
+    $core.String? cue,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (rows != null) result.rows.addAll(rows);
+    if (cue != null) result.cue = cue;
+    return result;
+  }
+
+  CommitDiffTable._();
+
+  factory CommitDiffTable.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitDiffTable.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitDiffTable',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..pPM<CommitDiffRow>(2, _omitFieldNames ? '' : 'rows',
+        subBuilder: CommitDiffRow.create)
+    ..aOS(3, _omitFieldNames ? '' : 'cue')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffTable clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffTable copyWith(void Function(CommitDiffTable) updates) =>
+      super.copyWith((message) => updates(message as CommitDiffTable))
+          as CommitDiffTable;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffTable create() => CommitDiffTable._();
+  @$core.override
+  CommitDiffTable createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffTable getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitDiffTable>(create);
+  static CommitDiffTable? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<CommitDiffRow> get rows => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $core.String get cue => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set cue($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCue() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCue() => $_clearField(3);
+}
+
+class CommitDiffTaskContext extends $pb.GeneratedMessage {
+  factory CommitDiffTaskContext({
+    $core.String? id,
+    $core.String? stream,
+    $core.String? subjectType,
+    $core.String? subjectId,
+    $core.String? ownerPeerId,
+    $core.String? status,
+    $core.String? title,
+    $core.String? message,
+    $core.int? progress,
+    $core.Iterable<$core.String>? changeSources,
+    $core.int? eventCount,
+    $core.String? summary,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (stream != null) result.stream = stream;
+    if (subjectType != null) result.subjectType = subjectType;
+    if (subjectId != null) result.subjectId = subjectId;
+    if (ownerPeerId != null) result.ownerPeerId = ownerPeerId;
+    if (status != null) result.status = status;
+    if (title != null) result.title = title;
+    if (message != null) result.message = message;
+    if (progress != null) result.progress = progress;
+    if (changeSources != null) result.changeSources.addAll(changeSources);
+    if (eventCount != null) result.eventCount = eventCount;
+    if (summary != null) result.summary = summary;
+    return result;
+  }
+
+  CommitDiffTaskContext._();
+
+  factory CommitDiffTaskContext.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitDiffTaskContext.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitDiffTaskContext',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'stream')
+    ..aOS(3, _omitFieldNames ? '' : 'subjectType')
+    ..aOS(4, _omitFieldNames ? '' : 'subjectId')
+    ..aOS(5, _omitFieldNames ? '' : 'ownerPeerId')
+    ..aOS(6, _omitFieldNames ? '' : 'status')
+    ..aOS(7, _omitFieldNames ? '' : 'title')
+    ..aOS(8, _omitFieldNames ? '' : 'message')
+    ..aI(9, _omitFieldNames ? '' : 'progress')
+    ..pPS(10, _omitFieldNames ? '' : 'changeSources')
+    ..aI(11, _omitFieldNames ? '' : 'eventCount')
+    ..aOS(12, _omitFieldNames ? '' : 'summary')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffTaskContext clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiffTaskContext copyWith(
+          void Function(CommitDiffTaskContext) updates) =>
+      super.copyWith((message) => updates(message as CommitDiffTaskContext))
+          as CommitDiffTaskContext;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffTaskContext create() => CommitDiffTaskContext._();
+  @$core.override
+  CommitDiffTaskContext createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitDiffTaskContext getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitDiffTaskContext>(create);
+  static CommitDiffTaskContext? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get stream => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set stream($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasStream() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearStream() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get subjectType => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set subjectType($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSubjectType() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSubjectType() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get subjectId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set subjectId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasSubjectId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearSubjectId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get ownerPeerId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set ownerPeerId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOwnerPeerId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOwnerPeerId() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get status => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set status($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasStatus() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearStatus() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get title => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set title($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasTitle() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearTitle() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get message => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set message($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasMessage() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearMessage() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get progress => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set progress($core.int value) => $_setSignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasProgress() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearProgress() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $pb.PbList<$core.String> get changeSources => $_getList(9);
+
+  @$pb.TagNumber(11)
+  $core.int get eventCount => $_getIZ(10);
+  @$pb.TagNumber(11)
+  set eventCount($core.int value) => $_setSignedInt32(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasEventCount() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearEventCount() => $_clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.String get summary => $_getSZ(11);
+  @$pb.TagNumber(12)
+  set summary($core.String value) => $_setString(11, value);
+  @$pb.TagNumber(12)
+  $core.bool hasSummary() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearSummary() => $_clearField(12);
+}
+
+class CommitDiff extends $pb.GeneratedMessage {
+  factory CommitDiff({
+    $core.String? baseHash,
+    $core.String? targetHash,
+    $core.Iterable<CommitDiffTable>? tables,
+    $core.String? cue,
+    $core.bool? truncated,
+    $core.String? message,
+    $core.String? unifiedDiff,
+    $core.Iterable<CommitDiffTaskContext>? relatedTasks,
+    $core.String? sql,
+  }) {
+    final result = create();
+    if (baseHash != null) result.baseHash = baseHash;
+    if (targetHash != null) result.targetHash = targetHash;
+    if (tables != null) result.tables.addAll(tables);
+    if (cue != null) result.cue = cue;
+    if (truncated != null) result.truncated = truncated;
+    if (message != null) result.message = message;
+    if (unifiedDiff != null) result.unifiedDiff = unifiedDiff;
+    if (relatedTasks != null) result.relatedTasks.addAll(relatedTasks);
+    if (sql != null) result.sql = sql;
+    return result;
+  }
+
+  CommitDiff._();
+
+  factory CommitDiff.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CommitDiff.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommitDiff',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'baseHash')
+    ..aOS(2, _omitFieldNames ? '' : 'targetHash')
+    ..pPM<CommitDiffTable>(3, _omitFieldNames ? '' : 'tables',
+        subBuilder: CommitDiffTable.create)
+    ..aOS(4, _omitFieldNames ? '' : 'cue')
+    ..aOB(5, _omitFieldNames ? '' : 'truncated')
+    ..aOS(6, _omitFieldNames ? '' : 'message')
+    ..aOS(7, _omitFieldNames ? '' : 'unifiedDiff')
+    ..pPM<CommitDiffTaskContext>(8, _omitFieldNames ? '' : 'relatedTasks',
+        subBuilder: CommitDiffTaskContext.create)
+    ..aOS(9, _omitFieldNames ? '' : 'sql')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiff clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommitDiff copyWith(void Function(CommitDiff) updates) =>
+      super.copyWith((message) => updates(message as CommitDiff)) as CommitDiff;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CommitDiff create() => CommitDiff._();
+  @$core.override
+  CommitDiff createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CommitDiff getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CommitDiff>(create);
+  static CommitDiff? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get baseHash => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set baseHash($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasBaseHash() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearBaseHash() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get targetHash => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set targetHash($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTargetHash() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTargetHash() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<CommitDiffTable> get tables => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.String get cue => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set cue($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCue() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCue() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get truncated => $_getBF(4);
+  @$pb.TagNumber(5)
+  set truncated($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasTruncated() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearTruncated() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get message => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set message($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasMessage() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearMessage() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get unifiedDiff => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set unifiedDiff($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasUnifiedDiff() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearUnifiedDiff() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $pb.PbList<CommitDiffTaskContext> get relatedTasks => $_getList(7);
+
+  @$pb.TagNumber(9)
+  $core.String get sql => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set sql($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasSql() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearSql() => $_clearField(9);
+}
+
+class GetCommitDiffRequest extends $pb.GeneratedMessage {
+  factory GetCommitDiffRequest({
+    $core.String? commitHash,
+    $core.String? baseHash,
+    $core.String? remote,
+  }) {
+    final result = create();
+    if (commitHash != null) result.commitHash = commitHash;
+    if (baseHash != null) result.baseHash = baseHash;
+    if (remote != null) result.remote = remote;
+    return result;
+  }
+
+  GetCommitDiffRequest._();
+
+  factory GetCommitDiffRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetCommitDiffRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetCommitDiffRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'commitHash')
+    ..aOS(2, _omitFieldNames ? '' : 'baseHash')
+    ..aOS(3, _omitFieldNames ? '' : 'remote')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetCommitDiffRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetCommitDiffRequest copyWith(void Function(GetCommitDiffRequest) updates) =>
+      super.copyWith((message) => updates(message as GetCommitDiffRequest))
+          as GetCommitDiffRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetCommitDiffRequest create() => GetCommitDiffRequest._();
+  @$core.override
+  GetCommitDiffRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetCommitDiffRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetCommitDiffRequest>(create);
+  static GetCommitDiffRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get commitHash => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set commitHash($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCommitHash() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCommitHash() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get baseHash => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set baseHash($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBaseHash() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBaseHash() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get remote => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set remote($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRemote() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRemote() => $_clearField(3);
+}
+
+class GetCommitDiffResponse extends $pb.GeneratedMessage {
+  factory GetCommitDiffResponse({
+    CommitDiff? diff,
+  }) {
+    final result = create();
+    if (diff != null) result.diff = diff;
+    return result;
+  }
+
+  GetCommitDiffResponse._();
+
+  factory GetCommitDiffResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetCommitDiffResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetCommitDiffResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOM<CommitDiff>(1, _omitFieldNames ? '' : 'diff',
+        subBuilder: CommitDiff.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetCommitDiffResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetCommitDiffResponse copyWith(
+          void Function(GetCommitDiffResponse) updates) =>
+      super.copyWith((message) => updates(message as GetCommitDiffResponse))
+          as GetCommitDiffResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetCommitDiffResponse create() => GetCommitDiffResponse._();
+  @$core.override
+  GetCommitDiffResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetCommitDiffResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetCommitDiffResponse>(create);
+  static GetCommitDiffResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  CommitDiff get diff => $_getN(0);
+  @$pb.TagNumber(1)
+  set diff(CommitDiff value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasDiff() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearDiff() => $_clearField(1);
+  @$pb.TagNumber(1)
+  CommitDiff ensureDiff() => $_ensure(0);
+}
+
 class SqlCell extends $pb.GeneratedMessage {
   factory SqlCell({
     $core.String? value,
@@ -13147,6 +13983,10 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetRemoteCommitsRequest request) =>
       _client.invoke<GetRemoteCommitsResponse>(ctx, 'ProtosClientApi',
           'GetRemoteCommits', request, GetRemoteCommitsResponse());
+  $async.Future<GetCommitDiffResponse> getCommitDiff(
+          $pb.ClientContext? ctx, GetCommitDiffRequest request) =>
+      _client.invoke<GetCommitDiffResponse>(ctx, 'ProtosClientApi',
+          'GetCommitDiff', request, GetCommitDiffResponse());
   $async.Future<ExecuteSqlResponse> executeSql(
           $pb.ClientContext? ctx, ExecuteSqlRequest request) =>
       _client.invoke<ExecuteSqlResponse>(

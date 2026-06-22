@@ -11,6 +11,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
+expected_db_migrations="internal/db/migrations/protos_01_tables.sql
+internal/db/migrations/protos_01_tables.undo.sql"
+actual_db_migrations="$(find internal/db/migrations -maxdepth 1 -type f -name '*.sql' | sort)"
+if [ "$actual_db_migrations" != "$expected_db_migrations" ]; then
+  {
+    echo "DB migrations must stay collapsed into the first migration only."
+    echo "Expected:"
+    echo "$expected_db_migrations"
+    echo "Actual:"
+    echo "$actual_db_migrations"
+  } >&2
+  exit 1
+fi
+
 generate_proto_tmp() {
   local cue_file="$1"
   local output="$2"

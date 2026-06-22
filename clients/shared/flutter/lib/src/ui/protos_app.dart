@@ -2058,6 +2058,7 @@ class TasksView extends StatelessWidget {
             columns: [
               RowColumn('Title', _taskTitle, flex: 2),
               RowColumn('Status', _taskStatusText),
+              RowColumn('Owner', (row) => shortPeerId(row.ownerPeerId)),
               RowColumn('Progress', (row) => _taskProgressLabel(row.progress)),
               RowColumn(
                 'Updated',
@@ -2128,6 +2129,7 @@ class TaskDetailPanel extends StatelessWidget {
             KeyValueItem('ID', selected.id),
             KeyValueItem('Stream', selected.stream),
             KeyValueItem('Subject', _taskSubjectLabel(selected)),
+            KeyValueItem('Owner', shortPeerId(selected.ownerPeerId)),
             KeyValueItem('Status', _taskStatusText(selected)),
             KeyValueItem('Progress', _taskProgressLabel(selected.progress)),
             KeyValueItem('Attempts', _taskAttemptsLabel(selected)),
@@ -2940,7 +2942,12 @@ class DvcView extends StatefulWidget {
 class _DvcViewState extends State<DvcView> {
   final sqlController = TextEditingController(text: 'SHOW TABLES;');
   String selectedCommitHash = '';
+  String selectedCommitDiffHash = '';
+  String selectedCommitDiffMode = 'cue';
+  pb.CommitDiff? selectedCommitDiff;
   pb.ExecuteSqlResponse? sqlResult;
+  String? selectedCommitDiffError;
+  bool selectedCommitDiffLoading = false;
   bool sqlRunning = false;
   bool sqlShellOpen = false;
 
@@ -3012,10 +3019,25 @@ class _DvcViewState extends State<DvcView> {
           CommitGraphPanel(
             graph: model.localCommitGraph,
             selectedId: selectedCommitHash,
-            onSelect: (id) => setState(() => selectedCommitHash = id),
+            onSelect: (id) => _selectCommit(model, id),
           ),
           const SizedBox(height: 12),
-          CommitDetailPanel(commit: selectedCommit),
+          CommitDetailPanel(
+            commit: selectedCommit,
+            diff: selectedCommitDiffHash == selectedCommitHash
+                ? selectedCommitDiff
+                : null,
+            diffLoading: selectedCommitDiffLoading,
+            diffError: selectedCommitDiffError,
+            diffMode: selectedCommitDiffMode,
+            onDiffModeChanged: (mode) =>
+                setState(() => selectedCommitDiffMode = mode),
+            onCopyDiff:
+                selectedCommitDiffHash == selectedCommitHash &&
+                    _selectedCommitDiffText() != null
+                ? () => _copyCommitDiff(context)
+                : null,
+          ),
           const SectionGap(),
           if (!sqlShellOpen)
             OutlinedButton.icon(
@@ -3038,6 +3060,46 @@ class _DvcViewState extends State<DvcView> {
         ],
       ),
     );
+  }
+
+  void _selectCommit(AppModel model, String id) {
+    if (selectedCommitHash == id && selectedCommitDiffHash == id) {
+      return;
+    }
+    setState(() {
+      selectedCommitHash = id;
+      selectedCommitDiffHash = '';
+      selectedCommitDiffMode = 'cue';
+      selectedCommitDiff = null;
+      selectedCommitDiffError = null;
+      selectedCommitDiffLoading = true;
+    });
+    unawaited(_loadCommitDiff(model, id));
+  }
+
+  Future<void> _loadCommitDiff(AppModel model, String commitHash) async {
+    try {
+      final response = await model.api.commitDiff(commitHash: commitHash);
+      if (!mounted || selectedCommitHash != commitHash) {
+        return;
+      }
+      setState(() {
+        selectedCommitDiffHash = commitHash;
+        selectedCommitDiff = response.hasDiff() ? response.diff : null;
+        selectedCommitDiffError = null;
+        selectedCommitDiffLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || selectedCommitHash != commitHash) {
+        return;
+      }
+      setState(() {
+        selectedCommitDiffHash = commitHash;
+        selectedCommitDiff = null;
+        selectedCommitDiffError = error.toString();
+        selectedCommitDiffLoading = false;
+      });
+    }
   }
 
   Future<void> _executeSql(AppModel model) async {
@@ -3065,6 +3127,30 @@ class _DvcViewState extends State<DvcView> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Copied')));
+  }
+
+  void _copyCommitDiff(BuildContext context) {
+    final text = _selectedCommitDiffText();
+    if (text == null) {
+      return;
+    }
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Copied')));
+  }
+
+  String? _selectedCommitDiffText() {
+    final diff = selectedCommitDiff;
+    if (diff == null) {
+      return null;
+    }
+    if (selectedCommitDiffMode == 'sql') {
+      return diff.sql.nonEmpty ?? diff.message.nonEmpty;
+    }
+    return diff.unifiedDiff.nonEmpty ??
+        diff.cue.nonEmpty ??
+        diff.message.nonEmpty;
   }
 
   pb.Commit? _selectedCommit(List<pb.Commit> commits) {
@@ -3643,9 +3729,24 @@ class _CommitGraphPainter extends CustomPainter {
 }
 
 class CommitDetailPanel extends StatelessWidget {
-  const CommitDetailPanel({required this.commit, super.key});
+  const CommitDetailPanel({
+    required this.commit,
+    required this.diff,
+    required this.diffLoading,
+    required this.diffError,
+    required this.diffMode,
+    required this.onDiffModeChanged,
+    required this.onCopyDiff,
+    super.key,
+  });
 
   final pb.Commit? commit;
+  final pb.CommitDiff? diff;
+  final bool diffLoading;
+  final String? diffError;
+  final String diffMode;
+  final ValueChanged<String> onDiffModeChanged;
+  final VoidCallback? onCopyDiff;
 
   @override
   Widget build(BuildContext context) {
@@ -3673,6 +3774,136 @@ class CommitDetailPanel extends StatelessWidget {
           text: selected.message.nonEmpty ?? 'No commit message',
           minHeight: 82,
         ),
+        const SizedBox(height: 18),
+        _CommitDiffPanel(
+          diff: diff,
+          loading: diffLoading,
+          error: diffError,
+          mode: diffMode,
+          onModeChanged: onDiffModeChanged,
+          onCopy: onCopyDiff,
+        ),
+      ],
+    );
+  }
+}
+
+class _CommitDiffPanel extends StatelessWidget {
+  const _CommitDiffPanel({
+    required this.diff,
+    required this.loading,
+    required this.error,
+    required this.mode,
+    required this.onModeChanged,
+    required this.onCopy,
+  });
+
+  final pb.CommitDiff? diff;
+  final bool loading;
+  final String? error;
+  final String mode;
+  final ValueChanged<String> onModeChanged;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = diff;
+    final errorText = error?.nonEmpty;
+    final diffText = selected == null
+        ? null
+        : mode == 'sql'
+        ? selected.sql.nonEmpty ?? selected.message.nonEmpty
+        : selected.unifiedDiff.nonEmpty ??
+              selected.cue.nonEmpty ??
+              selected.message.nonEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionHeading('Diff')),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'cue', label: Text('CUE')),
+                ButtonSegment(value: 'sql', label: Text('SQL')),
+              ],
+              selected: {mode},
+              onSelectionChanged: (selection) {
+                if (selection.isEmpty) {
+                  return;
+                }
+                onModeChanged(selection.first);
+              },
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onCopy,
+              icon: const Icon(Icons.content_copy_outlined),
+              label: const Text('Copy'),
+            ),
+          ],
+        ),
+        if (loading) ...[
+          const SizedBox(height: 8),
+          const LinearProgressIndicator(),
+          const SizedBox(height: 12),
+          const MonoPane(text: 'Loading diff...', minHeight: 58),
+        ] else if (errorText != null) ...[
+          const SizedBox(height: 8),
+          MonoPane(text: errorText, minHeight: 58),
+        ] else if (selected == null) ...[
+          const SizedBox(height: 8),
+          const MonoPane(
+            text: 'Select a commit to inspect its diff.',
+            minHeight: 58,
+          ),
+        ] else ...[
+          const SizedBox(height: 8),
+          KeyValueWrap(
+            items: [
+              KeyValueItem('Base', shortHash(selected.baseHash)),
+              KeyValueItem('Target', shortHash(selected.targetHash)),
+              KeyValueItem('Tables', '${selected.tables.length}'),
+              KeyValueItem('Rows', '${_commitDiffRowCount(selected)}'),
+              KeyValueItem('Status', selected.message.nonEmpty),
+            ],
+          ),
+          const SizedBox(height: 12),
+          RowsPanel<pb.CommitDiffTable>(
+            rows: selected.tables.toList(growable: false),
+            emptyTitle:
+                selected.message.nonEmpty ?? 'No contract table changes',
+            height: 156,
+            idForRow: (row) => row.name,
+            columns: [
+              RowColumn('Table', (row) => row.name, flex: 2),
+              RowColumn('Rows', (row) => '${row.rows.length}'),
+              RowColumn('Operations', _commitDiffOperationSummary, flex: 3),
+            ],
+          ),
+          if (selected.relatedTasks.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            RowsPanel<pb.CommitDiffTaskContext>(
+              rows: selected.relatedTasks.toList(growable: false),
+              emptyTitle: 'No related tasks',
+              height: 156,
+              idForRow: (row) => row.id,
+              columns: [
+                RowColumn('Task', (row) => shortTaskId(row.id), flex: 2),
+                RowColumn('Status', (row) => row.status),
+                RowColumn(
+                  'Progress',
+                  (row) => _taskProgressLabel(row.progress),
+                ),
+                RowColumn('Owner', (row) => shortPeerId(row.ownerPeerId)),
+                RowColumn('Summary', _commitDiffTaskContextSummary, flex: 3),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          UnifiedDiffPane(text: diffText ?? '# No diff', minHeight: 180),
+        ],
       ],
     );
   }
@@ -4194,14 +4425,21 @@ class RowsPanel<T> extends StatelessWidget {
 }
 
 class MonoPane extends StatelessWidget {
-  const MonoPane({required this.text, this.minHeight = 120, super.key});
+  const MonoPane({
+    required this.text,
+    this.minHeight = 120,
+    this.selectable = false,
+    super.key,
+  });
 
   final String text;
   final double minHeight;
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    const style = TextStyle(fontFamily: 'monospace');
 
     return Container(
       constraints: BoxConstraints(minHeight: minHeight),
@@ -4212,9 +4450,140 @@ class MonoPane extends StatelessWidget {
         border: Border.all(color: scheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(text, style: const TextStyle(fontFamily: 'monospace')),
+      child: selectable
+          ? SelectableText(text, style: style)
+          : Text(text, style: style),
     );
   }
+}
+
+class UnifiedDiffPane extends StatelessWidget {
+  const UnifiedDiffPane({required this.text, this.minHeight = 180, super.key});
+
+  final String text;
+  final double minHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final lines = text.split('\n');
+
+    return Container(
+      constraints: BoxConstraints(minHeight: minHeight, maxHeight: 420),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: SingleChildScrollView(
+          primary: false,
+          child: SingleChildScrollView(
+            primary: false,
+            scrollDirection: Axis.horizontal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in lines)
+                  if (line.isNotEmpty)
+                    _UnifiedDiffLine(line: line)
+                  else
+                    const SizedBox(height: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnifiedDiffLine extends StatelessWidget {
+  const _UnifiedDiffLine({required this.line});
+
+  final String line;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final kind = _unifiedDiffLineKind(line);
+    final colors = _unifiedDiffLineColors(scheme, kind);
+
+    return Container(
+      width: 920,
+      color: colors.background,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: SelectableText(
+        line,
+        maxLines: 1,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: colors.foreground,
+          fontWeight: kind == _UnifiedDiffLineKind.header
+              ? FontWeight.w800
+              : FontWeight.w400,
+        ),
+      ),
+    );
+  }
+}
+
+enum _UnifiedDiffLineKind { header, hunk, added, removed, file, context }
+
+({Color background, Color foreground}) _unifiedDiffLineColors(
+  ColorScheme scheme,
+  _UnifiedDiffLineKind kind,
+) {
+  switch (kind) {
+    case _UnifiedDiffLineKind.added:
+      return (
+        background: Colors.green.withValues(alpha: 0.12),
+        foreground: Colors.green.shade800,
+      );
+    case _UnifiedDiffLineKind.removed:
+      return (
+        background: Colors.red.withValues(alpha: 0.10),
+        foreground: Colors.red.shade800,
+      );
+    case _UnifiedDiffLineKind.hunk:
+      return (
+        background: scheme.primaryContainer.withValues(alpha: 0.52),
+        foreground: scheme.onPrimaryContainer,
+      );
+    case _UnifiedDiffLineKind.header:
+      return (
+        background: scheme.surfaceContainerHighest,
+        foreground: scheme.onSurface,
+      );
+    case _UnifiedDiffLineKind.file:
+      return (
+        background: scheme.surfaceContainerLow,
+        foreground: scheme.onSurfaceVariant,
+      );
+    case _UnifiedDiffLineKind.context:
+      return (background: Colors.transparent, foreground: scheme.onSurface);
+  }
+}
+
+_UnifiedDiffLineKind _unifiedDiffLineKind(String line) {
+  if (line.startsWith('diff ')) {
+    return _UnifiedDiffLineKind.header;
+  }
+  if (line.startsWith('@@')) {
+    return _UnifiedDiffLineKind.hunk;
+  }
+  if (line.startsWith('+++') || line.startsWith('---')) {
+    return _UnifiedDiffLineKind.file;
+  }
+  if (line.startsWith('+')) {
+    return _UnifiedDiffLineKind.added;
+  }
+  if (line.startsWith('-')) {
+    return _UnifiedDiffLineKind.removed;
+  }
+  return _UnifiedDiffLineKind.context;
 }
 
 class OutputPane extends StatefulWidget {
@@ -4346,6 +4715,10 @@ String _taskAttemptsLabel(pb.Task task) {
 }
 
 String _taskProgressLabel(int progress) => '$progress%';
+
+String shortTaskId(String? id) => shortHash(id, length: 8) ?? '';
+
+String shortPeerId(String? peerId) => shortHash(peerId, length: 10) ?? 'n/a';
 
 String _taskStatusValue(String status) {
   final value = status.nonEmpty;
@@ -4724,6 +5097,44 @@ String? _commitDateLabel(pb.Commit commit) {
   final h = date.hour.toString().padLeft(2, '0');
   final min = date.minute.toString().padLeft(2, '0');
   return '$y-$m-$d $h:$min';
+}
+
+int _commitDiffRowCount(pb.CommitDiff diff) {
+  var count = 0;
+  for (final table in diff.tables) {
+    count += table.rows.length;
+  }
+  return count;
+}
+
+String _commitDiffOperationSummary(pb.CommitDiffTable table) {
+  final counts = <String, int>{};
+  for (final row in table.rows) {
+    final operation = row.changeType.nonEmpty ?? 'changed';
+    counts[operation] = (counts[operation] ?? 0) + 1;
+  }
+  if (counts.isEmpty) {
+    return 'none';
+  }
+  return counts.entries
+      .map((entry) => '${entry.key} ${entry.value}')
+      .join(', ');
+}
+
+String _commitDiffTaskContextSummary(pb.CommitDiffTaskContext task) {
+  final summary = task.summary.nonEmpty;
+  if (summary != null) {
+    return summary;
+  }
+  final title = task.title.nonEmpty;
+  if (title != null) {
+    return title;
+  }
+  final stream = task.stream.nonEmpty;
+  if (stream != null) {
+    return stream;
+  }
+  return task.id;
 }
 
 int _commitGraphLaneCount(

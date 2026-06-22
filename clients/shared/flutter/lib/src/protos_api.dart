@@ -500,6 +500,22 @@ class ProtosApi {
     );
   }
 
+  Future<pb.GetCommitDiffResponse> commitDiff({
+    required String commitHash,
+    String baseHash = '',
+    String remote = '',
+  }) {
+    return bridge.call(
+      'GetCommitDiff',
+      pb.GetCommitDiffRequest(
+        commitHash: commitHash,
+        baseHash: baseHash,
+        remote: remote,
+      ),
+      pb.GetCommitDiffResponse.create,
+    );
+  }
+
   Future<pb.ExecuteSqlResponse> executeSql({
     required String sql,
     int maxRows = 200,

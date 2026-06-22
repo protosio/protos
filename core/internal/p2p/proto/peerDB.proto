@@ -8,6 +8,7 @@ option go_package = "./proto";
 service PeerDB {
   rpc ExecSQL(ExecSQLRequest) returns (ExecSQLResponse) {}
   rpc GetAllCommits(GetAllCommitsRequest) returns (GetAllCommitsResponse) {}
+  rpc GetCommitDiff(GetCommitDiffRequest) returns (GetCommitDiffResponse) {}
   rpc GetHead(GetHeadRequest) returns (GetHeadResponse) {}
 }
 
@@ -46,6 +47,71 @@ message GetAllCommitsRequest {
 
 message GetAllCommitsResponse {
   repeated Commit commits = 1;
+}
+
+message CommitDiffValue {
+  string value = 1;
+  bool is_null = 2;
+}
+
+message CommitDiffField {
+  string name = 1;
+  CommitDiffValue before = 2;
+  CommitDiffValue after = 3;
+  string before_cue = 4;
+  string after_cue = 5;
+  bool changed = 6;
+}
+
+message CommitDiffRow {
+  string change_type = 1;
+  string key = 2;
+  repeated CommitDiffField fields = 3;
+  string before_cue = 4;
+  string after_cue = 5;
+  string cue = 6;
+}
+
+message CommitDiffTable {
+  string name = 1;
+  repeated CommitDiffRow rows = 2;
+  string cue = 3;
+}
+
+message CommitDiffTaskContext {
+  string id = 1;
+  string stream = 2;
+  string subject_type = 3;
+  string subject_id = 4;
+  string owner_peer_id = 5;
+  string status = 6;
+  string title = 7;
+  string message = 8;
+  int32 progress = 9;
+  repeated string change_sources = 10;
+  int32 event_count = 11;
+  string summary = 12;
+}
+
+message CommitDiff {
+  string base_hash = 1;
+  string target_hash = 2;
+  repeated CommitDiffTable tables = 3;
+  string cue = 4;
+  bool truncated = 5;
+  string message = 6;
+  string unified_diff = 7;
+  repeated CommitDiffTaskContext related_tasks = 8;
+  string sql = 9;
+}
+
+message GetCommitDiffRequest {
+  string commit_hash = 1;
+  string base_hash = 2;
+}
+
+message GetCommitDiffResponse {
+  CommitDiff diff = 1;
 }
 
 message GetHeadRequest {

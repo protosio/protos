@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	PeerDB_ExecSQL_FullMethodName       = "/proto.PeerDB/ExecSQL"
 	PeerDB_GetAllCommits_FullMethodName = "/proto.PeerDB/GetAllCommits"
+	PeerDB_GetCommitDiff_FullMethodName = "/proto.PeerDB/GetCommitDiff"
 	PeerDB_GetHead_FullMethodName       = "/proto.PeerDB/GetHead"
 )
 
@@ -30,6 +31,7 @@ const (
 type PeerDBClient interface {
 	ExecSQL(ctx context.Context, in *ExecSQLRequest, opts ...grpc.CallOption) (*ExecSQLResponse, error)
 	GetAllCommits(ctx context.Context, in *GetAllCommitsRequest, opts ...grpc.CallOption) (*GetAllCommitsResponse, error)
+	GetCommitDiff(ctx context.Context, in *GetCommitDiffRequest, opts ...grpc.CallOption) (*GetCommitDiffResponse, error)
 	GetHead(ctx context.Context, in *GetHeadRequest, opts ...grpc.CallOption) (*GetHeadResponse, error)
 }
 
@@ -61,6 +63,16 @@ func (c *peerDBClient) GetAllCommits(ctx context.Context, in *GetAllCommitsReque
 	return out, nil
 }
 
+func (c *peerDBClient) GetCommitDiff(ctx context.Context, in *GetCommitDiffRequest, opts ...grpc.CallOption) (*GetCommitDiffResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCommitDiffResponse)
+	err := c.cc.Invoke(ctx, PeerDB_GetCommitDiff_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *peerDBClient) GetHead(ctx context.Context, in *GetHeadRequest, opts ...grpc.CallOption) (*GetHeadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetHeadResponse)
@@ -77,6 +89,7 @@ func (c *peerDBClient) GetHead(ctx context.Context, in *GetHeadRequest, opts ...
 type PeerDBServer interface {
 	ExecSQL(context.Context, *ExecSQLRequest) (*ExecSQLResponse, error)
 	GetAllCommits(context.Context, *GetAllCommitsRequest) (*GetAllCommitsResponse, error)
+	GetCommitDiff(context.Context, *GetCommitDiffRequest) (*GetCommitDiffResponse, error)
 	GetHead(context.Context, *GetHeadRequest) (*GetHeadResponse, error)
 }
 
@@ -92,6 +105,9 @@ func (UnimplementedPeerDBServer) ExecSQL(context.Context, *ExecSQLRequest) (*Exe
 }
 func (UnimplementedPeerDBServer) GetAllCommits(context.Context, *GetAllCommitsRequest) (*GetAllCommitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAllCommits not implemented")
+}
+func (UnimplementedPeerDBServer) GetCommitDiff(context.Context, *GetCommitDiffRequest) (*GetCommitDiffResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCommitDiff not implemented")
 }
 func (UnimplementedPeerDBServer) GetHead(context.Context, *GetHeadRequest) (*GetHeadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetHead not implemented")
@@ -152,6 +168,24 @@ func _PeerDB_GetAllCommits_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PeerDB_GetCommitDiff_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCommitDiffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PeerDBServer).GetCommitDiff(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PeerDB_GetCommitDiff_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PeerDBServer).GetCommitDiff(ctx, req.(*GetCommitDiffRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PeerDB_GetHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetHeadRequest)
 	if err := dec(in); err != nil {
@@ -184,6 +218,10 @@ var PeerDB_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAllCommits",
 			Handler:    _PeerDB_GetAllCommits_Handler,
+		},
+		{
+			MethodName: "GetCommitDiff",
+			Handler:    _PeerDB_GetCommitDiff_Handler,
 		},
 		{
 			MethodName: "GetHead",

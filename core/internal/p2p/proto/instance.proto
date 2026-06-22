@@ -82,6 +82,7 @@ message Task {
   string updated_at = 15;
   string started_at = 16;
   string finished_at = 17;
+  string owner_peer_id = 18;
 }
 
 message TaskEvent {

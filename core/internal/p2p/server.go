@@ -40,6 +40,7 @@ type ExternalDB interface {
 	AddPeer(peerID string, conn *grpc.ClientConn) error
 	RemovePeer(peerID string) error
 	GetAllCommits() ([]db.Commit, error)
+	GetCommitDiff(ctx context.Context, targetHash string, baseHash string) (db.CommitDiff, error)
 	ExecuteSQL(ctx context.Context, statement string, maxRows int) (db.SQLResult, error)
 	GetLastCommit(branch string) (db.Commit, error)
 	CatchUpCheckpoint(ctx context.Context, reason string) error
@@ -155,6 +156,96 @@ func (s *Server) GetAllCommits(ctx context.Context, _ *proto.GetAllCommitsReques
 	}
 
 	return res, nil
+}
+
+func (s *Server) GetCommitDiff(ctx context.Context, req *proto.GetCommitDiffRequest) (*proto.GetCommitDiffResponse, error) {
+	if err := s.DB.CatchUpCheckpoint(ctx, "p2p get commit diff"); err != nil {
+		return nil, err
+	}
+	diff, err := s.DB.GetCommitDiff(ctx, req.GetCommitHash(), req.GetBaseHash())
+	if err != nil {
+		return nil, err
+	}
+	return &proto.GetCommitDiffResponse{Diff: commitDiffToP2PProto(diff)}, nil
+}
+
+func commitDiffToP2PProto(diff db.CommitDiff) *proto.CommitDiff {
+	resp := &proto.CommitDiff{
+		BaseHash:    diff.BaseHash,
+		TargetHash:  diff.TargetHash,
+		Cue:         diff.CUE,
+		UnifiedDiff: diff.UnifiedDiff,
+		Truncated:   diff.Truncated,
+		Message:     diff.Message,
+		Sql:         diff.SQL,
+	}
+	for _, table := range diff.Tables {
+		resp.Tables = append(resp.Tables, commitDiffTableToP2PProto(table))
+	}
+	for _, task := range diff.RelatedTasks {
+		resp.RelatedTasks = append(resp.RelatedTasks, commitDiffTaskContextToP2PProto(task))
+	}
+	return resp
+}
+
+func commitDiffTableToP2PProto(table db.CommitDiffTable) *proto.CommitDiffTable {
+	resp := &proto.CommitDiffTable{
+		Name: table.Name,
+		Cue:  table.CUE,
+	}
+	for _, row := range table.Rows {
+		resp.Rows = append(resp.Rows, commitDiffRowToP2PProto(row))
+	}
+	return resp
+}
+
+func commitDiffTaskContextToP2PProto(task db.CommitDiffTaskContext) *proto.CommitDiffTaskContext {
+	return &proto.CommitDiffTaskContext{
+		Id:            task.ID,
+		Stream:        task.Stream,
+		SubjectType:   task.SubjectType,
+		SubjectId:     task.SubjectID,
+		OwnerPeerId:   task.OwnerPeerID,
+		Status:        task.Status,
+		Title:         task.Title,
+		Message:       task.Message,
+		Progress:      int32(task.Progress),
+		ChangeSources: append([]string(nil), task.ChangeSources...),
+		EventCount:    int32(task.EventCount),
+		Summary:       task.Summary,
+	}
+}
+
+func commitDiffRowToP2PProto(row db.CommitDiffRow) *proto.CommitDiffRow {
+	resp := &proto.CommitDiffRow{
+		ChangeType: row.ChangeType,
+		Key:        row.Key,
+		BeforeCue:  row.BeforeCUE,
+		AfterCue:   row.AfterCUE,
+		Cue:        row.CUE,
+	}
+	for _, field := range row.Fields {
+		resp.Fields = append(resp.Fields, commitDiffFieldToP2PProto(field))
+	}
+	return resp
+}
+
+func commitDiffFieldToP2PProto(field db.CommitDiffField) *proto.CommitDiffField {
+	return &proto.CommitDiffField{
+		Name:      field.Name,
+		Before:    commitDiffValueToP2PProto(field.Before),
+		After:     commitDiffValueToP2PProto(field.After),
+		BeforeCue: field.BeforeCUE,
+		AfterCue:  field.AfterCUE,
+		Changed:   field.Changed,
+	}
+}
+
+func commitDiffValueToP2PProto(value db.CommitDiffValue) *proto.CommitDiffValue {
+	return &proto.CommitDiffValue{
+		Value:  value.Value,
+		IsNull: value.Null,
+	}
 }
 
 func (s *Server) GetHead(ctx context.Context, _ *proto.GetHeadRequest) (*proto.GetHeadResponse, error) {
@@ -619,6 +710,7 @@ func taskRecordToP2PProto(record tasks.Record) *proto.Task {
 		Stream:       record.Stream,
 		SubjectType:  record.SubjectType,
 		SubjectId:    record.SubjectID,
+		OwnerPeerId:  record.OwnerPeerID,
 		Status:       string(record.Status),
 		Title:        record.Title,
 		Message:      record.Message,

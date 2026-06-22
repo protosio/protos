@@ -508,6 +508,9 @@ func (fakeImagesClient) GetImageBlob(context.Context, *p2pproto.GetImageBlobRequ
 func (f testExternalDB) AddPeer(string, *grpc.ClientConn) error { return nil }
 func (f testExternalDB) RemovePeer(string) error                { return nil }
 func (f testExternalDB) GetAllCommits() ([]db.Commit, error)    { return nil, nil }
+func (f testExternalDB) GetCommitDiff(context.Context, string, string) (db.CommitDiff, error) {
+	return db.CommitDiff{}, nil
+}
 func (f testExternalDB) ExecuteSQL(context.Context, string, int) (db.SQLResult, error) {
 	return db.SQLResult{}, nil
 }

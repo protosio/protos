@@ -79,6 +79,7 @@ const (
 	ProtosClientApi_StopHostAgent_FullMethodName              = "/apic.ProtosClientApi/StopHostAgent"
 	ProtosClientApi_GetLocalCommits_FullMethodName            = "/apic.ProtosClientApi/GetLocalCommits"
 	ProtosClientApi_GetRemoteCommits_FullMethodName           = "/apic.ProtosClientApi/GetRemoteCommits"
+	ProtosClientApi_GetCommitDiff_FullMethodName              = "/apic.ProtosClientApi/GetCommitDiff"
 	ProtosClientApi_ExecuteSql_FullMethodName                 = "/apic.ProtosClientApi/ExecuteSql"
 )
 
@@ -146,6 +147,7 @@ type ProtosClientApiClient interface {
 	StopHostAgent(ctx context.Context, in *StopHostAgentRequest, opts ...grpc.CallOption) (*StopHostAgentResponse, error)
 	GetLocalCommits(ctx context.Context, in *GetLocalCommitsRequest, opts ...grpc.CallOption) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(ctx context.Context, in *GetRemoteCommitsRequest, opts ...grpc.CallOption) (*GetRemoteCommitsResponse, error)
+	GetCommitDiff(ctx context.Context, in *GetCommitDiffRequest, opts ...grpc.CallOption) (*GetCommitDiffResponse, error)
 	ExecuteSql(ctx context.Context, in *ExecuteSqlRequest, opts ...grpc.CallOption) (*ExecuteSqlResponse, error)
 }
 
@@ -775,6 +777,16 @@ func (c *protosClientApiClient) GetRemoteCommits(ctx context.Context, in *GetRem
 	return out, nil
 }
 
+func (c *protosClientApiClient) GetCommitDiff(ctx context.Context, in *GetCommitDiffRequest, opts ...grpc.CallOption) (*GetCommitDiffResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCommitDiffResponse)
+	err := c.cc.Invoke(ctx, ProtosClientApi_GetCommitDiff_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protosClientApiClient) ExecuteSql(ctx context.Context, in *ExecuteSqlRequest, opts ...grpc.CallOption) (*ExecuteSqlResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExecuteSqlResponse)
@@ -849,6 +861,7 @@ type ProtosClientApiServer interface {
 	StopHostAgent(context.Context, *StopHostAgentRequest) (*StopHostAgentResponse, error)
 	GetLocalCommits(context.Context, *GetLocalCommitsRequest) (*GetLocalCommitsResponse, error)
 	GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error)
+	GetCommitDiff(context.Context, *GetCommitDiffRequest) (*GetCommitDiffResponse, error)
 	ExecuteSql(context.Context, *ExecuteSqlRequest) (*ExecuteSqlResponse, error)
 }
 
@@ -1038,6 +1051,9 @@ func (UnimplementedProtosClientApiServer) GetLocalCommits(context.Context, *GetL
 }
 func (UnimplementedProtosClientApiServer) GetRemoteCommits(context.Context, *GetRemoteCommitsRequest) (*GetRemoteCommitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRemoteCommits not implemented")
+}
+func (UnimplementedProtosClientApiServer) GetCommitDiff(context.Context, *GetCommitDiffRequest) (*GetCommitDiffResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCommitDiff not implemented")
 }
 func (UnimplementedProtosClientApiServer) ExecuteSql(context.Context, *ExecuteSqlRequest) (*ExecuteSqlResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExecuteSql not implemented")
@@ -2128,6 +2144,24 @@ func _ProtosClientApi_GetRemoteCommits_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProtosClientApi_GetCommitDiff_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCommitDiffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProtosClientApiServer).GetCommitDiff(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProtosClientApi_GetCommitDiff_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProtosClientApiServer).GetCommitDiff(ctx, req.(*GetCommitDiffRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProtosClientApi_ExecuteSql_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ExecuteSqlRequest)
 	if err := dec(in); err != nil {
@@ -2384,6 +2418,10 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRemoteCommits",
 			Handler:    _ProtosClientApi_GetRemoteCommits_Handler,
+		},
+		{
+			MethodName: "GetCommitDiff",
+			Handler:    _ProtosClientApi_GetCommitDiff_Handler,
 		},
 		{
 			MethodName: "ExecuteSql",

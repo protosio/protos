@@ -1744,6 +1744,7 @@ func taskRecordToProto(record tasks.Record) *pbApic.Task {
 		Stream:       record.Stream,
 		SubjectType:  record.SubjectType,
 		SubjectId:    record.SubjectID,
+		OwnerPeerId:  record.OwnerPeerID,
 		Status:       string(record.Status),
 		Title:        record.Title,
 		Message:      record.Message,
@@ -1781,6 +1782,7 @@ func taskFromP2PProto(task *p2pproto.Task) *pbApic.Task {
 		Stream:       task.GetStream(),
 		SubjectType:  task.GetSubjectType(),
 		SubjectId:    task.GetSubjectId(),
+		OwnerPeerId:  task.GetOwnerPeerId(),
 		Status:       task.GetStatus(),
 		Title:        task.GetTitle(),
 		Message:      task.GetMessage(),
@@ -2862,6 +2864,211 @@ func (b *Backend) GetRemoteCommits(ctx context.Context, in *pbApic.GetRemoteComm
 	resp.Graph = b.commitGraphToProto(graph)
 
 	return &resp, nil
+}
+
+func (b *Backend) GetCommitDiff(ctx context.Context, in *pbApic.GetCommitDiffRequest) (*pbApic.GetCommitDiffResponse, error) {
+	remote := strings.TrimSpace(in.GetRemote())
+	if remote != "" {
+		log.Debugf("Retrieving commit diff from instance '%s'", remote)
+		client, err := b.protosClient.P2PManager.GetClient(ctx, remote)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve commit diff from remote '%s': %w", remote, err)
+		}
+		resp, err := client.GetCommitDiff(ctx, &p2pproto.GetCommitDiffRequest{
+			CommitHash: in.GetCommitHash(),
+			BaseHash:   in.GetBaseHash(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve commit diff from remote '%s': %w", remote, err)
+		}
+		return &pbApic.GetCommitDiffResponse{Diff: p2pCommitDiffToAPICProto(resp.GetDiff())}, nil
+	}
+
+	log.Debug("Retrieving local commit diff")
+	if b.protosClient == nil || b.protosClient.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	diff, err := b.protosClient.DB.GetCommitDiff(ctx, in.GetCommitHash(), in.GetBaseHash())
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve local commit diff: %w", err)
+	}
+	return &pbApic.GetCommitDiffResponse{Diff: commitDiffToAPICProto(diff)}, nil
+}
+
+func commitDiffToAPICProto(diff db.CommitDiff) *pbApic.CommitDiff {
+	resp := &pbApic.CommitDiff{
+		BaseHash:    diff.BaseHash,
+		TargetHash:  diff.TargetHash,
+		Cue:         diff.CUE,
+		UnifiedDiff: diff.UnifiedDiff,
+		Truncated:   diff.Truncated,
+		Message:     diff.Message,
+		Sql:         diff.SQL,
+	}
+	for _, table := range diff.Tables {
+		resp.Tables = append(resp.Tables, commitDiffTableToAPICProto(table))
+	}
+	for _, task := range diff.RelatedTasks {
+		resp.RelatedTasks = append(resp.RelatedTasks, commitDiffTaskContextToAPICProto(task))
+	}
+	return resp
+}
+
+func commitDiffTableToAPICProto(table db.CommitDiffTable) *pbApic.CommitDiffTable {
+	resp := &pbApic.CommitDiffTable{
+		Name: table.Name,
+		Cue:  table.CUE,
+	}
+	for _, row := range table.Rows {
+		resp.Rows = append(resp.Rows, commitDiffRowToAPICProto(row))
+	}
+	return resp
+}
+
+func commitDiffTaskContextToAPICProto(task db.CommitDiffTaskContext) *pbApic.CommitDiffTaskContext {
+	return &pbApic.CommitDiffTaskContext{
+		Id:            task.ID,
+		Stream:        task.Stream,
+		SubjectType:   task.SubjectType,
+		SubjectId:     task.SubjectID,
+		OwnerPeerId:   task.OwnerPeerID,
+		Status:        task.Status,
+		Title:         task.Title,
+		Message:       task.Message,
+		Progress:      int32(task.Progress),
+		ChangeSources: append([]string(nil), task.ChangeSources...),
+		EventCount:    int32(task.EventCount),
+		Summary:       task.Summary,
+	}
+}
+
+func commitDiffRowToAPICProto(row db.CommitDiffRow) *pbApic.CommitDiffRow {
+	resp := &pbApic.CommitDiffRow{
+		ChangeType: row.ChangeType,
+		Key:        row.Key,
+		BeforeCue:  row.BeforeCUE,
+		AfterCue:   row.AfterCUE,
+		Cue:        row.CUE,
+	}
+	for _, field := range row.Fields {
+		resp.Fields = append(resp.Fields, commitDiffFieldToAPICProto(field))
+	}
+	return resp
+}
+
+func commitDiffFieldToAPICProto(field db.CommitDiffField) *pbApic.CommitDiffField {
+	return &pbApic.CommitDiffField{
+		Name:      field.Name,
+		Before:    commitDiffValueToAPICProto(field.Before),
+		After:     commitDiffValueToAPICProto(field.After),
+		BeforeCue: field.BeforeCUE,
+		AfterCue:  field.AfterCUE,
+		Changed:   field.Changed,
+	}
+}
+
+func commitDiffValueToAPICProto(value db.CommitDiffValue) *pbApic.CommitDiffValue {
+	return &pbApic.CommitDiffValue{
+		Value:  value.Value,
+		IsNull: value.Null,
+	}
+}
+
+func p2pCommitDiffToAPICProto(diff *p2pproto.CommitDiff) *pbApic.CommitDiff {
+	if diff == nil {
+		return nil
+	}
+	resp := &pbApic.CommitDiff{
+		BaseHash:    diff.GetBaseHash(),
+		TargetHash:  diff.GetTargetHash(),
+		Cue:         diff.GetCue(),
+		UnifiedDiff: diff.GetUnifiedDiff(),
+		Truncated:   diff.GetTruncated(),
+		Message:     diff.GetMessage(),
+		Sql:         diff.GetSql(),
+	}
+	for _, table := range diff.GetTables() {
+		resp.Tables = append(resp.Tables, p2pCommitDiffTableToAPICProto(table))
+	}
+	for _, task := range diff.GetRelatedTasks() {
+		resp.RelatedTasks = append(resp.RelatedTasks, p2pCommitDiffTaskContextToAPICProto(task))
+	}
+	return resp
+}
+
+func p2pCommitDiffTableToAPICProto(table *p2pproto.CommitDiffTable) *pbApic.CommitDiffTable {
+	if table == nil {
+		return nil
+	}
+	resp := &pbApic.CommitDiffTable{
+		Name: table.GetName(),
+		Cue:  table.GetCue(),
+	}
+	for _, row := range table.GetRows() {
+		resp.Rows = append(resp.Rows, p2pCommitDiffRowToAPICProto(row))
+	}
+	return resp
+}
+
+func p2pCommitDiffTaskContextToAPICProto(task *p2pproto.CommitDiffTaskContext) *pbApic.CommitDiffTaskContext {
+	if task == nil {
+		return nil
+	}
+	return &pbApic.CommitDiffTaskContext{
+		Id:            task.GetId(),
+		Stream:        task.GetStream(),
+		SubjectType:   task.GetSubjectType(),
+		SubjectId:     task.GetSubjectId(),
+		OwnerPeerId:   task.GetOwnerPeerId(),
+		Status:        task.GetStatus(),
+		Title:         task.GetTitle(),
+		Message:       task.GetMessage(),
+		Progress:      task.GetProgress(),
+		ChangeSources: append([]string(nil), task.GetChangeSources()...),
+		EventCount:    task.GetEventCount(),
+		Summary:       task.GetSummary(),
+	}
+}
+
+func p2pCommitDiffRowToAPICProto(row *p2pproto.CommitDiffRow) *pbApic.CommitDiffRow {
+	if row == nil {
+		return nil
+	}
+	resp := &pbApic.CommitDiffRow{
+		ChangeType: row.GetChangeType(),
+		Key:        row.GetKey(),
+		BeforeCue:  row.GetBeforeCue(),
+		AfterCue:   row.GetAfterCue(),
+		Cue:        row.GetCue(),
+	}
+	for _, field := range row.GetFields() {
+		resp.Fields = append(resp.Fields, p2pCommitDiffFieldToAPICProto(field))
+	}
+	return resp
+}
+
+func p2pCommitDiffFieldToAPICProto(field *p2pproto.CommitDiffField) *pbApic.CommitDiffField {
+	if field == nil {
+		return nil
+	}
+	return &pbApic.CommitDiffField{
+		Name:      field.GetName(),
+		Before:    p2pCommitDiffValueToAPICProto(field.GetBefore()),
+		After:     p2pCommitDiffValueToAPICProto(field.GetAfter()),
+		BeforeCue: field.GetBeforeCue(),
+		AfterCue:  field.GetAfterCue(),
+		Changed:   field.GetChanged(),
+	}
+}
+
+func p2pCommitDiffValueToAPICProto(value *p2pproto.CommitDiffValue) *pbApic.CommitDiffValue {
+	if value == nil {
+		return nil
+	}
+	return &pbApic.CommitDiffValue{
+		Value:  value.GetValue(),
+		IsNull: value.GetIsNull(),
+	}
 }
 
 func (b *Backend) ExecuteSql(ctx context.Context, in *pbApic.ExecuteSqlRequest) (*pbApic.ExecuteSqlResponse, error) {

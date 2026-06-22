@@ -34,6 +34,7 @@ package p2pv1
 	stream?:        string
 	subject_type?:  string
 	subject_id?:    string
+	owner_peer_id?: string
 	status?:        string
 	title?:         string
 	message?:       string
@@ -301,6 +302,7 @@ contract: {
 				{type: "string", name: "updated_at", number: 15},
 				{type: "string", name: "started_at", number: 16},
 				{type: "string", name: "finished_at", number: 17},
+				{type: "string", name: "owner_peer_id", number: 18},
 			]},
 			{kind: "message", name: "TaskEvent", fields: [
 				{type: "string", name: "id", number: 1},

@@ -143,6 +143,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.GetLocalCommitsRequest request);
   $async.Future<$0.GetRemoteCommitsResponse> getRemoteCommits(
       $pb.ServerContext ctx, $0.GetRemoteCommitsRequest request);
+  $async.Future<$0.GetCommitDiffResponse> getCommitDiff(
+      $pb.ServerContext ctx, $0.GetCommitDiffRequest request);
   $async.Future<$0.ExecuteSqlResponse> executeSql(
       $pb.ServerContext ctx, $0.ExecuteSqlRequest request);
 
@@ -268,6 +270,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.GetLocalCommitsRequest();
       case 'GetRemoteCommits':
         return $0.GetRemoteCommitsRequest();
+      case 'GetCommitDiff':
+        return $0.GetCommitDiffRequest();
       case 'ExecuteSql':
         return $0.ExecuteSqlRequest();
       default:
@@ -408,6 +412,8 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return getLocalCommits(ctx, request as $0.GetLocalCommitsRequest);
       case 'GetRemoteCommits':
         return getRemoteCommits(ctx, request as $0.GetRemoteCommitsRequest);
+      case 'GetCommitDiff':
+        return getCommitDiff(ctx, request as $0.GetCommitDiffRequest);
       case 'ExecuteSql':
         return executeSql(ctx, request as $0.ExecuteSqlRequest);
       default:

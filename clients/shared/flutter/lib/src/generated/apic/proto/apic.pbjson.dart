@@ -2148,6 +2148,7 @@ const Task$json = {
     {'1': 'updated_at', '3': 15, '4': 1, '5': 9, '10': 'updatedAt'},
     {'1': 'started_at', '3': 16, '4': 1, '5': 9, '10': 'startedAt'},
     {'1': 'finished_at', '3': 17, '4': 1, '5': 9, '10': 'finishedAt'},
+    {'1': 'owner_peer_id', '3': 18, '4': 1, '5': 9, '10': 'ownerPeerId'},
   ],
 };
 
@@ -2162,7 +2163,7 @@ final $typed_data.Uint8List taskDescriptor = $convert.base64Decode(
     'KAVSCGF0dGVtcHRzEiEKDG1heF9hdHRlbXB0cxgNIAEoBVILbWF4QXR0ZW1wdHMSHQoKY3JlYX'
     'RlZF9hdBgOIAEoCVIJY3JlYXRlZEF0Eh0KCnVwZGF0ZWRfYXQYDyABKAlSCXVwZGF0ZWRBdBId'
     'CgpzdGFydGVkX2F0GBAgASgJUglzdGFydGVkQXQSHwoLZmluaXNoZWRfYXQYESABKAlSCmZpbm'
-    'lzaGVkQXQ=');
+    'lzaGVkQXQSIgoNb3duZXJfcGVlcl9pZBgSIAEoCVILb3duZXJQZWVySWQ=');
 
 @$core.Deprecated('Use taskEventDescriptor instead')
 const TaskEvent$json = {
@@ -3432,6 +3433,206 @@ final $typed_data.Uint8List getRemoteCommitsResponseDescriptor =
         'ChhHZXRSZW1vdGVDb21taXRzUmVzcG9uc2USJgoHY29tbWl0cxgBIAMoCzIMLmFwaWMuQ29tbW'
         'l0Ugdjb21taXRzEicKBWdyYXBoGAIgASgLMhEuYXBpYy5Db21taXRHcmFwaFIFZ3JhcGg=');
 
+@$core.Deprecated('Use commitDiffValueDescriptor instead')
+const CommitDiffValue$json = {
+  '1': 'CommitDiffValue',
+  '2': [
+    {'1': 'value', '3': 1, '4': 1, '5': 9, '10': 'value'},
+    {'1': 'is_null', '3': 2, '4': 1, '5': 8, '10': 'isNull'},
+  ],
+};
+
+/// Descriptor for `CommitDiffValue`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitDiffValueDescriptor = $convert.base64Decode(
+    'Cg9Db21taXREaWZmVmFsdWUSFAoFdmFsdWUYASABKAlSBXZhbHVlEhcKB2lzX251bGwYAiABKA'
+    'hSBmlzTnVsbA==');
+
+@$core.Deprecated('Use commitDiffFieldDescriptor instead')
+const CommitDiffField$json = {
+  '1': 'CommitDiffField',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'before',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CommitDiffValue',
+      '10': 'before'
+    },
+    {
+      '1': 'after',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CommitDiffValue',
+      '10': 'after'
+    },
+    {'1': 'before_cue', '3': 4, '4': 1, '5': 9, '10': 'beforeCue'},
+    {'1': 'after_cue', '3': 5, '4': 1, '5': 9, '10': 'afterCue'},
+    {'1': 'changed', '3': 6, '4': 1, '5': 8, '10': 'changed'},
+  ],
+};
+
+/// Descriptor for `CommitDiffField`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitDiffFieldDescriptor = $convert.base64Decode(
+    'Cg9Db21taXREaWZmRmllbGQSEgoEbmFtZRgBIAEoCVIEbmFtZRItCgZiZWZvcmUYAiABKAsyFS'
+    '5hcGljLkNvbW1pdERpZmZWYWx1ZVIGYmVmb3JlEisKBWFmdGVyGAMgASgLMhUuYXBpYy5Db21t'
+    'aXREaWZmVmFsdWVSBWFmdGVyEh0KCmJlZm9yZV9jdWUYBCABKAlSCWJlZm9yZUN1ZRIbCglhZn'
+    'Rlcl9jdWUYBSABKAlSCGFmdGVyQ3VlEhgKB2NoYW5nZWQYBiABKAhSB2NoYW5nZWQ=');
+
+@$core.Deprecated('Use commitDiffRowDescriptor instead')
+const CommitDiffRow$json = {
+  '1': 'CommitDiffRow',
+  '2': [
+    {'1': 'change_type', '3': 1, '4': 1, '5': 9, '10': 'changeType'},
+    {'1': 'key', '3': 2, '4': 1, '5': 9, '10': 'key'},
+    {
+      '1': 'fields',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CommitDiffField',
+      '10': 'fields'
+    },
+    {'1': 'before_cue', '3': 4, '4': 1, '5': 9, '10': 'beforeCue'},
+    {'1': 'after_cue', '3': 5, '4': 1, '5': 9, '10': 'afterCue'},
+    {'1': 'cue', '3': 6, '4': 1, '5': 9, '10': 'cue'},
+  ],
+};
+
+/// Descriptor for `CommitDiffRow`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitDiffRowDescriptor = $convert.base64Decode(
+    'Cg1Db21taXREaWZmUm93Eh8KC2NoYW5nZV90eXBlGAEgASgJUgpjaGFuZ2VUeXBlEhAKA2tleR'
+    'gCIAEoCVIDa2V5Ei0KBmZpZWxkcxgDIAMoCzIVLmFwaWMuQ29tbWl0RGlmZkZpZWxkUgZmaWVs'
+    'ZHMSHQoKYmVmb3JlX2N1ZRgEIAEoCVIJYmVmb3JlQ3VlEhsKCWFmdGVyX2N1ZRgFIAEoCVIIYW'
+    'Z0ZXJDdWUSEAoDY3VlGAYgASgJUgNjdWU=');
+
+@$core.Deprecated('Use commitDiffTableDescriptor instead')
+const CommitDiffTable$json = {
+  '1': 'CommitDiffTable',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'rows',
+      '3': 2,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CommitDiffRow',
+      '10': 'rows'
+    },
+    {'1': 'cue', '3': 3, '4': 1, '5': 9, '10': 'cue'},
+  ],
+};
+
+/// Descriptor for `CommitDiffTable`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitDiffTableDescriptor = $convert.base64Decode(
+    'Cg9Db21taXREaWZmVGFibGUSEgoEbmFtZRgBIAEoCVIEbmFtZRInCgRyb3dzGAIgAygLMhMuYX'
+    'BpYy5Db21taXREaWZmUm93UgRyb3dzEhAKA2N1ZRgDIAEoCVIDY3Vl');
+
+@$core.Deprecated('Use commitDiffTaskContextDescriptor instead')
+const CommitDiffTaskContext$json = {
+  '1': 'CommitDiffTaskContext',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'stream', '3': 2, '4': 1, '5': 9, '10': 'stream'},
+    {'1': 'subject_type', '3': 3, '4': 1, '5': 9, '10': 'subjectType'},
+    {'1': 'subject_id', '3': 4, '4': 1, '5': 9, '10': 'subjectId'},
+    {'1': 'owner_peer_id', '3': 5, '4': 1, '5': 9, '10': 'ownerPeerId'},
+    {'1': 'status', '3': 6, '4': 1, '5': 9, '10': 'status'},
+    {'1': 'title', '3': 7, '4': 1, '5': 9, '10': 'title'},
+    {'1': 'message', '3': 8, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'progress', '3': 9, '4': 1, '5': 5, '10': 'progress'},
+    {'1': 'change_sources', '3': 10, '4': 3, '5': 9, '10': 'changeSources'},
+    {'1': 'event_count', '3': 11, '4': 1, '5': 5, '10': 'eventCount'},
+    {'1': 'summary', '3': 12, '4': 1, '5': 9, '10': 'summary'},
+  ],
+};
+
+/// Descriptor for `CommitDiffTaskContext`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitDiffTaskContextDescriptor = $convert.base64Decode(
+    'ChVDb21taXREaWZmVGFza0NvbnRleHQSDgoCaWQYASABKAlSAmlkEhYKBnN0cmVhbRgCIAEoCV'
+    'IGc3RyZWFtEiEKDHN1YmplY3RfdHlwZRgDIAEoCVILc3ViamVjdFR5cGUSHQoKc3ViamVjdF9p'
+    'ZBgEIAEoCVIJc3ViamVjdElkEiIKDW93bmVyX3BlZXJfaWQYBSABKAlSC293bmVyUGVlcklkEh'
+    'YKBnN0YXR1cxgGIAEoCVIGc3RhdHVzEhQKBXRpdGxlGAcgASgJUgV0aXRsZRIYCgdtZXNzYWdl'
+    'GAggASgJUgdtZXNzYWdlEhoKCHByb2dyZXNzGAkgASgFUghwcm9ncmVzcxIlCg5jaGFuZ2Vfc2'
+    '91cmNlcxgKIAMoCVINY2hhbmdlU291cmNlcxIfCgtldmVudF9jb3VudBgLIAEoBVIKZXZlbnRD'
+    'b3VudBIYCgdzdW1tYXJ5GAwgASgJUgdzdW1tYXJ5');
+
+@$core.Deprecated('Use commitDiffDescriptor instead')
+const CommitDiff$json = {
+  '1': 'CommitDiff',
+  '2': [
+    {'1': 'base_hash', '3': 1, '4': 1, '5': 9, '10': 'baseHash'},
+    {'1': 'target_hash', '3': 2, '4': 1, '5': 9, '10': 'targetHash'},
+    {
+      '1': 'tables',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CommitDiffTable',
+      '10': 'tables'
+    },
+    {'1': 'cue', '3': 4, '4': 1, '5': 9, '10': 'cue'},
+    {'1': 'truncated', '3': 5, '4': 1, '5': 8, '10': 'truncated'},
+    {'1': 'message', '3': 6, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'unified_diff', '3': 7, '4': 1, '5': 9, '10': 'unifiedDiff'},
+    {
+      '1': 'related_tasks',
+      '3': 8,
+      '4': 3,
+      '5': 11,
+      '6': '.apic.CommitDiffTaskContext',
+      '10': 'relatedTasks'
+    },
+    {'1': 'sql', '3': 9, '4': 1, '5': 9, '10': 'sql'},
+  ],
+};
+
+/// Descriptor for `CommitDiff`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List commitDiffDescriptor = $convert.base64Decode(
+    'CgpDb21taXREaWZmEhsKCWJhc2VfaGFzaBgBIAEoCVIIYmFzZUhhc2gSHwoLdGFyZ2V0X2hhc2'
+    'gYAiABKAlSCnRhcmdldEhhc2gSLQoGdGFibGVzGAMgAygLMhUuYXBpYy5Db21taXREaWZmVGFi'
+    'bGVSBnRhYmxlcxIQCgNjdWUYBCABKAlSA2N1ZRIcCgl0cnVuY2F0ZWQYBSABKAhSCXRydW5jYX'
+    'RlZBIYCgdtZXNzYWdlGAYgASgJUgdtZXNzYWdlEiEKDHVuaWZpZWRfZGlmZhgHIAEoCVILdW5p'
+    'ZmllZERpZmYSQAoNcmVsYXRlZF90YXNrcxgIIAMoCzIbLmFwaWMuQ29tbWl0RGlmZlRhc2tDb2'
+    '50ZXh0UgxyZWxhdGVkVGFza3MSEAoDc3FsGAkgASgJUgNzcWw=');
+
+@$core.Deprecated('Use getCommitDiffRequestDescriptor instead')
+const GetCommitDiffRequest$json = {
+  '1': 'GetCommitDiffRequest',
+  '2': [
+    {'1': 'commit_hash', '3': 1, '4': 1, '5': 9, '10': 'commitHash'},
+    {'1': 'base_hash', '3': 2, '4': 1, '5': 9, '10': 'baseHash'},
+    {'1': 'remote', '3': 3, '4': 1, '5': 9, '10': 'remote'},
+  ],
+};
+
+/// Descriptor for `GetCommitDiffRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCommitDiffRequestDescriptor = $convert.base64Decode(
+    'ChRHZXRDb21taXREaWZmUmVxdWVzdBIfCgtjb21taXRfaGFzaBgBIAEoCVIKY29tbWl0SGFzaB'
+    'IbCgliYXNlX2hhc2gYAiABKAlSCGJhc2VIYXNoEhYKBnJlbW90ZRgDIAEoCVIGcmVtb3Rl');
+
+@$core.Deprecated('Use getCommitDiffResponseDescriptor instead')
+const GetCommitDiffResponse$json = {
+  '1': 'GetCommitDiffResponse',
+  '2': [
+    {
+      '1': 'diff',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.CommitDiff',
+      '10': 'diff'
+    },
+  ],
+};
+
+/// Descriptor for `GetCommitDiffResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getCommitDiffResponseDescriptor = $convert.base64Decode(
+    'ChVHZXRDb21taXREaWZmUmVzcG9uc2USJAoEZGlmZhgBIAEoCzIQLmFwaWMuQ29tbWl0RGlmZl'
+    'IEZGlmZg==');
+
 @$core.Deprecated('Use sqlCellDescriptor instead')
 const SqlCell$json = {
   '1': 'SqlCell',
@@ -3859,6 +4060,12 @@ const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
       '4': {}
     },
     {
+      '1': 'GetCommitDiff',
+      '2': '.apic.GetCommitDiffRequest',
+      '3': '.apic.GetCommitDiffResponse',
+      '4': {}
+    },
+    {
       '1': 'ExecuteSql',
       '2': '.apic.ExecuteSqlRequest',
       '3': '.apic.ExecuteSqlResponse',
@@ -4058,6 +4265,14 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.CommitGraphRelation': CommitGraphRelation$json,
   '.apic.GetRemoteCommitsRequest': GetRemoteCommitsRequest$json,
   '.apic.GetRemoteCommitsResponse': GetRemoteCommitsResponse$json,
+  '.apic.GetCommitDiffRequest': GetCommitDiffRequest$json,
+  '.apic.GetCommitDiffResponse': GetCommitDiffResponse$json,
+  '.apic.CommitDiff': CommitDiff$json,
+  '.apic.CommitDiffTable': CommitDiffTable$json,
+  '.apic.CommitDiffRow': CommitDiffRow$json,
+  '.apic.CommitDiffField': CommitDiffField$json,
+  '.apic.CommitDiffValue': CommitDiffValue$json,
+  '.apic.CommitDiffTaskContext': CommitDiffTaskContext$json,
   '.apic.ExecuteSqlRequest': ExecuteSqlRequest$json,
   '.apic.ExecuteSqlResponse': ExecuteSqlResponse$json,
   '.apic.SqlRow': SqlRow$json,
@@ -4154,5 +4369,6 @@ final $typed_data.Uint8List protosClientApiServiceDescriptor = $convert.base64De
     '50UmVzcG9uc2UiABJQCg9HZXRMb2NhbENvbW1pdHMSHC5hcGljLkdldExvY2FsQ29tbWl0c1Jl'
     'cXVlc3QaHS5hcGljLkdldExvY2FsQ29tbWl0c1Jlc3BvbnNlIgASUwoQR2V0UmVtb3RlQ29tbW'
     'l0cxIdLmFwaWMuR2V0UmVtb3RlQ29tbWl0c1JlcXVlc3QaHi5hcGljLkdldFJlbW90ZUNvbW1p'
-    'dHNSZXNwb25zZSIAEkEKCkV4ZWN1dGVTcWwSFy5hcGljLkV4ZWN1dGVTcWxSZXF1ZXN0GhguYX'
-    'BpYy5FeGVjdXRlU3FsUmVzcG9uc2UiAA==');
+    'dHNSZXNwb25zZSIAEkoKDUdldENvbW1pdERpZmYSGi5hcGljLkdldENvbW1pdERpZmZSZXF1ZX'
+    'N0GhsuYXBpYy5HZXRDb21taXREaWZmUmVzcG9uc2UiABJBCgpFeGVjdXRlU3FsEhcuYXBpYy5F'
+    'eGVjdXRlU3FsUmVxdWVzdBoYLmFwaWMuRXhlY3V0ZVNxbFJlc3BvbnNlIgA=');

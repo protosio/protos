@@ -26,6 +26,37 @@ var cmdDvc *cli.Command = &cli.Command{
 				return getCommits(instance)
 			},
 		},
+		{
+			Name:      "diff",
+			Usage:     "Show a CUE-shaped diff for a local or instance commit",
+			ArgsUsage: "<commit> [instance]",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "base",
+					Usage: "Base commit hash; defaults to the selected commit's first parent",
+				},
+				&cli.BoolFlag{
+					Name:  "cue",
+					Usage: "Show the CUE-shaped diff",
+				},
+				&cli.BoolFlag{
+					Name:  "sql",
+					Usage: "Show the SQL patch",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				commitHash := c.Args().Get(0)
+				if strings.TrimSpace(commitHash) == "" {
+					return fmt.Errorf("commit hash is required")
+				}
+				format, err := commitDiffOutputFormat(c.Bool("cue"), c.Bool("sql"))
+				if err != nil {
+					return err
+				}
+				instance := c.Args().Get(1)
+				return getCommitDiff(commitHash, c.String("base"), instance, format)
+			},
+		},
 	},
 }
 
@@ -73,6 +104,123 @@ func getCommits(instanceID string) error {
 	fmt.Fprint(w, "\n")
 
 	return nil
+}
+
+type commitDiffFormat string
+
+const (
+	commitDiffFormatCUE commitDiffFormat = "cue"
+	commitDiffFormatSQL commitDiffFormat = "sql"
+)
+
+func commitDiffOutputFormat(cue bool, sql bool) (commitDiffFormat, error) {
+	if cue && sql {
+		return "", fmt.Errorf("choose either --cue or --sql, not both")
+	}
+	if sql {
+		return commitDiffFormatSQL, nil
+	}
+	return commitDiffFormatCUE, nil
+}
+
+func getCommitDiff(commitHash string, baseHash string, instanceID string, format commitDiffFormat) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	resp, err := client.GetCommitDiff(ctx, &pbApic.GetCommitDiffRequest{
+		CommitHash: commitHash,
+		BaseHash:   baseHash,
+		Remote:     instanceID,
+	})
+	if err != nil {
+		if instanceID != "" {
+			return fmt.Errorf("failed to retrieve commit diff from instance '%s': %w", instanceID, err)
+		}
+		return fmt.Errorf("failed to retrieve local commit diff: %w", err)
+	}
+	diff := resp.GetDiff()
+	if diff == nil {
+		return fmt.Errorf("commit diff response did not include a diff")
+	}
+	printCommitDiffRelatedTasks(diff)
+	text := commitDiffText(diff, format)
+	if strings.TrimSpace(text) != "" {
+		fmt.Fprint(os.Stdout, text)
+		if !strings.HasSuffix(text, "\n") {
+			fmt.Fprintln(os.Stdout)
+		}
+	} else if diff.GetMessage() != "" {
+		fmt.Fprintln(os.Stdout, diff.GetMessage())
+	}
+	if diff.GetTruncated() {
+		fmt.Fprintln(os.Stderr, "diff truncated")
+	}
+	return nil
+}
+
+func commitDiffText(diff *pbApic.CommitDiff, format commitDiffFormat) string {
+	if diff == nil {
+		return ""
+	}
+	if format == commitDiffFormatSQL {
+		return diff.GetSql()
+	}
+	if strings.TrimSpace(diff.GetUnifiedDiff()) != "" {
+		return diff.GetUnifiedDiff()
+	}
+	return diff.GetCue()
+}
+
+func printCommitDiffRelatedTasks(diff *pbApic.CommitDiff) {
+	if diff == nil || len(diff.GetRelatedTasks()) == 0 {
+		return
+	}
+	w := new(tabwriter.Writer)
+	w.Init(os.Stderr, 0, 0, 2, ' ', 0)
+	defer w.Flush()
+
+	fmt.Fprintln(w, "Related tasks:")
+	fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", "ID", "Status", "Progress", "Owner", "Summary")
+	for _, task := range diff.GetRelatedTasks() {
+		if task == nil {
+			continue
+		}
+		fmt.Fprintf(
+			w,
+			"%s\t%s\t%d%%\t%s\t%s\n",
+			shortTaskID(task.GetId()),
+			task.GetStatus(),
+			task.GetProgress(),
+			task.GetOwnerPeerId(),
+			commitDiffTaskSummary(task),
+		)
+	}
+	fmt.Fprintln(w)
+}
+
+func shortTaskID(id string) string {
+	const length = 8
+	if len(id) <= length {
+		return id
+	}
+	return id[:length]
+}
+
+func commitDiffTaskSummary(task *pbApic.CommitDiffTaskContext) string {
+	if task == nil {
+		return ""
+	}
+	if strings.TrimSpace(task.GetSummary()) != "" {
+		return task.GetSummary()
+	}
+	switch {
+	case strings.TrimSpace(task.GetTitle()) != "":
+		return task.GetTitle()
+	case strings.TrimSpace(task.GetStream()) != "":
+		return task.GetStream()
+	default:
+		return task.GetId()
+	}
 }
 
 func commitStateLabel(commit *pbApic.Commit) string {

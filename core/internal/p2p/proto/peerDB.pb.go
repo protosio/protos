@@ -401,6 +401,622 @@ func (x *GetAllCommitsResponse) GetCommits() []*Commit {
 	return nil
 }
 
+type CommitDiffValue struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	IsNull        bool                   `protobuf:"varint,2,opt,name=is_null,json=isNull,proto3" json:"is_null,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitDiffValue) Reset() {
+	*x = CommitDiffValue{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitDiffValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitDiffValue) ProtoMessage() {}
+
+func (x *CommitDiffValue) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitDiffValue.ProtoReflect.Descriptor instead.
+func (*CommitDiffValue) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CommitDiffValue) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *CommitDiffValue) GetIsNull() bool {
+	if x != nil {
+		return x.IsNull
+	}
+	return false
+}
+
+type CommitDiffField struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Before        *CommitDiffValue       `protobuf:"bytes,2,opt,name=before,proto3" json:"before,omitempty"`
+	After         *CommitDiffValue       `protobuf:"bytes,3,opt,name=after,proto3" json:"after,omitempty"`
+	BeforeCue     string                 `protobuf:"bytes,4,opt,name=before_cue,json=beforeCue,proto3" json:"before_cue,omitempty"`
+	AfterCue      string                 `protobuf:"bytes,5,opt,name=after_cue,json=afterCue,proto3" json:"after_cue,omitempty"`
+	Changed       bool                   `protobuf:"varint,6,opt,name=changed,proto3" json:"changed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitDiffField) Reset() {
+	*x = CommitDiffField{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitDiffField) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitDiffField) ProtoMessage() {}
+
+func (x *CommitDiffField) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitDiffField.ProtoReflect.Descriptor instead.
+func (*CommitDiffField) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CommitDiffField) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CommitDiffField) GetBefore() *CommitDiffValue {
+	if x != nil {
+		return x.Before
+	}
+	return nil
+}
+
+func (x *CommitDiffField) GetAfter() *CommitDiffValue {
+	if x != nil {
+		return x.After
+	}
+	return nil
+}
+
+func (x *CommitDiffField) GetBeforeCue() string {
+	if x != nil {
+		return x.BeforeCue
+	}
+	return ""
+}
+
+func (x *CommitDiffField) GetAfterCue() string {
+	if x != nil {
+		return x.AfterCue
+	}
+	return ""
+}
+
+func (x *CommitDiffField) GetChanged() bool {
+	if x != nil {
+		return x.Changed
+	}
+	return false
+}
+
+type CommitDiffRow struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChangeType    string                 `protobuf:"bytes,1,opt,name=change_type,json=changeType,proto3" json:"change_type,omitempty"`
+	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+	Fields        []*CommitDiffField     `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
+	BeforeCue     string                 `protobuf:"bytes,4,opt,name=before_cue,json=beforeCue,proto3" json:"before_cue,omitempty"`
+	AfterCue      string                 `protobuf:"bytes,5,opt,name=after_cue,json=afterCue,proto3" json:"after_cue,omitempty"`
+	Cue           string                 `protobuf:"bytes,6,opt,name=cue,proto3" json:"cue,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitDiffRow) Reset() {
+	*x = CommitDiffRow{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitDiffRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitDiffRow) ProtoMessage() {}
+
+func (x *CommitDiffRow) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitDiffRow.ProtoReflect.Descriptor instead.
+func (*CommitDiffRow) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CommitDiffRow) GetChangeType() string {
+	if x != nil {
+		return x.ChangeType
+	}
+	return ""
+}
+
+func (x *CommitDiffRow) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *CommitDiffRow) GetFields() []*CommitDiffField {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+func (x *CommitDiffRow) GetBeforeCue() string {
+	if x != nil {
+		return x.BeforeCue
+	}
+	return ""
+}
+
+func (x *CommitDiffRow) GetAfterCue() string {
+	if x != nil {
+		return x.AfterCue
+	}
+	return ""
+}
+
+func (x *CommitDiffRow) GetCue() string {
+	if x != nil {
+		return x.Cue
+	}
+	return ""
+}
+
+type CommitDiffTable struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Rows          []*CommitDiffRow       `protobuf:"bytes,2,rep,name=rows,proto3" json:"rows,omitempty"`
+	Cue           string                 `protobuf:"bytes,3,opt,name=cue,proto3" json:"cue,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitDiffTable) Reset() {
+	*x = CommitDiffTable{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitDiffTable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitDiffTable) ProtoMessage() {}
+
+func (x *CommitDiffTable) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitDiffTable.ProtoReflect.Descriptor instead.
+func (*CommitDiffTable) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CommitDiffTable) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CommitDiffTable) GetRows() []*CommitDiffRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+func (x *CommitDiffTable) GetCue() string {
+	if x != nil {
+		return x.Cue
+	}
+	return ""
+}
+
+type CommitDiffTaskContext struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Stream        string                 `protobuf:"bytes,2,opt,name=stream,proto3" json:"stream,omitempty"`
+	SubjectType   string                 `protobuf:"bytes,3,opt,name=subject_type,json=subjectType,proto3" json:"subject_type,omitempty"`
+	SubjectId     string                 `protobuf:"bytes,4,opt,name=subject_id,json=subjectId,proto3" json:"subject_id,omitempty"`
+	OwnerPeerId   string                 `protobuf:"bytes,5,opt,name=owner_peer_id,json=ownerPeerId,proto3" json:"owner_peer_id,omitempty"`
+	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	Title         string                 `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`
+	Message       string                 `protobuf:"bytes,8,opt,name=message,proto3" json:"message,omitempty"`
+	Progress      int32                  `protobuf:"varint,9,opt,name=progress,proto3" json:"progress,omitempty"`
+	ChangeSources []string               `protobuf:"bytes,10,rep,name=change_sources,json=changeSources,proto3" json:"change_sources,omitempty"`
+	EventCount    int32                  `protobuf:"varint,11,opt,name=event_count,json=eventCount,proto3" json:"event_count,omitempty"`
+	Summary       string                 `protobuf:"bytes,12,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitDiffTaskContext) Reset() {
+	*x = CommitDiffTaskContext{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitDiffTaskContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitDiffTaskContext) ProtoMessage() {}
+
+func (x *CommitDiffTaskContext) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitDiffTaskContext.ProtoReflect.Descriptor instead.
+func (*CommitDiffTaskContext) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *CommitDiffTaskContext) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetStream() string {
+	if x != nil {
+		return x.Stream
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetSubjectType() string {
+	if x != nil {
+		return x.SubjectType
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetSubjectId() string {
+	if x != nil {
+		return x.SubjectId
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetOwnerPeerId() string {
+	if x != nil {
+		return x.OwnerPeerId
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *CommitDiffTaskContext) GetProgress() int32 {
+	if x != nil {
+		return x.Progress
+	}
+	return 0
+}
+
+func (x *CommitDiffTaskContext) GetChangeSources() []string {
+	if x != nil {
+		return x.ChangeSources
+	}
+	return nil
+}
+
+func (x *CommitDiffTaskContext) GetEventCount() int32 {
+	if x != nil {
+		return x.EventCount
+	}
+	return 0
+}
+
+func (x *CommitDiffTaskContext) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+type CommitDiff struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	BaseHash      string                   `protobuf:"bytes,1,opt,name=base_hash,json=baseHash,proto3" json:"base_hash,omitempty"`
+	TargetHash    string                   `protobuf:"bytes,2,opt,name=target_hash,json=targetHash,proto3" json:"target_hash,omitempty"`
+	Tables        []*CommitDiffTable       `protobuf:"bytes,3,rep,name=tables,proto3" json:"tables,omitempty"`
+	Cue           string                   `protobuf:"bytes,4,opt,name=cue,proto3" json:"cue,omitempty"`
+	Truncated     bool                     `protobuf:"varint,5,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	Message       string                   `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`
+	UnifiedDiff   string                   `protobuf:"bytes,7,opt,name=unified_diff,json=unifiedDiff,proto3" json:"unified_diff,omitempty"`
+	RelatedTasks  []*CommitDiffTaskContext `protobuf:"bytes,8,rep,name=related_tasks,json=relatedTasks,proto3" json:"related_tasks,omitempty"`
+	Sql           string                   `protobuf:"bytes,9,opt,name=sql,proto3" json:"sql,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitDiff) Reset() {
+	*x = CommitDiff{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitDiff) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitDiff) ProtoMessage() {}
+
+func (x *CommitDiff) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitDiff.ProtoReflect.Descriptor instead.
+func (*CommitDiff) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CommitDiff) GetBaseHash() string {
+	if x != nil {
+		return x.BaseHash
+	}
+	return ""
+}
+
+func (x *CommitDiff) GetTargetHash() string {
+	if x != nil {
+		return x.TargetHash
+	}
+	return ""
+}
+
+func (x *CommitDiff) GetTables() []*CommitDiffTable {
+	if x != nil {
+		return x.Tables
+	}
+	return nil
+}
+
+func (x *CommitDiff) GetCue() string {
+	if x != nil {
+		return x.Cue
+	}
+	return ""
+}
+
+func (x *CommitDiff) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+func (x *CommitDiff) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *CommitDiff) GetUnifiedDiff() string {
+	if x != nil {
+		return x.UnifiedDiff
+	}
+	return ""
+}
+
+func (x *CommitDiff) GetRelatedTasks() []*CommitDiffTaskContext {
+	if x != nil {
+		return x.RelatedTasks
+	}
+	return nil
+}
+
+func (x *CommitDiff) GetSql() string {
+	if x != nil {
+		return x.Sql
+	}
+	return ""
+}
+
+type GetCommitDiffRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CommitHash    string                 `protobuf:"bytes,1,opt,name=commit_hash,json=commitHash,proto3" json:"commit_hash,omitempty"`
+	BaseHash      string                 `protobuf:"bytes,2,opt,name=base_hash,json=baseHash,proto3" json:"base_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommitDiffRequest) Reset() {
+	*x = GetCommitDiffRequest{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommitDiffRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommitDiffRequest) ProtoMessage() {}
+
+func (x *GetCommitDiffRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommitDiffRequest.ProtoReflect.Descriptor instead.
+func (*GetCommitDiffRequest) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetCommitDiffRequest) GetCommitHash() string {
+	if x != nil {
+		return x.CommitHash
+	}
+	return ""
+}
+
+func (x *GetCommitDiffRequest) GetBaseHash() string {
+	if x != nil {
+		return x.BaseHash
+	}
+	return ""
+}
+
+type GetCommitDiffResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Diff          *CommitDiff            `protobuf:"bytes,1,opt,name=diff,proto3" json:"diff,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommitDiffResponse) Reset() {
+	*x = GetCommitDiffResponse{}
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommitDiffResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommitDiffResponse) ProtoMessage() {}
+
+func (x *GetCommitDiffResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommitDiffResponse.ProtoReflect.Descriptor instead.
+func (*GetCommitDiffResponse) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetCommitDiffResponse) GetDiff() *CommitDiff {
+	if x != nil {
+		return x.Diff
+	}
+	return nil
+}
+
 type GetHeadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -409,7 +1025,7 @@ type GetHeadRequest struct {
 
 func (x *GetHeadRequest) Reset() {
 	*x = GetHeadRequest{}
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[7]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -421,7 +1037,7 @@ func (x *GetHeadRequest) String() string {
 func (*GetHeadRequest) ProtoMessage() {}
 
 func (x *GetHeadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[7]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -434,7 +1050,7 @@ func (x *GetHeadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHeadRequest.ProtoReflect.Descriptor instead.
 func (*GetHeadRequest) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{7}
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{15}
 }
 
 type GetHeadResponse struct {
@@ -446,7 +1062,7 @@ type GetHeadResponse struct {
 
 func (x *GetHeadResponse) Reset() {
 	*x = GetHeadResponse{}
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[8]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -458,7 +1074,7 @@ func (x *GetHeadResponse) String() string {
 func (*GetHeadResponse) ProtoMessage() {}
 
 func (x *GetHeadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[8]
+	mi := &file_internal_p2p_proto_peerDB_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +1087,7 @@ func (x *GetHeadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHeadResponse.ProtoReflect.Descriptor instead.
 func (*GetHeadResponse) Descriptor() ([]byte, []int) {
-	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{8}
+	return file_internal_p2p_proto_peerDB_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetHeadResponse) GetCommit() string {
@@ -508,13 +1124,72 @@ const file_internal_p2p_proto_peerDB_proto_rawDesc = "" +
 	"\x04refs\x18\x06 \x03(\tR\x04refs\"\x16\n" +
 	"\x14GetAllCommitsRequest\"@\n" +
 	"\x15GetAllCommitsResponse\x12'\n" +
-	"\acommits\x18\x01 \x03(\v2\r.proto.CommitR\acommits\"\x10\n" +
+	"\acommits\x18\x01 \x03(\v2\r.proto.CommitR\acommits\"@\n" +
+	"\x0fCommitDiffValue\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x12\x17\n" +
+	"\ais_null\x18\x02 \x01(\bR\x06isNull\"\xd9\x01\n" +
+	"\x0fCommitDiffField\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12.\n" +
+	"\x06before\x18\x02 \x01(\v2\x16.proto.CommitDiffValueR\x06before\x12,\n" +
+	"\x05after\x18\x03 \x01(\v2\x16.proto.CommitDiffValueR\x05after\x12\x1d\n" +
+	"\n" +
+	"before_cue\x18\x04 \x01(\tR\tbeforeCue\x12\x1b\n" +
+	"\tafter_cue\x18\x05 \x01(\tR\bafterCue\x12\x18\n" +
+	"\achanged\x18\x06 \x01(\bR\achanged\"\xc0\x01\n" +
+	"\rCommitDiffRow\x12\x1f\n" +
+	"\vchange_type\x18\x01 \x01(\tR\n" +
+	"changeType\x12\x10\n" +
+	"\x03key\x18\x02 \x01(\tR\x03key\x12.\n" +
+	"\x06fields\x18\x03 \x03(\v2\x16.proto.CommitDiffFieldR\x06fields\x12\x1d\n" +
+	"\n" +
+	"before_cue\x18\x04 \x01(\tR\tbeforeCue\x12\x1b\n" +
+	"\tafter_cue\x18\x05 \x01(\tR\bafterCue\x12\x10\n" +
+	"\x03cue\x18\x06 \x01(\tR\x03cue\"a\n" +
+	"\x0fCommitDiffTable\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
+	"\x04rows\x18\x02 \x03(\v2\x14.proto.CommitDiffRowR\x04rows\x12\x10\n" +
+	"\x03cue\x18\x03 \x01(\tR\x03cue\"\xeb\x02\n" +
+	"\x15CommitDiffTaskContext\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06stream\x18\x02 \x01(\tR\x06stream\x12!\n" +
+	"\fsubject_type\x18\x03 \x01(\tR\vsubjectType\x12\x1d\n" +
+	"\n" +
+	"subject_id\x18\x04 \x01(\tR\tsubjectId\x12\"\n" +
+	"\rowner_peer_id\x18\x05 \x01(\tR\vownerPeerId\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\x12\x14\n" +
+	"\x05title\x18\a \x01(\tR\x05title\x12\x18\n" +
+	"\amessage\x18\b \x01(\tR\amessage\x12\x1a\n" +
+	"\bprogress\x18\t \x01(\x05R\bprogress\x12%\n" +
+	"\x0echange_sources\x18\n" +
+	" \x03(\tR\rchangeSources\x12\x1f\n" +
+	"\vevent_count\x18\v \x01(\x05R\n" +
+	"eventCount\x12\x18\n" +
+	"\asummary\x18\f \x01(\tR\asummary\"\xbc\x02\n" +
+	"\n" +
+	"CommitDiff\x12\x1b\n" +
+	"\tbase_hash\x18\x01 \x01(\tR\bbaseHash\x12\x1f\n" +
+	"\vtarget_hash\x18\x02 \x01(\tR\n" +
+	"targetHash\x12.\n" +
+	"\x06tables\x18\x03 \x03(\v2\x16.proto.CommitDiffTableR\x06tables\x12\x10\n" +
+	"\x03cue\x18\x04 \x01(\tR\x03cue\x12\x1c\n" +
+	"\ttruncated\x18\x05 \x01(\bR\ttruncated\x12\x18\n" +
+	"\amessage\x18\x06 \x01(\tR\amessage\x12!\n" +
+	"\funified_diff\x18\a \x01(\tR\vunifiedDiff\x12A\n" +
+	"\rrelated_tasks\x18\b \x03(\v2\x1c.proto.CommitDiffTaskContextR\frelatedTasks\x12\x10\n" +
+	"\x03sql\x18\t \x01(\tR\x03sql\"T\n" +
+	"\x14GetCommitDiffRequest\x12\x1f\n" +
+	"\vcommit_hash\x18\x01 \x01(\tR\n" +
+	"commitHash\x12\x1b\n" +
+	"\tbase_hash\x18\x02 \x01(\tR\bbaseHash\">\n" +
+	"\x15GetCommitDiffResponse\x12%\n" +
+	"\x04diff\x18\x01 \x01(\v2\x11.proto.CommitDiffR\x04diff\"\x10\n" +
 	"\x0eGetHeadRequest\")\n" +
 	"\x0fGetHeadResponse\x12\x16\n" +
-	"\x06commit\x18\x01 \x01(\tR\x06commit2\xce\x01\n" +
+	"\x06commit\x18\x01 \x01(\tR\x06commit2\x9c\x02\n" +
 	"\x06PeerDB\x12:\n" +
 	"\aExecSQL\x12\x15.proto.ExecSQLRequest\x1a\x16.proto.ExecSQLResponse\"\x00\x12L\n" +
-	"\rGetAllCommits\x12\x1b.proto.GetAllCommitsRequest\x1a\x1c.proto.GetAllCommitsResponse\"\x00\x12:\n" +
+	"\rGetAllCommits\x12\x1b.proto.GetAllCommitsRequest\x1a\x1c.proto.GetAllCommitsResponse\"\x00\x12L\n" +
+	"\rGetCommitDiff\x12\x1b.proto.GetCommitDiffRequest\x1a\x1c.proto.GetCommitDiffResponse\"\x00\x12:\n" +
 	"\aGetHead\x12\x15.proto.GetHeadRequest\x1a\x16.proto.GetHeadResponse\"\x00B\tZ\a./protob\x06proto3"
 
 var (
@@ -529,7 +1204,7 @@ func file_internal_p2p_proto_peerDB_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_peerDB_proto_rawDescData
 }
 
-var file_internal_p2p_proto_peerDB_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_internal_p2p_proto_peerDB_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_internal_p2p_proto_peerDB_proto_goTypes = []any{
 	(*ExecSQLRequest)(nil),        // 0: proto.ExecSQLRequest
 	(*ExecSQLResponse)(nil),       // 1: proto.ExecSQLResponse
@@ -538,24 +1213,41 @@ var file_internal_p2p_proto_peerDB_proto_goTypes = []any{
 	(*Commit)(nil),                // 4: proto.Commit
 	(*GetAllCommitsRequest)(nil),  // 5: proto.GetAllCommitsRequest
 	(*GetAllCommitsResponse)(nil), // 6: proto.GetAllCommitsResponse
-	(*GetHeadRequest)(nil),        // 7: proto.GetHeadRequest
-	(*GetHeadResponse)(nil),       // 8: proto.GetHeadResponse
+	(*CommitDiffValue)(nil),       // 7: proto.CommitDiffValue
+	(*CommitDiffField)(nil),       // 8: proto.CommitDiffField
+	(*CommitDiffRow)(nil),         // 9: proto.CommitDiffRow
+	(*CommitDiffTable)(nil),       // 10: proto.CommitDiffTable
+	(*CommitDiffTaskContext)(nil), // 11: proto.CommitDiffTaskContext
+	(*CommitDiff)(nil),            // 12: proto.CommitDiff
+	(*GetCommitDiffRequest)(nil),  // 13: proto.GetCommitDiffRequest
+	(*GetCommitDiffResponse)(nil), // 14: proto.GetCommitDiffResponse
+	(*GetHeadRequest)(nil),        // 15: proto.GetHeadRequest
+	(*GetHeadResponse)(nil),       // 16: proto.GetHeadResponse
 }
 var file_internal_p2p_proto_peerDB_proto_depIdxs = []int32{
-	3, // 0: proto.ExecSQLResponse.rows:type_name -> proto.SQLRow
-	2, // 1: proto.SQLRow.cells:type_name -> proto.SQLCell
-	4, // 2: proto.GetAllCommitsResponse.commits:type_name -> proto.Commit
-	0, // 3: proto.PeerDB.ExecSQL:input_type -> proto.ExecSQLRequest
-	5, // 4: proto.PeerDB.GetAllCommits:input_type -> proto.GetAllCommitsRequest
-	7, // 5: proto.PeerDB.GetHead:input_type -> proto.GetHeadRequest
-	1, // 6: proto.PeerDB.ExecSQL:output_type -> proto.ExecSQLResponse
-	6, // 7: proto.PeerDB.GetAllCommits:output_type -> proto.GetAllCommitsResponse
-	8, // 8: proto.PeerDB.GetHead:output_type -> proto.GetHeadResponse
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3,  // 0: proto.ExecSQLResponse.rows:type_name -> proto.SQLRow
+	2,  // 1: proto.SQLRow.cells:type_name -> proto.SQLCell
+	4,  // 2: proto.GetAllCommitsResponse.commits:type_name -> proto.Commit
+	7,  // 3: proto.CommitDiffField.before:type_name -> proto.CommitDiffValue
+	7,  // 4: proto.CommitDiffField.after:type_name -> proto.CommitDiffValue
+	8,  // 5: proto.CommitDiffRow.fields:type_name -> proto.CommitDiffField
+	9,  // 6: proto.CommitDiffTable.rows:type_name -> proto.CommitDiffRow
+	10, // 7: proto.CommitDiff.tables:type_name -> proto.CommitDiffTable
+	11, // 8: proto.CommitDiff.related_tasks:type_name -> proto.CommitDiffTaskContext
+	12, // 9: proto.GetCommitDiffResponse.diff:type_name -> proto.CommitDiff
+	0,  // 10: proto.PeerDB.ExecSQL:input_type -> proto.ExecSQLRequest
+	5,  // 11: proto.PeerDB.GetAllCommits:input_type -> proto.GetAllCommitsRequest
+	13, // 12: proto.PeerDB.GetCommitDiff:input_type -> proto.GetCommitDiffRequest
+	15, // 13: proto.PeerDB.GetHead:input_type -> proto.GetHeadRequest
+	1,  // 14: proto.PeerDB.ExecSQL:output_type -> proto.ExecSQLResponse
+	6,  // 15: proto.PeerDB.GetAllCommits:output_type -> proto.GetAllCommitsResponse
+	14, // 16: proto.PeerDB.GetCommitDiff:output_type -> proto.GetCommitDiffResponse
+	16, // 17: proto.PeerDB.GetHead:output_type -> proto.GetHeadResponse
+	14, // [14:18] is the sub-list for method output_type
+	10, // [10:14] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_internal_p2p_proto_peerDB_proto_init() }
@@ -569,7 +1261,7 @@ func file_internal_p2p_proto_peerDB_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_peerDB_proto_rawDesc), len(file_internal_p2p_proto_peerDB_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
