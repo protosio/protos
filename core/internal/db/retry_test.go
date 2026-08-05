@@ -2,9 +2,9 @@ package db
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
-	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
 )
 
@@ -13,7 +13,6 @@ func TestRetryableCommittedWriteErrorsIncludeDoltWorkingSetContention(t *testing
 		errors.New(`failed to load database "protos": the database is locked by another dolt process`),
 		errors.New("update tentative working set: cannot update manifest: database is read only"),
 		errors.New("update tentative working set: cannot update manifest"),
-		errSwarmionCheckpointedWriteRejected,
 	}
 
 	for _, err := range tests {
@@ -79,76 +78,43 @@ func TestStagedCommitCheckpointReached(t *testing.T) {
 		EventID:           "event-1",
 		PublishedRootHash: "published-root",
 	}
-	advancedStatus := swarmionCheckpointStatus("advanced-root")
-	acceptedSnapshot := swarmionCheckpointSnapshot(commit.EventID, commit.PublishedRootHash, true, swarmionprotocol.CheckpointEventDecisionAccepted)
-	reached, err := stagedCommitCheckpointReached(advancedStatus, acceptedSnapshot, commit)
+	durableStatus := swarmionapp.BranchRootStatus{RootHash: commit.PublishedRootHash, Checkpointed: true, Durable: true}
+	reached, err := stagedCommitCheckpointReached(durableStatus, commit)
 	if err != nil {
-		t.Fatalf("accepted checkpoint should not fail: %v", err)
+		t.Fatalf("durable root should not fail: %v", err)
 	}
 	if !reached {
-		t.Fatal("accepted checkpoint event should satisfy committed write visibility")
+		t.Fatal("durable root should satisfy committed write visibility")
 	}
 
-	pendingSnapshot := swarmionCheckpointSnapshot(commit.EventID, commit.PublishedRootHash, false, swarmionprotocol.CheckpointEventDecisionAccepted)
-	reached, err = stagedCommitCheckpointReached(advancedStatus, pendingSnapshot, commit)
+	pendingStatus := swarmionapp.BranchRootStatus{RootHash: commit.PublishedRootHash, Pending: true, PendingReason: "checkpoint_ordering"}
+	reached, err = stagedCommitCheckpointReached(pendingStatus, commit)
 	if err != nil {
 		t.Fatalf("pending checkpoint should not fail: %v", err)
 	}
 	if reached {
-		t.Fatal("event summary alone should not satisfy visibility until the current checkpoint covers the event root")
+		t.Fatal("pending root should not satisfy durable visibility")
 	}
 
-	rejectedSnapshot := swarmionCheckpointSnapshot(commit.EventID, commit.PublishedRootHash, false, swarmionprotocol.CheckpointEventDecisionRejectedConflict)
-	reached, err = stagedCommitCheckpointReached(advancedStatus, rejectedSnapshot, commit)
-	if !errors.Is(err, errSwarmionCheckpointedWriteRejected) {
-		t.Fatalf("rejected checkpoint should return retryable rejection error: %v", err)
-	}
-	if reached {
-		t.Fatal("rejected checkpoint should not satisfy committed write visibility")
-	}
-
-	mismatchedSnapshot := swarmionCheckpointSnapshot(commit.EventID, "other-root", true, swarmionprotocol.CheckpointEventDecisionAccepted)
-	reached, err = stagedCommitCheckpointReached(advancedStatus, mismatchedSnapshot, commit)
-	if !errors.Is(err, errSwarmionCheckpointedWriteRejected) {
-		t.Fatalf("checkpoint root mismatch should return retryable rejection error: %v", err)
-	}
-	if reached {
-		t.Fatal("checkpoint root mismatch should not satisfy committed write visibility")
-	}
-
-	unstableStatus := advancedStatus
-	unstableStatus.TentativeRootHash = swarmionprotocol.NewRootHash("different-root")
-	reached, err = stagedCommitCheckpointReached(unstableStatus, acceptedSnapshot, commit)
+	parkedStatus := swarmionapp.BranchRootStatus{RootHash: commit.PublishedRootHash, Parked: true, ParkedReason: swarmionapp.BranchRootParkedReasonConflict}
+	reached, err = stagedCommitCheckpointReached(parkedStatus, commit)
 	if err != nil {
-		t.Fatalf("unstable checkpoint should wait without failing: %v", err)
+		t.Fatalf("parked root should remain a status, not a rejection error: %v", err)
 	}
 	if reached {
-		t.Fatal("unstable checkpoint roots should not satisfy committed write visibility")
+		t.Fatal("parked root should not satisfy durable visibility")
 	}
-}
+	if waitErr := stagedCommitCheckpointWaitError(parkedStatus, commit); !strings.Contains(waitErr.Error(), "root_status=parked_conflict") || !strings.Contains(waitErr.Error(), "revisitable=true") {
+		t.Fatalf("parked wait error=%v, want revisitable lifecycle", waitErr)
+	}
 
-func swarmionCheckpointStatus(root string) swarmionapp.Status {
-	rootHash := swarmionprotocol.NewRootHash(root)
-	return swarmionapp.Status{
-		CheckpointRootHash:               rootHash,
-		TentativeRootHash:                rootHash,
-		DurableMainRootHash:              rootHash,
-		RuntimeCheckpointDesiredRootHash: rootHash,
+	mismatchedStatus := durableStatus
+	mismatchedStatus.RootHash = "other-root"
+	reached, err = stagedCommitCheckpointReached(mismatchedStatus, commit)
+	if err != nil {
+		t.Fatalf("mismatched root status should wait without failing: %v", err)
 	}
-}
-
-func swarmionCheckpointSnapshot(eventID string, root string, covered bool, decision swarmionprotocol.CheckpointEventDecision) *swarmionprotocol.NodeState {
-	checkpointID := swarmionprotocol.NewCheckpointCommitID("checkpoint-commit")
-	event := swarmionprotocol.NewEventID(eventID)
-	rootHash := swarmionprotocol.NewRootHash(root)
-	snapshot := swarmionprotocol.NewNodeState("", nil)
-	snapshot.CheckpointCommitID = checkpointID
-	snapshot.CheckpointProllyRootHash = swarmionprotocol.NewRootHash("checkpoint-root")
-	snapshot.CheckpointEventRoots[event] = rootHash
-	snapshot.CheckpointEventDecisions[event] = decision
-	if covered {
-		snapshot.CheckpointCommitEvents[checkpointID] = map[swarmionprotocol.EventID]swarmionprotocol.RootHash{event: rootHash}
-		snapshot.CheckpointCommitDecisions[checkpointID] = map[swarmionprotocol.EventID]swarmionprotocol.CheckpointEventDecision{event: decision}
+	if reached {
+		t.Fatal("mismatched root status should not satisfy durable visibility")
 	}
-	return snapshot
 }

@@ -55,7 +55,6 @@ const (
 
 var (
 	errSwarmionCheckpointCatchUpRetryable  = errors.New("swarmion checkpoint catch-up retryable")
-	errSwarmionCheckpointedWriteRejected   = errors.New("swarmion checkpointed write rejected")
 	errSwarmionCheckpointedWriteIncomplete = errors.New("swarmion checkpointed write incomplete")
 )
 
@@ -980,6 +979,22 @@ func (db *DB) SwarmionStatus() (swarmionapp.Status, bool) {
 	return app.Status(), true
 }
 
+// SwarmionRootStatus returns the current, revisitable root lifecycle for a
+// published write. Callers must not treat a parked status as a durable
+// rejection; a later canonical head may classify the same root differently.
+func (db *DB) SwarmionRootStatus(ctx context.Context, rootHash string) (swarmionapp.BranchRootStatus, error) {
+	if db == nil {
+		return swarmionapp.BranchRootStatus{}, fmt.Errorf("db is nil")
+	}
+	db.mu.Lock()
+	app := db.app
+	db.mu.Unlock()
+	if app == nil {
+		return swarmionapp.BranchRootStatus{}, fmt.Errorf("db is not initialized")
+	}
+	return app.RootStatus(ctx, swarmionapp.BranchRootStatusRequest{RootHash: rootHash})
+}
+
 func (db *DB) CatchUpCheckpoint(ctx context.Context, reason string) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
@@ -1499,9 +1514,11 @@ func (db *DB) waitForCommittedRootObserved(ctx context.Context, commit stagedCom
 			return fmt.Errorf("catch up swarmion checkpoint view for published write: %w", catchUpErr)
 		}
 
-		status := app.Status()
-		snapshot := app.Snapshot()
-		reached, checkpointErr := stagedCommitCheckpointReached(status, snapshot, commit)
+		status, statusErr := app.RootStatus(ctx, swarmionapp.BranchRootStatusRequest{RootHash: commit.PublishedRootHash})
+		if statusErr != nil {
+			return fmt.Errorf("read published root status: %w", statusErr)
+		}
+		reached, checkpointErr := stagedCommitCheckpointReached(status, commit)
 		if checkpointErr != nil {
 			return checkpointErr
 		}
@@ -1511,7 +1528,7 @@ func (db *DB) waitForCommittedRootObserved(ctx context.Context, commit stagedCom
 		if catchUpErr != nil {
 			lastErr = catchUpErr
 		} else if lastErr == nil || !isRetryableCommittedWriteError(lastErr) {
-			lastErr = stagedCommitCheckpointWaitError(status, snapshot, commit)
+			lastErr = stagedCommitCheckpointWaitError(status, commit)
 		}
 
 		select {
@@ -1525,126 +1542,38 @@ func (db *DB) waitForCommittedRootObserved(ctx context.Context, commit stagedCom
 	}
 }
 
-func stableDurableCheckpoint(status swarmionapp.Status) bool {
-	if status.CheckpointRootHash.IsZero() || status.TentativeRootHash != status.CheckpointRootHash {
-		return false
-	}
-	return !status.DurableMainRootHash.IsZero() && status.DurableMainRootHash == status.CheckpointRootHash
-}
-
-func stagedCommitCheckpointReached(status swarmionapp.Status, snapshot *swarmionprotocol.NodeState, commit stagedCommitResult) (bool, error) {
-	if !commit.hasPublishedContent() || !stableDurableCheckpoint(status) {
+func stagedCommitCheckpointReached(status swarmionapp.BranchRootStatus, commit stagedCommitResult) (bool, error) {
+	if !commit.hasPublishedContent() {
 		return false, nil
 	}
-	eventID := swarmionprotocol.ParseEventID(commit.EventID)
 	expectedRoot := swarmionprotocol.ParseRootHash(commit.PublishedRootHash)
-	if eventID.IsZero() || expectedRoot.IsZero() {
+	if expectedRoot.IsZero() {
 		return false, fmt.Errorf(
-			"%w: event_id=%q published_root=%q",
+			"%w: published_root=%q",
 			errSwarmionCheckpointedWriteIncomplete,
-			commit.EventID,
 			commit.PublishedRootHash,
 		)
 	}
-	if snapshot == nil || snapshot.CheckpointCommitID.IsZero() {
+	if status.RootHash != expectedRoot.String() {
 		return false, nil
 	}
-	checkpointRoot, ok := snapshot.CheckpointEventRoots[eventID]
-	if !ok {
-		return false, nil
-	}
-	if checkpointRoot == expectedRoot && snapshotCurrentCheckpointCoversEventRoot(snapshot, eventID, expectedRoot) {
-		return true, nil
-	}
-	decision := stagedCommitCheckpointDecisionString(snapshot, eventID)
-	if !stagedCommitCheckpointDecisionRejected(decision) && checkpointRoot != expectedRoot {
-		decision = swarmionprotocol.CheckpointEventDecisionRejectedConflict.String()
-	}
-	if stagedCommitCheckpointDecisionRejected(decision) || checkpointRoot != expectedRoot {
-		return false, fmt.Errorf(
-			"%w: event_id=%s decision=%s checkpoint_root=%s expected_root=%s checkpoint=%s",
-			errSwarmionCheckpointedWriteRejected,
-			eventID,
-			decision,
-			checkpointRoot,
-			expectedRoot,
-			status.CheckpointRootHash,
-		)
-	}
-	return false, nil
+	return status.Durable, nil
 }
 
-func stagedCommitCheckpointWaitError(status swarmionapp.Status, snapshot *swarmionprotocol.NodeState, commit stagedCommitResult) error {
-	eventID := swarmionprotocol.ParseEventID(commit.EventID)
-	expectedRoot := swarmionprotocol.ParseRootHash(commit.PublishedRootHash)
-	checkpointRoot := swarmionprotocol.RootHash{}
-	decision := ""
-	currentCoversEventRoot := false
-	if snapshot != nil && !eventID.IsZero() {
-		checkpointRoot = snapshot.CheckpointEventRoots[eventID]
-		decision = stagedCommitCheckpointDecisionString(snapshot, eventID)
-		if !expectedRoot.IsZero() {
-			currentCoversEventRoot = snapshotCurrentCheckpointCoversEventRoot(snapshot, eventID, expectedRoot)
-		}
-	}
+func stagedCommitCheckpointWaitError(status swarmionapp.BranchRootStatus, commit stagedCommitResult) error {
+	lifecycle := swarmionapp.RootLifecycleFromStatus(status)
 	return fmt.Errorf(
-		"expected event_id=%s published_root=%s commit=%s checkpoint_event_root=%s decision=%s current_covers_event=%t checkpoint=%s tentative=%s durable=%s desired=%s pending=%t",
+		"expected event_id=%s published_root=%s commit=%s root_status=%s revisitable=%t checkpointed=%t durable=%t parked_reason=%s pending_reason=%s",
 		commit.EventID,
 		commit.PublishedRootHash,
 		commit.Hash,
-		checkpointRoot,
-		decision,
-		currentCoversEventRoot,
-		status.CheckpointRootHash,
-		status.TentativeRootHash,
-		status.DurableMainRootHash,
-		status.RuntimeCheckpointDesiredRootHash,
-		status.RuntimeCheckpointMaterializePending,
+		lifecycle.State,
+		lifecycle.Revisitable,
+		status.Checkpointed,
+		status.Durable,
+		status.ParkedReason,
+		status.PendingReason,
 	)
-}
-
-func stagedCommitCheckpointDecisionString(snapshot *swarmionprotocol.NodeState, eventID swarmionprotocol.EventID) string {
-	decision := swarmionprotocol.CheckpointEventDecisionAccepted
-	if snapshot != nil && snapshot.CheckpointEventDecisions != nil {
-		if value, ok := snapshot.CheckpointEventDecisions[eventID]; ok {
-			decision = value
-		}
-	}
-	return decision.String()
-}
-
-func stagedCommitCheckpointDecisionRejected(decision string) bool {
-	return decision == swarmionprotocol.CheckpointEventDecisionRejectedConflict.String() ||
-		decision == swarmionprotocol.CheckpointEventDecisionRejectedDependency.String()
-}
-
-func snapshotCurrentCheckpointCoversEventRoot(snapshot *swarmionprotocol.NodeState, eventID swarmionprotocol.EventID, rootHash swarmionprotocol.RootHash) bool {
-	if snapshot == nil || eventID.IsZero() || rootHash.IsZero() || snapshot.CheckpointCommitID.IsZero() {
-		return false
-	}
-	visited := make(map[swarmionprotocol.CheckpointCommitID]struct{})
-	var walk func(swarmionprotocol.CheckpointCommitID) bool
-	walk = func(commitID swarmionprotocol.CheckpointCommitID) bool {
-		if commitID.IsZero() {
-			return false
-		}
-		if _, ok := visited[commitID]; ok {
-			return false
-		}
-		visited[commitID] = struct{}{}
-		if events := snapshot.CheckpointCommitEvents[commitID]; events != nil {
-			if root, ok := events[eventID]; ok && root == rootHash {
-				return true
-			}
-		}
-		for parent := range snapshot.CheckpointCommitParents[commitID] {
-			if walk(parent) {
-				return true
-			}
-		}
-		return false
-	}
-	return walk(snapshot.CheckpointCommitID)
 }
 
 func (db *DB) RegisterTableChangeCallback(tableName string, notifier Notifier) {
@@ -1985,12 +1914,14 @@ func SelectMultipleContext[T any](ctx context.Context, db *DB, mc QueryMapper[T]
 // Edit operations
 //
 
-// Insert inserts a new entry in the database using the sq query builder
+// Insert inserts a new entry in the database using the sq query builder. It
+// returns after the root is published locally; checkpoint and durable status
+// remain asynchronous and can be queried with SwarmionRootStatus.
 func Insert(db *DB, mappers ...InsertMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	return db.committedWrite("insert", "insert", false, true, func(ctx context.Context, sqldb *sql.DB) error {
+	return db.committedWrite("insert", "insert", false, false, func(ctx context.Context, sqldb *sql.DB) error {
 		staged := false
 		for _, mapper := range mappers {
 			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
@@ -2026,11 +1957,14 @@ func InsertPublishedContext(ctx context.Context, db *DB, mappers ...InsertMapper
 	})
 }
 
+// Update publishes the committed root locally and leaves checkpoint/durable
+// observation asynchronous. Callers that need those stronger outcomes must
+// track the returned root through the runtime status API.
 func Update(db *DB, mappers ...UpdateMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	return db.committedWrite("update", "update", true, true, func(ctx context.Context, sqldb *sql.DB) error {
+	return db.committedWrite("update", "update", true, false, func(ctx context.Context, sqldb *sql.DB) error {
 		staged := false
 		for _, mapper := range mappers {
 			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
@@ -2086,11 +2020,14 @@ func UpdateAndInsertPublishedContext(ctx context.Context, db *DB, updates []Upda
 	})
 }
 
+// Delete publishes the committed root locally and leaves checkpoint/durable
+// observation asynchronous. It does not treat a revisitable parked status as
+// a write failure.
 func Delete(db *DB, mappers ...DeleteMapper) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
-	return db.committedWrite("delete", "delete", true, true, func(ctx context.Context, sqldb *sql.DB) error {
+	return db.committedWrite("delete", "delete", true, false, func(ctx context.Context, sqldb *sql.DB) error {
 		staged := false
 		for _, mapper := range mappers {
 			if err := execWriteMapperContext(ctx, sqldb, mapper().SetDialect(sq.DialectMySQL)); err != nil {
@@ -2334,9 +2271,6 @@ func (db *DB) resetWorkingSet(ctx context.Context) error {
 func isRetryableCommittedWriteError(err error) bool {
 	if err == nil {
 		return false
-	}
-	if errors.Is(err, errSwarmionCheckpointedWriteRejected) {
-		return true
 	}
 	lower := strings.ToLower(err.Error())
 	return strings.Contains(lower, "stale write context") ||

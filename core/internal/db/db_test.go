@@ -20,7 +20,39 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 )
 
+func useSingleNodeDevelopmentScheduler(t *testing.T) {
+	t.Helper()
+	t.Setenv("SWARMION_CHECKPOINT_SCHEDULER_PROFILE", "single_node_development")
+}
+
+// waitForPublishedRootDurable is intentionally test-only. Ordinary backend
+// writes return after local root publication; tests that inspect the canonical
+// checkpoint history must opt in to waiting for the root they just published.
+func waitForPublishedRootDurable(t *testing.T, store *db.DB) string {
+	t.Helper()
+	status, ok := store.SwarmionStatus()
+	if !ok || status.TentativeRootHash.IsZero() {
+		t.Fatalf("published write did not expose a tentative root: status=%+v ok=%t", status, ok)
+	}
+	root := status.TentativeRootHash.String()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		rootStatus, err := store.SwarmionRootStatus(context.Background(), root)
+		if err != nil {
+			t.Fatalf("read published root status: %v", err)
+		}
+		if rootStatus.Durable {
+			return root
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("published root %s did not become durable within development-policy budget: %+v", root, rootStatus)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
@@ -43,9 +75,11 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	if store.Initialized() {
 		t.Fatal("new database should not be initialized before Init")
 	}
+	initStarted := time.Now()
 	if err := store.Init(); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
+	t.Logf("backend initialization wall time=%s", time.Since(initStarted))
 	if !store.Initialized() {
 		t.Fatal("database should be initialized after Init")
 	}
@@ -61,8 +95,13 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	if manifest.InitialRootHash.String() == "" || manifest.InitialCommitID.String() == "" {
 		t.Fatalf("persisted swarmion manifest missing initial boundary: %#v", manifest)
 	}
+	beforeWrite, ok := store.SwarmionStatus()
+	if !ok {
+		t.Fatal("read swarmion status before write")
+	}
 
 	userID := db.MustNewUUIDv7()
+	writeStarted := time.Now()
 	if err := db.Insert(store, func() sq.InsertQuery {
 		u := sq.New[db.USER]("")
 		return sq.InsertInto(u).ColumnValues(func(col *sq.Column) {
@@ -73,6 +112,41 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 		})
 	}); err != nil {
 		t.Fatalf("insert user: %v", err)
+	}
+	publicationElapsed := time.Since(writeStarted)
+	if publicationElapsed > time.Second {
+		t.Fatalf("published write returned after %s, want local prompt return", publicationElapsed)
+	}
+	statusSnapshot, ok := store.SwarmionStatus()
+	if !ok || statusSnapshot.TentativeRootHash.IsZero() {
+		t.Fatalf("published write did not expose a tentative root: status=%+v ok=%t", statusSnapshot, ok)
+	}
+	publishedRoot := statusSnapshot.TentativeRootHash.String()
+	var checkpointedElapsed time.Duration
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		rootStatus, err := store.SwarmionRootStatus(context.Background(), publishedRoot)
+		if err != nil {
+			t.Fatalf("read published root status: %v", err)
+		}
+		if rootStatus.Checkpointed && checkpointedElapsed == 0 {
+			checkpointedElapsed = time.Since(writeStarted)
+		}
+		if rootStatus.Durable {
+			afterWrite, ok := store.SwarmionStatus()
+			if !ok {
+				t.Fatal("read swarmion status after durable write")
+			}
+			if got := afterWrite.CheckpointEventCount - beforeWrite.CheckpointEventCount; got != 1 {
+				t.Fatalf("checkpoint event delta=%d, want one event without duplicate retry", got)
+			}
+			t.Logf("write publication=%s first_checkpointed=%s durable=%s", publicationElapsed, checkpointedElapsed, time.Since(writeStarted))
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("published root %s did not become durable within development-policy budget: %+v", publishedRoot, rootStatus)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	var count int
@@ -111,6 +185,7 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 }
 
 func TestSwarmionBackedDBRapidConsecutiveWrites(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
@@ -164,6 +239,7 @@ func TestSwarmionBackedDBRapidConsecutiveWrites(t *testing.T) {
 }
 
 func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
@@ -199,6 +275,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
+	waitForPublishedRootDurable(t, store)
 
 	insertCommit, err := store.GetLastCommit("main")
 	if err != nil {
@@ -234,6 +311,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("update user: %v", err)
 	}
+	waitForPublishedRootDurable(t, store)
 
 	updateCommit, err := store.GetLastCommit("main")
 	if err != nil {
@@ -302,6 +380,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 	); err != nil {
 		t.Fatalf("insert task/event: %v", err)
 	}
+	waitForPublishedRootDurable(t, store)
 
 	taskCommit, err := store.GetLastCommit("main")
 	if err != nil {
@@ -338,6 +417,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 }
 
 func TestSwarmionBackedDBProvisionerWriteThenUserRead(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
