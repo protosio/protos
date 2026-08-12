@@ -829,7 +829,7 @@ func (sw *scaleway) NewVolume(name string, size int, location string) (string, e
 
 func (sw *scaleway) DeleteVolume(id string, location string) error {
 	if err := sw.deleteVolume(id, location); err == nil {
-		return nil
+		return sw.waitForVolumeDeleted(id, location)
 	} else if isScalewayNotFoundError(err) {
 		return nil
 	} else {
@@ -855,7 +855,10 @@ func (sw *scaleway) DeleteVolume(id string, location string) error {
 	var lastErr error
 	for attempt := 0; attempt < 12; attempt++ {
 		err := sw.deleteVolume(id, location)
-		if err == nil || isScalewayNotFoundError(err) {
+		if err == nil {
+			return sw.waitForVolumeDeleted(id, location)
+		}
+		if isScalewayNotFoundError(err) {
 			return nil
 		}
 		lastErr = err
@@ -871,8 +874,10 @@ func (sw *scaleway) deleteVolume(id string, location string) error {
 	}
 	if err := sw.blockAPI.DeleteVolume(blockDeleteReq); err == nil {
 		return nil
+	} else if !isScalewayNotFoundError(err) {
+		return errors.Wrapf(err, "Failed to delete Scaleway block volume '%s'", id)
 	} else {
-		log.Debugf("Failed to delete Scaleway volume '%s' through block API: %s", id, err.Error())
+		log.Debugf("Scaleway volume '%s' is not managed by the block API; trying the legacy instance volume API", id)
 	}
 
 	instanceDeleteReq := &instance.DeleteVolumeRequest{
@@ -885,10 +890,69 @@ func (sw *scaleway) deleteVolume(id string, location string) error {
 	return nil
 }
 
+func (sw *scaleway) waitForVolumeDeleted(id string, location string) error {
+	const (
+		timeout       = 2 * time.Minute
+		retryInterval = time.Second
+	)
+
+	deadline := time.Now().Add(timeout)
+	for {
+		absent, err := sw.volumeDeleted(id, location)
+		if err != nil {
+			return err
+		}
+		if absent {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return errors.Errorf("Timed out verifying deletion of Scaleway volume '%s'", id)
+		}
+		time.Sleep(retryInterval)
+	}
+}
+
+func (sw *scaleway) volumeDeleted(id string, location string) (bool, error) {
+	zone := scw.Zone(location)
+	if _, err := sw.blockAPI.GetVolume(&block.GetVolumeRequest{Zone: zone, VolumeID: id}); err == nil {
+		return false, nil
+	} else if !isScalewayNotFoundError(err) {
+		return false, errors.Wrapf(err, "Failed to verify deletion of Scaleway block volume '%s'", id)
+	}
+
+	if _, err := sw.instanceAPI.GetVolume(&instance.GetVolumeRequest{Zone: zone, VolumeID: id}); err == nil {
+		return false, nil
+	} else if !isScalewayNotFoundError(err) {
+		return false, errors.Wrapf(err, "Failed to verify deletion of legacy Scaleway volume '%s'", id)
+	}
+	return true, nil
+}
+
 func (sw *scaleway) detachVolume(id string, location string) error {
-	_, err := sw.instanceAPI.DetachVolume(&instance.DetachVolumeRequest{
-		Zone:     scw.Zone(location),
-		VolumeID: id,
+	zone := scw.Zone(location)
+	volume, err := sw.blockAPI.GetVolume(&block.GetVolumeRequest{Zone: zone, VolumeID: id})
+	if err == nil {
+		for _, reference := range volume.References {
+			if reference == nil || reference.ProductResourceType != "instance_server" {
+				continue
+			}
+			_, err = sw.instanceAPI.DetachServerVolume(&instance.DetachServerVolumeRequest{
+				Zone:     zone,
+				ServerID: reference.ProductResourceID,
+				VolumeID: id,
+			})
+			return err
+		}
+		return errors.New("volume should be attached to a server")
+	}
+	if !isScalewayNotFoundError(err) {
+		return err
+	}
+
+	_, err = sw.instanceAPI.DetachVolume(&instance.DetachVolumeRequest{
+		Zone:          zone,
+		VolumeID:      id,
+		IsBlockVolume: boolPtr(false),
 	})
 	return err
 }

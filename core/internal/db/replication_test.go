@@ -373,6 +373,39 @@ func TestReplicationPeerDrainFinalizesCoveredUnknownPeerThroughScopedRuntime(t *
 		t.Fatalf("finalized wait status = %+v", finalizedReady)
 	}
 
+	const newerGeneration = "backend-route-generation-2"
+	newer, err := store.BeginReplicationPeerDrain(context.Background(), peerID, newerGeneration)
+	if err != nil {
+		t.Fatalf("begin newer peer drain generation: %v", err)
+	}
+	if !newer.Active || !newer.RouteGenerationMatches || !newer.ReadyToFinalize {
+		t.Fatalf("newer peer drain status = %+v", newer)
+	}
+
+	inactiveWaitCtx, cancelInactiveWait := context.WithTimeout(context.Background(), 5*time.Second)
+	inactiveWait, err := store.WaitReplicationPeerDrainReady(inactiveWaitCtx, peerID, generation)
+	cancelInactiveWait()
+	if !errors.Is(err, swarmionapp.ErrPeerDrainGenerationInactive) {
+		t.Fatalf("superseded wait error = %v, want generation-inactive sentinel", err)
+	}
+	var inactiveWaitError *swarmionapp.PeerDrainNotReadyError
+	if !errors.As(err, &inactiveWaitError) || inactiveWaitError == nil {
+		t.Fatalf("superseded wait error = %v, want typed peer-drain status", err)
+	}
+	if inactiveWait.PeerID != peerID || inactiveWait.RouteGeneration != generation ||
+		inactiveWait.RouteGenerationMatches ||
+		inactiveWaitError.Status.PeerID != inactiveWait.PeerID ||
+		inactiveWaitError.Status.RouteGeneration != inactiveWait.RouteGeneration ||
+		inactiveWaitError.Status.RouteGenerationMatches != inactiveWait.RouteGenerationMatches ||
+		inactiveWaitError.Status.Active != inactiveWait.Active {
+		t.Fatalf("superseded wait status = %+v, typed = %+v", inactiveWait, inactiveWaitError.Status)
+	}
+	if !reflect.DeepEqual(inactiveWait.BlockingReasonCodes, []swarmionapp.PeerDrainBlockingReason{
+		swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive,
+	}) {
+		t.Fatalf("superseded wait blocking codes = %v", inactiveWait.BlockingReasonCodes)
+	}
+
 	const inactiveGeneration = "backend-route-generation-inactive"
 	_, err = store.FinalizeReplicationPeerDrain(context.Background(), peerID, inactiveGeneration)
 	if !errors.Is(err, swarmionapp.ErrPeerDrainGenerationInactive) {

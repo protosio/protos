@@ -351,8 +351,9 @@ func (db *DB) WatchReplicationPeerDrain(ctx context.Context, peerID, routeGenera
 }
 
 // WaitReplicationPeerDrainReady passively waits for a generation to become
-// ready or to reach its in-process finalized tombstone. Route fencing and
-// lifecycle retries remain application responsibilities.
+// ready or to reach its in-process finalized tombstone. A post-fence heartbeat
+// or a superseding generation returns Swarmion's typed terminal error. Route
+// fencing and lifecycle retries remain application responsibilities.
 func (db *DB) WaitReplicationPeerDrainReady(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainStatus, error) {
 	if ctx == nil {
 		ctx = context.Background()

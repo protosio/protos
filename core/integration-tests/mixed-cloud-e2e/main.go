@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -112,6 +113,11 @@ type imageRef struct {
 	name     string
 	location string
 	id       string
+}
+
+type cleanupInstanceRef struct {
+	name     string
+	instance *pbApic.CloudInstance
 }
 
 type mixedCloudRunSummary struct {
@@ -728,17 +734,25 @@ func run(cfg harnessConfig) (runErr error) {
 
 	deadline := time.Now().Add(cfg.timeout)
 
-	var cleanupInstances []string
+	var cleanupInstances []*cleanupInstanceRef
 	var cleanupImages []imageRef
 	var cleanupProviders []string
 	defer func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cleanupCancel()
+		cleanupDeadline, _ := cleanupCtx.Deadline()
+		var cleanupErr error
 		for i := len(cleanupInstances) - 1; i >= 0; i-- {
-			cleanupName := cleanupInstances[i]
+			cleanupRef := cleanupInstances[i]
 			startedAt := time.Now()
-			_, err := client.RemoveInstance(cleanupCtx, &pbApic.RemoveInstanceRequest{Name: cleanupName})
-			summary.recordCleanup("instance", cleanupName, "", "", "", startedAt, err)
+			err := cleanupMixedCloudInstance(cleanupDeadline, client, cleanupRef)
+			name, id, provider, location := cleanupInstanceMetadata(cleanupRef)
+			summary.recordCleanup("instance", name, id, provider, location, startedAt, err)
+			if err != nil {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup instance %s: %w", name, err))
+			} else {
+				summary.setInstanceStatus(name, "deleted")
+			}
 		}
 		for _, image := range cleanupImages {
 			startedAt := time.Now()
@@ -750,6 +764,8 @@ func run(cfg harnessConfig) (runErr error) {
 			summary.recordCleanup("image", image.name, image.id, image.provider, image.location, startedAt, err)
 			if err == nil {
 				summary.setImageStatus(image.provider, image.name, image.location, "removed")
+			} else {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup image %s on %s: %w", image.name, image.provider, err))
 			}
 		}
 		for _, providerName := range cleanupProviders {
@@ -758,12 +774,18 @@ func run(cfg harnessConfig) (runErr error) {
 			summary.recordCleanup("provisioner", providerName, "", providerName, "", startedAt, err)
 			if err == nil {
 				summary.setProviderStatus(providerName, "removed")
+			} else {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup provisioner %s: %w", providerName, err))
 			}
+		}
+		if cleanupErr != nil {
+			cleanupErr = fmt.Errorf("mixed cloud e2e cleanup failed: %w", cleanupErr)
+			runErr = errors.Join(runErr, cleanupErr)
 		}
 	}()
 	removeCleanupInstance := func(name string) {
-		for i, cleanupName := range cleanupInstances {
-			if cleanupName != name {
+		for i, cleanupRef := range cleanupInstances {
+			if cleanupRef == nil || cleanupRef.name != name {
 				continue
 			}
 			cleanupInstances = append(cleanupInstances[:i], cleanupInstances[i+1:]...)
@@ -849,11 +871,13 @@ func run(cfg harnessConfig) (runErr error) {
 		if err != nil {
 			return nil, err
 		}
-		cleanupInstances = append(cleanupInstances, name)
+		cleanupRef := &cleanupInstanceRef{name: name}
+		cleanupInstances = append(cleanupInstances, cleanupRef)
 		instance, err := e2eapic.WaitForInstanceReady(deadline, client, name)
 		if err != nil {
 			return nil, err
 		}
+		cleanupRef.instance = instance
 		deployed = append(deployed, instance)
 		peerID, peerErr := e2eapic.PeerIDForInstance(instance)
 		if peerErr != nil {
@@ -1190,13 +1214,17 @@ func deleteInstanceAndVerify(deadline time.Time, client pbApic.ProtosClientApiCl
 	fmt.Printf("deleting instance: name=%s id=%s provider=%s\n", instance.GetName(), instance.GetVmId(), instance.GetCloudName())
 	startedAt := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	_, err := client.RemoveInstance(ctx, &pbApic.RemoveInstanceRequest{Name: instance.GetName()})
+	resp, err := client.RemoveInstance(ctx, &pbApic.RemoveInstanceRequest{Name: instance.GetName()})
 	cancel()
 	if err != nil {
 		return startedAt, fmt.Errorf("delete instance %s: %w", instance.GetName(), err)
 	}
-	if removeCleanup != nil {
-		removeCleanup(instance.GetName())
+	taskID := strings.TrimSpace(resp.GetTaskId())
+	if taskID == "" {
+		return startedAt, fmt.Errorf("delete instance %s returned an empty task id", instance.GetName())
+	}
+	if _, _, err := e2eapic.WaitForTaskSucceededWithEvents(deadline, client, taskID); err != nil {
+		return startedAt, fmt.Errorf("delete instance %s task %s: %w", instance.GetName(), taskID, err)
 	}
 	if err := e2eapic.WaitForInstanceAbsent(deadline, client, instance); err != nil {
 		return startedAt, err
@@ -1211,8 +1239,83 @@ func deleteInstanceAndVerify(deadline time.Time, client pbApic.ProtosClientApiCl
 	if err := e2eapic.WaitForPeerRemoved(deadline, client, peerID); err != nil {
 		return startedAt, err
 	}
+	if removeCleanup != nil {
+		removeCleanup(instance.GetName())
+	}
 	fmt.Printf("delete assertion ok: name=%s id=%s\n", instance.GetName(), instance.GetVmId())
 	return startedAt, nil
+}
+
+func cleanupMixedCloudInstance(deadline time.Time, client pbApic.ProtosClientApiClient, ref *cleanupInstanceRef) error {
+	name, _, _, _ := cleanupInstanceMetadata(ref)
+	if name == "" {
+		return fmt.Errorf("cleanup instance name is empty")
+	}
+	var instance *pbApic.CloudInstance
+	if ref != nil {
+		instance = ref.instance
+	}
+	if instance == nil {
+		instance = &pbApic.CloudInstance{Name: name}
+	}
+
+	instances, err := e2eapic.ListInstances(deadline, client)
+	if err != nil {
+		return fmt.Errorf("list instances before cleanup: %w", err)
+	}
+	if instancePresent(instances, instance) {
+		ctx, cancel := contextBefore(deadline, 5*time.Minute)
+		resp, removeErr := client.RemoveInstance(ctx, &pbApic.RemoveInstanceRequest{Name: name})
+		cancel()
+		if removeErr != nil {
+			return fmt.Errorf("queue deletion: %w", removeErr)
+		}
+		taskID := strings.TrimSpace(resp.GetTaskId())
+		if taskID == "" {
+			return fmt.Errorf("queued deletion returned an empty task id")
+		}
+		if _, _, err := e2eapic.WaitForTaskSucceededWithEvents(deadline, client, taskID); err != nil {
+			return fmt.Errorf("wait for deletion task %s: %w", taskID, err)
+		}
+	}
+	if err := e2eapic.WaitForInstanceAbsent(deadline, client, instance); err != nil {
+		return err
+	}
+	if err := e2eapic.WaitForNoAppsForInstance(deadline, client, name, instance.GetVmId()); err != nil {
+		return err
+	}
+	if peerID, err := e2eapic.PeerIDForInstance(instance); err == nil {
+		if err := e2eapic.WaitForPeerRemoved(deadline, client, peerID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cleanupInstanceMetadata(ref *cleanupInstanceRef) (name string, id string, provider string, location string) {
+	if ref == nil {
+		return "", "", "", ""
+	}
+	name = strings.TrimSpace(ref.name)
+	if ref.instance == nil {
+		return name, "", "", ""
+	}
+	if name == "" {
+		name = strings.TrimSpace(ref.instance.GetName())
+	}
+	return name, ref.instance.GetVmId(), ref.instance.GetCloudName(), ref.instance.GetLocation()
+}
+
+func instancePresent(instances []*pbApic.CloudInstance, target *pbApic.CloudInstance) bool {
+	for _, instance := range instances {
+		if target.GetName() != "" && instance.GetName() == target.GetName() {
+			return true
+		}
+		if target.GetVmId() != "" && instance.GetVmId() == target.GetVmId() {
+			return true
+		}
+	}
+	return false
 }
 
 func uploadImagePath(imagePath string, defaultFile string) (string, error) {
