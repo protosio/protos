@@ -9,6 +9,7 @@ import (
 	"time"
 
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	swarmion "github.com/nustiueudinastea/swarmion/runtime"
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -16,6 +17,7 @@ import (
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
+	"github.com/protosio/protos/internal/testswarmion"
 	"github.com/protosio/protos/internal/user"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -101,11 +103,15 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 	t.Parallel()
 
 	state := &pbApic.RuntimeState{
-		PeerId:         "local-peer",
-		ConnectedPeers: []string{"connected-peer"},
-		StateProviders: []string{"provider-peer"},
+		PeerId:                 "local-peer",
+		ConnectedPeers:         []string{"connected-peer"},
+		RoutedPeers:            []string{"connected-peer"},
+		ParticipatingPeers:     []string{"provider-peer"},
+		LogicalPeers:           []string{"database-peer"},
+		PhysicalConnectedPeers: []string{"provider-peer"},
+		StateProviders:         []string{"provider-peer"},
 		PeerStatuses: []*pbApic.RuntimePeerStatus{
-			{PeerId: "connected-peer", Connected: true},
+			{PeerId: "connected-peer", Connected: true, Dialable: true, Routed: true},
 		},
 	}
 
@@ -123,17 +129,22 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 	if len(statuses) != 4 {
 		t.Fatalf("peer statuses count = %d, want 4: %#v", len(statuses), statuses)
 	}
-	if self := statuses["local-peer"]; self == nil || !self.GetConnected() || !self.GetDialable() || !self.GetCompatible() || self.GetReason() != "self" {
-		t.Fatalf("self status = %#v, want connected dialable compatible self row", self)
+	if self := statuses["local-peer"]; self == nil || self.GetConnected() || self.GetDialable() || self.GetRouted() || self.GetPhysicalConnected() || !self.GetCompatible() || self.GetReason() != "self" {
+		t.Fatalf("self status = %#v, want compatible self row without inferred reachability", self)
 	}
 	if databasePeer := statuses["database-peer"]; databasePeer == nil || databasePeer.GetConnected() || databasePeer.GetDialable() || databasePeer.GetStateProvider() || databasePeer.GetReason() != "known database peer" {
 		t.Fatalf("database peer status = %#v, want inert known database row", databasePeer)
 	}
 	if provider := statuses["provider-peer"]; provider == nil || !provider.GetStateProvider() {
 		t.Fatalf("provider status = %#v, want state_provider=true", provider)
+	} else if !provider.GetParticipating() || !provider.GetPhysicalConnected() {
+		t.Fatalf("provider transport planes = %#v, want participating and physical", provider)
 	}
-	if connected := statuses["connected-peer"]; connected == nil || !connected.GetConnected() {
-		t.Fatalf("connected status = %#v, want existing connected status preserved", connected)
+	if connected := statuses["connected-peer"]; connected == nil || !connected.GetRouted() || !connected.GetConnected() || !connected.GetDialable() {
+		t.Fatalf("connected status = %#v, want routed and legacy aliases", connected)
+	}
+	if databasePeer := statuses["database-peer"]; databasePeer == nil || !databasePeer.GetLogical() {
+		t.Fatalf("database peer status = %#v, want logical plane", databasePeer)
 	}
 }
 
@@ -141,13 +152,17 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 	t.Parallel()
 
 	state := &pbApic.RuntimeState{
-		PeerId:         "local-peer",
-		StateProviders: []string{"provider-peer", "deleted-peer", "provider-peer"},
-		ConnectedPeers: []string{"provider-peer", "deleted-peer", "provider-peer"},
+		PeerId:                 "local-peer",
+		StateProviders:         []string{"provider-peer", "deleted-peer", "provider-peer"},
+		ConnectedPeers:         []string{"provider-peer", "deleted-peer", "provider-peer"},
+		RoutedPeers:            []string{"provider-peer", "deleted-peer", "provider-peer"},
+		ParticipatingPeers:     []string{"provider-peer", "deleted-peer", "provider-peer"},
+		LogicalPeers:           []string{"provider-peer", "deleted-peer", "provider-peer"},
+		PhysicalConnectedPeers: []string{"provider-peer", "deleted-peer", "provider-peer"},
 		PeerStatuses: []*pbApic.RuntimePeerStatus{
-			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true},
-			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true},
-			{PeerId: "deleted-peer", Connected: true, Dialable: true, StateProvider: true},
+			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true, LastRoutedAtUnixNano: 1234},
+			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true},
+			{PeerId: "deleted-peer", Connected: true, Dialable: true, StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true},
 		},
 		Compatibility: []*pbApic.RuntimeCompatibility{
 			{PeerId: "provider-peer", Compatible: true},
@@ -166,11 +181,25 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 	if got, want := state.GetConnectedPeers(), []string{"provider-peer"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("connected peers = %#v, want %#v", got, want)
 	}
+	for name, got := range map[string][]string{
+		"routed":        state.GetRoutedPeers(),
+		"participating": state.GetParticipatingPeers(),
+		"logical":       state.GetLogicalPeers(),
+		"physical":      state.GetPhysicalConnectedPeers(),
+	} {
+		if len(got) != 1 || got[0] != "provider-peer" {
+			t.Fatalf("%s peers = %#v, want provider-peer", name, got)
+		}
+	}
 	if !state.GetPeerStatuses()[0].GetStateProvider() {
 		t.Fatal("known provider lost provider flag")
 	}
 	if len(state.GetPeerStatuses()) != 1 {
 		t.Fatalf("peer statuses count = %d, want 1", len(state.GetPeerStatuses()))
+	}
+	status := state.GetPeerStatuses()[0]
+	if !status.GetRouted() || !status.GetParticipating() || !status.GetLogical() || !status.GetPhysicalConnected() || !status.GetConnected() || !status.GetDialable() || status.GetLastRoutedAtUnixNano() != 1234 {
+		t.Fatalf("filtered transport status = %#v, want every explicit plane and timestamp retained", status)
 	}
 	if got := state.GetCompatibility(); len(got) != 1 || got[0].GetPeerId() != "provider-peer" {
 		t.Fatalf("compatibility = %#v, want only provider peer", got)
@@ -181,29 +210,37 @@ func TestRuntimePeerMapFromP2PStateUsesCanonicalRuntimeState(t *testing.T) {
 	t.Parallel()
 
 	peers := runtimePeerMapFromP2PState(&p2pproto.RuntimeState{
-		ConnectedPeers: []string{"peer-connected-list", "  "},
+		ConnectedPeers:         []string{"peer-legacy-routed", "  "},
+		RoutedPeers:            []string{"peer-routed-list"},
+		ParticipatingPeers:     []string{"peer-participating-list"},
+		PhysicalConnectedPeers: []string{"peer-physical-list"},
 		PeerStatuses: []*p2pproto.RuntimePeerStatus{
-			{PeerId: "peer-connected-list", Dialable: false, Reason: "old dial error"},
-			{PeerId: "peer-connected-status", Connected: true},
+			{PeerId: "peer-legacy-routed", Dialable: false, Reason: "old dial error"},
+			{PeerId: "peer-routed-status", Routed: true},
 			{PeerId: "peer-dialable", Dialable: true},
 			{PeerId: "peer-unreachable", Reason: "dial failed"},
 			{PeerId: "peer-ignored", Ignored: true},
 			{PeerId: "peer-incompatible", Incompatible: true},
 			{PeerId: "peer-relay", RelayOnly: true},
+			{PeerId: "peer-logical", Logical: true},
 			{PeerId: "peer-disconnected"},
 			{PeerId: "  ", Connected: true},
 		},
 	})
 
 	want := map[string]string{
-		"peer-connected-list":   "connected",
-		"peer-connected-status": "connected",
-		"peer-dialable":         "dialable",
-		"peer-unreachable":      "unreachable",
-		"peer-ignored":          "ignored",
-		"peer-incompatible":     "incompatible",
-		"peer-relay":            "relay_only",
-		"peer-disconnected":     "disconnected",
+		"peer-legacy-routed":      "routed",
+		"peer-routed-list":        "routed",
+		"peer-routed-status":      "routed",
+		"peer-participating-list": "participating",
+		"peer-physical-list":      "physical",
+		"peer-dialable":           "dialable",
+		"peer-unreachable":        "unreachable",
+		"peer-ignored":            "ignored",
+		"peer-incompatible":       "incompatible",
+		"peer-relay":              "relay_only",
+		"peer-logical":            "logical",
+		"peer-disconnected":       "disconnected",
 	}
 	if len(peers) != len(want) {
 		t.Fatalf("peer count = %d, want %d: %#v", len(peers), len(want), peers)
@@ -212,6 +249,125 @@ func TestRuntimePeerMapFromP2PStateUsesCanonicalRuntimeState(t *testing.T) {
 		if peers[peerID] != label {
 			t.Fatalf("peer %s label = %q, want %q (all=%#v)", peerID, peers[peerID], label, peers)
 		}
+	}
+}
+
+func TestRuntimePeerStatusFromSwarmionUsesRoutedAsLegacyReachabilityAlias(t *testing.T) {
+	t.Parallel()
+
+	lastRoutedAt := time.Unix(123, 456)
+	status := runtimePeerStatusFromSwarmion(swarmion.PeerStatus{
+		PeerID:        "peer-a",
+		Routed:        true,
+		Participating: true,
+		Logical:       true,
+		StateProvider: true,
+		Compatible:    true,
+		Addresses:     []string{"/ip4/192.0.2.10/tcp/1111"},
+		LastRoutedAt:  lastRoutedAt,
+	})
+	if !status.GetConnected() || !status.GetDialable() {
+		t.Fatalf("legacy reachability = connected:%t dialable:%t, want routed alias true", status.GetConnected(), status.GetDialable())
+	}
+	if !status.GetStateProvider() || !status.GetCompatible() {
+		t.Fatalf("database status flags were not preserved: %#v", status)
+	}
+	if !status.GetRouted() || !status.GetParticipating() || !status.GetLogical() {
+		t.Fatalf("explicit Swarmion status planes were not preserved: %#v", status)
+	}
+	if got := status.GetLastRoutedAtUnixNano(); got != lastRoutedAt.UnixNano() {
+		t.Fatalf("last routed timestamp = %d, want %d", got, lastRoutedAt.UnixNano())
+	}
+}
+
+func TestRuntimePeerStatusFromSwarmionDoesNotPresentOverlayMembershipAsReachability(t *testing.T) {
+	t.Parallel()
+
+	status := runtimePeerStatusFromSwarmion(swarmion.PeerStatus{
+		PeerID:        "peer-a",
+		Participating: true,
+		Logical:       true,
+	})
+	if status.GetConnected() || status.GetDialable() {
+		t.Fatalf("overlay-only peer surfaced as network reachable: %#v", status)
+	}
+	if !status.GetParticipating() || !status.GetLogical() || status.GetRouted() || status.GetPhysicalConnected() {
+		t.Fatalf("explicit overlay planes were not kept separate: %#v", status)
+	}
+}
+
+func TestP2PListenAddrsWithPeerIDCanBeSharedByControlAndSwarmion(t *testing.T) {
+	t.Parallel()
+
+	got := p2pListenAddrsWithPeerID([]string{
+		"/ip4/192.0.2.10/tcp/1111",
+		"/ip4/192.0.2.10/udp/1111/quic-v1/p2p/peer-a",
+		"/ip4/198.51.100.5/tcp/2222/p2p/relay-a/p2p-circuit",
+		"/ip4/192.0.2.10/tcp/1111",
+	}, "peer-a")
+	want := []string{
+		"/ip4/192.0.2.10/tcp/1111/p2p/peer-a",
+		"/ip4/192.0.2.10/udp/1111/quic-v1/p2p/peer-a",
+		"/ip4/198.51.100.5/tcp/2222/p2p/relay-a/p2p-circuit/p2p/peer-a",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("shared addresses = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("shared address[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestRuntimeStateFromP2PProtoMapsTransportPlanesAndReceiptMetrics(t *testing.T) {
+	t.Parallel()
+
+	state := runtimeStateFromP2PProto(&p2pproto.RuntimeState{
+		EventReceiptContentDissentObservations: 7,
+		RoutedPeers:                            []string{"routed"},
+		ParticipatingPeers:                     []string{"participating"},
+		LogicalPeers:                           []string{"logical"},
+		LogicalPeerTarget:                      8,
+		PhysicalConnectedPeers:                 []string{"physical"},
+		PeerStatuses: []*p2pproto.RuntimePeerStatus{{
+			PeerId:               "peer-a",
+			Routed:               true,
+			Participating:        true,
+			Logical:              true,
+			PhysicalConnected:    true,
+			LastRoutedAtUnixNano: 1234,
+		}},
+	})
+	if got := state.GetEventReceiptContentDissentObservations(); got != 7 {
+		t.Fatalf("event receipt content dissent observations = %d, want 7", got)
+	}
+	if got := state.GetLogicalPeerTarget(); got != 8 {
+		t.Fatalf("logical peer target = %d, want 8", got)
+	}
+	for name, got := range map[string][]string{
+		"routed":        state.GetRoutedPeers(),
+		"participating": state.GetParticipatingPeers(),
+		"logical":       state.GetLogicalPeers(),
+		"physical":      state.GetPhysicalConnectedPeers(),
+	} {
+		if len(got) != 1 || got[0] != name {
+			t.Fatalf("%s peers = %#v, want [%s]", name, got, name)
+		}
+	}
+	status := state.GetPeerStatuses()[0]
+	if !status.GetRouted() || !status.GetParticipating() || !status.GetLogical() || !status.GetPhysicalConnected() || status.GetLastRoutedAtUnixNano() != 1234 {
+		t.Fatalf("peer transport status = %#v", status)
+	}
+}
+
+func TestApplyEventReceiptMetricsMapsContentDissentObservations(t *testing.T) {
+	t.Parallel()
+
+	state := &pbApic.RuntimeState{}
+	applyEventReceiptMetrics(state, db.EventReceiptMetrics{ContentDissentObservations: 11})
+	if got := state.GetEventReceiptContentDissentObservations(); got != 11 {
+		t.Fatalf("event receipt content dissent observations = %d, want 11", got)
 	}
 }
 
@@ -436,7 +592,7 @@ func newUserDeviceTestBackend(t *testing.T) (*Backend, *db.DB, *user.Manager) {
 	if err != nil {
 		t.Fatalf("get local key: %v", err)
 	}
-	store, err := db.Open(workDir, "protos_test", localKey)
+	store, err := db.Open(workDir, "protos_test", localKey, testswarmion.NewBorrowedLink(t, localKey))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}

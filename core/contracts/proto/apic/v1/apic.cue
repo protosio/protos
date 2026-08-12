@@ -455,6 +455,8 @@ package apicv1
 	progress?:     int
 	details_json?: string
 	created_at?:   string
+	// True when the task state was saved and its local root published; this is
+	// not Swarmion event applied_durably or content durability.
 	durable?:      bool
 }
 #WatchTaskRequest: {
@@ -490,6 +492,8 @@ package apicv1
 	protocol_checkpoint_root_hash?: string
 	durable_main_root_hash?:        string
 	state_providers?: [...string]
+	// Deprecated: compatibility alias for routed_peers. It does not describe
+	// physical libp2p connections.
 	connected_peers?: [...string]
 	fatal_state?:                    string
 	runtime_refresh_pending?:        bool
@@ -503,10 +507,24 @@ package apicv1
 	protocol_checkpoint_digest?: string
 	read_consistency?:           string
 	read_error?:                 string
+	// Exact-event content_dissent observations recorded by this backend process.
+	event_receipt_content_dissent_observations?: uint
+	// Swarmion peers for which the application-owned transport has a route.
+	routed_peers?: [...string]
+	// Routed peers participating in this Swarmion database scope.
+	participating_peers?: [...string]
+	// The bounded Swarmion messaging overlay. This is not physical connectivity.
+	logical_peers?: [...string]
+	logical_peer_target?: int
+	// Peers with a live connection on the application-owned physical host.
+	physical_connected_peers?: [...string]
 }
 #RuntimePeerStatus: {
 	peer_id?:        string
+	// Deprecated: compatibility alias for routed.
 	connected?:      bool
+	// Deprecated: compatibility alias for routed. Swarmion no longer reports
+	// speculative dialability as database reachability.
 	dialable?:       bool
 	state_provider?: bool
 	compatible?:     bool
@@ -518,6 +536,11 @@ package apicv1
 	reason?:                   string
 	replication_priority?:     int
 	replication_device_class?: string
+	routed?:                   bool
+	participating?:            bool
+	logical?:                  bool
+	physical_connected?:       bool
+	last_routed_at_unix_nano?: int
 }
 #RuntimeCompatibility: {
 	peer_id?:       string
@@ -1320,7 +1343,7 @@ contract: {
 				{type: "int32", name: "progress", number: 4},
 				{type: "string", name: "details_json", number: 5},
 				{type: "string", name: "created_at", number: 6},
-				{type: "bool", name: "durable", number: 7},
+				{type: "bool", name: "durable", number: 7, comment: "True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability."},
 			]},
 			{kind: "message", name: "WatchTaskRequest", fields: [
 				{type: "string", name: "id", number: 1},
@@ -1356,7 +1379,7 @@ contract: {
 				{type: "string", name: "protocol_checkpoint_root_hash", number: 5},
 				{type: "string", name: "durable_main_root_hash", number: 6},
 				{rule: "repeated", type: "string", name: "state_providers", number: 10},
-				{rule: "repeated", type: "string", name: "connected_peers", number: 11},
+				{rule: "repeated", type: "string", name: "connected_peers", number: 11, comment: "Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections."},
 				{type: "string", name: "fatal_state", number: 12},
 				{type: "bool", name: "runtime_refresh_pending", number: 13},
 				{type: "string", name: "runtime_refresh_last_error", number: 14},
@@ -1369,11 +1392,17 @@ contract: {
 				{type: "string", name: "protocol_checkpoint_digest", number: 24},
 				{type: "string", name: "read_consistency", number: 25},
 				{type: "string", name: "read_error", number: 26},
+				{type: "uint64", name: "event_receipt_content_dissent_observations", number: 27, comment: "Exact-event content_dissent observations recorded by this backend process."},
+				{rule: "repeated", type: "string", name: "routed_peers", number: 28, comment: "Swarmion peers for which the application-owned transport has a route."},
+				{rule: "repeated", type: "string", name: "participating_peers", number: 29, comment: "Routed peers participating in this Swarmion database scope."},
+				{rule: "repeated", type: "string", name: "logical_peers", number: 30, comment: "The bounded Swarmion messaging overlay. This is not physical connectivity."},
+				{type: "int32", name: "logical_peer_target", number: 31},
+				{rule: "repeated", type: "string", name: "physical_connected_peers", number: 32, comment: "Peers with a live connection on the application-owned physical host."},
 			]},
 			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
-				{type: "bool", name: "connected", number: 2},
-				{type: "bool", name: "dialable", number: 3},
+				{type: "bool", name: "connected", number: 2, comment: "Deprecated: compatibility alias for routed."},
+				{type: "bool", name: "dialable", number: 3, comment: "Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability."},
 				{type: "bool", name: "state_provider", number: 4},
 				{type: "bool", name: "compatible", number: 7},
 				{type: "bool", name: "incompatible", number: 8},
@@ -1384,6 +1413,11 @@ contract: {
 				{type: "string", name: "reason", number: 13},
 				{type: "int32", name: "replication_priority", number: 14},
 				{type: "string", name: "replication_device_class", number: 15},
+				{type: "bool", name: "routed", number: 16},
+				{type: "bool", name: "participating", number: 17},
+				{type: "bool", name: "logical", number: 18},
+				{type: "bool", name: "physical_connected", number: 19},
+				{type: "int64", name: "last_routed_at_unix_nano", number: 20},
 			]},
 			{kind: "message", name: "RuntimeCompatibility", fields: [
 				{type: "string", name: "peer_id", number: 1},

@@ -14,5 +14,15 @@ catalog: {
 			transition_var: "Transition"
 			create_sql_var: "CreateSQL"
 		},
+		{
+			alias:       "v01"
+			import_path: "github.com/protosio/protos/internal/db/contracts/sql/protos/v0_1"
+			version_var: "Version"
+			transition_var: "Transition"
+			create_sql_var: "CreateSQL"
+		},
+	]
+	extra_transitions: [
+		{alias: "v01", transition_var: "InitialTransition"},
 	]
 }

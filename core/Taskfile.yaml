@@ -2,8 +2,10 @@ version: "3"
 
 vars:
   TIMEOUT: '{{.TIMEOUT | default "5m"}}'
+  GO_TOOLCHAIN: '{{.GO_TOOLCHAIN | default "go1.26.5"}}'
   GO_TEST_CACHE: '{{.GO_TEST_CACHE | default "/tmp/protos-gocache"}}'
   NATIVE_GO_TAGS: '{{.NATIVE_GO_TAGS | default "dolt_purego_zstd,gms_pure_go"}}'
+  SWARMION_CHECKPOINT_SCHEDULER_PROFILE: '{{.SWARMION_CHECKPOINT_SCHEDULER_PROFILE | default "single_node_development"}}'
   E2E_PROBE_IMAGE: '{{.E2E_PROBE_IMAGE | default "docker.io/protosio/protos-e2e-probe:latest"}}'
   E2E_PROBE_LARGE_IMAGE: '{{.E2E_PROBE_LARGE_IMAGE | default "docker.io/protosio/protos-e2e-probe:large-local"}}'
   E2E_IMAGE_REGISTRY_IMAGE: '{{.E2E_IMAGE_REGISTRY_IMAGE | default "docker.io/library/nginx:alpine"}}'
@@ -28,6 +30,11 @@ vars:
   PROVISIONER: '{{.PROVISIONER | default ""}}'
   LOCATION: '{{.LOCATION | default ""}}'
   OLDER_THAN: '{{.OLDER_THAN | default ""}}'
+
+env:
+  GOTOOLCHAIN: '{{.GO_TOOLCHAIN}}'
+  GOPRIVATE: '{{.GOPRIVATE | default "github.com/nustiueudinastea/swarmion"}}'
+  GONOSUMDB: '{{.GONOSUMDB | default "github.com/nustiueudinastea/swarmion"}}'
 
 tasks:
   generate:
@@ -159,17 +166,24 @@ tasks:
   test:
     desc: Run Go tests with the native Swarmion/Dolt stack
     cmds:
-      - env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
+      - env CGO_ENABLED=0 SWARMION_CHECKPOINT_SCHEDULER_PROFILE={{.SWARMION_CHECKPOINT_SCHEDULER_PROFILE}} GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
       - for:
           - network/modules/ipc
           - network/modules/networkextension
           - network/modules/wireguard
-        cmd: cd {{.ITEM}} && env CGO_ENABLED=0 GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
+        cmd: cd {{.ITEM}} && env CGO_ENABLED=0 SWARMION_CHECKPOINT_SCHEDULER_PROFILE={{.SWARMION_CHECKPOINT_SCHEDULER_PROFILE}} GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} ./...
 
   test:go:
     desc: Canonical replacement for raw go test ./... with the backend's pure-Go tags
     cmds:
       - task: test
+
+  test:focused:
+    desc: Run a focused core Go package or test with the canonical pure-Go tags
+    requires:
+      vars: [PACKAGE]
+    cmds:
+      - env CGO_ENABLED=0 SWARMION_CHECKPOINT_SCHEDULER_PROFILE={{.SWARMION_CHECKPOINT_SCHEDULER_PROFILE}} GOFLAGS="${GOFLAGS:--tags={{.NATIVE_GO_TAGS}}}" go test -timeout {{.TIMEOUT}} {{.TEST_ARGS}} {{.PACKAGE}}
 
   image:load:
     desc: Load a local image tar or tar.gz into the Protos app runtime

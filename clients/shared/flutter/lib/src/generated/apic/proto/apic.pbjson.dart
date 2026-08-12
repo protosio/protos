@@ -2496,6 +2496,36 @@ const RuntimeState$json = {
     },
     {'1': 'read_consistency', '3': 25, '4': 1, '5': 9, '10': 'readConsistency'},
     {'1': 'read_error', '3': 26, '4': 1, '5': 9, '10': 'readError'},
+    {
+      '1': 'event_receipt_content_dissent_observations',
+      '3': 27,
+      '4': 1,
+      '5': 4,
+      '10': 'eventReceiptContentDissentObservations'
+    },
+    {'1': 'routed_peers', '3': 28, '4': 3, '5': 9, '10': 'routedPeers'},
+    {
+      '1': 'participating_peers',
+      '3': 29,
+      '4': 3,
+      '5': 9,
+      '10': 'participatingPeers'
+    },
+    {'1': 'logical_peers', '3': 30, '4': 3, '5': 9, '10': 'logicalPeers'},
+    {
+      '1': 'logical_peer_target',
+      '3': 31,
+      '4': 1,
+      '5': 5,
+      '10': 'logicalPeerTarget'
+    },
+    {
+      '1': 'physical_connected_peers',
+      '3': 32,
+      '4': 3,
+      '5': 9,
+      '10': 'physicalConnectedPeers'
+    },
   ],
 };
 
@@ -2519,7 +2549,13 @@ final $typed_data.Uint8List runtimeStateDescriptor = $convert.base64Decode(
     'BhdGliaWxpdHlSDWNvbXBhdGliaWxpdHkSLAoSY29udGVudF9zeW5jX3RyYWNlGBQgAygJUhBj'
     'b250ZW50U3luY1RyYWNlEjwKGnByb3RvY29sX2NoZWNrcG9pbnRfZGlnZXN0GBggASgJUhhwcm'
     '90b2NvbENoZWNrcG9pbnREaWdlc3QSKQoQcmVhZF9jb25zaXN0ZW5jeRgZIAEoCVIPcmVhZENv'
-    'bnNpc3RlbmN5Eh0KCnJlYWRfZXJyb3IYGiABKAlSCXJlYWRFcnJvcg==');
+    'bnNpc3RlbmN5Eh0KCnJlYWRfZXJyb3IYGiABKAlSCXJlYWRFcnJvchJaCipldmVudF9yZWNlaX'
+    'B0X2NvbnRlbnRfZGlzc2VudF9vYnNlcnZhdGlvbnMYGyABKARSJmV2ZW50UmVjZWlwdENvbnRl'
+    'bnREaXNzZW50T2JzZXJ2YXRpb25zEiEKDHJvdXRlZF9wZWVycxgcIAMoCVILcm91dGVkUGVlcn'
+    'MSLwoTcGFydGljaXBhdGluZ19wZWVycxgdIAMoCVIScGFydGljaXBhdGluZ1BlZXJzEiMKDWxv'
+    'Z2ljYWxfcGVlcnMYHiADKAlSDGxvZ2ljYWxQZWVycxIuChNsb2dpY2FsX3BlZXJfdGFyZ2V0GB'
+    '8gASgFUhFsb2dpY2FsUGVlclRhcmdldBI4ChhwaHlzaWNhbF9jb25uZWN0ZWRfcGVlcnMYICAD'
+    'KAlSFnBoeXNpY2FsQ29ubmVjdGVkUGVlcnM=');
 
 @$core.Deprecated('Use runtimePeerStatusDescriptor instead')
 const RuntimePeerStatus$json = {
@@ -2557,6 +2593,23 @@ const RuntimePeerStatus$json = {
       '5': 9,
       '10': 'replicationDeviceClass'
     },
+    {'1': 'routed', '3': 16, '4': 1, '5': 8, '10': 'routed'},
+    {'1': 'participating', '3': 17, '4': 1, '5': 8, '10': 'participating'},
+    {'1': 'logical', '3': 18, '4': 1, '5': 8, '10': 'logical'},
+    {
+      '1': 'physical_connected',
+      '3': 19,
+      '4': 1,
+      '5': 8,
+      '10': 'physicalConnected'
+    },
+    {
+      '1': 'last_routed_at_unix_nano',
+      '3': 20,
+      '4': 1,
+      '5': 3,
+      '10': 'lastRoutedAtUnixNano'
+    },
   ],
   '3': [RuntimePeerStatus_LastDialErrorsEntry$json],
 };
@@ -2582,8 +2635,11 @@ final $typed_data.Uint8List runtimePeerStatusDescriptor = $convert.base64Decode(
     'dGltZVBlZXJTdGF0dXMuTGFzdERpYWxFcnJvcnNFbnRyeVIObGFzdERpYWxFcnJvcnMSFgoGcm'
     'Vhc29uGA0gASgJUgZyZWFzb24SMQoUcmVwbGljYXRpb25fcHJpb3JpdHkYDiABKAVSE3JlcGxp'
     'Y2F0aW9uUHJpb3JpdHkSOAoYcmVwbGljYXRpb25fZGV2aWNlX2NsYXNzGA8gASgJUhZyZXBsaW'
-    'NhdGlvbkRldmljZUNsYXNzGkEKE0xhc3REaWFsRXJyb3JzRW50cnkSEAoDa2V5GAEgASgJUgNr'
-    'ZXkSFAoFdmFsdWUYAiABKAlSBXZhbHVlOgI4AQ==');
+    'NhdGlvbkRldmljZUNsYXNzEhYKBnJvdXRlZBgQIAEoCFIGcm91dGVkEiQKDXBhcnRpY2lwYXRp'
+    'bmcYESABKAhSDXBhcnRpY2lwYXRpbmcSGAoHbG9naWNhbBgSIAEoCFIHbG9naWNhbBItChJwaH'
+    'lzaWNhbF9jb25uZWN0ZWQYEyABKAhSEXBoeXNpY2FsQ29ubmVjdGVkEjYKGGxhc3Rfcm91dGVk'
+    'X2F0X3VuaXhfbmFubxgUIAEoA1IUbGFzdFJvdXRlZEF0VW5peE5hbm8aQQoTTGFzdERpYWxFcn'
+    'JvcnNFbnRyeRIQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgB');
 
 @$core.Deprecated('Use runtimeCompatibilityDescriptor instead')
 const RuntimeCompatibility$json = {

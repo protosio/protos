@@ -8751,6 +8751,7 @@ class TaskProgressUpdate extends $pb.GeneratedMessage {
   @$pb.TagNumber(6)
   void clearCreatedAt() => $_clearField(6);
 
+  /// True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability.
   @$pb.TagNumber(7)
   $core.bool get durable => $_getBF(6);
   @$pb.TagNumber(7)
@@ -9214,6 +9215,12 @@ class RuntimeState extends $pb.GeneratedMessage {
     $core.String? protocolCheckpointDigest,
     $core.String? readConsistency,
     $core.String? readError,
+    $fixnum.Int64? eventReceiptContentDissentObservations,
+    $core.Iterable<$core.String>? routedPeers,
+    $core.Iterable<$core.String>? participatingPeers,
+    $core.Iterable<$core.String>? logicalPeers,
+    $core.int? logicalPeerTarget,
+    $core.Iterable<$core.String>? physicalConnectedPeers,
   }) {
     final result = create();
     if (peerId != null) result.peerId = peerId;
@@ -9246,6 +9253,16 @@ class RuntimeState extends $pb.GeneratedMessage {
       result.protocolCheckpointDigest = protocolCheckpointDigest;
     if (readConsistency != null) result.readConsistency = readConsistency;
     if (readError != null) result.readError = readError;
+    if (eventReceiptContentDissentObservations != null)
+      result.eventReceiptContentDissentObservations =
+          eventReceiptContentDissentObservations;
+    if (routedPeers != null) result.routedPeers.addAll(routedPeers);
+    if (participatingPeers != null)
+      result.participatingPeers.addAll(participatingPeers);
+    if (logicalPeers != null) result.logicalPeers.addAll(logicalPeers);
+    if (logicalPeerTarget != null) result.logicalPeerTarget = logicalPeerTarget;
+    if (physicalConnectedPeers != null)
+      result.physicalConnectedPeers.addAll(physicalConnectedPeers);
     return result;
   }
 
@@ -9284,6 +9301,16 @@ class RuntimeState extends $pb.GeneratedMessage {
     ..aOS(24, _omitFieldNames ? '' : 'protocolCheckpointDigest')
     ..aOS(25, _omitFieldNames ? '' : 'readConsistency')
     ..aOS(26, _omitFieldNames ? '' : 'readError')
+    ..a<$fixnum.Int64>(
+        27,
+        _omitFieldNames ? '' : 'eventReceiptContentDissentObservations',
+        $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..pPS(28, _omitFieldNames ? '' : 'routedPeers')
+    ..pPS(29, _omitFieldNames ? '' : 'participatingPeers')
+    ..pPS(30, _omitFieldNames ? '' : 'logicalPeers')
+    ..aI(31, _omitFieldNames ? '' : 'logicalPeerTarget')
+    ..pPS(32, _omitFieldNames ? '' : 'physicalConnectedPeers')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9362,6 +9389,7 @@ class RuntimeState extends $pb.GeneratedMessage {
   @$pb.TagNumber(10)
   $pb.PbList<$core.String> get stateProviders => $_getList(6);
 
+  /// Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections.
   @$pb.TagNumber(11)
   $pb.PbList<$core.String> get connectedPeers => $_getList(7);
 
@@ -9455,6 +9483,42 @@ class RuntimeState extends $pb.GeneratedMessage {
   $core.bool hasReadError() => $_has(19);
   @$pb.TagNumber(26)
   void clearReadError() => $_clearField(26);
+
+  /// Exact-event content_dissent observations recorded by this backend process.
+  @$pb.TagNumber(27)
+  $fixnum.Int64 get eventReceiptContentDissentObservations => $_getI64(20);
+  @$pb.TagNumber(27)
+  set eventReceiptContentDissentObservations($fixnum.Int64 value) =>
+      $_setInt64(20, value);
+  @$pb.TagNumber(27)
+  $core.bool hasEventReceiptContentDissentObservations() => $_has(20);
+  @$pb.TagNumber(27)
+  void clearEventReceiptContentDissentObservations() => $_clearField(27);
+
+  /// Swarmion peers for which the application-owned transport has a route.
+  @$pb.TagNumber(28)
+  $pb.PbList<$core.String> get routedPeers => $_getList(21);
+
+  /// Routed peers participating in this Swarmion database scope.
+  @$pb.TagNumber(29)
+  $pb.PbList<$core.String> get participatingPeers => $_getList(22);
+
+  /// The bounded Swarmion messaging overlay. This is not physical connectivity.
+  @$pb.TagNumber(30)
+  $pb.PbList<$core.String> get logicalPeers => $_getList(23);
+
+  @$pb.TagNumber(31)
+  $core.int get logicalPeerTarget => $_getIZ(24);
+  @$pb.TagNumber(31)
+  set logicalPeerTarget($core.int value) => $_setSignedInt32(24, value);
+  @$pb.TagNumber(31)
+  $core.bool hasLogicalPeerTarget() => $_has(24);
+  @$pb.TagNumber(31)
+  void clearLogicalPeerTarget() => $_clearField(31);
+
+  /// Peers with a live connection on the application-owned physical host.
+  @$pb.TagNumber(32)
+  $pb.PbList<$core.String> get physicalConnectedPeers => $_getList(25);
 }
 
 class RuntimePeerStatus extends $pb.GeneratedMessage {
@@ -9472,6 +9536,11 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
     $core.String? reason,
     $core.int? replicationPriority,
     $core.String? replicationDeviceClass,
+    $core.bool? routed,
+    $core.bool? participating,
+    $core.bool? logical,
+    $core.bool? physicalConnected,
+    $fixnum.Int64? lastRoutedAtUnixNano,
   }) {
     final result = create();
     if (peerId != null) result.peerId = peerId;
@@ -9490,6 +9559,12 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
       result.replicationPriority = replicationPriority;
     if (replicationDeviceClass != null)
       result.replicationDeviceClass = replicationDeviceClass;
+    if (routed != null) result.routed = routed;
+    if (participating != null) result.participating = participating;
+    if (logical != null) result.logical = logical;
+    if (physicalConnected != null) result.physicalConnected = physicalConnected;
+    if (lastRoutedAtUnixNano != null)
+      result.lastRoutedAtUnixNano = lastRoutedAtUnixNano;
     return result;
   }
 
@@ -9523,6 +9598,11 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
     ..aOS(13, _omitFieldNames ? '' : 'reason')
     ..aI(14, _omitFieldNames ? '' : 'replicationPriority')
     ..aOS(15, _omitFieldNames ? '' : 'replicationDeviceClass')
+    ..aOB(16, _omitFieldNames ? '' : 'routed')
+    ..aOB(17, _omitFieldNames ? '' : 'participating')
+    ..aOB(18, _omitFieldNames ? '' : 'logical')
+    ..aOB(19, _omitFieldNames ? '' : 'physicalConnected')
+    ..aInt64(20, _omitFieldNames ? '' : 'lastRoutedAtUnixNano')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9553,6 +9633,7 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearPeerId() => $_clearField(1);
 
+  /// Deprecated: compatibility alias for routed.
   @$pb.TagNumber(2)
   $core.bool get connected => $_getBF(1);
   @$pb.TagNumber(2)
@@ -9562,6 +9643,7 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearConnected() => $_clearField(2);
 
+  /// Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability.
   @$pb.TagNumber(3)
   $core.bool get dialable => $_getBF(2);
   @$pb.TagNumber(3)
@@ -9648,6 +9730,51 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
   $core.bool hasReplicationDeviceClass() => $_has(12);
   @$pb.TagNumber(15)
   void clearReplicationDeviceClass() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.bool get routed => $_getBF(13);
+  @$pb.TagNumber(16)
+  set routed($core.bool value) => $_setBool(13, value);
+  @$pb.TagNumber(16)
+  $core.bool hasRouted() => $_has(13);
+  @$pb.TagNumber(16)
+  void clearRouted() => $_clearField(16);
+
+  @$pb.TagNumber(17)
+  $core.bool get participating => $_getBF(14);
+  @$pb.TagNumber(17)
+  set participating($core.bool value) => $_setBool(14, value);
+  @$pb.TagNumber(17)
+  $core.bool hasParticipating() => $_has(14);
+  @$pb.TagNumber(17)
+  void clearParticipating() => $_clearField(17);
+
+  @$pb.TagNumber(18)
+  $core.bool get logical => $_getBF(15);
+  @$pb.TagNumber(18)
+  set logical($core.bool value) => $_setBool(15, value);
+  @$pb.TagNumber(18)
+  $core.bool hasLogical() => $_has(15);
+  @$pb.TagNumber(18)
+  void clearLogical() => $_clearField(18);
+
+  @$pb.TagNumber(19)
+  $core.bool get physicalConnected => $_getBF(16);
+  @$pb.TagNumber(19)
+  set physicalConnected($core.bool value) => $_setBool(16, value);
+  @$pb.TagNumber(19)
+  $core.bool hasPhysicalConnected() => $_has(16);
+  @$pb.TagNumber(19)
+  void clearPhysicalConnected() => $_clearField(19);
+
+  @$pb.TagNumber(20)
+  $fixnum.Int64 get lastRoutedAtUnixNano => $_getI64(17);
+  @$pb.TagNumber(20)
+  set lastRoutedAtUnixNano($fixnum.Int64 value) => $_setInt64(17, value);
+  @$pb.TagNumber(20)
+  $core.bool hasLastRoutedAtUnixNano() => $_has(17);
+  @$pb.TagNumber(20)
+  void clearLastRoutedAtUnixNano() => $_clearField(20);
 }
 
 class RuntimeCompatibility extends $pb.GeneratedMessage {

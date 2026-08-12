@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	pbApic "github.com/protosio/protos/apic/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestTerminalStatusIgnoresRunningProgressDetails(t *testing.T) {
@@ -43,20 +44,88 @@ func TestCheckpointedRuntimeRootRequiresConvergedRoots(t *testing.T) {
 	}
 }
 
-func TestRuntimePeerConnectedUsesCanonicalRuntimeState(t *testing.T) {
-	if runtimePeerConnected(nil, "peer-a") {
-		t.Fatal("nil runtime state reported connected")
+func TestRuntimePeerTransportReadyRequiresExplicitPlanes(t *testing.T) {
+	assertReady := func(t *testing.T, state *pbApic.RuntimeState, want bool, wantMissing []string) {
+		t.Helper()
+		got, missing := runtimePeerTransportReady(state, "peer-a")
+		if got != want || strings.Join(missing, "\x00") != strings.Join(wantMissing, "\x00") {
+			t.Fatalf("runtimePeerTransportReady() = (%t, %v), want (%t, %v)", got, missing, want, wantMissing)
+		}
 	}
-	if runtimePeerConnected(&pbApic.RuntimeState{}, "") {
-		t.Fatal("empty peer id reported connected")
+
+	assertReady(t, nil, false, []string{"physical", "routed", "participating"})
+	assertReady(t, &pbApic.RuntimeState{
+		PhysicalConnectedPeers: []string{"peer-a"},
+		RoutedPeers:            []string{"peer-a"},
+		ParticipatingPeers:     []string{"peer-a"},
+	}, true, nil)
+	assertReady(t, &pbApic.RuntimeState{
+		PhysicalConnectedPeers: []string{"peer-a"},
+		RoutedPeers:            []string{"peer-a"},
+	}, false, []string{"participating"})
+	assertReady(t, &pbApic.RuntimeState{
+		ConnectedPeers: []string{"peer-a"},
+		LogicalPeers:   []string{"peer-a"},
+		PeerStatuses: []*pbApic.RuntimePeerStatus{{
+			PeerId:    "peer-a",
+			Connected: true,
+			Dialable:  true,
+			Logical:   true,
+		}},
+	}, false, []string{"physical", "routed", "participating"})
+	assertReady(t, &pbApic.RuntimeState{PeerStatuses: []*pbApic.RuntimePeerStatus{{
+		PeerId:            "peer-a",
+		PhysicalConnected: true,
+		Routed:            true,
+		Participating:     true,
+	}}}, true, nil)
+}
+
+func TestRuntimeTransportPlanesProtoRoundTrip(t *testing.T) {
+	want := &pbApic.RuntimeState{
+		RoutedPeers:            []string{"peer-a"},
+		ParticipatingPeers:     []string{"peer-a"},
+		LogicalPeers:           []string{"peer-a"},
+		LogicalPeerTarget:      8,
+		PhysicalConnectedPeers: []string{"peer-a", "peer-control"},
+		PeerStatuses: []*pbApic.RuntimePeerStatus{{
+			PeerId:               "peer-a",
+			Routed:               true,
+			Participating:        true,
+			Logical:              true,
+			PhysicalConnected:    true,
+			LastRoutedAtUnixNano: 1234,
+		}},
 	}
-	if !runtimePeerConnected(&pbApic.RuntimeState{ConnectedPeers: []string{"peer-a"}}, "peer-a") {
-		t.Fatal("peer in connected_peers was not reported connected")
+
+	wire, err := proto.Marshal(want)
+	if err != nil {
+		t.Fatalf("marshal runtime state: %v", err)
 	}
-	if !runtimePeerConnected(&pbApic.RuntimeState{PeerStatuses: []*pbApic.RuntimePeerStatus{{PeerId: "peer-a", Connected: true}}}, "peer-a") {
-		t.Fatal("peer_statuses.connected was not reported connected")
+	got := new(pbApic.RuntimeState)
+	if err := proto.Unmarshal(wire, got); err != nil {
+		t.Fatalf("unmarshal runtime state: %v", err)
 	}
-	if runtimePeerConnected(&pbApic.RuntimeState{PeerStatuses: []*pbApic.RuntimePeerStatus{{PeerId: "peer-a", Connected: false}}}, "peer-a") {
-		t.Fatal("disconnected peer status reported connected")
+	if !proto.Equal(got, want) {
+		t.Fatalf("round trip = %v, want %v", got, want)
+	}
+}
+
+func TestRuntimeStateSummaryIncludesEventReceiptContentDissentObservations(t *testing.T) {
+	summary := RuntimeStateSummary(&pbApic.RuntimeState{
+		EventReceiptContentDissentObservations: 5,
+		PhysicalConnectedPeers:                 []string{"physical"},
+		RoutedPeers:                            []string{"routed"},
+		ParticipatingPeers:                     []string{"participating"},
+		LogicalPeers:                           []string{"logical"},
+		LogicalPeerTarget:                      8,
+	})
+	if !strings.Contains(summary, "event_receipt_content_dissent_observations=5") {
+		t.Fatalf("runtime state summary = %q, want content dissent observations", summary)
+	}
+	for _, want := range []string{"physical=[physical]", "routed=[routed]", "participating=[participating]", "logical=[logical]", "logical_target=8"} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("runtime state summary = %q, want %q", summary, want)
+		}
 	}
 }

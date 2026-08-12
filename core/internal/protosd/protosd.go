@@ -9,12 +9,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	stdruntime "runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	libp2phost "github.com/libp2p/go-libp2p/core/host"
 	"github.com/pkg/errors"
 
 	"github.com/protosio/protos/apic"
@@ -32,6 +34,7 @@ import (
 	"github.com/protosio/protos/internal/provisioners"
 	"github.com/protosio/protos/internal/release"
 	appruntime "github.com/protosio/protos/internal/runtime"
+	"github.com/protosio/protos/internal/swarmionlink"
 	"github.com/protosio/protos/internal/tasks"
 	"github.com/protosio/protos/internal/user"
 	"github.com/protosio/protos/internal/util"
@@ -133,15 +136,18 @@ type Options struct {
 }
 
 type Node struct {
-	cfg          config.Config
-	version      string
-	capabilities Capabilities
-	stoppers     map[string]func() error
-	stopMu       sync.Mutex
-	stopped      bool
-	localKey     *pcrypto.Key
-	initOnce     sync.Once
-	initCh       chan struct{}
+	cfg           config.Config
+	version       string
+	capabilities  Capabilities
+	stoppers      map[string]func() error
+	stopMu        sync.Mutex
+	stopped       bool
+	localKey      *pcrypto.Key
+	peerHost      libp2phost.Host
+	dbCloseOnce   sync.Once
+	hostCloseOnce sync.Once
+	initOnce      sync.Once
+	initCh        chan struct{}
 
 	DB             *db.DB
 	Manager        *user.Manager
@@ -170,7 +176,7 @@ func StartUp(configFile string, version *semver.Version, opts Options) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer node.closeDB()
+	defer node.Close()
 
 	if err := node.Start(); err != nil {
 		log.Fatal(err)
@@ -216,10 +222,44 @@ func NewNode(configFile string, version *semver.Version, opts Options) (*Node, e
 		return nil, fmt.Errorf("failed to get local key: %w", err)
 	}
 
-	log.Infof("opening Protos database in workdir: %s", cfg.WorkDir)
-	dbcli, err := db.Open(cfg.WorkDir, config.DBName, lkey)
+	log.Infof("creating application-owned libp2p host on port %d", cfg.P2PPort)
+	peerHost, err := p2p.NewHost(lkey, cfg.P2PPort)
 	if err != nil {
+		return nil, fmt.Errorf("failed to create application p2p host: %w", err)
+	}
+	cleanupHost := func() {
+		_ = peerHost.Close()
+	}
+
+	registry, err := swarmionlink.NewRegistry(peerHost)
+	if err != nil {
+		cleanupHost()
+		return nil, fmt.Errorf("failed to create shared p2p protocol registry: %w", err)
+	}
+
+	// Reserve every Protos application protocol through the same registry before
+	// Swarmion opens its borrowed session. This makes ownership deterministic and
+	// collision-safe across both consumers.
+	p2pManager, err := p2p.NewManagerWithRegistry(peerHost, registry, nil, nil, cfg.P2PPort)
+	if err != nil {
+		cleanupHost()
+		return nil, fmt.Errorf("failed to register application p2p protocols: %w", err)
+	}
+	cleanupP2P := func() {
+		_ = p2pManager.Close()
+		cleanupHost()
+	}
+
+	log.Infof("opening Protos database in workdir: %s", cfg.WorkDir)
+	dbcli, err := db.Open(cfg.WorkDir, config.DBName, lkey, registry.Link())
+	if err != nil {
+		cleanupP2P()
 		return nil, err
+	}
+	if err := p2pManager.SetExternalDB(dbcli); err != nil {
+		_ = dbcli.Close()
+		cleanupP2P()
+		return nil, fmt.Errorf("failed to attach database to application p2p manager: %w", err)
 	}
 	log.Infof("opened Protos database; initialized=%t", dbcli.Initialized())
 
@@ -227,6 +267,8 @@ func NewNode(configFile string, version *semver.Version, opts Options) (*Node, e
 	userManager := user.CreateManager(dbcli, keyManager)
 	inviteManager, err := invitations.NewManager(mdns.NewChannel())
 	if err != nil {
+		_ = dbcli.Close()
+		cleanupP2P()
 		return nil, fmt.Errorf("failed to create invite manager: %w", err)
 	}
 	node := &Node{
@@ -235,14 +277,19 @@ func NewNode(configFile string, version *semver.Version, opts Options) (*Node, e
 		capabilities:   caps,
 		stoppers:       map[string]func() error{},
 		localKey:       lkey,
+		peerHost:       peerHost,
 		initCh:         make(chan struct{}),
 		DB:             dbcli,
 		KeyManager:     keyManager,
 		Manager:        userManager,
 		TaskManager:    tasks.NewManager(dbcli),
+		P2PManager:     p2pManager,
 		networkDesired: caps.Network,
 		inviteManager:  inviteManager,
 	}
+	node.stoppers["p2p-server"] = p2pManager.StopServer
+	node.stoppers["p2p-scope"] = p2pManager.Close
+	node.stoppers["p2p-host"] = node.closePeerHost
 	if caps.Network {
 		node.networkState = networkRuntimeStateDisabled
 	} else {
@@ -269,10 +316,10 @@ func (n *Node) Start() error {
 	n.appRuntime = appruntime.Create(n.NetworkManager, n.cfg.RuntimeEndpoint)
 	n.AppManager = app.CreateManager(n.localKey.GetID(), n.appRuntime, n.DB, n.TaskManager)
 
-	n.P2PManager, err = p2p.NewManager(n.localKey, n.AppManager, n.DB, n.cfg.P2PPort)
-	if err != nil {
-		return fmt.Errorf("failed to create p2p manager: %w", err)
+	if n.P2PManager == nil {
+		return fmt.Errorf("application p2p manager is not configured")
 	}
+	n.P2PManager.SetAppManager(n.AppManager)
 	if n.TaskManager != nil {
 		n.TaskManager.SetExecutorPeerID(n.P2PManager.PeerID())
 	}
@@ -305,6 +352,7 @@ func (n *Node) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create provisioner manager: %w", err)
 	}
+	n.CloudManager.SetProviderMutationEnabled(n.capabilities.Provision)
 
 	if n.capabilities.API {
 		apiStopper, err := apic.StartGRPCServer(n.cfg.WorkDir, n.version, n.APIServices())
@@ -324,7 +372,7 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	n.stoppers["p2p"] = p2pStopper
+	n.stoppers["p2p-server"] = p2pStopper
 
 	if n.capabilities.Network {
 		normalizedDNS, err := network.NormalizeDNSServer(n.cfg.ExternalDNS)
@@ -436,6 +484,9 @@ func (n *Node) APIServices() *apic.Services {
 
 func (n *Node) Init(username string, name string, organisation string) error {
 	log.Debug("Performing initialization")
+	if err := rejectFreshInitializationForRepository(n.DB.RepositoryReadiness()); err != nil {
+		return err
+	}
 	flushNotifications := n.DB.DeferNotifications()
 	defer flushNotifications(true)
 
@@ -459,6 +510,19 @@ func (n *Node) Init(username string, name string, organisation string) error {
 	}
 	n.markInitialized()
 	flushNotifications(false)
+	return nil
+}
+
+func rejectFreshInitializationForRepository(readiness db.RepositoryReadiness) error {
+	if readiness.ExistingRepository && !readiness.Initialized {
+		if readiness.BootstrapPending {
+			return fmt.Errorf("failed to init: existing repository is awaiting bootstrap recovery")
+		}
+		if readiness.BootstrapError != nil {
+			return fmt.Errorf("failed to init: existing repository recovery failed: %w", readiness.BootstrapError)
+		}
+		return fmt.Errorf("failed to init: existing repository is not ready")
+	}
 	return nil
 }
 
@@ -509,22 +573,58 @@ func (n *Node) Stop() {
 		return
 	}
 	n.stopped = true
-	stoppers := make([]func() error, 0, len(n.stoppers))
-	for _, stopper := range n.stoppers {
-		stoppers = append(stoppers, stopper)
+	stoppers := make(map[string]func() error, len(n.stoppers))
+	for name, stopper := range n.stoppers {
+		stoppers[name] = stopper
 	}
 	database := n.DB
 	n.stopMu.Unlock()
 
-	if database != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := database.PrepareSwarmionShutdown(ctx); err != nil {
-			log.Debugf("failed to prepare swarmion shutdown: %s", err.Error())
+	stopNodeComponents(stoppers, func() {
+		if database == nil {
+			return
 		}
-		cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		n.dbCloseOnce.Do(func() {
+			if err := database.PrepareSwarmionShutdown(ctx); err != nil {
+				log.Debugf("failed to prepare swarmion shutdown: %s", err.Error())
+			}
+		})
+	})
+}
+
+func stopNodeComponents(stoppers map[string]func() error, prepareSwarmionShutdown func()) {
+	if stopper := stoppers["task-runner"]; stopper != nil {
+		if err := stopper(); err != nil {
+			log.Error(err)
+		}
 	}
 
-	for _, stopper := range stoppers {
+	names := make([]string, 0, len(stoppers))
+	for name := range stoppers {
+		if name != "task-runner" && name != "p2p-scope" && name != "p2p-host" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if err := stoppers[name](); err != nil {
+			log.Error(err)
+		}
+	}
+
+	// All writers and ingress paths are now stopped. Drain and close Swarmion
+	// before unregistering the application scope from the shared host.
+	prepareSwarmionShutdown()
+	if stopper := stoppers["p2p-scope"]; stopper != nil {
+		if err := stopper(); err != nil {
+			log.Error(err)
+		}
+	}
+	// The physical host is application-owned. It is always the final network
+	// resource closed, after Swarmion/DB and every scoped Protos handler.
+	if stopper := stoppers["p2p-host"]; stopper != nil {
 		if err := stopper(); err != nil {
 			log.Error(err)
 		}
@@ -537,9 +637,27 @@ func (n *Node) Close() {
 }
 
 func (n *Node) closeDB() {
-	if n.DB != nil {
-		_ = n.DB.Close()
+	if n == nil {
+		return
 	}
+	n.dbCloseOnce.Do(func() {
+		if n.DB != nil {
+			_ = n.DB.Close()
+		}
+	})
+}
+
+func (n *Node) closePeerHost() error {
+	if n == nil {
+		return nil
+	}
+	var closeErr error
+	n.hostCloseOnce.Do(func() {
+		if n.peerHost != nil {
+			closeErr = n.peerHost.Close()
+		}
+	})
+	return closeErr
 }
 
 func (n *Node) markInitialized() {
@@ -641,13 +759,6 @@ func (dbn *DBNotifier) Notify() {
 		return
 	}
 	userDevices = membership.FilterDevices(userDevices, peerIDs)
-
-	activePeerIDs := activeMembershipPeerIDs(replicationInstances, userDevices)
-	reconcileRemovedCtx, reconcileRemovedCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := dbn.database.ReconcileRemovedSwarmionPeers(reconcileRemovedCtx, activePeerIDs); err != nil {
-		log.Debugf("failed to reconcile removed swarmion peers: %s", err.Error())
-	}
-	reconcileRemovedCancel()
 
 	appRoutes := []network.AppRoute{}
 	if dbn.am != nil {

@@ -136,6 +136,28 @@ CREATE INDEX task_events_task_id_idx ON task_events (task_id);
 
 CREATE INDEX task_events_status_idx ON task_events (status);
 
+CREATE TABLE task_operation_facts (
+    id CHAR(64) NOT NULL PRIMARY KEY,
+    task_id BINARY(16) NOT NULL,
+    fact_kind VARCHAR(128) NOT NULL,
+    operation_key VARCHAR(255) NOT NULL,
+    intent_digest CHAR(64) NOT NULL,
+    author_peer_id VARCHAR(255) NOT NULL,
+    subject_type VARCHAR(128) NOT NULL,
+    subject_id VARCHAR(255) NOT NULL,
+    payload JSON NOT NULL
+);
+
+CREATE INDEX task_operation_facts_task_id_idx ON task_operation_facts (task_id);
+
+CREATE INDEX task_operation_facts_kind_idx ON task_operation_facts (fact_kind);
+
+CREATE INDEX task_operation_facts_author_idx ON task_operation_facts (author_peer_id);
+
+CREATE INDEX task_operation_facts_subject_type_idx ON task_operation_facts (subject_type);
+
+CREATE INDEX task_operation_facts_subject_id_idx ON task_operation_facts (subject_id);
+
 CREATE TABLE exit_routes (
     id BINARY(16) NOT NULL PRIMARY KEY,
     device_id BINARY(16) NOT NULL,

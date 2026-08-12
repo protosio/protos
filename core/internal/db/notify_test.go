@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 	"github.com/protosio/protos/internal/util"
 )
 

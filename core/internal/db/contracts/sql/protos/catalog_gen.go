@@ -5,6 +5,7 @@ package protoscontracts
 import (
 	"github.com/nustiueudinastea/swarmion/runtime/schema"
 	v00 "github.com/protosio/protos/internal/db/contracts/sql/protos/v0_0"
+	v01 "github.com/protosio/protos/internal/db/contracts/sql/protos/v0_1"
 )
 
 var Catalog = schema.CatalogDefinition{
@@ -13,9 +14,12 @@ var Catalog = schema.CatalogDefinition{
 			ID: "protos.db",
 			Versions: []schema.VersionDefinition{
 				v00.Version,
+				v01.Version,
 			},
 			Transitions: []schema.TransitionDefinition{
 				v00.Transition,
+				v01.Transition,
+				v01.InitialTransition,
 			},
 		},
 	},

@@ -1,8 +1,15 @@
 package protosd
 
 import (
+	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/protosio/protos/internal/db"
@@ -58,6 +65,104 @@ func TestParseCapabilitiesRejectsUnknown(t *testing.T) {
 	}
 }
 
+func TestRejectFreshInitializationForRepository(t *testing.T) {
+	permanentErr := errors.New("permanent bootstrap admission failure")
+	tests := []struct {
+		name      string
+		readiness db.RepositoryReadiness
+		wantText  string
+		wantCause error
+	}{
+		{
+			name:      "existing bootstrap pending",
+			readiness: db.RepositoryReadiness{ExistingRepository: true, BootstrapPending: true},
+			wantText:  "awaiting bootstrap recovery",
+		},
+		{
+			name:      "existing permanent bootstrap error",
+			readiness: db.RepositoryReadiness{ExistingRepository: true, BootstrapError: permanentErr},
+			wantText:  "recovery failed",
+			wantCause: permanentErr,
+		},
+		{
+			name:      "existing repository worker stopped",
+			readiness: db.RepositoryReadiness{ExistingRepository: true},
+			wantText:  "not ready",
+		},
+		{name: "genuinely fresh repository"},
+		{
+			name:      "recovered existing repository",
+			readiness: db.RepositoryReadiness{Initialized: true, ExistingRepository: true},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := rejectFreshInitializationForRepository(test.readiness)
+			if test.wantText == "" {
+				if err != nil {
+					t.Fatalf("guard error = %v, want admission", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantText) {
+				t.Fatalf("guard error = %v, want text %q", err, test.wantText)
+			}
+			if test.wantCause != nil && !errors.Is(err, test.wantCause) {
+				t.Fatalf("guard error = %v, want cause %v", err, test.wantCause)
+			}
+		})
+	}
+}
+
+func TestStopNodeComponentsOrdersTaskRunnerBeforeSwarmionAndOtherServices(t *testing.T) {
+	var calls []string
+	stopper := func(name string) func() error {
+		return func() error {
+			calls = append(calls, name)
+			return nil
+		}
+	}
+
+	stopNodeComponents(map[string]func() error{
+		"p2p-server":  stopper("p2p-server"),
+		"p2p-scope":   stopper("p2p-scope"),
+		"p2p-host":    stopper("p2p-host"),
+		"task-runner": stopper("task-runner"),
+		"api":         stopper("api"),
+		"network":     stopper("network"),
+	}, func() {
+		calls = append(calls, "prepare-swarmion")
+	})
+
+	want := []string{"task-runner", "api", "network", "p2p-server", "prepare-swarmion", "p2p-scope", "p2p-host"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("shutdown order = %v, want %v", calls, want)
+	}
+}
+
+func TestNodeStopInvokesEachStopperOnce(t *testing.T) {
+	var calls []string
+	node := &Node{stoppers: map[string]func() error{
+		"task-runner": func() error {
+			calls = append(calls, "task-runner")
+			return nil
+		},
+		"api": func() error {
+			calls = append(calls, "api")
+			return nil
+		},
+	}}
+
+	node.Stop()
+	node.Stop()
+
+	want := []string{"task-runner", "api"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("stopper calls = %v, want %v", calls, want)
+	}
+}
+
 func TestActiveMembershipPeerIDsExcludeStoppedInstances(t *testing.T) {
 	runningKey := testPublicKey(t, "running")
 	stoppedKey := testPublicKey(t, "stopped")
@@ -84,6 +189,56 @@ func TestActiveMembershipPeerIDsExcludeStoppedInstances(t *testing.T) {
 	}
 	if len(peerIDs) != 2 {
 		t.Fatalf("active peer IDs = %#v, want running instance and device only", peerIDs)
+	}
+}
+
+func TestDBNotifierDoesNotPreClearOrFinalizeRemovedSwarmionPeers(t *testing.T) {
+	_, testFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test source path")
+	}
+	productionFile := filepath.Join(filepath.Dir(testFile), "protosd.go")
+	parsed, err := parser.ParseFile(token.NewFileSet(), productionFile, nil, 0)
+	if err != nil {
+		t.Fatalf("parse protosd.go: %v", err)
+	}
+	forbidden := map[string]struct{}{
+		"ClearPeerCaches":               {},
+		"EvictPeer":                     {},
+		"ReconcileRemovedSwarmionPeers": {},
+		"BeginReplicationPeerDrain":     {},
+		"WatchReplicationPeerDrain":     {},
+		"WaitReplicationPeerDrainReady": {},
+		"FinalizeReplicationPeerDrain":  {},
+	}
+	foundNotify := false
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		declaration, ok := node.(*ast.FuncDecl)
+		if !ok || declaration.Name.Name != "Notify" || declaration.Recv == nil || len(declaration.Recv.List) != 1 {
+			return true
+		}
+		star, ok := declaration.Recv.List[0].Type.(*ast.StarExpr)
+		if !ok {
+			return true
+		}
+		receiver, ok := star.X.(*ast.Ident)
+		if !ok || receiver.Name != "DBNotifier" {
+			return true
+		}
+		foundNotify = true
+		ast.Inspect(declaration.Body, func(bodyNode ast.Node) bool {
+			selector, ok := bodyNode.(*ast.SelectorExpr)
+			if ok {
+				if _, forbiddenCall := forbidden[selector.Sel.Name]; forbiddenCall {
+					t.Errorf("DBNotifier.Notify must not perform peer drain/cache completion: found %s", selector.Sel.Name)
+				}
+			}
+			return true
+		})
+		return false
+	})
+	if !foundNotify {
+		t.Fatal("DBNotifier.Notify declaration not found")
 	}
 }
 

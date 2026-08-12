@@ -26,6 +26,9 @@ message {{ .name }} {
   reserved "{{ . }}";
 {{- end }}
 {{- range .fields }}
+{{- with .comment }}
+  // {{ . }}
+{{- end }}
   {{ with .rule }}{{ . }} {{ end }}{{ .type }} {{ .name }} = {{ .number }};
 {{- end }}
 {{- range .oneofs }}

@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/netip"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
+	swarmion "github.com/nustiueudinastea/swarmion/runtime"
 	pbApic "github.com/protosio/protos/apic/proto"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/invitations"
@@ -152,18 +152,16 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 		peerID = localKey.GetID()
 	}
 	deviceName := localDeviceName(b.protosClient.Manager)
-	localIPs := localInviteIPs()
-	swarmionAddrs := b.protosClient.DB.DialableListenMultiaddrs(localIPs)
-	if len(swarmionAddrs) == 0 {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, "no local database bootstrap addresses are available")
+	sharedHostAddrs := p2pListenAddrsWithPeerID(b.protosClient.P2PManager.ListenAddresses(), peerID)
+	if len(sharedHostAddrs) == 0 {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "no local peer bootstrap addresses are available")
 	}
 	log.Infof(
-		"starting %s invite for organisation %q via channel %q with %d local IPs and %d bootstrap addresses",
+		"starting %s invite for organisation %q via channel %q with %d shared-host bootstrap addresses",
 		joinMode,
 		organisation.ID,
 		in.GetChannel(),
-		len(localIPs),
-		len(swarmionAddrs),
+		len(sharedHostAddrs),
 	)
 	invite, err := b.protosClient.Invites.StartInvite(ctx, in.GetChannel(), invitations.Invite{
 		OrganisationID:   organisation.ID,
@@ -174,8 +172,8 @@ func (b *Backend) StartDeviceInvite(ctx context.Context, in *pbApic.StartDeviceI
 		JoinMode:         joinMode,
 		TargetUserID:     targetUserID,
 		Port:             b.protosClient.P2PPort,
-		P2PAddrs:         p2pListenAddrsWithPeerID(b.protosClient.P2PManager.ListenAddresses(), peerID),
-		SwarmionAddrs:    swarmionAddrs,
+		P2PAddrs:         append([]string(nil), sharedHostAddrs...),
+		SwarmionAddrs:    append([]string(nil), sharedHostAddrs...),
 	})
 	if err != nil {
 		return nil, err
@@ -456,44 +454,6 @@ func localDeviceName(manager *user.Manager) string {
 	return strings.TrimSpace(hostname)
 }
 
-func localInviteIPs() []string {
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	var ips []string
-	for _, iface := range interfaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			var ip net.IP
-			switch value := addr.(type) {
-			case *net.IPNet:
-				ip = value.IP
-			case *net.IPAddr:
-				ip = value.IP
-			}
-			if ip == nil || ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
-				continue
-			}
-			ipString := ip.String()
-			if _, found := seen[ipString]; found {
-				continue
-			}
-			seen[ipString] = struct{}{}
-			ips = append(ips, ipString)
-		}
-	}
-	sort.Strings(ips)
-	return ips
-}
-
 func p2pListenAddrsWithPeerID(addrs []string, peerID string) []string {
 	peerID = strings.TrimSpace(peerID)
 	if peerID == "" {
@@ -506,8 +466,11 @@ func p2pListenAddrsWithPeerID(addrs []string, peerID string) []string {
 		if addr == "" {
 			continue
 		}
-		if !strings.Contains(addr, "/p2p/") {
-			addr += "/p2p/" + peerID
+		peerSuffix := "/p2p/" + peerID
+		if !strings.HasSuffix(addr, peerSuffix) {
+			// Relay addresses already contain the relay's /p2p component. The
+			// invited application peer must still be the terminal identity.
+			addr += peerSuffix
 		}
 		if _, found := seen[addr]; found {
 			continue
@@ -931,10 +894,10 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 	}
 
 	resp := pbApic.GetInstancesResponse{}
-	connectedPeers := b.runtimeConnectedPeerIDs()
+	routedPeers := b.runtimeRoutedPeerIDs()
 	for _, instance := range instances {
 		admin := b.instanceAdminProjection(ctx, instance, false)
-		resp.Instances = append(resp.Instances, b.cloudInstanceToProto(instance, admin, connectedPeers, false))
+		resp.Instances = append(resp.Instances, b.cloudInstanceToProto(instance, admin, routedPeers, false))
 	}
 
 	return &resp, nil
@@ -948,9 +911,9 @@ func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest
 	}
 
 	admin := b.instanceAdminProjection(ctx, instance, true)
-	connectedPeers := b.runtimeConnectedPeerIDs()
+	routedPeers := b.runtimeRoutedPeerIDs()
 	resp := pbApic.GetInstanceResponse{
-		Instance: b.cloudInstanceToProto(instance, admin, connectedPeers, true),
+		Instance: b.cloudInstanceToProto(instance, admin, routedPeers, true),
 	}
 
 	return &resp, nil
@@ -1018,10 +981,24 @@ func runtimePeerMapFromP2PState(state *p2pproto.RuntimeState) map[string]string 
 	if state == nil {
 		return peers
 	}
-	for _, peerID := range state.GetConnectedPeers() {
+	for _, peerID := range state.GetPhysicalConnectedPeers() {
 		peerID = strings.TrimSpace(peerID)
 		if peerID != "" {
-			peers[peerID] = "connected"
+			peers[peerID] = "physical"
+		}
+	}
+	for _, peerID := range state.GetParticipatingPeers() {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			peers[peerID] = "participating"
+		}
+	}
+	for _, peerID := range append(append([]string(nil), state.GetRoutedPeers()...), state.GetConnectedPeers()...) {
+		peerID = strings.TrimSpace(peerID)
+		if peerID != "" {
+			// connected_peers is the legacy wire name for Swarmion's routed
+			// peers. It must not be presented as physical libp2p connectivity.
+			peers[peerID] = "routed"
 		}
 	}
 	for _, status := range state.GetPeerStatuses() {
@@ -1041,8 +1018,8 @@ func runtimePeerStatusLabel(status *p2pproto.RuntimePeerStatus, existing string)
 		}
 		return "unknown"
 	}
-	if status.GetConnected() || existing == "connected" {
-		return "connected"
+	if status.GetRouted() || status.GetConnected() || existing == "routed" {
+		return "routed"
 	}
 	if status.GetIgnored() {
 		return "ignored"
@@ -1053,6 +1030,15 @@ func runtimePeerStatusLabel(status *p2pproto.RuntimePeerStatus, existing string)
 	if status.GetRelayOnly() {
 		return "relay_only"
 	}
+	if status.GetParticipating() || existing == "participating" {
+		return "participating"
+	}
+	if status.GetPhysicalConnected() || existing == "physical" {
+		return "physical"
+	}
+	if status.GetLogical() {
+		return "logical"
+	}
 	if status.GetDialable() {
 		return "dialable"
 	}
@@ -1062,11 +1048,11 @@ func runtimePeerStatusLabel(status *p2pproto.RuntimePeerStatus, existing string)
 	return "disconnected"
 }
 
-func (b *Backend) cloudInstanceToProto(instance provisioners.InstanceInfo, admin instanceAdminProjection, connectedPeers map[string]struct{}, includeAdminInStatus bool) *pbApic.CloudInstance {
+func (b *Backend) cloudInstanceToProto(instance provisioners.InstanceInfo, admin instanceAdminProjection, routedPeers map[string]struct{}, includeAdminInStatus bool) *pbApic.CloudInstance {
 	internalIP, wgPublicKey := instanceIdentityStrings(instance.PublicKey)
 	cloudName, cloudType := b.instanceProvisionerLabels(instance)
 	peerID := instancePeerID(instance)
-	_, replicationConnected := connectedPeers[peerID]
+	_, replicationRouted := routedPeers[peerID]
 	status := instance.Status
 	if includeAdminInStatus && admin.reachability != "" && admin.reachability != "not_applicable" {
 		status = fmt.Sprintf("%s (%s)", instance.Status, admin.reachability)
@@ -1086,7 +1072,9 @@ func (b *Backend) cloudInstanceToProto(instance provisioners.InstanceInfo, admin
 		Peers:                admin.peers,
 		ProviderStatus:       instance.Status,
 		AdminApiReachability: admin.reachability,
-		ReplicationConnected: replicationConnected,
+		// ReplicationConnected is the legacy wire name for a usable Swarmion
+		// route. Physical host connectivity is reported by the P2P manager.
+		ReplicationConnected: replicationRouted,
 		AdminLastError:       admin.lastError,
 		AdminLastSeen:        admin.lastSeen,
 		PeerId:               peerID,
@@ -1105,7 +1093,7 @@ func instancePeerID(instance provisioners.InstanceInfo) string {
 	return peerID
 }
 
-func (b *Backend) runtimeConnectedPeerIDs() map[string]struct{} {
+func (b *Backend) runtimeRoutedPeerIDs() map[string]struct{} {
 	out := map[string]struct{}{}
 	if b == nil || b.protosClient == nil || b.protosClient.DB == nil {
 		return out
@@ -1114,7 +1102,10 @@ func (b *Backend) runtimeConnectedPeerIDs() map[string]struct{} {
 	if !ok {
 		return out
 	}
-	for _, peerID := range status.ConnectedPeers {
+	// ReplicationConnected is a legacy product field. The authoritative
+	// database-scoped signal available here is a usable Swarmion route, not a
+	// physical libp2p connection and not logical-overlay participation.
+	for _, peerID := range status.RoutedPeers {
 		peerID = strings.TrimSpace(peerID)
 		if peerID != "" {
 			out[peerID] = struct{}{}
@@ -2043,14 +2034,21 @@ func (b *Backend) localRuntimeState(ctx context.Context, allowStale bool) (*pbAp
 		return nil, fmt.Errorf("swarmion status is not available")
 	}
 	out := &pbApic.RuntimeState{
-		PeerId:                       status.PeerID,
-		ManifestDigest:               status.ManifestDigest,
-		CheckpointRootHash:           status.CheckpointRootHash.String(),
-		TentativeRootHash:            status.TentativeRootHash.String(),
-		ProtocolCheckpointRootHash:   status.RuntimeCheckpointDesiredRootHash.String(),
-		DurableMainRootHash:          status.DurableMainRootHash.String(),
-		StateProviders:               append([]string(nil), status.StateProviders...),
-		ConnectedPeers:               append([]string(nil), status.ConnectedPeers...),
+		PeerId:                     status.PeerID,
+		ManifestDigest:             status.ManifestDigest,
+		CheckpointRootHash:         status.CheckpointRootHash.String(),
+		TentativeRootHash:          status.TentativeRootHash.String(),
+		ProtocolCheckpointRootHash: status.RuntimeCheckpointDesiredRootHash.String(),
+		DurableMainRootHash:        status.DurableMainRootHash.String(),
+		StateProviders:             append([]string(nil), status.StateProviders...),
+		// ConnectedPeers is retained for wire compatibility. In the borrowed
+		// transport contract it is an alias for routed peers, not physical host
+		// connections.
+		ConnectedPeers:               append([]string(nil), status.RoutedPeers...),
+		RoutedPeers:                  append([]string(nil), status.RoutedPeers...),
+		ParticipatingPeers:           append([]string(nil), status.ParticipatingPeers...),
+		LogicalPeers:                 append([]string(nil), status.LogicalPeers...),
+		LogicalPeerTarget:            int32(status.LogicalPeerTarget),
 		RuntimeRefreshPending:        status.RuntimeRefreshPending,
 		RuntimeRefreshLastError:      status.RuntimeRefreshLastError,
 		RuntimeCheckpointPending:     status.RuntimeCheckpointMaterializePending,
@@ -2059,6 +2057,10 @@ func (b *Backend) localRuntimeState(ctx context.Context, allowStale bool) (*pbAp
 		ProtocolCheckpointDigest:     formatRuntimeDigest(status.ProtocolCheckpointDigest),
 		ReadConsistency:              runtimeReadConsistency(readErr),
 	}
+	if b.protosClient.P2PManager != nil {
+		out.PhysicalConnectedPeers = b.protosClient.P2PManager.PhysicalConnectedPeerIDs()
+	}
+	applyEventReceiptMetrics(out, b.protosClient.DB.EventReceiptMetrics())
 	if readErr != nil {
 		out.ReadError = readErr.Error()
 	}
@@ -2074,19 +2076,7 @@ func (b *Backend) localRuntimeState(ctx context.Context, allowStale bool) (*pbAp
 			return nil, err
 		}
 		for _, peerStatus := range peerStatuses {
-			out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
-				PeerId:         peerStatus.PeerID,
-				Connected:      peerStatus.Connected,
-				Dialable:       peerStatus.Dialable,
-				StateProvider:  peerStatus.StateProvider,
-				Compatible:     peerStatus.Compatible,
-				Incompatible:   peerStatus.Incompatible,
-				Ignored:        peerStatus.Ignored,
-				RelayOnly:      peerStatus.RelayOnly,
-				Addresses:      append([]string(nil), peerStatus.Addresses...),
-				LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
-				Reason:         peerStatus.Reason,
-			})
+			out.PeerStatuses = append(out.PeerStatuses, runtimePeerStatusFromSwarmion(peerStatus))
 		}
 	}
 	peerIDs, err := db.GetActiveRuntimePeerIDs(b.protosClient.DB)
@@ -2122,6 +2112,30 @@ func (b *Backend) localRuntimeState(ctx context.Context, allowStale bool) (*pbAp
 	return out, nil
 }
 
+func runtimePeerStatusFromSwarmion(peerStatus swarmion.PeerStatus) *pbApic.RuntimePeerStatus {
+	// RuntimePeerStatus predates the borrowed-Link contract. Keep its wire shape
+	// stable, but only populate fields with a sound mapping:
+	//   connected -> routed application path
+	//   dialable   -> routed application path (there is no longer a speculative
+	//                 dialability oracle in Swarmion)
+	// Participating and logical-overlay membership remain independent fields;
+	// neither is presented as physical network reachability.
+	return &pbApic.RuntimePeerStatus{
+		PeerId:               peerStatus.PeerID,
+		Connected:            peerStatus.Routed,
+		Dialable:             peerStatus.Routed,
+		StateProvider:        peerStatus.StateProvider,
+		Compatible:           peerStatus.Compatible,
+		Incompatible:         peerStatus.Incompatible,
+		Addresses:            append([]string(nil), peerStatus.Addresses...),
+		Reason:               peerStatus.Reason,
+		Routed:               peerStatus.Routed,
+		Participating:        peerStatus.Participating,
+		Logical:              peerStatus.Logical,
+		LastRoutedAtUnixNano: runtimeLastRoutedAtUnixNano(peerStatus.LastRoutedAt),
+	}
+}
+
 func runtimeReadConsistency(readErr error) string {
 	if readErr != nil {
 		return "stale"
@@ -2144,18 +2158,16 @@ func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struc
 		allowed[localPeerID] = struct{}{}
 	}
 	out.StateProviders = filterStringsBySet(out.GetStateProviders(), allowed)
-	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed)
+	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed) //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
+	out.RoutedPeers = filterStringsBySet(out.GetRoutedPeers(), allowed)
+	out.ParticipatingPeers = filterStringsBySet(out.GetParticipatingPeers(), allowed)
+	out.LogicalPeers = filterStringsBySet(out.GetLogicalPeers(), allowed)
+	out.PhysicalConnectedPeers = filterStringsBySet(out.GetPhysicalConnectedPeers(), allowed)
 	providers := make(map[string]struct{}, len(out.GetStateProviders()))
 	for _, peerID := range out.GetStateProviders() {
 		providers[peerID] = struct{}{}
 	}
-	connected := make(map[string]struct{}, len(out.GetConnectedPeers())+1)
-	for _, peerID := range out.GetConnectedPeers() {
-		connected[peerID] = struct{}{}
-	}
-	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
-		connected[localPeerID] = struct{}{}
-	}
+	physical := stringSliceSet(out.GetPhysicalConnectedPeers())
 	filteredStatuses := out.GetPeerStatuses()[:0]
 	seenStatuses := make(map[string]struct{}, len(out.GetPeerStatuses()))
 	for _, peerStatus := range out.GetPeerStatuses() {
@@ -2173,11 +2185,10 @@ func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struc
 		if _, found := providers[peerID]; !found {
 			peerStatus.StateProvider = false
 		}
-		_, isConnected := connected[peerID]
-		peerStatus.Connected = isConnected
-		if !isConnected {
-			peerStatus.Dialable = false
-		}
+		_, peerStatus.PhysicalConnected = physical[peerID]
+		// Legacy fields are exact routed aliases.
+		peerStatus.Connected = peerStatus.Routed //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
+		peerStatus.Dialable = peerStatus.Routed  //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
 		filteredStatuses = append(filteredStatuses, peerStatus)
 	}
 	out.PeerStatuses = filteredStatuses
@@ -2220,43 +2231,62 @@ func filterStringsBySet(values []string, allowed map[string]struct{}) []string {
 	return out
 }
 
+func stringSliceSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		out[value] = struct{}{}
+	}
+	return out
+}
+
 func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState {
 	if state == nil {
 		return nil
 	}
 	out := &pbApic.RuntimeState{
-		PeerId:                       state.GetPeerId(),
-		ManifestDigest:               state.GetManifestDigest(),
-		CheckpointRootHash:           state.GetCheckpointRootHash(),
-		TentativeRootHash:            state.GetTentativeRootHash(),
-		ProtocolCheckpointRootHash:   state.GetProtocolCheckpointRootHash(),
-		DurableMainRootHash:          state.GetDurableMainRootHash(),
-		StateProviders:               append([]string(nil), state.GetStateProviders()...),
-		ConnectedPeers:               append([]string(nil), state.GetConnectedPeers()...),
-		FatalState:                   state.GetFatalState(),
-		RuntimeRefreshPending:        state.GetRuntimeRefreshPending(),
-		RuntimeRefreshLastError:      state.GetRuntimeRefreshLastError(),
-		RuntimeCheckpointPending:     state.GetRuntimeCheckpointPending(),
-		RuntimeCheckpointLastError:   state.GetRuntimeCheckpointLastError(),
-		RuntimeMaterializationPolicy: state.GetRuntimeMaterializationPolicy(),
-		ContentSyncTrace:             append([]string(nil), state.GetContentSyncTrace()...),
-		ProtocolCheckpointDigest:     state.GetProtocolCheckpointDigest(),
-		ReadConsistency:              state.GetReadConsistency(),
-		ReadError:                    state.GetReadError(),
+		PeerId:                                 state.GetPeerId(),
+		ManifestDigest:                         state.GetManifestDigest(),
+		CheckpointRootHash:                     state.GetCheckpointRootHash(),
+		TentativeRootHash:                      state.GetTentativeRootHash(),
+		ProtocolCheckpointRootHash:             state.GetProtocolCheckpointRootHash(),
+		DurableMainRootHash:                    state.GetDurableMainRootHash(),
+		StateProviders:                         append([]string(nil), state.GetStateProviders()...),
+		ConnectedPeers:                         append([]string(nil), state.GetConnectedPeers()...),
+		FatalState:                             state.GetFatalState(),
+		RuntimeRefreshPending:                  state.GetRuntimeRefreshPending(),
+		RuntimeRefreshLastError:                state.GetRuntimeRefreshLastError(),
+		RuntimeCheckpointPending:               state.GetRuntimeCheckpointPending(),
+		RuntimeCheckpointLastError:             state.GetRuntimeCheckpointLastError(),
+		RuntimeMaterializationPolicy:           state.GetRuntimeMaterializationPolicy(),
+		ContentSyncTrace:                       append([]string(nil), state.GetContentSyncTrace()...),
+		ProtocolCheckpointDigest:               state.GetProtocolCheckpointDigest(),
+		ReadConsistency:                        state.GetReadConsistency(),
+		ReadError:                              state.GetReadError(),
+		EventReceiptContentDissentObservations: state.GetEventReceiptContentDissentObservations(),
+		RoutedPeers:                            append([]string(nil), state.GetRoutedPeers()...),
+		ParticipatingPeers:                     append([]string(nil), state.GetParticipatingPeers()...),
+		LogicalPeers:                           append([]string(nil), state.GetLogicalPeers()...),
+		LogicalPeerTarget:                      state.GetLogicalPeerTarget(),
+		PhysicalConnectedPeers:                 append([]string(nil), state.GetPhysicalConnectedPeers()...),
 	}
 	for _, peerStatus := range state.GetPeerStatuses() {
 		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
-			PeerId:         peerStatus.GetPeerId(),
-			Connected:      peerStatus.GetConnected(),
-			Dialable:       peerStatus.GetDialable(),
-			StateProvider:  peerStatus.GetStateProvider(),
-			Compatible:     peerStatus.GetCompatible(),
-			Incompatible:   peerStatus.GetIncompatible(),
-			Ignored:        peerStatus.GetIgnored(),
-			RelayOnly:      peerStatus.GetRelayOnly(),
-			Addresses:      append([]string(nil), peerStatus.GetAddresses()...),
-			LastDialErrors: cloneStringMap(peerStatus.GetLastDialErrors()),
-			Reason:         peerStatus.GetReason(),
+			PeerId:               peerStatus.GetPeerId(),
+			Connected:            peerStatus.GetConnected(),
+			Dialable:             peerStatus.GetDialable(),
+			StateProvider:        peerStatus.GetStateProvider(),
+			Compatible:           peerStatus.GetCompatible(),
+			Incompatible:         peerStatus.GetIncompatible(),
+			Ignored:              peerStatus.GetIgnored(),
+			RelayOnly:            peerStatus.GetRelayOnly(),
+			Addresses:            append([]string(nil), peerStatus.GetAddresses()...),
+			LastDialErrors:       cloneStringMap(peerStatus.GetLastDialErrors()),
+			Reason:               peerStatus.GetReason(),
+			Routed:               peerStatus.GetRouted(),
+			Participating:        peerStatus.GetParticipating(),
+			Logical:              peerStatus.GetLogical(),
+			PhysicalConnected:    peerStatus.GetPhysicalConnected(),
+			LastRoutedAtUnixNano: peerStatus.GetLastRoutedAtUnixNano(),
 		})
 	}
 	for _, item := range state.GetCompatibility() {
@@ -2270,6 +2300,13 @@ func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState
 		})
 	}
 	return out
+}
+
+func applyEventReceiptMetrics(out *pbApic.RuntimeState, metrics db.EventReceiptMetrics) {
+	if out == nil {
+		return
+	}
+	out.EventReceiptContentDissentObservations = metrics.ContentDissentObservations
 }
 
 func addKnownRuntimePeerStatuses(out *pbApic.RuntimeState, peerIDs map[string]struct{}) {
@@ -2377,12 +2414,17 @@ func annotateRuntimePeerReplication(state *pbApic.RuntimeState, metadata map[str
 
 func knownRuntimePeerStatus(peerID string, state *pbApic.RuntimeState) *pbApic.RuntimePeerStatus {
 	isSelf := peerID == strings.TrimSpace(state.GetPeerId())
+	routed := stringInList(peerID, state.GetRoutedPeers())
 	status := &pbApic.RuntimePeerStatus{
-		PeerId:        peerID,
-		Connected:     isSelf || stringInList(peerID, state.GetConnectedPeers()),
-		Dialable:      isSelf,
-		StateProvider: stringInList(peerID, state.GetStateProviders()),
-		Compatible:    isSelf,
+		PeerId:            peerID,
+		Connected:         routed,
+		Dialable:          routed,
+		StateProvider:     stringInList(peerID, state.GetStateProviders()),
+		Compatible:        isSelf,
+		Routed:            routed,
+		Participating:     stringInList(peerID, state.GetParticipatingPeers()),
+		Logical:           stringInList(peerID, state.GetLogicalPeers()),
+		PhysicalConnected: stringInList(peerID, state.GetPhysicalConnectedPeers()),
 	}
 	if isSelf {
 		status.Reason = "self"
@@ -2390,6 +2432,13 @@ func knownRuntimePeerStatus(peerID string, state *pbApic.RuntimeState) *pbApic.R
 		status.Reason = "known database peer"
 	}
 	return status
+}
+
+func runtimeLastRoutedAtUnixNano(value time.Time) int64 {
+	if value.IsZero() {
+		return 0
+	}
+	return value.UnixNano()
 }
 
 func stringInList(value string, values []string) bool {

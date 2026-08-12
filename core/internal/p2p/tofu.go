@@ -14,10 +14,10 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	sec "github.com/libp2p/go-libp2p/core/sec"
 	libp2pswarm "github.com/libp2p/go-libp2p/p2p/net/swarm"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/protosio/protos/internal/swarmionlink"
 )
 
 type DiscoveredPeer struct {
@@ -118,28 +118,46 @@ func (p2p *P2P) DiscoverPeerAt(ctx context.Context, transportAddr string) (*Disc
 		return nil, fmt.Errorf("bootstrap address %q has no transport component", transportAddr)
 	}
 
-	fakeID, err := randomPeerID()
+	fakeID, err := p2p.identityProbePeerID()
 	if err != nil {
 		return nil, err
+	}
+	var identityProbe *swarmionlink.IdentityProbe
+	if p2p.routeFence != nil {
+		identityProbe, err = p2p.routeFence.BeginIdentityProbe(fakeID)
+		if err != nil {
+			return nil, fmt.Errorf("begin peer identity probe: %w", err)
+		}
+		defer identityProbe.Close()
 	}
 
 	p2p.addPeerAddr(fakeID, addr)
 	if err := p2p.host.Connect(ctx, peer.AddrInfo{ID: fakeID, Addrs: []ma.Multiaddr{addr}}); err == nil {
-		defer p2p.forgetPeer(fakeID)
+		defer p2p.forgetEphemeralDiscoveryPeer(fakeID)
 		return p2p.discoveredPeer(fakeID, addr.String())
 	} else {
-		p2p.forgetPeer(fakeID)
+		p2p.forgetEphemeralDiscoveryPeer(fakeID)
 		var mismatch sec.ErrPeerIDMismatch
 		if !errors.As(err, &mismatch) || mismatch.Actual == "" {
 			return nil, err
 		}
 		actualID := mismatch.Actual
+		if p2p.afterIdentityLearnedForTest != nil {
+			p2p.afterIdentityLearnedForTest(actualID)
+		}
 		discovered, err := p2p.connectKnownPeerAt(ctx, addr.String(), actualID)
 		if err != nil {
 			return nil, &discoveredPeerDialError{peerID: actualID, addr: addr.String(), err: err}
 		}
 		return discovered, nil
 	}
+}
+
+func (p2p *P2P) identityProbePeerID() (peer.ID, error) {
+	if p2p != nil && p2p.newIdentityProbePeerID != nil {
+		return p2p.newIdentityProbePeerID()
+	}
+	return randomPeerID()
 }
 
 type discoveredPeerDialError struct {
@@ -165,13 +183,46 @@ func (p2p *P2P) connectKnownPeerAt(ctx context.Context, transportAddr string, pe
 	if addr == nil {
 		return nil, fmt.Errorf("bootstrap address %q has no transport component", transportAddr)
 	}
-	p2p.pendingPeers.Set(peerID.String(), true)
+	var admission *swarmionlink.TemporaryPeerAdmission
+	if p2p.routeFence != nil {
+		admission, err = p2p.routeFence.BeginTemporaryPeerAdmission(peerID)
+		if err != nil {
+			return nil, fmt.Errorf("temporarily admit discovered peer %s: %w", peerID, err)
+		}
+	}
+	cleanup := func(cause error) error {
+		if admission != nil {
+			admission.Close()
+		}
+		if p2p.host == nil || p2p.host.Network() == nil {
+			return cause
+		}
+		if p2p.routeFence != nil && p2p.routeFence.IsPeerConnectionAllowed(peerID) {
+			return cause
+		}
+		if closeErr := p2p.host.Network().ClosePeer(peerID); closeErr != nil {
+			return fmt.Errorf("%w (close rejected discovered-peer route: %w)", cause, closeErr)
+		}
+		if count := len(p2p.host.Network().ConnsToPeer(peerID)); count != 0 {
+			return fmt.Errorf("%w (discovered peer retained %d physical connection(s) after rejection)", cause, count)
+		}
+		return cause
+	}
 	p2p.addPeerAddr(peerID, addr)
 	if err := p2p.host.Connect(ctx, peer.AddrInfo{ID: peerID, Addrs: []ma.Multiaddr{addr}}); err != nil {
-		p2p.pendingPeers.Delete(peerID.String())
-		return nil, err
+		return nil, cleanup(err)
 	}
-	return p2p.discoveredPeer(peerID, addr.String())
+	discovered, err := p2p.discoveredPeer(peerID, addr.String())
+	if err != nil {
+		return nil, cleanup(err)
+	}
+	if admission != nil {
+		if err := admission.Promote(); err != nil {
+			return nil, cleanup(fmt.Errorf("promote discovered peer %s: %w", peerID, err))
+		}
+	}
+	p2p.pendingPeers.Set(peerID.String(), true)
+	return discovered, nil
 }
 
 func (p2p *P2P) discoveredPeer(peerID peer.ID, addr string) (*DiscoveredPeer, error) {
@@ -236,22 +287,24 @@ func randomPeerID() (peer.ID, error) {
 }
 
 func (p2p *P2P) addPeerAddr(peerID peer.ID, addr ma.Multiaddr) {
-	p2p.host.Peerstore().ClearAddrs(peerID)
-	p2p.host.Peerstore().AddAddrs(peerID, []ma.Multiaddr{addr}, peerstore.TempAddrTTL)
-	if swarm, ok := p2p.host.Network().(*libp2pswarm.Swarm); ok {
-		swarm.Backoff().Clear(peerID)
-	}
+	p2p.addPeerEndpointHints(peer.AddrInfo{ID: peerID, Addrs: []ma.Multiaddr{addr}})
 }
 
-func (p2p *P2P) forgetPeer(peerID peer.ID) {
+// forgetEphemeralDiscoveryPeer removes only the random fake identity created
+// by DiscoverPeerAt in this call. Known/authenticated peers share their
+// peerstore and dial backoff with Swarmion and are never cleared here.
+func (p2p *P2P) forgetEphemeralDiscoveryPeer(peerID peer.ID) {
 	if p2p == nil || p2p.host == nil || peerID == "" {
 		return
 	}
+	// The placeholder is random and call-owned, unlike a learned/authenticated
+	// peer. Clear all of its address and dial-backoff state so repeated discovery
+	// cannot accumulate unreachable fake identities on the shared host.
+	p2p.host.Peerstore().ClearAddrs(peerID)
+	p2p.host.Peerstore().RemovePeer(peerID)
 	if swarm, ok := p2p.host.Network().(*libp2pswarm.Swarm); ok {
 		swarm.Backoff().Clear(peerID)
 	}
-	p2p.host.Peerstore().ClearAddrs(peerID)
-	p2p.host.Peerstore().RemovePeer(peerID)
 }
 
 func (p2p *P2P) tofuTransportAddrs(target string) ([]string, error) {

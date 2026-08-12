@@ -12,11 +12,13 @@ cleanup() {
 trap cleanup EXIT
 
 expected_db_migrations="internal/db/migrations/protos_01_tables.sql
-internal/db/migrations/protos_01_tables.undo.sql"
+internal/db/migrations/protos_01_tables.undo.sql
+internal/db/migrations/protos_02_instance_lifecycle_owner.sql
+internal/db/migrations/protos_02_instance_lifecycle_owner.undo.sql"
 actual_db_migrations="$(find internal/db/migrations -maxdepth 1 -type f -name '*.sql' | sort)"
 if [ "$actual_db_migrations" != "$expected_db_migrations" ]; then
   {
-    echo "DB migrations must stay collapsed into the first migration only."
+    echo "DB migrations differ from the reviewed migration lineage."
     echo "Expected:"
     echo "$expected_db_migrations"
     echo "Actual:"
@@ -45,9 +47,12 @@ generate_proto_tmp contracts/proto/p2p/v1/pinger.cue pinger.proto
 "$HOF" gen internal/db/contracts/sql/protos/v0_0/contract.cue \
   -O "$tmp_dir" \
   -T internal/db/contracts/hof/sql_undo.tmpl:contract=protos_01_tables_undo_sql --no-format
-"$HOF" gen internal/db/contracts/sql/protos/v0_0/contract.cue \
+"$HOF" gen internal/db/contracts/sql/protos/v0_1/contract.cue \
   -O "$tmp_dir" \
   -T internal/db/contracts/hof/go_sq_models.tmpl:contract=models.go --no-format
+"$HOF" gen internal/db/contracts/sql/protos/v0_1/contract.cue \
+  -O "$tmp_dir" \
+  -T internal/db/contracts/hof/go_sql_version.tmpl:contract=protos_v0_1_gen.go --no-format
 "$HOF" gen internal/db/contracts/sql/protos/v0_0/contract.cue \
   -O "$tmp_dir" \
   -T internal/db/contracts/hof/go_sql_version.tmpl:contract=protos_v0_0_gen.go --no-format
@@ -55,7 +60,7 @@ generate_proto_tmp contracts/proto/p2p/v1/pinger.cue pinger.proto
   -O "$tmp_dir" \
   -T internal/db/contracts/hof/go_sql_catalog.tmpl:catalog=protos_catalog_gen.go --no-format
 
-gofmt -w "$tmp_dir/models.go" "$tmp_dir/protos_v0_0_gen.go" "$tmp_dir/protos_catalog_gen.go"
+gofmt -w "$tmp_dir/models.go" "$tmp_dir/protos_v0_0_gen.go" "$tmp_dir/protos_v0_1_gen.go" "$tmp_dir/protos_catalog_gen.go"
 
 diff -u apic/proto/apic.proto "$tmp_dir/apic.proto"
 diff -u internal/hostagent/proto/hostagent.proto "$tmp_dir/hostagent.proto"
@@ -68,4 +73,5 @@ diff -u internal/db/migrations/protos_01_tables.sql "$tmp_dir/protos_01_tables_s
 diff -u internal/db/migrations/protos_01_tables.undo.sql "$tmp_dir/protos_01_tables_undo_sql"
 diff -u internal/db/models.go "$tmp_dir/models.go"
 diff -u internal/db/contracts/sql/protos/v0_0/contract_gen.go "$tmp_dir/protos_v0_0_gen.go"
+diff -u internal/db/contracts/sql/protos/v0_1/contract_gen.go "$tmp_dir/protos_v0_1_gen.go"
 diff -u internal/db/contracts/sql/protos/catalog_gen.go "$tmp_dir/protos_catalog_gen.go"

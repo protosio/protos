@@ -43,6 +43,51 @@ func createTaskUpdateMapper(record Record) db.UpdateMapper {
 	}
 }
 
+// createTaskRecoveryUpdateMapper changes an interrupted running task only when
+// the exact version observed by the recovery scan is still current. This keeps
+// a concurrent cancellation or terminal update from being overwritten.
+func createTaskRecoveryUpdateMapper(expected Record, record Record) db.UpdateMapper {
+	return func() sq.UpdateQuery {
+		t := sq.New[db.TASK]("")
+		return sq.Update(t).SetFunc(func(col *sq.Column) {
+			setTaskColumns(col, t, record)
+		}).Where(
+			db.UUIDEq(t.ID, expected.ID),
+			t.STATUS.EqString(string(expected.Status)),
+			t.OWNER_PEER_ID.EqString(expected.OwnerPeerID),
+			t.ATTEMPTS.EqInt(expected.Attempts),
+			t.UPDATED_AT.EqString(formatTime(expected.UpdatedAt)),
+		)
+	}
+}
+
+// createTaskRecoveryEventInsertMapper inserts the recovery event only when the
+// conditional update immediately above installed the exact new task version.
+// Both statements execute in one backend transaction.
+func createTaskRecoveryEventInsertMapper(record Record, event Event) db.InsertMapper {
+	return func() sq.InsertQuery {
+		t := sq.New[db.TASK]("")
+		e := sq.New[db.TASK_EVENT]("")
+		return sq.InsertInto(e).
+			Columns(e.ID, e.TASK_ID, e.STATUS, e.MESSAGE, e.PROGRESS, e.DETAILS, e.CREATED_AT).
+			Select(sq.Select(
+				sq.Expr("{}", db.MustUUIDBytes(event.ID)),
+				sq.Expr("{}", db.MustUUIDBytes(event.TaskID)),
+				sq.Expr("{}", string(event.Status)),
+				sq.Expr("{}", event.Message),
+				sq.Expr("{}", event.Progress),
+				sq.Expr("{}", sq.JSONValue(nullableJSON(event.Details))),
+				sq.Expr("{}", formatTime(event.CreatedAt)),
+			).From(t).Where(
+				db.UUIDEq(t.ID, record.ID),
+				t.STATUS.EqString(string(record.Status)),
+				t.OWNER_PEER_ID.EqString(record.OwnerPeerID),
+				t.ATTEMPTS.EqInt(record.Attempts),
+				t.UPDATED_AT.EqString(formatTime(record.UpdatedAt)),
+			))
+	}
+}
+
 func createTaskEventInsertMapper(event Event) db.InsertMapper {
 	return func() sq.InsertQuery {
 		e := sq.New[db.TASK_EVENT]("")

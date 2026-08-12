@@ -91,69 +91,149 @@ func (p2p *P2P) withP2PDialer() grpc.DialOption {
 	})
 }
 
+// ensureControlClient serializes client creation across TCP, QUIC, direct, and
+// relay connection callbacks. A shared host can report several sibling routes
+// for one peer; they must all reuse one logical gRPC connection.
+func (p2p *P2P) ensureControlClient(ctx context.Context, peerID peer.ID) (*Client, error) {
+	p2p.clientMu.Lock()
+	defer p2p.clientMu.Unlock()
+
+	if client, found := p2p.clients.Get(peerID.String()); found && client != nil &&
+		usablePeerConnectedness(p2p.host.Network().Connectedness(peerID)) {
+		return client, nil
+	}
+	client, err := p2p.createClientForPeer(ctx, peerID)
+	if err != nil {
+		return nil, err
+	}
+	p2p.clients.Set(peerID.String(), client)
+	return client, nil
+}
+
 func (p2p *P2P) newConnectionHandler(netw network.Network, conn network.Conn) {
+	if p2p.routeFence != nil && !p2p.routeFence.IsPeerConnectionAllowed(conn.RemotePeer()) {
+		log.Debugf("closing connection admitted concurrently with route fence for peer %s", conn.RemotePeer())
+		_ = netw.ClosePeer(conn.RemotePeer())
+		return
+	}
+	p2p.addPhysicalRoute(conn.RemotePeer(), conn.ID())
 	go func() {
 		if conn.Stat().Limited {
 			log.Debugf("new limited connection with peer %s", conn.RemotePeer().String())
 		}
 
-		if p2p.externalDB.Initialized() {
-			if !p2p.peerKnownOrPending(conn.RemotePeer()) {
-				log.Warnf("new connection with peer '%s' with unknown machine. Closing connection", conn.RemotePeer().String())
-				p2p.removeExternalDBPeer(conn.RemotePeer().String())
-				conn.Close()
-				return
-			}
-		} else if !p2p.initPeerAllowed(conn.RemotePeer()) {
-			log.Warnf("new init connection with peer '%s' is not allowed. Closing connection", conn.RemotePeer().String())
-			conn.Close()
+		if !p2p.controlPeerAllowed(conn.RemotePeer()) {
+			// A physical route is shared with Swarmion and may be valid even when
+			// this peer is not admitted to Protos control. Admission is enforced
+			// again on every application protocol stream.
+			log.Debugf("physical connection with peer '%s' is not admitted to Protos control", conn.RemotePeer().String())
 			return
 		}
 
 		log.Debugf("new connection with peer %s. Creating client", conn.RemotePeer().String())
-		clientCtx, cancel := context.WithTimeout(context.Background(), peerClientReconnectAttemptTimeout)
-		client, err := p2p.createClientForPeer(clientCtx, conn.RemotePeer())
+		clientCtx, cancel := context.WithTimeout(context.Background(), p2p.controlClientReadinessTimeout())
+		_, err := p2p.ensureControlClient(clientCtx, conn.RemotePeer())
 		cancel()
 		if err != nil {
 			p2p.markPeerFailed(conn.RemotePeer().String(), nil, err)
 			log.Errorf("failed to create client for new peer %s: %s", conn.RemotePeer().String(), err.Error())
-			conn.Close()
 			return
 		}
 
-		p2p.clients.Set(conn.RemotePeer().String(), client)
 		if machine, found := p2p.machines.Get(conn.RemotePeer().String()); found {
 			p2p.markPeerConnected(conn.RemotePeer().String(), machine)
 		} else {
 			p2p.markPeerConnected(conn.RemotePeer().String(), nil)
-		}
-		if err := p2p.externalDB.AddPeer(conn.RemotePeer().String(), client.grpcConnection); err != nil {
-			p2p.markPeerFailed(conn.RemotePeer().String(), nil, err)
-			log.Errorf("failed to add peer %s to external DB: %s", conn.RemotePeer().String(), err.Error())
-			conn.Close()
-			return
 		}
 	}()
 }
 
 func (p2p *P2P) closeConnectionHandler(netw network.Network, conn network.Conn) {
 	log.Debug("disconnecting from peer ", conn.RemotePeer().String())
-	defer func() {
-		if err := conn.Close(); err != nil {
-			log.Errorf("error while disconnecting from peer '%s': %v", conn.RemotePeer().String(), err)
-		}
-	}()
+	peerID := conn.RemotePeer()
+	if remaining := p2p.removePhysicalRoute(peerID, conn.ID()); remaining != 0 {
+		return
+	}
+	p2p.handleLastPhysicalRouteLost(netw, peerID)
+}
 
-	_, found := p2p.machines.Get(conn.RemotePeer().String())
+func (p2p *P2P) initializePhysicalRoutes() {
+	if p2p == nil || p2p.host == nil {
+		return
+	}
+	for _, conn := range p2p.host.Network().Conns() {
+		p2p.addPhysicalRoute(conn.RemotePeer(), conn.ID())
+	}
+}
+
+func (p2p *P2P) addPhysicalRoute(peerID peer.ID, connectionID string) {
+	if p2p == nil || peerID == "" || connectionID == "" {
+		return
+	}
+	p2p.routeMu.Lock()
+	defer p2p.routeMu.Unlock()
+	if p2p.peerRoutes == nil {
+		p2p.peerRoutes = make(map[string]map[string]struct{})
+	}
+	routes := p2p.peerRoutes[peerID.String()]
+	if routes == nil {
+		routes = make(map[string]struct{})
+		p2p.peerRoutes[peerID.String()] = routes
+	}
+	routes[connectionID] = struct{}{}
+}
+
+func (p2p *P2P) removePhysicalRoute(peerID peer.ID, connectionID string) int {
+	if p2p == nil || peerID == "" || connectionID == "" {
+		return 0
+	}
+	p2p.routeMu.Lock()
+	defer p2p.routeMu.Unlock()
+	routes := p2p.peerRoutes[peerID.String()]
+	delete(routes, connectionID)
+	remaining := len(routes)
+	if remaining == 0 {
+		delete(p2p.peerRoutes, peerID.String())
+	}
+	return remaining
+}
+
+func (p2p *P2P) physicalRouteCount(peerID peer.ID) int {
+	p2p.routeMu.Lock()
+	defer p2p.routeMu.Unlock()
+	return len(p2p.peerRoutes[peerID.String()])
+}
+
+func (p2p *P2P) handleLastPhysicalRouteLost(netw network.Network, peerID peer.ID) {
+	// A new sibling route may have arrived after the final removal callback.
+	// Check the tracked set again under its own generation-free membership lock.
+	if p2p.physicalRouteCount(peerID) != 0 {
+		return
+	}
+	// Initialize/recover from a callback missed before this manager registered.
+	if usablePeerConnectedness(netw.Connectedness(peerID)) {
+		for _, conn := range netw.ConnsToPeer(peerID) {
+			p2p.addPhysicalRoute(peerID, conn.ID())
+		}
+		if p2p.physicalRouteCount(peerID) != 0 {
+			return
+		}
+	}
+
+	_, found := p2p.machines.Get(peerID.String())
 	if !found {
-		log.Debugf("disconnected from unknown peer %s", conn.RemotePeer().String())
-		p2p.removeExternalDBPeer(conn.RemotePeer().String())
+		log.Debugf("disconnected from unknown peer %s", peerID.String())
 		return
 	}
 
-	log.Debugf("disconnected from peer %s", conn.RemotePeer().String())
-	p2p.clients.Delete(conn.RemotePeer().String())
-	p2p.markPeerDisconnected(conn.RemotePeer().String())
-	p2p.removeExternalDBPeer(conn.RemotePeer().String())
+	log.Debugf("disconnected from peer %s", peerID.String())
+	p2p.relayReservations.Delete(peerID.String())
+	p2p.clientMu.Lock()
+	if client, found := p2p.clients.Get(peerID.String()); found && client != nil && client.grpcConnection != nil {
+		_ = client.grpcConnection.Close()
+	}
+	p2p.clients.Delete(peerID.String())
+	p2p.clientMu.Unlock()
+	p2p.markPeerDisconnected(peerID.String())
 	p2p.requestReconcile()
 }

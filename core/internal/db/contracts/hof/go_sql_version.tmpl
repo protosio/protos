@@ -54,6 +54,18 @@ var Transition = schema.TransitionDefinition{
 	},
 }
 
+{{ if .migration.initial_transition -}}
+// InitialTransition permits a fresh repository to install the complete
+// current schema in the same atomic migration batch.
+var InitialTransition = schema.TransitionDefinition{
+	FromVersion:   "",
+	ToVersion:     "{{ .migration.to_version }}",
+	Compatibility: schema.Compatibility("{{ .migration.compatibility }}"),
+	RequiredWriteColumns:  map[string][]string{},
+	ForbiddenWriteColumns: map[string][]string{},
+}
+{{ end -}}
+
 var CreateSQL = []string{
 {{ range $table := .schema.tables -}}
 	`CREATE TABLE {{ $table.name }} (

@@ -273,6 +273,9 @@ func (sw *scaleway) NewInstance(name string, imageID string, originPublicKey str
 func (sw *scaleway) DeleteInstance(id string, location string) error {
 	resp, err := sw.instanceAPI.GetServer(&instance.GetServerRequest{ServerID: id, Zone: scw.Zone(location)})
 	if err != nil {
+		if isScalewayNotFoundError(err) {
+			return errors.Wrapf(provisioners.ErrInstanceNotFound, "Scaleway instance '%s'", id)
+		}
 		return errors.Wrapf(err, "Failed to retrieve instance '%s'", id)
 	}
 
@@ -329,6 +332,9 @@ func (sw *scaleway) StopInstance(id string, location string) error {
 func (sw *scaleway) GetInstanceInfo(id string, location string) (provisioners.InstanceInfo, error) {
 	resp, err := sw.instanceAPI.GetServer(&instance.GetServerRequest{ServerID: id, Zone: scw.Zone(location)})
 	if err != nil {
+		if isScalewayNotFoundError(err) {
+			return provisioners.InstanceInfo{}, errors.Wrapf(provisioners.ErrInstanceNotFound, "Scaleway instance '%s'", id)
+		}
 		return provisioners.InstanceInfo{}, errors.Wrapf(err, "Failed to retrieve Scaleway instance (%s) information", id)
 	}
 	info := provisioners.InstanceInfo{

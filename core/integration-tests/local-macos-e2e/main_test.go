@@ -2,7 +2,11 @@
 
 package main
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
 
 func TestPathPrefixVariantsHandlesMacOSTmpAlias(t *testing.T) {
 	got := pathPrefixVariants("/tmp/protos-local-macos-e2e-1")
@@ -29,5 +33,24 @@ func TestEquivalentPathHandlesMacOSTmpAlias(t *testing.T) {
 	}
 	if equivalentPath("/tmp/protos-local-macos-e2e-2", candidates) {
 		t.Fatal("unexpected equivalent path for different e2e workdir")
+	}
+}
+
+func TestCleanupFailurePropagatesToRunErrorAndIsRetained(t *testing.T) {
+	want := errors.New("peer drain did not finalize")
+	cleanup := &localMacOSE2ECleanup{
+		vmDir: "/tmp/protos-local-macos-e2e-test/local-macos-vms",
+		cleanupHostAgentVMs: func(string) error {
+			return want
+		},
+	}
+	first := cleanup.run()
+	second := cleanup.run()
+	if !errors.Is(first, want) || !errors.Is(second, want) {
+		t.Fatalf("cleanup errors = (%v, %v), want retained %v", first, second, want)
+	}
+	got := mergeCleanupError(nil, first)
+	if !errors.Is(got, want) || !strings.Contains(got.Error(), "local macOS e2e cleanup failed") {
+		t.Fatalf("merged run error = %v, want cleanup failure", got)
 	}
 }

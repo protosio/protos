@@ -34,6 +34,10 @@ not part of the normal backend test environment.
 
 ## Design Notes
 
+See [Durable operations on Swarmion](core/SWARMION_DURABLE_OPERATIONS.md) for
+the receipt, recovery, SQL-adapter, and dependency-pinning contracts used by
+restart-sensitive backend workflows.
+
 - The declarative core should describe the desired state.
 - The imperative layer should reconcile that state and expose read-only status
   to clients where useful.

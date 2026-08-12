@@ -750,6 +750,7 @@ message TaskProgressUpdate {
   int32 progress = 4;
   string details_json = 5;
   string created_at = 6;
+  // True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability.
   bool durable = 7;
 }
 
@@ -794,6 +795,7 @@ message RuntimeState {
   string protocol_checkpoint_root_hash = 5;
   string durable_main_root_hash = 6;
   repeated string state_providers = 10;
+  // Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections.
   repeated string connected_peers = 11;
   string fatal_state = 12;
   bool runtime_refresh_pending = 13;
@@ -807,11 +809,24 @@ message RuntimeState {
   string protocol_checkpoint_digest = 24;
   string read_consistency = 25;
   string read_error = 26;
+  // Exact-event content_dissent observations recorded by this backend process.
+  uint64 event_receipt_content_dissent_observations = 27;
+  // Swarmion peers for which the application-owned transport has a route.
+  repeated string routed_peers = 28;
+  // Routed peers participating in this Swarmion database scope.
+  repeated string participating_peers = 29;
+  // The bounded Swarmion messaging overlay. This is not physical connectivity.
+  repeated string logical_peers = 30;
+  int32 logical_peer_target = 31;
+  // Peers with a live connection on the application-owned physical host.
+  repeated string physical_connected_peers = 32;
 }
 
 message RuntimePeerStatus {
   string peer_id = 1;
+  // Deprecated: compatibility alias for routed.
   bool connected = 2;
+  // Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability.
   bool dialable = 3;
   bool state_provider = 4;
   bool compatible = 7;
@@ -823,6 +838,11 @@ message RuntimePeerStatus {
   string reason = 13;
   int32 replication_priority = 14;
   string replication_device_class = 15;
+  bool routed = 16;
+  bool participating = 17;
+  bool logical = 18;
+  bool physical_connected = 19;
+  int64 last_routed_at_unix_nano = 20;
 }
 
 message RuntimeCompatibility {

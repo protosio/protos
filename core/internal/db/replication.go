@@ -8,8 +8,17 @@ import (
 	"strings"
 	"time"
 
+	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 	swarmionadmin "github.com/nustiueudinastea/swarmion/runtime/adminrpc"
-	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
+)
+
+// ErrReplicationPeerDrainPending means a generation-matched drain has not yet
+// established its local coverage/no-post-fence-heartbeat prerequisites. It is
+// a bounded defer signal, never proof that the peer or resource may be removed.
+var (
+	ErrReplicationPeerDrainPending     = errors.New("swarmion peer drain pending")
+	ErrReplicationPeerDrainUnavailable = errors.New("swarmion peer drain unavailable")
 )
 
 const (
@@ -40,16 +49,17 @@ type prioritizedReplicationCandidate struct {
 	Priority    int
 }
 
-type swarmionPeerRemovalApp interface {
+type swarmionPeerDrainRuntime interface {
 	Status() swarmionapp.Status
-	CatchUpCheckpoint(context.Context, string) (swarmionadmin.CheckpointCatchUpResponse, error)
+	Peers() []swarmionapp.PeerInfo
+	PeerStatus(context.Context) ([]swarmionapp.PeerStatus, error)
+	CatchUpCheckpoint(context.Context, swarmionadmin.CheckpointCatchUpRequest) (swarmionadmin.CheckpointCatchUpResponse, error)
 	Compatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error)
-	PeerRemovalReadiness(context.Context, swarmionapp.PeerRemovalReadinessRequest) (swarmionapp.PeerRemovalReadinessResponse, error)
-	EvictPeer(context.Context, swarmionapp.PeerEvictionRequest) (swarmionapp.PeerEvictionResponse, error)
-}
-
-type swarmionPeerEvictor interface {
-	EvictPeer(context.Context, swarmionapp.PeerEvictionRequest) (swarmionapp.PeerEvictionResponse, error)
+	BeginPeerDrain(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error)
+	PeerDrainStatus(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error)
+	WatchPeerDrain(context.Context, swarmionapp.PeerDrainRequest) (<-chan swarmionapp.PeerDrainEvent, error)
+	WaitPeerDrainReady(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error)
+	FinalizePeerDrain(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainFinalizeResponse, error)
 }
 
 func ReplicationPriorityForDeviceClass(deviceClass string) (int, bool) {
@@ -120,7 +130,7 @@ func (db *DB) ReconcileReplicationPeers(ctx context.Context, candidates []Replic
 	}
 
 	db.mu.Lock()
-	app := db.app
+	app := db.runtime
 	db.mu.Unlock()
 	if app == nil {
 		return nil
@@ -179,216 +189,264 @@ func replicationPolicyNoticeSignature(prioritized []prioritizedReplicationCandid
 	return b.String()
 }
 
-func (db *DB) RemoveReplicationPeerState(ctx context.Context, peerID string, _ []ReplicationCandidate) error {
+// PrepareReplicationPeerDrain establishes local replacement checkpoint state
+// while the target peer is still usable. It never fences or clears peer state.
+func (db *DB) PrepareReplicationPeerDrain(ctx context.Context, peerID string, candidates []ReplicationCandidate) error {
 	peerID = strings.TrimSpace(peerID)
-	if db == nil || peerID == "" {
-		return nil
+	if db == nil {
+		return fmt.Errorf("%w: database is nil", ErrReplicationPeerDrainUnavailable)
+	}
+	if peerID == "" {
+		return fmt.Errorf("peer id is required")
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
 	db.mu.Lock()
-	app := db.app
+	app := db.runtime
+	runtimeOpenedAt := db.runtimeOpenedAt
 	db.mu.Unlock()
 	if app == nil {
-		return nil
+		return fmt.Errorf("%w: database runtime is not initialized", ErrReplicationPeerDrainUnavailable)
 	}
-
-	var lastErr error
-	for attempt := 0; ; attempt++ {
-		attemptCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		err := db.removeReplicationPeerStateWithApp(attemptCtx, app, peerID)
-		cancel()
-		if err == nil {
-			return nil
-		}
-		if !retryablePeerRemovalError(err) {
-			return err
-		}
-		lastErr = err
-		notifyLog.Debugf("retrying swarmion peer removal for %s after retryable blocker on attempt %d: %s", peerID, attempt+1, err.Error())
-		select {
-		case <-ctx.Done():
-			if lastErr != nil {
-				return fmt.Errorf("%w: %w", ctx.Err(), lastErr)
-			}
-			return ctx.Err()
-		case <-time.After(5 * time.Second):
-		}
-	}
+	return prepareReplicationPeerDrainWithRuntime(ctx, app, peerID, candidates, runtimeOpenedAt)
 }
 
-var errSwarmionPeerRemovalNotReady = errors.New("swarmion peer removal not ready")
-
-func (db *DB) removeReplicationPeerStateWithApp(ctx context.Context, app swarmionPeerRemovalApp, peerID string) error {
-	if err := catchUpSwarmionCheckpoint(ctx, app, "remove Protos replication peer state"); err != nil {
-		return fmt.Errorf("catch up swarmion checkpoint state for replication peer removal: %w", err)
+func prepareReplicationPeerDrainWithRuntime(
+	ctx context.Context,
+	app swarmionPeerDrainRuntime,
+	peerID string,
+	candidates []ReplicationCandidate,
+	runtimeOpenedAt time.Time,
+) error {
+	if app == nil {
+		return fmt.Errorf("%w: database runtime is not initialized", ErrReplicationPeerDrainUnavailable)
+	}
+	if err := catchUpSwarmionCheckpoint(ctx, app, "prepare Protos replication peer drain"); err != nil {
+		return fmt.Errorf("catch up swarmion checkpoint state before draining peer %s: %w", peerID, err)
 	}
 	status := app.Status()
 	if status.Fatal != nil {
-		return fmt.Errorf("swarmion fatal state blocks replication peer removal: %s", status.Fatal.State)
+		return fmt.Errorf("swarmion fatal state blocks peer drain for %s: %s", peerID, status.Fatal.State)
 	}
 	if err := blockOnIncompatiblePeers(ctx, app); err != nil {
 		return err
 	}
+	prioritized := prioritizedReplicationCandidates(candidates)
+	if len(prioritized) == 0 {
+		return fmt.Errorf("%w for peer %s: no surviving replication candidate", ErrReplicationPeerDrainPending, peerID)
+	}
 
-	readiness, err := app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
+	peerStatuses, err := app.PeerStatus(ctx)
 	if err != nil {
-		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
+		return fmt.Errorf("read swarmion peer status before draining peer %s: %w", peerID, err)
 	}
-	if err := StrictPeerRemovalReadinessError(readiness); err == nil {
-		notifyLog.Debugf("swarmion peer %s is already ready for durable removal: %s", peerID, PeerRemovalReadinessSummary(readiness))
-		return nil
-	} else {
-		notifyLog.Debugf("swarmion peer %s requires eviction before durable removal: %s", peerID, PeerRemovalReadinessSummary(readiness))
+	peerStatusByID := make(map[string]swarmionapp.PeerStatus, len(peerStatuses))
+	for _, item := range peerStatuses {
+		peerStatusByID[strings.TrimSpace(item.PeerID)] = item
+	}
+	peerInfoByID := make(map[string]swarmionapp.PeerInfo)
+	for _, item := range app.Peers() {
+		peerInfoByID[strings.TrimSpace(string(item.ID))] = item
 	}
 
-	if err := db.evictSwarmionPeer(ctx, app, peerID); err != nil {
-		return fmt.Errorf("evict swarmion peer %s after removal: %w", peerID, err)
+	// A target heartbeat received by this runtime lifecycle is required before
+	// fencing. Persisted observations from a prior process never establish that
+	// the target was usable during replacement preparation.
+	target, observed := peerInfoByID[peerID]
+	if !observed || target.LastSeenUnixMillis <= 0 ||
+		(!runtimeOpenedAt.IsZero() && target.LastSeenUnixMillis < runtimeOpenedAt.UnixMilli()) {
+		return fmt.Errorf("%w for peer %s: target has not been freshly observed by this runtime", ErrReplicationPeerDrainPending, peerID)
 	}
-	readiness, err = app.PeerRemovalReadiness(ctx, swarmionapp.PeerRemovalReadinessRequest{PeerID: peerID})
-	if err != nil {
-		return fmt.Errorf("read swarmion peer removal readiness for %s: %w", peerID, err)
-	}
-	if err := PeerRemovalReadinessError(readiness); err != nil {
-		notifyLog.Debugf("swarmion peer %s is not ready after eviction: %s", peerID, PeerRemovalReadinessSummary(readiness))
-		return err
-	}
-	notifyLog.Debugf("swarmion peer %s is ready after eviction: %s", peerID, PeerRemovalReadinessSummary(readiness))
-	return nil
-}
 
-func retryablePeerRemovalError(err error) bool {
-	if err == nil {
-		return false
+	localCommit := status.DurableMainCommitID
+	localRoot := status.DurableMainRootHash
+	checkpointCurrent := !localCommit.IsZero() && localRoot != (swarmionprotocol.RootHash{}) &&
+		localCommit == status.CheckpointCommitID && localRoot == status.CheckpointRootHash
+	if !checkpointCurrent {
+		return fmt.Errorf(
+			"%w for peer %s: local durable checkpoint is not current (durable=%s/%s checkpoint=%s/%s)",
+			ErrReplicationPeerDrainPending,
+			peerID,
+			localCommit,
+			localRoot,
+			status.CheckpointCommitID,
+			status.CheckpointRootHash,
+		)
 	}
-	if errors.Is(err, errSwarmionCheckpointCatchUpRetryable) || errors.Is(err, errSwarmionPeerRemovalNotReady) {
-		return true
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "checkpoint target changed before catch-up") ||
-		strings.Contains(message, "stale write context") ||
-		strings.Contains(message, "replay-base conflict") ||
-		strings.Contains(message, "conflicts with protocol root") ||
-		strings.Contains(message, "context deadline exceeded")
-}
 
-func StrictPeerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse) error {
-	return peerRemovalReadinessError(readiness, false)
-}
-
-func PeerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse) error {
-	return peerRemovalReadinessError(readiness, true)
-}
-
-func PeerRemovalReadinessSummary(readiness swarmionapp.PeerRemovalReadinessResponse) string {
-	peerID := strings.TrimSpace(readiness.PeerID)
-	if peerID == "" {
-		peerID = "peer"
+	for _, candidate := range prioritized {
+		if candidate.PeerID == status.PeerID {
+			return nil
+		}
+		info, hasInfo := peerInfoByID[candidate.PeerID]
+		peerStatus, hasStatus := peerStatusByID[candidate.PeerID]
+		if !hasInfo || !hasStatus || !info.Participating || !peerStatus.Participating ||
+			!peerStatus.Routed || !peerStatus.Compatible || peerStatus.Incompatible {
+			continue
+		}
+		if info.LastSeenUnixMillis <= 0 ||
+			(!runtimeOpenedAt.IsZero() && info.LastSeenUnixMillis < runtimeOpenedAt.UnixMilli()) {
+			continue
+		}
+		if info.CheckpointCommitID == localCommit && info.CheckpointRootHash == localRoot {
+			return nil
+		}
 	}
-	flags := make([]string, 0, 5)
-	if readiness.StillConnected {
-		flags = append(flags, "connected")
-	}
-	if readiness.StillActiveViewPeer {
-		flags = append(flags, "active-view")
-	}
-	if readiness.StillStateProvider {
-		flags = append(flags, "state-provider")
-	}
-	if readiness.StillCheckpointProvider {
-		flags = append(flags, "checkpoint-provider")
-	}
-	if readiness.StillContentProvider {
-		flags = append(flags, "content-provider")
-	}
-	if len(flags) == 0 {
-		flags = append(flags, "no-runtime-flags")
-	}
-	reason := strings.TrimSpace(readiness.BlockingReason)
-	if reason == "" {
-		reason = strings.TrimSpace(readiness.CheckpointProviderReason)
-	}
-	if reason == "" && len(readiness.RemainingObligations) > 0 {
-		reason = strings.Join(readiness.RemainingObligations, "; ")
-	}
-	if reason == "" {
-		reason = "none"
-	}
-	observed := "never"
-	if !readiness.LastObservedAt.IsZero() {
-		observed = readiness.LastObservedAt.Format(time.RFC3339)
-	}
-	return fmt.Sprintf(
-		"peer=%s safe=%t flags=%s reason=%q obligations=%d last_observed=%s",
+	return fmt.Errorf(
+		"%w for peer %s: no surviving candidate currently advertises durable checkpoint %s/%s",
+		ErrReplicationPeerDrainPending,
 		peerID,
-		readiness.SafeToRemoveDurableResource,
-		strings.Join(flags, ","),
-		reason,
-		len(readiness.RemainingObligations),
-		observed,
+		localCommit,
+		localRoot,
 	)
 }
 
-func peerRemovalReadinessError(readiness swarmionapp.PeerRemovalReadinessResponse, allowStaleLocalObservation bool) error {
-	if readiness.SafeToRemoveDurableResource {
-		return nil
+func (db *DB) BeginReplicationPeerDrain(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainStatus, error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if allowStaleLocalObservation && peerRemovalReadinessOnlyStaleLocalObservation(readiness) {
-		notifyLog.Debugf("treating stale swarmion local observation as non-blocking for removed peer %s: %s", readiness.PeerID, readiness.BlockingReason)
-		return nil
+	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
+	if err != nil {
+		return swarmionapp.PeerDrainStatus{}, err
 	}
-	reason := strings.TrimSpace(readiness.BlockingReason)
-	if reason == "" {
-		reason = strings.Join(readiness.RemainingObligations, "; ")
+	status, err := app.BeginPeerDrain(ctx, req)
+	if err != nil {
+		return status, fmt.Errorf("begin swarmion peer drain for %s: %w", req.PeerID, err)
 	}
-	if reason == "" {
-		reason = "runtime reports remaining peer obligations"
+	return status, nil
+}
+
+func (db *DB) ReplicationPeerDrainStatus(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainStatus, error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	peerID := strings.TrimSpace(readiness.PeerID)
+	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
+	if err != nil {
+		return swarmionapp.PeerDrainStatus{}, err
+	}
+	status, err := app.PeerDrainStatus(ctx, req)
+	if err != nil {
+		return status, fmt.Errorf("read swarmion peer drain status for %s: %w", req.PeerID, err)
+	}
+	return status, nil
+}
+
+// WatchReplicationPeerDrain passively forwards Swarmion's event-driven status
+// stream for one application-owned route generation. It does not poll, retry,
+// fence routes, clear caches, or otherwise advance the drain.
+func (db *DB) WatchReplicationPeerDrain(ctx context.Context, peerID, routeGeneration string) (<-chan swarmionapp.PeerDrainEvent, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
+	if err != nil {
+		return nil, err
+	}
+	events, err := app.WatchPeerDrain(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("watch swarmion peer drain for %s: %w", req.PeerID, err)
+	}
+	return events, nil
+}
+
+// WaitReplicationPeerDrainReady passively waits for a generation to become
+// ready or to reach its in-process finalized tombstone. Route fencing and
+// lifecycle retries remain application responsibilities.
+func (db *DB) WaitReplicationPeerDrainReady(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainStatus, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
+	if err != nil {
+		return swarmionapp.PeerDrainStatus{}, err
+	}
+	status, err := app.WaitPeerDrainReady(ctx, req)
+	if err != nil {
+		return status, fmt.Errorf("wait for swarmion peer drain readiness for %s: %w", req.PeerID, err)
+	}
+	return status, nil
+}
+
+func (db *DB) FinalizeReplicationPeerDrain(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainFinalizeResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
+	if err != nil {
+		return swarmionapp.PeerDrainFinalizeResponse{}, err
+	}
+	response, err := app.FinalizePeerDrain(ctx, req)
+	if err != nil {
+		return response, fmt.Errorf("finalize swarmion peer drain for %s: %w", req.PeerID, err)
+	}
+	if !response.Finalized {
+		return response, fmt.Errorf("swarmion peer drain for %s returned without finalization", req.PeerID)
+	}
+	return response, nil
+}
+
+func (db *DB) peerDrainRuntime(peerID, routeGeneration string) (swarmionPeerDrainRuntime, swarmionapp.PeerDrainRequest, error) {
+	peerID = strings.TrimSpace(peerID)
+	routeGeneration = strings.TrimSpace(routeGeneration)
+	req := swarmionapp.PeerDrainRequest{PeerID: peerID, RouteGeneration: routeGeneration}
+	if db == nil {
+		return nil, req, fmt.Errorf("%w: database is nil", ErrReplicationPeerDrainUnavailable)
+	}
+	if peerID == "" {
+		return nil, req, fmt.Errorf("peer id is required")
+	}
+	if routeGeneration == "" {
+		return nil, req, fmt.Errorf("route generation is required")
+	}
+	db.mu.Lock()
+	app := db.runtime
+	db.mu.Unlock()
+	if app == nil {
+		return nil, req, fmt.Errorf("%w: database runtime is not initialized", ErrReplicationPeerDrainUnavailable)
+	}
+	return app, req, nil
+}
+
+func PeerDrainStatusSummary(status swarmionapp.PeerDrainStatus) string {
+	peerID := strings.TrimSpace(status.PeerID)
 	if peerID == "" {
 		peerID = "peer"
 	}
-	return fmt.Errorf("%w for %s: %s", errSwarmionPeerRemovalNotReady, peerID, reason)
-}
-
-func peerRemovalReadinessOnlyStaleLocalObservation(readiness swarmionapp.PeerRemovalReadinessResponse) bool {
-	if peerRemovalReadinessOnlyStaleTransportObservation(readiness) {
-		return true
+	reason := strings.Join(status.BlockingReasons, "; ")
+	if reason == "" {
+		reason = "none"
 	}
-	return peerRemovalReadinessOnlyStaleCheckpointObservation(readiness)
-}
-
-func peerRemovalReadinessOnlyStaleTransportObservation(readiness swarmionapp.PeerRemovalReadinessResponse) bool {
-	if !readiness.StillConnected && !readiness.StillActiveViewPeer {
-		return false
-	}
-	if readiness.StillStateProvider || readiness.StillCheckpointProvider || readiness.StillContentProvider {
-		return false
-	}
-	for _, obligation := range readiness.RemainingObligations {
-		normalized := strings.ToLower(strings.TrimSpace(obligation))
-		if normalized != "peer is still connected" && normalized != "peer is still in the active view" {
-			return false
+	reasonCodes := make([]string, 0, len(status.BlockingReasonCodes))
+	for _, code := range status.BlockingReasonCodes {
+		if code := strings.TrimSpace(string(code)); code != "" {
+			reasonCodes = append(reasonCodes, code)
 		}
 	}
-	return true
-}
-
-func peerRemovalReadinessOnlyStaleCheckpointObservation(readiness swarmionapp.PeerRemovalReadinessResponse) bool {
-	if !readiness.StillCheckpointProvider {
-		return false
+	blockingReasonCodes := strings.Join(reasonCodes, "; ")
+	if blockingReasonCodes == "" {
+		blockingReasonCodes = "none"
 	}
-	if readiness.StillConnected || readiness.StillActiveViewPeer || readiness.StillStateProvider || readiness.StillContentProvider {
-		return false
+	checkpointCoverageReasonCode := strings.TrimSpace(string(status.CheckpointCoverageReasonCode))
+	if checkpointCoverageReasonCode == "" {
+		checkpointCoverageReasonCode = "none"
 	}
-	for _, obligation := range readiness.RemainingObligations {
-		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(obligation)), "peer still advertises checkpoint state") {
-			return false
-		}
-	}
-	return true
+	return fmt.Sprintf(
+		"peer=%s generation=%s active=%t finalized=%t generation_matches=%t checkpoint_covered=%t checkpoint_coverage_reason_code=%q pre_fence_heartbeat_observed=%t post_fence_heartbeat_accepted=%t ingress_fence_sequence=%d ready_to_finalize=%t blocking_reason_codes=%q reason=%q",
+		peerID,
+		status.RouteGeneration,
+		status.Active,
+		status.Finalized,
+		status.RouteGenerationMatches,
+		status.LocalCheckpointCovered,
+		checkpointCoverageReasonCode,
+		status.PreFenceHeartbeatIngressObserved,
+		status.PostFenceHeartbeatAccepted,
+		status.HeartbeatIngressFenceSequence,
+		status.ReadyToFinalize,
+		blockingReasonCodes,
+		reason,
+	)
 }
 
 func blockOnIncompatiblePeers(ctx context.Context, app interface {

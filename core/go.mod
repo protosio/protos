@@ -2,6 +2,8 @@ module github.com/protosio/protos
 
 go 1.26.4
 
+toolchain go1.26.5
+
 replace (
 	github.com/protosio/protos/network/modules/ipc => ./network/modules/ipc
 	github.com/protosio/protos/network/modules/networkextension => ./network/modules/networkextension
@@ -14,13 +16,14 @@ require (
 	github.com/birros/go-libp2p-grpc v0.0.0
 	github.com/bokwoon95/sq v0.5.1
 	github.com/bramvdbogaerde/go-scp v1.6.0
-	github.com/containerd/containerd/v2 v2.3.1
+	github.com/containerd/containerd/v2 v2.3.3
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/platforms v1.0.0-rc.4
 	github.com/dennwc/btrfs v0.0.0-20260222081608-edfb8b9e4f55
+	github.com/ebitengine/purego v0.10.0
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/grandcat/zeroconf v1.0.0
-	github.com/hetznercloud/hcloud-go/v2 v2.43.0
+	github.com/hetznercloud/hcloud-go/v2 v2.47.0
 	github.com/jsimonetti/rtnetlink v1.4.2
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/martinlindhe/base36 v1.1.1
@@ -34,16 +37,16 @@ require (
 	github.com/protosio/protos/network/modules/wireguard v0.0.0
 	github.com/rakyll/statik v0.1.8
 	github.com/rs/xid v1.6.0
-	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36
+	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.37
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sirupsen/logrus v1.9.4
 	github.com/tmc/apple v0.6.3
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.53.0
-	golang.org/x/sys v0.46.0
+	golang.org/x/crypto v0.55.0
+	golang.org/x/sys v0.47.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
-	google.golang.org/grpc v1.81.1
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+	google.golang.org/grpc v1.83.0
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -60,7 +63,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.7.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.33.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.56.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.56.0 // indirect
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
@@ -85,7 +88,6 @@ require (
 	github.com/dolthub/eventsapi_schema v0.0.0-20260310172945-37a9265ade69 // indirect
 	github.com/dolthub/ishell v0.0.0-20260414231531-5f031e3e9037 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
-	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/emicklei/proto v1.14.3 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
@@ -106,7 +108,6 @@ require (
 	github.com/grafana/thema v0.0.0-20240605110052-2016107581da // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/libp2p/go-libp2p-pubsub v0.16.0 // indirect
 	github.com/libp2p/go-yamux/v5 v5.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
@@ -135,7 +136,7 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/sony/gobreaker/v2 v2.4.0 // indirect
-	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.7.0 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -145,12 +146,12 @@ require (
 	github.com/xtaci/smux v1.5.57 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/contrib/detectors/gcp v1.43.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
+	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260508192327-42602be52be6 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
@@ -278,12 +279,12 @@ require (
 	github.com/multiformats/go-multibase v0.3.0 // indirect
 	github.com/multiformats/go-multicodec v0.10.0 // indirect
 	github.com/multiformats/go-multihash v0.2.3 // indirect
-	github.com/multiformats/go-multistream v0.6.1 // indirect
+	github.com/multiformats/go-multistream v0.6.1
 	github.com/multiformats/go-varint v0.1.0 // indirect
 	github.com/nustiueudinastea/swarmion/protocol v0.0.0
 	github.com/nustiueudinastea/swarmion/runtime v0.0.0
-	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260618162502-7cf4014bbd8e
-	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260618162502-7cf4014bbd8e
+	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260811231332-753c49e2e3aa
+	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260811231332-753c49e2e3aa
 	github.com/nustiueudinastea/swarmion/transports v0.0.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -315,28 +316,28 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
-	go.opentelemetry.io/otel v1.43.0 // indirect
-	go.opentelemetry.io/otel/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0 // indirect
+	go.opentelemetry.io/otel v1.44.0 // indirect
+	go.opentelemetry.io/otel/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a // indirect
-	golang.org/x/mod v0.36.0
+	golang.org/x/mod v0.38.0
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/term v0.44.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.45.0 // indirect
+	golang.org/x/tools v0.48.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb // indirect
 	google.golang.org/api v0.279.0 // indirect
 	google.golang.org/genproto v0.0.0-20260511170946-3700d4141b60 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
@@ -348,16 +349,18 @@ replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014
 
 replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b
 
-replace github.com/dolthub/dolt/go => github.com/nustiueudinastea/dolt/go v0.0.0-20260618144749-e33adf34a994
+replace github.com/dolthub/dolt/go => github.com/nustiueudinastea/dolt/go v0.0.0-20260623145826-b1ec65352883
 
 replace github.com/dolthub/driver/v2 => github.com/nustiueudinastea/doltsqldriver/v2 v2.0.0-20260618154213-1ce90ff21070
 
-replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260618162502-7cf4014bbd8e
+replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260811231332-753c49e2e3aa
 
-replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260618162502-7cf4014bbd8e
+replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260811231332-753c49e2e3aa
 
-replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260618162502-7cf4014bbd8e
+replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260811231332-753c49e2e3aa
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260618162502-7cf4014bbd8e
+replace github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0 => github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0-20260811231332-753c49e2e3aa
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260618162502-7cf4014bbd8e
+replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260811231332-753c49e2e3aa
+
+replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260811231332-753c49e2e3aa

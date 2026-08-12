@@ -2,6 +2,7 @@ package provisioners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -10,6 +11,16 @@ import (
 
 	"github.com/protosio/protos/internal/pcrypto"
 )
+
+// ErrInstanceNotFound is returned only when a provisioner has authoritative
+// evidence that the requested provider instance does not exist. Callers must
+// not infer absence from provider error text: authentication, endpoint, and
+// location failures can contain the same words while the instance is live.
+var ErrInstanceNotFound = errors.New("provisioner instance not found")
+
+// ErrVolumeNotFound is the corresponding authoritative absence result for a
+// provider volume.
+var ErrVolumeNotFound = errors.New("provisioner volume not found")
 
 // ProvisionerRecord is the persisted provisioner configuration.
 //

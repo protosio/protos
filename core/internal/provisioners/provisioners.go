@@ -2,6 +2,8 @@ package provisioners
 
 import (
 	"context"
+	stdsql "database/sql"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -13,6 +15,8 @@ import (
 	"time"
 
 	"github.com/bokwoon95/sq"
+	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 	"github.com/pkg/errors"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
@@ -27,6 +31,55 @@ import (
 )
 
 var log = util.GetLogger("provisioners")
+
+// ErrInstanceDeleteInvariantConflict means a later durable write made the
+// provision visible again after its delete event was applied.
+var ErrInstanceDeleteInvariantConflict = errors.New("instance delete invariant conflict")
+
+// ErrInstanceLifecycleConflict means a requested lifecycle transition races
+// an already-replicated delete intent or its active delete task. Callers must
+// resolve ownership explicitly rather than reopening the peer route.
+var ErrInstanceLifecycleConflict = errors.New("instance lifecycle conflict")
+
+// ErrInstanceInitializationRecoveryRequired means a provider-backed instance
+// has crossed the peer-discovery/admission boundary and can no longer be
+// compensated by deleting its provider resources or replicated identity. The
+// retained record is the recovery authority; callers must resume or explicitly
+// resolve that same instance instead of replaying deployment.
+var ErrInstanceInitializationRecoveryRequired = errors.New("instance initialization recovery required")
+
+// instanceDeletePublicationWithoutReceiptError marks the final database
+// operation boundary when Swarmion returned no exact receipt. The task layer
+// may replay it only when the wrapped error is the explicit typed
+// not-accepted-safe-to-retry outcome.
+type instanceDeletePublicationWithoutReceiptError struct {
+	Cause error
+}
+
+func (err *instanceDeletePublicationWithoutReceiptError) Error() string {
+	if err == nil || err.Cause == nil {
+		return "instance delete publication returned no receipt"
+	}
+	return "instance delete publication returned no receipt: " + err.Cause.Error()
+}
+
+func (err *instanceDeletePublicationWithoutReceiptError) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.Cause
+}
+
+func instanceDeletePublicationWithoutReceipt(cause error) error {
+	if cause == nil {
+		cause = fmt.Errorf("operation returned neither a receipt nor an error")
+	}
+	var existing *instanceDeletePublicationWithoutReceiptError
+	if errors.As(cause, &existing) {
+		return cause
+	}
+	return &instanceDeletePublicationWithoutReceiptError{Cause: cause}
+}
 
 // Type represents a specific cloud (AWS, GCP, DigitalOcean etc.)
 type Type string
@@ -65,14 +118,215 @@ func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2
 
 // Manager manages provisioners and instances.
 type Manager struct {
-	db           *db.DB
-	um           *user.Manager
-	sm           *pcrypto.Manager
-	p2p          *p2p.P2P
-	provisioners *provisionerRegistry
-	tasks        *tasks.Manager
-	lifecycleMu  sync.Mutex
-	lifecycleSig map[string]string
+	db                       *db.DB
+	um                       *user.Manager
+	sm                       *pcrypto.Manager
+	p2p                      *p2p.P2P
+	provisioners             *provisionerRegistry
+	tasks                    *tasks.Manager
+	lifecycleMu              sync.Mutex
+	lifecycleSig             map[string]string
+	instanceLifecycleMu      sync.Map
+	deleteReceiptTracker     instanceDeleteReceiptTracker
+	peerDrainRuntime         replicationPeerDrainRuntime
+	peerRouteFence           replicationPeerRouteFence
+	providerMutationDisabled bool
+	// Recovery-only test seams prove foreign pending/parked handling without
+	// synthesizing protocol state. Production always uses the DB methods.
+	lookupDeleteRecoveryOperation         func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
+	observeDeleteRecoveryReceipt          func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
+	lookupTaskCheckpointRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
+	observeTaskCheckpointRecoveryReceipt  func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
+	verifyTaskCheckpointRecoveryInvariant func(context.Context, string, tasks.Record) error
+	publishDeleteOperation                func(context.Context, db.PublishedWriteOperation, InstanceInfo) (db.PublishedWriteReceipt, error)
+	lookupPeerDrainAuthorization          func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
+	publishPeerDrainAuthorization         func(context.Context, db.PublishedWriteOperation, InstanceInfo, tasks.OperationFact) (db.PublishedWriteReceipt, error)
+	waitPeerDrainAuthorization            func(context.Context, db.PublishedWriteReceipt, string) (db.EventReceiptObservation, error)
+	verifyPeerDrainAuthorization          func(context.Context, string, instancePeerDrainAuthorization, tasks.OperationFact) error
+	// afterInstanceDeletePublished is an internal fault-injection seam for the
+	// accepted-event-to-replicated-task-checkpoint crash boundary.
+	afterInstanceDeletePublished func(db.PublishedWriteReceipt)
+	// Phase-boundary fault injection proves that restart resolves P before
+	// repeating drain and that provider deletion never runs without durable P.
+	afterPeerDrainAuthorized func(db.PublishedWriteReceipt)
+	afterProviderDelete      func(string)
+	// Deployment-only seams keep the admission/compensation boundary directly
+	// testable. Production uses the application-owned P2P manager and user store.
+	currentDeviceForInstance        func() (user.UserDevice, error)
+	discoverPeerForInstance         func(context.Context, string) (*p2p.DiscoveredPeer, error)
+	addPeerForInstance              func(InstanceInfo) (*p2p.Client, error)
+	initializePeerForInstance       func(context.Context, *p2p.Client, *proto.InitRequest) (*proto.InitResponse, error)
+	originBootstrapAddrsForInstance func(string, string) []string
+}
+
+// SetProviderMutationEnabled prevents task-stream registration on a
+// non-provisioning replica from becoming provider-side execution authority.
+func (cm *Manager) SetProviderMutationEnabled(enabled bool) {
+	if cm == nil {
+		return
+	}
+	cm.providerMutationDisabled = !enabled
+}
+
+func (cm *Manager) lockInstanceLifecycle(instanceID string) func() {
+	if cm == nil {
+		return func() {}
+	}
+	instanceID = strings.TrimSpace(instanceID)
+	value, _ := cm.instanceLifecycleMu.LoadOrStore(instanceID, &sync.Mutex{})
+	lock := value.(*sync.Mutex)
+	lock.Lock()
+	return lock.Unlock
+}
+
+func instanceInitializationRecoveryRequired(instanceID string, stage string, cause error) error {
+	instanceID = strings.TrimSpace(instanceID)
+	stage = strings.TrimSpace(stage)
+	if cause == nil {
+		cause = fmt.Errorf("instance initialization stopped")
+	}
+	return fmt.Errorf("%w: instance=%s stage=%s: %w", ErrInstanceInitializationRecoveryRequired, instanceID, stage, cause)
+}
+
+func (cm *Manager) deploymentCurrentDevice() (user.UserDevice, error) {
+	if cm.currentDeviceForInstance != nil {
+		return cm.currentDeviceForInstance()
+	}
+	return cm.um.GetCurrentDevice()
+}
+
+func (cm *Manager) deploymentDiscoverPeer(ctx context.Context, target string) (*p2p.DiscoveredPeer, error) {
+	if cm.discoverPeerForInstance != nil {
+		return cm.discoverPeerForInstance(ctx, target)
+	}
+	return cm.p2p.DiscoverPeer(ctx, target)
+}
+
+func (cm *Manager) deploymentAddPeer(instance InstanceInfo) (*p2p.Client, error) {
+	if cm.addPeerForInstance != nil {
+		return cm.addPeerForInstance(instance)
+	}
+	return cm.p2p.AddPeer(instance)
+}
+
+func (cm *Manager) deploymentInitializePeer(ctx context.Context, client *p2p.Client, request *proto.InitRequest) (*proto.InitResponse, error) {
+	if cm.initializePeerForInstance != nil {
+		return cm.initializePeerForInstance(ctx, client, request)
+	}
+	return client.Init(ctx, request)
+}
+
+func (cm *Manager) deploymentOriginBootstrapAddrs(originPublicKey string, peerPublicIP string) []string {
+	if cm.originBootstrapAddrsForInstance != nil {
+		return cm.originBootstrapAddrsForInstance(originPublicKey, peerPublicIP)
+	}
+	return cm.originSwarmionBootstrapAddrs(originPublicKey, peerPublicIP)
+}
+
+type replicationPeerDrainRuntime interface {
+	Available() bool
+	Prepare(context.Context, string, []db.ReplicationCandidate) error
+	Begin(context.Context, string, string) (swarmionapp.PeerDrainStatus, error)
+	Watch(context.Context, string, string) (<-chan swarmionapp.PeerDrainEvent, error)
+	Finalize(context.Context, string, string) (swarmionapp.PeerDrainFinalizeResponse, error)
+}
+
+type replicationPeerRouteFence interface {
+	FencePeer(p2p.Machine) (string, string, error)
+	WithPeerFenceGeneration(context.Context, string, string, func() error) error
+}
+
+type databasePeerDrainRuntime struct{ database *db.DB }
+
+func (runtime databasePeerDrainRuntime) Available() bool {
+	if runtime.database == nil {
+		return false
+	}
+	_, ok := runtime.database.SwarmionStatus()
+	return ok
+}
+
+func (runtime databasePeerDrainRuntime) Prepare(ctx context.Context, peerID string, candidates []db.ReplicationCandidate) error {
+	return runtime.database.PrepareReplicationPeerDrain(ctx, peerID, candidates)
+}
+
+func (runtime databasePeerDrainRuntime) Begin(ctx context.Context, peerID, generation string) (swarmionapp.PeerDrainStatus, error) {
+	return runtime.database.BeginReplicationPeerDrain(ctx, peerID, generation)
+}
+
+func (runtime databasePeerDrainRuntime) Watch(ctx context.Context, peerID, generation string) (<-chan swarmionapp.PeerDrainEvent, error) {
+	return runtime.database.WatchReplicationPeerDrain(ctx, peerID, generation)
+}
+
+func (runtime databasePeerDrainRuntime) Finalize(ctx context.Context, peerID, generation string) (swarmionapp.PeerDrainFinalizeResponse, error) {
+	return runtime.database.FinalizeReplicationPeerDrain(ctx, peerID, generation)
+}
+
+func (cm *Manager) replicationPeerDrainRuntime() replicationPeerDrainRuntime {
+	if cm != nil && cm.peerDrainRuntime != nil {
+		return cm.peerDrainRuntime
+	}
+	if cm == nil || cm.db == nil {
+		return nil
+	}
+	return databasePeerDrainRuntime{database: cm.db}
+}
+
+func (cm *Manager) replicationPeerRouteFence() replicationPeerRouteFence {
+	if cm != nil && cm.peerRouteFence != nil {
+		return cm.peerRouteFence
+	}
+	if cm == nil || cm.p2p == nil {
+		return nil
+	}
+	return cm.p2p
+}
+
+type instanceDeleteReceiptTracker interface {
+	WaitForPublishedWriteApplied(context.Context, db.PublishedWriteReceipt, string) (db.EventReceiptObservation, error)
+	InstanceExistsAtCheckpoint(context.Context, string, string) (bool, error)
+}
+
+type swarmionInstanceDeleteReceiptTracker struct {
+	database *db.DB
+}
+
+func (tracker swarmionInstanceDeleteReceiptTracker) WaitForPublishedWriteApplied(ctx context.Context, receipt db.PublishedWriteReceipt, reason string) (db.EventReceiptObservation, error) {
+	return tracker.database.WaitForPublishedWriteApplied(ctx, receipt, reason)
+}
+
+func (tracker swarmionInstanceDeleteReceiptTracker) InstanceExistsAtCheckpoint(ctx context.Context, checkpointCommitID string, instanceID string) (bool, error) {
+	instanceIDBytes, err := db.UUIDBytes(instanceID)
+	if err != nil {
+		return false, fmt.Errorf("invalid instance ID %q: %w", instanceID, err)
+	}
+	var count int
+	err = tracker.database.ReadRowsAsOf(
+		ctx,
+		checkpointCommitID,
+		"SELECT COUNT(*) FROM machines AS OF ? WHERE id = ?",
+		[]any{instanceIDBytes},
+		func(rows *stdsql.Rows) error {
+			if !rows.Next() {
+				return stdsql.ErrNoRows
+			}
+			return rows.Scan(&count)
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (cm *Manager) deleteReceiptBackend() instanceDeleteReceiptTracker {
+	if cm != nil && cm.deleteReceiptTracker != nil {
+		return cm.deleteReceiptTracker
+	}
+	if cm == nil || cm.db == nil {
+		return nil
+	}
+	return swarmionInstanceDeleteReceiptTracker{database: cm.db}
 }
 
 const instanceSSHKeysDir = "instance-ssh-keys"
@@ -403,15 +657,20 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 	}
 
 	pendingID := newPendingInstanceID()
+	lifecycleOwnerPeerID := cm.localLifecycleExecutorPeerID()
 	instance := InstanceInfo{
-		ID:                  pendingID,
-		Name:                instanceName,
-		Kind:                KindCloudVM,
-		KindID:              provider.NameStr(),
-		DesiredStatus:       ServerStateRunning,
-		ReplicationPriority: db.DefaultReplicationPriorityForMachine(KindCloudVM, provider.NameStr()),
-		Location:            cloudLocation,
-		Status:              ServerStateChanging,
+		ID:                   pendingID,
+		Name:                 instanceName,
+		Kind:                 KindCloudVM,
+		KindID:               provider.NameStr(),
+		DesiredStatus:        ServerStateRunning,
+		ReplicationPriority:  db.DefaultReplicationPriorityForMachine(KindCloudVM, provider.NameStr()),
+		Location:             cloudLocation,
+		Status:               ServerStateChanging,
+		LifecycleOwnerPeerID: lifecycleOwnerPeerID,
+	}
+	if err := cm.assertInstanceLifecycleExecutor(instance, lifecycleOwnerPeerID); err != nil {
+		return InstanceInfo{}, fmt.Errorf("authorize desired instance %q: %w", instanceName, err)
 	}
 	mm, cmm := createInstanceInsertMapper(instance)
 	if err := db.Insert(cm.db, mm, cmm); err != nil {
@@ -422,6 +681,7 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		Stream:      InstanceDeploymentTaskStream,
 		SubjectType: taskSubjectInstance,
 		SubjectID:   pendingID,
+		OwnerPeerID: lifecycleOwnerPeerID,
 		Title:       fmt.Sprintf("Deploy instance %s", instanceName),
 		Message:     "queued",
 		Payload: deployInstanceTaskPayload{
@@ -450,6 +710,14 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	if progress == nil {
 		progress = func(int, string, any) error { return nil }
 	}
+	pendingInstance, err := cm.getInstanceRecord(pendingInstanceID)
+	if err != nil {
+		return InstanceInfo{}, fmt.Errorf("load deployment authority for pending instance %q: %w", pendingInstanceID, err)
+	}
+	if err := cm.assertInstanceLifecycleExecutor(pendingInstance, ""); err != nil {
+		return InstanceInfo{}, err
+	}
+	lifecycleOwnerPeerID := pendingInstance.LifecycleOwnerPeerID
 	// init cloud
 	_ = progress(5, "initializing provisioner", nil)
 	provider, err := cm.ensureProviderForDeployment(cloudName)
@@ -475,13 +743,22 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	var vmID string
 	var volumeID string
 	var instanceInfo InstanceInfo
+	admissionEstablished := false
 	defer func() {
 		if err == nil || vmID == "" {
 			return
 		}
+		if admissionEstablished {
+			// DiscoverPeer has already authenticated and admitted a route on the
+			// shared application host. From this point the provider resource and
+			// replicated identity are one recoverable operation; compensation
+			// must not tear either half down or permit a replay to create a second
+			// VM.
+			log.Warnf("Retaining admitted instance deployment '%s' (%s) for recovery: %s", instanceName, vmID, err.Error())
+			return
+		}
 		log.Warnf("Cleaning up failed instance deployment '%s' (%s): %s", instanceName, vmID, err.Error())
 		if instanceInfo.ID != "" {
-			_ = cm.p2p.RemovePeer(instanceInfo)
 			_ = cm.deleteInstanceSSHKey(instanceInfo.ID)
 		}
 		if stopErr := computeProvider.StopInstance(vmID, cloudLocation); stopErr != nil {
@@ -534,7 +811,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 		}
 	}
 
-	thisDevice, err := cm.um.GetCurrentDevice()
+	thisDevice, err := cm.deploymentCurrentDevice()
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("failed to get current device : %w", err)
 	}
@@ -556,6 +833,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	if instanceInfo.ProviderResourceID == "" {
 		instanceInfo.ProviderResourceID = vmID
 	}
+	instanceInfo.LifecycleOwnerPeerID = lifecycleOwnerPeerID
 	if instanceInfo.Kind == "" {
 		instanceInfo.Kind = KindCloudVM
 	}
@@ -621,10 +899,17 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 
 	_ = progress(75, "discovering VM identity", map[string]string{"public_ip": instanceInfo.PublicIP})
 	discoverCtx, discoverCancel := context.WithTimeout(ctx, 5*time.Minute)
-	discoveredPeer, err := cm.p2p.DiscoverPeer(discoverCtx, instanceInfo.PublicIP)
+	discoveredPeer, err := cm.deploymentDiscoverPeer(discoverCtx, instanceInfo.PublicIP)
 	discoverCancel()
 	if err != nil {
 		return InstanceInfo{}, deploymentFailureError(computeProvider, vmID, cloudLocation, fmt.Errorf("failed to discover instance peer over libp2p: %w", err))
+	}
+	// A successful discovery has already admitted this identity and route to the
+	// shared host. Set the boundary before inspecting the result so even a
+	// malformed success cannot trigger destructive provider compensation.
+	admissionEstablished = true
+	if discoveredPeer == nil || strings.TrimSpace(discoveredPeer.PublicKey) == "" {
+		return InstanceInfo{}, instanceInitializationRecoveryRequired(pendingInstanceID, "discover_peer", fmt.Errorf("discovery returned no peer identity"))
 	}
 	instanceInfo.PublicKey = discoveredPeer.PublicKey
 	if pendingInstanceID != "" {
@@ -633,42 +918,39 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 		instanceInfo.ID = db.MustNewUUIDv7()
 	}
 	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
+	if persistErr := cm.persistDiscoveredDeploymentIdentity(ctx, pendingInstanceID, instanceInfo); persistErr != nil {
+		return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "persist_discovered_identity", persistErr)
+	}
 
 	_ = progress(85, "initializing VM", map[string]string{"peer_id": discoveredPeer.ID})
-	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
+	p2pClient, err := cm.deploymentAddPeer(instanceInfo)
 	if err != nil {
-		_ = cm.p2p.RemovePeer(instanceInfo)
-		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
+		return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "add_peer", err)
 	}
 	if p2pClient == nil {
-		_ = cm.p2p.RemovePeer(instanceInfo)
-		return InstanceInfo{}, errors.New("failed to initialize instance: p2p client is nil")
+		return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "add_peer", errors.New("p2p client is nil"))
 	}
 
-	originSwarmionAddrs := cm.originSwarmionBootstrapAddrs(thisDevice.GetPublicKey(), instanceInfo.PublicIP)
+	originSwarmionAddrs := cm.deploymentOriginBootstrapAddrs(thisDevice.GetPublicKey(), instanceInfo.PublicIP)
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	resp, err := p2pClient.Init(ctx, &proto.InitRequest{
+	resp, err := cm.deploymentInitializePeer(ctx, p2pClient, &proto.InitRequest{
 		OriginDevice:          thisDevice.GetName(),
 		OriginDevicePublicKey: thisDevice.GetPublicKey(),
 		OriginSwarmionAddrs:   originSwarmionAddrs,
 		InstanceName:          instanceName,
 	})
 	if err != nil {
-		_ = cm.p2p.RemovePeer(instanceInfo)
-		return InstanceInfo{}, fmt.Errorf("failed to initialize instance: %w", err)
+		return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "initialize_peer", err)
 	}
-
-	// removing peer after initialization is done, so that the target peer has time to re-create the grpc server
-	err = cm.p2p.RemovePeer(instanceInfo)
-	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to remove peer: %w", err)
+	if resp == nil {
+		return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "initialize_peer", fmt.Errorf("initialization returned no response"))
 	}
 
 	instanceUpdate, err = computeProvider.GetInstanceInfo(vmID, cloudLocation)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to get instance info: %w", err)
+		return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "refresh_provider_state", err)
 	}
 
 	// final save instance info
@@ -680,7 +962,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	_ = progress(95, "saving VM identity", map[string]string{"peer_id": discoveredPeer.ID})
 	if pendingInstanceID != "" {
 		if err := cm.completeDeploymentInstance(pendingInstanceID, instanceInfo); err != nil {
-			return InstanceInfo{}, fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+			return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "complete_deployment", err)
 		}
 	}
 
@@ -707,15 +989,20 @@ func deploymentFailureError(provider ComputeProvisioner, id string, location str
 }
 
 func (cm *Manager) InitInstance(instanceName string, kind string, kindID string, locationName string, ipString string) (err error) {
+	lifecycleOwnerPeerID := cm.localLifecycleExecutorPeerID()
 	instanceInfo := InstanceInfo{
-		ID:                  db.MustNewUUIDv7(),
-		PublicIP:            ipString,
-		Name:                instanceName,
-		Kind:                kind,
-		KindID:              kindID,
-		DesiredStatus:       ServerStateRunning,
-		ReplicationPriority: db.DefaultReplicationPriorityForMachine(kind, kindID),
-		Location:            locationName,
+		ID:                   db.MustNewUUIDv7(),
+		PublicIP:             ipString,
+		Name:                 instanceName,
+		Kind:                 kind,
+		KindID:               kindID,
+		DesiredStatus:        ServerStateRunning,
+		ReplicationPriority:  db.DefaultReplicationPriorityForMachine(kind, kindID),
+		Location:             locationName,
+		LifecycleOwnerPeerID: lifecycleOwnerPeerID,
+	}
+	if err := cm.assertInstanceLifecycleExecutor(instanceInfo, lifecycleOwnerPeerID); err != nil {
+		return fmt.Errorf("authorize discovered instance %q: %w", instanceName, err)
 	}
 
 	ip := net.ParseIP(ipString)
@@ -723,63 +1010,54 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 		return fmt.Errorf("String '%s' is not a valid IP address", ipString)
 	}
 
-	thisDevice, err := cm.um.GetCurrentDevice()
+	thisDevice, err := cm.deploymentCurrentDevice()
 	if err != nil {
 		return fmt.Errorf("failed to get current device : %w", err)
 	}
 
 	discoverCtx, discoverCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	discoveredPeer, err := cm.p2p.DiscoverPeer(discoverCtx, instanceInfo.PublicIP)
+	discoveredPeer, err := cm.deploymentDiscoverPeer(discoverCtx, instanceInfo.PublicIP)
 	discoverCancel()
 	if err != nil {
 		return fmt.Errorf("failed to discover instance peer over libp2p: %w", err)
+	}
+	if discoveredPeer == nil || strings.TrimSpace(discoveredPeer.PublicKey) == "" {
+		return instanceInitializationRecoveryRequired(instanceInfo.ID, "discover_peer", fmt.Errorf("discovery returned no peer identity"))
 	}
 	instanceInfo.PublicKey = discoveredPeer.PublicKey
 	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
 
 	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
-	insertedInstance := false
 	if err := db.Insert(cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.PublicKey)); err != nil {
-		return fmt.Errorf("failed to save instance '%s': %w", instanceName, err)
+		return instanceInitializationRecoveryRequired(instanceInfo.ID, "persist_discovered_identity", fmt.Errorf("failed to save instance '%s': %w", instanceName, err))
 	}
-	insertedInstance = true
-	defer func() {
-		if err == nil || !insertedInstance {
-			return
-		}
-		im, cmmd := createInstanceDeleteMapper(instanceInfo.ID)
-		_ = db.Delete(cm.db, db.CreatePeerDeleteMapper(instanceInfo.PublicKey), im, cmmd)
-	}()
 
-	p2pClient, err := cm.p2p.AddPeer(instanceInfo)
+	p2pClient, err := cm.deploymentAddPeer(instanceInfo)
 	if err != nil {
-		return fmt.Errorf("failed to initialize instance: %w", err)
+		return instanceInitializationRecoveryRequired(instanceInfo.ID, "add_peer", err)
 	}
 	if p2pClient == nil {
-		return errors.New("failed to initialize instance: p2p client is nil")
+		return instanceInitializationRecoveryRequired(instanceInfo.ID, "add_peer", errors.New("p2p client is nil"))
 	}
 
-	originSwarmionAddrs := cm.originSwarmionBootstrapAddrs(thisDevice.GetPublicKey(), instanceInfo.PublicIP)
+	originSwarmionAddrs := cm.deploymentOriginBootstrapAddrs(thisDevice.GetPublicKey(), instanceInfo.PublicIP)
 
 	// do the initialization
 	log.Infof("Initializing instance '%s'", instanceName)
-	resp, err := p2pClient.Init(context.TODO(), &proto.InitRequest{
+	resp, err := cm.deploymentInitializePeer(context.Background(), p2pClient, &proto.InitRequest{
 		OriginDevice:          thisDevice.GetName(),
 		OriginDevicePublicKey: thisDevice.GetPublicKey(),
 		OriginSwarmionAddrs:   originSwarmionAddrs,
 		InstanceName:          instanceName,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to init instance: %w", err)
+		return instanceInitializationRecoveryRequired(instanceInfo.ID, "initialize_peer", err)
+	}
+	if resp == nil {
+		return instanceInitializationRecoveryRequired(instanceInfo.ID, "initialize_peer", fmt.Errorf("initialization returned no response"))
 	}
 
 	instanceInfo.Architecture = resp.Architecture
-
-	// removing peer after initialization is done, so that the target peer has time to re-create the grpc server
-	err = cm.p2p.RemovePeer(instanceInfo)
-	if err != nil {
-		return fmt.Errorf("failed to remove peer: %w", err)
-	}
 
 	log.Infof("Instance '%s'(%s) initialized", instanceName, ipString)
 
@@ -788,9 +1066,9 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 
 func (cm *Manager) originSwarmionBootstrapAddrs(originPublicKey string, peerPublicIP string) []string {
 	ips := originBootstrapIPs(originPublicKey, peerPublicIP)
-	addrs := cm.db.DialableListenMultiaddrs(ips)
+	addrs := cm.p2p.DialableListenMultiaddrs(ips)
 	if len(addrs) == 0 {
-		return cm.db.ListenMultiaddrs()
+		return cm.p2p.ListenMultiaddrs()
 	}
 	return addrs
 }
@@ -888,16 +1166,27 @@ func firstNonEmptyString(values ...string) string {
 
 // UpdateInstance updates an instance
 func (cm *Manager) UpdateInstance(id string, ip string) error {
+	unlock := cm.lockInstanceLifecycle(id)
+	defer unlock()
 	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
-
+	if err := cm.assertInstanceLifecycleExecutor(instance, ""); err != nil {
+		return err
+	}
 	instance.PublicIP = ip
 	im, cmm := createInstanceUpdateMapper(instance)
 	err = db.Update(cm.db, im, cmm)
 	if err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", id, err)
+	}
+	persisted, err := cm.getInstanceRecord(instance.ID)
+	if err != nil {
+		return fmt.Errorf("verify saved instance '%s': %w", id, err)
+	}
+	if persisted.PublicIP != ip {
+		return fmt.Errorf("%w: instance '%s' is delete-authorized and rejected the update", ErrInstanceLifecycleConflict, id)
 	}
 
 	return nil
@@ -914,7 +1203,17 @@ func (cm *Manager) DeleteInstanceLocal(ctx context.Context, id string) (tasks.Re
 	return cm.QueueDeleteInstanceLocal(ctx, id)
 }
 
-func (cm *Manager) deleteInstanceImperative(ctx context.Context, progress func(int, string, any) error, id string, localOnly bool) error {
+func (cm *Manager) deleteInstanceImperative(
+	ctx context.Context,
+	progress func(int, string, any) error,
+	id string,
+	localOnly bool,
+	operationID string,
+	operationIdentity instanceDeleteOperationIdentity,
+	peerDrainAuthorization *instancePeerDrainAuthorization,
+	storedReceipt *instanceDeleteOperationReceipt,
+	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
+) error {
 	ctx, cancel := instanceDeleteContext(ctx)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
@@ -923,10 +1222,104 @@ func (cm *Manager) deleteInstanceImperative(ctx context.Context, progress func(i
 	if progress == nil {
 		progress = func(int, string, any) error { return nil }
 	}
+	if err := validateInstanceDeleteOperationIdentity(operationIdentity, operationID, id, localOnly); err != nil {
+		return err
+	}
+	authorityInstance, authorityErr := cm.getInstanceRecord(id)
+	if authorityErr != nil {
+		if !errors.Is(authorityErr, stdsql.ErrNoRows) {
+			return fmt.Errorf("load instance delete authority: %w", authorityErr)
+		}
+		authorityInstance = InstanceInfo{ID: id, LifecycleOwnerPeerID: operationIdentity.AuthorPeerID}
+	}
+	if err := cm.assertInstanceLifecycleExecutor(authorityInstance, operationIdentity.AuthorPeerID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(operationIdentity.AuthorPeerID) != strings.TrimSpace(authorityInstance.LifecycleOwnerPeerID) {
+		return fmt.Errorf(
+			"%w: instance=%s persisted_owner=%s delete_author=%s",
+			ErrInstanceLifecycleOwnerConflict,
+			id,
+			authorityInstance.LifecycleOwnerPeerID,
+			operationIdentity.AuthorPeerID,
+		)
+	}
+	if storedReceipt != nil {
+		if err := validateInstanceDeleteOperationReceipt(*storedReceipt, operationIdentity, operationID, id); err != nil {
+			return err
+		}
+		if persistReceipt == nil {
+			return fmt.Errorf("instance delete receipt persistence is not configured")
+		}
+		// Receipt recovery is status-first. A replicated receipt-bearing task
+		// payload resumes this exact EventID/root and never republishes the delete.
+		if err := cm.completeInstanceDeleteReceipt(ctx, *storedReceipt, persistReceipt); err != nil {
+			return err
+		}
+		if err := cm.deleteInstanceSSHKey(id); err != nil {
+			log.Warnf("failed to delete SSH key for instance '%s': %s", id, err.Error())
+		}
+		return nil
+	}
+
+	// Resolve before reading the instance or repeating any provider-side work.
+	// A prior process may have lost the receipt immediately after Swarmion
+	// accepted the final delete event.
+	resolved, err := cm.db.LookupPublishedWriteOperation(ctx, operationIdentity.publishedWriteOperation())
+	if err != nil {
+		return fmt.Errorf("resolve instance delete operation %s: %w", operationID, err)
+	}
+	switch resolved.Resolution {
+	case swarmionapp.BranchOperationReceiptFound:
+		published, err := db.PublishedWriteReceiptFromOperation(resolved)
+		if err != nil {
+			return fmt.Errorf("recover instance delete operation %s: %w", operationID, err)
+		}
+		receipt := instanceDeleteReceiptFromPublished(operationID, operationIdentity, published)
+		if err := persistReceipt(receipt, 92, "recovered published instance deletion"); err != nil {
+			return fmt.Errorf("persist recovered instance delete receipt: %w", err)
+		}
+		if err := cm.completeInstanceDeleteReceipt(ctx, receipt, persistReceipt); err != nil {
+			return err
+		}
+		if err := cm.deleteInstanceSSHKey(id); err != nil {
+			log.Warnf("failed to delete SSH key for instance '%s': %s", id, err.Error())
+		}
+		return nil
+	case swarmionapp.BranchOperationReceiptUnavailable:
+		return fmt.Errorf("%w: instance delete operation=%s", db.ErrOperationReceiptUnavailable, operationID)
+	case swarmionapp.BranchOperationReceiptAbsent:
+		if !resolved.SafeToPublish {
+			return fmt.Errorf("%w: instance delete operation=%s was absent without safe publication authority", db.ErrOperationReceiptUnavailable, operationID)
+		}
+		// Authoritative local absence permits the one and only first attempt.
+	default:
+		return fmt.Errorf("resolve instance delete operation %s returned unknown resolution %q", operationID, resolved.Resolution)
+	}
 
 	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
+	}
+	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.AuthorPeerID); err != nil {
+		return err
+	}
+	if (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) &&
+		strings.TrimSpace(instance.PublicKey) == "" {
+		// A provider-backed record without replicated peer identity may be an
+		// untouched placeholder, or it may have crossed discovery immediately
+		// before a crash. The database cannot distinguish those histories, so it
+		// cannot prove provider destruction safe. Preserve both task and resource
+		// for explicit recovery; never use absence of PublicKey as permission to
+		// compensate. Local-only deletion is also unsafe because it would erase
+		// the only replicated identity from which a later coordinated drain could
+		// recover.
+		return fmt.Errorf(
+			"%w: instance=%s provider_resource=%s has no replicated peer identity",
+			db.ErrReplicationPeerDrainPending,
+			instance.ID,
+			strings.TrimSpace(instance.ProviderResourceID),
+		)
 	}
 	if strings.TrimSpace(instance.PublicKey) == "" && cm.tasks != nil {
 		if task, found, taskErr := cm.tasks.LatestForSubject(InstanceDeploymentTaskStream, taskSubjectInstance, instance.ID); taskErr == nil && found {
@@ -935,41 +1328,136 @@ func (cm *Manager) deleteInstanceImperative(ctx context.Context, progress func(i
 			}
 		}
 	}
+	if strings.TrimSpace(instance.PublicKey) == "" {
+		if err := progress(10, "marking instance deleting", map[string]string{"instance_id": instance.ID, "instance_name": instance.Name}); err != nil {
+			return err
+		}
+		if err := cm.markInstanceDeleting(ctx, instance); err != nil {
+			return err
+		}
+		instance.DesiredStatus = ServerStateDeleting
+		return cm.executeInstanceDeleteAfterAuthorization(ctx, progress, id, localOnly, operationID, operationIdentity, instance, persistReceipt)
+	}
 
-	if err := ctx.Err(); err != nil {
+	if peerDrainAuthorization == nil && cm.tasks != nil {
+		if fact, found, factErr := cm.tasks.OperationFact(ctx, operationID, instancePeerDrainAuthorizedV1); factErr != nil {
+			return fmt.Errorf("read peer-drain authorization fact for task %s: %w", operationID, factErr)
+		} else if found {
+			recovered, recoverErr := instancePeerDrainAuthorizationFromFact(fact)
+			if recoverErr != nil {
+				return recoverErr
+			}
+			peerDrainAuthorization = &recovered
+		}
+	}
+	if peerDrainAuthorization == nil {
+		if IsDeletingInstance(instance) {
+			return fmt.Errorf("%w: legacy deleting instance %s has no immutable peer-drain authorization P", ErrInstanceDeleteInvariantConflict, instance.ID)
+		}
+		authorization, err := newInstancePeerDrainAuthorization(operationID, operationIdentity, instance, localOnly)
+		if err != nil {
+			return err
+		}
+		peerDrainAuthorization = &authorization
+	}
+	authorization := *peerDrainAuthorization
+	if err := validateInstancePeerDrainAuthorization(authorization, operationID, operationIdentity, id, localOnly); err != nil {
 		return err
 	}
-	if err := progress(10, "marking instance deleting", map[string]string{"instance_id": instance.ID, "instance_name": instance.Name}); err != nil {
+	if err := validateInstanceAgainstPeerDrainAuthorization(instance, authorization); err != nil {
 		return err
 	}
-	if err := cm.markInstanceDeleting(ctx, instance); err != nil {
-		return err
+	fact, err := newInstancePeerDrainAuthorizationFact(authorization)
+	if err != nil {
+		return fmt.Errorf("build peer-drain authorization fact: %w", err)
 	}
-	instance.DesiredStatus = ServerStateDeleting
 
+	resolvedReceipt, alreadyAccepted, err := cm.resolveInstancePeerDrainAuthorization(ctx, authorization)
+	if err != nil {
+		return err
+	}
+	continueDelete := func() error {
+		instance.DesiredStatus = ServerStateDeleting
+		return cm.executeInstanceDeleteAfterAuthorization(ctx, progress, id, localOnly, operationID, operationIdentity, instance, persistReceipt)
+	}
+	if alreadyAccepted {
+		resolvedReceipt, err = cm.completeInstancePeerDrainAuthorization(ctx, authorization, fact, resolvedReceipt, true)
+		if err != nil {
+			return err
+		}
+		if cm.afterPeerDrainAuthorized != nil {
+			cm.afterPeerDrainAuthorized(resolvedReceipt)
+		}
+		// P proves the immutable application authorization and prevents the
+		// instance from being recreated through stale lifecycle work. Swarmion's
+		// finalized tombstone is process-local, however, so recovery must still
+		// establish a fresh route generation and complete Begin/Watch/Finalize
+		// before provider I/O or D publication. Do not run Prepare here: the
+		// provider may already be absent, and the scoped drain can safely finalize
+		// a covered unknown peer from persisted checkpoint lineage.
+		return cm.withInstancePeerDurableRemovalReady(ctx, instance, func() error {
+			return continueDelete()
+		})
+	}
+
+	// P is authoritatively absent. Keep the replicated desired status unchanged
+	// while establishing fresh replacement coverage and a generation-matched
+	// Swarmion drain. Finalize, P, provider I/O and D all remain under that lease.
+	if IsDeletingInstance(instance) {
+		return fmt.Errorf("%w: deleting instance %s has authoritative P absence", ErrInstanceDeleteInvariantConflict, instance.ID)
+	}
+	if status, ok := cm.db.SwarmionStatus(); !ok || strings.TrimSpace(status.PeerID) != strings.TrimSpace(authorization.AuthorPeerID) {
+		return fmt.Errorf("%w: peer-drain authorization P task=%s requires original author %s", db.ErrOperationReceiptUnavailable, operationID, authorization.AuthorPeerID)
+	}
+	if err := progress(8, "preparing durable peer drain", map[string]string{"instance_id": instance.ID}); err != nil {
+		return err
+	}
+	if err := cm.prepareInstancePeerDrain(ctx, instance); err != nil {
+		return err
+	}
+	if err := progress(30, "fencing p2p peer", map[string]string{"instance_id": instance.ID}); err != nil {
+		return err
+	}
+	if err := progress(40, "waiting for durable peer removal", map[string]string{"instance_id": instance.ID}); err != nil {
+		return err
+	}
+	return cm.withInstancePeerDurableRemovalReady(ctx, instance, func() error {
+		unlock := cm.lockInstanceLifecycle(instance.ID)
+		receipt, err := cm.completeInstancePeerDrainAuthorization(ctx, authorization, fact, db.PublishedWriteReceipt{}, false)
+		if err != nil {
+			unlock()
+			return err
+		}
+		// The durable P fact closes the local QueueStart/UpdateInstance TOCTOU.
+		// Release the in-process guard before provider I/O; subsequent lifecycle
+		// writes are rejected by the SQL P tombstone while the route-generation
+		// lease remains held through provider deletion and D publication.
+		unlock()
+		if cm.afterPeerDrainAuthorized != nil {
+			cm.afterPeerDrainAuthorized(receipt)
+		}
+		return continueDelete()
+	})
+}
+
+func (cm *Manager) executeInstanceDeleteAfterAuthorization(
+	ctx context.Context,
+	progress func(int, string, any) error,
+	id string,
+	localOnly bool,
+	operationID string,
+	operationIdentity instanceDeleteOperationIdentity,
+	instance InstanceInfo,
+	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
+) error {
+	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.AuthorPeerID); err != nil {
+		return err
+	}
 	if err := progress(20, "removing instance apps", map[string]string{"instance_id": instance.ID}); err != nil {
 		return err
 	}
 	if err := cm.deleteAppsForInstance(ctx, instance.ID); err != nil {
 		return err
-	}
-
-	if strings.TrimSpace(instance.PublicKey) != "" {
-		if cm.p2p != nil {
-			if err := progress(30, "removing p2p peer", map[string]string{"instance_id": instance.ID}); err != nil {
-				return err
-			}
-			err = cm.p2p.RemovePeer(instance)
-			if err != nil {
-				return fmt.Errorf("failed to remove peer: %w", err)
-			}
-		}
-		if err := progress(40, "waiting for durable peer removal", map[string]string{"instance_id": instance.ID}); err != nil {
-			return err
-		}
-		if err := cm.waitForInstancePeerDurableRemovalReady(ctx, instance); err != nil {
-			return err
-		}
 	}
 
 	if !localOnly && (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) {
@@ -999,9 +1487,7 @@ func (cm *Manager) deleteInstanceImperative(ctx context.Context, progress func(i
 		found := true
 		vmInfo, providerInstanceID, err := getProviderInstanceInfo(computeProvider, instance)
 		if err != nil {
-			if instance.Kind == KindLocalVM && errors.Is(err, os.ErrNotExist) {
-				vmInfo = InstanceInfo{ProviderResourceID: providerInstanceID}
-			} else if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			if errors.Is(err, ErrInstanceNotFound) {
 				found = false
 			} else {
 				return fmt.Errorf("failed to get details for instance '%s': %w", id, err)
@@ -1047,13 +1533,16 @@ func (cm *Manager) deleteInstanceImperative(ctx context.Context, progress func(i
 			if err != nil {
 				return fmt.Errorf("could not delete instance '%s': %w", id, err)
 			}
+			if cm.afterProviderDelete != nil {
+				cm.afterProviderDelete(providerInstanceID)
+			}
 		}
 	}
 
 	if err := progress(90, "deleting instance records", map[string]string{"instance_id": instance.ID}); err != nil {
 		return err
 	}
-	if err := cm.deleteInstanceRecords(ctx, instance); err != nil {
+	if err := cm.deleteInstanceRecords(ctx, operationID, operationIdentity, instance, persistReceipt); err != nil {
 		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
 	}
 	if err := cm.deleteInstanceSSHKey(instance.ID); err != nil {
@@ -1073,37 +1562,98 @@ func instanceDeleteContext(ctx context.Context) (context.Context, context.Cancel
 	return context.WithTimeout(ctx, 10*time.Minute)
 }
 
-func (cm *Manager) deleteInstanceRecords(ctx context.Context, instance InstanceInfo) error {
+func (cm *Manager) deleteInstanceRecords(
+	ctx context.Context,
+	operationID string,
+	operationIdentity instanceDeleteOperationIdentity,
+	instance InstanceInfo,
+	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
+) error {
 	if cm == nil || cm.db == nil {
 		return fmt.Errorf("provisioner manager database is not configured")
 	}
 	if strings.TrimSpace(instance.ID) == "" {
 		return fmt.Errorf("instance ID is empty")
 	}
+	operationID = strings.TrimSpace(operationID)
+	if operationID == "" {
+		return fmt.Errorf("instance delete operation ID is empty")
+	}
+	if persistReceipt == nil {
+		return fmt.Errorf("instance delete receipt persistence is not configured")
+	}
+	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.AuthorPeerID); err != nil {
+		return err
+	}
+	effectFact, err := newInstanceDeleteEffectFact(operationID, operationIdentity)
+	if err != nil {
+		return fmt.Errorf("build instance delete effect fact: %w", err)
+	}
 
-	var lastErr error
+	var (
+		lastErr   error
+		published db.PublishedWriteReceipt
+	)
 	for attempt := 1; ; attempt++ {
 		if err := ctx.Err(); err != nil {
 			if lastErr != nil {
-				return fmt.Errorf("%w: %w", err, lastErr)
+				return instanceDeletePublicationWithoutReceipt(fmt.Errorf("%w: previous publication error: %w", err, lastErr))
 			}
-			return err
+			return instanceDeletePublicationWithoutReceipt(err)
 		}
-		im, cmmd := createInstanceDeleteMapper(instance.ID)
-		err := db.Delete(cm.db, db.CreatePeerDeleteMapper(instance.PublicKey), createAppDeleteByInstanceMapper(instance.ID), im, cmmd)
-		peerID := ""
-		if strings.TrimSpace(instance.PublicKey) != "" {
-			peerID, _ = db.PeerIDFromPublicKeyString(instance.PublicKey)
+		publisher := cm.publishDeleteOperation
+		if publisher == nil {
+			publisher = func(ctx context.Context, operation db.PublishedWriteOperation, instance InstanceInfo) (db.PublishedWriteReceipt, error) {
+				im, cmmd := createInstanceDeleteMapper(instance.ID)
+				return db.DeleteAndInsertWithOperationReceiptContext(
+					ctx,
+					cm.db,
+					operation,
+					[]db.DeleteMapper{
+						db.CreatePeerDeleteMapper(instance.PublicKey),
+						createAppDeleteByInstanceMapper(instance.ID),
+						im,
+						cmmd,
+					},
+					[]db.InsertMapper{tasks.InsertOperationFactMapper(effectFact)},
+				)
+			}
+		}
+		var err error
+		published, err = publisher(ctx, operationIdentity.publishedWriteOperation(), instance)
+		if errors.Is(err, db.ErrPublishedWriteReceiptIdentityConflict) {
+			return instanceDeletePublicationWithoutReceipt(err)
+		}
+		if errors.Is(err, db.ErrPublishedWriteNoChange) {
+			// Stable operations consume their key even when SQL content is
+			// unchanged. Reaching this error means the publisher supplied no
+			// executable statements, not that the instance happened to be absent.
+			return fmt.Errorf(
+				"%w: instance %s delete operation %s supplied no executable statements: %w",
+				ErrInstanceDeleteInvariantConflict,
+				instance.ID,
+				operationID,
+				err,
+			)
+		}
+		if published.HasExactEventIdentity() {
+			if err != nil {
+				log.Warnf(
+					"tracking published instance delete after receipt-return error operation_id=%s instance_id=%s event_id=%s published_root=%s error=%s",
+					operationID,
+					instance.ID,
+					published.EventID,
+					published.PublishedRootHash,
+					err.Error(),
+				)
+			}
+			break
 		}
 		if err == nil {
-			err = cm.assertInstancePeerRemoved(ctx, peerID)
+			return instanceDeletePublicationWithoutReceipt(fmt.Errorf("instance delete did not publish an event receipt"))
 		}
-		if err == nil {
-			if verifyErr := cm.waitForInstanceDeleteCheckpoint(ctx, peerID); verifyErr == nil {
-				return nil
-			} else {
-				err = verifyErr
-			}
+		if errors.Is(err, db.ErrOperationReceiptUnavailable) || !db.IsRetryablePublishedWriteError(err) {
+			return instanceDeletePublicationWithoutReceipt(err)
 		}
 		lastErr = err
 		sleep := time.Duration(attempt*2) * time.Second
@@ -1115,55 +1665,202 @@ func (cm *Manager) deleteInstanceRecords(ctx context.Context, instance InstanceI
 		case <-time.After(sleep):
 		}
 	}
+
+	if cm.afterInstanceDeletePublished != nil {
+		cm.afterInstanceDeletePublished(published)
+	}
+	receipt := instanceDeleteReceiptFromPublished(operationID, operationIdentity, published)
+	if err := persistReceipt(receipt, 92, "tracking published instance deletion"); err != nil {
+		return fmt.Errorf(
+			"persist instance delete receipt operation_id=%s event_id=%s published_root=%s: %w",
+			receipt.OperationID,
+			receipt.EventID,
+			receipt.PublishedRootHash,
+			err,
+		)
+	}
+	return cm.completeInstanceDeleteReceipt(ctx, receipt, persistReceipt)
 }
 
-func (cm *Manager) waitForInstanceDeleteCheckpoint(ctx context.Context, peerID string) error {
-	var lastErr error
-	for {
-		if err := ctx.Err(); err != nil {
-			if lastErr != nil {
-				return fmt.Errorf("%w: %w", err, lastErr)
-			}
-			return err
-		}
-		attemptCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-		catchUpErr := cm.db.CatchUpCheckpointStrict(attemptCtx, "verify instance delete checkpoint")
-		cancel()
-		if catchUpErr != nil {
-			lastErr = catchUpErr
-			if !db.IsRetryableCheckpointCatchUp(catchUpErr) {
-				return catchUpErr
-			}
-			select {
-			case <-ctx.Done():
-			case <-time.After(5 * time.Second):
-			}
-			continue
-		}
-
-		status, ok := cm.db.SwarmionStatus()
-		if !ok {
-			if err := cm.assertInstancePeerRemoved(ctx, peerID); err != nil {
-				return err
-			}
-			return nil
-		}
-		checkpoint := status.CheckpointRootHash.String()
-		durable := status.DurableMainRootHash.String()
-		if checkpoint == "" ||
-			status.TentativeRootHash.String() != checkpoint ||
-			(durable != "" && durable != checkpoint) {
-			select {
-			case <-ctx.Done():
-			case <-time.After(5 * time.Second):
-			}
-			continue
-		}
-		if err := cm.assertInstancePeerRemoved(ctx, peerID); err != nil {
-			return err
-		}
-		return nil
+func instanceDeleteReceiptFromPublished(
+	operationID string,
+	identity instanceDeleteOperationIdentity,
+	published db.PublishedWriteReceipt,
+) instanceDeleteOperationReceipt {
+	return instanceDeleteOperationReceipt{
+		OperationID:           strings.TrimSpace(operationID),
+		Operation:             instanceLifecycleOperationDelete,
+		ExpectedInvariant:     identity.ExpectedInvariant,
+		EventID:               published.EventID,
+		PublishedRootHash:     published.PublishedRootHash,
+		EventDigest:           published.EventDigest,
+		AuthorSeq:             published.AuthorSeq,
+		OperationIntentDigest: identity.IntentDigest,
+		OperationAuthorPeerID: identity.AuthorPeerID,
+		OutcomeUncertain:      published.OutcomeUncertain,
+		CheckpointCommitID:    published.CheckpointCommitID,
+		CheckpointRootHash:    published.CheckpointRootHash,
+		Checkpointed:          published.Checkpointed,
 	}
+}
+
+func validateInstanceDeleteOperationReceipt(
+	receipt instanceDeleteOperationReceipt,
+	identity instanceDeleteOperationIdentity,
+	operationID string,
+	instanceID string,
+) error {
+	operationID = strings.TrimSpace(operationID)
+	instanceID = strings.TrimSpace(instanceID)
+	if strings.TrimSpace(receipt.OperationID) == "" || receipt.OperationID != operationID {
+		return fmt.Errorf("instance delete receipt operation ID %q does not match task %q", receipt.OperationID, operationID)
+	}
+	if receipt.Operation != instanceLifecycleOperationDelete {
+		return fmt.Errorf("instance delete receipt operation is %q", receipt.Operation)
+	}
+	if receipt.ExpectedInvariant.Kind != instanceDeleteInvariantAbsent || strings.TrimSpace(receipt.ExpectedInvariant.InstanceID) == "" {
+		return fmt.Errorf("instance delete receipt has invalid expected invariant: %+v", receipt.ExpectedInvariant)
+	}
+	if receipt.ExpectedInvariant.InstanceID != instanceID {
+		return fmt.Errorf("instance delete receipt instance ID %q does not match task instance %q", receipt.ExpectedInvariant.InstanceID, instanceID)
+	}
+	if receipt.ExpectedInvariant != identity.ExpectedInvariant {
+		return fmt.Errorf("instance delete receipt invariant does not match replicated operation identity")
+	}
+	if digest := strings.TrimSpace(receipt.OperationIntentDigest); digest == "" || digest != strings.TrimSpace(identity.IntentDigest) {
+		return fmt.Errorf("instance delete receipt intent digest does not match replicated operation identity")
+	}
+	if author := strings.TrimSpace(receipt.OperationAuthorPeerID); author == "" || author != strings.TrimSpace(identity.AuthorPeerID) {
+		return fmt.Errorf("instance delete receipt author does not match replicated operation identity")
+	}
+	eventID := strings.TrimSpace(receipt.EventID)
+	eventIDBytes, eventIDErr := hex.DecodeString(eventID)
+	if eventIDErr != nil || len(eventIDBytes) != 32 || hex.EncodeToString(eventIDBytes) != eventID {
+		return fmt.Errorf("instance delete receipt has invalid event ID %q", receipt.EventID)
+	}
+	publishedRoot := strings.TrimSpace(receipt.PublishedRootHash)
+	if swarmionprotocol.ParseRootHash(publishedRoot).IsZero() ||
+		!swarmionprotocol.ParseCheckpointCommitID(publishedRoot).IsDoltCommitHash() {
+		return fmt.Errorf("instance delete receipt has invalid published root %q", receipt.PublishedRootHash)
+	}
+	if eventID == "" || publishedRoot == "" {
+		return fmt.Errorf("instance delete receipt is missing its exact event/root identity")
+	}
+	return nil
+}
+
+func (receipt instanceDeleteOperationReceipt) publishedWriteReceipt() db.PublishedWriteReceipt {
+	return db.PublishedWriteReceipt{
+		Committed:             !receipt.OutcomeUncertain,
+		OutcomeUncertain:      receipt.OutcomeUncertain,
+		Checkpointed:          receipt.Checkpointed,
+		CommitHash:            receipt.CommitHash,
+		EventID:               receipt.EventID,
+		PublishedRootHash:     receipt.PublishedRootHash,
+		EventDigest:           receipt.EventDigest,
+		AuthorPeerID:          receipt.OperationAuthorPeerID,
+		AuthorSeq:             receipt.AuthorSeq,
+		OperationIntentDigest: receipt.OperationIntentDigest,
+		CheckpointCommitID:    receipt.CheckpointCommitID,
+		CheckpointRootHash:    receipt.CheckpointRootHash,
+	}
+}
+
+func (receipt *instanceDeleteOperationReceipt) applyObservation(observation db.EventReceiptObservation) {
+	if receipt == nil {
+		return
+	}
+	receipt.CheckpointCommitID = observation.Receipt.CheckpointCommitID
+	receipt.CheckpointRootHash = observation.Receipt.CheckpointRootHash
+	receipt.Checkpointed = observation.Status.Checkpointed
+	receipt.AppliedDurably = observation.Status.AppliedDurably
+	if receipt.AppliedDurably {
+		receipt.OutcomeUncertain = false
+	}
+	receipt.ContentCoverage = observation.Status.ContentCoverage
+	receipt.ContentDurable = observation.Status.Durable
+	receipt.DurableCheckpointCommitID = observation.Status.DurableCheckpointCommitID
+	receipt.DurableCheckpointRootHash = observation.Status.DurableCheckpointRootHash
+	receipt.QueryableRootHash = observation.Status.QueryableRootHash
+	if observation.Status.DurableProofObservation == nil {
+		receipt.Proof = nil
+	} else {
+		proof := *observation.Status.DurableProofObservation
+		receipt.Proof = &proof
+	}
+}
+
+func eventReceiptObservationFromError(err error) (db.EventReceiptObservation, bool) {
+	var pendingErr *db.EventReceiptPendingError
+	if errors.As(err, &pendingErr) {
+		return pendingErr.Observation, true
+	}
+	var parkedErr *db.EventReceiptParkedError
+	if errors.As(err, &parkedErr) {
+		return parkedErr.Observation, true
+	}
+	return db.EventReceiptObservation{}, false
+}
+
+func (cm *Manager) completeInstanceDeleteReceipt(
+	ctx context.Context,
+	receipt instanceDeleteOperationReceipt,
+	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
+) error {
+	tracker := cm.deleteReceiptBackend()
+	if tracker == nil {
+		return fmt.Errorf("instance delete receipt tracker is not configured")
+	}
+	if persistReceipt == nil {
+		return fmt.Errorf("instance delete receipt persistence is not configured")
+	}
+	observation, err := tracker.WaitForPublishedWriteApplied(ctx, receipt.publishedWriteReceipt(), "verify instance delete event application")
+	if err != nil {
+		if latest, ok := eventReceiptObservationFromError(err); ok {
+			receipt.applyObservation(latest)
+			if persistErr := persistReceipt(receipt, 93, "instance deletion event unresolved"); persistErr != nil {
+				return fmt.Errorf("persist unresolved instance delete receipt: %w", persistErr)
+			}
+		}
+		return err
+	}
+	receipt.applyObservation(observation)
+	if !receipt.AppliedDurably {
+		return fmt.Errorf(
+			"instance delete event did not reach applied_durably operation_id=%s event_id=%s published_root=%s",
+			receipt.OperationID,
+			receipt.EventID,
+			receipt.PublishedRootHash,
+		)
+	}
+	if err := persistReceipt(receipt, 94, "instance deletion event applied durably"); err != nil {
+		return fmt.Errorf("persist applied instance delete receipt: %w", err)
+	}
+	checkpointCommitID := strings.TrimSpace(receipt.DurableCheckpointCommitID)
+	if checkpointCommitID == "" {
+		return fmt.Errorf(
+			"instance delete applied_durably without a durable checkpoint commit operation_id=%s event_id=%s",
+			receipt.OperationID,
+			receipt.EventID,
+		)
+	}
+	present, err := tracker.InstanceExistsAtCheckpoint(ctx, checkpointCommitID, receipt.ExpectedInvariant.InstanceID)
+	if err != nil {
+		return fmt.Errorf("query instance delete invariant at durable checkpoint %s: %w", checkpointCommitID, err)
+	}
+	if present {
+		return fmt.Errorf(
+			"%w: operation_id=%s instance_id=%s event_id=%s checkpoint_commit=%s durable_checkpoint_commit=%s content_coverage=%s",
+			ErrInstanceDeleteInvariantConflict,
+			receipt.OperationID,
+			receipt.ExpectedInvariant.InstanceID,
+			receipt.EventID,
+			receipt.CheckpointCommitID,
+			receipt.DurableCheckpointCommitID,
+			receipt.ContentCoverage,
+		)
+	}
+	return cm.assertInstancePeerRemoved(ctx, receipt.ExpectedInvariant.PeerID)
 }
 
 func (cm *Manager) markInstanceDeleting(ctx context.Context, instance InstanceInfo) error {
@@ -1210,25 +1907,12 @@ func (cm *Manager) assertInstancePeerRemoved(ctx context.Context, peerID string)
 	if _, found := peerIDs[peerID]; found {
 		return fmt.Errorf("peer table still contains %s", peerID)
 	}
-	if _, ok := cm.db.SwarmionStatus(); !ok {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	readiness, err := cm.db.SwarmionPeerRemovalReadiness(ctx, peerID)
-	if err != nil {
-		return fmt.Errorf("read swarmion peer removal readiness: %w", err)
-	}
-	log.Debugf("swarmion peer removal readiness after local row removal for %s: %s", peerID, db.PeerRemovalReadinessSummary(readiness))
-	if err := db.PeerRemovalReadinessError(readiness); err != nil {
-		return fmt.Errorf("swarmion peer removal readiness blocks %s: %w", peerID, err)
-	}
 	return nil
 }
 
-func (cm *Manager) waitForInstancePeerDurableRemovalReady(ctx context.Context, instance InstanceInfo) error {
+func (cm *Manager) prepareInstancePeerDrain(ctx context.Context, instance InstanceInfo) error {
 	if cm == nil || cm.db == nil {
-		return nil
+		return fmt.Errorf("%w: provisioner database is unavailable", db.ErrReplicationPeerDrainUnavailable)
 	}
 	peerID, err := instance.GetPeerID()
 	if err != nil {
@@ -1238,11 +1922,358 @@ func (cm *Manager) waitForInstancePeerDurableRemovalReady(ctx context.Context, i
 	if err != nil {
 		return fmt.Errorf("build remaining replication candidates for instance '%s': %w", instance.Name, err)
 	}
-	if err := cm.db.RemoveReplicationPeerState(ctx, peerID, candidates); err != nil {
-		return fmt.Errorf("wait for swarmion peer removal readiness for instance '%s': %w", instance.Name, err)
+	runtime := cm.replicationPeerDrainRuntime()
+	if runtime == nil || !runtime.Available() {
+		return fmt.Errorf("%w for instance '%s'", db.ErrReplicationPeerDrainUnavailable, instance.Name)
 	}
-	log.Debugf("swarmion peer %s is ready for provider resource cleanup for instance '%s'", peerID, instance.Name)
+	if err := runtime.Prepare(ctx, peerID, candidates); err != nil {
+		return fmt.Errorf("prepare swarmion peer drain for instance '%s': %w", instance.Name, err)
+	}
 	return nil
+}
+
+func (cm *Manager) waitForInstancePeerDurableRemovalReady(ctx context.Context, instance InstanceInfo) error {
+	return cm.withInstancePeerDurableRemovalReady(ctx, instance, nil)
+}
+
+const peerDrainFinalizeRetryDelay = 500 * time.Millisecond
+
+func (cm *Manager) withInstancePeerDurableRemovalReady(
+	ctx context.Context,
+	instance InstanceInfo,
+	afterFinalize func() error,
+) error {
+	if cm == nil {
+		return fmt.Errorf("%w: provisioner manager is unavailable", db.ErrReplicationPeerDrainUnavailable)
+	}
+	peerID, err := instance.GetPeerID()
+	if err != nil {
+		return fmt.Errorf("derive peer id for instance '%s': %w", instance.Name, err)
+	}
+	runtime := cm.replicationPeerDrainRuntime()
+	if runtime == nil || !runtime.Available() {
+		return fmt.Errorf("%w for instance '%s'", db.ErrReplicationPeerDrainUnavailable, instance.Name)
+	}
+	routeFence := cm.replicationPeerRouteFence()
+	if routeFence == nil {
+		return fmt.Errorf("cannot drain swarmion peer %s without the application route fence", peerID)
+	}
+	drainCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	for {
+		if err := drainCtx.Err(); err != nil {
+			return fmt.Errorf("%w for instance '%s': %w", db.ErrReplicationPeerDrainPending, instance.Name, err)
+		}
+		fencedPeerID, generation, err := routeFence.FencePeer(instance)
+		if err != nil {
+			return fmt.Errorf("%w: fence peer for instance '%s': %w", db.ErrReplicationPeerDrainPending, instance.Name, err)
+		}
+		if fencedPeerID != peerID {
+			return fmt.Errorf("fenced peer id %s does not match instance peer id %s", fencedPeerID, peerID)
+		}
+
+		status, err := runtime.Begin(drainCtx, peerID, generation)
+		if err != nil {
+			if !runtime.Available() {
+				return fmt.Errorf("%w for instance '%s' while beginning generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, err)
+			}
+			return fmt.Errorf("%w: begin generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, err)
+		}
+		restart, err := cm.observeInstancePeerDrainGeneration(
+			drainCtx,
+			instance,
+			peerID,
+			generation,
+			status,
+			runtime,
+			routeFence,
+			afterFinalize,
+		)
+		if err != nil {
+			return err
+		}
+		if !restart {
+			return nil
+		}
+	}
+}
+
+// observeInstancePeerDrainGeneration consumes only passive, generation-scoped
+// status events. The application route remains fenced for the entire call. A
+// true result means the watch was canceled and the caller must establish a new
+// route generation before beginning another drain.
+func (cm *Manager) observeInstancePeerDrainGeneration(
+	ctx context.Context,
+	instance InstanceInfo,
+	peerID string,
+	generation string,
+	status swarmionapp.PeerDrainStatus,
+	runtime replicationPeerDrainRuntime,
+	routeFence replicationPeerRouteFence,
+	afterFinalize func() error,
+) (bool, error) {
+	watchCtx, cancelWatch := context.WithCancel(ctx)
+	events, err := runtime.Watch(watchCtx, peerID, generation)
+	if err != nil {
+		cancelWatch()
+		if !runtime.Available() {
+			return false, fmt.Errorf("%w for instance '%s' while watching generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, err)
+		}
+		return false, fmt.Errorf("%w: watch generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, err)
+	}
+	if events == nil {
+		cancelWatch()
+		return false, fmt.Errorf("%w: watch generation %s for instance '%s' returned a nil event channel", db.ErrReplicationPeerDrainPending, generation, instance.Name)
+	}
+	defer cancelWatch()
+
+	var (
+		retryFinalize   bool
+		lastFinalizeErr error
+	)
+	for {
+		if !runtime.Available() {
+			return false, fmt.Errorf("%w for instance '%s' after beginning generation %s", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation)
+		}
+		if err := validatePeerDrainStatusIdentity(status, peerID, generation); err != nil {
+			return false, fmt.Errorf("%w: observe generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, err)
+		}
+		log.Debugf("swarmion peer drain status for instance '%s': %s", instance.Name, db.PeerDrainStatusSummary(status))
+
+		if peerDrainStatusInvalidatesGeneration(status) {
+			log.Debugf(
+				"invalidating swarmion peer drain generation %s for instance '%s' after status codes %v at heartbeat sequence %d",
+				generation,
+				instance.Name,
+				status.BlockingReasonCodes,
+				status.HeartbeatIngressFenceSequence,
+			)
+			return true, nil
+		}
+		if status.Finalized && (status.Active || !status.RouteGenerationMatches || !status.ReadyToFinalize ||
+			status.PostFenceHeartbeatAccepted || len(status.BlockingReasonCodes) != 0) {
+			return false, fmt.Errorf("%w: inconsistent finalized peer-drain status: %s", db.ErrReplicationPeerDrainPending, db.PeerDrainStatusSummary(status))
+		}
+		if status.ReadyToFinalize && (!status.PreFenceHeartbeatIngressObserved || len(status.BlockingReasonCodes) != 0) {
+			return false, fmt.Errorf("%w: inconsistent ready peer-drain status: %s", db.ErrReplicationPeerDrainPending, db.PeerDrainStatusSummary(status))
+		}
+
+		if (status.ReadyToFinalize || status.Finalized) && !retryFinalize {
+			var (
+				finalized          swarmionapp.PeerDrainFinalizeResponse
+				finalizeCalled     bool
+				finalizeRuntimeErr error
+				finalizeCompleted  bool
+			)
+			finalizeErr := routeFence.WithPeerFenceGeneration(ctx, peerID, generation, func() error {
+				finalizeCalled = true
+				finalized, finalizeRuntimeErr = runtime.Finalize(ctx, peerID, generation)
+				if finalizeRuntimeErr != nil {
+					return finalizeRuntimeErr
+				}
+				if !finalized.Finalized {
+					return fmt.Errorf("%w: generation %s returned without finalization", db.ErrReplicationPeerDrainPending, generation)
+				}
+				if err := validatePeerDrainFinalizeResponse(finalized, peerID, generation); err != nil {
+					return err
+				}
+				finalizeCompleted = true
+				// The watch is no longer useful after successful Swarmion
+				// completion. Stop it before potentially slow P/provider work while
+				// retaining the route-generation lease held by this callback.
+				cancelWatch()
+				if afterFinalize != nil {
+					return afterFinalize()
+				}
+				return nil
+			})
+			if finalizeErr == nil {
+				return false, nil
+			}
+			// Finalize succeeded and the guarded phase continuation failed. Do
+			// not re-finalize in this attempt; recovery resolves P first. If P
+			// exhausted only explicitly-not-accepted retries, preserve this as a
+			// deferred drain outcome. Its replicated instance snapshot remains
+			// pre-delete, so a later attempt must establish a fresh route fence
+			// and drain generation before trying P again.
+			if finalizeCompleted {
+				var noReceipt *instanceDeletePublicationWithoutReceiptError
+				if errors.As(finalizeErr, &noReceipt) && db.IsRetryablePublishedWriteError(finalizeErr) {
+					return false, fmt.Errorf(
+						"%w: generation %s finalized but peer-drain authorization P was explicitly not accepted: %w",
+						db.ErrReplicationPeerDrainPending,
+						generation,
+						finalizeErr,
+					)
+				}
+				return false, finalizeErr
+			}
+			// A successful response with a malformed identity is not permission
+			// to continue and must not be retried as though finalization failed.
+			if finalizeRuntimeErr == nil && finalized.Finalized {
+				return false, finalizeErr
+			}
+			// Losing the application generation lease before Finalize ran
+			// requires a new fence; the old generation cannot be reused.
+			if !finalizeCalled {
+				return true, nil
+			}
+
+			finalizeStatusObserved := false
+			if typedStatus, ok := peerDrainStatusFromTypedError(finalizeErr); ok {
+				if err := validatePeerDrainStatusIdentity(typedStatus, peerID, generation); err != nil {
+					return false, fmt.Errorf("%w: typed finalize status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, err)
+				}
+				status = typedStatus
+				finalizeStatusObserved = true
+			} else if finalized.Status.PeerID != "" || finalized.Status.RouteGeneration != "" {
+				if err := validatePeerDrainStatusIdentity(finalized.Status, peerID, generation); err != nil {
+					return false, fmt.Errorf("%w: finalize status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, err)
+				}
+				status = finalized.Status
+				finalizeStatusObserved = true
+			}
+
+			if errors.Is(finalizeErr, swarmionapp.ErrPeerDrainGenerationInactive) || peerDrainStatusInvalidatesGeneration(status) {
+				return true, nil
+			}
+			if errors.Is(finalizeErr, swarmionapp.ErrPeerDrainNotReady) {
+				if !finalizeStatusObserved {
+					return false, fmt.Errorf("%w: finalize reported not-ready without typed status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, finalizeErr)
+				}
+				if status.ReadyToFinalize || status.Finalized {
+					return false, fmt.Errorf("%w: finalize reported not-ready with ready status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, finalizeErr)
+				}
+				lastFinalizeErr = finalizeErr
+				continue
+			}
+
+			if !runtime.Available() {
+				return false, fmt.Errorf("%w for instance '%s' while finalizing generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, finalizeErr)
+			}
+			// Cache clearing can fail while the generation remains active and
+			// ready. No status transition is emitted for that failure, so retry
+			// Finalize explicitly after a bounded backoff while still consuming
+			// invalidating watch events. This is not status polling.
+			if finalizeStatusObserved && status.Active && status.RouteGenerationMatches && status.ReadyToFinalize {
+				retryFinalize = true
+				lastFinalizeErr = finalizeErr
+			} else {
+				return false, fmt.Errorf("%w: finalize generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, finalizeErr)
+			}
+		}
+
+		var retryTimer *time.Timer
+		var retry <-chan time.Time
+		if retryFinalize {
+			retryTimer = time.NewTimer(peerDrainFinalizeRetryDelay)
+			retry = retryTimer.C
+		}
+		select {
+		case <-ctx.Done():
+			if retryTimer != nil {
+				retryTimer.Stop()
+			}
+			if lastFinalizeErr != nil {
+				return false, fmt.Errorf("%w for instance '%s': %s: last finalize error: %w: %w", db.ErrReplicationPeerDrainPending, instance.Name, db.PeerDrainStatusSummary(status), lastFinalizeErr, ctx.Err())
+			}
+			return false, fmt.Errorf("%w for instance '%s': %s: %w", db.ErrReplicationPeerDrainPending, instance.Name, db.PeerDrainStatusSummary(status), ctx.Err())
+		case <-retry:
+			retryFinalize = false
+			continue
+		case event, ok := <-events:
+			wasWaitingToRetryFinalize := retryFinalize
+			if retryTimer != nil {
+				retryTimer.Stop()
+			}
+			retryFinalize = false
+			if !ok {
+				if ctx.Err() != nil {
+					return false, fmt.Errorf("%w for instance '%s' while watching generation %s: %w", db.ErrReplicationPeerDrainPending, instance.Name, generation, ctx.Err())
+				}
+				if !runtime.Available() {
+					return false, fmt.Errorf("%w for instance '%s' while watching generation %s", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation)
+				}
+				return false, fmt.Errorf("%w: watch generation %s for instance '%s' closed before a terminal status", db.ErrReplicationPeerDrainPending, generation, instance.Name)
+			}
+			if event.Err != nil {
+				if !runtime.Available() {
+					return false, fmt.Errorf("%w for instance '%s' while watching generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, event.Err)
+				}
+				return false, fmt.Errorf("%w: watch generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, event.Err)
+			}
+			status = event.Status
+			// The initial watch snapshot can arrive after a cache-clear
+			// failure. An unchanged ready snapshot is not a reason to bypass
+			// the retry backoff; only an actual invalidating/not-ready state
+			// cancels that scheduled Finalize retry.
+			if wasWaitingToRetryFinalize &&
+				status.Active && status.RouteGenerationMatches && status.ReadyToFinalize &&
+				!peerDrainStatusInvalidatesGeneration(status) {
+				retryFinalize = true
+			}
+		}
+	}
+}
+
+func validatePeerDrainStatusIdentity(status swarmionapp.PeerDrainStatus, peerID, generation string) error {
+	if status.PeerID != peerID || status.RouteGeneration != generation {
+		return fmt.Errorf(
+			"peer-drain status identity peer=%q generation=%q expected=%q/%q",
+			status.PeerID,
+			status.RouteGeneration,
+			peerID,
+			generation,
+		)
+	}
+	return nil
+}
+
+func validatePeerDrainFinalizeResponse(response swarmionapp.PeerDrainFinalizeResponse, peerID, generation string) error {
+	if response.PeerID != peerID || response.RouteGeneration != generation ||
+		(response.Status.PeerID != "" && response.Status.PeerID != peerID) ||
+		(response.Status.RouteGeneration != "" && response.Status.RouteGeneration != generation) {
+		return fmt.Errorf(
+			"%w: finalize response identity peer=%q generation=%q status_peer=%q status_generation=%q expected=%q/%q",
+			db.ErrReplicationPeerDrainPending,
+			response.PeerID,
+			response.RouteGeneration,
+			response.Status.PeerID,
+			response.Status.RouteGeneration,
+			peerID,
+			generation,
+		)
+	}
+	return nil
+}
+
+func peerDrainStatusHasReason(status swarmionapp.PeerDrainStatus, reason swarmionapp.PeerDrainBlockingReason) bool {
+	for _, candidate := range status.BlockingReasonCodes {
+		if candidate == reason {
+			return true
+		}
+	}
+	return false
+}
+
+func peerDrainStatusInvalidatesGeneration(status swarmionapp.PeerDrainStatus) bool {
+	if status.Finalized {
+		return false
+	}
+	return status.PostFenceHeartbeatAccepted ||
+		peerDrainStatusHasReason(status, swarmionapp.PeerDrainBlockingReasonPostFenceHeartbeatAccepted) ||
+		peerDrainStatusHasReason(status, swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive) ||
+		peerDrainStatusHasReason(status, swarmionapp.PeerDrainBlockingReasonNoActiveGeneration) ||
+		!status.Active ||
+		!status.RouteGenerationMatches
+}
+
+func peerDrainStatusFromTypedError(err error) (swarmionapp.PeerDrainStatus, bool) {
+	var notReady *swarmionapp.PeerDrainNotReadyError
+	if !errors.As(err, &notReady) || notReady == nil {
+		return swarmionapp.PeerDrainStatus{}, false
+	}
+	return notReady.Status, true
 }
 
 func (cm *Manager) replicationCandidatesExcluding(peerID string) ([]db.ReplicationCandidate, error) {
@@ -1381,6 +2412,9 @@ func (cm *Manager) LogsRemoteInstance(id string) (string, error) {
 }
 
 func (cm *Manager) logsRemoteInstanceViaProvisioner(instanceInfo InstanceInfo) (string, bool, error) {
+	if err := cm.assertInstanceLifecycleExecutor(instanceInfo, ""); err != nil {
+		return "", true, err
+	}
 	provider, err := cm.GetProvider(instanceInfo.KindID)
 	if err != nil && instanceInfo.Kind == KindLocalVM {
 		provider, err = cm.GetProvisionerOrDefault(instanceInfo.KindID)
@@ -1494,6 +2528,9 @@ func (cm *Manager) GetInstances(excludeLocalInstance bool) ([]InstanceInfo, erro
 }
 
 func (cm *Manager) retrieveInstanceStatus(instance InstanceInfo) (string, error) {
+	if err := cm.assertInstanceLifecycleExecutor(instance, ""); err != nil {
+		return "", err
+	}
 	provider, err := cm.GetProvider(instance.KindID)
 	if err != nil && instance.Kind == KindLocalVM {
 		provider, err = cm.GetProvisionerOrDefault(instance.KindID)
@@ -1555,7 +2592,15 @@ func (cm *Manager) reconcileDesiredInstance(ctx context.Context, progress func(i
 	if err != nil {
 		return false, InstanceInfo{}, fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
+	if err := cm.assertInstanceLifecycleExecutor(instance, ""); err != nil {
+		return false, instance, err
+	}
 	if IsDeletingInstance(instance) {
+		return false, instance, nil
+	}
+	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(ctx, instance.ID); authErr != nil {
+		return false, instance, fmt.Errorf("inspect peer-drain authorization for instance %s: %w", instance.Name, authErr)
+	} else if authorized {
 		return false, instance, nil
 	}
 	desiredStatus := normalizeDesiredInstanceStatus(instance.DesiredStatus)
@@ -1596,9 +2641,18 @@ func (cm *Manager) reconcileDesiredInstance(ctx context.Context, progress func(i
 	if err := progress(85, "saving observed instance state", map[string]string{"instance_id": instance.ID}); err != nil {
 		return false, updated, err
 	}
-	im, cmm := createInstanceUpdateMapper(updated)
+	im, cmm := createInstanceLifecycleUpdateMapper(updated)
 	if err := db.Update(cm.db, im, cmm); err != nil {
 		return false, updated, fmt.Errorf("save reconciled instance %s: %w", instance.Name, err)
+	}
+	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(ctx, instance.ID); authErr != nil {
+		return false, updated, fmt.Errorf("verify peer-drain authorization after reconciling instance %s: %w", instance.Name, authErr)
+	} else if authorized {
+		current, currentErr := cm.getInstanceRecord(instance.ID)
+		if currentErr != nil {
+			return false, updated, currentErr
+		}
+		return false, current, nil
 	}
 	return true, updated, nil
 }
@@ -1688,6 +2742,7 @@ func lifecycleDesiredSignature(instance InstanceInfo, desiredStatus string) stri
 		strings.TrimSpace(instance.Kind),
 		strings.TrimSpace(instance.KindID),
 		strings.TrimSpace(instance.ProviderResourceID),
+		strings.TrimSpace(instance.LifecycleOwnerPeerID),
 		strings.TrimSpace(instance.PublicKey),
 		strings.TrimSpace(instance.Location),
 		strings.TrimSpace(desiredStatus),
@@ -1747,6 +2802,9 @@ func mergedReconciledInstance(current InstanceInfo, observed InstanceInfo) Insta
 	if observed.ProviderResourceID == "" {
 		observed.ProviderResourceID = current.ProviderResourceID
 	}
+	// Provider observations never own lifecycle authority. Preserve the
+	// immutable application assignment from the persisted row.
+	observed.LifecycleOwnerPeerID = current.LifecycleOwnerPeerID
 	if observed.DesiredStatus == "" {
 		observed.DesiredStatus = current.DesiredStatus
 	}
@@ -1768,6 +2826,7 @@ func persistentInstanceEqual(a InstanceInfo, b InstanceInfo) bool {
 		a.Kind == b.Kind &&
 		a.KindID == b.KindID &&
 		a.ProviderResourceID == b.ProviderResourceID &&
+		a.LifecycleOwnerPeerID == b.LifecycleOwnerPeerID &&
 		a.DesiredStatus == b.DesiredStatus &&
 		a.ReplicationPriority == b.ReplicationPriority &&
 		a.PublicIP == b.PublicIP &&

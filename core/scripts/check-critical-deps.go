@@ -12,9 +12,11 @@ import (
 )
 
 type dependency struct {
-	Name  string
-	Path  string
-	Query string
+	Name          string
+	Path          string
+	Query         string
+	Repository    string
+	ResolvedQuery string
 }
 
 type moduleInfo struct {
@@ -30,13 +32,18 @@ type checkResult struct {
 	Outdated   bool
 }
 
+const swarmionRepository = "https://github.com/nustiueudinastea/swarmion"
+
+var swarmionDependencyQuery = envOrDefault("SWARMION_DEP_QUERY", "codex/r44-cascade-attribution")
+
 var criticalDependencies = []dependency{
 	{Name: "containerd runtime", Path: "github.com/containerd/containerd/v2", Query: "latest"},
-	{Name: "Swarmion protocol", Path: "github.com/nustiueudinastea/swarmion/protocol", Query: "main"},
-	{Name: "Swarmion runtime", Path: "github.com/nustiueudinastea/swarmion/runtime", Query: "main"},
-	{Name: "Swarmion CUE schema engine", Path: "github.com/nustiueudinastea/swarmion/schema-engines/cue", Query: "main"},
-	{Name: "Swarmion declarative schema engine", Path: "github.com/nustiueudinastea/swarmion/schema-engines/declarative", Query: "main"},
-	{Name: "Swarmion transports", Path: "github.com/nustiueudinastea/swarmion/transports", Query: "main"},
+	{Name: "Swarmion protocol", Path: "github.com/nustiueudinastea/swarmion/protocol", Query: swarmionDependencyQuery, Repository: swarmionRepository},
+	{Name: "Swarmion runtime", Path: "github.com/nustiueudinastea/swarmion/runtime", Query: swarmionDependencyQuery, Repository: swarmionRepository},
+	{Name: "Swarmion CUE schema engine", Path: "github.com/nustiueudinastea/swarmion/schema-engines/cue", Query: swarmionDependencyQuery, Repository: swarmionRepository},
+	{Name: "Swarmion declarative schema engine", Path: "github.com/nustiueudinastea/swarmion/schema-engines/declarative", Query: swarmionDependencyQuery, Repository: swarmionRepository},
+	{Name: "Swarmion transports", Path: "github.com/nustiueudinastea/swarmion/transports", Query: swarmionDependencyQuery, Repository: swarmionRepository},
+	{Name: "Swarmion reference transport adapters", Path: "github.com/nustiueudinastea/swarmion/transport-adapters", Query: swarmionDependencyQuery, Repository: swarmionRepository},
 	{Name: "gRPC", Path: "google.golang.org/grpc", Query: "latest"},
 	{Name: "protobuf", Path: "google.golang.org/protobuf", Query: "latest"},
 	{Name: "Hetzner SDK", Path: "github.com/hetznercloud/hcloud-go/v2", Query: "latest"},
@@ -46,10 +53,23 @@ var criticalDependencies = []dependency{
 	{Name: "Go sys", Path: "golang.org/x/sys", Query: "latest"},
 }
 
+func envOrDefault(name, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
+}
+
 func main() {
+	dependencies, err := resolveDependencyQueries(criticalDependencies, commandOutput)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "critical dependency freshness check failed:\n- %v\n", err)
+		os.Exit(1)
+	}
+
 	var results []checkResult
 	var failures []string
-	for _, dep := range criticalDependencies {
+	for _, dep := range dependencies {
 		result, err := checkDependency(dep)
 		if err != nil {
 			failures = append(failures, err.Error())
@@ -57,7 +77,7 @@ func main() {
 		}
 		results = append(results, result)
 		if result.Outdated {
-			failures = append(failures, fmt.Sprintf("%s is outdated: current=%s latest=%s query=%s", dep.Path, result.Current, result.Latest, dep.Query))
+			failures = append(failures, fmt.Sprintf("%s is outdated: current=%s latest=%s query=%s", dep.Path, result.Current, result.Latest, formatQuery(dep)))
 		}
 	}
 
@@ -66,7 +86,7 @@ func main() {
 		if result.Outdated {
 			status = "outdated"
 		}
-		fmt.Printf("%-10s %-36s %-64s current=%s latest=%s query=%s\n", status, result.Dependency.Name, result.Dependency.Path, result.Current, result.Latest, result.Dependency.Query)
+		fmt.Printf("%-10s %-36s %-64s current=%s latest=%s query=%s\n", status, result.Dependency.Name, result.Dependency.Path, result.Current, result.Latest, formatQuery(result.Dependency))
 	}
 
 	if len(failures) == 0 {
@@ -85,9 +105,10 @@ func checkDependency(dep dependency) (checkResult, error) {
 	if err != nil {
 		return checkResult{}, fmt.Errorf("load current module %s: %w", dep.Path, err)
 	}
-	latest, err := module(dep.Path + "@" + dep.Query)
+	query := dependencyQuery(dep)
+	latest, err := module(dep.Path + "@" + query)
 	if err != nil {
-		return checkResult{}, fmt.Errorf("load latest module %s@%s: %w", dep.Path, dep.Query, err)
+		return checkResult{}, fmt.Errorf("load latest module %s@%s: %w", dep.Path, formatQuery(dep), err)
 	}
 
 	currentVersion := effectiveVersion(current)
@@ -96,7 +117,7 @@ func checkDependency(dep dependency) (checkResult, error) {
 		return checkResult{}, fmt.Errorf("current module %s did not report a version", dep.Path)
 	}
 	if strings.TrimSpace(latestVersion) == "" {
-		return checkResult{}, fmt.Errorf("latest module %s@%s did not report a version", dep.Path, dep.Query)
+		return checkResult{}, fmt.Errorf("latest module %s@%s did not report a version", dep.Path, formatQuery(dep))
 	}
 
 	return checkResult{
@@ -105,6 +126,117 @@ func checkDependency(dep dependency) (checkResult, error) {
 		Latest:     latestVersion,
 		Outdated:   versionLess(currentVersion, latestVersion),
 	}, nil
+}
+
+type outputRunner func(name string, args ...string) ([]byte, error)
+
+func commandOutput(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return out, nil
+}
+
+func resolveDependencyQueries(dependencies []dependency, run outputRunner) ([]dependency, error) {
+	resolved := append([]dependency(nil), dependencies...)
+	cache := make(map[string]string)
+	for i := range resolved {
+		dep := &resolved[i]
+		if strings.TrimSpace(dep.Repository) == "" || queryNeedsNoRefResolution(dep.Query) {
+			continue
+		}
+		key := strings.TrimSpace(dep.Repository) + "\x00" + strings.TrimSpace(dep.Query)
+		commit, ok := cache[key]
+		if !ok {
+			var err error
+			commit, err = resolveRemoteBranch(dep.Repository, dep.Query, run)
+			if err != nil {
+				return nil, fmt.Errorf("resolve %s query %q: %w", dep.Repository, dep.Query, err)
+			}
+			cache[key] = commit
+		}
+		dep.ResolvedQuery = commit
+	}
+	return resolved, nil
+}
+
+func queryNeedsNoRefResolution(query string) bool {
+	query = strings.TrimSpace(query)
+	return query == "latest" || semver.IsValid(query) || isHexRevision(query)
+}
+
+func resolveRemoteBranch(repository string, branch string, run outputRunner) (string, error) {
+	repository = strings.TrimSpace(repository)
+	branch = strings.TrimSpace(branch)
+	if repository == "" {
+		return "", fmt.Errorf("repository is empty")
+	}
+	if branch == "" {
+		return "", fmt.Errorf("branch is empty")
+	}
+	ref := "refs/heads/" + branch
+	out, err := run("git", "ls-remote", "--exit-code", "--refs", repository, ref)
+	if err != nil {
+		return "", fmt.Errorf("git ls-remote %s %s: %w", repository, ref, err)
+	}
+
+	var commit string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if len(fields) != 2 || fields[1] != ref || !isFullGitObjectID(fields[0]) {
+			return "", fmt.Errorf("unexpected git ls-remote result %q", line)
+		}
+		if commit != "" && !strings.EqualFold(commit, fields[0]) {
+			return "", fmt.Errorf("remote branch %s returned multiple object IDs", ref)
+		}
+		commit = strings.ToLower(fields[0])
+	}
+	if commit == "" {
+		return "", fmt.Errorf("remote branch %s returned no object ID", ref)
+	}
+	return commit, nil
+}
+
+func dependencyQuery(dep dependency) string {
+	if query := strings.TrimSpace(dep.ResolvedQuery); query != "" {
+		return query
+	}
+	return strings.TrimSpace(dep.Query)
+}
+
+func formatQuery(dep dependency) string {
+	requested := strings.TrimSpace(dep.Query)
+	resolved := strings.TrimSpace(dep.ResolvedQuery)
+	if resolved == "" || requested == resolved {
+		return requested
+	}
+	return requested + " (resolved " + resolved + ")"
+}
+
+func isHexRevision(value string) bool {
+	value = strings.TrimSpace(value)
+	return len(value) >= 7 && len(value) <= 64 && isHex(value)
+}
+
+func isFullGitObjectID(value string) bool {
+	value = strings.TrimSpace(value)
+	return (len(value) == 40 || len(value) == 64) && isHex(value)
+}
+
+func isHex(value string) bool {
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') && (char < 'A' || char > 'F') {
+			return false
+		}
+	}
+	return value != ""
 }
 
 func module(arg string) (moduleInfo, error) {

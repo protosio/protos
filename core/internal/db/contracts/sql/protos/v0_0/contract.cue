@@ -91,6 +91,23 @@ package protos
 	created_at: string
 }
 
+// TaskOperationFact is immutable, append-only recovery authority for a task
+// operation. Its identity and payload are deterministic application data: it
+// deliberately has no observer timestamp, executor, attempt, or mutable
+// progress fields, so two peers recording the same fact produce identical
+// content.
+#TaskOperationFact: {
+	id:             string
+	task_id:        string
+	fact_kind:      string
+	operation_key:  string
+	intent_digest:  string
+	author_peer_id: string
+	subject_type:   string
+	subject_id:     string
+	payload:        _
+}
+
 #ExitRoute: {
 	id:             string
 	device_id:      string
@@ -272,6 +289,28 @@ contract: {
 				indexes: [
 					{name: "task_events_task_id_idx", columns: ["task_id"]},
 					{name: "task_events_status_idx", columns: ["status"]},
+				]
+			},
+			{
+				name: "task_operation_facts"
+				go: name: "TASK_OPERATION_FACT"
+				columns: [
+					{name: "id", type: "CHAR(64)", primary_key: true, not_null: true, go: {name: "ID", sq_type: "StringField", ddl: "notnull primarykey"}},
+					{name: "task_id", type: "BINARY(16)", not_null: true, go: {name: "TASK_ID", sq_type: "BinaryField", ddl: "notnull index"}},
+					{name: "fact_kind", type: "VARCHAR(128)", not_null: true, go: {name: "FACT_KIND", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "operation_key", type: "VARCHAR(255)", not_null: true, go: {name: "OPERATION_KEY", sq_type: "StringField", ddl: "notnull"}},
+					{name: "intent_digest", type: "CHAR(64)", not_null: true, go: {name: "INTENT_DIGEST", sq_type: "StringField", ddl: "notnull"}},
+					{name: "author_peer_id", type: "VARCHAR(255)", not_null: true, go: {name: "AUTHOR_PEER_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "subject_type", type: "VARCHAR(128)", not_null: true, go: {name: "SUBJECT_TYPE", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "subject_id", type: "VARCHAR(255)", not_null: true, go: {name: "SUBJECT_ID", sq_type: "StringField", ddl: "notnull index"}},
+					{name: "payload", type: "JSON", not_null: true, go: {name: "PAYLOAD", sq_type: "JSONField", ddl: "notnull"}},
+				]
+				indexes: [
+					{name: "task_operation_facts_task_id_idx", columns: ["task_id"]},
+					{name: "task_operation_facts_kind_idx", columns: ["fact_kind"]},
+					{name: "task_operation_facts_author_idx", columns: ["author_peer_id"]},
+					{name: "task_operation_facts_subject_type_idx", columns: ["subject_type"]},
+					{name: "task_operation_facts_subject_id_idx", columns: ["subject_id"]},
 				]
 			},
 			{

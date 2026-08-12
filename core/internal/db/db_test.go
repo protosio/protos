@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,12 +16,200 @@ import (
 
 	"github.com/bokwoon95/sq"
 	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/testswarmion"
 )
 
+func TestOperationAwareDeletePublishesAllStatementsOnceAndReplaysReceipt(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
+	workDir := t.TempDir()
+	key, err := pcrypto.GetLocalKey(workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := db.Open(workDir, "protos_operation_delete_test", key, testswarmion.NewBorrowedLink(t, key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	insertPair := func(userID string, organisationID string, suffix string) {
+		t.Helper()
+		receipt, err := db.InsertWithReceiptContext(
+			context.Background(),
+			store,
+			func() sq.InsertQuery {
+				user := sq.New[db.USER]("")
+				return sq.InsertInto(user).ColumnValues(func(col *sq.Column) {
+					col.SetBytes(user.ID, db.MustUUIDBytes(userID))
+					col.SetString(user.USERNAME, "operation-user-"+suffix)
+					col.SetString(user.NAME, "Operation User "+suffix)
+					col.SetBool(user.IS_DISABLED, false)
+				})
+			},
+			func() sq.InsertQuery {
+				organisation := sq.New[db.ORGANISATION]("")
+				return sq.InsertInto(organisation).ColumnValues(func(col *sq.Column) {
+					col.SetBytes(organisation.ID, db.MustUUIDBytes(organisationID))
+					col.SetString(organisation.NAME, "operation-organisation-"+suffix)
+					col.SetString(organisation.CREATED_AT, time.Now().UTC().Format(time.RFC3339Nano))
+				})
+			},
+		)
+		if err != nil {
+			t.Fatalf("insert operation fixtures: %v", err)
+		}
+		waitForPublishedEventApplied(t, store, receipt)
+	}
+	deletePair := func(userID string, organisationID string) []db.DeleteMapper {
+		return []db.DeleteMapper{
+			func() sq.DeleteQuery {
+				user := sq.New[db.USER]("")
+				return sq.DeleteFrom(user).Where(db.UUIDEq(user.ID, userID))
+			},
+			func() sq.DeleteQuery {
+				organisation := sq.New[db.ORGANISATION]("")
+				return sq.DeleteFrom(organisation).Where(db.UUIDEq(organisation.ID, organisationID))
+			},
+		}
+	}
+	rowCount := func(table string, id string) int {
+		t.Helper()
+		var count int
+		if err := store.ReadRows(
+			context.Background(),
+			"SELECT COUNT(*) FROM "+table+" WHERE id = ?",
+			[]any{db.MustUUIDBytes(id)},
+			func(rows *sql.Rows) error {
+				if !rows.Next() {
+					return sql.ErrNoRows
+				}
+				return rows.Scan(&count)
+			},
+		); err != nil {
+			t.Fatalf("count %s fixture: %v", table, err)
+		}
+		return count
+	}
+
+	firstUserID := db.MustNewUUIDv7()
+	firstOrganisationID := db.MustNewUUIDv7()
+	insertPair(firstUserID, firstOrganisationID, "first")
+	operationKey, err := db.NewPublishedWriteOperationKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation, err := db.NewPublishedWriteOperation(
+		operationKey,
+		"protos:test:multi-delete:v1",
+		firstUserID,
+		firstOrganisationID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := db.DeleteWithOperationReceiptContext(
+		context.Background(),
+		store,
+		operation,
+		deletePair(firstUserID, firstOrganisationID)...,
+	)
+	if err != nil {
+		t.Fatalf("publish operation delete: %v", err)
+	}
+	waitForPublishedEventApplied(t, store, first)
+	if rowCount("users", firstUserID) != 0 || rowCount("organisations", firstOrganisationID) != 0 {
+		t.Fatal("operation transaction did not execute every delete statement")
+	}
+	if first.EventDigest == "" || first.AuthorPeerID == "" || first.OperationIntentDigest != operation.IntentDigest {
+		t.Fatalf("operation receipt metadata is incomplete: %+v", first)
+	}
+
+	secondUserID := db.MustNewUUIDv7()
+	secondOrganisationID := db.MustNewUUIDv7()
+	insertPair(secondUserID, secondOrganisationID, "second")
+	replayed, err := db.DeleteWithOperationReceiptContext(
+		context.Background(),
+		store,
+		operation,
+		deletePair(secondUserID, secondOrganisationID)...,
+	)
+	if err != nil {
+		t.Fatalf("replay operation delete: %v", err)
+	}
+	if replayed.EventID != first.EventID || replayed.PublishedRootHash != first.PublishedRootHash {
+		t.Fatalf("replayed receipt=%+v, want original %+v", replayed, first)
+	}
+	if rowCount("users", secondUserID) != 1 || rowCount("organisations", secondOrganisationID) != 1 {
+		t.Fatal("operation replay executed its changed SQL body")
+	}
+
+	conflicting, err := db.NewPublishedWriteOperation(operationKey, "protos:test:multi-delete:v2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DeleteWithOperationReceiptContext(
+		context.Background(),
+		store,
+		conflicting,
+		deletePair(secondUserID, secondOrganisationID)...,
+	); !errors.Is(err, swarmionprotocol.ErrOperationKeyConflict) {
+		t.Fatalf("conflicting operation error=%v, want ErrOperationKeyConflict", err)
+	}
+	if rowCount("users", secondUserID) != 1 || rowCount("organisations", secondOrganisationID) != 1 {
+		t.Fatal("conflicting operation executed SQL")
+	}
+}
+
+func useSingleNodeDevelopmentScheduler(t *testing.T) {
+	t.Helper()
+	t.Setenv("SWARMION_CHECKPOINT_SCHEDULER_PROFILE", "single_node_development")
+}
+
+// waitForPublishedEventApplied is intentionally test-only. Ordinary writes
+// return after publication, while commit-history assertions require the exact
+// event checkpoint to be applied in the materialized durable lineage first.
+// Content dissent is kept visible and is never mislabeled full-root durable.
+func waitForPublishedEventApplied(t *testing.T, store *db.DB, receipt db.PublishedWriteReceipt) db.EventReceiptObservation {
+	t.Helper()
+	if !receipt.Committed || strings.TrimSpace(receipt.EventID) == "" || strings.TrimSpace(receipt.PublishedRootHash) == "" {
+		t.Fatalf("write did not return an exact event receipt: %+v", receipt)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	observation, err := store.WaitForPublishedWriteApplied(ctx, receipt, "test exact event application")
+	if err != nil {
+		t.Fatalf("wait for exact event application: %v", err)
+	}
+	if !observation.Status.AppliedDurably {
+		t.Fatalf("event receipt did not reach applied_durably: %+v", observation)
+	}
+	switch observation.Status.ContentCoverage {
+	case swarmionapp.BranchEventContentCoverageCovered:
+		if !observation.Status.Durable {
+			t.Fatalf("covered event receipt did not report full-root durability: %+v", observation)
+		}
+	case swarmionapp.BranchEventContentCoverageDissent:
+		if observation.Status.Durable {
+			t.Fatalf("content dissent was mislabeled full-root durable: %+v", observation)
+		}
+		t.Logf("event applied durably with content dissent; invariant assertion follows: %+v", observation.Status)
+	case swarmionapp.BranchEventContentCoverageUnavailable:
+		t.Logf("event applied durably with content proof unavailable; invariant assertion follows: %+v", observation.Status)
+	default:
+		t.Fatalf("event applied durably with invalid coverage: %+v", observation)
+	}
+	return observation
+}
+
 func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
@@ -34,7 +223,7 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 		t.Fatalf("get local key: %v", err)
 	}
 
-	store, err := db.Open(workDir, "protos_test", key)
+	store, err := db.Open(workDir, "protos_test", key, testswarmion.NewBorrowedLink(t, key))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -43,9 +232,11 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	if store.Initialized() {
 		t.Fatal("new database should not be initialized before Init")
 	}
+	initStarted := time.Now()
 	if err := store.Init(); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
+	t.Logf("backend initialization wall time=%s", time.Since(initStarted))
 	if !store.Initialized() {
 		t.Fatal("database should be initialized after Init")
 	}
@@ -62,8 +253,13 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 		t.Fatalf("persisted swarmion manifest missing initial boundary: %#v", manifest)
 	}
 
+	beforeWrite, ok := store.SwarmionStatus()
+	if !ok {
+		t.Fatal("read swarmion status before write")
+	}
 	userID := db.MustNewUUIDv7()
-	if err := db.Insert(store, func() sq.InsertQuery {
+	writeStarted := time.Now()
+	receipt, err := db.InsertWithReceiptContext(context.Background(), store, func() sq.InsertQuery {
 		u := sq.New[db.USER]("")
 		return sq.InsertInto(u).ColumnValues(func(col *sq.Column) {
 			col.SetBytes(u.ID, db.MustUUIDBytes(userID))
@@ -71,9 +267,23 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 			col.SetString(u.NAME, "Alex")
 			col.SetBool(u.IS_DISABLED, false)
 		})
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
+	publicationElapsed := time.Since(writeStarted)
+	if publicationElapsed > time.Second {
+		t.Fatalf("published write returned after %s, want local prompt return", publicationElapsed)
+	}
+	writeObservation := waitForPublishedEventApplied(t, store, receipt)
+	afterWrite, ok := store.SwarmionStatus()
+	if !ok {
+		t.Fatal("read swarmion status after durable write")
+	}
+	if got := afterWrite.CheckpointEventCount - beforeWrite.CheckpointEventCount; got != 1 {
+		t.Fatalf("checkpoint event delta=%d, want one event without duplicate retry", got)
+	}
+	t.Logf("write publication=%s durable=%s", publicationElapsed, time.Since(writeStarted))
 
 	var count int
 	if err := store.ReadRows(context.Background(), "SELECT COUNT(*) FROM users WHERE username = 'alex'", nil, func(rows *sql.Rows) error {
@@ -86,6 +296,24 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("user count = %d, want 1", count)
+	}
+	var durableCount int
+	if err := store.ReadRowsAsOf(
+		context.Background(),
+		writeObservation.Status.DurableCheckpointCommitID,
+		"SELECT COUNT(*) FROM users AS OF ? WHERE username = ?",
+		[]any{"alex"},
+		func(rows *sql.Rows) error {
+			if !rows.Next() {
+				return fmt.Errorf("durable user invariant query returned no rows")
+			}
+			return rows.Scan(&durableCount)
+		},
+	); err != nil {
+		t.Fatalf("query user invariant at durable checkpoint: %v", err)
+	}
+	if durableCount != 1 {
+		t.Fatalf("durable checkpoint user count = %d, want 1", durableCount)
 	}
 
 	if _, err := store.GetLastCommit("main"); err != nil {
@@ -111,6 +339,7 @@ func TestSwarmionBackedDBInitAndWrite(t *testing.T) {
 }
 
 func TestSwarmionBackedDBRapidConsecutiveWrites(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
@@ -124,7 +353,7 @@ func TestSwarmionBackedDBRapidConsecutiveWrites(t *testing.T) {
 		t.Fatalf("get local key: %v", err)
 	}
 
-	store, err := db.Open(workDir, "protos_test_rapid", key)
+	store, err := db.Open(workDir, "protos_test_rapid", key, testswarmion.NewBorrowedLink(t, key))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -164,6 +393,7 @@ func TestSwarmionBackedDBRapidConsecutiveWrites(t *testing.T) {
 }
 
 func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
@@ -177,7 +407,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 		t.Fatalf("get local key: %v", err)
 	}
 
-	store, err := db.Open(workDir, "protos_test_commit_diff", key)
+	store, err := db.Open(workDir, "protos_test_commit_diff", key, testswarmion.NewBorrowedLink(t, key))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -188,7 +418,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 	}
 
 	userID := db.MustNewUUIDv7()
-	if err := db.Insert(store, func() sq.InsertQuery {
+	insertReceipt, err := db.InsertWithReceiptContext(context.Background(), store, func() sq.InsertQuery {
 		u := sq.New[db.USER]("")
 		return sq.InsertInto(u).ColumnValues(func(col *sq.Column) {
 			col.SetBytes(u.ID, db.MustUUIDBytes(userID))
@@ -196,9 +426,11 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 			col.SetString(u.NAME, "Alex")
 			col.SetBool(u.IS_DISABLED, false)
 		})
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
+	waitForPublishedEventApplied(t, store, insertReceipt)
 
 	insertCommit, err := store.GetLastCommit("main")
 	if err != nil {
@@ -226,14 +458,16 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 		t.Fatalf("insert SQL diff missing expected user insert:\n%s", insertDiff.SQL)
 	}
 
-	if err := db.Update(store, func() sq.UpdateQuery {
+	updateReceipt, err := db.UpdateWithReceiptContext(context.Background(), store, func() sq.UpdateQuery {
 		u := sq.New[db.USER]("")
 		return sq.Update(u).SetFunc(func(col *sq.Column) {
 			col.SetString(u.NAME, "Alexander")
 		}).Where(db.UUIDEq(u.ID, userID))
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("update user: %v", err)
 	}
+	waitForPublishedEventApplied(t, store, updateReceipt)
 
 	updateCommit, err := store.GetLastCommit("main")
 	if err != nil {
@@ -263,7 +497,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 	taskID := db.MustNewUUIDv7()
 	taskEventID := db.MustNewUUIDv7()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if err := db.Insert(store,
+	taskReceipt, err := db.InsertWithReceiptContext(context.Background(), store,
 		func() sq.InsertQuery {
 			task := sq.New[db.TASK]("")
 			return sq.InsertInto(task).ColumnValues(func(col *sq.Column) {
@@ -299,9 +533,11 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 				col.SetString(event.CREATED_AT, now)
 			})
 		},
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("insert task/event: %v", err)
 	}
+	waitForPublishedEventApplied(t, store, taskReceipt)
 
 	taskCommit, err := store.GetLastCommit("main")
 	if err != nil {
@@ -338,6 +574,7 @@ func TestSwarmionBackedDBCommitDiffUsesContractSchema(t *testing.T) {
 }
 
 func TestSwarmionBackedDBProvisionerWriteThenUserRead(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
 	cfg := config.Get()
 	previousP2PPort := cfg.P2PPort
 	cfg.P2PPort = 0
@@ -351,7 +588,7 @@ func TestSwarmionBackedDBProvisionerWriteThenUserRead(t *testing.T) {
 		t.Fatalf("get local key: %v", err)
 	}
 
-	store, err := db.Open(workDir, "protos_test_provisioner_read", key)
+	store, err := db.Open(workDir, "protos_test_provisioner_read", key, testswarmion.NewBorrowedLink(t, key))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -403,82 +640,4 @@ func TestSwarmionBackedDBProvisionerWriteThenUserRead(t *testing.T) {
 	if name != "Alex" {
 		t.Fatalf("user name = %q, want Alex", name)
 	}
-}
-
-func TestDialableListenMultiaddrsIncludeExplicitIPs(t *testing.T) {
-	cfg := config.Get()
-	previousP2PPort := cfg.P2PPort
-	cfg.P2PPort = 10500
-	t.Cleanup(func() {
-		cfg.P2PPort = previousP2PPort
-	})
-
-	workDir := t.TempDir()
-	key, err := pcrypto.GetLocalKey(workDir)
-	if err != nil {
-		t.Fatalf("get local key: %v", err)
-	}
-	store, err := db.Open(workDir, "protos_test", key)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	defer store.Close()
-
-	got := store.DialableListenMultiaddrs([]string{"200::1", "192.168.64.1", "200::1"})
-	wants := []string{
-		fmt.Sprintf("/ip6/200::1/tcp/10501/p2p/%s", key.GetID()),
-		fmt.Sprintf("/ip4/192.168.64.1/tcp/10501/p2p/%s", key.GetID()),
-	}
-	for _, want := range wants {
-		if !slices.Contains(got, want) {
-			t.Fatalf("DialableListenMultiaddrs() = %v, want %s", got, want)
-		}
-	}
-	if count := countString(got, wants[0]); count != 1 {
-		t.Fatalf("explicit IPv6 addr appeared %d times, want 1 in %v", count, got)
-	}
-}
-
-func TestRemovedSwarmionPeerCleanupIsIdempotent(t *testing.T) {
-	cfg := config.Get()
-	previousP2PPort := cfg.P2PPort
-	cfg.P2PPort = 0
-	t.Cleanup(func() {
-		cfg.P2PPort = previousP2PPort
-	})
-
-	workDir := t.TempDir()
-	key, err := pcrypto.GetLocalKey(workDir)
-	if err != nil {
-		t.Fatalf("get local key: %v", err)
-	}
-	store, err := db.Open(workDir, "protos_test", key)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	defer store.Close()
-	if err := store.Init(); err != nil {
-		t.Fatalf("init db: %v", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	for i := 0; i < 2; i++ {
-		if err := store.ReconcileRemovedSwarmionPeers(ctx, map[string]struct{}{}); err != nil {
-			t.Fatalf("reconcile removed peers attempt %d: %v", i+1, err)
-		}
-		if err := store.PrepareSwarmionShutdown(ctx); err != nil {
-			t.Fatalf("prepare shutdown attempt %d: %v", i+1, err)
-		}
-	}
-}
-
-func countString(values []string, target string) int {
-	count := 0
-	for _, value := range values {
-		if value == target {
-			count++
-		}
-	}
-	return count
 }

@@ -54,19 +54,20 @@ type MachineSpec struct {
 
 // InstanceInfo holds information about a cloud instance
 type InstanceInfo struct {
-	ID                  string
-	Name                string
-	PublicKey           string // ed25519 public key
-	PublicIP            string // this can be a public or private IP, depending on where the device is located
-	Kind                string // type of instance: local_vm, cloud_vm
-	KindID              string // ID of the cloud provider or device ID for local VM
-	ProviderResourceID  string // ID used by the provisioner API for lifecycle operations
-	DesiredStatus       string
-	ReplicationPriority int
-	Location            string
-	Status              string
-	Architecture        string
-	Volumes             []VolumeInfo
+	ID                   string
+	Name                 string
+	PublicKey            string // ed25519 public key
+	PublicIP             string // this can be a public or private IP, depending on where the device is located
+	Kind                 string // type of instance: local_vm, cloud_vm
+	KindID               string // ID of the cloud provider or device ID for local VM
+	ProviderResourceID   string // ID used by the provisioner API for lifecycle operations
+	LifecycleOwnerPeerID string // immutable peer authorized to perform provider lifecycle operations
+	DesiredStatus        string
+	ReplicationPriority  int
+	Location             string
+	Status               string
+	Architecture         string
+	Volumes              []VolumeInfo
 }
 
 func (i InstanceInfo) GetID() string {

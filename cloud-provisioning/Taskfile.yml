@@ -9,6 +9,7 @@ vars:
   PROTOS_IMAGE_PLATFORM: '{{default "" .PROTOS_IMAGE_PLATFORM}}'
   PROTOS_BUILD_SSH: '{{default "auto" .PROTOS_BUILD_SSH}}'
   PROTOS_BUILD_NETRC: '{{default "" .PROTOS_BUILD_NETRC}}'
+  SWARMION_SOURCE: '{{default "" .SWARMION_SOURCE}}'
   NATIVE_GO_TAGS: '{{default "dolt_purego_zstd,gms_pure_go" .NATIVE_GO_TAGS}}'
   TARGETS: ./targets
   WORKDIR: ./targets/output
@@ -71,6 +72,44 @@ tasks:
           --exclude '*.iso' \
           --exclude '*.log' \
           ../core/ {{.DOCKER_CONTEXT}}/backend/core
+      - |
+        if [ -n "{{.SWARMION_SOURCE}}" ]; then
+          swarmion_source="$(cd "{{.SWARMION_SOURCE}}" && pwd)"
+          for module in \
+            protocol \
+            runtime \
+            transports \
+            transport-adapters \
+            schema-engines/cue \
+            schema-engines/declarative
+          do
+            if [ ! -f "$swarmion_source/$module/go.mod" ]; then
+              echo "Swarmion source module is missing: $swarmion_source/$module/go.mod" >&2
+              exit 1
+            fi
+            mkdir -p "{{.DOCKER_CONTEXT}}/swarmion/$(dirname "$module")"
+            rsync -a --delete \
+              --exclude '.git' \
+              --exclude '.claude' \
+              --exclude 'perf-artifacts' \
+              --exclude 'tmp' \
+              --exclude '*.log' \
+              "$swarmion_source/$module/" \
+              "{{.DOCKER_CONTEXT}}/swarmion/$module/"
+          done
+          (
+            cd "{{.DOCKER_CONTEXT}}"
+            go work init \
+              ./backend/core \
+              ./swarmion/protocol \
+              ./swarmion/runtime \
+              ./swarmion/transports \
+              ./swarmion/transport-adapters \
+              ./swarmion/schema-engines/cue \
+              ./swarmion/schema-engines/declarative
+            go work edit -go=1.26.4
+          )
+        fi
       - |
         platform_args=""
         if [ -n "{{.PROTOS_IMAGE_PLATFORM}}" ]; then

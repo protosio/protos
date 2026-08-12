@@ -129,6 +129,20 @@ var Version = schema.VersionDefinition{
 				},
 			},
 			{
+				Name: "task_operation_facts",
+				Columns: []schema.SQLColumn{
+					{Name: "id", Type: "CHAR(64)", PrimaryKey: true, NotNull: true},
+					{Name: "task_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
+					{Name: "fact_kind", Type: "VARCHAR(128)", PrimaryKey: false, NotNull: true},
+					{Name: "operation_key", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "intent_digest", Type: "CHAR(64)", PrimaryKey: false, NotNull: true},
+					{Name: "author_peer_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "subject_type", Type: "VARCHAR(128)", PrimaryKey: false, NotNull: true},
+					{Name: "subject_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
+					{Name: "payload", Type: "JSON", PrimaryKey: false, NotNull: true},
+				},
+			},
+			{
 				Name: "exit_routes",
 				Columns: []schema.SQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
@@ -233,6 +247,17 @@ var CreateSQL = []string{
   progress INT NOT NULL,
   details JSON,
   created_at VARCHAR(64) NOT NULL
+)`,
+	`CREATE TABLE task_operation_facts (
+  id CHAR(64) NOT NULL PRIMARY KEY,
+  task_id BINARY(16) NOT NULL,
+  fact_kind VARCHAR(128) NOT NULL,
+  operation_key VARCHAR(255) NOT NULL,
+  intent_digest CHAR(64) NOT NULL,
+  author_peer_id VARCHAR(255) NOT NULL,
+  subject_type VARCHAR(128) NOT NULL,
+  subject_id VARCHAR(255) NOT NULL,
+  payload JSON NOT NULL
 )`,
 	`CREATE TABLE exit_routes (
   id BINARY(16) NOT NULL PRIMARY KEY,

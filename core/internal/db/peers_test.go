@@ -9,6 +9,7 @@ import (
 	"github.com/bokwoon95/sq"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/protosio/protos/internal/config"
+	"github.com/protosio/protos/internal/testswarmion"
 )
 
 func TestGetActiveRuntimePeerIDsExcludesInactiveMachines(t *testing.T) {
@@ -73,7 +74,8 @@ func openPeerTestDB(t *testing.T) *DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := Open(workDir, "protos_peer_test", testSwarmionRawSigner{privateKey: privateKey, publicKey: publicKey})
+	signer := testSwarmionRawSigner{privateKey: privateKey, publicKey: publicKey}
+	store, err := Open(workDir, "protos_peer_test", signer, testswarmion.NewBorrowedLink(t, signer))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -43,7 +43,7 @@ func main() {
 	}
 }
 
-func run(imagePath string, flutterApp string, hostAgentBin string, workDir string, keep bool, timeout time.Duration, machineType string, instanceCount int, configureNetwork bool, appImage string) error {
+func run(imagePath string, flutterApp string, hostAgentBin string, workDir string, keep bool, timeout time.Duration, machineType string, instanceCount int, configureNetwork bool, appImage string) (runErr error) {
 	if instanceCount < 1 {
 		return fmt.Errorf("instances must be greater than zero")
 	}
@@ -113,7 +113,9 @@ func run(imagePath string, flutterApp string, hostAgentBin string, workDir strin
 		imageName:    imageName,
 		vmDir:        vmDir,
 	}
-	defer cleanup.run()
+	defer func() {
+		runErr = mergeCleanupError(runErr, cleanup.run())
+	}()
 	stopSignalCleanup := installSignalCleanup(cleanup, node, workDir, keep)
 	defer stopSignalCleanup()
 
@@ -196,6 +198,9 @@ type localMacOSE2ECleanup struct {
 
 	instances     []string
 	imageUploaded bool
+	cleanupErr    error
+
+	cleanupHostAgentVMs func(string) error
 }
 
 func (c *localMacOSE2ECleanup) addInstance(name string) {
@@ -210,7 +215,10 @@ func (c *localMacOSE2ECleanup) markImageUploaded() {
 	c.imageUploaded = true
 }
 
-func (c *localMacOSE2ECleanup) run() {
+func (c *localMacOSE2ECleanup) run() error {
+	if c == nil {
+		return nil
+	}
 	c.once.Do(func() {
 		c.mu.Lock()
 		instances := append([]string(nil), c.instances...)
@@ -221,6 +229,7 @@ func (c *localMacOSE2ECleanup) run() {
 		vmDir := c.vmDir
 		c.mu.Unlock()
 
+		var cleanupErr error
 		if client != nil {
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cleanupCancel()
@@ -229,11 +238,13 @@ func (c *localMacOSE2ECleanup) run() {
 				resp, err := client.RemoveInstance(cleanupCtx, &pbApic.RemoveInstanceRequest{Name: instances[i]})
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warn cleanup instance %s through APIC failed: %v\n", instances[i], err)
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup instance %s through APIC: %w", instances[i], err))
 					continue
 				}
 				if taskID := strings.TrimSpace(resp.GetTaskId()); taskID != "" {
 					if _, _, err := e2eapic.WaitForTaskSucceededWithEvents(cleanupDeadline, client, taskID); err != nil {
 						fmt.Fprintf(os.Stderr, "warn cleanup instance %s task %s failed: %v\n", instances[i], taskID, err)
+						cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup instance %s task %s: %w", instances[i], taskID, err))
 					}
 				}
 			}
@@ -244,16 +255,39 @@ func (c *localMacOSE2ECleanup) run() {
 					Location:        "local",
 				}); err != nil {
 					fmt.Fprintf(os.Stderr, "warn cleanup provisioner image %s through APIC failed: %v\n", imageName, err)
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup provisioner image %s through APIC: %w", imageName, err))
 				}
 			}
 			if _, err := client.RemoveProvisioner(cleanupCtx, &pbApic.RemoveProvisionerRequest{Name: providerName}); err != nil {
 				fmt.Fprintf(os.Stderr, "warn cleanup provisioner %s through APIC failed: %v\n", providerName, err)
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup provisioner %s through APIC: %w", providerName, err))
 			}
 		}
-		if err := cleanupHostAgentVMs(vmDir); err != nil {
-			fmt.Fprintf(os.Stderr, "warn cleanup local VMs through host-agent failed: %v\n", err)
+		cleanupVMs := cleanupHostAgentVMs
+		if c.cleanupHostAgentVMs != nil {
+			cleanupVMs = c.cleanupHostAgentVMs
 		}
+		if err := cleanupVMs(vmDir); err != nil {
+			fmt.Fprintf(os.Stderr, "warn cleanup local VMs through host-agent failed: %v\n", err)
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup local VMs through host-agent: %w", err))
+		}
+		c.mu.Lock()
+		c.cleanupErr = cleanupErr
+		c.mu.Unlock()
 	})
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cleanupErr
+}
+
+func mergeCleanupError(runErr, cleanupErr error) error {
+	if cleanupErr == nil {
+		return runErr
+	}
+	if runErr == nil {
+		return fmt.Errorf("local macOS e2e cleanup failed: %w", cleanupErr)
+	}
+	return errors.Join(runErr, fmt.Errorf("local macOS e2e cleanup failed: %w", cleanupErr))
 }
 
 func installSignalCleanup(cleanup *localMacOSE2ECleanup, node *e2eapic.FlutterNode, workDir string, keep bool) func() {
@@ -265,7 +299,9 @@ func installSignalCleanup(cleanup *localMacOSE2ECleanup, node *e2eapic.FlutterNo
 		case sig := <-sigCh:
 			fmt.Fprintf(os.Stderr, "received %s, cleaning up local e2e resources\n", sig)
 			if cleanup != nil {
-				cleanup.run()
+				if err := cleanup.run(); err != nil {
+					fmt.Fprintf(os.Stderr, "cleanup after %s failed: %v\n", sig, err)
+				}
 			}
 			if node != nil {
 				_ = node.Stop()

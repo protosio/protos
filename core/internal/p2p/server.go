@@ -15,14 +15,13 @@ import (
 
 	p2pgrpc "github.com/birros/go-libp2p-grpc"
 	"github.com/go-playground/validator/v10"
-	swarmionapp "github.com/nustiueudinastea/swarmion/runtime/app"
+	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/imageregistry"
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	"github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/tasks"
-	"google.golang.org/grpc"
 )
 
 var _ proto.PingerServer = (*Server)(nil)
@@ -37,8 +36,6 @@ const (
 )
 
 type ExternalDB interface {
-	AddPeer(peerID string, conn *grpc.ClientConn) error
-	RemovePeer(peerID string) error
 	GetAllCommits() ([]db.Commit, error)
 	GetCommitDiff(ctx context.Context, targetHash string, baseHash string) (db.CommitDiff, error)
 	ExecuteSQL(ctx context.Context, statement string, maxRows int) (db.SQLResult, error)
@@ -46,8 +43,8 @@ type ExternalDB interface {
 	CatchUpCheckpoint(ctx context.Context, reason string) error
 	CatchUpCheckpointStrict(ctx context.Context, reason string) error
 	InitFromPeerContext(ctx context.Context, peerID string, bootstrapPeers []string) error
-	EnableGRPCServers(server *grpc.Server) error
 	Initialized() bool
+	RepositoryReadiness() db.RepositoryReadiness
 }
 
 type initMachine struct {
@@ -79,6 +76,7 @@ type swarmionRuntimeReader interface {
 	SwarmionCompatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error)
 	SwarmionPeerStatus(context.Context) ([]swarmionapp.PeerStatus, error)
 	SwarmionContentSyncTrace() ([]string, bool)
+	EventReceiptMetrics() db.EventReceiptMetrics
 }
 
 func (s *Server) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
@@ -104,6 +102,9 @@ func (s *Server) peerCapabilities() []string {
 	}
 	if s.DB != nil && s.DB.Initialized() {
 		capabilities = append(capabilities, peerCapabilitySwarmionTransport)
+	}
+	if s.p2p.hasPublicHostAddress() {
+		capabilities = append(capabilities, peerCapabilityRelayService)
 	}
 	return capabilities
 }
@@ -321,7 +322,11 @@ func (s *Server) GetRuntimeState(ctx context.Context, req *proto.GetRuntimeState
 		}
 		readErr = err
 	}
-	state, err := runtimeStateToP2PProto(ctx, reader, readErr)
+	var physicalConnectedPeers []string
+	if s.p2p != nil {
+		physicalConnectedPeers = s.p2p.PhysicalConnectedPeerIDs()
+	}
+	state, err := runtimeStateToP2PProto(ctx, reader, readErr, physicalConnectedPeers)
 	if err != nil {
 		return nil, err
 	}
@@ -765,27 +770,36 @@ func formatTaskTime(value time.Time) string {
 	return value.UTC().Format(time.RFC3339Nano)
 }
 
-func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader, readErr error) (*proto.RuntimeState, error) {
+func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader, readErr error, physicalConnectedPeers []string) (*proto.RuntimeState, error) {
 	status, ok := reader.SwarmionStatus()
 	if !ok {
 		return nil, fmt.Errorf("swarmion status is not available")
 	}
 	out := &proto.RuntimeState{
-		PeerId:                       status.PeerID,
-		ManifestDigest:               status.ManifestDigest,
-		CheckpointRootHash:           status.CheckpointRootHash.String(),
-		TentativeRootHash:            status.TentativeRootHash.String(),
-		ProtocolCheckpointRootHash:   status.RuntimeCheckpointDesiredRootHash.String(),
-		DurableMainRootHash:          status.DurableMainRootHash.String(),
-		StateProviders:               append([]string(nil), status.StateProviders...),
-		ConnectedPeers:               append([]string(nil), status.ConnectedPeers...),
-		RuntimeRefreshPending:        status.RuntimeRefreshPending,
-		RuntimeRefreshLastError:      status.RuntimeRefreshLastError,
-		RuntimeCheckpointPending:     status.RuntimeCheckpointMaterializePending,
-		RuntimeCheckpointLastError:   status.RuntimeCheckpointMaterializeLastError,
-		RuntimeMaterializationPolicy: status.RuntimeCheckpointMaterializationPolicy.String(),
-		ProtocolCheckpointDigest:     formatRuntimeDigest(status.ProtocolCheckpointDigest),
-		ReadConsistency:              runtimeReadConsistency(readErr),
+		PeerId:                     status.PeerID,
+		ManifestDigest:             status.ManifestDigest,
+		CheckpointRootHash:         status.CheckpointRootHash.String(),
+		TentativeRootHash:          status.TentativeRootHash.String(),
+		ProtocolCheckpointRootHash: status.RuntimeCheckpointDesiredRootHash.String(),
+		DurableMainRootHash:        status.DurableMainRootHash.String(),
+		StateProviders:             append([]string(nil), status.StateProviders...),
+		// ConnectedPeers is a legacy wire field. The closest safe r44
+		// equivalent is a peer with an application-approved physical route;
+		// logical participation must not be presented as connectivity.
+		ConnectedPeers:                         append([]string(nil), status.RoutedPeers...),
+		RoutedPeers:                            append([]string(nil), status.RoutedPeers...),
+		ParticipatingPeers:                     append([]string(nil), status.ParticipatingPeers...),
+		LogicalPeers:                           append([]string(nil), status.LogicalPeers...),
+		LogicalPeerTarget:                      int32(status.LogicalPeerTarget),
+		PhysicalConnectedPeers:                 append([]string(nil), physicalConnectedPeers...),
+		RuntimeRefreshPending:                  status.RuntimeRefreshPending,
+		RuntimeRefreshLastError:                status.RuntimeRefreshLastError,
+		RuntimeCheckpointPending:               status.RuntimeCheckpointMaterializePending,
+		RuntimeCheckpointLastError:             status.RuntimeCheckpointMaterializeLastError,
+		RuntimeMaterializationPolicy:           status.RuntimeCheckpointMaterializationPolicy.String(),
+		ProtocolCheckpointDigest:               formatRuntimeDigest(status.ProtocolCheckpointDigest),
+		ReadConsistency:                        runtimeReadConsistency(readErr),
+		EventReceiptContentDissentObservations: reader.EventReceiptMetrics().ContentDissentObservations,
 	}
 	if readErr != nil {
 		out.ReadError = readErr.Error()
@@ -802,21 +816,10 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader, r
 			return nil, err
 		}
 		for _, peerStatus := range peerStatuses {
-			out.PeerStatuses = append(out.PeerStatuses, &proto.RuntimePeerStatus{
-				PeerId:         peerStatus.PeerID,
-				Connected:      peerStatus.Connected,
-				Dialable:       peerStatus.Dialable,
-				StateProvider:  peerStatus.StateProvider,
-				Compatible:     peerStatus.Compatible,
-				Incompatible:   peerStatus.Incompatible,
-				Ignored:        peerStatus.Ignored,
-				RelayOnly:      peerStatus.RelayOnly,
-				Addresses:      append([]string(nil), peerStatus.Addresses...),
-				LastDialErrors: cloneStringMap(peerStatus.LastDialErrors),
-				Reason:         peerStatus.Reason,
-			})
+			out.PeerStatuses = append(out.PeerStatuses, runtimePeerStatusToP2PProto(peerStatus))
 		}
 	}
+	synchronizeRuntimePeerStatusPlanes(out)
 	var peerIDs map[string]struct{}
 	if database, ok := reader.(*db.DB); ok {
 		var err error
@@ -853,6 +856,23 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader, r
 	return out, nil
 }
 
+func runtimePeerStatusToP2PProto(peerStatus swarmionapp.PeerStatus) *proto.RuntimePeerStatus {
+	return &proto.RuntimePeerStatus{
+		PeerId:               peerStatus.PeerID,
+		Connected:            peerStatus.Routed,
+		Dialable:             peerStatus.Routed,
+		StateProvider:        peerStatus.StateProvider,
+		Compatible:           peerStatus.Compatible,
+		Incompatible:         peerStatus.Incompatible,
+		Addresses:            append([]string(nil), peerStatus.Addresses...),
+		Reason:               peerStatus.Reason,
+		Routed:               peerStatus.Routed,
+		Participating:        peerStatus.Participating,
+		Logical:              peerStatus.Logical,
+		LastRoutedAtUnixNano: runtimeLastRoutedAtUnixNano(peerStatus.LastRoutedAt),
+	}
+}
+
 func runtimeReadConsistency(readErr error) string {
 	if readErr != nil {
 		return "stale"
@@ -871,7 +891,11 @@ func sanitizeRuntimeStateStrings(out *proto.RuntimeState) {
 	out.ProtocolCheckpointRootHash = validProtoString(out.GetProtocolCheckpointRootHash())
 	out.DurableMainRootHash = validProtoString(out.GetDurableMainRootHash())
 	out.StateProviders = validProtoStrings(out.GetStateProviders())
-	out.ConnectedPeers = validProtoStrings(out.GetConnectedPeers())
+	out.ConnectedPeers = validProtoStrings(out.GetConnectedPeers()) //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
+	out.RoutedPeers = validProtoStrings(out.GetRoutedPeers())
+	out.ParticipatingPeers = validProtoStrings(out.GetParticipatingPeers())
+	out.LogicalPeers = validProtoStrings(out.GetLogicalPeers())
+	out.PhysicalConnectedPeers = validProtoStrings(out.GetPhysicalConnectedPeers())
 	out.FatalState = validProtoString(out.GetFatalState())
 	out.RuntimeRefreshLastError = validProtoString(out.GetRuntimeRefreshLastError())
 	out.RuntimeCheckpointLastError = validProtoString(out.GetRuntimeCheckpointLastError())
@@ -938,17 +962,14 @@ func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct
 		allowed[localPeerID] = struct{}{}
 	}
 	out.StateProviders = filterStringsBySet(out.GetStateProviders(), allowed)
-	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed)
+	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed) //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
+	out.RoutedPeers = filterStringsBySet(out.GetRoutedPeers(), allowed)
+	out.ParticipatingPeers = filterStringsBySet(out.GetParticipatingPeers(), allowed)
+	out.LogicalPeers = filterStringsBySet(out.GetLogicalPeers(), allowed)
+	out.PhysicalConnectedPeers = filterStringsBySet(out.GetPhysicalConnectedPeers(), allowed)
 	providers := make(map[string]struct{}, len(out.GetStateProviders()))
 	for _, peerID := range out.GetStateProviders() {
 		providers[peerID] = struct{}{}
-	}
-	connected := make(map[string]struct{}, len(out.GetConnectedPeers())+1)
-	for _, peerID := range out.GetConnectedPeers() {
-		connected[peerID] = struct{}{}
-	}
-	if localPeerID := strings.TrimSpace(out.GetPeerId()); localPeerID != "" {
-		connected[localPeerID] = struct{}{}
 	}
 	filteredStatuses := out.GetPeerStatuses()[:0]
 	seenStatuses := make(map[string]struct{}, len(out.GetPeerStatuses()))
@@ -967,14 +988,10 @@ func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct
 		if _, found := providers[peerID]; !found {
 			peerStatus.StateProvider = false
 		}
-		_, isConnected := connected[peerID]
-		peerStatus.Connected = isConnected
-		if !isConnected {
-			peerStatus.Dialable = false
-		}
 		filteredStatuses = append(filteredStatuses, peerStatus)
 	}
 	out.PeerStatuses = filteredStatuses
+	synchronizeRuntimePeerStatusPlanes(out)
 	filteredCompatibility := out.GetCompatibility()[:0]
 	seenCompatibility := make(map[string]struct{}, len(out.GetCompatibility()))
 	for _, item := range out.GetCompatibility() {
@@ -1012,6 +1029,31 @@ func filterStringsBySet(values []string, allowed map[string]struct{}) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func stringSliceSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		out[value] = struct{}{}
+	}
+	return out
+}
+
+func synchronizeRuntimePeerStatusPlanes(out *proto.RuntimeState) {
+	if out == nil {
+		return
+	}
+	physical := stringSliceSet(out.GetPhysicalConnectedPeers())
+	for _, peerStatus := range out.GetPeerStatuses() {
+		if peerStatus == nil {
+			continue
+		}
+		peerID := strings.TrimSpace(peerStatus.GetPeerId())
+		_, peerStatus.PhysicalConnected = physical[peerID]
+		// Legacy fields are exact routed aliases.
+		peerStatus.Connected = peerStatus.Routed //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
+		peerStatus.Dialable = peerStatus.Routed  //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
+	}
 }
 
 func addKnownRuntimePeerStatuses(out *proto.RuntimeState, peerIDs map[string]struct{}) {
@@ -1054,12 +1096,17 @@ func addKnownRuntimePeerStatuses(out *proto.RuntimeState, peerIDs map[string]str
 
 func knownRuntimePeerStatus(peerID string, state *proto.RuntimeState) *proto.RuntimePeerStatus {
 	isSelf := peerID == strings.TrimSpace(state.GetPeerId())
+	routed := stringInList(peerID, state.GetRoutedPeers())
 	status := &proto.RuntimePeerStatus{
-		PeerId:        peerID,
-		Connected:     isSelf || stringInList(peerID, state.GetConnectedPeers()),
-		Dialable:      isSelf,
-		StateProvider: stringInList(peerID, state.GetStateProviders()),
-		Compatible:    isSelf,
+		PeerId:            peerID,
+		Connected:         routed,
+		Dialable:          routed,
+		StateProvider:     stringInList(peerID, state.GetStateProviders()),
+		Compatible:        isSelf,
+		Routed:            routed,
+		Participating:     stringInList(peerID, state.GetParticipatingPeers()),
+		Logical:           stringInList(peerID, state.GetLogicalPeers()),
+		PhysicalConnected: stringInList(peerID, state.GetPhysicalConnectedPeers()),
 	}
 	if isSelf {
 		status.Reason = "self"
@@ -1067,6 +1114,13 @@ func knownRuntimePeerStatus(peerID string, state *proto.RuntimeState) *proto.Run
 		status.Reason = "known database peer"
 	}
 	return status
+}
+
+func runtimeLastRoutedAtUnixNano(value time.Time) int64 {
+	if value.IsZero() {
+		return 0
+	}
+	return value.UnixNano()
 }
 
 func stringInList(value string, values []string) bool {
@@ -1078,17 +1132,6 @@ func stringInList(value string, values []string) bool {
 	return false
 }
 
-func cloneStringMap(values map[string]string) map[string]string {
-	if len(values) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(values))
-	for key, value := range values {
-		out[key] = value
-	}
-	return out
-}
-
 func formatRuntimeDigest(digest [32]byte) string {
 	if digest == ([32]byte{}) {
 		return ""
@@ -1098,8 +1141,19 @@ func formatRuntimeDigest(digest [32]byte) string {
 
 // HandlerInit does the initialisation on the server side
 func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitResponse, error) {
-	if s.DB.Initialized() {
+	readiness := s.DB.RepositoryReadiness()
+	if readiness.Initialized {
 		return nil, errors.New("initialisation RPC is disabled after database initialisation")
+	}
+	if readiness.ExistingRepository {
+		switch {
+		case readiness.BootstrapPending:
+			return nil, errors.New("initialisation RPC is disabled while an existing repository is awaiting bootstrap recovery")
+		case readiness.BootstrapError != nil:
+			return nil, fmt.Errorf("initialisation RPC is disabled because existing repository recovery failed: %w", readiness.BootstrapError)
+		default:
+			return nil, errors.New("initialisation RPC is disabled for an existing repository that is not ready")
+		}
 	}
 
 	remotePeer, ok := p2pgrpc.RemotePeerFromContext(ctx)
@@ -1134,27 +1188,12 @@ func (s *Server) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitR
 		return nil, fmt.Errorf("failed to add init device as rpc client: %w", err)
 	}
 
-	originSwarmionAddrs := append([]string(nil), req.OriginSwarmionAddrs...)
-	tunnelAddr, closeTunnel, tunnelErr := s.p2p.StartSwarmionBootstrapTunnel(ctx, im.GetID())
-	if tunnelErr != nil {
-		log.Warnf("failed to create libp2p Swarmion bootstrap tunnel: %v", tunnelErr)
-	} else {
-		defer closeTunnel()
-		originSwarmionAddrs = append([]string{tunnelAddr}, originSwarmionAddrs...)
-	}
-
-	err = s.DB.InitFromPeerContext(ctx, im.GetID(), originSwarmionAddrs)
+	err = s.DB.InitFromPeerContext(ctx, im.GetID(), append([]string(nil), req.OriginSwarmionAddrs...))
 	if err != nil {
 		err = fmt.Errorf("failed to initialize database from peer %s(%s): %w", im.GetID(), pubKey.GetID(), err)
 		log.Error(err.Error())
 		return nil, err
 	}
-
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		s.p2p.restartServerSignal <- im
-		close(s.p2p.restartServerSignal)
-	}()
 
 	return &proto.InitResponse{Architecture: runtime.GOARCH}, nil
 }

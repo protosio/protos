@@ -389,14 +389,14 @@ func WaitForRemoteFullMesh(deadline time.Time, client pbApic.ProtosClientApiClie
 				ready = false
 				break
 			}
-			fmt.Printf("remote runtime peers for %s: connected=%v\n", source.GetName(), state.GetConnectedPeers())
+			fmt.Printf("remote runtime peers for %s: physical=%v routed=%v participating=%v logical=%v\n", source.GetName(), state.GetPhysicalConnectedPeers(), state.GetRoutedPeers(), state.GetParticipatingPeers(), state.GetLogicalPeers())
 			for _, target := range instances {
 				targetPeerID := peerIDs[target.GetName()]
 				if targetPeerID == sourcePeerID {
 					continue
 				}
-				if !runtimePeerConnected(state, targetPeerID) {
-					lastErr = fmt.Errorf("%s runtime does not see %s (%s) connected: %s", source.GetName(), target.GetName(), targetPeerID, RuntimeStateSummary(state))
+				if transportReady, missing := runtimePeerTransportReady(state, targetPeerID); !transportReady {
+					lastErr = fmt.Errorf("%s runtime transport is not ready for %s (%s), missing %s: %s", source.GetName(), target.GetName(), targetPeerID, strings.Join(missing, ", "), RuntimeStateSummary(state))
 					ready = false
 					break
 				}
@@ -429,10 +429,10 @@ func WaitForRemotePeerConnection(deadline time.Time, client pbApic.ProtosClientA
 				lastErr = fmt.Errorf("get remote runtime state for %s: %w", source.GetName(), err)
 				break
 			}
-			fmt.Printf("remote runtime peers for %s: connected=%v\n", source.GetName(), state.GetConnectedPeers())
-			if !runtimePeerConnected(state, peerID) {
+			fmt.Printf("remote runtime peers for %s: physical=%v routed=%v participating=%v logical=%v\n", source.GetName(), state.GetPhysicalConnectedPeers(), state.GetRoutedPeers(), state.GetParticipatingPeers(), state.GetLogicalPeers())
+			if transportReady, missing := runtimePeerTransportReady(state, peerID); !transportReady {
 				ready = false
-				lastErr = fmt.Errorf("%s runtime does not see peer id %s connected: %s", source.GetName(), peerID, RuntimeStateSummary(state))
+				lastErr = fmt.Errorf("%s runtime transport is not ready for peer id %s, missing %s: %s", source.GetName(), peerID, strings.Join(missing, ", "), RuntimeStateSummary(state))
 				break
 			}
 		}
@@ -448,34 +448,42 @@ func WaitForRemotePeerConnection(deadline time.Time, client pbApic.ProtosClientA
 	return fmt.Errorf("remote VM peer connection to %s did not become connected: %w", peerID, lastErr)
 }
 
-func WaitForRemoteRuntimeConnection(deadline time.Time, client pbApic.ProtosClientApiClient, instances []*pbApic.CloudInstance, peerID string) error {
+// WaitForLocalPeerConnections proves the other half of the NAT topology: the
+// local origin sees every VM on the shared application-owned transport and in
+// the Swarmion database scope. Pair this with WaitForRemotePeerConnection,
+// which proves every VM sees the local origin over the same duplex connection.
+func WaitForLocalPeerConnections(deadline time.Time, client pbApic.ProtosClientApiClient, instances []*pbApic.CloudInstance) error {
+	peerIDs, err := peerIDsByInstanceName(instances)
+	if err != nil {
+		return err
+	}
 	var lastErr error
 	var lastReport time.Time
 	for time.Now().Before(deadline) {
-		ready := true
-		for _, source := range instances {
-			state, err := RuntimeState(deadline, client, source.GetName())
-			if err != nil {
-				ready = false
-				lastErr = fmt.Errorf("get remote runtime state for %s: %w", source.GetName(), err)
-				break
-			}
-			if !runtimePeerConnected(state, peerID) {
-				ready = false
-				lastErr = fmt.Errorf("%s runtime does not see peer %s connected: %s", source.GetName(), peerID, RuntimeStateSummary(state))
-				break
+		state, err := RuntimeState(deadline, client, "")
+		if err != nil {
+			lastErr = fmt.Errorf("get local runtime state: %w", err)
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		missing := make([]string, 0)
+		for _, instance := range instances {
+			peerID := peerIDs[instance.GetName()]
+			if ready, missingPlanes := runtimePeerTransportReady(state, peerID); !ready {
+				missing = append(missing, instance.GetName()+" ("+peerID+": "+strings.Join(missingPlanes, ", ")+")")
 			}
 		}
-		if ready {
+		if len(missing) == 0 {
 			return nil
 		}
+		lastErr = fmt.Errorf("local runtime does not see VM peers connected: %s; %s", strings.Join(missing, ", "), RuntimeStateSummary(state))
 		if time.Since(lastReport) >= 30*time.Second {
 			lastReport = time.Now()
-			fmt.Printf("waiting for remote runtime connection: %v\n", lastErr)
+			fmt.Printf("waiting for local outbound runtime connections: %v\n", lastErr)
 		}
 		time.Sleep(3 * time.Second)
 	}
-	return fmt.Errorf("remote runtime connection to %s did not become connected: %w", peerID, lastErr)
+	return fmt.Errorf("local outbound runtime transport did not become ready: %w", lastErr)
 }
 
 func WaitForReplicationState(deadline time.Time, client pbApic.ProtosClientApiClient, expect ReplicationExpectation) error {
@@ -1121,15 +1129,30 @@ func RuntimePeerStatus(state *pbApic.RuntimeState, peerID string) *pbApic.Runtim
 	return nil
 }
 
-func runtimePeerConnected(state *pbApic.RuntimeState, peerID string) bool {
+// runtimePeerTransportReady requires all three independent readiness planes:
+// a live application-owned host connection, a Swarmion route over that host,
+// and participation in the database scope. Logical overlay membership is
+// intentionally not considered physical reachability.
+func runtimePeerTransportReady(state *pbApic.RuntimeState, peerID string) (bool, []string) {
 	if state == nil || strings.TrimSpace(peerID) == "" {
-		return false
-	}
-	if stringSet(state.GetConnectedPeers())[peerID] {
-		return true
+		return false, []string{"physical", "routed", "participating"}
 	}
 	status := RuntimePeerStatus(state, peerID)
-	return status != nil && status.GetConnected()
+	physical := stringSet(state.GetPhysicalConnectedPeers())[peerID] || status != nil && status.GetPhysicalConnected()
+	routed := stringSet(state.GetRoutedPeers())[peerID] || status != nil && status.GetRouted()
+	participating := stringSet(state.GetParticipatingPeers())[peerID] || status != nil && status.GetParticipating()
+
+	missing := make([]string, 0, 3)
+	if !physical {
+		missing = append(missing, "physical")
+	}
+	if !routed {
+		missing = append(missing, "routed")
+	}
+	if !participating {
+		missing = append(missing, "participating")
+	}
+	return len(missing) == 0, missing
 }
 
 func RuntimeCompatibility(state *pbApic.RuntimeState, peerID string) *pbApic.RuntimeCompatibility {
@@ -1153,15 +1176,21 @@ func RuntimeStateSummary(state *pbApic.RuntimeState) string {
 		trace = trace[len(trace)-8:]
 	}
 	return fmt.Sprintf(
-		"peer=%s providers=%v connected=%v read_consistency=%s read_error=%q checkpoint_root=%s protocol_root=%s durable_root=%s pending_checkpoint=%t checkpoint_error=%q refresh_pending=%t refresh_error=%q fatal=%q trace=%v",
+		"peer=%s providers=%v physical=%v routed=%v participating=%v logical=%v logical_target=%d legacy_connected=%v read_consistency=%s read_error=%q checkpoint_root=%s protocol_root=%s durable_root=%s event_receipt_content_dissent_observations=%d pending_checkpoint=%t checkpoint_error=%q refresh_pending=%t refresh_error=%q fatal=%q trace=%v",
 		state.GetPeerId(),
 		state.GetStateProviders(),
+		state.GetPhysicalConnectedPeers(),
+		state.GetRoutedPeers(),
+		state.GetParticipatingPeers(),
+		state.GetLogicalPeers(),
+		state.GetLogicalPeerTarget(),
 		state.GetConnectedPeers(),
 		state.GetReadConsistency(),
 		state.GetReadError(),
 		state.GetCheckpointRootHash(),
 		state.GetProtocolCheckpointRootHash(),
 		state.GetDurableMainRootHash(),
+		state.GetEventReceiptContentDissentObservations(),
 		state.GetRuntimeCheckpointPending(),
 		state.GetRuntimeCheckpointLastError(),
 		state.GetRuntimeRefreshPending(),

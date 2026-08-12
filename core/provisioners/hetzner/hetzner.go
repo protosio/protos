@@ -222,7 +222,7 @@ func (hz *hetzner) DeleteInstance(id string, location string) error {
 		return err
 	}
 	if server == nil {
-		return errors.Errorf("Hetzner instance '%s' not found", id)
+		return errors.Wrapf(provisioners.ErrInstanceNotFound, "Hetzner instance '%s'", id)
 	}
 
 	result, _, err := hz.client.Server.DeleteWithResult(ctx, server)
@@ -249,7 +249,7 @@ func (hz *hetzner) StartInstance(id string, location string) error {
 		return err
 	}
 	if server == nil {
-		return errors.Errorf("Hetzner instance '%s' not found", id)
+		return errors.Wrapf(provisioners.ErrInstanceNotFound, "Hetzner instance '%s'", id)
 	}
 	if server.Status == hcloud.ServerStatusRunning {
 		return nil
@@ -270,7 +270,7 @@ func (hz *hetzner) StopInstance(id string, location string) error {
 		return err
 	}
 	if server == nil {
-		return errors.Errorf("Hetzner instance '%s' not found", id)
+		return errors.Wrapf(provisioners.ErrInstanceNotFound, "Hetzner instance '%s'", id)
 	}
 	if server.Status == hcloud.ServerStatusOff {
 		return nil
@@ -291,7 +291,7 @@ func (hz *hetzner) GetInstanceInfo(id string, location string) (provisioners.Ins
 		return provisioners.InstanceInfo{}, err
 	}
 	if server == nil {
-		return provisioners.InstanceInfo{}, errors.Errorf("Hetzner instance '%s' not found", id)
+		return provisioners.InstanceInfo{}, errors.Wrapf(provisioners.ErrInstanceNotFound, "Hetzner instance '%s'", id)
 	}
 
 	info := provisioners.InstanceInfo{
@@ -583,14 +583,14 @@ func (hz *hetzner) AttachVolume(volumeID string, instanceID string, location str
 		return err
 	}
 	if volume == nil {
-		return errors.Errorf("Hetzner volume '%s' not found", volumeID)
+		return errors.Wrapf(provisioners.ErrVolumeNotFound, "Hetzner volume '%s'", volumeID)
 	}
 	server, err := hz.getServer(ctx, instanceID)
 	if err != nil {
 		return err
 	}
 	if server == nil {
-		return errors.Errorf("Hetzner instance '%s' not found", instanceID)
+		return errors.Wrapf(provisioners.ErrInstanceNotFound, "Hetzner instance '%s'", instanceID)
 	}
 	action, _, err := hz.client.Volume.Attach(ctx, volume, server)
 	if err != nil {
@@ -608,7 +608,7 @@ func (hz *hetzner) DettachVolume(volumeID string, instanceID string, location st
 		return err
 	}
 	if volume == nil {
-		return errors.Errorf("Hetzner volume '%s' not found", volumeID)
+		return errors.Wrapf(provisioners.ErrVolumeNotFound, "Hetzner volume '%s'", volumeID)
 	}
 	action, _, err := hz.client.Volume.Detach(ctx, volume)
 	if err != nil {

@@ -18,4 +18,6 @@ DROP TABLE IF EXISTS tasks;
 
 DROP TABLE IF EXISTS task_events;
 
+DROP TABLE IF EXISTS task_operation_facts;
+
 DROP TABLE IF EXISTS exit_routes;

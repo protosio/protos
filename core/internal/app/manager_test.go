@@ -11,6 +11,7 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 	appruntime "github.com/protosio/protos/internal/runtime"
 	"github.com/protosio/protos/internal/tasks"
+	"github.com/protosio/protos/internal/testswarmion"
 )
 
 func TestNotifyDoesNotRemoveSandboxForAppOutsideLocalScope(t *testing.T) {
@@ -329,7 +330,7 @@ func newTestAppDB(t *testing.T) *db.DB {
 	if err != nil {
 		t.Fatalf("get local key: %v", err)
 	}
-	store, err := db.Open(workDir, "protos_test", key)
+	store, err := db.Open(workDir, "protos_test", key, testswarmion.NewBorrowedLink(t, key))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}

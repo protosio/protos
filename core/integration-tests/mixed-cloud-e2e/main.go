@@ -222,13 +222,20 @@ type mixedCloudSummaryTaskUpdate struct {
 }
 
 type mixedCloudRuntimeSnapshot struct {
-	Phase                      string                        `json:"phase"`
-	Instance                   string                        `json:"instance"`
-	PeerID                     string                        `json:"peer_id,omitempty"`
-	CheckpointRootHash         string                        `json:"checkpoint_root_hash,omitempty"`
-	TentativeRootHash          string                        `json:"tentative_root_hash,omitempty"`
-	DurableMainRootHash        string                        `json:"durable_main_root_hash,omitempty"`
-	StateProviders             []string                      `json:"state_providers,omitempty"`
+	Phase                                  string   `json:"phase"`
+	Instance                               string   `json:"instance"`
+	PeerID                                 string   `json:"peer_id,omitempty"`
+	CheckpointRootHash                     string   `json:"checkpoint_root_hash,omitempty"`
+	TentativeRootHash                      string   `json:"tentative_root_hash,omitempty"`
+	DurableMainRootHash                    string   `json:"durable_main_root_hash,omitempty"`
+	EventReceiptContentDissentObservations uint64   `json:"event_receipt_content_dissent_observations"`
+	StateProviders                         []string `json:"state_providers,omitempty"`
+	RoutedPeers                            []string `json:"routed_peers,omitempty"`
+	ParticipatingPeers                     []string `json:"participating_peers,omitempty"`
+	LogicalPeers                           []string `json:"logical_peers,omitempty"`
+	LogicalPeerTarget                      int32    `json:"logical_peer_target"`
+	PhysicalConnectedPeers                 []string `json:"physical_connected_peers,omitempty"`
+	// ConnectedPeers is the deprecated routed-peers compatibility alias.
 	ConnectedPeers             []string                      `json:"connected_peers,omitempty"`
 	RuntimeRefreshPending      bool                          `json:"runtime_refresh_pending,omitempty"`
 	RuntimeRefreshLastError    string                        `json:"runtime_refresh_last_error,omitempty"`
@@ -242,7 +249,13 @@ type mixedCloudRuntimeSnapshot struct {
 }
 
 type mixedCloudRuntimePeerStatus struct {
-	PeerID                 string            `json:"peer_id"`
+	PeerID               string `json:"peer_id"`
+	Routed               bool   `json:"routed"`
+	Participating        bool   `json:"participating"`
+	Logical              bool   `json:"logical"`
+	PhysicalConnected    bool   `json:"physical_connected"`
+	LastRoutedAtUnixNano int64  `json:"last_routed_at_unix_nano,omitempty"`
+	// Connected and Dialable are deprecated routed compatibility aliases.
 	Connected              bool              `json:"connected"`
 	Dialable               bool              `json:"dialable"`
 	StateProvider          bool              `json:"state_provider"`
@@ -513,7 +526,13 @@ func (summary *mixedCloudRunSummary) recordRuntimeSnapshot(phase string, instanc
 	item.CheckpointRootHash = state.GetCheckpointRootHash()
 	item.TentativeRootHash = state.GetTentativeRootHash()
 	item.DurableMainRootHash = state.GetDurableMainRootHash()
+	item.EventReceiptContentDissentObservations = state.GetEventReceiptContentDissentObservations()
 	item.StateProviders = sortedStrings(state.GetStateProviders())
+	item.RoutedPeers = sortedStrings(state.GetRoutedPeers())
+	item.ParticipatingPeers = sortedStrings(state.GetParticipatingPeers())
+	item.LogicalPeers = sortedStrings(state.GetLogicalPeers())
+	item.LogicalPeerTarget = state.GetLogicalPeerTarget()
+	item.PhysicalConnectedPeers = sortedStrings(state.GetPhysicalConnectedPeers())
 	item.ConnectedPeers = sortedStrings(state.GetConnectedPeers())
 	item.RuntimeRefreshPending = state.GetRuntimeRefreshPending()
 	item.RuntimeRefreshLastError = state.GetRuntimeRefreshLastError()
@@ -526,6 +545,11 @@ func (summary *mixedCloudRunSummary) recordRuntimeSnapshot(phase string, instanc
 		}
 		item.PeerStatuses = append(item.PeerStatuses, mixedCloudRuntimePeerStatus{
 			PeerID:                 status.GetPeerId(),
+			Routed:                 status.GetRouted(),
+			Participating:          status.GetParticipating(),
+			Logical:                status.GetLogical(),
+			PhysicalConnected:      status.GetPhysicalConnected(),
+			LastRoutedAtUnixNano:   status.GetLastRoutedAtUnixNano(),
 			Connected:              status.GetConnected(),
 			Dialable:               status.GetDialable(),
 			StateProvider:          status.GetStateProvider(),
@@ -928,7 +952,7 @@ func run(cfg harnessConfig) (runErr error) {
 	if err := e2eapic.WaitForRemotePeerConnection(deadline, client, deployed, localPeerID); err != nil {
 		return err
 	}
-	if err := e2eapic.WaitForRemoteRuntimeConnection(deadline, client, deployed, localPeerID); err != nil {
+	if err := e2eapic.WaitForLocalPeerConnections(deadline, client, deployed); err != nil {
 		return err
 	}
 	summary.captureRuntimeSnapshots(deadline, client, "all-peers-connected", "", localVM1.GetName(), localVM2.GetName(), hetznerVM.GetName(), scalewayVM.GetName())
@@ -946,7 +970,7 @@ func run(cfg harnessConfig) (runErr error) {
 	if err := e2eapic.WaitForRemotePeerConnection(deadline, client, deployed, localPeerID); err != nil {
 		return err
 	}
-	if err := e2eapic.WaitForRemoteRuntimeConnection(deadline, client, deployed, localPeerID); err != nil {
+	if err := e2eapic.WaitForLocalPeerConnections(deadline, client, deployed); err != nil {
 		return err
 	}
 	if err := e2eapic.WaitForAllRemoteHeads(deadline, client, deployed); err != nil {

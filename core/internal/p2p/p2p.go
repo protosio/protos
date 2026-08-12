@@ -3,13 +3,14 @@ package p2p
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	p2pgrpc "github.com/birros/go-libp2p-grpc"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -17,17 +18,18 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	connmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
-	libp2pswarm "github.com/libp2p/go-libp2p/p2p/net/swarm"
 	relayclient "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 	noise "github.com/libp2p/go-libp2p/p2p/security/noise"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	tcp "github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
+	swarmiontransport "github.com/nustiueudinastea/swarmion/transports"
 	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/imageregistry"
 	networkmodule "github.com/protosio/protos/internal/network/module"
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/swarmionlink"
 	"github.com/protosio/protos/internal/tasks"
 	"github.com/protosio/protos/internal/util"
 	"google.golang.org/grpc"
@@ -37,11 +39,11 @@ var log = util.GetLogger("p2p")
 
 const (
 	protosRPCProtocol               = "/protos/rpc/0.0.1"
-	swarmionBootstrapProtocol       = "/protos/swarmion-bootstrap/0.0.1"
 	imageBlobStreamProtocol         = "/protos/image-blob/0.0.1"
 	imageArchiveUploadProtocol      = "/protos/image-archive-upload/0.0.1"
 	peerCapabilityImageContent      = "image.content"
 	peerCapabilitySwarmionTransport = "swarmion.transport"
+	peerCapabilityRelayService      = "libp2p.relay-service"
 	destinationQUICIPv4Template     = "/ip4/%s/udp/%d/quic-v1/p2p/%s"
 	destinationQUICIPv6Template     = "/ip6/%s/udp/%d/quic-v1/p2p/%s"
 	destinationTCPIPv4Template      = "/ip4/%s/tcp/%d/p2p/%s"
@@ -49,6 +51,7 @@ const (
 	peerRetryInterval               = 10 * time.Second
 	peerRetryMaxBackoff             = time.Minute
 	peerConnectDialTimeout          = 10 * time.Second
+	grpcGracefulStopTimeout         = 5 * time.Second
 )
 
 type AppManager interface {
@@ -74,14 +77,6 @@ type Machine interface {
 
 type internalIPMachine interface {
 	GetInternalIP() string
-}
-
-type peerDBConnector interface {
-	ConnectPeer(peerID string, publicIP string) error
-}
-
-type peerDBIPConnector interface {
-	ConnectPeerIPs(peerID string, ips []string) error
 }
 
 type NetworkInspector interface {
@@ -164,21 +159,37 @@ func (state PeerState) Reachability() string {
 }
 
 type P2P struct {
-	host         host.Host
-	appManager   AppManager
-	imageManager ImageManager
-	taskManager  *tasks.Manager
-	grpcServer   *grpc.Server
-	externalDB   ExternalDB
-	network      NetworkInspector
-	p2pPort      int
-
-	restartServerSignal chan initMachine
+	host                 host.Host
+	registry             *swarmionlink.Registry
+	routeFence           *swarmionlink.RouteFence
+	ownsHost             bool
+	appManager           AppManager
+	imageManager         ImageManager
+	taskManager          *tasks.Manager
+	grpcServer           *grpc.Server
+	grpcListener         net.Listener
+	dbMu                 sync.RWMutex
+	externalDB           ExternalDB
+	network              NetworkInspector
+	p2pPort              int
+	controlClientTimeout time.Duration
+	notify               network.Notifiee
+	protocolRegistration swarmiontransport.Registration
+	// Focused fence tests replace these physical-network observations to prove
+	// that a close failure or a surviving sibling connection fails closed.
+	closePeerForDrain       func(peer.ID) error
+	peerConnectionsForDrain func(peer.ID) int
+	// Focused TOFU tests pin the random placeholder so they can prove its
+	// dial-only identity-probe scope is revoked on every return path.
+	newIdentityProbePeerID      func() (peer.ID, error)
+	afterIdentityLearnedForTest func(peer.ID)
 
 	initMu     sync.RWMutex
 	initPeerID peer.ID
 	grpcMu     sync.Mutex
-	grpcGen    uint64
+	clientMu   sync.Mutex
+	routeMu    sync.Mutex
+	peerRoutes map[string]map[string]struct{}
 
 	// the index is the peer ID
 	machines *util.Map[string, Machine]
@@ -192,9 +203,49 @@ type P2P struct {
 	// the index is the relay peer ID.
 	relayReservations *util.Map[string, time.Time]
 
-	reconcileCh chan struct{}
-	stopCh      chan struct{}
-	stopOnce    sync.Once
+	reconcileCh    chan struct{}
+	stopCh         chan struct{}
+	stopOnce       sync.Once
+	serverStopOnce sync.Once
+	scopeStopOnce  sync.Once
+	scopeStopErr   error
+}
+
+func (p2p *P2P) SetAppManager(appManager AppManager) {
+	if p2p == nil {
+		return
+	}
+	p2p.appManager = appManager
+}
+
+// SetExternalDB completes construction after the application-owned transport
+// has been registered. Node startup deliberately registers the Protos protocol
+// scope before opening Swarmion so both consumers share one physical host and
+// Swarmion can detect protocol collisions instead of being overwritten later.
+func (p2p *P2P) SetExternalDB(externalDB ExternalDB) error {
+	if p2p == nil {
+		return fmt.Errorf("p2p manager is nil")
+	}
+	if externalDB == nil {
+		return fmt.Errorf("external database is nil")
+	}
+	p2p.dbMu.Lock()
+	if p2p.externalDB != nil {
+		p2p.dbMu.Unlock()
+		return fmt.Errorf("external database is already configured")
+	}
+	p2p.externalDB = externalDB
+	p2p.dbMu.Unlock()
+	return nil
+}
+
+func (p2p *P2P) externalDatabase() ExternalDB {
+	if p2p == nil {
+		return nil
+	}
+	p2p.dbMu.RLock()
+	defer p2p.dbMu.RUnlock()
+	return p2p.externalDB
 }
 
 func (p2p *P2P) SetNetworkInspector(network NetworkInspector) {
@@ -225,6 +276,25 @@ func (p2p *P2P) PeerID() string {
 	return p2p.host.ID().String()
 }
 
+// PhysicalConnectedPeerIDs reports only peers connected to the
+// application-owned libp2p host. It deliberately does not infer connectivity
+// from Swarmion's routed, participating, or logical database views.
+func (p2p *P2P) PhysicalConnectedPeerIDs() []string {
+	if p2p == nil || p2p.host == nil || p2p.host.Network() == nil {
+		return nil
+	}
+	peers := p2p.host.Network().Peers()
+	out := make([]string, 0, len(peers))
+	for _, peerID := range peers {
+		if peerID == "" || peerID == p2p.host.ID() {
+			continue
+		}
+		out = append(out, peerID.String())
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (p2p *P2P) ListenAddresses() []string {
 	if p2p == nil || p2p.host == nil {
 		return nil
@@ -233,6 +303,72 @@ func (p2p *P2P) ListenAddresses() []string {
 	out := make([]string, 0, len(addrs))
 	for _, addr := range addrs {
 		out = append(out, addr.String())
+	}
+	return out
+}
+
+// ListenMultiaddrs returns the application host's current endpoints with its
+// authenticated peer identity. These addresses are also Swarmion bootstrap
+// addresses because both protocols borrow the same physical host.
+func (p2p *P2P) ListenMultiaddrs() []string {
+	if p2p == nil || p2p.host == nil {
+		return nil
+	}
+	peerSuffix, err := multiaddr.NewMultiaddr(fmt.Sprintf("/p2p/%s", p2p.host.ID()))
+	if err != nil {
+		return nil
+	}
+	addrs := make([]string, 0, len(p2p.host.Addrs()))
+	for _, addr := range p2p.host.Addrs() {
+		addrs = append(addrs, addr.Encapsulate(peerSuffix).String())
+	}
+	return dedupeStrings(addrs)
+}
+
+// DialableListenMultiaddrs supplements the host's advertised endpoints with
+// explicit addresses known by the product (for example a VM's provider IP or
+// the macOS VM gateway). It always uses the one shared Protos/Swarmion port.
+func (p2p *P2P) DialableListenMultiaddrs(ips []string) []string {
+	if p2p == nil || p2p.host == nil {
+		return nil
+	}
+	port := p2p.listenPort()
+	peerID := p2p.host.ID().String()
+	addrs := make([]string, 0, len(ips)*2+len(p2p.host.Addrs()))
+	for _, rawIP := range ips {
+		ip := net.ParseIP(strings.TrimSpace(rawIP))
+		if ip == nil || port <= 0 {
+			continue
+		}
+		if ip.To4() == nil {
+			addrs = append(addrs,
+				fmt.Sprintf(destinationTCPIPv6Template, ip.String(), port, peerID),
+				fmt.Sprintf(destinationQUICIPv6Template, ip.String(), port, peerID),
+			)
+		} else {
+			addrs = append(addrs,
+				fmt.Sprintf(destinationTCPIPv4Template, ip.String(), port, peerID),
+				fmt.Sprintf(destinationQUICIPv4Template, ip.String(), port, peerID),
+			)
+		}
+	}
+	addrs = append(addrs, p2p.ListenMultiaddrs()...)
+	return dedupeStrings(addrs)
+}
+
+func dedupeStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
 	}
 	return out
 }
@@ -251,14 +387,6 @@ func listenAddrsForPort(port int) []string {
 		fmt.Sprintf("/ip6/::/tcp/%d", port),
 		fmt.Sprintf("/ip6/::/udp/%d/quic-v1", port),
 	}
-}
-
-func (p2p *P2P) swarmionPort() int {
-	port := p2p.listenPort()
-	if port <= 0 {
-		return 0
-	}
-	return port + 1
 }
 
 // GetPeerID adds a peer to the p2p manager
@@ -402,6 +530,7 @@ func (p2p *P2P) RequestReconnect(machine Machine) error {
 // ConfigurePeers configures all the peers passed as arguemnt
 func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 	currentMachines := map[string]Machine{}
+	activePeers := make([]peer.ID, 0, len(machines))
 
 	log.Debugf("configuring p2p peers: %v", machines)
 
@@ -420,10 +549,41 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 		}
 		peerID, err := p2p.trackPeer(machine)
 		if err != nil {
+			if errors.Is(err, swarmionlink.ErrPeerFenced) {
+				// ConfigurePeers may be applying a replicated snapshot captured
+				// before a delete acquired its route generation. Ordinary
+				// admission is monotonic and cannot reopen that generation.
+				log.Debugf("ignoring stale configured peer while its deletion fence is active: %v", err)
+				continue
+			}
 			return err
 		}
 		currentMachines[peerID] = machine
+		decodedPeerID, decodeErr := peer.Decode(peerID)
+		if decodeErr != nil {
+			return fmt.Errorf("decode configured peer ID %s: %w", peerID, decodeErr)
+		}
+		activePeers = append(activePeers, decodedPeerID)
 		p2p.pendingPeers.Delete(peerID)
+	}
+
+	if p2p.routeFence != nil {
+		pendingPeers := p2p.pendingPeers.Snapshot()
+		temporaryPeers := make([]peer.ID, 0, len(pendingPeers))
+		for peerIDString := range pendingPeers {
+			peerID, err := peer.Decode(peerIDString)
+			if err == nil && peerID != "" {
+				temporaryPeers = append(temporaryPeers, peerID)
+			}
+		}
+		p2p.routeFence.ReconcileAdmittedPeers(activePeers, temporaryPeers)
+		for _, peerID := range p2p.host.Network().Peers() {
+			if !p2p.routeFence.IsPeerConnectionAllowed(peerID) {
+				if err := p2p.host.Network().ClosePeer(peerID); err != nil {
+					log.Debugf("failed to close fenced peer %s: %v", peerID, err)
+				}
+			}
+		}
 	}
 
 	for peerID := range p2p.machines.Snapshot() {
@@ -433,6 +593,7 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 			}
 			p2p.machines.Delete(peerID)
 			p2p.peerStates.Delete(peerID)
+			p2p.relayReservations.Delete(peerID)
 		}
 	}
 
@@ -451,8 +612,12 @@ func (p2p *P2P) ConfigurePeers(machines []Machine) error {
 			if err != nil {
 				log.Debugf("failed to remove peer %s: %v", peerIDString, err)
 			}
+			p2p.clientMu.Lock()
+			if client, found := p2p.clients.Get(peerIDString); found && client != nil && client.grpcConnection != nil {
+				_ = client.grpcConnection.Close()
+			}
 			p2p.clients.Delete(peerIDString)
-			p2p.removeExternalDBPeer(peerIDString)
+			p2p.clientMu.Unlock()
 		}
 	}
 
@@ -480,47 +645,6 @@ func (p2p *P2P) AddPeer(machine Machine) (*Client, error) {
 	return client, err
 }
 
-func (p2p *P2P) connectExternalDBPeer(peerIDString string, machine Machine, client *Client) {
-	if p2p == nil || p2p.externalDB == nil || machine == nil {
-		return
-	}
-	if client == nil || !client.supportsCapability(peerCapabilitySwarmionTransport) {
-		return
-	}
-	ips := p2p.knownPeerIPStrings(machine)
-	if len(ips) == 0 {
-		return
-	}
-	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
-	if err != nil {
-		log.Debugf("failed to get DB peer ID for %s: %v", machine.GetID(), err)
-		return
-	}
-	if peerIDString = strings.TrimSpace(peerIDString); peerIDString != "" && peerID.String() != peerIDString {
-		log.Debugf("skipping DB peer connect for %s: machine public key resolves to peer %s", peerIDString, peerID.String())
-		return
-	}
-
-	if connector, ok := p2p.externalDB.(peerDBIPConnector); ok {
-		if err := connector.ConnectPeerIPs(peerID.String(), ips); err != nil {
-			log.Debugf("failed to connect DB peer %s: %v", peerID.String(), err)
-		}
-		return
-	}
-
-	publicIP := strings.TrimSpace(machine.GetPublicIP())
-	if publicIP == "" {
-		return
-	}
-	connector, ok := p2p.externalDB.(peerDBConnector)
-	if !ok {
-		return
-	}
-	if err := connector.ConnectPeer(peerID.String(), publicIP); err != nil {
-		log.Debugf("failed to connect DB peer %s: %v", peerID.String(), err)
-	}
-}
-
 func (p2p *P2P) trackPeer(machine Machine) (string, error) {
 	if machine == nil {
 		return "", fmt.Errorf("machine is nil")
@@ -530,6 +654,11 @@ func (p2p *P2P) trackPeer(machine Machine) (string, error) {
 		return "", fmt.Errorf("failed to get peer ID from public key: %w", err)
 	}
 	peerIDString := peerID.String()
+	if p2p.routeFence != nil {
+		if err := p2p.routeFence.AdmitPeer(peerID); err != nil {
+			return "", fmt.Errorf("admit peer %s: %w", peerIDString, err)
+		}
+	}
 	p2p.machines.Set(peerIDString, machine)
 	p2p.updatePeerState(peerIDString, func(state *PeerState) {
 		state.PeerID = peerIDString
@@ -550,7 +679,6 @@ func (p2p *P2P) connectPeer(ctx context.Context, peerIDString string, machine Ma
 	client, found := p2p.connectedClient(peerIDString)
 	if found {
 		p2p.markPeerConnected(peerIDString, machine)
-		p2p.connectExternalDBPeer(peerIDString, machine, client)
 		return client, nil
 	}
 
@@ -581,11 +709,10 @@ func (p2p *P2P) connectPeer(ctx context.Context, peerIDString string, machine Ma
 }
 
 func (p2p *P2P) connectPeerWithAddrInfo(ctx context.Context, peerIDString string, machine Machine, peerInfo peer.AddrInfo, destinations []string) (*Client, error) {
-	p2p.host.Peerstore().ClearAddrs(peerInfo.ID)
-	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.TempAddrTTL)
-	if swarm, ok := p2p.host.Network().(*libp2pswarm.Swarm); ok {
-		swarm.Backoff().Clear(peerInfo.ID)
-	}
+	// Endpoint hints are additive on the application-owned host. Clearing the
+	// shared peerstore or dial backoff here would erase Identify, relay, and
+	// Swarmion observations belonging to other protocol scopes.
+	p2p.addPeerEndpointHints(peerInfo)
 
 	log.Debugf("dialing peer id %s using %d destination(s): %s", peerIDString, len(destinations), strings.Join(destinations, ", "))
 
@@ -598,23 +725,24 @@ func (p2p *P2P) connectPeerWithAddrInfo(ctx context.Context, peerIDString string
 
 	if client, found := p2p.connectedClient(peerIDString); found {
 		p2p.markPeerConnected(peerIDString, machine)
-		p2p.connectExternalDBPeer(peerIDString, machine, client)
 		return client, nil
 	}
 
-	client, err := p2p.createClientForPeer(ctx, peerInfo.ID)
+	clientCtx, cancelClient := context.WithTimeout(ctx, p2p.controlClientReadinessTimeout())
+	defer cancelClient()
+	client, err := p2p.ensureControlClient(clientCtx, peerInfo.ID)
 	if err != nil {
 		return nil, err
 	}
-	p2p.clients.Set(peerIDString, client)
 	p2p.markPeerConnected(peerIDString, machine)
-	p2p.connectExternalDBPeer(peerIDString, machine, client)
-	if p2p.externalDB != nil {
-		if err := p2p.externalDB.AddPeer(peerIDString, client.grpcConnection); err != nil {
-			return nil, err
-		}
-	}
 	return client, nil
+}
+
+func (p2p *P2P) addPeerEndpointHints(peerInfo peer.AddrInfo) {
+	if p2p == nil || p2p.host == nil || peerInfo.ID == "" || len(peerInfo.Addrs) == 0 {
+		return
+	}
+	p2p.host.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.TempAddrTTL)
 }
 
 func peerAddrInfoFromDestinations(peerIDString string, destinations []string) (peer.AddrInfo, error) {
@@ -684,10 +812,11 @@ func (p2p *P2P) destinationStrings(peerIDString string, machine Machine) []strin
 	}
 
 	for relayID, relayMachine := range p2p.machines.Snapshot() {
-		if relayID == peerIDString || strings.TrimSpace(relayMachine.GetPublicIP()) != "" {
+		if relayID == peerIDString || !isPublicRelayCandidate(relayMachine) {
 			continue
 		}
-		if _, connected := p2p.clients.Get(relayID); !connected {
+		relayClient, connected := p2p.clients.Get(relayID)
+		if !connected || !relayClient.supportsCapability(peerCapabilityRelayService) {
 			continue
 		}
 		relayPeerID, err := peer.Decode(relayID)
@@ -710,15 +839,6 @@ func (p2p *P2P) destinationStrings(peerIDString string, machine Machine) []strin
 	}
 
 	return destinations
-}
-
-func (p2p *P2P) knownPeerIPStrings(machine Machine) []string {
-	ips := p2p.knownPeerIPs(machine)
-	out := make([]string, 0, len(ips))
-	for _, ip := range ips {
-		out = append(out, ip.String())
-	}
-	return out
 }
 
 // knownPeerIPs is the single owner of peer transport-address ordering. Peer
@@ -848,9 +968,8 @@ func (p2p *P2P) reconcileLoop() {
 func (p2p *P2P) reconcilePeers() {
 	p2p.pruneStaleClients()
 	for peerIDString, machine := range p2p.machines.Snapshot() {
-		if client, found := p2p.connectedClient(peerIDString); found {
+		if _, found := p2p.connectedClient(peerIDString); found {
 			p2p.markPeerConnected(peerIDString, machine)
-			p2p.connectExternalDBPeer(peerIDString, machine, client)
 			p2p.ensureRelayReservation(peerIDString, machine)
 			continue
 		}
@@ -867,7 +986,11 @@ func (p2p *P2P) reconcilePeers() {
 }
 
 func (p2p *P2P) ensureRelayReservation(peerIDString string, machine Machine) {
-	if machine == nil || strings.TrimSpace(machine.GetPublicIP()) != "" {
+	if !isPublicRelayCandidate(machine) || p2p.hasPublicHostAddress() {
+		return
+	}
+	client, connected := p2p.clients.Get(peerIDString)
+	if !connected || !client.supportsCapability(peerCapabilityRelayService) {
 		return
 	}
 	if expiresAt, found := p2p.relayReservations.Get(peerIDString); found && time.Until(expiresAt) > time.Minute {
@@ -890,6 +1013,33 @@ func (p2p *P2P) ensureRelayReservation(peerIDString string, machine Machine) {
 	}
 	p2p.relayReservations.Set(peerIDString, reservation.Expiration)
 	log.Debugf("reserved relay slot on peer %s until %s", peerIDString, reservation.Expiration.Format(time.RFC3339))
+}
+
+func (p2p *P2P) hasPublicHostAddress() bool {
+	if p2p == nil || p2p.host == nil {
+		return false
+	}
+	for _, addr := range p2p.host.Addrs() {
+		for _, protocolCode := range []int{multiaddr.P_IP4, multiaddr.P_IP6} {
+			value, err := addr.ValueForProtocol(protocolCode)
+			if err != nil {
+				continue
+			}
+			ip := net.ParseIP(value)
+			if ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isPublicRelayCandidate(machine Machine) bool {
+	if machine == nil {
+		return false
+	}
+	ip := net.ParseIP(strings.TrimSpace(machine.GetPublicIP()))
+	return ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback()
 }
 
 func shouldRetryPeer(state PeerState) bool {
@@ -916,37 +1066,121 @@ func peerBackoff(attempts int) time.Duration {
 	return delay
 }
 
-func (p2p *P2P) RemovePeer(machine Machine) error {
-	log.Debugf("removing peer '%s'", machine.GetID())
+// RefreshPeerControlAfterRemoteRestart drops only the short-lived Protos gRPC
+// client after Init. The shared physical connection stays alive for Swarmion
+// and any other application protocol while control reconnects on demand.
+func (p2p *P2P) RefreshPeerControlAfterRemoteRestart(machine Machine) error {
+	if p2p == nil || machine == nil {
+		return nil
+	}
 	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
 	if err != nil {
 		return fmt.Errorf("failed to convert public key to peer ID: %w", err)
 	}
 	peerIDString := peerID.String()
-
-	if p2p.host != nil {
-		if err := p2p.host.Network().ClosePeer(peerID); err != nil {
-			log.Debugf("failed to close peer %s for removed machine %s: %v", peerIDString, machine.GetID(), err)
+	p2p.clientMu.Lock()
+	if client, found := p2p.clients.Get(peerIDString); found && client != nil && client.grpcConnection != nil {
+		if err := client.grpcConnection.Close(); err != nil {
+			log.Debugf("failed to close control client for restarting peer %s: %v", peerIDString, err)
 		}
 	}
-
-	p2p.machines.Delete(peerIDString)
 	p2p.clients.Delete(peerIDString)
-	p2p.peerStates.Delete(peerIDString)
-	p2p.pendingPeers.Delete(peerIDString)
-	p2p.removeExternalDBPeer(peerIDString)
+	p2p.clientMu.Unlock()
+	p2p.updatePeerState(peerIDString, func(state *PeerState) {
+		state.Status = PeerStatusDesired
+		state.LastAttempt = time.Time{}
+		state.LastError = ""
+	})
 	p2p.requestReconcile()
-
 	return nil
 }
 
-func (p2p *P2P) removeExternalDBPeer(peerIDString string) {
-	if p2p == nil || p2p.externalDB == nil || peerIDString == "" {
-		return
+func (p2p *P2P) RemovePeer(machine Machine) error {
+	_, _, err := p2p.FencePeer(machine)
+	return err
+}
+
+// FencePeer withdraws every Protos and Swarmion route before closing physical
+// connections. The returned opaque generation is valid only for this process
+// and this exact fence attempt and must accompany the Swarmion drain handshake.
+func (p2p *P2P) FencePeer(machine Machine) (string, string, error) {
+	if p2p == nil || p2p.routeFence == nil {
+		return "", "", fmt.Errorf("p2p route fence is not configured")
 	}
-	if err := p2p.externalDB.RemovePeer(peerIDString); err != nil {
-		log.Debugf("failed to remove DB peer %s: %v", peerIDString, err)
+	if machine == nil {
+		return "", "", fmt.Errorf("machine is nil")
 	}
+	log.Debugf("removing peer '%s'", machine.GetID())
+	peerID, err := p2p.pubKeyToPeerID(machine.GetPublicKey())
+	if err != nil {
+		return "", "", fmt.Errorf("failed to convert public key to peer ID: %w", err)
+	}
+	peerIDString := peerID.String()
+	generation, err := p2p.routeFence.FencePeer(peerID)
+	if err != nil {
+		return "", "", fmt.Errorf("fence peer %s: %w", peerIDString, err)
+	}
+
+	if p2p.host == nil || p2p.registry == nil {
+		return "", "", fmt.Errorf("peer %s is fenced at generation %s but its shared host/registry is unavailable", peerIDString, generation)
+	}
+	if !p2p.routeFence.LinkRouteWithdrawn(peerID) {
+		return "", "", fmt.Errorf("peer %s is fenced at generation %s but remains exposed by the Swarmion Link", peerIDString, generation)
+	}
+
+	p2p.clientMu.Lock()
+	if client, found := p2p.clients.Get(peerIDString); found && client != nil && client.grpcConnection != nil {
+		_ = client.grpcConnection.Close()
+	}
+	p2p.clientMu.Unlock()
+	closePeer := p2p.closePeerForDrain
+	if closePeer == nil {
+		closePeer = p2p.host.Network().ClosePeer
+	}
+	if err := closePeer(peerID); err != nil {
+		return "", "", fmt.Errorf("peer %s remains fenced at generation %s after physical close failed: %w", peerIDString, generation, err)
+	}
+	connectionCount := p2p.peerConnectionsForDrain
+	if connectionCount == nil {
+		connectionCount = func(peerID peer.ID) int { return len(p2p.host.Network().ConnsToPeer(peerID)) }
+	}
+	if count := connectionCount(peerID); count != 0 {
+		return "", "", fmt.Errorf("peer %s remains fenced at generation %s with %d physical connection(s)", peerIDString, generation, count)
+	}
+	streamDrainCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := p2p.registry.DrainPeerStreams(streamDrainCtx, peerID); err != nil {
+		return "", "", fmt.Errorf("peer %s remains fenced at generation %s with active protocol streams: %w", peerIDString, generation, err)
+	}
+
+	p2p.machines.Delete(peerIDString)
+	p2p.clientMu.Lock()
+	p2p.clients.Delete(peerIDString)
+	p2p.clientMu.Unlock()
+	p2p.peerStates.Delete(peerIDString)
+	p2p.pendingPeers.Delete(peerIDString)
+	p2p.relayReservations.Delete(peerIDString)
+	p2p.requestReconcile()
+
+	return peerIDString, generation, nil
+}
+
+// WithPeerFenceGeneration prevents route admission or replacement from racing
+// the final generation-matched Swarmion drain call.
+func (p2p *P2P) WithPeerFenceGeneration(
+	ctx context.Context,
+	peerIDString string,
+	generation string,
+	fn func() error,
+) error {
+	if p2p == nil || p2p.routeFence == nil {
+		return fmt.Errorf("p2p route fence is not configured")
+	}
+	peerID, err := peer.Decode(strings.TrimSpace(peerIDString))
+	if err != nil {
+		return fmt.Errorf("decode peer ID %q: %w", peerIDString, err)
+	}
+	return p2p.routeFence.WithGeneration(ctx, peerID, generation, fn)
 }
 
 //
@@ -961,6 +1195,10 @@ func (p2p *P2P) startGRPCServer() error {
 }
 
 func (p2p *P2P) startGRPCServerLocked() error {
+	externalDB := p2p.externalDatabase()
+	if externalDB == nil {
+		return fmt.Errorf("external database is not configured")
+	}
 	if p2p.grpcServer == nil {
 		p2p.grpcServer = newP2PGRPCServer()
 	}
@@ -968,56 +1206,31 @@ func (p2p *P2P) startGRPCServerLocked() error {
 	server := p2p.grpcServer
 
 	// register internal grpc servers
-	srv := &Server{DB: p2p.externalDB, p2p: p2p}
+	srv := &Server{DB: externalDB, p2p: p2p}
 	p2pproto.RegisterPingerServer(server, srv)
 	p2pproto.RegisterPeerDBServer(server, srv)
 	p2pproto.RegisterAppsServer(server, srv)
 	p2pproto.RegisterImagesServer(server, srv)
 	p2pproto.RegisterInstanceServer(server, srv)
 
-	if p2p.externalDB.Initialized() {
-		err := p2p.externalDB.EnableGRPCServers(server)
-		if err != nil {
-			return fmt.Errorf("failed to enable grpc servers: %w", err)
-		}
+	// Serve gRPC through the permanent, registry-owned application listener
+	// installed before Swarmion opens on the shared host.
+	grpcListener := p2p.grpcListener
+	if grpcListener == nil {
+		return fmt.Errorf("Protos control listener is not configured")
 	}
-
-	// serve grpc server over libp2p host
-	grpcListener := p2pgrpc.NewListener(context.Background(), p2p.host, protosRPCProtocol)
-	p2p.grpcGen++
-	generation := p2p.grpcGen
 	go func() {
 		if err := server.Serve(grpcListener); err != nil {
-			p2p.handleGRPCServeError(server, generation, err)
+			select {
+			case <-p2p.stopCh:
+				log.Debugf("p2p grpc server stopped: %v", err)
+			default:
+				log.Errorf("p2p grpc server stopped unexpectedly: %v", err)
+			}
 		}
 	}()
 
 	return nil
-}
-
-func (p2p *P2P) handleGRPCServeError(server *grpc.Server, generation uint64, err error) {
-	select {
-	case <-p2p.stopCh:
-		log.Debugf("p2p grpc server stopped: %v", err)
-		return
-	default:
-	}
-
-	p2p.grpcMu.Lock()
-	if p2p.grpcServer != server || p2p.grpcGen != generation {
-		p2p.grpcMu.Unlock()
-		log.Debugf("stale p2p grpc server generation %d stopped: %v", generation, err)
-		return
-	}
-	log.Errorf("p2p grpc server stopped unexpectedly; restarting: %v", err)
-	p2p.grpcServer = newP2PGRPCServer()
-	p2p.grpcMu.Unlock()
-	server.Stop()
-
-	time.Sleep(time.Second)
-	if restartErr := p2p.startGRPCServer(); restartErr != nil {
-		log.Errorf("failed to restart p2p grpc server after serve error: %v", restartErr)
-	}
 }
 
 // StartServer starts listening for p2p connections
@@ -1029,87 +1242,113 @@ func (p2p *P2P) StartServer() (func() error, error) {
 		return func() error { return nil }, fmt.Errorf("failed to prepare grpc server: %w", err)
 	}
 
-	err = p2p.host.Network().Listen()
-	if err != nil {
-		return func() error { return nil }, fmt.Errorf("failed to listen: %w", err)
-	}
-
 	stopReconciler := p2p.startPeerReconciler()
 	stopper := func() error {
-		log.Debug("Stopping p2p server")
 		_ = stopReconciler()
-		p2p.grpcMu.Lock()
-		server := p2p.grpcServer
-		p2p.grpcGen++
-		p2p.grpcMu.Unlock()
-		if server != nil {
-			server.GracefulStop()
-		}
-		return p2p.host.Close()
+		return p2p.StopServer()
 	}
 	return stopper, nil
 
 }
 
-func (p2p *P2P) restartServerAfterInit() {
-	go func() {
-		im, ok := <-p2p.restartServerSignal
-		if !ok {
-			return
-		}
-
-		log.Info("restarting grpc server")
-
+// StopServer closes Protos control admission and its reconciler while keeping
+// the application protocol registration and shared physical host alive. Node
+// shutdown invokes this before closing the DB so no API/control writer can race
+// Swarmion's drain boundary.
+func (p2p *P2P) StopServer() error {
+	if p2p == nil {
+		return nil
+	}
+	p2p.serverStopOnce.Do(func() {
+		p2p.stopOnce.Do(func() { close(p2p.stopCh) })
 		p2p.grpcMu.Lock()
-		oldServer := p2p.grpcServer
-		p2p.grpcServer = newP2PGRPCServer()
-		p2p.grpcGen++
+		server := p2p.grpcServer
+		listener := p2p.grpcListener
+		p2p.grpcListener = nil
 		p2p.grpcMu.Unlock()
-		if oldServer != nil {
-			oldServer.GracefulStop()
+		if listener != nil {
+			_ = listener.Close()
 		}
-
-		peerID, err := p2p.pubKeyToPeerID(im.GetPublicKey())
-		if err != nil {
-			log.Error("failed to decode init peer: ", err)
-		} else {
-			if err := p2p.host.Network().ClosePeer(peerID); err != nil {
-				log.Debugf("failed to close init peer %s: %v", peerID.String(), err)
+		if server != nil {
+			if forced := boundedGRPCStop(server, grpcGracefulStopTimeout); forced {
+				log.Warn("forced p2p gRPC shutdown after graceful-stop deadline")
 			}
-			p2p.clients.Delete(peerID.String())
-			p2p.machines.Set(peerID.String(), &im)
-			p2p.markPeerDisconnected(peerID.String())
 		}
-
-		err = p2p.startGRPCServer()
-		if err != nil {
-			log.Error("failed to prepare grpc server: ", err)
-			return
-		}
-	}()
+	})
+	return nil
 }
 
-// NewManager creates and returns a new p2p manager
-func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, p2pPort int) (*P2P, error) {
-	p2p := &P2P{
-		appManager: appManager,
-		grpcServer: newP2PGRPCServer(),
-		externalDB: externalDB,
-		p2pPort:    p2pPort,
-
-		restartServerSignal: make(chan initMachine),
-
-		clients:      util.NewMap[string, *Client](),
-		machines:     util.NewMap[string, Machine](),
-		peerStates:   util.NewMap[string, PeerState](),
-		pendingPeers: util.NewMap[string, bool](),
-
-		relayReservations: util.NewMap[string, time.Time](),
-
-		reconcileCh: make(chan struct{}, 1),
-		stopCh:      make(chan struct{}),
+func boundedGRPCStop(server *grpc.Server, timeout time.Duration) bool {
+	if server == nil {
+		return false
 	}
+	if timeout <= 0 {
+		server.Stop()
+		return true
+	}
+	done := make(chan struct{})
+	go func() {
+		server.GracefulStop()
+		close(done)
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return false
+	case <-timer.C:
+		server.Stop()
+		<-done
+		return true
+	}
+}
 
+// Close removes only this manager's protocol registrations, observers, and
+// workers when the host is borrowed. A manager returned by NewManager owns its
+// reference host and closes it after the scoped shutdown.
+func (p2p *P2P) Close() error {
+	if p2p == nil {
+		return nil
+	}
+	p2p.scopeStopOnce.Do(func() {
+		log.Debug("stopping p2p server")
+		_ = p2p.StopServer()
+
+		p2p.clientMu.Lock()
+		for _, client := range p2p.clients.Snapshot() {
+			if client != nil && client.grpcConnection != nil {
+				_ = client.grpcConnection.Close()
+			}
+		}
+		p2p.clientMu.Unlock()
+		if p2p.host != nil {
+			if p2p.notify != nil {
+				p2p.host.Network().StopNotify(p2p.notify)
+			}
+			if p2p.protocolRegistration != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				if err := p2p.protocolRegistration.Close(ctx); err != nil {
+					p2p.scopeStopErr = fmt.Errorf("close Protos protocol scope: %w", err)
+				}
+				cancel()
+			}
+			if p2p.ownsHost {
+				if err := p2p.host.Close(); err != nil && p2p.scopeStopErr == nil {
+					p2p.scopeStopErr = err
+				}
+			}
+		}
+	})
+	return p2p.scopeStopErr
+}
+
+// NewHost creates the single physical libp2p host owned by Protos. Swarmion
+// receives a borrowed adapter around this host; its lifecycle never creates or
+// closes another physical transport.
+func NewHost(key *pcrypto.Key, p2pPort int) (host.Host, error) {
+	if key == nil {
+		return nil, fmt.Errorf("p2p key is nil")
+	}
 	prvKey, err := crypto.UnmarshalEd25519PrivateKey(key.Private())
 	if err != nil {
 		return nil, err
@@ -1119,36 +1358,112 @@ func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, 
 	if err != nil {
 		return nil, err
 	}
+	routeFence, err := swarmionlink.NewRouteFence()
+	if err != nil {
+		return nil, err
+	}
 
-	host, err := libp2p.New(
+	peerHost, err := libp2p.New(
 		libp2p.Identity(prvKey),
 		libp2p.ListenAddrStrings(listenAddrsForPort(p2pPort)...),
 		libp2p.Security(noise.ID, noise.New),
 		libp2p.Transport(tcp.NewTCPTransport),
 		libp2p.Transport(quic.NewTransport),
 		libp2p.ConnectionManager(con),
+		libp2p.ConnectionGater(routeFence),
 		libp2p.EnableRelay(),
 		libp2p.EnableRelayService(),
-		libp2p.ForceReachabilityPublic(),
+		libp2p.NATPortMap(),
+		libp2p.EnableHolePunching(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup p2p host: %w", err)
 	}
+	return &routeFencedHost{Host: peerHost, routeFence: routeFence}, nil
+}
 
-	p2p.host = host
-	p2p.host.SetStreamHandler(swarmionBootstrapProtocol, p2p.handleSwarmionBootstrapStream)
-	p2p.host.SetStreamHandler(imageBlobStreamProtocol, p2p.handleImageBlobStream)
-	p2p.host.SetStreamHandler(imageArchiveUploadProtocol, p2p.handleImageArchiveUploadStream)
-	nb := network.NotifyBundle{
+type routeFencedHost struct {
+	host.Host
+	routeFence *swarmionlink.RouteFence
+}
+
+func (h *routeFencedHost) SwarmionRouteFence() *swarmionlink.RouteFence {
+	if h == nil {
+		return nil
+	}
+	return h.routeFence
+}
+
+// NewManagerWithHost registers the Protos protocol scope on a borrowed,
+// application-owned host. Call this before opening Swarmion so protocol
+// collisions are detected rather than silently overwritten.
+func NewManagerWithHost(peerHost host.Host, appManager AppManager, externalDB ExternalDB, p2pPort int) (*P2P, error) {
+	registry, err := swarmionlink.NewRegistry(peerHost)
+	if err != nil {
+		return nil, err
+	}
+	return NewManagerWithRegistry(peerHost, registry, appManager, externalDB, p2pPort)
+}
+
+// NewManagerWithRegistry installs Protos through the same collision-aware
+// registry whose Link is passed to Swarmion.
+func NewManagerWithRegistry(peerHost host.Host, registry *swarmionlink.Registry, appManager AppManager, externalDB ExternalDB, p2pPort int) (*P2P, error) {
+	if peerHost == nil {
+		return nil, fmt.Errorf("p2p host is nil")
+	}
+	if registry == nil {
+		return nil, fmt.Errorf("shared protocol registry is nil")
+	}
+	p2p := &P2P{
+		host:       peerHost,
+		registry:   registry,
+		routeFence: registry.RouteFence(),
+		appManager: appManager,
+		grpcServer: newP2PGRPCServer(),
+		externalDB: externalDB,
+		p2pPort:    p2pPort,
+
+		clients:      util.NewMap[string, *Client](),
+		machines:     util.NewMap[string, Machine](),
+		peerStates:   util.NewMap[string, PeerState](),
+		pendingPeers: util.NewMap[string, bool](),
+
+		relayReservations: util.NewMap[string, time.Time](),
+		peerRoutes:        make(map[string]map[string]struct{}),
+
+		reconcileCh: make(chan struct{}, 1),
+		stopCh:      make(chan struct{}),
+	}
+
+	registration, err := p2p.registerProtocolScope(registry)
+	if err != nil {
+		return nil, err
+	}
+	p2p.protocolRegistration = registration
+	nb := &network.NotifyBundle{
 		ConnectedF:    p2p.newConnectionHandler,
 		DisconnectedF: p2p.closeConnectionHandler,
 	}
-	p2p.host.Network().Notify(&nb)
+	p2p.notify = nb
+	p2p.host.Network().Notify(nb)
+	p2p.initializePhysicalRoutes()
 
-	log.Infof("using host with ID '%s'", host.ID().String())
-	if !p2p.externalDB.Initialized() {
-		p2p.restartServerAfterInit()
-	}
-
+	log.Infof("using shared application host with ID '%s'", peerHost.ID().String())
 	return p2p, nil
+}
+
+// NewManager retains the standalone owned-host constructor for tests and
+// applications that deliberately delegate the entire physical host lifecycle.
+func NewManager(key *pcrypto.Key, appManager AppManager, externalDB ExternalDB, p2pPort int) (*P2P, error) {
+	peerHost, err := NewHost(key, p2pPort)
+	if err != nil {
+		return nil, err
+	}
+	manager, err := NewManagerWithHost(peerHost, appManager, externalDB, p2pPort)
+	if err != nil {
+		_ = peerHost.Close()
+		return nil, err
+	}
+	manager.ownsHost = true
+	return manager, nil
 }

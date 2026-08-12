@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/martinlindhe/base36"
-	"github.com/nustiueudinastea/swarmion/runtime/identity"
+	swarmionruntime "github.com/nustiueudinastea/swarmion/runtime"
 )
 
 func TestSwarmionSignerUsesLibp2pPublicKeyEncoding(t *testing.T) {
@@ -18,12 +19,12 @@ func TestSwarmionSignerUsesLibp2pPublicKeyEncoding(t *testing.T) {
 		t.Fatalf("generate key: %v", err)
 	}
 	key := testSwarmionRawSigner{privateKey: privateKey, publicKey: publicKey}
-	signer, err := newSwarmionSigner(key, privateKey.GetPublic())
+	signer, err := newSwarmionSigningIdentity(key)
 	if err != nil {
 		t.Fatalf("create swarmion signer: %v", err)
 	}
 
-	peerID, err := identity.PeerIDFromPublicKey(signer.PublicKey())
+	peerID, err := swarmionruntime.PeerIDFromPublicKeyBytes(signer.PublicKeyBytes())
 	if err != nil {
 		t.Fatalf("decode swarmion public key: %v", err)
 	}
@@ -31,16 +32,17 @@ func TestSwarmionSignerUsesLibp2pPublicKeyEncoding(t *testing.T) {
 		t.Fatalf("swarmion public key peer id = %s, want %s", peerID, key.GetID())
 	}
 
-	signature, err := signer.Sign("checkpoint-event-root")
+	payload := []byte("checkpoint-event-root")
+	signature, err := signer.SignBytes(context.Background(), payload)
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
-	var verifier identity.Identity
-	if err := verifier.Verify("checkpoint-event-root", signature, signer.PublicKey()); err != nil {
+	ok, err := publicKey.Verify(payload, signature)
+	if err != nil {
 		t.Fatalf("verify libp2p-encoded public key: %v", err)
 	}
-	if err := signer.Verify("checkpoint-event-root", signature, signer.PublicKey()); err != nil {
-		t.Fatalf("verify through compatibility wrapper: %v", err)
+	if !ok {
+		t.Fatal("verify libp2p-encoded public key: signature mismatch")
 	}
 }
 

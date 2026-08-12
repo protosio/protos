@@ -10,6 +10,13 @@ const (
 	peerClientReconnectAttemptTimeout = 30 * time.Second
 )
 
+func (p2p *P2P) controlClientReadinessTimeout() time.Duration {
+	if p2p != nil && p2p.controlClientTimeout > 0 {
+		return p2p.controlClientTimeout
+	}
+	return peerClientReconnectAttemptTimeout
+}
+
 type peerClientSelection struct {
 	clients                    map[string]*Client
 	knownPeerCount             int

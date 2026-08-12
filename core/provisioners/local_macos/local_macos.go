@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -59,7 +60,20 @@ type localMacOSCredentials struct {
 type localMacOS struct {
 	provisioners.ProvisionerMetadata
 
-	vmDir string
+	vmDir              string
+	newHostAgentClient func() (localMacOSHostAgent, error)
+}
+
+type localMacOSHostAgent interface {
+	Close() error
+	ApplyVM(id string, rootDir string, desiredState string, config *hostagentpb.VMConfig) (*hostagentpb.VMObservedState, error)
+	VMStatus(id string, name string, rootDir string) (*hostagentpb.VMObservedState, error)
+	ListVMs(rootDir string) ([]*hostagentpb.VMObservedState, error)
+	VMLogs(id string, name string, rootDir string) (string, error)
+}
+
+func newLocalMacOSHostAgentClient() (localMacOSHostAgent, error) {
+	return hostagentclient.New()
 }
 
 type localMacOSImageMetadata struct {
@@ -184,6 +198,7 @@ func newLocalMacOSClient(metadata provisioners.ProvisionerMetadata, deps provisi
 	return &localMacOS{
 		ProvisionerMetadata: metadata,
 		vmDir:               vmDir,
+		newHostAgentClient:  newLocalMacOSHostAgentClient,
 	}, nil
 }
 
@@ -340,22 +355,29 @@ func (lm *localMacOS) DeleteInstance(id string, location string) error {
 	}
 	state, err := lm.hostAgentVMStateByIDOrName(id)
 	if err != nil {
-		return lm.deleteInstanceArtifacts(id)
+		if errors.Is(err, provisioners.ErrInstanceNotFound) {
+			return lm.removeInstanceArtifacts(id)
+		}
+		return fmt.Errorf("failed to inspect local macOS VM '%s' before deletion: %w", id, err)
 	}
 	config, err := lm.vmConfigFromState(state)
 	if err != nil {
-		return lm.deleteInstanceArtifacts(id)
+		return fmt.Errorf("failed to load local macOS VM '%s' before deletion: %w", id, err)
 	}
-	return lm.deleteInstanceArtifacts(config.ID)
+	instanceID, err := sanitizeLocalMacOSName(config.ID)
+	if err != nil {
+		return fmt.Errorf("invalid local macOS VM identity returned by host agent: %w", err)
+	}
+	if _, err := lm.applyHostAgentVM(instanceID, "deleted", nil); err != nil {
+		return fmt.Errorf("failed to delete local macOS VM '%s' through host agent: %w", instanceID, err)
+	}
+	return lm.removeInstanceArtifacts(instanceID)
 }
 
-func (lm *localMacOS) deleteInstanceArtifacts(id string) error {
+func (lm *localMacOS) removeInstanceArtifacts(id string) error {
 	instanceID, err := sanitizeLocalMacOSName(id)
 	if err != nil {
 		return err
-	}
-	if _, err := lm.applyHostAgentVM(instanceID, "deleted", nil); err != nil {
-		log.Debugf("Skipping host agent delete for stopped local macOS VM '%s': %v", instanceID, err)
 	}
 	if err := removeLocalMacOSDir(lm.instanceDir(instanceID)); err != nil {
 		return fmt.Errorf("failed to remove local macOS VM '%s': %w", id, err)
@@ -702,7 +724,20 @@ func (lm *localMacOS) DeleteVolume(id string, location string) error {
 	}
 	metadata, err := lm.readVolumeMetadata(id)
 	if err != nil {
-		return err
+		if !os.IsNotExist(err) {
+			return err
+		}
+		volumeID, sanitizeErr := sanitizeLocalMacOSName(id)
+		if sanitizeErr != nil {
+			return sanitizeErr
+		}
+		// Volume metadata can be removed before a task process crashes. The
+		// canonical raw path remains derivable from the volume ID, including
+		// while a stopped VM manifest still references that volume.
+		metadata = localMacOSVolumeMetadata{
+			ID:   volumeID,
+			Path: filepath.Join(lm.volumesDir(), volumeID+".raw"),
+		}
 	}
 	if err := os.Remove(metadata.Path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete local macOS volume '%s': %w", id, err)
@@ -1133,7 +1168,7 @@ func (lm *localMacOS) localMacOSAssignedIPs(excludeID string) map[string]struct{
 }
 
 func (lm *localMacOS) applyHostAgentVM(id string, desiredState string, config *localMacOSVMConfig) (*hostagentpb.VMObservedState, error) {
-	client, err := hostagentclient.New()
+	client, err := lm.hostAgentClient()
 	if err != nil {
 		return nil, err
 	}
@@ -1164,11 +1199,11 @@ func (lm *localMacOS) hostAgentVMStateByIDOrName(idOrName string) (*hostagentpb.
 	if nameErr != nil {
 		return nil, nameErr
 	}
-	return nil, os.ErrNotExist
+	return nil, fmt.Errorf("%w: local macOS VM %q", provisioners.ErrInstanceNotFound, idOrName)
 }
 
 func (lm *localMacOS) hostAgentVMStatus(id string, name string) (*hostagentpb.VMObservedState, error) {
-	client, err := hostagentclient.New()
+	client, err := lm.hostAgentClient()
 	if err != nil {
 		return nil, err
 	}
@@ -1178,11 +1213,14 @@ func (lm *localMacOS) hostAgentVMStatus(id string, name string) (*hostagentpb.VM
 	if err != nil {
 		return nil, fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
 	}
+	if strings.EqualFold(state.GetStatus(), "error") {
+		return nil, fmt.Errorf("host agent failed to inspect local macOS VM '%s': %s", firstNonEmptyLocalMacOSString(id, name), state.GetMessage())
+	}
 	return state, nil
 }
 
 func (lm *localMacOS) hostAgentVMs() ([]*hostagentpb.VMObservedState, error) {
-	client, err := hostagentclient.New()
+	client, err := lm.hostAgentClient()
 	if err != nil {
 		return nil, err
 	}
@@ -1196,7 +1234,7 @@ func (lm *localMacOS) hostAgentVMs() ([]*hostagentpb.VMObservedState, error) {
 }
 
 func (lm *localMacOS) hostAgentVMLogs(id string, name string) (string, error) {
-	client, err := hostagentclient.New()
+	client, err := lm.hostAgentClient()
 	if err != nil {
 		return "", err
 	}
@@ -1207,6 +1245,14 @@ func (lm *localMacOS) hostAgentVMLogs(id string, name string) (string, error) {
 		return "", fmt.Errorf("host agent is unavailable; start it through the Protos StartHostAgent API: %w", err)
 	}
 	return logs, nil
+}
+
+func (lm *localMacOS) hostAgentClient() (localMacOSHostAgent, error) {
+	newClient := lm.newHostAgentClient
+	if newClient == nil {
+		newClient = newLocalMacOSHostAgentClient
+	}
+	return newClient()
 }
 
 func (lm *localMacOS) vmConfigFromState(state *hostagentpb.VMObservedState) (localMacOSVMConfig, error) {

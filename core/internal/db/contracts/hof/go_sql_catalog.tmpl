@@ -22,6 +22,9 @@ var {{ .var_name }} = schema.CatalogDefinition{
 {{- range $version := .versions }}
 				{{ $version.alias }}.{{ $version.transition_var }},
 {{- end }}
+{{- range $transition := .extra_transitions }}
+				{{ $transition.alias }}.{{ $transition.transition_var }},
+{{- end }}
 			},
 		},
 	},

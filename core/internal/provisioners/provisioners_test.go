@@ -14,6 +14,7 @@ import (
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/release"
 	"github.com/protosio/protos/internal/tasks"
+	"github.com/protosio/protos/internal/testswarmion"
 )
 
 type fakeComputeProvisioner struct {
@@ -116,7 +117,7 @@ func TestGetLocalInstanceReportsObservedStatus(t *testing.T) {
 		PublicKey:          "public-key",
 		Location:           "local",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +156,7 @@ func TestLogsRemoteInstanceUsesProvisionerLogs(t *testing.T) {
 		ProviderResourceID: "provider-vm-id",
 		Location:           "test-location",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -171,14 +172,8 @@ func TestLogsRemoteInstanceUsesProvisionerLogs(t *testing.T) {
 
 func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	store := openProvisionerTestDB(t)
-	cm := &Manager{
-		db:           store,
-		provisioners: newProvisionerRegistry(fakeDeploymentFactory{}),
-		tasks:        tasks.NewManager(store),
-	}
-	if err := cm.registerTaskStreams(); err != nil {
-		t.Fatal(err)
-	}
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeDeploymentFactory{}))
+	beforeTransactions := store.TransactionMetrics()
 
 	instance, err := cm.DeployInstance("vm", "fake", "test-location", release.Release{Version: "dev"}, "small")
 	if err != nil {
@@ -212,9 +207,32 @@ func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	if task.Status != tasks.StatusPending {
 		t.Fatalf("task status = %q, want pending", task.Status)
 	}
+	afterTransactions := store.TransactionMetrics()
+	started := afterTransactions.TransactionsStarted - beforeTransactions.TransactionsStarted
+	commitsAttempted := afterTransactions.CommitsAttempted - beforeTransactions.CommitsAttempted
+	commitsSucceeded := afterTransactions.CommitsSucceeded - beforeTransactions.CommitsSucceeded
+	commitsFailed := afterTransactions.CommitsFailed - beforeTransactions.CommitsFailed
+	rollbacks := afterTransactions.RollbacksAttempted - beforeTransactions.RollbacksAttempted
+	typedConflicts := afterTransactions.TypedConflicts - beforeTransactions.TypedConflicts
+	viewNotReady := afterTransactions.SQLViewNotReadyOutcomes - beforeTransactions.SQLViewNotReadyOutcomes
+	// A first deployment of the credential-free fake provisioner publishes the
+	// default provider, the desired instance, and the queued task.
+	if started != 3 || commitsAttempted != 3 || commitsSucceeded != 3 || commitsFailed != 0 ||
+		rollbacks != 0 || typedConflicts != 0 || viewNotReady != 0 {
+		t.Fatalf(
+			"nominal deployment transaction metrics starts=%d commits=%d/%d failed=%d rollbacks=%d conflicts=%d sql_view_not_ready=%d",
+			started,
+			commitsSucceeded,
+			commitsAttempted,
+			commitsFailed,
+			rollbacks,
+			typedConflicts,
+			viewNotReady,
+		)
+	}
 }
 
-func TestDeleteLocalInstanceContinuesWhenProviderManifestMissing(t *testing.T) {
+func TestDeleteLocalInstanceWithoutIdentityPreservesMissingManifestResource(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	provider := &fakeMissingLocalMetadataProvider{}
 	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeMissingLocalMetadataFactory{provider: provider}))
@@ -231,7 +249,7 @@ func TestDeleteLocalInstanceContinuesWhenProviderManifestMissing(t *testing.T) {
 		DesiredStatus:      ServerStateRunning,
 		Location:           "local",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -239,18 +257,18 @@ func TestDeleteLocalInstanceContinuesWhenProviderManifestMissing(t *testing.T) {
 	if _, err := cm.DeleteInstance(context.Background(), "test1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := runLifecycleTasks(t, cm); err != nil {
-		t.Fatal(err)
+	if err := runLifecycleTasks(t, cm); err == nil || !strings.Contains(err.Error(), db.ErrReplicationPeerDrainPending.Error()) {
+		t.Fatalf("delete error = %v, want peer drain pending", err)
 	}
-	if len(provider.deleted) != 1 || provider.deleted[0] != "vm-missing" {
-		t.Fatalf("deleted refs = %#v, want vm-missing", provider.deleted)
+	if len(provider.deleted) != 0 {
+		t.Fatalf("deleted refs = %#v, want no provider mutation without identity", provider.deleted)
 	}
-	if _, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err == nil {
-		t.Fatal("expected instance row to be removed")
+	if stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err != nil || stored.DesiredStatus != ServerStateRunning {
+		t.Fatalf("expected unchanged recovery row, stored=%#v err=%v", stored, err)
 	}
 }
 
-func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
+func TestDeleteInstanceWithoutIdentityDoesNotReachProviderStopFailure(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	provider := &fakeStopFailDeleteProvider{
 		instances: map[string]InstanceInfo{
@@ -277,7 +295,7 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 		DesiredStatus:      ServerStateRunning,
 		Location:           "test-location",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -285,21 +303,21 @@ func TestDeleteInstanceContinuesToProviderDeleteWhenStopFails(t *testing.T) {
 	if _, err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
 		t.Fatal(err)
 	}
-	if err := runLifecycleTasks(t, cm); err != nil {
-		t.Fatal(err)
+	if err := runLifecycleTasks(t, cm); err == nil || !strings.Contains(err.Error(), db.ErrReplicationPeerDrainPending.Error()) {
+		t.Fatalf("delete error = %v, want peer drain pending", err)
 	}
-	if provider.stopCalls != 1 {
-		t.Fatalf("stop calls = %d, want 1", provider.stopCalls)
+	if provider.stopCalls != 0 {
+		t.Fatalf("stop calls = %d, want 0", provider.stopCalls)
 	}
-	if provider.deleteCalls != 1 {
-		t.Fatalf("delete calls = %d, want 1", provider.deleteCalls)
+	if provider.deleteCalls != 0 {
+		t.Fatalf("delete calls = %d, want 0", provider.deleteCalls)
 	}
-	if _, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err == nil {
-		t.Fatal("expected instance row to be removed")
+	if stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err != nil || stored.DesiredStatus != ServerStateRunning {
+		t.Fatalf("expected unchanged recovery row, stored=%#v err=%v", stored, err)
 	}
 }
 
-func TestDeleteInstanceReturnsVolumeDeleteErrorAndKeepsRecord(t *testing.T) {
+func TestDeleteInstanceWithoutIdentityDoesNotAttemptVolumeDeletion(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	provider := &fakeStopFailDeleteProvider{
 		instances: map[string]InstanceInfo{
@@ -329,7 +347,7 @@ func TestDeleteInstanceReturnsVolumeDeleteErrorAndKeepsRecord(t *testing.T) {
 		DesiredStatus:      ServerStateRunning,
 		Location:           "test-location",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -339,23 +357,23 @@ func TestDeleteInstanceReturnsVolumeDeleteErrorAndKeepsRecord(t *testing.T) {
 	}
 	err := runLifecycleTasks(t, cm)
 	if err == nil {
-		t.Fatal("expected volume delete error")
+		t.Fatal("expected blank-identity peer drain error")
 	}
-	if !strings.Contains(err.Error(), "could not delete volume 'volume-id'") {
-		t.Fatalf("error = %v, want volume delete context", err)
+	if !strings.Contains(err.Error(), db.ErrReplicationPeerDrainPending.Error()) {
+		t.Fatalf("error = %v, want peer drain pending", err)
 	}
 	if provider.deleteCalls != 0 {
 		t.Fatalf("delete calls = %d, want 0", provider.deleteCalls)
 	}
-	if provider.volumeDeleteCalls != 1 {
-		t.Fatalf("volume delete calls = %d, want 1", provider.volumeDeleteCalls)
+	if provider.volumeDeleteCalls != 0 {
+		t.Fatalf("volume delete calls = %d, want 0", provider.volumeDeleteCalls)
 	}
 	if _, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err != nil {
 		t.Fatalf("expected instance row to remain for retry: %v", err)
 	}
 }
 
-func TestDeleteInstanceTreatsAttachedVolumeCleanupAsRetryable(t *testing.T) {
+func TestDeleteInstanceWithoutIdentityDoesNotAttemptAttachedVolumeCleanup(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	provider := &fakeStopFailDeleteProvider{
 		instances: map[string]InstanceInfo{
@@ -385,7 +403,7 @@ func TestDeleteInstanceTreatsAttachedVolumeCleanupAsRetryable(t *testing.T) {
 		DesiredStatus:      ServerStateRunning,
 		Location:           "test-location",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -395,20 +413,23 @@ func TestDeleteInstanceTreatsAttachedVolumeCleanupAsRetryable(t *testing.T) {
 	}
 	err := runLifecycleTasks(t, cm)
 	if err == nil {
-		t.Fatal("expected attached volume cleanup error")
+		t.Fatal("expected blank-identity peer drain error")
+	}
+	if !strings.Contains(err.Error(), db.ErrReplicationPeerDrainPending.Error()) {
+		t.Fatalf("error = %v, want peer drain pending", err)
 	}
 	if provider.deleteCalls != 0 {
 		t.Fatalf("delete calls = %d, want 0", provider.deleteCalls)
 	}
-	if provider.volumeDeleteCalls != 1 {
-		t.Fatalf("volume delete calls = %d, want 1", provider.volumeDeleteCalls)
+	if provider.volumeDeleteCalls != 0 {
+		t.Fatalf("volume delete calls = %d, want 0", provider.volumeDeleteCalls)
 	}
 	stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID))
 	if err != nil {
 		t.Fatalf("expected instance row to remain for retry: %v", err)
 	}
-	if stored.DesiredStatus != ServerStateDeleting {
-		t.Fatalf("desired status = %q, want %q", stored.DesiredStatus, ServerStateDeleting)
+	if stored.DesiredStatus != ServerStateRunning {
+		t.Fatalf("desired status = %q, want unchanged %q", stored.DesiredStatus, ServerStateRunning)
 	}
 }
 
@@ -424,7 +445,7 @@ func TestDeleteInstanceHonorsCanceledContextBeforeMutatingState(t *testing.T) {
 		DesiredStatus: ServerStateRunning,
 		Location:      "test-location",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +479,7 @@ func TestGetDeclaredInstanceDoesNotRequireLiveProviderStatus(t *testing.T) {
 		Location:           "test-location",
 		Architecture:       "arm64",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -700,7 +721,7 @@ func TestQueueDesiredInstanceReconcileAppliesLocalVMDesiredStatus(t *testing.T) 
 		PublicIP:           "192.0.2.10",
 		Location:           "local",
 	}
-	im, cmm := createInstanceInsertMapper(instance)
+	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
 	if err := db.Insert(store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
@@ -978,11 +999,16 @@ func (f fakeStopFailDeleteFactory) NewClient(record ProvisionerRecord, deps Prov
 type fakeStopFailDeleteProvider struct {
 	ProvisionerMetadata
 	instances         map[string]InstanceInfo
+	getErr            error
 	stopErr           error
+	stopEntered       chan<- struct{}
+	releaseStop       <-chan struct{}
 	volumeErr         error
 	stopCalls         int
+	startCalls        int
 	deleteCalls       int
 	volumeDeleteCalls int
+	callOrder         []string
 }
 
 func (p *fakeStopFailDeleteProvider) Init() error {
@@ -1003,22 +1029,35 @@ func (p *fakeStopFailDeleteProvider) NewInstance(string, string, string, string,
 
 func (p *fakeStopFailDeleteProvider) DeleteInstance(string, string) error {
 	p.deleteCalls++
+	p.callOrder = append(p.callOrder, "delete")
 	return nil
 }
 
 func (p *fakeStopFailDeleteProvider) StartInstance(string, string) error {
+	p.startCalls++
+	p.callOrder = append(p.callOrder, "start")
 	return nil
 }
 
 func (p *fakeStopFailDeleteProvider) StopInstance(string, string) error {
 	p.stopCalls++
+	p.callOrder = append(p.callOrder, "stop")
+	if p.stopCalls == 1 && p.stopEntered != nil {
+		p.stopEntered <- struct{}{}
+		if p.releaseStop != nil {
+			<-p.releaseStop
+		}
+	}
 	return p.stopErr
 }
 
 func (p *fakeStopFailDeleteProvider) GetInstanceInfo(id string, location string) (InstanceInfo, error) {
+	if p.getErr != nil {
+		return InstanceInfo{}, p.getErr
+	}
 	info, found := p.instances[id]
 	if !found {
-		return InstanceInfo{}, fmt.Errorf("not found: %s", id)
+		return InstanceInfo{}, fmt.Errorf("%w: %s", ErrInstanceNotFound, id)
 	}
 	info.Location = location
 	return info, nil
@@ -1055,7 +1094,7 @@ func openProvisionerTestDB(t *testing.T) *db.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := db.Open(workDir, "protos_provisioners_test", key)
+	store, err := db.Open(workDir, "protos_provisioners_test", key, testswarmion.NewBorrowedLink(t, key))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1070,16 +1109,31 @@ func openProvisionerTestDB(t *testing.T) *db.DB {
 
 func newLifecycleTestManager(t *testing.T, store *db.DB, registry *provisionerRegistry) *Manager {
 	t.Helper()
+	status, ok := store.SwarmionStatus()
+	if !ok || strings.TrimSpace(status.PeerID) == "" {
+		t.Fatal("test database Swarmion identity is unavailable")
+	}
+	taskManager := tasks.NewManager(store)
+	taskManager.SetExecutorPeerID(status.PeerID)
 	manager := &Manager{
 		db:           store,
 		provisioners: registry,
-		tasks:        tasks.NewManager(store),
+		tasks:        taskManager,
 		lifecycleSig: map[string]string{},
 	}
 	if err := manager.registerTaskStreams(); err != nil {
 		t.Fatal(err)
 	}
 	return manager
+}
+
+func createAuthorizedInstanceInsertMapper(t *testing.T, store *db.DB, instance *InstanceInfo) (db.InsertMapper, db.InsertMapper) {
+	t.Helper()
+	if instance == nil {
+		t.Fatal("test instance is nil")
+	}
+	*instance = instanceWithTestLifecycleOwner(t, store, *instance)
+	return createInstanceInsertMapper(*instance)
 }
 
 func runLifecycleTasks(t *testing.T, manager *Manager) error {
