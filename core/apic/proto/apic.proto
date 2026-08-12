@@ -1182,4 +1182,12 @@ message WriteConfirmation {
   int32 confirmed_other_peers = 5;
   // The mutation was accepted, but exact other-peer retention was not proved before returning; do not replay it.
   bool availability_pending = 6;
+  // How eligible peers were selected for this observation.
+  string candidate_scope = 7;
+  // Topology candidates at the observation boundary; this is not receipt evidence.
+  repeated string eligible_peer_ids = 8;
+  // Weak local-only outcome; this does not prove other-peer availability.
+  bool no_current_eligible_peers = 9;
+  // Stable machine-readable status reason.
+  string reason_code = 10;
 }

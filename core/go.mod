@@ -283,8 +283,8 @@ require (
 	github.com/multiformats/go-varint v0.1.0 // indirect
 	github.com/nustiueudinastea/swarmion/protocol v0.0.0
 	github.com/nustiueudinastea/swarmion/runtime v0.0.0
-	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260812114807-c2e890cce881
-	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260812114807-c2e890cce881
+	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260812175216-c19a6ae8e151
+	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260812175216-c19a6ae8e151
 	github.com/nustiueudinastea/swarmion/transports v0.0.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -353,14 +353,14 @@ replace github.com/dolthub/dolt/go => github.com/nustiueudinastea/dolt/go v0.0.0
 
 replace github.com/dolthub/driver/v2 => github.com/nustiueudinastea/doltsqldriver/v2 v2.0.0-20260618154213-1ce90ff21070
 
-replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260812114807-c2e890cce881
+replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260812175216-c19a6ae8e151
 
-replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260812114807-c2e890cce881
+replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260812175216-c19a6ae8e151
 
-replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260812114807-c2e890cce881
+replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260812175216-c19a6ae8e151
 
-replace github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0 => github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0-20260812114807-c2e890cce881
+replace github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0 => github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0-20260812175216-c19a6ae8e151
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260812114807-c2e890cce881
+replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260812175216-c19a6ae8e151
 
-replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260812114807-c2e890cce881
+replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260812175216-c19a6ae8e151

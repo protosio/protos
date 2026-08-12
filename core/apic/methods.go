@@ -1744,12 +1744,16 @@ func publishedWriteConfirmationToProto(confirmation db.PublishedWriteConfirmatio
 		return nil
 	}
 	return &pbApic.WriteConfirmation{
-		Stage:               string(confirmation.Stage),
-		EventId:             confirmation.Receipt.EventID,
-		PublishedRootHash:   confirmation.Receipt.PublishedRootHash,
-		RequiredOtherPeers:  int32(confirmation.Availability.RequiredOtherPeers),
-		ConfirmedOtherPeers: int32(confirmation.Availability.ConfirmedOtherPeers),
-		AvailabilityPending: confirmation.AvailabilityPending,
+		Stage:                  string(confirmation.Stage),
+		EventId:                confirmation.Receipt.EventID,
+		PublishedRootHash:      confirmation.Receipt.PublishedRootHash,
+		RequiredOtherPeers:     int32(confirmation.Availability.RequiredOtherPeers),
+		ConfirmedOtherPeers:    int32(confirmation.Availability.ConfirmedOtherPeers),
+		AvailabilityPending:    confirmation.AvailabilityPending,
+		CandidateScope:         string(confirmation.Availability.CandidateScope),
+		EligiblePeerIds:        append([]string(nil), confirmation.Availability.EligiblePeerIDs...),
+		NoCurrentEligiblePeers: confirmation.Availability.NoCurrentEligiblePeers,
+		ReasonCode:             string(confirmation.Availability.ReasonCode),
 	}
 }
 
@@ -1758,12 +1762,16 @@ func taskWriteConfirmationToProto(confirmation tasks.WriteConfirmation) *pbApic.
 		return nil
 	}
 	return &pbApic.WriteConfirmation{
-		Stage:               string(confirmation.Stage),
-		EventId:             confirmation.EventID,
-		PublishedRootHash:   confirmation.PublishedRootHash,
-		RequiredOtherPeers:  int32(confirmation.RequiredOtherPeers),
-		ConfirmedOtherPeers: int32(confirmation.ConfirmedOtherPeers),
-		AvailabilityPending: confirmation.AvailabilityPending,
+		Stage:                  string(confirmation.Stage),
+		EventId:                confirmation.EventID,
+		PublishedRootHash:      confirmation.PublishedRootHash,
+		RequiredOtherPeers:     int32(confirmation.RequiredOtherPeers),
+		ConfirmedOtherPeers:    int32(confirmation.ConfirmedOtherPeers),
+		AvailabilityPending:    confirmation.AvailabilityPending,
+		CandidateScope:         confirmation.CandidateScope,
+		EligiblePeerIds:        append([]string(nil), confirmation.EligiblePeerIDs...),
+		NoCurrentEligiblePeers: confirmation.NoCurrentEligiblePeers,
+		ReasonCode:             confirmation.ReasonCode,
 	}
 }
 
@@ -1772,12 +1780,16 @@ func taskWriteConfirmationFromP2PProto(confirmation *p2pproto.WriteConfirmation)
 		return nil
 	}
 	return &pbApic.WriteConfirmation{
-		Stage:               confirmation.GetStage(),
-		EventId:             confirmation.GetEventId(),
-		PublishedRootHash:   confirmation.GetPublishedRootHash(),
-		RequiredOtherPeers:  confirmation.GetRequiredOtherPeers(),
-		ConfirmedOtherPeers: confirmation.GetConfirmedOtherPeers(),
-		AvailabilityPending: confirmation.GetAvailabilityPending(),
+		Stage:                  confirmation.GetStage(),
+		EventId:                confirmation.GetEventId(),
+		PublishedRootHash:      confirmation.GetPublishedRootHash(),
+		RequiredOtherPeers:     confirmation.GetRequiredOtherPeers(),
+		ConfirmedOtherPeers:    confirmation.GetConfirmedOtherPeers(),
+		AvailabilityPending:    confirmation.GetAvailabilityPending(),
+		CandidateScope:         confirmation.GetCandidateScope(),
+		EligiblePeerIds:        append([]string(nil), confirmation.GetEligiblePeerIds()...),
+		NoCurrentEligiblePeers: confirmation.GetNoCurrentEligiblePeers(),
+		ReasonCode:             confirmation.GetReasonCode(),
 	}
 }
 

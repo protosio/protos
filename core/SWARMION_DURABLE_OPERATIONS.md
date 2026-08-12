@@ -64,7 +64,15 @@ closure. It does not prove a checkpoint, canonical application, content
 coverage, quorum, or global convergence. A bounded unavailable result is an
 accepted write whose replication is not yet provable; it never authorizes a
 replay. Fresh single-peer/bootstrap repositories return at `local_accepted`
-without waiting for an impossible second-peer proof.
+without waiting for an impossible second-peer proof. For ordinary unscoped
+requests, Swarmion selects the current database-scoped logical peers at each
+observation boundary. `EligiblePeerIDs` is that topology snapshot, while
+`Peers` contains receipt evidence only and may still be empty for a newly
+authored receipt. `NoCurrentEligiblePeers` is the explicit weak single-peer
+outcome; it is not other-peer availability and grants no replay or destructive
+workflow authority. Use stable `ReasonCode` values for control flow, never the
+diagnostic `Reason` prose. Pass explicit `PeerIDs` only for intentionally fixed
+application-owned replication targets.
 
 Migrations and provider deletion remain explicit exceptions. Migrations consume
 a checkpoint snapshot. Provider deletion keeps immutable authorization `P` and

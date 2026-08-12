@@ -77,14 +77,22 @@ package apicv1
 // accepted mutation. other_peer_available proves retention by another peer;
 // it does not imply checkpoint application, canonical acceptance, or quorum.
 #WriteConfirmation: {
-	stage?:                 "no_change" | "local_accepted" | "other_peer_available"
-	event_id?:              string
-	published_root_hash?:    string
-	required_other_peers?:  int
-	confirmed_other_peers?: int
+	stage?:                    "no_change" | "local_accepted" | "other_peer_available"
+	event_id?:                 string
+	published_root_hash?:       string
+	required_other_peers?:     int
+	confirmed_other_peers?:    int
 	// A pending availability proof is still an accepted mutation. Clients must
 	// observe the receipt instead of replaying the write.
 	availability_pending?: bool
+	// Identifies how eligible peers were selected for the observation.
+	candidate_scope?: "current_logical_peers" | "explicit_peer_ids"
+	// Current topology candidates, not receipt evidence.
+	eligible_peer_ids?: [...string]
+	// A weak local-only outcome; this never proves other-peer availability.
+	no_current_eligible_peers?: bool
+	// Stable machine-readable status reason. Diagnostic prose stays internal.
+	reason_code?: "" | "receipt_not_locally_live" | "receipt_not_locally_root_ready" | "no_current_eligible_peers" | "insufficient_current_eligible_peers" | "insufficient_other_peer_receipts"
 }
 
 #App: {
@@ -1716,6 +1724,10 @@ contract: {
 				{type: "int32", name: "required_other_peers", number: 4},
 				{type: "int32", name: "confirmed_other_peers", number: 5},
 				{type: "bool", name: "availability_pending", number: 6, comment: "The mutation was accepted, but exact other-peer retention was not proved before returning; do not replay it."},
+				{type: "string", name: "candidate_scope", number: 7, comment: "How eligible peers were selected for this observation."},
+				{rule: "repeated", type: "string", name: "eligible_peer_ids", number: 8, comment: "Topology candidates at the observation boundary; this is not receipt evidence."},
+				{type: "bool", name: "no_current_eligible_peers", number: 9, comment: "Weak local-only outcome; this does not prove other-peer availability."},
+				{type: "string", name: "reason_code", number: 10, comment: "Stable machine-readable status reason."},
 			]},
 		]
 	}

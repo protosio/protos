@@ -14,18 +14,13 @@ import (
 )
 
 type scriptedPublishedWriteAvailabilityRuntime struct {
-	runtimeStatus swarmionapp.Status
-	status        swarmionapp.ReceiptAvailabilityStatus
-	statusErr     error
-	waitStatus    swarmionapp.ReceiptAvailabilityStatus
-	waitErr       error
-	wait          func(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error)
-	requests      []swarmionapp.ReceiptAvailabilityRequest
-	trace         []string
-}
-
-func (r *scriptedPublishedWriteAvailabilityRuntime) Status() swarmionapp.Status {
-	return r.runtimeStatus
+	status     swarmionapp.ReceiptAvailabilityStatus
+	statusErr  error
+	waitStatus swarmionapp.ReceiptAvailabilityStatus
+	waitErr    error
+	wait       func(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error)
+	requests   []swarmionapp.ReceiptAvailabilityRequest
+	trace      []string
 }
 
 func (r *scriptedPublishedWriteAvailabilityRuntime) ReceiptAvailabilityStatus(
@@ -135,13 +130,11 @@ func TestWaitForPublishedWriteAvailabilityTimeoutPreservesLatestExactStatus(t *t
 	latest := pendingPublishedWriteAvailabilityStatusForTest(receipt)
 	latest.Known = true
 	latest.LocalRootReady = true
-	latest.Reason = "insufficient_other_peer_receipts"
+	latest.Reason = "insufficient authenticated other-peer receipt evidence"
 	runtime := &scriptedPublishedWriteAvailabilityRuntime{status: latest}
 	runtime.wait = func(ctx context.Context, _ swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error) {
 		<-ctx.Done()
-		// Swarmion's wait deliberately returns a zero status on context expiry.
-		// The DB wrapper must preserve its latest passive exact observation.
-		return swarmionapp.ReceiptAvailabilityStatus{}, ctx.Err()
+		return latest, &swarmionapp.ReceiptAvailabilityPendingError{Status: latest, Cause: ctx.Err()}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -158,8 +151,43 @@ func TestWaitForPublishedWriteAvailabilityTimeoutPreservesLatestExactStatus(t *t
 		observation.Receipt.EventID != receipt.EventID || pending.Observation.Receipt.PublishedRootHash != receipt.PublishedRootHash {
 		t.Fatalf("timeout lost latest exact observation: returned=%+v pending=%+v", observation, pending.Observation)
 	}
+	if observation.Status.ReasonCode != swarmionapp.ReceiptAvailabilityReasonInsufficientOtherPeerReceipts ||
+		!reflect.DeepEqual(observation.Status.EligiblePeerIDs, []string{"peer-b"}) {
+		t.Fatalf("timeout lost stable topology status: %+v", observation.Status)
+	}
 	if observation.Status.Available || IsRetryablePublishedWriteError(err) {
 		t.Fatalf("pending availability became success/replay authority: observation=%+v error=%v", observation, err)
+	}
+}
+
+func TestWaitForPublishedWriteAvailabilityPreservesPromptNoEligibleStatus(t *testing.T) {
+	receipt := eventReceiptForTest()
+	request, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, PublishedWriteAvailabilityOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := noCurrentEligiblePeersAvailabilityStatusForTest(receipt)
+	runtime := &scriptedPublishedWriteAvailabilityRuntime{status: status}
+	runtime.wait = func(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error) {
+		return status, &swarmionapp.ReceiptAvailabilityPendingError{Status: status}
+	}
+
+	observation, err := waitForPublishedWriteAvailability(
+		context.Background(),
+		runtime,
+		receipt,
+		request,
+		"single-peer write",
+	)
+	if !errors.Is(err, ErrPublishedWriteAvailabilityPending) ||
+		!errors.Is(err, swarmionapp.ErrReceiptAvailabilityPending) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("no-eligible error=%v, want prompt typed pending", err)
+	}
+	var upstream *swarmionapp.ReceiptAvailabilityPendingError
+	if !errors.As(err, &upstream) || !reflect.DeepEqual(upstream.Status, status) ||
+		!reflect.DeepEqual(observation.Status, status) {
+		t.Fatalf("no-eligible observation=%+v error=%v, want exact upstream status", observation, err)
 	}
 }
 
@@ -182,6 +210,107 @@ func TestPublishedWriteAvailabilityRejectsMismatchedReturnedIdentity(t *testing.
 	}
 	if !reflect.DeepEqual(runtime.trace, []string{"status"}) {
 		t.Fatalf("identity failure trace=%v, want one passive status read", runtime.trace)
+	}
+}
+
+func TestPublishedWriteAvailabilityRejectsInconsistentTopologyStatus(t *testing.T) {
+	receipt := eventReceiptForTest()
+	unscoped, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, PublishedWriteAvailabilityOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicit, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, PublishedWriteAvailabilityOptions{
+		PeerIDs: []string{"peer-b"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name    string
+		request swarmionapp.ReceiptAvailabilityRequest
+		mutate  func(*swarmionapp.ReceiptAvailabilityStatus)
+	}{
+		{
+			name:    "wrong candidate scope",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.CandidateScope = swarmionapp.ReceiptAvailabilityCandidateScopeExplicitPeerIDs
+			},
+		},
+		{
+			name:    "noncanonical eligible peers",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.EligiblePeerIDs = []string{"peer-c", "peer-b"}
+			},
+		},
+		{
+			name:    "explicit candidates changed",
+			request: explicit,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.CandidateScope = swarmionapp.ReceiptAvailabilityCandidateScopeExplicitPeerIDs
+				status.EligiblePeerIDs = []string{"peer-c"}
+			},
+		},
+		{
+			name:    "no current peers with evidence",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				*status = noCurrentEligiblePeersAvailabilityStatusForTest(receipt)
+				status.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{PeerID: "historical-peer"}}
+			},
+		},
+		{
+			name:    "wrong stable reason code",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.ReasonCode = swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyLive
+			},
+		},
+		{
+			name:    "evidence peer is not eligible",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{PeerID: "peer-c"}}
+			},
+		},
+		{
+			name:    "evidence peer is duplicated",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{PeerID: "peer-b"}, {PeerID: "peer-b"}}
+			},
+		},
+		{
+			name:    "confirmed count lacks retained evidence",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.ConfirmedOtherPeers = 1
+				status.Available = true
+				status.ReasonCode = swarmionapp.ReceiptAvailabilityReasonNone
+				status.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{PeerID: "peer-b"}}
+			},
+		},
+		{
+			name:    "not locally live status contains evidence",
+			request: unscoped,
+			mutate: func(status *swarmionapp.ReceiptAvailabilityStatus) {
+				status.Known = false
+				status.ReasonCode = swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyLive
+				status.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{PeerID: "peer-b"}}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			status := pendingPublishedWriteAvailabilityStatusForTest(receipt)
+			test.mutate(&status)
+			if _, err := publishedWriteAvailabilityObservation(receipt, test.request, status); !errors.Is(err, errSwarmionPublishedWriteIncomplete) {
+				t.Fatalf("inconsistent status=%+v error=%v, want validation failure", status, err)
+			}
+		})
 	}
 }
 
@@ -224,23 +353,16 @@ func TestPublishedWriteAvailabilityWaitIsCallerBoundedAndNeverGrantsReplay(t *te
 	}
 }
 
-func TestConfirmPublishedWriteAvailabilityReturnsImmediatelyWithoutObservedOtherPeers(t *testing.T) {
+func TestConfirmPublishedWriteAvailabilityReturnsImmediatelyWithoutCurrentEligiblePeers(t *testing.T) {
 	receipt := eventReceiptForTest()
 	request, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, PublishedWriteAvailabilityOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	runtime := &scriptedPublishedWriteAvailabilityRuntime{
-		// A routed-only peer is not an eligible logical heartbeat origin for
-		// receipt availability and must not force the bounded wait.
-		runtimeStatus: swarmionapp.Status{PeerID: "peer-local", RoutedPeers: []string{"peer-routed"}},
-		status: func() swarmionapp.ReceiptAvailabilityStatus {
-			status := pendingPublishedWriteAvailabilityStatusForTest(receipt)
-			// Historical receipt evidence is deliberately stale after the current
-			// routed/logical topology has become empty.
-			status.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{PeerID: "peer-old", Observed: true}}
-			return status
-		}(),
+		// Swarmion has already separated retained historical evidence from the
+		// current unscoped candidate set. Peers is evidence only and remains empty.
+		status: noCurrentEligiblePeersAvailabilityStatusForTest(receipt),
 		wait: func(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error) {
 			t.Fatal("single-peer confirmation must not wait")
 			return swarmionapp.ReceiptAvailabilityStatus{}, nil
@@ -254,11 +376,16 @@ func TestConfirmPublishedWriteAvailabilityReturnsImmediatelyWithoutObservedOther
 	if confirmation.AvailabilityError != "" {
 		t.Fatalf("single-peer confirmation reported an error: %+v", confirmation)
 	}
-	if len(runtime.trace) != 0 {
-		t.Fatalf("single-peer trace=%v, want topology-only fast path", runtime.trace)
+	if !reflect.DeepEqual(runtime.trace, []string{"status"}) {
+		t.Fatalf("single-peer trace=%v, want one scoped availability read", runtime.trace)
 	}
-	if confirmation.Availability.RequiredOtherPeers != 1 {
+	if confirmation.Availability.RequiredOtherPeers != 1 ||
+		!confirmation.Availability.NoCurrentEligiblePeers ||
+		confirmation.Availability.ReasonCode != swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers {
 		t.Fatalf("single-peer confirmation lost requested threshold: %+v", confirmation)
+	}
+	if len(runtime.requests) != 1 || len(runtime.requests[0].PeerIDs) != 0 {
+		t.Fatalf("ordinary single-peer request was not unscoped: %+v", runtime.requests)
 	}
 }
 
@@ -275,10 +402,11 @@ func TestConfirmPublishedWriteAvailabilityWaitsForObservedOtherPeer(t *testing.T
 	// single-peer early return.
 	pending.Known = false
 	pending.LocalRootReady = false
+	pending.ReasonCode = swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyLive
+	pending.Reason = "the exact receipt is not currently live on this runtime"
 	runtime := &scriptedPublishedWriteAvailabilityRuntime{
-		runtimeStatus: swarmionapp.Status{PeerID: "peer-local", LogicalPeers: []string{"peer-b"}},
-		status:        pending,
-		waitStatus:    availablePublishedWriteAvailabilityStatusForTest(receipt),
+		status:     pending,
+		waitStatus: availablePublishedWriteAvailabilityStatusForTest(receipt),
 	}
 
 	confirmation := confirmPublishedWriteAvailability(context.Background(), runtime, receipt, request, "ordinary task write")
@@ -290,8 +418,8 @@ func TestConfirmPublishedWriteAvailabilityWaitsForObservedOtherPeer(t *testing.T
 		t.Fatalf("multi-peer trace=%v, want observe then event-driven wait", runtime.trace)
 	}
 	for _, called := range runtime.requests {
-		if !reflect.DeepEqual(called.PeerIDs, []string{"peer-b"}) {
-			t.Fatalf("multi-peer request was not scoped to current topology: %+v", called)
+		if len(called.PeerIDs) != 0 {
+			t.Fatalf("ordinary multi-peer request must remain unscoped: %+v", called)
 		}
 	}
 }
@@ -305,15 +433,45 @@ func TestConfirmPublishedWriteAvailabilityPreservesAcceptedWriteOnPendingWait(t 
 	pending := pendingPublishedWriteAvailabilityStatusForTest(receipt)
 	pending.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{PeerID: "peer-b", Observed: true}}
 	runtime := &scriptedPublishedWriteAvailabilityRuntime{
-		runtimeStatus: swarmionapp.Status{PeerID: "peer-local", LogicalPeers: []string{"peer-b"}},
-		status:        pending,
-		waitErr:       context.DeadlineExceeded,
+		status:  pending,
+		waitErr: context.DeadlineExceeded,
 	}
 
 	confirmation := confirmPublishedWriteAvailability(context.Background(), runtime, receipt, request, "ordinary task write")
 	if confirmation.Stage != PublishedWriteConfirmationLocalAccepted || !confirmation.AvailabilityPending ||
 		confirmation.AvailabilityError == "" || confirmation.Receipt.EventID != receipt.EventID {
 		t.Fatalf("confirmation=%+v, want accepted non-replayable pending stage", confirmation)
+	}
+}
+
+func TestConfirmPublishedWriteAvailabilityPreservesPromptDepartureStatus(t *testing.T) {
+	receipt := eventReceiptForTest()
+	request, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, PublishedWriteAvailabilityOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial := pendingPublishedWriteAvailabilityStatusForTest(receipt)
+	departed := noCurrentEligiblePeersAvailabilityStatusForTest(receipt)
+	runtime := &scriptedPublishedWriteAvailabilityRuntime{
+		status: initial,
+		wait: func(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error) {
+			return departed, &swarmionapp.ReceiptAvailabilityPendingError{Status: departed}
+		},
+	}
+
+	confirmation := confirmPublishedWriteAvailability(context.Background(), runtime, receipt, request, "peer departed")
+	if confirmation.Stage != PublishedWriteConfirmationLocalAccepted || !confirmation.AvailabilityPending ||
+		confirmation.AvailabilityError != "" || !confirmation.Availability.NoCurrentEligiblePeers ||
+		confirmation.Availability.ReasonCode != swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers {
+		t.Fatalf("departure confirmation=%+v, want prompt weak local acceptance", confirmation)
+	}
+	if !reflect.DeepEqual(runtime.trace, []string{"status", "wait"}) {
+		t.Fatalf("departure trace=%v, want read then event-driven wait", runtime.trace)
+	}
+	for _, called := range runtime.requests {
+		if len(called.PeerIDs) != 0 {
+			t.Fatalf("departure request unexpectedly became fixed-target: %+v", called)
+		}
 	}
 }
 
@@ -333,20 +491,6 @@ func TestConfirmPublishedWriteAvailabilityPreservesStatusFailureWhenRuntimeStatu
 	}
 	if !reflect.DeepEqual(runtime.trace, []string{"status"}) {
 		t.Fatalf("unready runtime trace=%v, want receipt status diagnostic", runtime.trace)
-	}
-}
-
-func TestCurrentPublishedWriteAvailabilityPeersUsesLogicalPeersAndIgnoresSelf(t *testing.T) {
-	peers, ready := currentPublishedWriteAvailabilityPeers(swarmionapp.Status{
-		PeerID:       " peer-local ",
-		RoutedPeers:  []string{"peer-b", "peer-local", " peer-a "},
-		LogicalPeers: []string{"peer-b", "peer-c", " "},
-	})
-	if !ready || !reflect.DeepEqual(peers, []string{"peer-b", "peer-c"}) {
-		t.Fatalf("peers=%v ready=%t, want current logical peers without self", peers, ready)
-	}
-	if peers, ready := currentPublishedWriteAvailabilityPeers(swarmionapp.Status{}); ready || peers != nil {
-		t.Fatalf("zero runtime status peers=%v ready=%t, want unavailable", peers, ready)
 	}
 }
 
@@ -462,14 +606,27 @@ func pendingPublishedWriteAvailabilityStatusForTest(receipt PublishedWriteReceip
 		Known:              true,
 		LocalRootReady:     true,
 		RequiredOtherPeers: 1,
-		Reason:             "insufficient_other_peer_receipts",
+		CandidateScope:     swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers,
+		EligiblePeerIDs:    []string{"peer-b"},
+		ReasonCode:         swarmionapp.ReceiptAvailabilityReasonInsufficientOtherPeerReceipts,
+		Reason:             "insufficient authenticated other-peer receipt evidence",
 	}
+}
+
+func noCurrentEligiblePeersAvailabilityStatusForTest(receipt PublishedWriteReceipt) swarmionapp.ReceiptAvailabilityStatus {
+	status := pendingPublishedWriteAvailabilityStatusForTest(receipt)
+	status.EligiblePeerIDs = []string{}
+	status.NoCurrentEligiblePeers = true
+	status.ReasonCode = swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers
+	status.Reason = "no current logical peers are eligible for other-peer availability"
+	return status
 }
 
 func availablePublishedWriteAvailabilityStatusForTest(receipt PublishedWriteReceipt) swarmionapp.ReceiptAvailabilityStatus {
 	status := pendingPublishedWriteAvailabilityStatusForTest(receipt)
 	status.ConfirmedOtherPeers = 1
 	status.Available = true
+	status.ReasonCode = swarmionapp.ReceiptAvailabilityReasonNone
 	status.Reason = ""
 	status.Peers = []swarmionapp.ReceiptAvailabilityPeerStatus{{
 		PeerID:   "peer-b",

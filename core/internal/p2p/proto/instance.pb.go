@@ -2639,15 +2639,19 @@ func (x *RuntimeCompatibility) GetReason() string {
 }
 
 type WriteConfirmation struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	Stage               string                 `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
-	EventId             string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	PublishedRootHash   string                 `protobuf:"bytes,3,opt,name=published_root_hash,json=publishedRootHash,proto3" json:"published_root_hash,omitempty"`
-	RequiredOtherPeers  int32                  `protobuf:"varint,4,opt,name=required_other_peers,json=requiredOtherPeers,proto3" json:"required_other_peers,omitempty"`
-	ConfirmedOtherPeers int32                  `protobuf:"varint,5,opt,name=confirmed_other_peers,json=confirmedOtherPeers,proto3" json:"confirmed_other_peers,omitempty"`
-	AvailabilityPending bool                   `protobuf:"varint,6,opt,name=availability_pending,json=availabilityPending,proto3" json:"availability_pending,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Stage                  string                 `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
+	EventId                string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	PublishedRootHash      string                 `protobuf:"bytes,3,opt,name=published_root_hash,json=publishedRootHash,proto3" json:"published_root_hash,omitempty"`
+	RequiredOtherPeers     int32                  `protobuf:"varint,4,opt,name=required_other_peers,json=requiredOtherPeers,proto3" json:"required_other_peers,omitempty"`
+	ConfirmedOtherPeers    int32                  `protobuf:"varint,5,opt,name=confirmed_other_peers,json=confirmedOtherPeers,proto3" json:"confirmed_other_peers,omitempty"`
+	AvailabilityPending    bool                   `protobuf:"varint,6,opt,name=availability_pending,json=availabilityPending,proto3" json:"availability_pending,omitempty"`
+	CandidateScope         string                 `protobuf:"bytes,7,opt,name=candidate_scope,json=candidateScope,proto3" json:"candidate_scope,omitempty"`
+	EligiblePeerIds        []string               `protobuf:"bytes,8,rep,name=eligible_peer_ids,json=eligiblePeerIds,proto3" json:"eligible_peer_ids,omitempty"`
+	NoCurrentEligiblePeers bool                   `protobuf:"varint,9,opt,name=no_current_eligible_peers,json=noCurrentEligiblePeers,proto3" json:"no_current_eligible_peers,omitempty"`
+	ReasonCode             string                 `protobuf:"bytes,10,opt,name=reason_code,json=reasonCode,proto3" json:"reason_code,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *WriteConfirmation) Reset() {
@@ -2720,6 +2724,34 @@ func (x *WriteConfirmation) GetAvailabilityPending() bool {
 		return x.AvailabilityPending
 	}
 	return false
+}
+
+func (x *WriteConfirmation) GetCandidateScope() string {
+	if x != nil {
+		return x.CandidateScope
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetEligiblePeerIds() []string {
+	if x != nil {
+		return x.EligiblePeerIds
+	}
+	return nil
+}
+
+func (x *WriteConfirmation) GetNoCurrentEligiblePeers() bool {
+	if x != nil {
+		return x.NoCurrentEligiblePeers
+	}
+	return false
+}
+
+func (x *WriteConfirmation) GetReasonCode() string {
+	if x != nil {
+		return x.ReasonCode
+	}
+	return ""
 }
 
 var File_internal_p2p_proto_instance_proto protoreflect.FileDescriptor
@@ -2971,14 +3003,20 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"compatible\x18\x04 \x01(\bR\n" +
 	"compatible\x12\x1a\n" +
 	"\bblocking\x18\x05 \x01(\bR\bblocking\x12\x16\n" +
-	"\x06reason\x18\x06 \x01(\tR\x06reason\"\x8d\x02\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason\"\xbe\x03\n" +
 	"\x11WriteConfirmation\x12\x14\n" +
 	"\x05stage\x18\x01 \x01(\tR\x05stage\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12.\n" +
 	"\x13published_root_hash\x18\x03 \x01(\tR\x11publishedRootHash\x120\n" +
 	"\x14required_other_peers\x18\x04 \x01(\x05R\x12requiredOtherPeers\x122\n" +
 	"\x15confirmed_other_peers\x18\x05 \x01(\x05R\x13confirmedOtherPeers\x121\n" +
-	"\x14availability_pending\x18\x06 \x01(\bR\x13availabilityPending2\xed\x04\n" +
+	"\x14availability_pending\x18\x06 \x01(\bR\x13availabilityPending\x12'\n" +
+	"\x0fcandidate_scope\x18\a \x01(\tR\x0ecandidateScope\x12*\n" +
+	"\x11eligible_peer_ids\x18\b \x03(\tR\x0feligiblePeerIds\x129\n" +
+	"\x19no_current_eligible_peers\x18\t \x01(\bR\x16noCurrentEligiblePeers\x12\x1f\n" +
+	"\vreason_code\x18\n" +
+	" \x01(\tR\n" +
+	"reasonCode2\xed\x04\n" +
 	"\bInstance\x121\n" +
 	"\x04Init\x12\x12.proto.InitRequest\x1a\x13.proto.InitResponse\"\x00\x12=\n" +
 	"\bGetPeers\x12\x16.proto.GetPeersRequest\x1a\x17.proto.GetPeersResponse\"\x00\x12:\n" +

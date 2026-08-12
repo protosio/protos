@@ -766,12 +766,16 @@ func taskWriteConfirmationToP2PProto(confirmation tasks.WriteConfirmation) *prot
 		return nil
 	}
 	return &proto.WriteConfirmation{
-		Stage:               string(confirmation.Stage),
-		EventId:             confirmation.EventID,
-		PublishedRootHash:   confirmation.PublishedRootHash,
-		RequiredOtherPeers:  int32(confirmation.RequiredOtherPeers),
-		ConfirmedOtherPeers: int32(confirmation.ConfirmedOtherPeers),
-		AvailabilityPending: confirmation.AvailabilityPending,
+		Stage:                  string(confirmation.Stage),
+		EventId:                confirmation.EventID,
+		PublishedRootHash:      confirmation.PublishedRootHash,
+		RequiredOtherPeers:     int32(confirmation.RequiredOtherPeers),
+		ConfirmedOtherPeers:    int32(confirmation.ConfirmedOtherPeers),
+		AvailabilityPending:    confirmation.AvailabilityPending,
+		CandidateScope:         confirmation.CandidateScope,
+		EligiblePeerIds:        append([]string(nil), confirmation.EligiblePeerIDs...),
+		NoCurrentEligiblePeers: confirmation.NoCurrentEligiblePeers,
+		ReasonCode:             confirmation.ReasonCode,
 	}
 }
 

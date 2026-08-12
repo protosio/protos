@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -168,25 +169,58 @@ type ProgressUpdate struct {
 // replication boundary observed before returning. AvailabilityPending is an
 // accepted outcome and never grants permission to replay the task write.
 type WriteConfirmation struct {
-	Stage               db.PublishedWriteConfirmationStage
-	EventID             string
-	PublishedRootHash   string
-	RequiredOtherPeers  int
-	ConfirmedOtherPeers int
-	AvailabilityPending bool
-	AvailabilityError   string
+	Stage                  db.PublishedWriteConfirmationStage
+	EventID                string
+	PublishedRootHash      string
+	RequiredOtherPeers     int
+	ConfirmedOtherPeers    int
+	AvailabilityPending    bool
+	CandidateScope         string
+	EligiblePeerIDs        []string
+	NoCurrentEligiblePeers bool
+	ReasonCode             string
+	AvailabilityError      string
 }
 
 func taskWriteConfirmation(confirmation db.PublishedWriteConfirmation) WriteConfirmation {
 	return WriteConfirmation{
-		Stage:               confirmation.Stage,
-		EventID:             confirmation.Receipt.EventID,
-		PublishedRootHash:   confirmation.Receipt.PublishedRootHash,
-		RequiredOtherPeers:  confirmation.Availability.RequiredOtherPeers,
-		ConfirmedOtherPeers: confirmation.Availability.ConfirmedOtherPeers,
-		AvailabilityPending: confirmation.AvailabilityPending,
-		AvailabilityError:   confirmation.AvailabilityError,
+		Stage:                  confirmation.Stage,
+		EventID:                confirmation.Receipt.EventID,
+		PublishedRootHash:      confirmation.Receipt.PublishedRootHash,
+		RequiredOtherPeers:     confirmation.Availability.RequiredOtherPeers,
+		ConfirmedOtherPeers:    confirmation.Availability.ConfirmedOtherPeers,
+		AvailabilityPending:    confirmation.AvailabilityPending,
+		CandidateScope:         string(confirmation.Availability.CandidateScope),
+		EligiblePeerIDs:        append([]string(nil), confirmation.Availability.EligiblePeerIDs...),
+		NoCurrentEligiblePeers: confirmation.Availability.NoCurrentEligiblePeers,
+		ReasonCode:             string(confirmation.Availability.ReasonCode),
+		AvailabilityError:      confirmation.AvailabilityError,
 	}
+}
+
+func cloneWriteConfirmation(confirmation WriteConfirmation) WriteConfirmation {
+	confirmation.EligiblePeerIDs = append([]string(nil), confirmation.EligiblePeerIDs...)
+	return confirmation
+}
+
+func writeConfirmationsEqual(left WriteConfirmation, right WriteConfirmation) bool {
+	return left.Stage == right.Stage &&
+		left.EventID == right.EventID &&
+		left.PublishedRootHash == right.PublishedRootHash &&
+		left.RequiredOtherPeers == right.RequiredOtherPeers &&
+		left.ConfirmedOtherPeers == right.ConfirmedOtherPeers &&
+		left.AvailabilityPending == right.AvailabilityPending &&
+		left.CandidateScope == right.CandidateScope &&
+		slices.Equal(left.EligiblePeerIDs, right.EligiblePeerIDs) &&
+		left.NoCurrentEligiblePeers == right.NoCurrentEligiblePeers &&
+		left.ReasonCode == right.ReasonCode &&
+		left.AvailabilityError == right.AvailabilityError
+}
+
+func cloneProgressUpdate(update ProgressUpdate) ProgressUpdate {
+	update.Details = append(json.RawMessage(nil), update.Details...)
+	update.WriteConfirmation = cloneWriteConfirmation(update.WriteConfirmation)
+	return update
 }
 
 type taskWritePublisher interface {
@@ -995,8 +1029,7 @@ func (m *Manager) LatestProgress(taskID string) (ProgressUpdate, bool) {
 	if !found {
 		return ProgressUpdate{}, false
 	}
-	update.Details = append(json.RawMessage(nil), update.Details...)
-	return update, true
+	return cloneProgressUpdate(update), true
 }
 
 // LatestWriteConfirmation reports the latest task-row write boundary observed
@@ -1013,7 +1046,7 @@ func (m *Manager) LatestWriteConfirmation(taskID string) (WriteConfirmation, boo
 	m.progressMu.Lock()
 	defer m.progressMu.Unlock()
 	confirmation, found := m.writeConfirmations[taskID]
-	return confirmation, found
+	return cloneWriteConfirmation(confirmation), found
 }
 
 func (m *Manager) LatestForSubject(stream string, subjectType string, subjectID string) (Record, bool, error) {
@@ -1258,7 +1291,7 @@ func (m *Manager) withWriteConfirmation(record Record) Record {
 	confirmation, found := m.writeConfirmations[record.ID]
 	m.progressMu.Unlock()
 	if found {
-		record.WriteConfirmation = confirmation
+		record.WriteConfirmation = cloneWriteConfirmation(confirmation)
 	}
 	return record
 }
@@ -1308,7 +1341,7 @@ func (m *Manager) unresolvedWriteRequiresFreshRead(ctx context.Context, taskID s
 	current, currentFound := m.writeConfirmations[taskID]
 	if currentFound && current.Stage == "" && current.EventID == confirmation.EventID && current.PublishedRootHash == confirmation.PublishedRootHash {
 		delete(m.writeConfirmations, taskID)
-		if latest, latestFound := m.latestProgress[taskID]; latestFound && latest.WriteConfirmation == current {
+		if latest, latestFound := m.latestProgress[taskID]; latestFound && writeConfirmationsEqual(latest.WriteConfirmation, current) {
 			latest.WriteConfirmation = WriteConfirmation{}
 			m.latestProgress[taskID] = latest
 		}
@@ -1380,7 +1413,7 @@ func recordProgressUpdate(record Record, details json.RawMessage, durable bool) 
 		Details:           details,
 		CreatedAt:         time.Now().UTC(),
 		Durable:           durable,
-		WriteConfirmation: record.WriteConfirmation,
+		WriteConfirmation: cloneWriteConfirmation(record.WriteConfirmation),
 	}
 }
 
@@ -1406,6 +1439,7 @@ func (m *Manager) publishProgress(update ProgressUpdate) {
 	} else {
 		update.Details = append(json.RawMessage(nil), update.Details...)
 	}
+	update.WriteConfirmation = cloneWriteConfirmation(update.WriteConfirmation)
 
 	m.progressMu.Lock()
 	defer m.progressMu.Unlock()
@@ -1413,19 +1447,20 @@ func (m *Manager) publishProgress(update ProgressUpdate) {
 	update.Sequence = m.progressSeq
 	if update.WriteConfirmation.Stage != "" ||
 		(strings.TrimSpace(update.WriteConfirmation.EventID) != "" && strings.TrimSpace(update.WriteConfirmation.PublishedRootHash) != "") {
-		m.writeConfirmations[update.TaskID] = update.WriteConfirmation
+		m.writeConfirmations[update.TaskID] = cloneWriteConfirmation(update.WriteConfirmation)
 	}
-	m.latestProgress[update.TaskID] = update
+	m.latestProgress[update.TaskID] = cloneProgressUpdate(update)
 	for _, watcher := range m.progressWatchers[update.TaskID] {
+		watchUpdate := cloneProgressUpdate(update)
 		select {
-		case watcher <- update:
+		case watcher <- watchUpdate:
 		default:
 			select {
 			case <-watcher:
 			default:
 			}
 			select {
-			case watcher <- update:
+			case watcher <- watchUpdate:
 			default:
 			}
 		}

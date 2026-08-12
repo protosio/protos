@@ -14034,6 +14034,10 @@ class WriteConfirmation extends $pb.GeneratedMessage {
     $core.int? requiredOtherPeers,
     $core.int? confirmedOtherPeers,
     $core.bool? availabilityPending,
+    $core.String? candidateScope,
+    $core.Iterable<$core.String>? eligiblePeerIds,
+    $core.bool? noCurrentEligiblePeers,
+    $core.String? reasonCode,
   }) {
     final result = create();
     if (stage != null) result.stage = stage;
@@ -14045,6 +14049,11 @@ class WriteConfirmation extends $pb.GeneratedMessage {
       result.confirmedOtherPeers = confirmedOtherPeers;
     if (availabilityPending != null)
       result.availabilityPending = availabilityPending;
+    if (candidateScope != null) result.candidateScope = candidateScope;
+    if (eligiblePeerIds != null) result.eligiblePeerIds.addAll(eligiblePeerIds);
+    if (noCurrentEligiblePeers != null)
+      result.noCurrentEligiblePeers = noCurrentEligiblePeers;
+    if (reasonCode != null) result.reasonCode = reasonCode;
     return result;
   }
 
@@ -14067,6 +14076,10 @@ class WriteConfirmation extends $pb.GeneratedMessage {
     ..aI(4, _omitFieldNames ? '' : 'requiredOtherPeers')
     ..aI(5, _omitFieldNames ? '' : 'confirmedOtherPeers')
     ..aOB(6, _omitFieldNames ? '' : 'availabilityPending')
+    ..aOS(7, _omitFieldNames ? '' : 'candidateScope')
+    ..pPS(8, _omitFieldNames ? '' : 'eligiblePeerIds')
+    ..aOB(9, _omitFieldNames ? '' : 'noCurrentEligiblePeers')
+    ..aOS(10, _omitFieldNames ? '' : 'reasonCode')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -14143,6 +14156,40 @@ class WriteConfirmation extends $pb.GeneratedMessage {
   $core.bool hasAvailabilityPending() => $_has(5);
   @$pb.TagNumber(6)
   void clearAvailabilityPending() => $_clearField(6);
+
+  /// How eligible peers were selected for this observation.
+  @$pb.TagNumber(7)
+  $core.String get candidateScope => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set candidateScope($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasCandidateScope() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearCandidateScope() => $_clearField(7);
+
+  /// Topology candidates at the observation boundary; this is not receipt evidence.
+  @$pb.TagNumber(8)
+  $pb.PbList<$core.String> get eligiblePeerIds => $_getList(7);
+
+  /// Weak local-only outcome; this does not prove other-peer availability.
+  @$pb.TagNumber(9)
+  $core.bool get noCurrentEligiblePeers => $_getBF(8);
+  @$pb.TagNumber(9)
+  set noCurrentEligiblePeers($core.bool value) => $_setBool(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasNoCurrentEligiblePeers() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearNoCurrentEligiblePeers() => $_clearField(9);
+
+  /// Stable machine-readable status reason.
+  @$pb.TagNumber(10)
+  $core.String get reasonCode => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set reasonCode($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasReasonCode() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearReasonCode() => $_clearField(10);
 }
 
 class ProtosClientApiApi {

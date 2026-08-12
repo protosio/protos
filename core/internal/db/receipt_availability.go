@@ -129,7 +129,7 @@ func (e *PublishedWriteAvailabilityPendingError) Error() string {
 	}
 	status := e.Observation.Status
 	message := fmt.Sprintf(
-		"%s: reason=%q event_id=%s published_root=%s known=%t local_root_ready=%t required_other_peers=%d confirmed_other_peers=%d available=%t availability_reason=%q",
+		"%s: reason=%q event_id=%s published_root=%s known=%t local_root_ready=%t required_other_peers=%d confirmed_other_peers=%d candidate_scope=%q eligible_peer_ids=%v no_current_eligible_peers=%t available=%t availability_reason_code=%q availability_reason=%q",
 		ErrPublishedWriteAvailabilityPending,
 		e.Reason,
 		e.Observation.Receipt.EventID,
@@ -138,7 +138,11 @@ func (e *PublishedWriteAvailabilityPendingError) Error() string {
 		status.LocalRootReady,
 		status.RequiredOtherPeers,
 		status.ConfirmedOtherPeers,
+		status.CandidateScope,
+		status.EligiblePeerIDs,
+		status.NoCurrentEligiblePeers,
 		status.Available,
+		status.ReasonCode,
 		status.Reason,
 	)
 	if e.Cause != nil {
@@ -219,7 +223,6 @@ func normalizePublishedWriteAvailabilityPeerIDs(raw []string) ([]string, error) 
 type publishedWriteAvailabilityRuntime interface {
 	ReceiptAvailabilityStatus(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error)
 	WaitReceiptAvailability(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error)
-	Status() swarmionapp.Status
 }
 
 var _ publishedWriteAvailabilityRuntime = (*swarmionapp.DatabaseRuntime)(nil)
@@ -397,6 +400,96 @@ func publishedWriteAvailabilityObservation(
 			status.ConfirmedOtherPeers,
 		)
 	}
+	expectedScope := swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers
+	if len(request.PeerIDs) > 0 {
+		expectedScope = swarmionapp.ReceiptAvailabilityCandidateScopeExplicitPeerIDs
+	}
+	if status.CandidateScope != expectedScope {
+		return observation, fmt.Errorf(
+			"%w: inconsistent availability candidate scope returned=%q want=%q",
+			errSwarmionPublishedWriteIncomplete,
+			status.CandidateScope,
+			expectedScope,
+		)
+	}
+	eligiblePeerIDs, err := normalizePublishedWriteAvailabilityPeerIDs(status.EligiblePeerIDs)
+	if err != nil || !equalStrings(eligiblePeerIDs, status.EligiblePeerIDs) {
+		return observation, fmt.Errorf(
+			"%w: availability eligible peer ids are not canonical: %v",
+			errSwarmionPublishedWriteIncomplete,
+			status.EligiblePeerIDs,
+		)
+	}
+	if expectedScope == swarmionapp.ReceiptAvailabilityCandidateScopeExplicitPeerIDs &&
+		!equalStrings(eligiblePeerIDs, request.PeerIDs) {
+		return observation, fmt.Errorf(
+			"%w: explicit availability candidates returned=%v want=%v",
+			errSwarmionPublishedWriteIncomplete,
+			eligiblePeerIDs,
+			request.PeerIDs,
+		)
+	}
+	expectedNoCurrentEligiblePeers := expectedScope == swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers &&
+		len(eligiblePeerIDs) == 0
+	if status.NoCurrentEligiblePeers != expectedNoCurrentEligiblePeers {
+		return observation, fmt.Errorf(
+			"%w: inconsistent no-current-eligible-peers=%t scope=%q eligible=%v",
+			errSwarmionPublishedWriteIncomplete,
+			status.NoCurrentEligiblePeers,
+			status.CandidateScope,
+			eligiblePeerIDs,
+		)
+	}
+	if status.ConfirmedOtherPeers > len(eligiblePeerIDs) {
+		return observation, fmt.Errorf(
+			"%w: confirmed availability peers=%d exceed eligible peers=%d",
+			errSwarmionPublishedWriteIncomplete,
+			status.ConfirmedOtherPeers,
+			len(eligiblePeerIDs),
+		)
+	}
+	eligiblePeers := make(map[string]struct{}, len(eligiblePeerIDs))
+	for _, peerID := range eligiblePeerIDs {
+		eligiblePeers[peerID] = struct{}{}
+	}
+	evidencePeers := make(map[string]struct{}, len(status.Peers))
+	confirmedFromEvidence := 0
+	for _, peer := range status.Peers {
+		peerID := strings.TrimSpace(peer.PeerID)
+		if peerID == "" || peerID != peer.PeerID {
+			return observation, fmt.Errorf(
+				"%w: availability evidence contains a noncanonical peer id %q",
+				errSwarmionPublishedWriteIncomplete,
+				peer.PeerID,
+			)
+		}
+		if _, eligible := eligiblePeers[peerID]; !eligible {
+			return observation, fmt.Errorf(
+				"%w: availability evidence peer %q is not eligible",
+				errSwarmionPublishedWriteIncomplete,
+				peerID,
+			)
+		}
+		if _, duplicate := evidencePeers[peerID]; duplicate {
+			return observation, fmt.Errorf(
+				"%w: availability evidence repeats peer %q",
+				errSwarmionPublishedWriteIncomplete,
+				peerID,
+			)
+		}
+		evidencePeers[peerID] = struct{}{}
+		if peer.Retained && peer.Fresh {
+			confirmedFromEvidence++
+		}
+	}
+	if status.ConfirmedOtherPeers != confirmedFromEvidence {
+		return observation, fmt.Errorf(
+			"%w: confirmed availability peers=%d do not match retained fresh evidence=%d",
+			errSwarmionPublishedWriteIncomplete,
+			status.ConfirmedOtherPeers,
+			confirmedFromEvidence,
+		)
+	}
 	expectedAvailable := status.ConfirmedOtherPeers >= status.RequiredOtherPeers
 	if status.Available != expectedAvailable || (status.Available && (!status.Known || !status.LocalRootReady)) {
 		return observation, fmt.Errorf(
@@ -409,8 +502,66 @@ func publishedWriteAvailabilityObservation(
 			status.ConfirmedOtherPeers,
 		)
 	}
+	if status.NoCurrentEligiblePeers {
+		if status.Available || status.ConfirmedOtherPeers != 0 || len(status.Peers) != 0 ||
+			status.ReasonCode != swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers {
+			return observation, fmt.Errorf(
+				"%w: inconsistent no-current-eligible-peers status available=%t confirmed=%d evidence=%d reason_code=%q",
+				errSwarmionPublishedWriteIncomplete,
+				status.Available,
+				status.ConfirmedOtherPeers,
+				len(status.Peers),
+				status.ReasonCode,
+			)
+		}
+	}
+	expectedReasonCode := swarmionapp.ReceiptAvailabilityReasonNone
+	switch {
+	case expectedNoCurrentEligiblePeers:
+		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers
+	case !status.Known:
+		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyLive
+	case !status.LocalRootReady:
+		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyRootReady
+	case expectedScope == swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers &&
+		len(eligiblePeerIDs) < status.RequiredOtherPeers:
+		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonInsufficientCurrentEligible
+	case !status.Available:
+		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonInsufficientOtherPeerReceipts
+	}
+	if status.ReasonCode != expectedReasonCode {
+		return observation, fmt.Errorf(
+			"%w: inconsistent availability reason code returned=%q want=%q",
+			errSwarmionPublishedWriteIncomplete,
+			status.ReasonCode,
+			expectedReasonCode,
+		)
+	}
+	if (expectedReasonCode == swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyLive ||
+		expectedReasonCode == swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyRootReady ||
+		expectedReasonCode == swarmionapp.ReceiptAvailabilityReasonInsufficientCurrentEligible) &&
+		len(status.Peers) != 0 {
+		return observation, fmt.Errorf(
+			"%w: early availability status reason_code=%q unexpectedly contains %d peer evidence records",
+			errSwarmionPublishedWriteIncomplete,
+			expectedReasonCode,
+			len(status.Peers),
+		)
+	}
 	observation.Status.Receipt = request.Receipt
 	return observation, nil
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func receiptAvailabilityStatusHasIdentity(status swarmionapp.ReceiptAvailabilityStatus) bool {
@@ -427,12 +578,12 @@ func canonicalPublishedWriteAvailabilityReceipt(
 }
 
 // ConfirmPublishedWriteAvailability observes the normal one-other-peer
-// boundary for an already accepted ordinary write. It returns immediately when
-// no other logical peer is currently observed, because waiting cannot improve
-// a single-peer/bootstrap topology. Once another peer is eligible it performs
-// one passive, bounded availability wait. A pending or observation error is
-// carried in the confirmation and does not turn the accepted write into an
-// error or a replayable outcome.
+// boundary for an already accepted ordinary write. Swarmion selects current
+// database-scoped logical peers for the unscoped request. A
+// NoCurrentEligiblePeers result returns promptly as weak local acceptance;
+// otherwise Protos performs one passive, bounded availability wait. A pending
+// or observation error is carried in the confirmation and does not turn the
+// accepted write into an error or a replayable outcome.
 func (db *DB) ConfirmPublishedWriteAvailability(
 	ctx context.Context,
 	receipt PublishedWriteReceipt,
@@ -484,31 +635,6 @@ func confirmPublishedWriteAvailability(
 		return confirmation
 	}
 	confirmation.Stage = PublishedWriteConfirmationLocalAccepted
-	// Receipt-availability observations intentionally retain authenticated
-	// heartbeat history, so their Peers list may still contain a peer after the
-	// application has fenced and withdrawn every current route. Use the scoped
-	// runtime's live topology to avoid spending the full wait budget when no
-	// other peer can presently retain an ordinary write. This fast path claims
-	// only local acceptance; a peer joining immediately afterwards merely means
-	// the optional stronger confirmation was missed for this call.
-	topology := runtime.Status()
-	currentTopologyScoped := false
-	if logicalPeers, ready := currentPublishedWriteAvailabilityPeers(topology); ready {
-		if len(logicalPeers) == 0 {
-			confirmation.Availability = swarmionapp.ReceiptAvailabilityStatus{
-				Receipt:            request.Receipt,
-				RequiredOtherPeers: request.MinimumOtherPeers,
-			}
-			confirmation.AvailabilityPending = true
-			return confirmation
-		}
-		// Limit the observation to peers that are logical now. This
-		// prevents historical heartbeat observations from satisfying or delaying
-		// the current ordinary-write boundary.
-		request.PeerIDs = logicalPeers
-		currentTopologyScoped = true
-	}
-
 	initial, err := observePublishedWriteAvailability(ctx, runtime, receipt, request)
 	confirmation.Receipt = initial.Receipt
 	confirmation.Availability = initial.Status
@@ -521,10 +647,10 @@ func confirmPublishedWriteAvailability(
 		confirmation.Stage = PublishedWriteConfirmationOtherPeerAvailable
 		return confirmation
 	}
-	// With the default unscoped request, Peers is the complete set of currently
-	// observed logical peers other than this runtime. A blank set is the normal
-	// fresh-repository/only-peer case, not a replication failure.
-	if !currentTopologyScoped && len(initial.Status.Peers) == 0 {
+	// Peers is receipt evidence, not topology. Only Swarmion's explicit
+	// NoCurrentEligiblePeers status identifies the prompt weak single-peer
+	// outcome for an ordinary unscoped request.
+	if initial.Status.NoCurrentEligiblePeers {
 		confirmation.AvailabilityPending = true
 		return confirmation
 	}
@@ -542,6 +668,10 @@ func confirmPublishedWriteAvailability(
 	}
 	if waitErr != nil {
 		confirmation.AvailabilityPending = true
+		if errors.Is(waitErr, swarmionapp.ErrReceiptAvailabilityPending) &&
+			confirmation.Availability.NoCurrentEligiblePeers {
+			return confirmation
+		}
 		confirmation.AvailabilityError = waitErr.Error()
 		return confirmation
 	}
@@ -559,31 +689,6 @@ func confirmPublishedWriteAvailability(
 	}
 	confirmation.Stage = PublishedWriteConfirmationOtherPeerAvailable
 	return confirmation
-}
-
-func currentPublishedWriteAvailabilityPeers(status swarmionapp.Status) ([]string, bool) {
-	localPeerID := strings.TrimSpace(status.PeerID)
-	if localPeerID == "" {
-		// DatabaseRuntime.Status returns a zero value when the scoped runtime is
-		// unavailable. Preserve the receipt-status diagnostic in that case rather
-		// than misclassifying it as a healthy single-peer topology.
-		return nil, false
-	}
-	seen := make(map[string]struct{}, len(status.LogicalPeers))
-	peers := make([]string, 0, len(status.LogicalPeers))
-	for _, candidate := range status.LogicalPeers {
-		peerID := strings.TrimSpace(candidate)
-		if peerID == "" || peerID == localPeerID {
-			continue
-		}
-		if _, exists := seen[peerID]; exists {
-			continue
-		}
-		seen[peerID] = struct{}{}
-		peers = append(peers, peerID)
-	}
-	sort.Strings(peers)
-	return peers, true
 }
 
 // InsertWithAvailabilityContext publishes an ordinary insert and observes its

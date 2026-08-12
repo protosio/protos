@@ -3894,6 +3894,16 @@ const WriteConfirmation$json = {
       '5': 8,
       '10': 'availabilityPending'
     },
+    {'1': 'candidate_scope', '3': 7, '4': 1, '5': 9, '10': 'candidateScope'},
+    {'1': 'eligible_peer_ids', '3': 8, '4': 3, '5': 9, '10': 'eligiblePeerIds'},
+    {
+      '1': 'no_current_eligible_peers',
+      '3': 9,
+      '4': 1,
+      '5': 8,
+      '10': 'noCurrentEligiblePeers'
+    },
+    {'1': 'reason_code', '3': 10, '4': 1, '5': 9, '10': 'reasonCode'},
   ],
 };
 
@@ -3903,7 +3913,11 @@ final $typed_data.Uint8List writeConfirmationDescriptor = $convert.base64Decode(
     'ABKAlSB2V2ZW50SWQSLgoTcHVibGlzaGVkX3Jvb3RfaGFzaBgDIAEoCVIRcHVibGlzaGVkUm9v'
     'dEhhc2gSMAoUcmVxdWlyZWRfb3RoZXJfcGVlcnMYBCABKAVSEnJlcXVpcmVkT3RoZXJQZWVycx'
     'IyChVjb25maXJtZWRfb3RoZXJfcGVlcnMYBSABKAVSE2NvbmZpcm1lZE90aGVyUGVlcnMSMQoU'
-    'YXZhaWxhYmlsaXR5X3BlbmRpbmcYBiABKAhSE2F2YWlsYWJpbGl0eVBlbmRpbmc=');
+    'YXZhaWxhYmlsaXR5X3BlbmRpbmcYBiABKAhSE2F2YWlsYWJpbGl0eVBlbmRpbmcSJwoPY2FuZG'
+    'lkYXRlX3Njb3BlGAcgASgJUg5jYW5kaWRhdGVTY29wZRIqChFlbGlnaWJsZV9wZWVyX2lkcxgI'
+    'IAMoCVIPZWxpZ2libGVQZWVySWRzEjkKGW5vX2N1cnJlbnRfZWxpZ2libGVfcGVlcnMYCSABKA'
+    'hSFm5vQ3VycmVudEVsaWdpYmxlUGVlcnMSHwoLcmVhc29uX2NvZGUYCiABKAlSCnJlYXNvbkNv'
+    'ZGU=');
 
 const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
   '1': 'ProtosClientApi',

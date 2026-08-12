@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -73,6 +74,7 @@ func TestErrorLoggingUnaryInterceptorPreservesUnresolvedWriteReceipt(t *testing.
 func TestPublishedWriteConfirmationToProtoPreservesMachineReadableBoundary(t *testing.T) {
 	t.Parallel()
 
+	eligiblePeerIDs := []string{"peer-b"}
 	got := publishedWriteConfirmationToProto(db.PublishedWriteConfirmation{
 		Receipt: db.PublishedWriteReceipt{
 			EventID:           "event-1",
@@ -82,6 +84,8 @@ func TestPublishedWriteConfirmationToProtoPreservesMachineReadableBoundary(t *te
 		Availability: swarmion.ReceiptAvailabilityStatus{
 			RequiredOtherPeers:  1,
 			ConfirmedOtherPeers: 1,
+			CandidateScope:      swarmion.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers,
+			EligiblePeerIDs:     eligiblePeerIDs,
 		},
 		AvailabilityPending: true,
 		AvailabilityError:   "internal prose must not cross APIC",
@@ -95,6 +99,14 @@ func TestPublishedWriteConfirmationToProtoPreservesMachineReadableBoundary(t *te
 	if got.GetRequiredOtherPeers() != 1 || got.GetConfirmedOtherPeers() != 1 || !got.GetAvailabilityPending() {
 		t.Fatalf("unexpected availability counters: %+v", got)
 	}
+	if got.GetCandidateScope() != "current_logical_peers" || !slices.Equal(got.GetEligiblePeerIds(), []string{"peer-b"}) ||
+		got.GetNoCurrentEligiblePeers() || got.GetReasonCode() != "" {
+		t.Fatalf("unexpected topology summary: %+v", got)
+	}
+	eligiblePeerIDs[0] = "mutated-after-mapping"
+	if !slices.Equal(got.GetEligiblePeerIds(), []string{"peer-b"}) {
+		t.Fatalf("eligible peers were aliased across APIC mapping: %+v", got)
+	}
 	if publishedWriteConfirmationToProto(db.PublishedWriteConfirmation{}) != nil {
 		t.Fatal("empty confirmation should remain absent")
 	}
@@ -104,27 +116,45 @@ func TestTaskWriteConfirmationToProtoPreservesMachineReadableBoundary(t *testing
 	t.Parallel()
 
 	got := taskWriteConfirmationToProto(tasks.WriteConfirmation{
-		Stage:               db.PublishedWriteConfirmationLocalAccepted,
-		EventID:             "event-2",
-		PublishedRootHash:   "root-2",
-		RequiredOtherPeers:  1,
-		ConfirmedOtherPeers: 0,
-		AvailabilityPending: true,
-		AvailabilityError:   "internal prose must not cross APIC",
+		Stage:                  db.PublishedWriteConfirmationLocalAccepted,
+		EventID:                "event-2",
+		PublishedRootHash:      "root-2",
+		RequiredOtherPeers:     1,
+		ConfirmedOtherPeers:    0,
+		AvailabilityPending:    true,
+		CandidateScope:         "current_logical_peers",
+		NoCurrentEligiblePeers: true,
+		ReasonCode:             "no_current_eligible_peers",
+		AvailabilityError:      "internal prose must not cross APIC",
 	})
 	if got == nil || got.GetStage() != "local_accepted" || got.GetEventId() != "event-2" || !got.GetAvailabilityPending() {
 		t.Fatalf("unexpected task confirmation: %+v", got)
 	}
+	if got.GetCandidateScope() != "current_logical_peers" || !got.GetNoCurrentEligiblePeers() || got.GetReasonCode() != "no_current_eligible_peers" {
+		t.Fatalf("unexpected task topology summary: %+v", got)
+	}
 
-	forwarded := taskWriteConfirmationFromP2PProto(&p2pproto.WriteConfirmation{
+	forwardedSource := &p2pproto.WriteConfirmation{
 		Stage:               "other_peer_available",
 		EventId:             "event-3",
 		PublishedRootHash:   "root-3",
 		RequiredOtherPeers:  1,
 		ConfirmedOtherPeers: 1,
-	})
+		CandidateScope:      "explicit_peer_ids",
+		EligiblePeerIds:     []string{"peer-c"},
+		ReasonCode:          "insufficient_other_peer_receipts",
+	}
+	forwarded := taskWriteConfirmationFromP2PProto(forwardedSource)
 	if forwarded == nil || forwarded.GetStage() != "other_peer_available" || forwarded.GetEventId() != "event-3" || forwarded.GetConfirmedOtherPeers() != 1 {
 		t.Fatalf("unexpected forwarded task confirmation: %+v", forwarded)
+	}
+	if forwarded.GetCandidateScope() != "explicit_peer_ids" || !slices.Equal(forwarded.GetEligiblePeerIds(), []string{"peer-c"}) ||
+		forwarded.GetReasonCode() != "insufficient_other_peer_receipts" {
+		t.Fatalf("unexpected forwarded topology summary: %+v", forwarded)
+	}
+	forwardedSource.EligiblePeerIds[0] = "mutated-after-forwarding"
+	if !slices.Equal(forwarded.GetEligiblePeerIds(), []string{"peer-c"}) {
+		t.Fatalf("eligible peers were aliased across P2P-to-APIC forwarding: %+v", forwarded)
 	}
 }
 

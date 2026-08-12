@@ -10940,8 +10940,16 @@ type WriteConfirmation struct {
 	ConfirmedOtherPeers int32  `protobuf:"varint,5,opt,name=confirmed_other_peers,json=confirmedOtherPeers,proto3" json:"confirmed_other_peers,omitempty"`
 	// The mutation was accepted, but exact other-peer retention was not proved before returning; do not replay it.
 	AvailabilityPending bool `protobuf:"varint,6,opt,name=availability_pending,json=availabilityPending,proto3" json:"availability_pending,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// How eligible peers were selected for this observation.
+	CandidateScope string `protobuf:"bytes,7,opt,name=candidate_scope,json=candidateScope,proto3" json:"candidate_scope,omitempty"`
+	// Topology candidates at the observation boundary; this is not receipt evidence.
+	EligiblePeerIds []string `protobuf:"bytes,8,rep,name=eligible_peer_ids,json=eligiblePeerIds,proto3" json:"eligible_peer_ids,omitempty"`
+	// Weak local-only outcome; this does not prove other-peer availability.
+	NoCurrentEligiblePeers bool `protobuf:"varint,9,opt,name=no_current_eligible_peers,json=noCurrentEligiblePeers,proto3" json:"no_current_eligible_peers,omitempty"`
+	// Stable machine-readable status reason.
+	ReasonCode    string `protobuf:"bytes,10,opt,name=reason_code,json=reasonCode,proto3" json:"reason_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *WriteConfirmation) Reset() {
@@ -11014,6 +11022,34 @@ func (x *WriteConfirmation) GetAvailabilityPending() bool {
 		return x.AvailabilityPending
 	}
 	return false
+}
+
+func (x *WriteConfirmation) GetCandidateScope() string {
+	if x != nil {
+		return x.CandidateScope
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetEligiblePeerIds() []string {
+	if x != nil {
+		return x.EligiblePeerIds
+	}
+	return nil
+}
+
+func (x *WriteConfirmation) GetNoCurrentEligiblePeers() bool {
+	if x != nil {
+		return x.NoCurrentEligiblePeers
+	}
+	return false
+}
+
+func (x *WriteConfirmation) GetReasonCode() string {
+	if x != nil {
+		return x.ReasonCode
+	}
+	return ""
 }
 
 var File_apic_proto_apic_proto protoreflect.FileDescriptor
@@ -11873,14 +11909,20 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x04rows\x18\x02 \x03(\v2\f.apic.SqlRowR\x04rows\x12#\n" +
 	"\rrows_affected\x18\x03 \x01(\x03R\frowsAffected\x12\x1c\n" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\"\x8d\x02\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\xbe\x03\n" +
 	"\x11WriteConfirmation\x12\x14\n" +
 	"\x05stage\x18\x01 \x01(\tR\x05stage\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12.\n" +
 	"\x13published_root_hash\x18\x03 \x01(\tR\x11publishedRootHash\x120\n" +
 	"\x14required_other_peers\x18\x04 \x01(\x05R\x12requiredOtherPeers\x122\n" +
 	"\x15confirmed_other_peers\x18\x05 \x01(\x05R\x13confirmedOtherPeers\x121\n" +
-	"\x14availability_pending\x18\x06 \x01(\bR\x13availabilityPending2\xaf'\n" +
+	"\x14availability_pending\x18\x06 \x01(\bR\x13availabilityPending\x12'\n" +
+	"\x0fcandidate_scope\x18\a \x01(\tR\x0ecandidateScope\x12*\n" +
+	"\x11eligible_peer_ids\x18\b \x03(\tR\x0feligiblePeerIds\x129\n" +
+	"\x19no_current_eligible_peers\x18\t \x01(\bR\x16noCurrentEligiblePeers\x12\x1f\n" +
+	"\vreason_code\x18\n" +
+	" \x01(\tR\n" +
+	"reasonCode2\xaf'\n" +
 	"\x0fProtosClientApi\x12/\n" +
 	"\x04Init\x12\x11.apic.InitRequest\x1a\x12.apic.InitResponse\"\x00\x12M\n" +
 	"\x0eGetUserDevices\x12\x1b.apic.GetUserDevicesRequest\x1a\x1c.apic.GetUserDevicesResponse\"\x00\x12D\n" +

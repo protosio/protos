@@ -308,4 +308,8 @@ message WriteConfirmation {
   int32 required_other_peers = 4;
   int32 confirmed_other_peers = 5;
   bool availability_pending = 6;
+  string candidate_scope = 7;
+  repeated string eligible_peer_ids = 8;
+  bool no_current_eligible_peers = 9;
+  string reason_code = 10;
 }

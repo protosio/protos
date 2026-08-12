@@ -32,12 +32,16 @@ package p2pv1
 // Process-local observation of the latest accepted task write. This value is
 // forwarded for client display; it is neither persisted nor monotonic.
 #WriteConfirmation: {
-	stage?:                 "no_change" | "local_accepted" | "other_peer_available"
-	event_id?:              string
-	published_root_hash?:    string
-	required_other_peers?:  int
-	confirmed_other_peers?: int
-	availability_pending?:  bool
+	stage?:                     "no_change" | "local_accepted" | "other_peer_available"
+	event_id?:                  string
+	published_root_hash?:        string
+	required_other_peers?:      int
+	confirmed_other_peers?:     int
+	availability_pending?:      bool
+	candidate_scope?:           "current_logical_peers" | "explicit_peer_ids"
+	eligible_peer_ids?: [...string]
+	no_current_eligible_peers?: bool
+	reason_code?:               "" | "receipt_not_locally_live" | "receipt_not_locally_root_ready" | "no_current_eligible_peers" | "insufficient_current_eligible_peers" | "insufficient_other_peer_receipts"
 }
 #Task: {
 	id?:            string
@@ -532,6 +536,10 @@ contract: {
 				{type: "int32", name: "required_other_peers", number: 4},
 				{type: "int32", name: "confirmed_other_peers", number: 5},
 				{type: "bool", name: "availability_pending", number: 6},
+				{type: "string", name: "candidate_scope", number: 7},
+				{rule: "repeated", type: "string", name: "eligible_peer_ids", number: 8},
+				{type: "bool", name: "no_current_eligible_peers", number: 9},
+				{type: "string", name: "reason_code", number: 10},
 			]},
 		]
 	}

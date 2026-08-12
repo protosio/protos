@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -108,11 +109,11 @@ func TestEnqueueExactUnresolvedReturnsAndCachesPopulatedRecordWithoutReplay(t *t
 		t.Fatalf("enqueue publications=%d, want exactly one", publisher.insertCalls)
 	}
 	latest, found := manager.LatestWriteConfirmation(record.ID)
-	if !found || latest != record.WriteConfirmation {
+	if !found || !writeConfirmationsEqual(latest, record.WriteConfirmation) {
 		t.Fatalf("cached confirmation=%+v found=%t, want %+v", latest, found, record.WriteConfirmation)
 	}
 	progress, found := manager.LatestProgress(record.ID)
-	if !found || progress.Durable || progress.WriteConfirmation != record.WriteConfirmation {
+	if !found || progress.Durable || !writeConfirmationsEqual(progress.WriteConfirmation, record.WriteConfirmation) {
 		t.Fatalf("unresolved progress=%+v found=%t, want non-durable exact confirmation", progress, found)
 	}
 }
@@ -145,11 +146,19 @@ func taskWriteConfirmationForTest(stage db.PublishedWriteConfirmationStage, pend
 }
 
 func swarmionReceiptAvailabilityStatusForTaskTest(available bool, confirmed int) swarmionapp.ReceiptAvailabilityStatus {
-	return swarmionapp.ReceiptAvailabilityStatus{
+	status := swarmionapp.ReceiptAvailabilityStatus{
 		RequiredOtherPeers:  1,
 		ConfirmedOtherPeers: confirmed,
+		CandidateScope:      swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers,
 		Available:           available,
 	}
+	if available {
+		status.EligiblePeerIDs = []string{"peer-b"}
+		return status
+	}
+	status.NoCurrentEligiblePeers = true
+	status.ReasonCode = swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers
+	return status
 }
 
 func waitForTaskStatus(t *testing.T, manager *Manager, taskID string, status Status) Record {
@@ -194,11 +203,14 @@ func TestEnqueueReportsOtherPeerAvailableFromExactReceipt(t *testing.T) {
 	if confirmation.Stage != db.PublishedWriteConfirmationOtherPeerAvailable ||
 		confirmation.EventID == "" || confirmation.PublishedRootHash == "" ||
 		confirmation.RequiredOtherPeers != 1 || confirmation.ConfirmedOtherPeers != 1 ||
+		confirmation.CandidateScope != "current_logical_peers" ||
+		!slices.Equal(confirmation.EligiblePeerIDs, []string{"peer-b"}) ||
+		confirmation.NoCurrentEligiblePeers || confirmation.ReasonCode != "" ||
 		confirmation.AvailabilityPending {
 		t.Fatalf("enqueue confirmation=%+v, want exact other-peer availability", confirmation)
 	}
 	latest, found := manager.LatestWriteConfirmation(record.ID)
-	if !found || latest != confirmation {
+	if !found || !writeConfirmationsEqual(latest, confirmation) {
 		t.Fatalf("latest confirmation=%+v found=%t, want %+v", latest, found, confirmation)
 	}
 }
@@ -225,8 +237,49 @@ func TestEnqueueNoPeerReturnsLocalAcceptanceImmediately(t *testing.T) {
 		t.Fatalf("single-peer enqueue took %s, want immediate local acceptance", elapsed)
 	}
 	if publisher.insertCalls != 1 || record.WriteConfirmation.Stage != db.PublishedWriteConfirmationLocalAccepted ||
-		!record.WriteConfirmation.AvailabilityPending || record.WriteConfirmation.ConfirmedOtherPeers != 0 {
+		!record.WriteConfirmation.AvailabilityPending || record.WriteConfirmation.ConfirmedOtherPeers != 0 ||
+		record.WriteConfirmation.CandidateScope != "current_logical_peers" ||
+		!record.WriteConfirmation.NoCurrentEligiblePeers || record.WriteConfirmation.ReasonCode != "no_current_eligible_peers" {
 		t.Fatalf("single-peer enqueue calls=%d confirmation=%+v", publisher.insertCalls, record.WriteConfirmation)
+	}
+}
+
+func TestWriteConfirmationCacheAndWatchDefensivelyCloneEligiblePeers(t *testing.T) {
+	manager := NewManager(openTaskTestDB(t))
+	watch, cancel, err := manager.Subscribe("task-clone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cancel()
+
+	eligible := []string{"peer-b", "peer-c"}
+	manager.publishProgress(ProgressUpdate{
+		TaskID: "task-clone",
+		Status: StatusRunning,
+		WriteConfirmation: WriteConfirmation{
+			Stage:           db.PublishedWriteConfirmationLocalAccepted,
+			CandidateScope:  "current_logical_peers",
+			EligiblePeerIDs: eligible,
+			ReasonCode:      "insufficient_other_peer_receipts",
+		},
+	})
+	eligible[0] = "mutated-at-ingress"
+
+	observed := <-watch
+	observed.WriteConfirmation.EligiblePeerIDs[0] = "mutated-by-watcher"
+	latestProgress, found := manager.LatestProgress("task-clone")
+	if !found || !slices.Equal(latestProgress.WriteConfirmation.EligiblePeerIDs, []string{"peer-b", "peer-c"}) {
+		t.Fatalf("cached progress was aliased: %+v found=%t", latestProgress, found)
+	}
+	latestProgress.WriteConfirmation.EligiblePeerIDs[0] = "mutated-by-progress-reader"
+	latestConfirmation, found := manager.LatestWriteConfirmation("task-clone")
+	if !found || !slices.Equal(latestConfirmation.EligiblePeerIDs, []string{"peer-b", "peer-c"}) {
+		t.Fatalf("cached confirmation was aliased: %+v found=%t", latestConfirmation, found)
+	}
+	latestConfirmation.EligiblePeerIDs[0] = "mutated-by-confirmation-reader"
+	secondRead, found := manager.LatestWriteConfirmation("task-clone")
+	if !found || !slices.Equal(secondRead.EligiblePeerIDs, []string{"peer-b", "peer-c"}) {
+		t.Fatalf("confirmation egress was aliased: %+v found=%t", secondRead, found)
 	}
 }
 
