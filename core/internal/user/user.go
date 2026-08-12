@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"encoding/gob"
 	"fmt"
 
@@ -49,8 +50,15 @@ type DeviceIdentity struct {
 }
 
 func getUser(username string, dbi *db.DB) (User, error) {
+	return getUserContext(context.Background(), username, dbi)
+}
+
+func getUserContext(ctx context.Context, username string, dbi *db.DB) (User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	userModel := sq.New[db.USER]("")
-	user, err := db.SelectOne(dbi, createUserQueryMapper([]sq.Predicate{userModel.USERNAME.EqString(username)}))
+	user, err := db.SelectOneContext(ctx, dbi, createUserQueryMapper([]sq.Predicate{userModel.USERNAME.EqString(username)}))
 	if err != nil {
 		return user, fmt.Errorf("failed to retrieve user: %w", err)
 	}
@@ -123,6 +131,24 @@ func CreateManager(db *db.DB, sm *pcrypto.Manager) *Manager {
 
 // CreateUser creates and returns a user
 func (um *Manager) CreateUser(username string, name string, isadmin bool) (User, error) {
+	return um.CreateUserContext(context.Background(), username, name, isadmin)
+}
+
+// CreateUserContext creates a user and observes the ordinary one-other-peer
+// availability boundary. A fresh single-peer bootstrap returns after local
+// acceptance rather than waiting for a peer that does not exist.
+func (um *Manager) CreateUserContext(ctx context.Context, username string, name string, isadmin bool) (User, error) {
+	user, _, err := um.CreateUserWithConfirmationContext(ctx, username, name, isadmin)
+	return user, err
+}
+
+// CreateUserWithConfirmationContext exposes the exact accepted receipt and
+// current availability stage. Pending availability does not make an accepted
+// user insert replayable.
+func (um *Manager) CreateUserWithConfirmationContext(ctx context.Context, username string, name string, isadmin bool) (User, db.PublishedWriteConfirmation, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	user := User{
 		ID:         db.MustNewUUIDv7(),
@@ -131,12 +157,12 @@ func (um *Manager) CreateUser(username string, name string, isadmin bool) (User,
 		IsDisabled: false,
 	}
 
-	err := db.Insert(um.db, createUserInsertMapper(user))
+	confirmation, err := db.InsertWithAvailabilityContext(ctx, um.db, createUserInsertMapper(user))
 	if err != nil {
-		return user, errors.Wrapf(err, "Could not insert user '%s'", user.Username)
+		return user, confirmation, errors.Wrapf(err, "Could not insert user '%s'", user.Username)
 	}
 
-	return user, nil
+	return user, confirmation, nil
 }
 
 // GetUser returns a user based on the username
@@ -218,9 +244,27 @@ func (um *Manager) GetDeviceIdentities() ([]DeviceIdentity, error) {
 
 // AddDevice adds a device to the user
 func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error {
-	user, err := um.resolveUserRef(userID)
+	return um.AddDeviceContext(context.Background(), userID, name, key)
+}
+
+// AddDeviceContext adds the user device and peer row as one published write,
+// then observes another-peer availability without requiring checkpoint
+// application.
+func (um *Manager) AddDeviceContext(ctx context.Context, userID string, name string, key *pcrypto.Key) error {
+	_, err := um.AddDeviceWithConfirmationContext(ctx, userID, name, key)
+	return err
+}
+
+// AddDeviceWithConfirmationContext returns the exact accepted-write boundary
+// so callers can continue passive observation instead of replaying on a
+// conservative availability miss.
+func (um *Manager) AddDeviceWithConfirmationContext(ctx context.Context, userID string, name string, key *pcrypto.Key) (db.PublishedWriteConfirmation, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	user, err := um.resolveUserRefContext(ctx, userID)
 	if err != nil {
-		return err
+		return db.PublishedWriteConfirmation{}, err
 	}
 	ud := UserDevice{
 		ID:                  db.MustNewUUIDv7(),
@@ -230,23 +274,26 @@ func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error
 		ReplicationPriority: db.DefaultReplicationPriorityForUserDeviceName(name),
 	}
 
-	err = db.Insert(um.db, createUserDeviceInsertMapper(ud), db.CreatePeerInsertMapper(ud.PublicKey))
+	confirmation, err := db.InsertWithAvailabilityContext(ctx, um.db, createUserDeviceInsertMapper(ud), db.CreatePeerInsertMapper(ud.PublicKey))
 	if err != nil {
-		return errors.Wrapf(err, "Could not insert user device '%s'", name)
+		return confirmation, errors.Wrapf(err, "Could not insert user device '%s'", name)
 	}
 
-	return nil
+	return confirmation, nil
 }
 
-func (um *Manager) resolveUserRef(ref string) (User, error) {
+func (um *Manager) resolveUserRefContext(ctx context.Context, ref string) (User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if _, err := db.UUIDBytes(ref); err == nil {
 		userModel := sq.New[db.USER]("")
-		user, selectErr := db.SelectOne(um.db, createUserQueryMapper([]sq.Predicate{db.UUIDEq(userModel.ID, ref)}))
+		user, selectErr := db.SelectOneContext(ctx, um.db, createUserQueryMapper([]sq.Predicate{db.UUIDEq(userModel.ID, ref)}))
 		if selectErr == nil {
 			return user, nil
 		}
 	}
-	user, err := getUser(ref, um.db)
+	user, err := getUserContext(ctx, ref, um.db)
 	if err != nil {
 		return User{}, fmt.Errorf("could not retrieve user '%s': %w", ref, err)
 	}

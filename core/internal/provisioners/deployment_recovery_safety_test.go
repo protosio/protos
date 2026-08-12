@@ -249,14 +249,14 @@ func TestInterruptedDeploymentWithProviderIdentityIsNotRecoveredForReplay(t *tes
 		t.Fatal(err)
 	}
 	stored.ProviderResourceID = "provider-vm-id"
-	if err := manager.updateDeploymentPlaceholder(stored); err != nil {
+	if err := manager.updateDeploymentPlaceholder(context.Background(), stored); err != nil {
 		t.Fatal(err)
 	}
 	task, found, err := manager.tasks.LatestForSubject(InstanceDeploymentTaskStream, taskSubjectInstance, pending.ID)
 	if err != nil || !found {
 		t.Fatalf("deployment task lookup found=%v err=%v", found, err)
 	}
-	if err := db.Update(manager.db, func() sq.UpdateQuery {
+	if _, err := db.UpdateWithReceiptContext(context.Background(), manager.db, func() sq.UpdateQuery {
 		model := sq.New[db.TASK]("")
 		return sq.Update(model).SetFunc(func(column *sq.Column) {
 			column.SetString(model.STATUS, string(tasks.StatusRunning))

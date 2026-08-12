@@ -1332,6 +1332,7 @@ func (x *CreateAppRequest) GetPersistence() bool {
 type CreateAppResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,2,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1371,6 +1372,13 @@ func (x *CreateAppResponse) GetId() string {
 		return x.Id
 	}
 	return ""
+}
+
+func (x *CreateAppResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type StartAppRequest struct {
@@ -1419,6 +1427,7 @@ func (x *StartAppRequest) GetName() string {
 
 type StartAppResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,1,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1451,6 +1460,13 @@ func (x *StartAppResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StartAppResponse.ProtoReflect.Descriptor instead.
 func (*StartAppResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *StartAppResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type StopAppRequest struct {
@@ -1499,6 +1515,7 @@ func (x *StopAppRequest) GetName() string {
 
 type StopAppResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,1,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1531,6 +1548,13 @@ func (x *StopAppResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StopAppResponse.ProtoReflect.Descriptor instead.
 func (*StopAppResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *StopAppResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type RemoveAppRequest struct {
@@ -1579,6 +1603,7 @@ func (x *RemoveAppRequest) GetName() string {
 
 type RemoveAppResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,1,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1611,6 +1636,13 @@ func (x *RemoveAppResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RemoveAppResponse.ProtoReflect.Descriptor instead.
 func (*RemoveAppResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *RemoveAppResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type GetAppLogsRequest struct {
@@ -3932,6 +3964,7 @@ func (x *DeployInstanceRequest) GetDevImg() string {
 type DeployInstanceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Instance      *CloudInstance         `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,2,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3969,6 +4002,13 @@ func (*DeployInstanceResponse) Descriptor() ([]byte, []int) {
 func (x *DeployInstanceResponse) GetInstance() *CloudInstance {
 	if x != nil {
 		return x.Instance
+	}
+	return nil
+}
+
+func (x *DeployInstanceResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
 	}
 	return nil
 }
@@ -4116,6 +4156,7 @@ func (x *StartInstanceRequest) GetName() string {
 type StartInstanceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,2,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4155,6 +4196,13 @@ func (x *StartInstanceResponse) GetTaskId() string {
 		return x.TaskId
 	}
 	return ""
+}
+
+func (x *StartInstanceResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type StopInstanceRequest struct {
@@ -4204,6 +4252,7 @@ func (x *StopInstanceRequest) GetName() string {
 type StopInstanceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,2,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4243,6 +4292,13 @@ func (x *StopInstanceResponse) GetTaskId() string {
 		return x.TaskId
 	}
 	return ""
+}
+
+func (x *StopInstanceResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type GetInstanceKeyRequest struct {
@@ -6321,6 +6377,7 @@ type Task struct {
 	StartedAt     string                 `protobuf:"bytes,16,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	FinishedAt    string                 `protobuf:"bytes,17,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	OwnerPeerId   string                 `protobuf:"bytes,18,opt,name=owner_peer_id,json=ownerPeerId,proto3" json:"owner_peer_id,omitempty"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,19,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6479,6 +6536,13 @@ func (x *Task) GetOwnerPeerId() string {
 		return x.OwnerPeerId
 	}
 	return ""
+}
+
+func (x *Task) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type TaskEvent struct {
@@ -6830,7 +6894,8 @@ type TaskProgressUpdate struct {
 	DetailsJson string                 `protobuf:"bytes,5,opt,name=details_json,json=detailsJson,proto3" json:"details_json,omitempty"`
 	CreatedAt   string                 `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability.
-	Durable       bool `protobuf:"varint,7,opt,name=durable,proto3" json:"durable,omitempty"`
+	Durable       bool               `protobuf:"varint,7,opt,name=durable,proto3" json:"durable,omitempty"`
+	Confirmation  *WriteConfirmation `protobuf:"bytes,8,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6912,6 +6977,13 @@ func (x *TaskProgressUpdate) GetDurable() bool {
 		return x.Durable
 	}
 	return false
+}
+
+func (x *TaskProgressUpdate) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type WatchTaskRequest struct {
@@ -7129,6 +7201,7 @@ func (x *SetExitRouteRequest) GetCidrs() []string {
 type SetExitRouteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Route         *ExitRoute             `protobuf:"bytes,1,opt,name=route,proto3" json:"route,omitempty"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,2,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7166,6 +7239,13 @@ func (*SetExitRouteResponse) Descriptor() ([]byte, []int) {
 func (x *SetExitRouteResponse) GetRoute() *ExitRoute {
 	if x != nil {
 		return x.Route
+	}
+	return nil
+}
+
+func (x *SetExitRouteResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
 	}
 	return nil
 }
@@ -7216,6 +7296,7 @@ func (x *ClearExitRouteRequest) GetDeviceId() string {
 
 type ClearExitRouteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,1,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7248,6 +7329,13 @@ func (x *ClearExitRouteResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ClearExitRouteResponse.ProtoReflect.Descriptor instead.
 func (*ClearExitRouteResponse) Descriptor() ([]byte, []int) {
 	return file_apic_proto_apic_proto_rawDescGZIP(), []int{124}
+}
+
+func (x *ClearExitRouteResponse) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type RuntimeState struct {
@@ -10842,6 +10930,92 @@ func (x *ExecuteSqlResponse) GetMessage() string {
 	return ""
 }
 
+type WriteConfirmation struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Strongest observed boundary: no_change, local_accepted, or other_peer_available.
+	Stage               string `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
+	EventId             string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	PublishedRootHash   string `protobuf:"bytes,3,opt,name=published_root_hash,json=publishedRootHash,proto3" json:"published_root_hash,omitempty"`
+	RequiredOtherPeers  int32  `protobuf:"varint,4,opt,name=required_other_peers,json=requiredOtherPeers,proto3" json:"required_other_peers,omitempty"`
+	ConfirmedOtherPeers int32  `protobuf:"varint,5,opt,name=confirmed_other_peers,json=confirmedOtherPeers,proto3" json:"confirmed_other_peers,omitempty"`
+	// The mutation was accepted, but exact other-peer retention was not proved before returning; do not replay it.
+	AvailabilityPending bool `protobuf:"varint,6,opt,name=availability_pending,json=availabilityPending,proto3" json:"availability_pending,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *WriteConfirmation) Reset() {
+	*x = WriteConfirmation{}
+	mi := &file_apic_proto_apic_proto_msgTypes[179]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteConfirmation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteConfirmation) ProtoMessage() {}
+
+func (x *WriteConfirmation) ProtoReflect() protoreflect.Message {
+	mi := &file_apic_proto_apic_proto_msgTypes[179]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteConfirmation.ProtoReflect.Descriptor instead.
+func (*WriteConfirmation) Descriptor() ([]byte, []int) {
+	return file_apic_proto_apic_proto_rawDescGZIP(), []int{179}
+}
+
+func (x *WriteConfirmation) GetStage() string {
+	if x != nil {
+		return x.Stage
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetPublishedRootHash() string {
+	if x != nil {
+		return x.PublishedRootHash
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetRequiredOtherPeers() int32 {
+	if x != nil {
+		return x.RequiredOtherPeers
+	}
+	return 0
+}
+
+func (x *WriteConfirmation) GetConfirmedOtherPeers() int32 {
+	if x != nil {
+		return x.ConfirmedOtherPeers
+	}
+	return 0
+}
+
+func (x *WriteConfirmation) GetAvailabilityPending() bool {
+	if x != nil {
+		return x.AvailabilityPending
+	}
+	return false
+}
+
 var File_apic_proto_apic_proto protoreflect.FileDescriptor
 
 const file_apic_proto_apic_proto_rawDesc = "" +
@@ -10934,18 +11108,22 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\finstaller_id\x18\x02 \x01(\tR\vinstallerId\x12\x1f\n" +
 	"\vinstance_id\x18\x03 \x01(\tR\n" +
 	"instanceId\x12 \n" +
-	"\vpersistence\x18\x04 \x01(\bR\vpersistence\"#\n" +
+	"\vpersistence\x18\x04 \x01(\bR\vpersistence\"`\n" +
 	"\x11CreateAppResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"%\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
+	"\fconfirmation\x18\x02 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"%\n" +
 	"\x0fStartAppRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x12\n" +
-	"\x10StartAppResponse\"$\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"O\n" +
+	"\x10StartAppResponse\x12;\n" +
+	"\fconfirmation\x18\x01 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"$\n" +
 	"\x0eStopAppRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x11\n" +
-	"\x0fStopAppResponse\"&\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"N\n" +
+	"\x0fStopAppResponse\x12;\n" +
+	"\fconfirmation\x18\x01 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"&\n" +
 	"\x10RemoveAppRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x13\n" +
-	"\x11RemoveAppResponse\"'\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"P\n" +
+	"\x11RemoveAppResponse\x12;\n" +
+	"\fconfirmation\x18\x01 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"'\n" +
 	"\x11GetAppLogsRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"(\n" +
 	"\x12GetAppLogsResponse\x12\x12\n" +
@@ -11109,9 +11287,10 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x0ecloud_location\x18\x03 \x01(\tR\rcloudLocation\x12!\n" +
 	"\fmachine_type\x18\x04 \x01(\tR\vmachineType\x12%\n" +
 	"\x0eprotos_version\x18\x05 \x01(\tR\rprotosVersion\x12\x17\n" +
-	"\adev_img\x18\x06 \x01(\tR\x06devImg\"I\n" +
+	"\adev_img\x18\x06 \x01(\tR\x06devImg\"\x86\x01\n" +
 	"\x16DeployInstanceResponse\x12/\n" +
-	"\binstance\x18\x01 \x01(\v2\x13.apic.CloudInstanceR\binstance\"J\n" +
+	"\binstance\x18\x01 \x01(\v2\x13.apic.CloudInstanceR\binstance\x12;\n" +
+	"\fconfirmation\x18\x02 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"J\n" +
 	"\x15RemoveInstanceRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -11119,13 +11298,15 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x16RemoveInstanceResponse\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\"*\n" +
 	"\x14StartInstanceRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"0\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"m\n" +
 	"\x15StartInstanceResponse\x12\x17\n" +
-	"\atask_id\x18\x01 \x01(\tR\x06taskId\")\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12;\n" +
+	"\fconfirmation\x18\x02 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\")\n" +
 	"\x13StopInstanceRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"/\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"l\n" +
 	"\x14StopInstanceResponse\x12\x17\n" +
-	"\atask_id\x18\x01 \x01(\tR\x06taskId\"+\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12;\n" +
+	"\fconfirmation\x18\x02 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"+\n" +
 	"\x15GetInstanceKeyRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"*\n" +
 	"\x16GetInstanceKeyResponse\x12\x10\n" +
@@ -11286,7 +11467,7 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\vtable_names\x18\x02 \x03(\tR\n" +
 	"tableNames\x12'\n" +
 	"\x0fruntime_changed\x18\x03 \x01(\bR\x0eruntimeChanged\x12\x16\n" +
-	"\x06reason\x18\x04 \x01(\tR\x06reason\"\x9e\x04\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"\xdb\x04\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06stream\x18\x02 \x01(\tR\x06stream\x12!\n" +
@@ -11312,7 +11493,8 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"started_at\x18\x10 \x01(\tR\tstartedAt\x12\x1f\n" +
 	"\vfinished_at\x18\x11 \x01(\tR\n" +
 	"finishedAt\x12\"\n" +
-	"\rowner_peer_id\x18\x12 \x01(\tR\vownerPeerId\"\xc4\x01\n" +
+	"\rowner_peer_id\x18\x12 \x01(\tR\vownerPeerId\x12;\n" +
+	"\fconfirmation\x18\x13 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"\xc4\x01\n" +
 	"\tTaskEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x16\n" +
@@ -11342,7 +11524,7 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x0fGetTaskResponse\x12\x1e\n" +
 	"\x04task\x18\x01 \x01(\v2\n" +
 	".apic.TaskR\x04task\x12'\n" +
-	"\x06events\x18\x02 \x03(\v2\x0f.apic.TaskEventR\x06events\"\xd7\x01\n" +
+	"\x06events\x18\x02 \x03(\v2\x0f.apic.TaskEventR\x06events\"\x94\x02\n" +
 	"\x12TaskProgressUpdate\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x18\n" +
@@ -11351,7 +11533,8 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\fdetails_json\x18\x05 \x01(\tR\vdetailsJson\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x06 \x01(\tR\tcreatedAt\x12\x18\n" +
-	"\adurable\x18\a \x01(\bR\adurable\"\xa8\x01\n" +
+	"\adurable\x18\a \x01(\bR\adurable\x12;\n" +
+	"\fconfirmation\x18\b \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"\xa8\x01\n" +
 	"\x10WatchTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12)\n" +
 	"\x10include_snapshot\x18\x02 \x01(\bR\x0fincludeSnapshot\x12%\n" +
@@ -11369,12 +11552,14 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1d\n" +
 	"\n" +
 	"dns_server\x18\x03 \x01(\tR\tdnsServer\x12\x14\n" +
-	"\x05cidrs\x18\x04 \x03(\tR\x05cidrs\"=\n" +
+	"\x05cidrs\x18\x04 \x03(\tR\x05cidrs\"z\n" +
 	"\x14SetExitRouteResponse\x12%\n" +
-	"\x05route\x18\x01 \x01(\v2\x0f.apic.ExitRouteR\x05route\"4\n" +
+	"\x05route\x18\x01 \x01(\v2\x0f.apic.ExitRouteR\x05route\x12;\n" +
+	"\fconfirmation\x18\x02 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"4\n" +
 	"\x15ClearExitRouteRequest\x12\x1b\n" +
-	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\"\x18\n" +
-	"\x16ClearExitRouteResponse\"\xce\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\"U\n" +
+	"\x16ClearExitRouteResponse\x12;\n" +
+	"\fconfirmation\x18\x01 \x01(\v2\x17.apic.WriteConfirmationR\fconfirmation\"\xce\n" +
 	"\n" +
 	"\fRuntimeState\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12'\n" +
@@ -11688,7 +11873,14 @@ const file_apic_proto_apic_proto_rawDesc = "" +
 	"\x04rows\x18\x02 \x03(\v2\f.apic.SqlRowR\x04rows\x12#\n" +
 	"\rrows_affected\x18\x03 \x01(\x03R\frowsAffected\x12\x1c\n" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage2\xaf'\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\x8d\x02\n" +
+	"\x11WriteConfirmation\x12\x14\n" +
+	"\x05stage\x18\x01 \x01(\tR\x05stage\x12\x19\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12.\n" +
+	"\x13published_root_hash\x18\x03 \x01(\tR\x11publishedRootHash\x120\n" +
+	"\x14required_other_peers\x18\x04 \x01(\x05R\x12requiredOtherPeers\x122\n" +
+	"\x15confirmed_other_peers\x18\x05 \x01(\x05R\x13confirmedOtherPeers\x121\n" +
+	"\x14availability_pending\x18\x06 \x01(\bR\x13availabilityPending2\xaf'\n" +
 	"\x0fProtosClientApi\x12/\n" +
 	"\x04Init\x12\x11.apic.InitRequest\x1a\x12.apic.InitResponse\"\x00\x12M\n" +
 	"\x0eGetUserDevices\x12\x1b.apic.GetUserDevicesRequest\x1a\x1c.apic.GetUserDevicesResponse\"\x00\x12D\n" +
@@ -11767,7 +11959,7 @@ func file_apic_proto_apic_proto_rawDescGZIP() []byte {
 	return file_apic_proto_apic_proto_rawDescData
 }
 
-var file_apic_proto_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 190)
+var file_apic_proto_apic_proto_msgTypes = make([]protoimpl.MessageInfo, 191)
 var file_apic_proto_apic_proto_goTypes = []any{
 	(*InitRequest)(nil),                        // 0: apic.InitRequest
 	(*InitResponse)(nil),                       // 1: apic.InitResponse
@@ -11948,231 +12140,243 @@ var file_apic_proto_apic_proto_goTypes = []any{
 	(*SqlRow)(nil),                             // 176: apic.SqlRow
 	(*ExecuteSqlRequest)(nil),                  // 177: apic.ExecuteSqlRequest
 	(*ExecuteSqlResponse)(nil),                 // 178: apic.ExecuteSqlResponse
-	nil,                                        // 179: apic.CloudProvider.SupportedMachinesEntry
-	nil,                                        // 180: apic.AddCloudProviderRequest.CredentialsEntry
-	nil,                                        // 181: apic.Provisioner.SupportedMachinesEntry
-	nil,                                        // 182: apic.AddProvisionerRequest.CredentialsEntry
-	nil,                                        // 183: apic.CloudInstance.PeersEntry
-	nil,                                        // 184: apic.RuntimePeerStatus.LastDialErrorsEntry
-	nil,                                        // 185: apic.Release.CloudImagesEntry
-	nil,                                        // 186: apic.GetCloudImagesResponse.CloudImagesEntry
-	nil,                                        // 187: apic.GetProvisionerImagesResponse.ImagesEntry
-	nil,                                        // 188: apic.ImageContentDescriptor.AnnotationsEntry
-	nil,                                        // 189: apic.GetInstanceImageResponse.LabelsEntry
+	(*WriteConfirmation)(nil),                  // 179: apic.WriteConfirmation
+	nil,                                        // 180: apic.CloudProvider.SupportedMachinesEntry
+	nil,                                        // 181: apic.AddCloudProviderRequest.CredentialsEntry
+	nil,                                        // 182: apic.Provisioner.SupportedMachinesEntry
+	nil,                                        // 183: apic.AddProvisionerRequest.CredentialsEntry
+	nil,                                        // 184: apic.CloudInstance.PeersEntry
+	nil,                                        // 185: apic.RuntimePeerStatus.LastDialErrorsEntry
+	nil,                                        // 186: apic.Release.CloudImagesEntry
+	nil,                                        // 187: apic.GetCloudImagesResponse.CloudImagesEntry
+	nil,                                        // 188: apic.GetProvisionerImagesResponse.ImagesEntry
+	nil,                                        // 189: apic.ImageContentDescriptor.AnnotationsEntry
+	nil,                                        // 190: apic.GetInstanceImageResponse.LabelsEntry
 }
 var file_apic_proto_apic_proto_depIdxs = []int32{
 	2,   // 0: apic.GetUserDevicesResponse.devices:type_name -> apic.UserDevice
 	7,   // 1: apic.ListOrganisationsResponse.organisations:type_name -> apic.Organisation
 	12,  // 2: apic.ListNearbyOrganisationsResponse.organisations:type_name -> apic.NearbyOrganisation
 	19,  // 3: apic.GetAppsResponse.apps:type_name -> apic.App
-	32,  // 4: apic.GetInstallersResponse.installers:type_name -> apic.Installer
-	32,  // 5: apic.GetInstallerResponse.installer:type_name -> apic.Installer
-	38,  // 6: apic.CloudProvider.type:type_name -> apic.CloudType
-	179, // 7: apic.CloudProvider.supported_machines:type_name -> apic.CloudProvider.SupportedMachinesEntry
-	38,  // 8: apic.GetSupportedCloudProvidersResponse.cloud_types:type_name -> apic.CloudType
-	39,  // 9: apic.GetCloudProvidersResponse.cloud_providers:type_name -> apic.CloudProvider
-	39,  // 10: apic.GetCloudProviderResponse.cloud_provider:type_name -> apic.CloudProvider
-	180, // 11: apic.AddCloudProviderRequest.credentials:type_name -> apic.AddCloudProviderRequest.CredentialsEntry
-	51,  // 12: apic.Provisioner.type:type_name -> apic.ProvisionerType
-	181, // 13: apic.Provisioner.supported_machines:type_name -> apic.Provisioner.SupportedMachinesEntry
-	51,  // 14: apic.GetSupportedProvisionersResponse.provisioner_types:type_name -> apic.ProvisionerType
-	52,  // 15: apic.GetProvisionersResponse.provisioners:type_name -> apic.Provisioner
-	52,  // 16: apic.GetProvisionerResponse.provisioner:type_name -> apic.Provisioner
-	182, // 17: apic.AddProvisionerRequest.credentials:type_name -> apic.AddProvisionerRequest.CredentialsEntry
-	183, // 18: apic.CloudInstance.peers:type_name -> apic.CloudInstance.PeersEntry
-	63,  // 19: apic.GetInstancesResponse.instances:type_name -> apic.CloudInstance
-	63,  // 20: apic.GetInstanceResponse.instance:type_name -> apic.CloudInstance
-	68,  // 21: apic.InstanceDeployField.options:type_name -> apic.InstanceDeployFieldOption
-	69,  // 22: apic.GetInstanceDeployOptionsResponse.fields:type_name -> apic.InstanceDeployField
-	63,  // 23: apic.DeployInstanceResponse.instance:type_name -> apic.CloudInstance
-	93,  // 24: apic.GetNetworkStateResponse.state:type_name -> apic.NetworkState
-	92,  // 25: apic.SetNetworkEnabledResponse.status:type_name -> apic.NetworkRuntimeStatus
-	93,  // 26: apic.NetworkRuntimeStatus.network_state:type_name -> apic.NetworkState
-	95,  // 27: apic.NetworkState.addresses:type_name -> apic.NetworkAddress
-	96,  // 28: apic.NetworkState.routes:type_name -> apic.NetworkRoute
-	97,  // 29: apic.NetworkState.wireguard_peers:type_name -> apic.WireGuardPeer
-	98,  // 30: apic.NetworkState.firewall_tables:type_name -> apic.FirewallTable
-	101, // 31: apic.NetworkState.dns:type_name -> apic.DNSState
-	94,  // 32: apic.NetworkState.interfaces:type_name -> apic.NetworkInterface
-	99,  // 33: apic.FirewallTable.chains:type_name -> apic.FirewallChain
-	100, // 34: apic.FirewallChain.rules:type_name -> apic.FirewallRule
-	102, // 35: apic.GetExitRoutesResponse.routes:type_name -> apic.ExitRoute
-	106, // 36: apic.GetMobileTunnelConfigResponse.config:type_name -> apic.MobileTunnelConfig
-	125, // 37: apic.GetRuntimeStateResponse.state:type_name -> apic.RuntimeState
-	112, // 38: apic.GetTasksResponse.tasks:type_name -> apic.Task
-	112, // 39: apic.GetTaskResponse.task:type_name -> apic.Task
-	113, // 40: apic.GetTaskResponse.events:type_name -> apic.TaskEvent
-	112, // 41: apic.WatchTaskResponse.task:type_name -> apic.Task
-	113, // 42: apic.WatchTaskResponse.events:type_name -> apic.TaskEvent
-	118, // 43: apic.WatchTaskResponse.update:type_name -> apic.TaskProgressUpdate
-	102, // 44: apic.SetExitRouteResponse.route:type_name -> apic.ExitRoute
-	126, // 45: apic.RuntimeState.peer_statuses:type_name -> apic.RuntimePeerStatus
-	127, // 46: apic.RuntimeState.compatibility:type_name -> apic.RuntimeCompatibility
-	184, // 47: apic.RuntimePeerStatus.last_dial_errors:type_name -> apic.RuntimePeerStatus.LastDialErrorsEntry
-	185, // 48: apic.Release.cloud_images:type_name -> apic.Release.CloudImagesEntry
-	130, // 49: apic.GetProtosdReleasesResponse.releases:type_name -> apic.Release
-	186, // 50: apic.GetCloudImagesResponse.cloud_images:type_name -> apic.GetCloudImagesResponse.CloudImagesEntry
-	187, // 51: apic.GetProvisionerImagesResponse.images:type_name -> apic.GetProvisionerImagesResponse.ImagesEntry
-	188, // 52: apic.ImageContentDescriptor.annotations:type_name -> apic.ImageContentDescriptor.AnnotationsEntry
-	189, // 53: apic.GetInstanceImageResponse.labels:type_name -> apic.GetInstanceImageResponse.LabelsEntry
-	145, // 54: apic.GetInstanceImageResponse.target:type_name -> apic.ImageContentDescriptor
-	145, // 55: apic.GetInstanceImageResponse.descriptors:type_name -> apic.ImageContentDescriptor
-	150, // 56: apic.SystemStatus.endpoints:type_name -> apic.CoreEndpoint
-	151, // 57: apic.SystemStatus.host_agent:type_name -> apic.HostAgentConnectionStatus
-	92,  // 58: apic.SystemStatus.network:type_name -> apic.NetworkRuntimeStatus
-	152, // 59: apic.GetSystemStatusResponse.status:type_name -> apic.SystemStatus
-	151, // 60: apic.StartHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
-	151, // 61: apic.StopHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
-	159, // 62: apic.CommitGraphItem.commit:type_name -> apic.Commit
-	160, // 63: apic.CommitGraphItem.relations:type_name -> apic.CommitGraphRelation
-	161, // 64: apic.CommitGraph.items:type_name -> apic.CommitGraphItem
-	159, // 65: apic.GetLocalCommitsResponse.commits:type_name -> apic.Commit
-	162, // 66: apic.GetLocalCommitsResponse.graph:type_name -> apic.CommitGraph
-	159, // 67: apic.GetRemoteCommitsResponse.commits:type_name -> apic.Commit
-	162, // 68: apic.GetRemoteCommitsResponse.graph:type_name -> apic.CommitGraph
-	167, // 69: apic.CommitDiffField.before:type_name -> apic.CommitDiffValue
-	167, // 70: apic.CommitDiffField.after:type_name -> apic.CommitDiffValue
-	168, // 71: apic.CommitDiffRow.fields:type_name -> apic.CommitDiffField
-	169, // 72: apic.CommitDiffTable.rows:type_name -> apic.CommitDiffRow
-	170, // 73: apic.CommitDiff.tables:type_name -> apic.CommitDiffTable
-	171, // 74: apic.CommitDiff.related_tasks:type_name -> apic.CommitDiffTaskContext
-	172, // 75: apic.GetCommitDiffResponse.diff:type_name -> apic.CommitDiff
-	175, // 76: apic.SqlRow.cells:type_name -> apic.SqlCell
-	176, // 77: apic.ExecuteSqlResponse.rows:type_name -> apic.SqlRow
-	37,  // 78: apic.CloudProvider.SupportedMachinesEntry.value:type_name -> apic.CloudMachineSpec
-	50,  // 79: apic.Provisioner.SupportedMachinesEntry.value:type_name -> apic.ProvisionerMachineSpec
-	128, // 80: apic.Release.CloudImagesEntry.value:type_name -> apic.CloudImage
-	129, // 81: apic.GetCloudImagesResponse.CloudImagesEntry.value:type_name -> apic.CloudSpecificImage
-	129, // 82: apic.GetProvisionerImagesResponse.ImagesEntry.value:type_name -> apic.CloudSpecificImage
-	0,   // 83: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
-	3,   // 84: apic.ProtosClientApi.GetUserDevices:input_type -> apic.GetUserDevicesRequest
-	5,   // 85: apic.ProtosClientApi.GetUserInfo:input_type -> apic.GetUserInfoRequest
-	8,   // 86: apic.ProtosClientApi.ListOrganisations:input_type -> apic.ListOrganisationsRequest
-	10,  // 87: apic.ProtosClientApi.StartDeviceInvite:input_type -> apic.StartDeviceInviteRequest
-	13,  // 88: apic.ProtosClientApi.ListNearbyOrganisations:input_type -> apic.ListNearbyOrganisationsRequest
-	15,  // 89: apic.ProtosClientApi.JoinOrganisation:input_type -> apic.JoinOrganisationRequest
-	17,  // 90: apic.ProtosClientApi.GetLocalSSHKey:input_type -> apic.GetLocalSSHKeyRequest
-	20,  // 91: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
-	22,  // 92: apic.ProtosClientApi.CreateApp:input_type -> apic.CreateAppRequest
-	24,  // 93: apic.ProtosClientApi.StartApp:input_type -> apic.StartAppRequest
-	26,  // 94: apic.ProtosClientApi.StopApp:input_type -> apic.StopAppRequest
-	28,  // 95: apic.ProtosClientApi.RemoveApp:input_type -> apic.RemoveAppRequest
-	30,  // 96: apic.ProtosClientApi.GetAppLogs:input_type -> apic.GetAppLogsRequest
-	40,  // 97: apic.ProtosClientApi.GetSupportedCloudProviders:input_type -> apic.GetSupportedCloudProvidersRequest
-	42,  // 98: apic.ProtosClientApi.GetCloudProviders:input_type -> apic.GetCloudProvidersRequest
-	44,  // 99: apic.ProtosClientApi.GetCloudProvider:input_type -> apic.GetCloudProviderRequest
-	46,  // 100: apic.ProtosClientApi.AddCloudProvider:input_type -> apic.AddCloudProviderRequest
-	48,  // 101: apic.ProtosClientApi.RemoveCloudProvider:input_type -> apic.RemoveCloudProviderRequest
-	53,  // 102: apic.ProtosClientApi.GetSupportedProvisioners:input_type -> apic.GetSupportedProvisionersRequest
-	55,  // 103: apic.ProtosClientApi.GetProvisioners:input_type -> apic.GetProvisionersRequest
-	57,  // 104: apic.ProtosClientApi.GetProvisioner:input_type -> apic.GetProvisionerRequest
-	59,  // 105: apic.ProtosClientApi.AddProvisioner:input_type -> apic.AddProvisionerRequest
-	61,  // 106: apic.ProtosClientApi.RemoveProvisioner:input_type -> apic.RemoveProvisionerRequest
-	64,  // 107: apic.ProtosClientApi.GetInstances:input_type -> apic.GetInstancesRequest
-	66,  // 108: apic.ProtosClientApi.GetInstance:input_type -> apic.GetInstanceRequest
-	70,  // 109: apic.ProtosClientApi.GetInstanceDeployOptions:input_type -> apic.GetInstanceDeployOptionsRequest
-	72,  // 110: apic.ProtosClientApi.DeployInstance:input_type -> apic.DeployInstanceRequest
-	74,  // 111: apic.ProtosClientApi.RemoveInstance:input_type -> apic.RemoveInstanceRequest
-	76,  // 112: apic.ProtosClientApi.StartInstance:input_type -> apic.StartInstanceRequest
-	78,  // 113: apic.ProtosClientApi.StopInstance:input_type -> apic.StopInstanceRequest
-	80,  // 114: apic.ProtosClientApi.GetInstanceKey:input_type -> apic.GetInstanceKeyRequest
-	82,  // 115: apic.ProtosClientApi.GetInstanceLogs:input_type -> apic.GetInstanceLogsRequest
-	84,  // 116: apic.ProtosClientApi.InitInstance:input_type -> apic.InitInstanceRequest
-	86,  // 117: apic.ProtosClientApi.UpdateInstance:input_type -> apic.UpdateInstanceRequest
-	88,  // 118: apic.ProtosClientApi.GetNetworkState:input_type -> apic.GetNetworkStateRequest
-	90,  // 119: apic.ProtosClientApi.SetNetworkEnabled:input_type -> apic.SetNetworkEnabledRequest
-	103, // 120: apic.ProtosClientApi.GetExitRoutes:input_type -> apic.GetExitRoutesRequest
-	105, // 121: apic.ProtosClientApi.GetMobileTunnelConfig:input_type -> apic.GetMobileTunnelConfigRequest
-	108, // 122: apic.ProtosClientApi.GetRuntimeState:input_type -> apic.GetRuntimeStateRequest
-	110, // 123: apic.ProtosClientApi.WatchChanges:input_type -> apic.WatchChangesRequest
-	114, // 124: apic.ProtosClientApi.GetTasks:input_type -> apic.GetTasksRequest
-	116, // 125: apic.ProtosClientApi.GetTask:input_type -> apic.GetTaskRequest
-	119, // 126: apic.ProtosClientApi.WatchTask:input_type -> apic.WatchTaskRequest
-	121, // 127: apic.ProtosClientApi.SetExitRoute:input_type -> apic.SetExitRouteRequest
-	123, // 128: apic.ProtosClientApi.ClearExitRoute:input_type -> apic.ClearExitRouteRequest
-	131, // 129: apic.ProtosClientApi.GetProtosdReleases:input_type -> apic.GetProtosdReleasesRequest
-	133, // 130: apic.ProtosClientApi.GetCloudImages:input_type -> apic.GetCloudImagesRequest
-	137, // 131: apic.ProtosClientApi.UploadCloudImage:input_type -> apic.UploadCloudImageRequest
-	141, // 132: apic.ProtosClientApi.RemoveCloudImage:input_type -> apic.RemoveCloudImageRequest
-	135, // 133: apic.ProtosClientApi.GetProvisionerImages:input_type -> apic.GetProvisionerImagesRequest
-	139, // 134: apic.ProtosClientApi.UploadProvisionerImage:input_type -> apic.UploadProvisionerImageRequest
-	143, // 135: apic.ProtosClientApi.RemoveProvisionerImage:input_type -> apic.RemoveProvisionerImageRequest
-	146, // 136: apic.ProtosClientApi.GetInstanceImage:input_type -> apic.GetInstanceImageRequest
-	148, // 137: apic.ProtosClientApi.UploadInstanceImageArchive:input_type -> apic.UploadInstanceImageArchiveRequest
-	153, // 138: apic.ProtosClientApi.GetSystemStatus:input_type -> apic.GetSystemStatusRequest
-	155, // 139: apic.ProtosClientApi.StartHostAgent:input_type -> apic.StartHostAgentRequest
-	157, // 140: apic.ProtosClientApi.StopHostAgent:input_type -> apic.StopHostAgentRequest
-	163, // 141: apic.ProtosClientApi.GetLocalCommits:input_type -> apic.GetLocalCommitsRequest
-	165, // 142: apic.ProtosClientApi.GetRemoteCommits:input_type -> apic.GetRemoteCommitsRequest
-	173, // 143: apic.ProtosClientApi.GetCommitDiff:input_type -> apic.GetCommitDiffRequest
-	177, // 144: apic.ProtosClientApi.ExecuteSql:input_type -> apic.ExecuteSqlRequest
-	1,   // 145: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
-	4,   // 146: apic.ProtosClientApi.GetUserDevices:output_type -> apic.GetUserDevicesResponse
-	6,   // 147: apic.ProtosClientApi.GetUserInfo:output_type -> apic.GetUserInfoResponse
-	9,   // 148: apic.ProtosClientApi.ListOrganisations:output_type -> apic.ListOrganisationsResponse
-	11,  // 149: apic.ProtosClientApi.StartDeviceInvite:output_type -> apic.StartDeviceInviteResponse
-	14,  // 150: apic.ProtosClientApi.ListNearbyOrganisations:output_type -> apic.ListNearbyOrganisationsResponse
-	16,  // 151: apic.ProtosClientApi.JoinOrganisation:output_type -> apic.JoinOrganisationResponse
-	18,  // 152: apic.ProtosClientApi.GetLocalSSHKey:output_type -> apic.GetLocalSSHKeyResponse
-	21,  // 153: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
-	23,  // 154: apic.ProtosClientApi.CreateApp:output_type -> apic.CreateAppResponse
-	25,  // 155: apic.ProtosClientApi.StartApp:output_type -> apic.StartAppResponse
-	27,  // 156: apic.ProtosClientApi.StopApp:output_type -> apic.StopAppResponse
-	29,  // 157: apic.ProtosClientApi.RemoveApp:output_type -> apic.RemoveAppResponse
-	31,  // 158: apic.ProtosClientApi.GetAppLogs:output_type -> apic.GetAppLogsResponse
-	41,  // 159: apic.ProtosClientApi.GetSupportedCloudProviders:output_type -> apic.GetSupportedCloudProvidersResponse
-	43,  // 160: apic.ProtosClientApi.GetCloudProviders:output_type -> apic.GetCloudProvidersResponse
-	45,  // 161: apic.ProtosClientApi.GetCloudProvider:output_type -> apic.GetCloudProviderResponse
-	47,  // 162: apic.ProtosClientApi.AddCloudProvider:output_type -> apic.AddCloudProviderResponse
-	49,  // 163: apic.ProtosClientApi.RemoveCloudProvider:output_type -> apic.RemoveCloudProviderResponse
-	54,  // 164: apic.ProtosClientApi.GetSupportedProvisioners:output_type -> apic.GetSupportedProvisionersResponse
-	56,  // 165: apic.ProtosClientApi.GetProvisioners:output_type -> apic.GetProvisionersResponse
-	58,  // 166: apic.ProtosClientApi.GetProvisioner:output_type -> apic.GetProvisionerResponse
-	60,  // 167: apic.ProtosClientApi.AddProvisioner:output_type -> apic.AddProvisionerResponse
-	62,  // 168: apic.ProtosClientApi.RemoveProvisioner:output_type -> apic.RemoveProvisionerResponse
-	65,  // 169: apic.ProtosClientApi.GetInstances:output_type -> apic.GetInstancesResponse
-	67,  // 170: apic.ProtosClientApi.GetInstance:output_type -> apic.GetInstanceResponse
-	71,  // 171: apic.ProtosClientApi.GetInstanceDeployOptions:output_type -> apic.GetInstanceDeployOptionsResponse
-	73,  // 172: apic.ProtosClientApi.DeployInstance:output_type -> apic.DeployInstanceResponse
-	75,  // 173: apic.ProtosClientApi.RemoveInstance:output_type -> apic.RemoveInstanceResponse
-	77,  // 174: apic.ProtosClientApi.StartInstance:output_type -> apic.StartInstanceResponse
-	79,  // 175: apic.ProtosClientApi.StopInstance:output_type -> apic.StopInstanceResponse
-	81,  // 176: apic.ProtosClientApi.GetInstanceKey:output_type -> apic.GetInstanceKeyResponse
-	83,  // 177: apic.ProtosClientApi.GetInstanceLogs:output_type -> apic.GetInstanceLogsResponse
-	85,  // 178: apic.ProtosClientApi.InitInstance:output_type -> apic.InitInstanceResponse
-	87,  // 179: apic.ProtosClientApi.UpdateInstance:output_type -> apic.UpdateInstanceResponse
-	89,  // 180: apic.ProtosClientApi.GetNetworkState:output_type -> apic.GetNetworkStateResponse
-	91,  // 181: apic.ProtosClientApi.SetNetworkEnabled:output_type -> apic.SetNetworkEnabledResponse
-	104, // 182: apic.ProtosClientApi.GetExitRoutes:output_type -> apic.GetExitRoutesResponse
-	107, // 183: apic.ProtosClientApi.GetMobileTunnelConfig:output_type -> apic.GetMobileTunnelConfigResponse
-	109, // 184: apic.ProtosClientApi.GetRuntimeState:output_type -> apic.GetRuntimeStateResponse
-	111, // 185: apic.ProtosClientApi.WatchChanges:output_type -> apic.WatchChangesResponse
-	115, // 186: apic.ProtosClientApi.GetTasks:output_type -> apic.GetTasksResponse
-	117, // 187: apic.ProtosClientApi.GetTask:output_type -> apic.GetTaskResponse
-	120, // 188: apic.ProtosClientApi.WatchTask:output_type -> apic.WatchTaskResponse
-	122, // 189: apic.ProtosClientApi.SetExitRoute:output_type -> apic.SetExitRouteResponse
-	124, // 190: apic.ProtosClientApi.ClearExitRoute:output_type -> apic.ClearExitRouteResponse
-	132, // 191: apic.ProtosClientApi.GetProtosdReleases:output_type -> apic.GetProtosdReleasesResponse
-	134, // 192: apic.ProtosClientApi.GetCloudImages:output_type -> apic.GetCloudImagesResponse
-	138, // 193: apic.ProtosClientApi.UploadCloudImage:output_type -> apic.UploadCloudImageResponse
-	142, // 194: apic.ProtosClientApi.RemoveCloudImage:output_type -> apic.RemoveCloudImageResponse
-	136, // 195: apic.ProtosClientApi.GetProvisionerImages:output_type -> apic.GetProvisionerImagesResponse
-	140, // 196: apic.ProtosClientApi.UploadProvisionerImage:output_type -> apic.UploadProvisionerImageResponse
-	144, // 197: apic.ProtosClientApi.RemoveProvisionerImage:output_type -> apic.RemoveProvisionerImageResponse
-	147, // 198: apic.ProtosClientApi.GetInstanceImage:output_type -> apic.GetInstanceImageResponse
-	149, // 199: apic.ProtosClientApi.UploadInstanceImageArchive:output_type -> apic.UploadInstanceImageArchiveResponse
-	154, // 200: apic.ProtosClientApi.GetSystemStatus:output_type -> apic.GetSystemStatusResponse
-	156, // 201: apic.ProtosClientApi.StartHostAgent:output_type -> apic.StartHostAgentResponse
-	158, // 202: apic.ProtosClientApi.StopHostAgent:output_type -> apic.StopHostAgentResponse
-	164, // 203: apic.ProtosClientApi.GetLocalCommits:output_type -> apic.GetLocalCommitsResponse
-	166, // 204: apic.ProtosClientApi.GetRemoteCommits:output_type -> apic.GetRemoteCommitsResponse
-	174, // 205: apic.ProtosClientApi.GetCommitDiff:output_type -> apic.GetCommitDiffResponse
-	178, // 206: apic.ProtosClientApi.ExecuteSql:output_type -> apic.ExecuteSqlResponse
-	145, // [145:207] is the sub-list for method output_type
-	83,  // [83:145] is the sub-list for method input_type
-	83,  // [83:83] is the sub-list for extension type_name
-	83,  // [83:83] is the sub-list for extension extendee
-	0,   // [0:83] is the sub-list for field type_name
+	179, // 4: apic.CreateAppResponse.confirmation:type_name -> apic.WriteConfirmation
+	179, // 5: apic.StartAppResponse.confirmation:type_name -> apic.WriteConfirmation
+	179, // 6: apic.StopAppResponse.confirmation:type_name -> apic.WriteConfirmation
+	179, // 7: apic.RemoveAppResponse.confirmation:type_name -> apic.WriteConfirmation
+	32,  // 8: apic.GetInstallersResponse.installers:type_name -> apic.Installer
+	32,  // 9: apic.GetInstallerResponse.installer:type_name -> apic.Installer
+	38,  // 10: apic.CloudProvider.type:type_name -> apic.CloudType
+	180, // 11: apic.CloudProvider.supported_machines:type_name -> apic.CloudProvider.SupportedMachinesEntry
+	38,  // 12: apic.GetSupportedCloudProvidersResponse.cloud_types:type_name -> apic.CloudType
+	39,  // 13: apic.GetCloudProvidersResponse.cloud_providers:type_name -> apic.CloudProvider
+	39,  // 14: apic.GetCloudProviderResponse.cloud_provider:type_name -> apic.CloudProvider
+	181, // 15: apic.AddCloudProviderRequest.credentials:type_name -> apic.AddCloudProviderRequest.CredentialsEntry
+	51,  // 16: apic.Provisioner.type:type_name -> apic.ProvisionerType
+	182, // 17: apic.Provisioner.supported_machines:type_name -> apic.Provisioner.SupportedMachinesEntry
+	51,  // 18: apic.GetSupportedProvisionersResponse.provisioner_types:type_name -> apic.ProvisionerType
+	52,  // 19: apic.GetProvisionersResponse.provisioners:type_name -> apic.Provisioner
+	52,  // 20: apic.GetProvisionerResponse.provisioner:type_name -> apic.Provisioner
+	183, // 21: apic.AddProvisionerRequest.credentials:type_name -> apic.AddProvisionerRequest.CredentialsEntry
+	184, // 22: apic.CloudInstance.peers:type_name -> apic.CloudInstance.PeersEntry
+	63,  // 23: apic.GetInstancesResponse.instances:type_name -> apic.CloudInstance
+	63,  // 24: apic.GetInstanceResponse.instance:type_name -> apic.CloudInstance
+	68,  // 25: apic.InstanceDeployField.options:type_name -> apic.InstanceDeployFieldOption
+	69,  // 26: apic.GetInstanceDeployOptionsResponse.fields:type_name -> apic.InstanceDeployField
+	63,  // 27: apic.DeployInstanceResponse.instance:type_name -> apic.CloudInstance
+	179, // 28: apic.DeployInstanceResponse.confirmation:type_name -> apic.WriteConfirmation
+	179, // 29: apic.StartInstanceResponse.confirmation:type_name -> apic.WriteConfirmation
+	179, // 30: apic.StopInstanceResponse.confirmation:type_name -> apic.WriteConfirmation
+	93,  // 31: apic.GetNetworkStateResponse.state:type_name -> apic.NetworkState
+	92,  // 32: apic.SetNetworkEnabledResponse.status:type_name -> apic.NetworkRuntimeStatus
+	93,  // 33: apic.NetworkRuntimeStatus.network_state:type_name -> apic.NetworkState
+	95,  // 34: apic.NetworkState.addresses:type_name -> apic.NetworkAddress
+	96,  // 35: apic.NetworkState.routes:type_name -> apic.NetworkRoute
+	97,  // 36: apic.NetworkState.wireguard_peers:type_name -> apic.WireGuardPeer
+	98,  // 37: apic.NetworkState.firewall_tables:type_name -> apic.FirewallTable
+	101, // 38: apic.NetworkState.dns:type_name -> apic.DNSState
+	94,  // 39: apic.NetworkState.interfaces:type_name -> apic.NetworkInterface
+	99,  // 40: apic.FirewallTable.chains:type_name -> apic.FirewallChain
+	100, // 41: apic.FirewallChain.rules:type_name -> apic.FirewallRule
+	102, // 42: apic.GetExitRoutesResponse.routes:type_name -> apic.ExitRoute
+	106, // 43: apic.GetMobileTunnelConfigResponse.config:type_name -> apic.MobileTunnelConfig
+	125, // 44: apic.GetRuntimeStateResponse.state:type_name -> apic.RuntimeState
+	179, // 45: apic.Task.confirmation:type_name -> apic.WriteConfirmation
+	112, // 46: apic.GetTasksResponse.tasks:type_name -> apic.Task
+	112, // 47: apic.GetTaskResponse.task:type_name -> apic.Task
+	113, // 48: apic.GetTaskResponse.events:type_name -> apic.TaskEvent
+	179, // 49: apic.TaskProgressUpdate.confirmation:type_name -> apic.WriteConfirmation
+	112, // 50: apic.WatchTaskResponse.task:type_name -> apic.Task
+	113, // 51: apic.WatchTaskResponse.events:type_name -> apic.TaskEvent
+	118, // 52: apic.WatchTaskResponse.update:type_name -> apic.TaskProgressUpdate
+	102, // 53: apic.SetExitRouteResponse.route:type_name -> apic.ExitRoute
+	179, // 54: apic.SetExitRouteResponse.confirmation:type_name -> apic.WriteConfirmation
+	179, // 55: apic.ClearExitRouteResponse.confirmation:type_name -> apic.WriteConfirmation
+	126, // 56: apic.RuntimeState.peer_statuses:type_name -> apic.RuntimePeerStatus
+	127, // 57: apic.RuntimeState.compatibility:type_name -> apic.RuntimeCompatibility
+	185, // 58: apic.RuntimePeerStatus.last_dial_errors:type_name -> apic.RuntimePeerStatus.LastDialErrorsEntry
+	186, // 59: apic.Release.cloud_images:type_name -> apic.Release.CloudImagesEntry
+	130, // 60: apic.GetProtosdReleasesResponse.releases:type_name -> apic.Release
+	187, // 61: apic.GetCloudImagesResponse.cloud_images:type_name -> apic.GetCloudImagesResponse.CloudImagesEntry
+	188, // 62: apic.GetProvisionerImagesResponse.images:type_name -> apic.GetProvisionerImagesResponse.ImagesEntry
+	189, // 63: apic.ImageContentDescriptor.annotations:type_name -> apic.ImageContentDescriptor.AnnotationsEntry
+	190, // 64: apic.GetInstanceImageResponse.labels:type_name -> apic.GetInstanceImageResponse.LabelsEntry
+	145, // 65: apic.GetInstanceImageResponse.target:type_name -> apic.ImageContentDescriptor
+	145, // 66: apic.GetInstanceImageResponse.descriptors:type_name -> apic.ImageContentDescriptor
+	150, // 67: apic.SystemStatus.endpoints:type_name -> apic.CoreEndpoint
+	151, // 68: apic.SystemStatus.host_agent:type_name -> apic.HostAgentConnectionStatus
+	92,  // 69: apic.SystemStatus.network:type_name -> apic.NetworkRuntimeStatus
+	152, // 70: apic.GetSystemStatusResponse.status:type_name -> apic.SystemStatus
+	151, // 71: apic.StartHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
+	151, // 72: apic.StopHostAgentResponse.status:type_name -> apic.HostAgentConnectionStatus
+	159, // 73: apic.CommitGraphItem.commit:type_name -> apic.Commit
+	160, // 74: apic.CommitGraphItem.relations:type_name -> apic.CommitGraphRelation
+	161, // 75: apic.CommitGraph.items:type_name -> apic.CommitGraphItem
+	159, // 76: apic.GetLocalCommitsResponse.commits:type_name -> apic.Commit
+	162, // 77: apic.GetLocalCommitsResponse.graph:type_name -> apic.CommitGraph
+	159, // 78: apic.GetRemoteCommitsResponse.commits:type_name -> apic.Commit
+	162, // 79: apic.GetRemoteCommitsResponse.graph:type_name -> apic.CommitGraph
+	167, // 80: apic.CommitDiffField.before:type_name -> apic.CommitDiffValue
+	167, // 81: apic.CommitDiffField.after:type_name -> apic.CommitDiffValue
+	168, // 82: apic.CommitDiffRow.fields:type_name -> apic.CommitDiffField
+	169, // 83: apic.CommitDiffTable.rows:type_name -> apic.CommitDiffRow
+	170, // 84: apic.CommitDiff.tables:type_name -> apic.CommitDiffTable
+	171, // 85: apic.CommitDiff.related_tasks:type_name -> apic.CommitDiffTaskContext
+	172, // 86: apic.GetCommitDiffResponse.diff:type_name -> apic.CommitDiff
+	175, // 87: apic.SqlRow.cells:type_name -> apic.SqlCell
+	176, // 88: apic.ExecuteSqlResponse.rows:type_name -> apic.SqlRow
+	37,  // 89: apic.CloudProvider.SupportedMachinesEntry.value:type_name -> apic.CloudMachineSpec
+	50,  // 90: apic.Provisioner.SupportedMachinesEntry.value:type_name -> apic.ProvisionerMachineSpec
+	128, // 91: apic.Release.CloudImagesEntry.value:type_name -> apic.CloudImage
+	129, // 92: apic.GetCloudImagesResponse.CloudImagesEntry.value:type_name -> apic.CloudSpecificImage
+	129, // 93: apic.GetProvisionerImagesResponse.ImagesEntry.value:type_name -> apic.CloudSpecificImage
+	0,   // 94: apic.ProtosClientApi.Init:input_type -> apic.InitRequest
+	3,   // 95: apic.ProtosClientApi.GetUserDevices:input_type -> apic.GetUserDevicesRequest
+	5,   // 96: apic.ProtosClientApi.GetUserInfo:input_type -> apic.GetUserInfoRequest
+	8,   // 97: apic.ProtosClientApi.ListOrganisations:input_type -> apic.ListOrganisationsRequest
+	10,  // 98: apic.ProtosClientApi.StartDeviceInvite:input_type -> apic.StartDeviceInviteRequest
+	13,  // 99: apic.ProtosClientApi.ListNearbyOrganisations:input_type -> apic.ListNearbyOrganisationsRequest
+	15,  // 100: apic.ProtosClientApi.JoinOrganisation:input_type -> apic.JoinOrganisationRequest
+	17,  // 101: apic.ProtosClientApi.GetLocalSSHKey:input_type -> apic.GetLocalSSHKeyRequest
+	20,  // 102: apic.ProtosClientApi.GetApps:input_type -> apic.GetAppsRequest
+	22,  // 103: apic.ProtosClientApi.CreateApp:input_type -> apic.CreateAppRequest
+	24,  // 104: apic.ProtosClientApi.StartApp:input_type -> apic.StartAppRequest
+	26,  // 105: apic.ProtosClientApi.StopApp:input_type -> apic.StopAppRequest
+	28,  // 106: apic.ProtosClientApi.RemoveApp:input_type -> apic.RemoveAppRequest
+	30,  // 107: apic.ProtosClientApi.GetAppLogs:input_type -> apic.GetAppLogsRequest
+	40,  // 108: apic.ProtosClientApi.GetSupportedCloudProviders:input_type -> apic.GetSupportedCloudProvidersRequest
+	42,  // 109: apic.ProtosClientApi.GetCloudProviders:input_type -> apic.GetCloudProvidersRequest
+	44,  // 110: apic.ProtosClientApi.GetCloudProvider:input_type -> apic.GetCloudProviderRequest
+	46,  // 111: apic.ProtosClientApi.AddCloudProvider:input_type -> apic.AddCloudProviderRequest
+	48,  // 112: apic.ProtosClientApi.RemoveCloudProvider:input_type -> apic.RemoveCloudProviderRequest
+	53,  // 113: apic.ProtosClientApi.GetSupportedProvisioners:input_type -> apic.GetSupportedProvisionersRequest
+	55,  // 114: apic.ProtosClientApi.GetProvisioners:input_type -> apic.GetProvisionersRequest
+	57,  // 115: apic.ProtosClientApi.GetProvisioner:input_type -> apic.GetProvisionerRequest
+	59,  // 116: apic.ProtosClientApi.AddProvisioner:input_type -> apic.AddProvisionerRequest
+	61,  // 117: apic.ProtosClientApi.RemoveProvisioner:input_type -> apic.RemoveProvisionerRequest
+	64,  // 118: apic.ProtosClientApi.GetInstances:input_type -> apic.GetInstancesRequest
+	66,  // 119: apic.ProtosClientApi.GetInstance:input_type -> apic.GetInstanceRequest
+	70,  // 120: apic.ProtosClientApi.GetInstanceDeployOptions:input_type -> apic.GetInstanceDeployOptionsRequest
+	72,  // 121: apic.ProtosClientApi.DeployInstance:input_type -> apic.DeployInstanceRequest
+	74,  // 122: apic.ProtosClientApi.RemoveInstance:input_type -> apic.RemoveInstanceRequest
+	76,  // 123: apic.ProtosClientApi.StartInstance:input_type -> apic.StartInstanceRequest
+	78,  // 124: apic.ProtosClientApi.StopInstance:input_type -> apic.StopInstanceRequest
+	80,  // 125: apic.ProtosClientApi.GetInstanceKey:input_type -> apic.GetInstanceKeyRequest
+	82,  // 126: apic.ProtosClientApi.GetInstanceLogs:input_type -> apic.GetInstanceLogsRequest
+	84,  // 127: apic.ProtosClientApi.InitInstance:input_type -> apic.InitInstanceRequest
+	86,  // 128: apic.ProtosClientApi.UpdateInstance:input_type -> apic.UpdateInstanceRequest
+	88,  // 129: apic.ProtosClientApi.GetNetworkState:input_type -> apic.GetNetworkStateRequest
+	90,  // 130: apic.ProtosClientApi.SetNetworkEnabled:input_type -> apic.SetNetworkEnabledRequest
+	103, // 131: apic.ProtosClientApi.GetExitRoutes:input_type -> apic.GetExitRoutesRequest
+	105, // 132: apic.ProtosClientApi.GetMobileTunnelConfig:input_type -> apic.GetMobileTunnelConfigRequest
+	108, // 133: apic.ProtosClientApi.GetRuntimeState:input_type -> apic.GetRuntimeStateRequest
+	110, // 134: apic.ProtosClientApi.WatchChanges:input_type -> apic.WatchChangesRequest
+	114, // 135: apic.ProtosClientApi.GetTasks:input_type -> apic.GetTasksRequest
+	116, // 136: apic.ProtosClientApi.GetTask:input_type -> apic.GetTaskRequest
+	119, // 137: apic.ProtosClientApi.WatchTask:input_type -> apic.WatchTaskRequest
+	121, // 138: apic.ProtosClientApi.SetExitRoute:input_type -> apic.SetExitRouteRequest
+	123, // 139: apic.ProtosClientApi.ClearExitRoute:input_type -> apic.ClearExitRouteRequest
+	131, // 140: apic.ProtosClientApi.GetProtosdReleases:input_type -> apic.GetProtosdReleasesRequest
+	133, // 141: apic.ProtosClientApi.GetCloudImages:input_type -> apic.GetCloudImagesRequest
+	137, // 142: apic.ProtosClientApi.UploadCloudImage:input_type -> apic.UploadCloudImageRequest
+	141, // 143: apic.ProtosClientApi.RemoveCloudImage:input_type -> apic.RemoveCloudImageRequest
+	135, // 144: apic.ProtosClientApi.GetProvisionerImages:input_type -> apic.GetProvisionerImagesRequest
+	139, // 145: apic.ProtosClientApi.UploadProvisionerImage:input_type -> apic.UploadProvisionerImageRequest
+	143, // 146: apic.ProtosClientApi.RemoveProvisionerImage:input_type -> apic.RemoveProvisionerImageRequest
+	146, // 147: apic.ProtosClientApi.GetInstanceImage:input_type -> apic.GetInstanceImageRequest
+	148, // 148: apic.ProtosClientApi.UploadInstanceImageArchive:input_type -> apic.UploadInstanceImageArchiveRequest
+	153, // 149: apic.ProtosClientApi.GetSystemStatus:input_type -> apic.GetSystemStatusRequest
+	155, // 150: apic.ProtosClientApi.StartHostAgent:input_type -> apic.StartHostAgentRequest
+	157, // 151: apic.ProtosClientApi.StopHostAgent:input_type -> apic.StopHostAgentRequest
+	163, // 152: apic.ProtosClientApi.GetLocalCommits:input_type -> apic.GetLocalCommitsRequest
+	165, // 153: apic.ProtosClientApi.GetRemoteCommits:input_type -> apic.GetRemoteCommitsRequest
+	173, // 154: apic.ProtosClientApi.GetCommitDiff:input_type -> apic.GetCommitDiffRequest
+	177, // 155: apic.ProtosClientApi.ExecuteSql:input_type -> apic.ExecuteSqlRequest
+	1,   // 156: apic.ProtosClientApi.Init:output_type -> apic.InitResponse
+	4,   // 157: apic.ProtosClientApi.GetUserDevices:output_type -> apic.GetUserDevicesResponse
+	6,   // 158: apic.ProtosClientApi.GetUserInfo:output_type -> apic.GetUserInfoResponse
+	9,   // 159: apic.ProtosClientApi.ListOrganisations:output_type -> apic.ListOrganisationsResponse
+	11,  // 160: apic.ProtosClientApi.StartDeviceInvite:output_type -> apic.StartDeviceInviteResponse
+	14,  // 161: apic.ProtosClientApi.ListNearbyOrganisations:output_type -> apic.ListNearbyOrganisationsResponse
+	16,  // 162: apic.ProtosClientApi.JoinOrganisation:output_type -> apic.JoinOrganisationResponse
+	18,  // 163: apic.ProtosClientApi.GetLocalSSHKey:output_type -> apic.GetLocalSSHKeyResponse
+	21,  // 164: apic.ProtosClientApi.GetApps:output_type -> apic.GetAppsResponse
+	23,  // 165: apic.ProtosClientApi.CreateApp:output_type -> apic.CreateAppResponse
+	25,  // 166: apic.ProtosClientApi.StartApp:output_type -> apic.StartAppResponse
+	27,  // 167: apic.ProtosClientApi.StopApp:output_type -> apic.StopAppResponse
+	29,  // 168: apic.ProtosClientApi.RemoveApp:output_type -> apic.RemoveAppResponse
+	31,  // 169: apic.ProtosClientApi.GetAppLogs:output_type -> apic.GetAppLogsResponse
+	41,  // 170: apic.ProtosClientApi.GetSupportedCloudProviders:output_type -> apic.GetSupportedCloudProvidersResponse
+	43,  // 171: apic.ProtosClientApi.GetCloudProviders:output_type -> apic.GetCloudProvidersResponse
+	45,  // 172: apic.ProtosClientApi.GetCloudProvider:output_type -> apic.GetCloudProviderResponse
+	47,  // 173: apic.ProtosClientApi.AddCloudProvider:output_type -> apic.AddCloudProviderResponse
+	49,  // 174: apic.ProtosClientApi.RemoveCloudProvider:output_type -> apic.RemoveCloudProviderResponse
+	54,  // 175: apic.ProtosClientApi.GetSupportedProvisioners:output_type -> apic.GetSupportedProvisionersResponse
+	56,  // 176: apic.ProtosClientApi.GetProvisioners:output_type -> apic.GetProvisionersResponse
+	58,  // 177: apic.ProtosClientApi.GetProvisioner:output_type -> apic.GetProvisionerResponse
+	60,  // 178: apic.ProtosClientApi.AddProvisioner:output_type -> apic.AddProvisionerResponse
+	62,  // 179: apic.ProtosClientApi.RemoveProvisioner:output_type -> apic.RemoveProvisionerResponse
+	65,  // 180: apic.ProtosClientApi.GetInstances:output_type -> apic.GetInstancesResponse
+	67,  // 181: apic.ProtosClientApi.GetInstance:output_type -> apic.GetInstanceResponse
+	71,  // 182: apic.ProtosClientApi.GetInstanceDeployOptions:output_type -> apic.GetInstanceDeployOptionsResponse
+	73,  // 183: apic.ProtosClientApi.DeployInstance:output_type -> apic.DeployInstanceResponse
+	75,  // 184: apic.ProtosClientApi.RemoveInstance:output_type -> apic.RemoveInstanceResponse
+	77,  // 185: apic.ProtosClientApi.StartInstance:output_type -> apic.StartInstanceResponse
+	79,  // 186: apic.ProtosClientApi.StopInstance:output_type -> apic.StopInstanceResponse
+	81,  // 187: apic.ProtosClientApi.GetInstanceKey:output_type -> apic.GetInstanceKeyResponse
+	83,  // 188: apic.ProtosClientApi.GetInstanceLogs:output_type -> apic.GetInstanceLogsResponse
+	85,  // 189: apic.ProtosClientApi.InitInstance:output_type -> apic.InitInstanceResponse
+	87,  // 190: apic.ProtosClientApi.UpdateInstance:output_type -> apic.UpdateInstanceResponse
+	89,  // 191: apic.ProtosClientApi.GetNetworkState:output_type -> apic.GetNetworkStateResponse
+	91,  // 192: apic.ProtosClientApi.SetNetworkEnabled:output_type -> apic.SetNetworkEnabledResponse
+	104, // 193: apic.ProtosClientApi.GetExitRoutes:output_type -> apic.GetExitRoutesResponse
+	107, // 194: apic.ProtosClientApi.GetMobileTunnelConfig:output_type -> apic.GetMobileTunnelConfigResponse
+	109, // 195: apic.ProtosClientApi.GetRuntimeState:output_type -> apic.GetRuntimeStateResponse
+	111, // 196: apic.ProtosClientApi.WatchChanges:output_type -> apic.WatchChangesResponse
+	115, // 197: apic.ProtosClientApi.GetTasks:output_type -> apic.GetTasksResponse
+	117, // 198: apic.ProtosClientApi.GetTask:output_type -> apic.GetTaskResponse
+	120, // 199: apic.ProtosClientApi.WatchTask:output_type -> apic.WatchTaskResponse
+	122, // 200: apic.ProtosClientApi.SetExitRoute:output_type -> apic.SetExitRouteResponse
+	124, // 201: apic.ProtosClientApi.ClearExitRoute:output_type -> apic.ClearExitRouteResponse
+	132, // 202: apic.ProtosClientApi.GetProtosdReleases:output_type -> apic.GetProtosdReleasesResponse
+	134, // 203: apic.ProtosClientApi.GetCloudImages:output_type -> apic.GetCloudImagesResponse
+	138, // 204: apic.ProtosClientApi.UploadCloudImage:output_type -> apic.UploadCloudImageResponse
+	142, // 205: apic.ProtosClientApi.RemoveCloudImage:output_type -> apic.RemoveCloudImageResponse
+	136, // 206: apic.ProtosClientApi.GetProvisionerImages:output_type -> apic.GetProvisionerImagesResponse
+	140, // 207: apic.ProtosClientApi.UploadProvisionerImage:output_type -> apic.UploadProvisionerImageResponse
+	144, // 208: apic.ProtosClientApi.RemoveProvisionerImage:output_type -> apic.RemoveProvisionerImageResponse
+	147, // 209: apic.ProtosClientApi.GetInstanceImage:output_type -> apic.GetInstanceImageResponse
+	149, // 210: apic.ProtosClientApi.UploadInstanceImageArchive:output_type -> apic.UploadInstanceImageArchiveResponse
+	154, // 211: apic.ProtosClientApi.GetSystemStatus:output_type -> apic.GetSystemStatusResponse
+	156, // 212: apic.ProtosClientApi.StartHostAgent:output_type -> apic.StartHostAgentResponse
+	158, // 213: apic.ProtosClientApi.StopHostAgent:output_type -> apic.StopHostAgentResponse
+	164, // 214: apic.ProtosClientApi.GetLocalCommits:output_type -> apic.GetLocalCommitsResponse
+	166, // 215: apic.ProtosClientApi.GetRemoteCommits:output_type -> apic.GetRemoteCommitsResponse
+	174, // 216: apic.ProtosClientApi.GetCommitDiff:output_type -> apic.GetCommitDiffResponse
+	178, // 217: apic.ProtosClientApi.ExecuteSql:output_type -> apic.ExecuteSqlResponse
+	156, // [156:218] is the sub-list for method output_type
+	94,  // [94:156] is the sub-list for method input_type
+	94,  // [94:94] is the sub-list for extension type_name
+	94,  // [94:94] is the sub-list for extension extendee
+	0,   // [0:94] is the sub-list for field type_name
 }
 
 func init() { file_apic_proto_apic_proto_init() }
@@ -12186,7 +12390,7 @@ func file_apic_proto_apic_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apic_proto_apic_proto_rawDesc), len(file_apic_proto_apic_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   190,
+			NumMessages:   191,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

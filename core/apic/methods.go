@@ -556,42 +556,45 @@ func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*
 	}
 
 	// FIXME: read the installer params from the command line
-	app, err := b.protosClient.AppManager.Create(ctx, in.InstallerId, in.Name, in.InstanceId, in.Persistence, map[string]string{})
+	app, confirmation, err := b.protosClient.AppManager.CreateWithConfirmation(ctx, in.InstallerId, in.Name, in.InstanceId, in.Persistence, map[string]string{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
 
-	return &pbApic.CreateAppResponse{Id: app.ID}, nil
+	return &pbApic.CreateAppResponse{
+		Id:           app.ID,
+		Confirmation: publishedWriteConfirmationToProto(confirmation),
+	}, nil
 }
 
 func (b *Backend) StartApp(ctx context.Context, in *pbApic.StartAppRequest) (*pbApic.StartAppResponse, error) {
 	log.Debugf("Starting app '%s'", in.Name)
-	err := b.protosClient.AppManager.Start(ctx, in.Name)
+	confirmation, err := b.protosClient.AppManager.StartWithConfirmation(ctx, in.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pbApic.StartAppResponse{}, nil
+	return &pbApic.StartAppResponse{Confirmation: publishedWriteConfirmationToProto(confirmation)}, nil
 }
 
 func (b *Backend) StopApp(ctx context.Context, in *pbApic.StopAppRequest) (*pbApic.StopAppResponse, error) {
 	log.Debugf("Stopping app '%s'", in.Name)
-	err := b.protosClient.AppManager.Stop(ctx, in.Name)
+	confirmation, err := b.protosClient.AppManager.StopWithConfirmation(ctx, in.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pbApic.StopAppResponse{}, nil
+	return &pbApic.StopAppResponse{Confirmation: publishedWriteConfirmationToProto(confirmation)}, nil
 }
 
 func (b *Backend) RemoveApp(ctx context.Context, in *pbApic.RemoveAppRequest) (*pbApic.RemoveAppResponse, error) {
 	log.Debugf("Removing app '%s'", in.Name)
-	err := b.protosClient.AppManager.Remove(ctx, in.Name)
+	confirmation, err := b.protosClient.AppManager.RemoveWithConfirmation(ctx, in.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pbApic.RemoveAppResponse{}, nil
+	return &pbApic.RemoveAppResponse{Confirmation: publishedWriteConfirmationToProto(confirmation)}, nil
 }
 
 func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) (*pbApic.GetAppLogsResponse, error) {
@@ -1142,7 +1145,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 		}
 	}
 
-	instance, err := b.protosClient.CloudManager.DeployInstance(in.Name, in.CloudName, in.CloudLocation, rls, in.MachineType)
+	instance, task, err := b.protosClient.CloudManager.DeployInstanceWithConfirmation(ctx, in.Name, in.CloudName, in.CloudLocation, rls, in.MachineType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}
@@ -1160,6 +1163,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 			PublicKeyWireguard: wgPublicKey,
 			Status:             instance.Status,
 		},
+		Confirmation: taskWriteConfirmationToProto(task.WriteConfirmation),
 	}
 
 	return &resp, nil
@@ -1228,7 +1232,10 @@ func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceReq
 	if err != nil {
 		return nil, fmt.Errorf("failed to start instance '%s': %w", in.Name, err)
 	}
-	return &pbApic.StartInstanceResponse{TaskId: task.ID}, nil
+	return &pbApic.StartInstanceResponse{
+		TaskId:       task.ID,
+		Confirmation: taskWriteConfirmationToProto(task.WriteConfirmation),
+	}, nil
 }
 
 func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceRequest) (*pbApic.StopInstanceResponse, error) {
@@ -1240,7 +1247,10 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 	if err != nil {
 		return nil, fmt.Errorf("failed to stop instance '%s': %w", in.Name, err)
 	}
-	return &pbApic.StopInstanceResponse{TaskId: task.ID}, nil
+	return &pbApic.StopInstanceResponse{
+		TaskId:       task.ID,
+		Confirmation: taskWriteConfirmationToProto(task.WriteConfirmation),
+	}, nil
 }
 
 func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyRequest) (*pbApic.GetInstanceKeyResponse, error) {
@@ -1729,6 +1739,48 @@ func (b *Backend) taskManager() (*tasks.Manager, error) {
 	return b.protosClient.TaskManager, nil
 }
 
+func publishedWriteConfirmationToProto(confirmation db.PublishedWriteConfirmation) *pbApic.WriteConfirmation {
+	if confirmation.Stage == "" {
+		return nil
+	}
+	return &pbApic.WriteConfirmation{
+		Stage:               string(confirmation.Stage),
+		EventId:             confirmation.Receipt.EventID,
+		PublishedRootHash:   confirmation.Receipt.PublishedRootHash,
+		RequiredOtherPeers:  int32(confirmation.Availability.RequiredOtherPeers),
+		ConfirmedOtherPeers: int32(confirmation.Availability.ConfirmedOtherPeers),
+		AvailabilityPending: confirmation.AvailabilityPending,
+	}
+}
+
+func taskWriteConfirmationToProto(confirmation tasks.WriteConfirmation) *pbApic.WriteConfirmation {
+	if confirmation.Stage == "" {
+		return nil
+	}
+	return &pbApic.WriteConfirmation{
+		Stage:               string(confirmation.Stage),
+		EventId:             confirmation.EventID,
+		PublishedRootHash:   confirmation.PublishedRootHash,
+		RequiredOtherPeers:  int32(confirmation.RequiredOtherPeers),
+		ConfirmedOtherPeers: int32(confirmation.ConfirmedOtherPeers),
+		AvailabilityPending: confirmation.AvailabilityPending,
+	}
+}
+
+func taskWriteConfirmationFromP2PProto(confirmation *p2pproto.WriteConfirmation) *pbApic.WriteConfirmation {
+	if confirmation == nil || confirmation.GetStage() == "" {
+		return nil
+	}
+	return &pbApic.WriteConfirmation{
+		Stage:               confirmation.GetStage(),
+		EventId:             confirmation.GetEventId(),
+		PublishedRootHash:   confirmation.GetPublishedRootHash(),
+		RequiredOtherPeers:  confirmation.GetRequiredOtherPeers(),
+		ConfirmedOtherPeers: confirmation.GetConfirmedOtherPeers(),
+		AvailabilityPending: confirmation.GetAvailabilityPending(),
+	}
+}
+
 func taskRecordToProto(record tasks.Record) *pbApic.Task {
 	return &pbApic.Task{
 		Id:           record.ID,
@@ -1749,6 +1801,7 @@ func taskRecordToProto(record tasks.Record) *pbApic.Task {
 		UpdatedAt:    formatTaskTime(record.UpdatedAt),
 		StartedAt:    formatTaskTime(record.StartedAt),
 		FinishedAt:   formatTaskTime(record.FinishedAt),
+		Confirmation: taskWriteConfirmationToProto(record.WriteConfirmation),
 	}
 }
 
@@ -1787,6 +1840,7 @@ func taskFromP2PProto(task *p2pproto.Task) *pbApic.Task {
 		UpdatedAt:    task.GetUpdatedAt(),
 		StartedAt:    task.GetStartedAt(),
 		FinishedAt:   task.GetFinishedAt(),
+		Confirmation: taskWriteConfirmationFromP2PProto(task.GetConfirmation()),
 	}
 }
 
@@ -1810,25 +1864,27 @@ func taskProgressUpdateFromP2PProto(update *p2pproto.TaskProgressUpdate) *pbApic
 		return nil
 	}
 	return &pbApic.TaskProgressUpdate{
-		TaskId:      update.GetTaskId(),
-		Status:      update.GetStatus(),
-		Message:     update.GetMessage(),
-		Progress:    update.GetProgress(),
-		DetailsJson: update.GetDetailsJson(),
-		CreatedAt:   update.GetCreatedAt(),
-		Durable:     update.GetDurable(),
+		TaskId:       update.GetTaskId(),
+		Status:       update.GetStatus(),
+		Message:      update.GetMessage(),
+		Progress:     update.GetProgress(),
+		DetailsJson:  update.GetDetailsJson(),
+		CreatedAt:    update.GetCreatedAt(),
+		Durable:      update.GetDurable(),
+		Confirmation: taskWriteConfirmationFromP2PProto(update.GetConfirmation()),
 	}
 }
 
 func taskProgressUpdateToProto(update tasks.ProgressUpdate) *pbApic.TaskProgressUpdate {
 	return &pbApic.TaskProgressUpdate{
-		TaskId:      update.TaskID,
-		Status:      string(update.Status),
-		Message:     update.Message,
-		Progress:    int32(update.Progress),
-		DetailsJson: rawJSONText(update.Details),
-		CreatedAt:   formatTaskTime(update.CreatedAt),
-		Durable:     update.Durable,
+		TaskId:       update.TaskID,
+		Status:       string(update.Status),
+		Message:      update.Message,
+		Progress:     int32(update.Progress),
+		DetailsJson:  rawJSONText(update.Details),
+		CreatedAt:    formatTaskTime(update.CreatedAt),
+		Durable:      update.Durable,
+		Confirmation: taskWriteConfirmationToProto(update.WriteConfirmation),
 	}
 }
 
@@ -2490,11 +2546,14 @@ func (b *Backend) SetExitRoute(ctx context.Context, in *pbApic.SetExitRouteReque
 		deviceID = currentDevice.ID
 	}
 
-	route, err := network.SetExitRoute(b.protosClient.DB, deviceID, instance.ID, in.GetDnsServer(), in.GetCidrs())
+	route, confirmation, err := network.SetExitRouteWithConfirmationContext(ctx, b.protosClient.DB, deviceID, instance.ID, in.GetDnsServer(), in.GetCidrs())
 	if err != nil {
 		return nil, fmt.Errorf("failed to set exit route: %w", err)
 	}
-	return &pbApic.SetExitRouteResponse{Route: b.exitRouteToProto(route)}, nil
+	return &pbApic.SetExitRouteResponse{
+		Route:        b.exitRouteToProto(route),
+		Confirmation: publishedWriteConfirmationToProto(confirmation),
+	}, nil
 }
 
 func isPublicExitIP(ip string) bool {
@@ -2533,10 +2592,11 @@ func (b *Backend) ClearExitRoute(ctx context.Context, in *pbApic.ClearExitRouteR
 		}
 		deviceID = currentDevice.ID
 	}
-	if err := network.ClearExitRoute(b.protosClient.DB, deviceID); err != nil {
+	confirmation, err := network.ClearExitRouteWithConfirmationContext(ctx, b.protosClient.DB, deviceID)
+	if err != nil {
 		return nil, fmt.Errorf("failed to clear exit route: %w", err)
 	}
-	return &pbApic.ClearExitRouteResponse{}, nil
+	return &pbApic.ClearExitRouteResponse{Confirmation: publishedWriteConfirmationToProto(confirmation)}, nil
 }
 
 func (b *Backend) exitRouteToProto(route network.ExitRoute) *pbApic.ExitRoute {

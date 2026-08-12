@@ -105,8 +105,36 @@ func errorLoggingUnaryInterceptor(ctx context.Context, req interface{}, info *gr
 	resp, err := handler(ctx, req)
 	if err != nil {
 		log.Errorf("method %s: %v", info.FullMethod, err)
+		err = publishedWriteOutcomeStatus(err)
 	}
 	return resp, err
+}
+
+// publishedWriteOutcomeStatus preserves the exact tracking identity for an
+// ordinary mutation whose publisher returned an error after allocating an
+// event/root receipt. The empty stage is intentional: the receipt is an
+// observation address, not proof that local acceptance completed. A
+// FailedPrecondition status avoids presenting the outcome as a transient RPC
+// failure that is safe for clients to replay automatically.
+func publishedWriteOutcomeStatus(err error) error {
+	confirmation, ok := db.PublishedWriteConfirmationFromError(err)
+	if !ok {
+		return err
+	}
+	detail := &pbApic.WriteConfirmation{
+		EventId:           confirmation.Receipt.EventID,
+		PublishedRootHash: confirmation.Receipt.PublishedRootHash,
+	}
+	st := status.New(
+		codes.FailedPrecondition,
+		"write outcome unresolved; observe the exact receipt before retrying",
+	)
+	withDetails, detailErr := st.WithDetails(detail)
+	if detailErr != nil {
+		log.Errorf("attach unresolved write receipt: %v", detailErr)
+		return st.Err()
+	}
+	return withDetails.Err()
 }
 
 func recoveryUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {

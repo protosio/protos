@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -22,7 +23,8 @@ func TestGetActiveRuntimePeerIDsExcludesInactiveMachines(t *testing.T) {
 	activeMachine, activeMachineMetadata := testMachinePeerInsertMappers("active", "running", activeMachineKey)
 	stoppedMachine, stoppedMachineMetadata := testMachinePeerInsertMappers("stopped", "stopped", stoppedMachineKey)
 	deletingMachine, deletingMachineMetadata := testMachinePeerInsertMappers("deleting", "deleting", deletingMachineKey)
-	if err := Insert(
+	if _, err := InsertWithReceiptContext(
+		context.Background(),
 		store,
 		CreatePeerInsertMapper(activeMachineKey),
 		CreatePeerInsertMapper(stoppedMachineKey),

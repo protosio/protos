@@ -118,7 +118,7 @@ func TestGetLocalInstanceReportsObservedStatus(t *testing.T) {
 		Location:           "local",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -157,7 +157,7 @@ func TestLogsRemoteInstanceUsesProvisionerLogs(t *testing.T) {
 		Location:           "test-location",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,6 +232,117 @@ func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	}
 }
 
+func unresolvedDeploymentWriteForTest() (db.PublishedWriteConfirmation, error) {
+	confirmation := db.PublishedWriteConfirmation{
+		Receipt: db.PublishedWriteReceipt{
+			Committed:         true,
+			EventID:           strings.Repeat("a", 64),
+			PublishedRootHash: strings.Repeat("b", 64),
+		},
+	}
+	return confirmation, &db.PublishedWriteConfirmationUnresolvedError{
+		Confirmation: confirmation,
+		Cause:        errors.New("injected deployment publication outcome loss"),
+	}
+}
+
+func TestDeployPlaceholderExactUnresolvedReturnsInstanceWithoutEnqueueOrCleanup(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeDeploymentFactory{}))
+	confirmation, unresolvedErr := unresolvedDeploymentWriteForTest()
+	insertCalls := 0
+	enqueueCalls := 0
+	cleanupCalls := 0
+	cm.insertDeploymentPlaceholder = func(context.Context, ...db.InsertMapper) (db.PublishedWriteConfirmation, error) {
+		insertCalls++
+		return confirmation, unresolvedErr
+	}
+	cm.enqueueDeploymentTask = func(context.Context, tasks.EnqueueOptions[deployInstanceTaskPayload]) (tasks.Record, error) {
+		enqueueCalls++
+		return tasks.Record{}, nil
+	}
+	cm.deleteDeploymentPlaceholder = func(context.Context, ...db.DeleteMapper) (db.PublishedWriteConfirmation, error) {
+		cleanupCalls++
+		return db.PublishedWriteConfirmation{}, nil
+	}
+
+	instance, task, err := cm.DeployInstanceWithConfirmation(
+		context.Background(),
+		"vm-unresolved-placeholder",
+		"fake",
+		"test-location",
+		release.Release{Version: "dev"},
+		"small",
+	)
+	if !errors.Is(err, db.ErrPublishedWriteConfirmationUnresolved) {
+		t.Fatalf("deployment error=%v, want exact unresolved classification", err)
+	}
+	if instance.ID == "" || instance.Name != "vm-unresolved-placeholder" || instance.Status != ServerStateChanging {
+		t.Fatalf("returned instance=%+v, want populated unresolved placeholder", instance)
+	}
+	if task.ID != "" {
+		t.Fatalf("returned task=%+v, want no task after unresolved placeholder", task)
+	}
+	if insertCalls != 1 || enqueueCalls != 0 || cleanupCalls != 0 {
+		t.Fatalf("placeholder publications=%d enqueue=%d cleanup=%d, want one/zero/zero", insertCalls, enqueueCalls, cleanupCalls)
+	}
+}
+
+func TestDeployTaskExactUnresolvedReturnsInstanceAndTaskWithoutPlaceholderCleanup(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeDeploymentFactory{}))
+	confirmation, unresolvedErr := unresolvedDeploymentWriteForTest()
+	insertCalls := 0
+	enqueueCalls := 0
+	cleanupCalls := 0
+	cm.insertDeploymentPlaceholder = func(ctx context.Context, mappers ...db.InsertMapper) (db.PublishedWriteConfirmation, error) {
+		insertCalls++
+		return db.InsertWithAvailabilityContext(ctx, store, mappers...)
+	}
+	returnedTask := tasks.Record{
+		ID:      db.MustNewUUIDv7(),
+		Status:  tasks.StatusPending,
+		Message: "queued",
+		WriteConfirmation: tasks.WriteConfirmation{
+			EventID:           confirmation.Receipt.EventID,
+			PublishedRootHash: confirmation.Receipt.PublishedRootHash,
+		},
+	}
+	cm.enqueueDeploymentTask = func(context.Context, tasks.EnqueueOptions[deployInstanceTaskPayload]) (tasks.Record, error) {
+		enqueueCalls++
+		return returnedTask, unresolvedErr
+	}
+	cm.deleteDeploymentPlaceholder = func(context.Context, ...db.DeleteMapper) (db.PublishedWriteConfirmation, error) {
+		cleanupCalls++
+		return db.PublishedWriteConfirmation{}, nil
+	}
+
+	instance, task, err := cm.DeployInstanceWithConfirmation(
+		context.Background(),
+		"vm-unresolved-task",
+		"fake",
+		"test-location",
+		release.Release{Version: "dev"},
+		"small",
+	)
+	if !errors.Is(err, db.ErrPublishedWriteConfirmationUnresolved) {
+		t.Fatalf("deployment error=%v, want exact unresolved classification", err)
+	}
+	if instance.ID == "" || instance.Name != "vm-unresolved-task" || instance.Status != "pending: queued" {
+		t.Fatalf("returned instance=%+v, want populated desired instance", instance)
+	}
+	if task.ID != returnedTask.ID || task.WriteConfirmation.EventID != confirmation.Receipt.EventID || task.WriteConfirmation.Stage != "" {
+		t.Fatalf("returned task=%+v, want populated exact unresolved task", task)
+	}
+	if insertCalls != 1 || enqueueCalls != 1 || cleanupCalls != 0 {
+		t.Fatalf("placeholder publications=%d enqueue=%d cleanup=%d, want one/one/zero", insertCalls, enqueueCalls, cleanupCalls)
+	}
+	stored, selectErr := db.SelectOne(store, createInstanceQueryMapper(instance.ID))
+	if selectErr != nil || stored.ID != instance.ID {
+		t.Fatalf("placeholder was not retained after unresolved enqueue: stored=%+v error=%v", stored, selectErr)
+	}
+}
+
 func TestDeleteLocalInstanceWithoutIdentityPreservesMissingManifestResource(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	provider := &fakeMissingLocalMetadataProvider{}
@@ -250,7 +361,7 @@ func TestDeleteLocalInstanceWithoutIdentityPreservesMissingManifestResource(t *t
 		Location:           "local",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -296,7 +407,7 @@ func TestDeleteInstanceWithoutIdentityDoesNotReachProviderStopFailure(t *testing
 		Location:           "test-location",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -348,7 +459,7 @@ func TestDeleteInstanceWithoutIdentityDoesNotAttemptVolumeDeletion(t *testing.T)
 		Location:           "test-location",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -404,7 +515,7 @@ func TestDeleteInstanceWithoutIdentityDoesNotAttemptAttachedVolumeCleanup(t *tes
 		Location:           "test-location",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -446,7 +557,7 @@ func TestDeleteInstanceHonorsCanceledContextBeforeMutatingState(t *testing.T) {
 		Location:      "test-location",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -480,7 +591,7 @@ func TestGetDeclaredInstanceDoesNotRequireLiveProviderStatus(t *testing.T) {
 		Architecture:       "arm64",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -538,7 +649,7 @@ func TestReplicationCandidatesExcludingSkipsDeletingInstances(t *testing.T) {
 	}
 	activeMachine, activeMetadata := createInstanceInsertMapper(active)
 	deletingMachine, deletingMetadata := createInstanceInsertMapper(deleting)
-	if err := db.Insert(store, activeMachine, activeMetadata, deletingMachine, deletingMetadata); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, activeMachine, activeMetadata, deletingMachine, deletingMetadata); err != nil {
 		t.Fatal(err)
 	}
 
@@ -722,7 +833,7 @@ func TestQueueDesiredInstanceReconcileAppliesLocalVMDesiredStatus(t *testing.T) 
 		Location:           "local",
 	}
 	im, cmm := createAuthorizedInstanceInsertMapper(t, store, &instance)
-	if err := db.Insert(store, im, cmm); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, im, cmm); err != nil {
 		t.Fatal(err)
 	}
 

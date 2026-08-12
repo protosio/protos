@@ -753,29 +753,29 @@ func TestStableOperationRecoveredPostCommitErrorIsNotCountedAsRollbackOpaque(t *
 	}
 }
 
-func TestOrdinarySuccessfulCommitReturnsBeforeReceiptLookup(t *testing.T) {
+func TestOrdinaryWithReceiptSuccessfulCommitResolvesExactReceipt(t *testing.T) {
 	store := openPeerTestDB(t)
 	id := MustNewUUIDv7()
 	var lookupCalls atomic.Int32
 	store.lookupPublishedWriteForTest = func(ctx context.Context, operation PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error) {
-		call := lookupCalls.Add(1)
-		if call > 2 {
-			return swarmionapp.BranchOperationReceipt{}, errors.New("injected post-commit receipt lookup failure")
-		}
+		lookupCalls.Add(1)
 		return directOperationReceiptLookup(store, ctx, operation)
 	}
 	before := store.TransactionMetrics()
 
-	err := InsertPublishedContext(
+	receipt, err := InsertWithReceiptContext(
 		context.Background(),
 		store,
 		transactionTestUserInsert(id, "ordinary-commit-does-not-wait-for-receipt"),
 	)
 	if err != nil {
-		t.Fatalf("ordinary successful commit depended on receipt lookup: %v", err)
+		t.Fatalf("ordinary successful commit receipt lookup: %v", err)
 	}
-	if calls := lookupCalls.Load(); calls != 2 {
-		t.Fatalf("ordinary operation receipt lookups=%d, want only two pre-commit absence checks", calls)
+	if calls := lookupCalls.Load(); calls != 3 {
+		t.Fatalf("ordinary operation receipt lookups=%d, want two pre-commit checks and one exact receipt lookup", calls)
+	}
+	if !receipt.HasExactEventIdentity() || !receipt.Committed || receipt.OutcomeUncertain {
+		t.Fatalf("ordinary successful commit receipt=%+v, want exact local acceptance", receipt)
 	}
 	if got := transactionTestUserCount(t, store, id); got != 1 {
 		t.Fatalf("ordinary committed row count=%d, want 1", got)
@@ -811,7 +811,7 @@ func TestOrdinaryExactUncertainCommitOutcomeDoesNotEscapeAsReplaySignal(t *testi
 	}
 	before := store.TransactionMetrics()
 
-	err := InsertPublishedContext(
+	_, err := InsertWithReceiptContext(
 		context.Background(),
 		store,
 		transactionTestUserInsert(id, "ordinary-uncertain-exact-receipt"),
@@ -854,7 +854,7 @@ func TestOrdinaryFoundOperationReceiptFromUncertainCommitStillProvesPublication(
 	}
 	before := store.TransactionMetrics()
 
-	err := InsertPublishedContext(
+	_, err := InsertWithReceiptContext(
 		context.Background(),
 		store,
 		transactionTestUserInsert(id, "ordinary-uncertain-found-operation-receipt"),
@@ -1099,7 +1099,7 @@ func TestOrdinaryUncertainAndOperationReceiptIdentityMismatchFailsClosed(t *test
 	}
 	before := store.TransactionMetrics()
 
-	err = InsertPublishedContext(
+	_, err = InsertWithReceiptContext(
 		context.Background(),
 		store,
 		transactionTestUserInsert(id, "ordinary-uncertain-mismatched-receipt-target"),
@@ -1159,7 +1159,7 @@ func TestOrdinaryUnresolvedUncertainReceiptReturnsNonRetryableTrackingError(t *t
 	}
 	before := store.TransactionMetrics()
 
-	err := InsertPublishedContext(
+	_, err := InsertWithReceiptContext(
 		context.Background(),
 		store,
 		transactionTestUserInsert(id, "ordinary-uncertain-unresolved-receipt"),

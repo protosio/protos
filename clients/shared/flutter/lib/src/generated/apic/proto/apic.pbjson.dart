@@ -413,12 +413,21 @@ const CreateAppResponse$json = {
   '1': 'CreateAppResponse',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {
+      '1': 'confirmation',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
   ],
 };
 
 /// Descriptor for `CreateAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List createAppResponseDescriptor =
-    $convert.base64Decode('ChFDcmVhdGVBcHBSZXNwb25zZRIOCgJpZBgBIAEoCVICaWQ=');
+final $typed_data.Uint8List createAppResponseDescriptor = $convert.base64Decode(
+    'ChFDcmVhdGVBcHBSZXNwb25zZRIOCgJpZBgBIAEoCVICaWQSOwoMY29uZmlybWF0aW9uGAIgAS'
+    'gLMhcuYXBpYy5Xcml0ZUNvbmZpcm1hdGlvblIMY29uZmlybWF0aW9u');
 
 @$core.Deprecated('Use startAppRequestDescriptor instead')
 const StartAppRequest$json = {
@@ -435,11 +444,22 @@ final $typed_data.Uint8List startAppRequestDescriptor = $convert
 @$core.Deprecated('Use startAppResponseDescriptor instead')
 const StartAppResponse$json = {
   '1': 'StartAppResponse',
+  '2': [
+    {
+      '1': 'confirmation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
+  ],
 };
 
 /// Descriptor for `StartAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List startAppResponseDescriptor =
-    $convert.base64Decode('ChBTdGFydEFwcFJlc3BvbnNl');
+final $typed_data.Uint8List startAppResponseDescriptor = $convert.base64Decode(
+    'ChBTdGFydEFwcFJlc3BvbnNlEjsKDGNvbmZpcm1hdGlvbhgBIAEoCzIXLmFwaWMuV3JpdGVDb2'
+    '5maXJtYXRpb25SDGNvbmZpcm1hdGlvbg==');
 
 @$core.Deprecated('Use stopAppRequestDescriptor instead')
 const StopAppRequest$json = {
@@ -456,11 +476,22 @@ final $typed_data.Uint8List stopAppRequestDescriptor =
 @$core.Deprecated('Use stopAppResponseDescriptor instead')
 const StopAppResponse$json = {
   '1': 'StopAppResponse',
+  '2': [
+    {
+      '1': 'confirmation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
+  ],
 };
 
 /// Descriptor for `StopAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List stopAppResponseDescriptor =
-    $convert.base64Decode('Cg9TdG9wQXBwUmVzcG9uc2U=');
+final $typed_data.Uint8List stopAppResponseDescriptor = $convert.base64Decode(
+    'Cg9TdG9wQXBwUmVzcG9uc2USOwoMY29uZmlybWF0aW9uGAEgASgLMhcuYXBpYy5Xcml0ZUNvbm'
+    'Zpcm1hdGlvblIMY29uZmlybWF0aW9u');
 
 @$core.Deprecated('Use removeAppRequestDescriptor instead')
 const RemoveAppRequest$json = {
@@ -477,11 +508,22 @@ final $typed_data.Uint8List removeAppRequestDescriptor = $convert
 @$core.Deprecated('Use removeAppResponseDescriptor instead')
 const RemoveAppResponse$json = {
   '1': 'RemoveAppResponse',
+  '2': [
+    {
+      '1': 'confirmation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
+  ],
 };
 
 /// Descriptor for `RemoveAppResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List removeAppResponseDescriptor =
-    $convert.base64Decode('ChFSZW1vdmVBcHBSZXNwb25zZQ==');
+final $typed_data.Uint8List removeAppResponseDescriptor = $convert.base64Decode(
+    'ChFSZW1vdmVBcHBSZXNwb25zZRI7Cgxjb25maXJtYXRpb24YASABKAsyFy5hcGljLldyaXRlQ2'
+    '9uZmlybWF0aW9uUgxjb25maXJtYXRpb24=');
 
 @$core.Deprecated('Use getAppLogsRequestDescriptor instead')
 const GetAppLogsRequest$json = {
@@ -1388,14 +1430,22 @@ const DeployInstanceResponse$json = {
       '6': '.apic.CloudInstance',
       '10': 'instance'
     },
+    {
+      '1': 'confirmation',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
   ],
 };
 
 /// Descriptor for `DeployInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List deployInstanceResponseDescriptor =
-    $convert.base64Decode(
-        'ChZEZXBsb3lJbnN0YW5jZVJlc3BvbnNlEi8KCGluc3RhbmNlGAEgASgLMhMuYXBpYy5DbG91ZE'
-        'luc3RhbmNlUghpbnN0YW5jZQ==');
+final $typed_data.Uint8List deployInstanceResponseDescriptor = $convert.base64Decode(
+    'ChZEZXBsb3lJbnN0YW5jZVJlc3BvbnNlEi8KCGluc3RhbmNlGAEgASgLMhMuYXBpYy5DbG91ZE'
+    'luc3RhbmNlUghpbnN0YW5jZRI7Cgxjb25maXJtYXRpb24YAiABKAsyFy5hcGljLldyaXRlQ29u'
+    'ZmlybWF0aW9uUgxjb25maXJtYXRpb24=');
 
 @$core.Deprecated('Use removeInstanceRequestDescriptor instead')
 const RemoveInstanceRequest$json = {
@@ -1441,13 +1491,21 @@ const StartInstanceResponse$json = {
   '1': 'StartInstanceResponse',
   '2': [
     {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+    {
+      '1': 'confirmation',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
   ],
 };
 
 /// Descriptor for `StartInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List startInstanceResponseDescriptor =
-    $convert.base64Decode(
-        'ChVTdGFydEluc3RhbmNlUmVzcG9uc2USFwoHdGFza19pZBgBIAEoCVIGdGFza0lk');
+final $typed_data.Uint8List startInstanceResponseDescriptor = $convert.base64Decode(
+    'ChVTdGFydEluc3RhbmNlUmVzcG9uc2USFwoHdGFza19pZBgBIAEoCVIGdGFza0lkEjsKDGNvbm'
+    'Zpcm1hdGlvbhgCIAEoCzIXLmFwaWMuV3JpdGVDb25maXJtYXRpb25SDGNvbmZpcm1hdGlvbg==');
 
 @$core.Deprecated('Use stopInstanceRequestDescriptor instead')
 const StopInstanceRequest$json = {
@@ -1466,13 +1524,21 @@ const StopInstanceResponse$json = {
   '1': 'StopInstanceResponse',
   '2': [
     {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+    {
+      '1': 'confirmation',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
   ],
 };
 
 /// Descriptor for `StopInstanceResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List stopInstanceResponseDescriptor =
-    $convert.base64Decode(
-        'ChRTdG9wSW5zdGFuY2VSZXNwb25zZRIXCgd0YXNrX2lkGAEgASgJUgZ0YXNrSWQ=');
+final $typed_data.Uint8List stopInstanceResponseDescriptor = $convert.base64Decode(
+    'ChRTdG9wSW5zdGFuY2VSZXNwb25zZRIXCgd0YXNrX2lkGAEgASgJUgZ0YXNrSWQSOwoMY29uZm'
+    'lybWF0aW9uGAIgASgLMhcuYXBpYy5Xcml0ZUNvbmZpcm1hdGlvblIMY29uZmlybWF0aW9u');
 
 @$core.Deprecated('Use getInstanceKeyRequestDescriptor instead')
 const GetInstanceKeyRequest$json = {
@@ -2149,6 +2215,14 @@ const Task$json = {
     {'1': 'started_at', '3': 16, '4': 1, '5': 9, '10': 'startedAt'},
     {'1': 'finished_at', '3': 17, '4': 1, '5': 9, '10': 'finishedAt'},
     {'1': 'owner_peer_id', '3': 18, '4': 1, '5': 9, '10': 'ownerPeerId'},
+    {
+      '1': 'confirmation',
+      '3': 19,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
   ],
 };
 
@@ -2163,7 +2237,8 @@ final $typed_data.Uint8List taskDescriptor = $convert.base64Decode(
     'KAVSCGF0dGVtcHRzEiEKDG1heF9hdHRlbXB0cxgNIAEoBVILbWF4QXR0ZW1wdHMSHQoKY3JlYX'
     'RlZF9hdBgOIAEoCVIJY3JlYXRlZEF0Eh0KCnVwZGF0ZWRfYXQYDyABKAlSCXVwZGF0ZWRBdBId'
     'CgpzdGFydGVkX2F0GBAgASgJUglzdGFydGVkQXQSHwoLZmluaXNoZWRfYXQYESABKAlSCmZpbm'
-    'lzaGVkQXQSIgoNb3duZXJfcGVlcl9pZBgSIAEoCVILb3duZXJQZWVySWQ=');
+    'lzaGVkQXQSIgoNb3duZXJfcGVlcl9pZBgSIAEoCVILb3duZXJQZWVySWQSOwoMY29uZmlybWF0'
+    'aW9uGBMgASgLMhcuYXBpYy5Xcml0ZUNvbmZpcm1hdGlvblIMY29uZmlybWF0aW9u');
 
 @$core.Deprecated('Use taskEventDescriptor instead')
 const TaskEvent$json = {
@@ -2267,6 +2342,14 @@ const TaskProgressUpdate$json = {
     {'1': 'details_json', '3': 5, '4': 1, '5': 9, '10': 'detailsJson'},
     {'1': 'created_at', '3': 6, '4': 1, '5': 9, '10': 'createdAt'},
     {'1': 'durable', '3': 7, '4': 1, '5': 8, '10': 'durable'},
+    {
+      '1': 'confirmation',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
   ],
 };
 
@@ -2275,7 +2358,8 @@ final $typed_data.Uint8List taskProgressUpdateDescriptor = $convert.base64Decode
     'ChJUYXNrUHJvZ3Jlc3NVcGRhdGUSFwoHdGFza19pZBgBIAEoCVIGdGFza0lkEhYKBnN0YXR1cx'
     'gCIAEoCVIGc3RhdHVzEhgKB21lc3NhZ2UYAyABKAlSB21lc3NhZ2USGgoIcHJvZ3Jlc3MYBCAB'
     'KAVSCHByb2dyZXNzEiEKDGRldGFpbHNfanNvbhgFIAEoCVILZGV0YWlsc0pzb24SHQoKY3JlYX'
-    'RlZF9hdBgGIAEoCVIJY3JlYXRlZEF0EhgKB2R1cmFibGUYByABKAhSB2R1cmFibGU=');
+    'RlZF9hdBgGIAEoCVIJY3JlYXRlZEF0EhgKB2R1cmFibGUYByABKAhSB2R1cmFibGUSOwoMY29u'
+    'ZmlybWF0aW9uGAggASgLMhcuYXBpYy5Xcml0ZUNvbmZpcm1hdGlvblIMY29uZmlybWF0aW9u');
 
 @$core.Deprecated('Use watchTaskRequestDescriptor instead')
 const WatchTaskRequest$json = {
@@ -2363,13 +2447,22 @@ const SetExitRouteResponse$json = {
       '6': '.apic.ExitRoute',
       '10': 'route'
     },
+    {
+      '1': 'confirmation',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
   ],
 };
 
 /// Descriptor for `SetExitRouteResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List setExitRouteResponseDescriptor = $convert.base64Decode(
     'ChRTZXRFeGl0Um91dGVSZXNwb25zZRIlCgVyb3V0ZRgBIAEoCzIPLmFwaWMuRXhpdFJvdXRlUg'
-    'Vyb3V0ZQ==');
+    'Vyb3V0ZRI7Cgxjb25maXJtYXRpb24YAiABKAsyFy5hcGljLldyaXRlQ29uZmlybWF0aW9uUgxj'
+    'b25maXJtYXRpb24=');
 
 @$core.Deprecated('Use clearExitRouteRequestDescriptor instead')
 const ClearExitRouteRequest$json = {
@@ -2386,11 +2479,23 @@ final $typed_data.Uint8List clearExitRouteRequestDescriptor = $convert.base64Dec
 @$core.Deprecated('Use clearExitRouteResponseDescriptor instead')
 const ClearExitRouteResponse$json = {
   '1': 'ClearExitRouteResponse',
+  '2': [
+    {
+      '1': 'confirmation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.apic.WriteConfirmation',
+      '10': 'confirmation'
+    },
+  ],
 };
 
 /// Descriptor for `ClearExitRouteResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List clearExitRouteResponseDescriptor =
-    $convert.base64Decode('ChZDbGVhckV4aXRSb3V0ZVJlc3BvbnNl');
+    $convert.base64Decode(
+        'ChZDbGVhckV4aXRSb3V0ZVJlc3BvbnNlEjsKDGNvbmZpcm1hdGlvbhgBIAEoCzIXLmFwaWMuV3'
+        'JpdGVDb25maXJtYXRpb25SDGNvbmZpcm1hdGlvbg==');
 
 @$core.Deprecated('Use runtimeStateDescriptor instead')
 const RuntimeState$json = {
@@ -3755,6 +3860,51 @@ final $typed_data.Uint8List executeSqlResponseDescriptor = $convert.base64Decode
     'ZmVjdGVkEhwKCXRydW5jYXRlZBgEIAEoCFIJdHJ1bmNhdGVkEhgKB21lc3NhZ2UYBSABKAlSB2'
     '1lc3NhZ2U=');
 
+@$core.Deprecated('Use writeConfirmationDescriptor instead')
+const WriteConfirmation$json = {
+  '1': 'WriteConfirmation',
+  '2': [
+    {'1': 'stage', '3': 1, '4': 1, '5': 9, '10': 'stage'},
+    {'1': 'event_id', '3': 2, '4': 1, '5': 9, '10': 'eventId'},
+    {
+      '1': 'published_root_hash',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '10': 'publishedRootHash'
+    },
+    {
+      '1': 'required_other_peers',
+      '3': 4,
+      '4': 1,
+      '5': 5,
+      '10': 'requiredOtherPeers'
+    },
+    {
+      '1': 'confirmed_other_peers',
+      '3': 5,
+      '4': 1,
+      '5': 5,
+      '10': 'confirmedOtherPeers'
+    },
+    {
+      '1': 'availability_pending',
+      '3': 6,
+      '4': 1,
+      '5': 8,
+      '10': 'availabilityPending'
+    },
+  ],
+};
+
+/// Descriptor for `WriteConfirmation`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List writeConfirmationDescriptor = $convert.base64Decode(
+    'ChFXcml0ZUNvbmZpcm1hdGlvbhIUCgVzdGFnZRgBIAEoCVIFc3RhZ2USGQoIZXZlbnRfaWQYAi'
+    'ABKAlSB2V2ZW50SWQSLgoTcHVibGlzaGVkX3Jvb3RfaGFzaBgDIAEoCVIRcHVibGlzaGVkUm9v'
+    'dEhhc2gSMAoUcmVxdWlyZWRfb3RoZXJfcGVlcnMYBCABKAVSEnJlcXVpcmVkT3RoZXJQZWVycx'
+    'IyChVjb25maXJtZWRfb3RoZXJfcGVlcnMYBSABKAVSE2NvbmZpcm1lZE90aGVyUGVlcnMSMQoU'
+    'YXZhaWxhYmlsaXR5X3BlbmRpbmcYBiABKAhSE2F2YWlsYWJpbGl0eVBlbmRpbmc=');
+
 const $core.Map<$core.String, $core.dynamic> ProtosClientApiServiceBase$json = {
   '1': 'ProtosClientApi',
   '2': [
@@ -4157,6 +4307,7 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.apic.App': App$json,
   '.apic.CreateAppRequest': CreateAppRequest$json,
   '.apic.CreateAppResponse': CreateAppResponse$json,
+  '.apic.WriteConfirmation': WriteConfirmation$json,
   '.apic.StartAppRequest': StartAppRequest$json,
   '.apic.StartAppResponse': StartAppResponse$json,
   '.apic.StopAppRequest': StopAppRequest$json,

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,11 +18,115 @@ import (
 	p2pproto "github.com/protosio/protos/internal/p2p/proto"
 	"github.com/protosio/protos/internal/pcrypto"
 	"github.com/protosio/protos/internal/provisioners"
+	"github.com/protosio/protos/internal/tasks"
 	"github.com/protosio/protos/internal/testswarmion"
 	"github.com/protosio/protos/internal/user"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
+
+func TestErrorLoggingUnaryInterceptorPreservesUnresolvedWriteReceipt(t *testing.T) {
+	t.Parallel()
+
+	cause := errors.New("publisher acknowledgement was interrupted")
+	unresolved := &db.PublishedWriteConfirmationUnresolvedError{
+		Confirmation: db.PublishedWriteConfirmation{
+			Receipt: db.PublishedWriteReceipt{
+				EventID:           "event-unresolved",
+				PublishedRootHash: "root-unresolved",
+			},
+		},
+		Cause: cause,
+	}
+	_, err := errorLoggingUnaryInterceptor(
+		context.Background(),
+		&pbApic.GetTasksRequest{},
+		&grpc.UnaryServerInfo{FullMethod: "/apic.ProtosClientApi/TestWrite"},
+		func(context.Context, interface{}) (interface{}, error) {
+			return nil, fmt.Errorf("save desired state: %w", unresolved)
+		},
+	)
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("code = %s, want %s: %v", grpcstatus.Code(err), codes.FailedPrecondition, err)
+	}
+	statusValue, ok := grpcstatus.FromError(err)
+	if !ok {
+		t.Fatalf("error has no gRPC status: %v", err)
+	}
+	details := statusValue.Details()
+	if len(details) != 1 {
+		t.Fatalf("details = %#v, want one exact receipt", details)
+	}
+	confirmation, ok := details[0].(*pbApic.WriteConfirmation)
+	if !ok {
+		t.Fatalf("detail type = %T, want *WriteConfirmation", details[0])
+	}
+	if confirmation.GetStage() != "" || confirmation.GetEventId() != "event-unresolved" || confirmation.GetPublishedRootHash() != "root-unresolved" {
+		t.Fatalf("unexpected unresolved receipt detail: %+v", confirmation)
+	}
+	if confirmation.GetAvailabilityPending() {
+		t.Fatalf("unresolved local acceptance must not be reported as accepted availability pending: %+v", confirmation)
+	}
+}
+
+func TestPublishedWriteConfirmationToProtoPreservesMachineReadableBoundary(t *testing.T) {
+	t.Parallel()
+
+	got := publishedWriteConfirmationToProto(db.PublishedWriteConfirmation{
+		Receipt: db.PublishedWriteReceipt{
+			EventID:           "event-1",
+			PublishedRootHash: "root-1",
+		},
+		Stage: db.PublishedWriteConfirmationOtherPeerAvailable,
+		Availability: swarmion.ReceiptAvailabilityStatus{
+			RequiredOtherPeers:  1,
+			ConfirmedOtherPeers: 1,
+		},
+		AvailabilityPending: true,
+		AvailabilityError:   "internal prose must not cross APIC",
+	})
+	if got == nil {
+		t.Fatal("confirmation is nil")
+	}
+	if got.GetStage() != "other_peer_available" || got.GetEventId() != "event-1" || got.GetPublishedRootHash() != "root-1" {
+		t.Fatalf("unexpected receipt boundary: %+v", got)
+	}
+	if got.GetRequiredOtherPeers() != 1 || got.GetConfirmedOtherPeers() != 1 || !got.GetAvailabilityPending() {
+		t.Fatalf("unexpected availability counters: %+v", got)
+	}
+	if publishedWriteConfirmationToProto(db.PublishedWriteConfirmation{}) != nil {
+		t.Fatal("empty confirmation should remain absent")
+	}
+}
+
+func TestTaskWriteConfirmationToProtoPreservesMachineReadableBoundary(t *testing.T) {
+	t.Parallel()
+
+	got := taskWriteConfirmationToProto(tasks.WriteConfirmation{
+		Stage:               db.PublishedWriteConfirmationLocalAccepted,
+		EventID:             "event-2",
+		PublishedRootHash:   "root-2",
+		RequiredOtherPeers:  1,
+		ConfirmedOtherPeers: 0,
+		AvailabilityPending: true,
+		AvailabilityError:   "internal prose must not cross APIC",
+	})
+	if got == nil || got.GetStage() != "local_accepted" || got.GetEventId() != "event-2" || !got.GetAvailabilityPending() {
+		t.Fatalf("unexpected task confirmation: %+v", got)
+	}
+
+	forwarded := taskWriteConfirmationFromP2PProto(&p2pproto.WriteConfirmation{
+		Stage:               "other_peer_available",
+		EventId:             "event-3",
+		PublishedRootHash:   "root-3",
+		RequiredOtherPeers:  1,
+		ConfirmedOtherPeers: 1,
+	})
+	if forwarded == nil || forwarded.GetStage() != "other_peer_available" || forwarded.GetEventId() != "event-3" || forwarded.GetConfirmedOtherPeers() != 1 {
+		t.Fatalf("unexpected forwarded task confirmation: %+v", forwarded)
+	}
+}
 
 func TestBaseInstanceDeployFieldsFollowDeployRequestDescriptor(t *testing.T) {
 	t.Parallel()

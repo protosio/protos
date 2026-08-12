@@ -729,6 +729,7 @@ func taskRecordToP2PProto(record tasks.Record) *proto.Task {
 		UpdatedAt:    formatTaskTime(record.UpdatedAt),
 		StartedAt:    formatTaskTime(record.StartedAt),
 		FinishedAt:   formatTaskTime(record.FinishedAt),
+		Confirmation: taskWriteConfirmationToP2PProto(record.WriteConfirmation),
 	}
 }
 
@@ -746,13 +747,31 @@ func taskEventToP2PProto(event tasks.Event) *proto.TaskEvent {
 
 func taskProgressUpdateToP2PProto(update tasks.ProgressUpdate) *proto.TaskProgressUpdate {
 	return &proto.TaskProgressUpdate{
-		TaskId:      update.TaskID,
-		Status:      string(update.Status),
-		Message:     update.Message,
-		Progress:    int32(update.Progress),
-		DetailsJson: rawJSONText(update.Details),
-		CreatedAt:   formatTaskTime(update.CreatedAt),
-		Durable:     update.Durable,
+		TaskId:       update.TaskID,
+		Status:       string(update.Status),
+		Message:      update.Message,
+		Progress:     int32(update.Progress),
+		DetailsJson:  rawJSONText(update.Details),
+		CreatedAt:    formatTaskTime(update.CreatedAt),
+		Durable:      update.Durable,
+		Confirmation: taskWriteConfirmationToP2PProto(update.WriteConfirmation),
+	}
+}
+
+// Task confirmations are process-local observations of the latest accepted
+// task write. Forwarding them preserves client DX, but does not make the stage
+// durable or monotonic and intentionally omits internal error prose.
+func taskWriteConfirmationToP2PProto(confirmation tasks.WriteConfirmation) *proto.WriteConfirmation {
+	if confirmation.Stage == "" {
+		return nil
+	}
+	return &proto.WriteConfirmation{
+		Stage:               string(confirmation.Stage),
+		EventId:             confirmation.EventID,
+		PublishedRootHash:   confirmation.PublishedRootHash,
+		RequiredOtherPeers:  int32(confirmation.RequiredOtherPeers),
+		ConfirmedOtherPeers: int32(confirmation.ConfirmedOtherPeers),
+		AvailabilityPending: confirmation.AvailabilityPending,
 	}
 }
 

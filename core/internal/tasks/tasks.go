@@ -2,7 +2,6 @@ package tasks
 
 import (
 	"context"
-	stdsql "database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,17 +12,11 @@ import (
 	"sync"
 	"time"
 
-	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/util"
 )
 
 var log = util.GetLogger("tasks")
-
-// ErrCheckpointInvariantConflict means an exact task-state event was applied
-// durably, but the task state at that durable checkpoint does not match the
-// operation receipt the runner attempted to save.
-var ErrCheckpointInvariantConflict = errors.New("task checkpoint invariant conflict")
 
 // PermanentTaskError marks a stream failure that must not consume another
 // task attempt. It is intended for application-level terminal outcomes (for
@@ -106,11 +99,7 @@ func IsPermanent(err error) bool {
 	return errors.As(err, &permanent)
 }
 
-const (
-	taskCheckpointDurabilityTimeout      = 45 * time.Second
-	taskCheckpointPublicationMaxAttempts = 20
-	taskRunnerStopTimeout                = taskCheckpointDurabilityTimeout + 15*time.Second
-)
+const taskRunnerStopTimeout = 60 * time.Second
 
 type Status string
 
@@ -141,6 +130,11 @@ type Record struct {
 	UpdatedAt    time.Time
 	StartedAt    time.Time
 	FinishedAt   time.Time
+	// WriteConfirmation is the strongest boundary observed for the task row's
+	// latest write in this Manager process. It is deliberately not part of the
+	// replicated task row: persisting the confirmation would itself create a
+	// new receipt requiring confirmation.
+	WriteConfirmation WriteConfirmation
 }
 
 type Event struct {
@@ -164,54 +158,59 @@ type ProgressUpdate struct {
 	// Durable means the task state was saved and its local root published. It
 	// does not report Swarmion event applied_durably or content durability.
 	Durable bool
+	// WriteConfirmation distinguishes local acceptance from exact receipt
+	// retention by another peer for persisted updates. Live-only progress has
+	// an empty confirmation.
+	WriteConfirmation WriteConfirmation
 }
 
-type taskCheckpointTracker interface {
-	WaitForPublishedWriteApplied(context.Context, db.PublishedWriteReceipt, string) (db.EventReceiptObservation, error)
-	RecordAtCheckpoint(context.Context, string, string) (Record, bool, error)
+// WriteConfirmation preserves the exact task-write receipt and the strongest
+// replication boundary observed before returning. AvailabilityPending is an
+// accepted outcome and never grants permission to replay the task write.
+type WriteConfirmation struct {
+	Stage               db.PublishedWriteConfirmationStage
+	EventID             string
+	PublishedRootHash   string
+	RequiredOtherPeers  int
+	ConfirmedOtherPeers int
+	AvailabilityPending bool
+	AvailabilityError   string
 }
 
-type swarmionTaskCheckpointTracker struct {
+func taskWriteConfirmation(confirmation db.PublishedWriteConfirmation) WriteConfirmation {
+	return WriteConfirmation{
+		Stage:               confirmation.Stage,
+		EventID:             confirmation.Receipt.EventID,
+		PublishedRootHash:   confirmation.Receipt.PublishedRootHash,
+		RequiredOtherPeers:  confirmation.Availability.RequiredOtherPeers,
+		ConfirmedOtherPeers: confirmation.Availability.ConfirmedOtherPeers,
+		AvailabilityPending: confirmation.AvailabilityPending,
+		AvailabilityError:   confirmation.AvailabilityError,
+	}
+}
+
+type taskWritePublisher interface {
+	Insert(context.Context, ...db.InsertMapper) (db.PublishedWriteConfirmation, error)
+	UpdateAndInsert(context.Context, []db.UpdateMapper, []db.InsertMapper) (db.PublishedWriteConfirmation, error)
+}
+
+type databaseTaskWritePublisher struct {
 	database *db.DB
 }
 
-func (tracker swarmionTaskCheckpointTracker) WaitForPublishedWriteApplied(
+func (publisher databaseTaskWritePublisher) Insert(
 	ctx context.Context,
-	receipt db.PublishedWriteReceipt,
-	reason string,
-) (db.EventReceiptObservation, error) {
-	return tracker.database.WaitForPublishedWriteApplied(ctx, receipt, reason)
+	mappers ...db.InsertMapper,
+) (db.PublishedWriteConfirmation, error) {
+	return db.InsertWithAvailabilityContext(ctx, publisher.database, mappers...)
 }
 
-func (tracker swarmionTaskCheckpointTracker) RecordAtCheckpoint(
+func (publisher databaseTaskWritePublisher) UpdateAndInsert(
 	ctx context.Context,
-	checkpointCommitID string,
-	taskID string,
-) (Record, bool, error) {
-	taskIDBytes, err := db.UUIDBytes(strings.TrimSpace(taskID))
-	if err != nil {
-		return Record{}, false, fmt.Errorf("invalid task id %q: %w", taskID, err)
-	}
-	var record Record
-	found := false
-	if err := tracker.database.ReadRowsAsOf(
-		ctx,
-		checkpointCommitID,
-		"SELECT "+taskSelectColumns+" FROM tasks AS OF ? WHERE id = ?",
-		[]any{taskIDBytes},
-		func(rows *stdsql.Rows) error {
-			if !rows.Next() {
-				return nil
-			}
-			found = true
-			var scanErr error
-			record, scanErr = scanTaskRow(rows)
-			return scanErr
-		},
-	); err != nil {
-		return Record{}, false, fmt.Errorf("read task state at durable checkpoint: %w", err)
-	}
-	return record, found, nil
+	updates []db.UpdateMapper,
+	inserts []db.InsertMapper,
+) (db.PublishedWriteConfirmation, error) {
+	return db.UpdateAndInsertWithAvailabilityContext(ctx, publisher.database, updates, inserts)
 }
 
 type EnqueueOptions[P any] struct {
@@ -272,63 +271,6 @@ func (ctx *RecoveryContext[P]) ReplacePayload(payload P) {
 	ctx.payloadChanged = true
 }
 
-// PayloadCheckpointRecord reconstructs the exact task row that a payload
-// checkpoint would publish. Recovery hooks use it to validate the application
-// invariant at the event checkpoint before publishing any recovery handoff.
-func (ctx *RecoveryContext[P]) PayloadCheckpointRecord(
-	payload P,
-	progress int,
-	message string,
-) (Record, error) {
-	if ctx == nil {
-		return Record{}, fmt.Errorf("task recovery context is not configured")
-	}
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return Record{}, fmt.Errorf("marshal task recovery checkpoint payload: %w", err)
-	}
-	record := ctx.record
-	record.Payload = payloadJSON
-	record.Status = StatusRunning
-	record.Progress = normalizeProgress(progress)
-	record.Message = strings.TrimSpace(message)
-	if record.Message == "" {
-		record.Message = string(record.Status)
-	}
-	return record, nil
-}
-
-// PayloadCheckpointOperation reconstructs the exact stable operation identity
-// that CheckpointPayloadWithOperationAuthor would use for the supplied logical
-// checkpoint. Recovery hooks call it before changing a running task so an
-// accepted pending/parked checkpoint is observed rather than overwritten.
-func (ctx *RecoveryContext[P]) PayloadCheckpointOperation(
-	operationKey string,
-	authorPeerID string,
-	payload P,
-	progress int,
-	message string,
-	details any,
-) (db.PublishedWriteOperation, error) {
-	if ctx == nil {
-		return db.PublishedWriteOperation{}, fmt.Errorf("task recovery context is not configured")
-	}
-	record, err := ctx.PayloadCheckpointRecord(payload, progress, message)
-	if err != nil {
-		return db.PublishedWriteOperation{}, err
-	}
-	eventDetails, err := marshalOptional(details)
-	if err != nil {
-		return db.PublishedWriteOperation{}, err
-	}
-	return taskCheckpointPublishedWriteOperationForAuthor(
-		record,
-		taskEvent(record, eventDetails),
-		operationKey,
-		authorPeerID,
-	)
-}
-
 type Stream[P any, R any] struct {
 	Name string
 	// Recover runs before startup recovery changes a running task back to
@@ -353,65 +295,13 @@ func (ctx *RunContext[P]) Payload() P {
 	return ctx.payload
 }
 
-// CheckpointPayload replaces the persisted task payload while recording a
-// saved running-state update. The in-memory run context adopts the payload
-// before publication so an error path can requeue the exact known operation
-// receipt instead of reverting to an older payload. Unlike ordinary task
-// updates, this persistence-sensitive boundary waits for its exact Swarmion
-// event to reach applied_durably before returning. Historical full-root
-// content coverage is diagnostic and is not required.
-func (ctx *RunContext[P]) CheckpointPayload(payload P, progress int, message string, details any) error {
-	return ctx.persistPayload(payload, &progress, &message, details, true, "", "")
-}
-
-// CheckpointPayloadWithOperationKey uses a replicated, high-entropy domain
-// operation key as the basis for restart-safe task-checkpoint correlation.
-func (ctx *RunContext[P]) CheckpointPayloadWithOperationKey(operationKey string, payload P, progress int, message string, details any) error {
-	operationKey = strings.TrimSpace(operationKey)
-	if operationKey == "" {
-		return fmt.Errorf("task checkpoint operation key is empty")
-	}
-	return ctx.persistPayload(payload, &progress, &message, details, true, operationKey, "")
-}
-
-// CheckpointPayloadWithOperationAuthor retains the original operation author
-// when a different peer resumes a persistence-sensitive checkpoint. A foreign
-// miss remains unavailable; the resuming peer must never author a duplicate
-// checkpoint event under its own identity.
-func (ctx *RunContext[P]) CheckpointPayloadWithOperationAuthor(
-	operationKey string,
-	authorPeerID string,
-	payload P,
-	progress int,
-	message string,
-	details any,
-) error {
-	operationKey = strings.TrimSpace(operationKey)
-	if operationKey == "" {
-		return fmt.Errorf("task checkpoint operation key is empty")
-	}
-	authorPeerID = strings.TrimSpace(authorPeerID)
-	if authorPeerID == "" {
-		return fmt.Errorf("task checkpoint operation author peer ID is empty")
-	}
-	return ctx.persistPayload(payload, &progress, &message, details, true, operationKey, authorPeerID)
-}
-
 // ReplacePayload replaces the persisted task payload without changing the
 // task's current status, progress, or message.
 func (ctx *RunContext[P]) ReplacePayload(payload P) error {
-	return ctx.persistPayload(payload, nil, nil, nil, false, "", "")
+	return ctx.persistPayload(payload)
 }
 
-func (ctx *RunContext[P]) persistPayload(
-	payload P,
-	progress *int,
-	message *string,
-	details any,
-	waitAppliedDurably bool,
-	operationKey string,
-	operationAuthorPeerID string,
-) error {
+func (ctx *RunContext[P]) persistPayload(payload P) error {
 	if ctx == nil || ctx.manager == nil {
 		return fmt.Errorf("task run context is not configured")
 	}
@@ -425,19 +315,7 @@ func (ctx *RunContext[P]) persistPayload(
 	// observe an older durable/queryable root and roll back attempts or a receipt.
 	record := ctx.record
 	record.Payload = payloadJSON
-	if progress != nil {
-		record.Status = StatusRunning
-		record.Progress = normalizeProgress(*progress)
-		record.Message = strings.TrimSpace(*message)
-		if record.Message == "" {
-			record.Message = string(record.Status)
-		}
-	}
 	record.UpdatedAt = time.Now().UTC()
-	eventDetails, err := marshalOptional(details)
-	if err != nil {
-		return err
-	}
 	// Adopt the known logical state before publication. If this first save
 	// fails, streamAdapter's retry/fail path must still carry the receipt in its
 	// owned record. A process loss before any save succeeds remains an
@@ -445,16 +323,11 @@ func (ctx *RunContext[P]) persistPayload(
 	// discard an already returned operation identity.
 	ctx.record = record
 	ctx.payload = payload
-	event := taskEvent(record, eventDetails)
-	if waitAppliedDurably {
-		if err := ctx.manager.saveTaskCheckpoint(record, event, operationKey, operationAuthorPeerID); err != nil {
-			return err
-		}
-		return nil
-	}
+	event := taskEvent(record, nil)
 	if err := ctx.manager.saveTaskUpdate(record, event); err != nil {
 		return err
 	}
+	ctx.record = ctx.manager.withWriteConfirmation(record)
 	return nil
 }
 
@@ -477,7 +350,7 @@ func (ctx *RunContext[P]) Update(progress int, message string, details any) erro
 	if err := ctx.manager.saveTaskUpdate(record, taskEvent(record, eventDetails)); err != nil {
 		return err
 	}
-	ctx.record = record
+	ctx.record = ctx.manager.withWriteConfirmation(record)
 	return nil
 }
 
@@ -550,14 +423,14 @@ func (s streamAdapter[P, R]) run(ctx context.Context, manager *Manager, record R
 	if err != nil {
 		// Runner cancellation models an interrupted process/task loop, not a
 		// business failure. Preserve the exact owned running record (including a
-		// checkpointed operation receipt) so startup recovery can return it to the
+		// persisted operation receipt) so startup recovery can return it to the
 		// pending queue without losing identity or consuming an attempt.
 		if ctx.Err() != nil {
 			return err
 		}
 		// Exact-receipt pending/parked work and foreign receipt unavailability
 		// stay running. Publishing pending/failed bookkeeping here could conflict
-		// with the foreign pending root or derive a different checkpoint operation.
+		// with a foreign pending root or immutable operation fact.
 		if IsDeferred(err) {
 			return err
 		}
@@ -592,33 +465,37 @@ type Manager struct {
 	// recovery runs only at the quiescent boundary immediately before a
 	// RunPending scan, so it cannot mistake this runner's own live task for an
 	// interrupted one. It also makes multiple concurrent Start calls safe.
-	runnerMu          sync.Mutex
-	progressMu        sync.Mutex
-	progressSeq       uint64
-	nextWatcherID     uint64
-	progressWatchers  map[string]map[uint64]chan ProgressUpdate
-	latestProgress    map[string]ProgressUpdate
-	checkpointTracker taskCheckpointTracker
-	// publishTaskCheckpoint is an internal seam for exercising the ambiguous
-	// post-publication error boundary without republishing a logical write.
-	publishTaskCheckpoint func(context.Context, Record, Event) (db.PublishedWriteReceipt, error)
-	// waitTaskCheckpointPublicationRetry is an internal seam for keeping
-	// bounded publication-retry tests deterministic and fast.
-	waitTaskCheckpointPublicationRetry func(context.Context, int) error
+	runnerMu           sync.Mutex
+	progressMu         sync.Mutex
+	progressSeq        uint64
+	nextWatcherID      uint64
+	progressWatchers   map[string]map[uint64]chan ProgressUpdate
+	latestProgress     map[string]ProgressUpdate
+	writeConfirmations map[string]WriteConfirmation
+	taskWrites         taskWritePublisher
+	// observeWriteReceipt is a passive exact-receipt observation seam. It keeps
+	// an in-process unresolved publication fenced from any task bookkeeping
+	// replay until Swarmion reports that exact event/root as known.
+	observeWriteReceipt func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
 	// beforeSaveTaskUpdate is an internal fault-injection seam used to prove
 	// receipt ownership across task-state publication failures.
 	beforeSaveTaskUpdate func(Record, Event) error
 }
 
 func NewManager(database *db.DB) *Manager {
-	return &Manager{
-		db:                database,
-		streams:           map[string]registeredStream{},
-		executorPeerID:    "local",
-		progressWatchers:  map[string]map[uint64]chan ProgressUpdate{},
-		latestProgress:    map[string]ProgressUpdate{},
-		checkpointTracker: swarmionTaskCheckpointTracker{database: database},
+	manager := &Manager{
+		db:                 database,
+		streams:            map[string]registeredStream{},
+		executorPeerID:     "local",
+		progressWatchers:   map[string]map[uint64]chan ProgressUpdate{},
+		latestProgress:     map[string]ProgressUpdate{},
+		writeConfirmations: map[string]WriteConfirmation{},
+		taskWrites:         databaseTaskWritePublisher{database: database},
 	}
+	if database != nil {
+		manager.observeWriteReceipt = database.ObservePublishedWriteReceipt
+	}
+	return manager
 }
 
 func (m *Manager) SetExecutorPeerID(peerID string) {
@@ -641,39 +518,6 @@ func (m *Manager) ExecutorPeerID() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return strings.TrimSpace(m.executorPeerID)
-}
-
-// VerifyCheckpointRecord reads the task row from an exact Swarmion checkpoint
-// and verifies the same logical fields used by task checkpoint operation
-// identity. Read failures remain transient; absence or a semantic mismatch is
-// an application-level checkpoint invariant conflict.
-func (m *Manager) VerifyCheckpointRecord(ctx context.Context, checkpointCommitID string, expected Record) error {
-	if m == nil || m.checkpointTracker == nil {
-		return fmt.Errorf("task checkpoint tracker is not configured")
-	}
-	checkpointCommitID = strings.TrimSpace(checkpointCommitID)
-	if checkpointCommitID == "" {
-		return fmt.Errorf("task checkpoint commit ID is empty")
-	}
-	recordAtCheckpoint, found, err := m.checkpointTracker.RecordAtCheckpoint(
-		ctx,
-		checkpointCommitID,
-		expected.ID,
-	)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("%w: task_id=%s checkpoint=%s outcome=task is absent", ErrCheckpointInvariantConflict, expected.ID, checkpointCommitID)
-	}
-	matches, err := taskCheckpointRecordsSemanticallyEqual(recordAtCheckpoint, expected)
-	if err != nil {
-		return fmt.Errorf("compare task checkpoint state: %w", err)
-	}
-	if !matches {
-		return fmt.Errorf("%w: task_id=%s checkpoint=%s outcome=task state differs", ErrCheckpointInvariantConflict, expected.ID, checkpointCommitID)
-	}
-	return nil
 }
 
 func Register[P any, R any](manager *Manager, stream Stream[P, R]) error {
@@ -705,6 +549,16 @@ func register[P any, R any](manager *Manager, stream Stream[P, R], allowExisting
 }
 
 func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
+	return EnqueueContext(context.Background(), manager, opts)
+}
+
+// EnqueueContext persists a task and observes its exact availability boundary
+// under the caller's deadline. The compatibility Enqueue API retains its
+// background-context behavior.
+func EnqueueContext[P any](ctx context.Context, manager *Manager, opts EnqueueOptions[P]) (Record, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if manager == nil {
 		return Record{}, fmt.Errorf("task manager is nil")
 	}
@@ -767,9 +621,20 @@ func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 		record.Message = "queued"
 	}
 	event := taskEvent(record, nil)
-	if err := db.InsertPublished(manager.db, createTaskInsertMapper(record), createTaskEventInsertMapper(event)); err != nil {
+	confirmation, err := manager.taskWritePublisher().Insert(
+		ctx,
+		createTaskInsertMapper(record),
+		createTaskEventInsertMapper(event),
+	)
+	if err != nil {
+		if unresolved, ok := db.PublishedWriteConfirmationFromError(err); ok {
+			record.WriteConfirmation = taskWriteConfirmation(unresolved)
+			manager.publishProgress(recordProgressUpdate(record, event.Details, false))
+			return record, err
+		}
 		return Record{}, err
 	}
+	record.WriteConfirmation = taskWriteConfirmation(confirmation)
 	manager.publishProgress(recordProgressUpdate(record, event.Details, true))
 	return record, nil
 }
@@ -805,7 +670,7 @@ func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Recor
 			return Record{}, false, err
 		}
 		if found {
-			return latest, false, nil
+			return manager.withWriteConfirmation(latest), false, nil
 		}
 	}
 	record, err := Enqueue(manager, opts.EnqueueOptions)
@@ -909,27 +774,30 @@ func (m *Manager) runPending(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var failures []string
+	var failures []error
 	for _, record := range records {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		if m.unresolvedWriteRequiresFreshRead(ctx, record.ID) {
+			continue
+		}
 		stream, found := m.stream(record.Stream)
 		if !found {
-			failures = append(failures, fmt.Sprintf("no task stream registered for %q", record.Stream))
+			failures = append(failures, fmt.Errorf("no task stream registered for %q", record.Stream))
 			continue
 		}
 		marked, err := m.markRunningRecord(record)
 		if err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %v", record.ID, err))
+			failures = append(failures, fmt.Errorf("%s: %w", record.ID, err))
 			continue
 		}
 		if err := stream.run(ctx, m, marked); err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %v", record.ID, err))
+			failures = append(failures, fmt.Errorf("%s: %w", record.ID, err))
 		}
 	}
 	if len(failures) > 0 {
-		return fmt.Errorf("%s", strings.Join(failures, "; "))
+		return errors.Join(failures...)
 	}
 	return nil
 }
@@ -975,6 +843,10 @@ func (m *Manager) recoverOwnedRunning(ctx context.Context) (int, int, error) {
 		if err := ctx.Err(); err != nil {
 			return recovered, deferred, err
 		}
+		if m.unresolvedWriteRequiresFreshRead(ctx, record.ID) {
+			deferred++
+			continue
+		}
 		if stream, found := m.stream(record.Stream); found {
 			prepared, disposition, recoverErr := stream.recover(ctx, record)
 			if recoverErr != nil {
@@ -996,6 +868,10 @@ func (m *Manager) recoverOwnedRunning(ctx context.Context) (int, int, error) {
 		record.UpdatedAt = time.Now().UTC()
 		updated, err := m.saveRecoveredTaskUpdate(expected, record, taskEvent(record, nil))
 		if err != nil {
+			if IsDeferred(err) {
+				deferred++
+				continue
+			}
 			failures = append(failures, fmt.Errorf("%s: %w", record.ID, err))
 			continue
 		}
@@ -1023,7 +899,7 @@ func (m *Manager) Get(id string) (Record, error) {
 	if len(records) == 0 {
 		return Record{}, fmt.Errorf("task %q not found", id)
 	}
-	return records[0], nil
+	return m.withWriteConfirmation(records[0]), nil
 }
 
 func (m *Manager) List(opts ListOptions) ([]Record, bool, error) {
@@ -1049,9 +925,9 @@ func (m *Manager) List(opts ListOptions) ([]Record, bool, error) {
 		return records[i].UpdatedAt.After(records[j].UpdatedAt)
 	})
 	if opts.MaxResults > 0 && len(records) > opts.MaxResults {
-		return records[:opts.MaxResults], true, nil
+		return m.withWriteConfirmations(records[:opts.MaxResults]), true, nil
 	}
-	return records, false, nil
+	return m.withWriteConfirmations(records), false, nil
 }
 
 func (m *Manager) Events(taskID string) ([]Event, error) {
@@ -1123,6 +999,23 @@ func (m *Manager) LatestProgress(taskID string) (ProgressUpdate, bool) {
 	return update, true
 }
 
+// LatestWriteConfirmation reports the latest task-row write boundary observed
+// by this Manager. The confirmation is process-local because persisting it
+// would create another write/receipt recursion.
+func (m *Manager) LatestWriteConfirmation(taskID string) (WriteConfirmation, bool) {
+	if m == nil {
+		return WriteConfirmation{}, false
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return WriteConfirmation{}, false
+	}
+	m.progressMu.Lock()
+	defer m.progressMu.Unlock()
+	confirmation, found := m.writeConfirmations[taskID]
+	return confirmation, found
+}
+
 func (m *Manager) LatestForSubject(stream string, subjectType string, subjectID string) (Record, bool, error) {
 	records, err := selectTaskRecords(m.db, taskQueryFilters{
 		Stream:      stream,
@@ -1135,7 +1028,8 @@ func (m *Manager) LatestForSubject(stream string, subjectType string, subjectID 
 	if len(records) == 0 {
 		return Record{}, false, nil
 	}
-	return latestRecord(records)
+	record, found, err := latestRecord(records)
+	return m.withWriteConfirmation(record), found, err
 }
 
 func (m *Manager) Update(id string, status Status, progress int, message string, details any) error {
@@ -1284,7 +1178,7 @@ func (m *Manager) markRunningRecord(record Record) (Record, error) {
 	if err := m.saveTaskUpdate(record, taskEvent(record, nil)); err != nil {
 		return record, err
 	}
-	return record, nil
+	return m.withWriteConfirmation(record), nil
 }
 
 func (m *Manager) saveTaskUpdate(record Record, event Event) error {
@@ -1293,9 +1187,20 @@ func (m *Manager) saveTaskUpdate(record Record, event Event) error {
 			return err
 		}
 	}
-	if err := db.UpdateAndInsertPublished(m.db, []db.UpdateMapper{createTaskUpdateMapper(record)}, []db.InsertMapper{createTaskEventInsertMapper(event)}); err != nil {
+	confirmation, err := m.taskWritePublisher().UpdateAndInsert(
+		context.Background(),
+		[]db.UpdateMapper{createTaskUpdateMapper(record)},
+		[]db.InsertMapper{createTaskEventInsertMapper(event)},
+	)
+	if err != nil {
+		if unresolved, ok := db.PublishedWriteConfirmationFromError(err); ok {
+			record.WriteConfirmation = taskWriteConfirmation(unresolved)
+			m.publishProgress(recordProgressUpdate(record, event.Details, false))
+			return MarkDeferred(err)
+		}
 		return err
 	}
+	record.WriteConfirmation = taskWriteConfirmation(confirmation)
 	m.publishProgress(recordProgressUpdate(record, event.Details, true))
 	return nil
 }
@@ -1306,11 +1211,17 @@ func (m *Manager) saveRecoveredTaskUpdate(expected Record, record Record, event 
 			return false, err
 		}
 	}
-	if err := db.UpdateAndInsertPublished(
-		m.db,
+	confirmation, err := m.taskWritePublisher().UpdateAndInsert(
+		context.Background(),
 		[]db.UpdateMapper{createTaskRecoveryUpdateMapper(expected, record)},
 		[]db.InsertMapper{createTaskRecoveryEventInsertMapper(record, event)},
-	); err != nil {
+	)
+	if err != nil {
+		if unresolved, ok := db.PublishedWriteConfirmationFromError(err); ok {
+			record.WriteConfirmation = taskWriteConfirmation(unresolved)
+			m.publishProgress(recordProgressUpdate(record, event.Details, false))
+			return false, MarkDeferred(err)
+		}
 		return false, err
 	}
 	current, err := m.Get(record.ID)
@@ -1324,396 +1235,86 @@ func (m *Manager) saveRecoveredTaskUpdate(expected Record, record Record, event 
 	if !updated {
 		return false, nil
 	}
+	record.WriteConfirmation = taskWriteConfirmation(confirmation)
 	m.publishProgress(recordProgressUpdate(record, event.Details, true))
 	return true, nil
 }
 
-func hasExactPublishedWriteReceipt(receipt db.PublishedWriteReceipt) bool {
-	return receipt.HasExactEventIdentity()
+func (m *Manager) taskWritePublisher() taskWritePublisher {
+	if m != nil && m.taskWrites != nil {
+		return m.taskWrites
+	}
+	if m == nil {
+		return databaseTaskWritePublisher{}
+	}
+	return databaseTaskWritePublisher{database: m.db}
 }
 
-func (m *Manager) publishTaskCheckpointWithRetry(
-	ctx context.Context,
-	record Record,
-	event Event,
-	publisher func(context.Context, Record, Event) (db.PublishedWriteReceipt, error),
-) (db.PublishedWriteReceipt, error) {
-	waitRetry := m.waitTaskCheckpointPublicationRetry
-	if waitRetry == nil {
-		waitRetry = waitBeforeTaskCheckpointPublicationRetry
+func (m *Manager) withWriteConfirmation(record Record) Record {
+	if m == nil || strings.TrimSpace(record.ID) == "" {
+		return record
 	}
-	for attempt := 1; attempt <= taskCheckpointPublicationMaxAttempts; attempt++ {
-		receipt, err := publisher(ctx, record, event)
-		// A complete receipt is the operation identity, even when Commit also
-		// returned an ancillary error. Status tracking must resume from that
-		// exact receipt and must never publish the logical write again.
-		if hasExactPublishedWriteReceipt(receipt) || err == nil {
-			return receipt, err
-		}
-		// Retry only when Swarmion's typed outcome proves that no event or
-		// operation receipt was accepted and that the transaction workspace was
-		// restored. The same stable key and intent are retained for every attempt.
-		if errors.Is(err, db.ErrOperationReceiptUnavailable) || !db.IsRetryablePublishedWriteError(err) {
-			return receipt, err
-		}
-		if attempt == taskCheckpointPublicationMaxAttempts {
-			return db.PublishedWriteReceipt{}, fmt.Errorf(
-				"publish task checkpoint %s remained unresolved after %d retryable attempts: %w",
-				record.ID,
-				attempt,
-				err,
-			)
-		}
-		log.Debugf(
-			"retrying task checkpoint publication task_id=%s attempt=%d/%d: %s",
-			record.ID,
-			attempt,
-			taskCheckpointPublicationMaxAttempts,
-			err.Error(),
-		)
-		if waitErr := waitRetry(ctx, attempt); waitErr != nil {
-			return db.PublishedWriteReceipt{}, errors.Join(
-				err,
-				fmt.Errorf("wait to retry task checkpoint publication %s: %w", record.ID, waitErr),
-			)
-		}
+	m.progressMu.Lock()
+	confirmation, found := m.writeConfirmations[record.ID]
+	m.progressMu.Unlock()
+	if found {
+		record.WriteConfirmation = confirmation
 	}
-	return db.PublishedWriteReceipt{}, fmt.Errorf("publish task checkpoint %s exhausted retry attempts", record.ID)
+	return record
 }
 
-func waitBeforeTaskCheckpointPublicationRetry(ctx context.Context, attempt int) error {
-	if attempt < 1 {
-		attempt = 1
+func (m *Manager) withWriteConfirmations(records []Record) []Record {
+	for index := range records {
+		records[index] = m.withWriteConfirmation(records[index])
 	}
-	delay := 100 * time.Millisecond
-	for i := 1; i < attempt; i++ {
-		delay *= 2
-		if delay >= time.Second {
-			delay = time.Second
-			break
-		}
-	}
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return records
 }
 
-func (m *Manager) saveTaskCheckpoint(record Record, event Event, operationKey string, operationAuthorPeerID string) error {
-	if m.beforeSaveTaskUpdate != nil {
-		if err := m.beforeSaveTaskUpdate(record, event); err != nil {
-			return err
+// unresolvedWriteRequiresFreshRead fences an exact publication whose local
+// outcome was not proved by the write call. Unknown/error observations keep
+// the fence. A known observation clears it but still skips this selected row:
+// the next runner tick must re-read canonical task state before doing work.
+func (m *Manager) unresolvedWriteRequiresFreshRead(ctx context.Context, taskID string) bool {
+	if m == nil {
+		return false
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return false
+	}
+
+	m.progressMu.Lock()
+	confirmation, found := m.writeConfirmations[taskID]
+	m.progressMu.Unlock()
+	if !found || confirmation.Stage != "" || strings.TrimSpace(confirmation.EventID) == "" || strings.TrimSpace(confirmation.PublishedRootHash) == "" {
+		return false
+	}
+	observer := m.observeWriteReceipt
+	if observer == nil {
+		return true
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	observation, err := observer(ctx, db.PublishedWriteReceipt{
+		EventID:           confirmation.EventID,
+		PublishedRootHash: confirmation.PublishedRootHash,
+	})
+	if err != nil || !observation.Status.Known {
+		return true
+	}
+
+	m.progressMu.Lock()
+	current, currentFound := m.writeConfirmations[taskID]
+	if currentFound && current.Stage == "" && current.EventID == confirmation.EventID && current.PublishedRootHash == confirmation.PublishedRootHash {
+		delete(m.writeConfirmations, taskID)
+		if latest, latestFound := m.latestProgress[taskID]; latestFound && latest.WriteConfirmation == current {
+			latest.WriteConfirmation = WriteConfirmation{}
+			m.latestProgress[taskID] = latest
 		}
 	}
-	// The domain operation receipt already exists when CheckpointPayload reaches
-	// this method. Shield its entire task-state publication and proof from runner
-	// cancellation, while keeping the operation bounded.
-	persistenceCtx, cancel := context.WithTimeout(context.Background(), taskCheckpointDurabilityTimeout)
-	defer cancel()
-	operation, err := taskCheckpointPublishedWriteOperationForAuthor(record, event, operationKey, operationAuthorPeerID)
-	if err != nil {
-		return err
-	}
-	resolved, err := m.db.LookupPublishedWriteOperation(persistenceCtx, operation)
-	if err != nil {
-		return MarkDeferred(fmt.Errorf("resolve task checkpoint operation %s: %w", record.ID, err))
-	}
-	var (
-		receipt    db.PublishedWriteReceipt
-		publishErr error
-	)
-	switch resolved.Resolution {
-	case swarmionapp.BranchOperationReceiptFound:
-		receipt, err = db.PublishedWriteReceiptFromOperation(resolved)
-		if err != nil {
-			return fmt.Errorf("recover task checkpoint operation %s: %w", record.ID, err)
-		}
-	case swarmionapp.BranchOperationReceiptUnavailable:
-		return MarkDeferred(fmt.Errorf("%w: task checkpoint %s", db.ErrOperationReceiptUnavailable, record.ID))
-	case swarmionapp.BranchOperationReceiptAbsent:
-		// Publish below.
-	default:
-		return fmt.Errorf("resolve task checkpoint operation %s returned unknown resolution %q", record.ID, resolved.Resolution)
-	}
-	publisher := m.publishTaskCheckpoint
-	if resolved.Resolution == swarmionapp.BranchOperationReceiptAbsent {
-		if publisher == nil {
-			publisher = func(ctx context.Context, record Record, event Event) (db.PublishedWriteReceipt, error) {
-				return db.UpdateAndInsertWithOperationReceiptContext(
-					ctx,
-					m.db,
-					operation,
-					[]db.UpdateMapper{createTaskUpdateMapper(record)},
-					[]db.InsertMapper{createTaskEventInsertMapper(event)},
-				)
-			}
-		}
-		receipt, publishErr = m.publishTaskCheckpointWithRetry(persistenceCtx, record, event, publisher)
-	}
-	if errors.Is(publishErr, db.ErrPublishedWriteReceiptIdentityConflict) {
-		return MarkPermanent(publishErr)
-	}
-	hasReceipt := hasExactPublishedWriteReceipt(receipt)
-	if !hasReceipt {
-		if publishErr != nil {
-			// Re-entering the stream would execute the same checkpoint SQL again.
-			// Only Swarmion's explicit typed not-accepted outcome proves that is
-			// safe. Dirty workspaces and ambiguous apply/commit/rollback failures
-			// fail the task without replaying its operation body.
-			if db.IsRetryablePublishedWriteError(publishErr) {
-				return publishErr
-			}
-			return MarkPermanent(publishErr)
-		}
-		return MarkPermanent(fmt.Errorf("persist task operation receipt checkpoint %s returned no exact event receipt", record.ID))
-	}
-
-	tracker := m.checkpointTracker
-	if tracker == nil {
-		tracker = swarmionTaskCheckpointTracker{database: m.db}
-	}
-	observation, waitErr := tracker.WaitForPublishedWriteApplied(
-		persistenceCtx,
-		receipt,
-		"persist task operation receipt checkpoint "+record.ID,
-	)
-	if waitErr != nil {
-		if publishErr != nil {
-			return MarkDeferred(errors.Join(publishErr, waitErr))
-		}
-		return MarkDeferred(waitErr)
-	}
-	if observation.State != db.EventReceiptStateAppliedDurably || !observation.Status.AppliedDurably {
-		statusErr := fmt.Errorf(
-			"persist task operation receipt checkpoint %s event %s/%s returned state=%s applied_durably=%t",
-			record.ID,
-			receipt.EventID,
-			receipt.PublishedRootHash,
-			observation.State,
-			observation.Status.AppliedDurably,
-		)
-		if publishErr != nil {
-			return MarkDeferred(errors.Join(publishErr, statusErr))
-		}
-		return MarkDeferred(statusErr)
-	}
-
-	// Read the invariant at the exact checkpoint selected for this event. The
-	// durable checkpoint head may legitimately contain later task writes which
-	// supersede this record; AppliedDurably proves the selected event checkpoint
-	// is already contained in that durable lineage.
-	eventCheckpointCommitID := strings.TrimSpace(observation.Status.CheckpointCommitID)
-	durableCheckpointCommitID := strings.TrimSpace(observation.Status.DurableCheckpointCommitID)
-	recordAtCheckpoint, found, invariantErr := tracker.RecordAtCheckpoint(
-		persistenceCtx,
-		eventCheckpointCommitID,
-		record.ID,
-	)
-	if invariantErr == nil && found {
-		matches, compareErr := taskCheckpointRecordsSemanticallyEqual(recordAtCheckpoint, record)
-		if compareErr != nil {
-			invariantErr = fmt.Errorf("compare task checkpoint state: %w", compareErr)
-		} else if !matches {
-			invariantErr = fmt.Errorf(
-				"%w: task_id=%s event_id=%s published_root=%s event_checkpoint=%s durable_head=%s content_coverage=%s outcome=task state differs",
-				ErrCheckpointInvariantConflict,
-				record.ID,
-				receipt.EventID,
-				receipt.PublishedRootHash,
-				eventCheckpointCommitID,
-				durableCheckpointCommitID,
-				observation.Status.ContentCoverage,
-			)
-		}
-	}
-	if invariantErr == nil && !found {
-		invariantErr = fmt.Errorf(
-			"%w: task_id=%s event_id=%s published_root=%s event_checkpoint=%s durable_head=%s content_coverage=%s outcome=task is absent",
-			ErrCheckpointInvariantConflict,
-			record.ID,
-			receipt.EventID,
-			receipt.PublishedRootHash,
-			eventCheckpointCommitID,
-			durableCheckpointCommitID,
-			observation.Status.ContentCoverage,
-		)
-	}
-	if invariantErr != nil {
-		if errors.Is(invariantErr, ErrCheckpointInvariantConflict) {
-			if publishErr != nil {
-				return MarkPermanent(errors.Join(publishErr, invariantErr))
-			}
-			return MarkPermanent(invariantErr)
-		}
-		if publishErr != nil {
-			return MarkDeferred(errors.Join(publishErr, invariantErr))
-		}
-		return MarkDeferred(invariantErr)
-	}
-	if publishErr != nil {
-		log.Warnf(
-			"task checkpoint recovered published event after write error task_id=%s event_id=%s published_root=%s event_checkpoint=%s durable_head=%s error=%s",
-			record.ID,
-			receipt.EventID,
-			receipt.PublishedRootHash,
-			eventCheckpointCommitID,
-			durableCheckpointCommitID,
-			publishErr.Error(),
-		)
-	}
-	m.publishProgress(recordProgressUpdate(record, event.Details, true))
-	return nil
-}
-
-type taskCheckpointLogicalRecord struct {
-	ID           string
-	Stream       string
-	SubjectType  string
-	SubjectID    string
-	OwnerPeerID  string
-	Status       Status
-	Title        string
-	Message      string
-	Progress     int
-	Payload      any
-	Result       any
-	ErrorMessage string
-	Attempts     int
-	MaxAttempts  int
-}
-
-type taskCheckpointLogicalEvent struct {
-	TaskID   string
-	Status   Status
-	Message  string
-	Progress int
-	Details  any
-}
-
-type taskCheckpointLogicalState struct {
-	Record taskCheckpointLogicalRecord
-	Event  taskCheckpointLogicalEvent
-}
-
-// taskCheckpointPublishedWriteOperation binds every stable logical value written
-// by the checkpoint transaction. Generated row/event timestamps and the event
-// UUID are intentionally excluded: a retry must reconstruct the same operation
-// after a process restart, while a changed progress update or event must not be
-// mistaken for an already persisted checkpoint.
-func taskCheckpointPublishedWriteOperation(record Record, event Event, baseKey string) (db.PublishedWriteOperation, error) {
-	return taskCheckpointPublishedWriteOperationForAuthor(record, event, baseKey, "")
-}
-
-func taskCheckpointPublishedWriteOperationForAuthor(
-	record Record,
-	event Event,
-	baseKey string,
-	authorPeerID string,
-) (db.PublishedWriteOperation, error) {
-	baseKey = strings.TrimSpace(baseKey)
-	if baseKey == "" {
-		// Existing generic callers predate explicit domain operation keys. The
-		// task ID remains stable across their retries; persistence-sensitive
-		// production callers should use CheckpointPayloadWithOperationKey.
-		baseKey = strings.TrimSpace(record.ID)
-	}
-	if baseKey == "" {
-		return db.PublishedWriteOperation{}, fmt.Errorf("task checkpoint base operation key is empty")
-	}
-	state, err := newTaskCheckpointLogicalState(record, event)
-	if err != nil {
-		return db.PublishedWriteOperation{}, err
-	}
-	canonicalState, err := json.Marshal(state)
-	if err != nil {
-		return db.PublishedWriteOperation{}, fmt.Errorf("canonicalize task checkpoint state: %w", err)
-	}
-	intentParts := []string{
-		"protos:task-payload-checkpoint:v2",
-		string(canonicalState),
-	}
-	intent, err := db.NewPublishedWriteOperation("pending", intentParts...)
-	if err != nil {
-		return db.PublishedWriteOperation{}, err
-	}
-	keySeed, err := db.NewPublishedWriteOperation(
-		"pending",
-		"protos:task-payload-checkpoint-key:v2",
-		baseKey,
-		intent.IntentDigest,
-	)
-	if err != nil {
-		return db.PublishedWriteOperation{}, err
-	}
-	operation, err := db.NewPublishedWriteOperation(keySeed.IntentDigest, intentParts...)
-	if err != nil {
-		return db.PublishedWriteOperation{}, err
-	}
-	operation.AuthorPeerID = strings.TrimSpace(authorPeerID)
-	return operation, nil
-}
-
-func newTaskCheckpointLogicalState(record Record, event Event) (taskCheckpointLogicalState, error) {
-	payload, err := decodeTaskCheckpointJSON(record.Payload)
-	if err != nil {
-		return taskCheckpointLogicalState{}, fmt.Errorf("decode task checkpoint payload: %w", err)
-	}
-	result, err := decodeTaskCheckpointJSON(record.Result)
-	if err != nil {
-		return taskCheckpointLogicalState{}, fmt.Errorf("decode task checkpoint result: %w", err)
-	}
-	details, err := decodeTaskCheckpointJSON(event.Details)
-	if err != nil {
-		return taskCheckpointLogicalState{}, fmt.Errorf("decode task checkpoint event details: %w", err)
-	}
-	return taskCheckpointLogicalState{
-		Record: taskCheckpointLogicalRecord{
-			ID:           strings.TrimSpace(record.ID),
-			Stream:       record.Stream,
-			SubjectType:  record.SubjectType,
-			SubjectID:    record.SubjectID,
-			OwnerPeerID:  strings.TrimSpace(record.OwnerPeerID),
-			Status:       record.Status,
-			Title:        record.Title,
-			Message:      record.Message,
-			Progress:     record.Progress,
-			Payload:      payload,
-			Result:       result,
-			ErrorMessage: record.ErrorMessage,
-			Attempts:     record.Attempts,
-			MaxAttempts:  record.MaxAttempts,
-		},
-		Event: taskCheckpointLogicalEvent{
-			TaskID:   strings.TrimSpace(event.TaskID),
-			Status:   event.Status,
-			Message:  event.Message,
-			Progress: event.Progress,
-			Details:  details,
-		},
-	}, nil
-}
-
-func taskCheckpointRecordsSemanticallyEqual(left Record, right Record) (bool, error) {
-	leftState, err := newTaskCheckpointLogicalState(left, Event{})
-	if err != nil {
-		return false, err
-	}
-	rightState, err := newTaskCheckpointLogicalState(right, Event{})
-	if err != nil {
-		return false, err
-	}
-	return reflect.DeepEqual(leftState.Record, rightState.Record), nil
-}
-
-func decodeTaskCheckpointJSON(raw json.RawMessage) (any, error) {
-	if len(raw) == 0 || strings.TrimSpace(string(raw)) == "" {
-		raw = json.RawMessage("{}")
-	}
-	return decodeTaskPayloadLosslessly(raw)
+	m.progressMu.Unlock()
+	return true
 }
 
 func taskPayloadsSemanticallyEqual(left json.RawMessage, right json.RawMessage) bool {
@@ -1772,13 +1373,14 @@ func recordProgressUpdate(record Record, details json.RawMessage, durable bool) 
 		details = json.RawMessage("{}")
 	}
 	return ProgressUpdate{
-		TaskID:    record.ID,
-		Status:    record.Status,
-		Message:   record.Message,
-		Progress:  record.Progress,
-		Details:   details,
-		CreatedAt: time.Now().UTC(),
-		Durable:   durable,
+		TaskID:            record.ID,
+		Status:            record.Status,
+		Message:           record.Message,
+		Progress:          record.Progress,
+		Details:           details,
+		CreatedAt:         time.Now().UTC(),
+		Durable:           durable,
+		WriteConfirmation: record.WriteConfirmation,
 	}
 }
 
@@ -1809,6 +1411,10 @@ func (m *Manager) publishProgress(update ProgressUpdate) {
 	defer m.progressMu.Unlock()
 	m.progressSeq++
 	update.Sequence = m.progressSeq
+	if update.WriteConfirmation.Stage != "" ||
+		(strings.TrimSpace(update.WriteConfirmation.EventID) != "" && strings.TrimSpace(update.WriteConfirmation.PublishedRootHash) != "") {
+		m.writeConfirmations[update.TaskID] = update.WriteConfirmation
+	}
 	m.latestProgress[update.TaskID] = update
 	for _, watcher := range m.progressWatchers[update.TaskID] {
 		select {

@@ -83,6 +83,7 @@ message Task {
   string started_at = 16;
   string finished_at = 17;
   string owner_peer_id = 18;
+  WriteConfirmation confirmation = 19;
 }
 
 message TaskEvent {
@@ -127,6 +128,7 @@ message TaskProgressUpdate {
   string created_at = 6;
   // True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability.
   bool durable = 7;
+  WriteConfirmation confirmation = 8;
 }
 
 message WatchTaskRequest {
@@ -297,4 +299,13 @@ message RuntimeCompatibility {
   bool compatible = 4;
   bool blocking = 5;
   string reason = 6;
+}
+
+message WriteConfirmation {
+  string stage = 1;
+  string event_id = 2;
+  string published_root_hash = 3;
+  int32 required_other_peers = 4;
+  int32 confirmed_other_peers = 5;
+  bool availability_pending = 6;
 }

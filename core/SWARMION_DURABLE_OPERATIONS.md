@@ -27,10 +27,11 @@ binding, observes that exact event through `applied_durably`, verifies that the
 atomic effect fact is present, and resumes the projection. It does not publish
 another delete.
 
-Tasks created before this model retain the legacy fail-closed path. A foreign
-operation miss is not authoritative absence: no timeout permits replay. Restore
-the original author history or perform an explicit, application-verified
-operator migration/fence before taking ownership of such a task.
+Tasks created before this model are rejected as unsupported rather than routed
+through the removed mutable-checkpoint implementation. A foreign operation miss
+is not authoritative absence: no timeout permits replay. Restore the original
+author history or perform an explicit, application-verified operator
+migration/fence before taking ownership of such a task.
 
 The `task_operation_facts` table is part of the regenerated v0.0 snapshot for
 new repositories. Later schema additions use explicit versioned migrations;
@@ -49,6 +50,26 @@ supported migration boundary and otherwise fail closed.
   operation or start an automatic catch-up loop.
 - Destructive workflows must query their business invariant `AS OF` the durable
   checkpoint commit returned for the exact receipt.
+
+For ordinary desired-state writes, task enqueue/progress, app lifecycle, route
+configuration, and VM deployment state, use receipt availability instead of
+waiting for `applied_durably`:
+
+1. Publish and retain the exact event/root receipt.
+2. Passively observe `WaitReceiptAvailability` with `MinimumOtherPeers: 1`.
+3. Report `local_accepted` or `other_peer_available` as distinct stages.
+
+An availability success proves one other peer retained the live event/root
+closure. It does not prove a checkpoint, canonical application, content
+coverage, quorum, or global convergence. A bounded unavailable result is an
+accepted write whose replication is not yet provable; it never authorizes a
+replay. Fresh single-peer/bootstrap repositories return at `local_accepted`
+without waiting for an impossible second-peer proof.
+
+Migrations and provider deletion remain explicit exceptions. Migrations consume
+a checkpoint snapshot. Provider deletion keeps immutable authorization `P` and
+final deletion `D` on exact `applied_durably` receipts with their `AS OF`
+business-invariant checks.
 
 Use Swarmion's public operation-receipt and exact-event wait helpers with a
 caller-owned deadline. They do not hold the SQL workspace while waiting.

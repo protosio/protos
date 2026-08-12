@@ -128,10 +128,6 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 	if queuedPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
 		t.Fatalf("queued operation state model=%q, want %q", queuedPayload.OperationStateModel, instanceDeleteOperationFactsV1)
 	}
-	if queuedPayload.CheckpointAuthorPeerID != "" {
-		t.Fatalf("queued immutable-fact delete unexpectedly retained mutable checkpoint owner %q", queuedPayload.CheckpointAuthorPeerID)
-	}
-
 	var accepted db.PublishedWriteReceipt
 	firstManager.afterInstanceDeletePublished = func(receipt db.PublishedWriteReceipt) {
 		accepted = receipt
@@ -154,7 +150,7 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 	}
 	interruptedPayload := decodeDeleteRestartPayload(t, interrupted)
 	if interruptedPayload.DeleteOperation == nil || interruptedPayload.DeleteReceipt != nil ||
-		interruptedPayload.OperationStateModel != instanceDeleteOperationFactsV1 || interruptedPayload.CheckpointAuthorPeerID != "" {
+		interruptedPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
 		t.Fatalf("interrupted task payload=%+v, want operation identity without returned receipt", interruptedPayload)
 	}
 
@@ -239,8 +235,8 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 		t.Fatalf("recovered task attempts=%d, want one resumed logical attempt", done.Attempts)
 	}
 	finalPayload = decodeDeleteRestartPayload(t, done)
-	if finalPayload.OperationStateModel != instanceDeleteOperationFactsV1 || finalPayload.CheckpointAuthorPeerID != "" {
-		t.Fatalf("recovered immutable-fact task reintroduced mutable checkpoint ownership: %+v", finalPayload)
+	if finalPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
+		t.Fatalf("recovered task changed its immutable operation state model: %+v", finalPayload)
 	}
 	receiptFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindReceipt)
 	assertDeleteRestartReceiptFact(
@@ -340,8 +336,8 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 	if queuedPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
 		t.Fatalf("queued operation state model=%q, want %q", queuedPayload.OperationStateModel, instanceDeleteOperationFactsV1)
 	}
-	if queuedPayload.CheckpointAuthorPeerID != "" || queuedPayload.DeleteReceipt != nil {
-		t.Fatalf("queued immutable-fact delete unexpectedly has mutable recovery state: %+v", queuedPayload)
+	if queuedPayload.DeleteReceipt != nil {
+		t.Fatalf("queued immutable-fact delete unexpectedly has a receipt: %+v", queuedPayload)
 	}
 	realTracker := swarmionInstanceDeleteReceiptTracker{database: store}
 	interruptTracker := &interruptAfterPersistedDeleteReceiptTracker{
@@ -392,8 +388,7 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 			t.Fatal(getErr)
 		}
 		retryingPayload := decodeDeleteRestartPayload(t, retrying)
-		if retryingPayload.OperationStateModel != instanceDeleteOperationFactsV1 ||
-			retryingPayload.CheckpointAuthorPeerID != "" || retryingPayload.DeleteReceipt != nil {
+		if retryingPayload.OperationStateModel != instanceDeleteOperationFactsV1 || retryingPayload.DeleteReceipt != nil {
 			t.Fatalf("pre-publication retry introduced mutable receipt authority: %+v", retryingPayload)
 		}
 		if retrying.Status != tasks.StatusPending {
@@ -425,8 +420,7 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 		t.Fatal(err)
 	}
 	interruptedPayload := decodeDeleteRestartPayload(t, interruptedRecord)
-	if interruptedPayload.DeleteReceipt != nil || interruptedPayload.CheckpointAuthorPeerID != "" ||
-		interruptedPayload.OperationStateModel != instanceDeleteOperationFactsV1 ||
+	if interruptedPayload.DeleteReceipt != nil || interruptedPayload.OperationStateModel != instanceDeleteOperationFactsV1 ||
 		interruptedPayload.DeleteOperation == nil || *interruptedPayload.DeleteOperation != operationIdentity {
 		t.Fatalf("interrupted immutable-fact task retained mutable receipt state: record=%+v payload=%+v", interruptedRecord, interruptedPayload)
 	}
@@ -461,8 +455,7 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 	}
 	interruptedAttempt := restored.Attempts
 	restoredPayload := decodeDeleteRestartPayload(t, restored)
-	if restoredPayload.DeleteReceipt != nil || restoredPayload.CheckpointAuthorPeerID != "" ||
-		restoredPayload.OperationStateModel != instanceDeleteOperationFactsV1 ||
+	if restoredPayload.DeleteReceipt != nil || restoredPayload.OperationStateModel != instanceDeleteOperationFactsV1 ||
 		restoredPayload.DeleteOperation == nil || *restoredPayload.DeleteOperation != operationIdentity {
 		t.Fatalf("restored mutable task row became receipt authority before startup recovery: %+v", restoredPayload)
 	}
@@ -490,8 +483,7 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 	}
 
 	finalPayload := decodeDeleteRestartPayload(t, done)
-	if finalPayload.DeleteReceipt == nil || finalPayload.OperationStateModel != instanceDeleteOperationFactsV1 ||
-		finalPayload.CheckpointAuthorPeerID != "" {
+	if finalPayload.DeleteReceipt == nil || finalPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
 		t.Fatalf("completed task lost delete receipt: %+v", finalPayload)
 	}
 	finalReceipt := finalPayload.DeleteReceipt

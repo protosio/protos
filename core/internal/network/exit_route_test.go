@@ -1,6 +1,95 @@
 package network
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/protosio/protos/internal/config"
+	"github.com/protosio/protos/internal/db"
+	"github.com/protosio/protos/internal/pcrypto"
+	"github.com/protosio/protos/internal/testswarmion"
+)
+
+func TestExitRouteWritesReturnSinglePeerAvailabilityConfirmation(t *testing.T) {
+	store := newTestExitRouteDB(t)
+	deviceID := db.MustNewUUIDv7()
+	instanceID := db.MustNewUUIDv7()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	route, created, err := SetExitRouteWithConfirmationContext(ctx, store, deviceID, instanceID, "1.1.1.1", nil)
+	if err != nil {
+		t.Fatalf("create exit route: %v", err)
+	}
+	assertSinglePeerWriteConfirmation(t, created)
+
+	updatedRoute, updated, err := SetExitRouteWithConfirmationContext(ctx, store, deviceID, instanceID, "8.8.8.8", []string{"10.0.0.0/8"})
+	if err != nil {
+		t.Fatalf("update exit route: %v", err)
+	}
+	assertSinglePeerWriteConfirmation(t, updated)
+	if updatedRoute.ID != route.ID {
+		t.Fatalf("updated route ID = %s, want %s", updatedRoute.ID, route.ID)
+	}
+
+	removed, err := ClearExitRouteWithConfirmationContext(ctx, store, deviceID)
+	if err != nil {
+		t.Fatalf("clear exit route: %v", err)
+	}
+	assertSinglePeerWriteConfirmation(t, removed)
+	if err := ctx.Err(); err != nil {
+		t.Fatalf("single-peer route writes did not return promptly: %v", err)
+	}
+
+	noChange, err := ClearExitRouteWithConfirmationContext(ctx, store, deviceID)
+	if err != nil {
+		t.Fatalf("clear missing exit route: %v", err)
+	}
+	if noChange.Stage != db.PublishedWriteConfirmationNoChange {
+		t.Fatalf("missing-route confirmation stage = %q, want %q", noChange.Stage, db.PublishedWriteConfirmationNoChange)
+	}
+}
+
+func assertSinglePeerWriteConfirmation(t *testing.T, confirmation db.PublishedWriteConfirmation) {
+	t.Helper()
+	if confirmation.Stage != db.PublishedWriteConfirmationLocalAccepted {
+		t.Fatalf("confirmation stage = %q, want %q", confirmation.Stage, db.PublishedWriteConfirmationLocalAccepted)
+	}
+	if !confirmation.AvailabilityPending {
+		t.Fatal("single-peer write should preserve pending other-peer availability")
+	}
+	if !confirmation.Receipt.HasExactEventIdentity() {
+		t.Fatalf("confirmation did not preserve exact receipt: %+v", confirmation.Receipt)
+	}
+}
+
+func newTestExitRouteDB(t *testing.T) *db.DB {
+	t.Helper()
+	cfg := config.Get()
+	previousP2PPort := cfg.P2PPort
+	cfg.P2PPort = 0
+	t.Cleanup(func() {
+		cfg.P2PPort = previousP2PPort
+	})
+
+	workDir := t.TempDir()
+	key, err := pcrypto.GetLocalKey(workDir)
+	if err != nil {
+		t.Fatalf("get local key: %v", err)
+	}
+	store, err := db.Open(workDir, "protos_test", key, testswarmion.NewBorrowedLink(t, key))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = store.Close()
+	})
+	if err := store.Init(); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	return store
+}
 
 func TestNormalizeDNSServer(t *testing.T) {
 	tests := []struct {

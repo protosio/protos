@@ -29,6 +29,16 @@ package p2pv1
 #GetExitRoutesResponse: routes?: [...#ExitRoute]
 #GetRuntimeStateRequest: allow_stale?: bool
 #GetRuntimeStateResponse: state?:      #RuntimeState
+// Process-local observation of the latest accepted task write. This value is
+// forwarded for client display; it is neither persisted nor monotonic.
+#WriteConfirmation: {
+	stage?:                 "no_change" | "local_accepted" | "other_peer_available"
+	event_id?:              string
+	published_root_hash?:    string
+	required_other_peers?:  int
+	confirmed_other_peers?: int
+	availability_pending?:  bool
+}
 #Task: {
 	id?:            string
 	stream?:        string
@@ -48,6 +58,7 @@ package p2pv1
 	updated_at?:    string
 	started_at?:    string
 	finished_at?:   string
+	confirmation?:  #WriteConfirmation
 }
 #TaskEvent: {
 	id?:           string
@@ -87,6 +98,7 @@ package p2pv1
 	// True when the task state was saved and its local root published; this is
 	// not Swarmion event applied_durably or content durability.
 	durable?:      bool
+	confirmation?: #WriteConfirmation
 }
 #WatchTaskRequest: {
 	id?:                    string
@@ -326,6 +338,7 @@ contract: {
 				{type: "string", name: "started_at", number: 16},
 				{type: "string", name: "finished_at", number: 17},
 				{type: "string", name: "owner_peer_id", number: 18},
+				{type: "WriteConfirmation", name: "confirmation", number: 19},
 			]},
 			{kind: "message", name: "TaskEvent", fields: [
 				{type: "string", name: "id", number: 1},
@@ -363,6 +376,7 @@ contract: {
 				{type: "string", name: "details_json", number: 5},
 				{type: "string", name: "created_at", number: 6},
 				{type: "bool", name: "durable", number: 7, comment: "True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability."},
+				{type: "WriteConfirmation", name: "confirmation", number: 8},
 			]},
 			{kind: "message", name: "WatchTaskRequest", fields: [
 				{type: "string", name: "id", number: 1},
@@ -511,6 +525,14 @@ contract: {
 				{type: "bool", name: "blocking", number: 5},
 				{type: "string", name: "reason", number: 6},
 			]},
+			{kind: "message", name: "WriteConfirmation", fields: [
+				{type: "string", name: "stage", number: 1},
+				{type: "string", name: "event_id", number: 2},
+				{type: "string", name: "published_root_hash", number: 3},
+				{type: "int32", name: "required_other_peers", number: 4},
+				{type: "int32", name: "confirmed_other_peers", number: 5},
+				{type: "bool", name: "availability_pending", number: 6},
+			]},
 		]
 	}
 }
@@ -542,6 +564,7 @@ lineage: {
 			GetExitRoutesResponse?:   #GetExitRoutesResponse
 			GetRuntimeStateRequest?:  #GetRuntimeStateRequest
 			GetRuntimeStateResponse?: #GetRuntimeStateResponse
+			WriteConfirmation?:       #WriteConfirmation
 			Task?:                    #Task
 			TaskEvent?:               #TaskEvent
 			GetTasksRequest?:         #GetTasksRequest

@@ -80,10 +80,6 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	if queuedPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
 		t.Fatalf("queued operation state model=%q, want %q", queuedPayload.OperationStateModel, instanceDeleteOperationFactsV1)
 	}
-	if queuedPayload.CheckpointAuthorPeerID != "" {
-		t.Fatalf("queued immutable-fact delete unexpectedly retained mutable checkpoint owner %q", queuedPayload.CheckpointAuthorPeerID)
-	}
-
 	// A later same-author event can only be checkpointed after the task-create
 	// event in its transition chain. Waiting for this barrier therefore makes
 	// the replicated task/operation identity available to a bootstrapping relay
@@ -170,7 +166,7 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	}
 	relayPayload := decodeDeleteRestartPayload(t, replicatedOnRelay)
 	if relayPayload.DeleteOperation == nil || *relayPayload.DeleteOperation != operationIdentity || relayPayload.DeleteReceipt != nil ||
-		relayPayload.OperationStateModel != instanceDeleteOperationFactsV1 || relayPayload.CheckpointAuthorPeerID != "" {
+		relayPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
 		t.Fatalf("relay task state=%+v, want exact operation identity and no receipt", relayPayload)
 	}
 
@@ -207,9 +203,6 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	}
 	if interruptedPayload.DeleteReceipt != nil {
 		t.Fatalf("author crash unexpectedly checkpointed the returned receipt: %+v", interruptedPayload.DeleteReceipt)
-	}
-	if interruptedPayload.CheckpointAuthorPeerID != "" {
-		t.Fatalf("author crash introduced mutable checkpoint owner %q", interruptedPayload.CheckpointAuthorPeerID)
 	}
 	if !relayPending.Known || relayPending.Checkpointed || relayPending.AppliedDurably {
 		t.Fatalf("relay did not retain the delete as an exact uncheckpointed pending event: %+v", relayPending)

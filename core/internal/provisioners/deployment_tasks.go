@@ -66,7 +66,6 @@ type instanceLifecycleTaskPayload struct {
 	LocalOnly              bool                             `json:"local_only"`
 	DesiredSig             string                           `json:"desired_sig,omitempty"`
 	RequestedByAPI         bool                             `json:"requested_by_api,omitempty"`
-	CheckpointAuthorPeerID string                           `json:"checkpoint_author_peer_id,omitempty"`
 	OperationStateModel    string                           `json:"operation_state_model,omitempty"`
 	DeleteOperation        *instanceDeleteOperationIdentity `json:"delete_operation,omitempty"`
 	PeerDrainAuthorization *instancePeerDrainAuthorization  `json:"peer_drain_authorization,omitempty"`
@@ -262,283 +261,37 @@ func classifyDeploymentTaskError(err error) error {
 	return err
 }
 
-// recoverInstanceLifecycleTask resolves receipt-sensitive deletes before the
-// generic task runner changes any interrupted running-state bookkeeping. A
-// foreign pending receipt may be known locally while its event is not yet in a
-// durable checkpoint; publishing a running->pending task update in that window
-// can conflict with the pending author's transition. Keep the task untouched
-// until the exact event is applied. The resumed stream then performs and
-// persists the normal application-invariant outcome.
+// recoverInstanceLifecycleTask resolves immutable delete operation facts before
+// generic recovery changes interrupted running-state bookkeeping. Delete task
+// payloads from the retired mutable-checkpoint model fail closed: recovery must
+// never replay them as a fresh provider operation.
 func (cm *Manager) recoverInstanceLifecycleTask(
 	ctx context.Context,
 	recovery *tasks.RecoveryContext[instanceLifecycleTaskPayload],
 ) (tasks.StreamRecoveryDisposition, error) {
 	payload := recovery.Payload()
-	if strings.TrimSpace(payload.Operation) != instanceLifecycleOperationDelete || payload.DeleteOperation == nil {
+	if strings.TrimSpace(payload.Operation) != instanceLifecycleOperationDelete {
 		return tasks.StreamRecoveryReady, nil
 	}
-	if strings.TrimSpace(payload.OperationStateModel) == instanceDeleteOperationFactsV1 {
-		return cm.recoverInstanceLifecycleTaskFromOperationFacts(ctx, recovery)
+	if err := validateInstanceDeleteTaskPayloadModel(payload, recovery.Task().ID); err != nil {
+		return tasks.StreamRecoveryReady, tasks.MarkPermanent(err)
 	}
-	identity := *payload.DeleteOperation
-	if err := validateInstanceDeleteOperationIdentity(
-		identity,
-		recovery.Task().ID,
-		strings.TrimSpace(payload.InstanceID),
-		payload.LocalOnly,
-	); err != nil {
-		return tasks.StreamRecoveryReady, err
-	}
-	checkpointAuthorPeerID := strings.TrimSpace(payload.CheckpointAuthorPeerID)
-	if checkpointAuthorPeerID == "" {
-		// Payloads created before checkpoint ownership was explicit belong to the
-		// immutable delete-operation author until a replicated recovery handoff.
-		checkpointAuthorPeerID = identity.AuthorPeerID
-	}
-	// Recovery performs one local lookup/observation per runner tick. Bound the
-	// call so a delayed receipt cannot block unrelated pending tasks forever.
-	observeCtx, cancel := context.WithTimeout(ctx, instanceDeleteRecoveryObserveLimit)
-	defer cancel()
+	return cm.recoverInstanceLifecycleTaskFromOperationFacts(ctx, recovery)
+}
 
-	checkpointProgress := 4
-	checkpointMessage := "prepared instance deletion operation"
-	checkpointDetails := any(lifecycleTaskDetails(payload))
-	if payload.DeleteReceipt != nil {
-		checkpointProgress = recovery.Task().Progress
-		checkpointMessage = recovery.Task().Message
-		checkpointDetails = instanceDeleteReceiptDetails(*payload.DeleteReceipt)
-		// If the exact receipt checkpoint was attempted but not installed in the
-		// SQL view, its deterministic next state is still recoverable from receipt
-		// status. Applied receipts always checkpoint at the protocol-complete phase.
-		if payload.DeleteReceipt.AppliedDurably && checkpointProgress < 92 {
-			checkpointProgress = 94
-			checkpointMessage = "instance deletion event applied durably"
-		}
-	}
-	expectedCheckpointRecord, err := recovery.PayloadCheckpointRecord(
-		payload,
-		checkpointProgress,
-		checkpointMessage,
-	)
-	if err != nil {
-		return tasks.StreamRecoveryReady, fmt.Errorf("reconstruct interrupted instance delete task checkpoint row %s: %w", recovery.Task().ID, err)
-	}
-	checkpointOperation, err := recovery.PayloadCheckpointOperation(
-		identity.Key,
-		checkpointAuthorPeerID,
-		payload,
-		checkpointProgress,
-		checkpointMessage,
-		checkpointDetails,
-	)
-	if err != nil {
-		return tasks.StreamRecoveryReady, fmt.Errorf("reconstruct interrupted instance delete task checkpoint %s: %w", recovery.Task().ID, err)
-	}
-	lookupCheckpoint := cm.db.LookupPublishedWriteOperation
-	if cm.lookupTaskCheckpointRecoveryOperation != nil {
-		lookupCheckpoint = cm.lookupTaskCheckpointRecoveryOperation
-	}
-	resolvedCheckpoint, err := lookupCheckpoint(observeCtx, checkpointOperation)
-	if err != nil {
-		return tasks.StreamRecoveryReady, fmt.Errorf("resolve interrupted instance delete task checkpoint %s: %w", recovery.Task().ID, err)
-	}
-	switch resolvedCheckpoint.Resolution {
-	case swarmionapp.BranchOperationReceiptUnavailable:
-		log.Debugf(
-			"deferring interrupted instance delete before task checkpoint recovery task_id=%s checkpoint_author=%s resolution=%s policy=bounded_background_reobserve",
-			recovery.Task().ID,
-			checkpointAuthorPeerID,
-			resolvedCheckpoint.Resolution,
-		)
-		return tasks.StreamRecoveryDeferred, nil
-	case swarmionapp.BranchOperationReceiptFound:
-		checkpointReceipt, receiptErr := db.PublishedWriteReceiptFromOperation(resolvedCheckpoint)
-		if receiptErr != nil {
-			return tasks.StreamRecoveryReady, fmt.Errorf("recover interrupted instance delete task checkpoint %s: %w", recovery.Task().ID, receiptErr)
-		}
-		observeCheckpoint := cm.db.ObservePublishedWriteReceipt
-		if cm.observeTaskCheckpointRecoveryReceipt != nil {
-			observeCheckpoint = cm.observeTaskCheckpointRecoveryReceipt
-		}
-		checkpointObservation, observeErr := observeCheckpoint(observeCtx, checkpointReceipt)
-		if observeErr != nil {
-			return tasks.StreamRecoveryReady, fmt.Errorf("observe interrupted instance delete task checkpoint %s: %w", recovery.Task().ID, observeErr)
-		}
-		if checkpointObservation.State != db.EventReceiptStateAppliedDurably || !checkpointObservation.Status.AppliedDurably {
-			log.Debugf(
-				"deferring interrupted instance delete on exact task checkpoint task_id=%s checkpoint_author=%s event_id=%s published_root=%s state=%s policy=bounded_background_reobserve",
-				recovery.Task().ID,
-				checkpointAuthorPeerID,
-				checkpointReceipt.EventID,
-				checkpointReceipt.PublishedRootHash,
-				checkpointObservation.State,
-			)
-			return tasks.StreamRecoveryDeferred, nil
-		}
-		eventCheckpointCommitID := strings.TrimSpace(checkpointObservation.Status.CheckpointCommitID)
-		if eventCheckpointCommitID == "" {
-			log.Debugf(
-				"deferring interrupted instance delete task checkpoint invariant task_id=%s checkpoint_author=%s event_id=%s published_root=%s reason=checkpoint_commit_unavailable policy=bounded_background_reobserve",
-				recovery.Task().ID,
-				checkpointAuthorPeerID,
-				checkpointReceipt.EventID,
-				checkpointReceipt.PublishedRootHash,
-			)
-			return tasks.StreamRecoveryDeferred, nil
-		}
-		if cm.tasks == nil {
-			return tasks.StreamRecoveryReady, fmt.Errorf("verify interrupted instance delete task checkpoint %s: task manager is not configured", recovery.Task().ID)
-		}
-		verifyCheckpoint := cm.tasks.VerifyCheckpointRecord
-		if cm.verifyTaskCheckpointRecoveryInvariant != nil {
-			verifyCheckpoint = cm.verifyTaskCheckpointRecoveryInvariant
-		}
-		invariantErr := verifyCheckpoint(observeCtx, eventCheckpointCommitID, expectedCheckpointRecord)
-		if invariantErr != nil {
-			if errors.Is(invariantErr, tasks.ErrCheckpointInvariantConflict) {
-				return tasks.StreamRecoveryReady, tasks.MarkPermanent(fmt.Errorf(
-					"%w: task_id=%s event_id=%s published_root=%s event_checkpoint=%s durable_head=%s content_coverage=%s: %w",
-					tasks.ErrCheckpointInvariantConflict,
-					recovery.Task().ID,
-					checkpointReceipt.EventID,
-					checkpointReceipt.PublishedRootHash,
-					eventCheckpointCommitID,
-					strings.TrimSpace(checkpointObservation.Status.DurableCheckpointCommitID),
-					checkpointObservation.Status.ContentCoverage,
-					invariantErr,
-				))
-			}
-			log.Debugf(
-				"deferring interrupted instance delete task checkpoint invariant task_id=%s checkpoint_author=%s event_id=%s published_root=%s event_checkpoint=%s content_coverage=%s error=%s policy=bounded_background_reobserve",
-				recovery.Task().ID,
-				checkpointAuthorPeerID,
-				checkpointReceipt.EventID,
-				checkpointReceipt.PublishedRootHash,
-				eventCheckpointCommitID,
-				checkpointObservation.Status.ContentCoverage,
-				invariantErr.Error(),
-			)
-			return tasks.StreamRecoveryDeferred, nil
-		}
-	case swarmionapp.BranchOperationReceiptAbsent:
-		// The checkpoint body was not accepted, so generic recovery may return
-		// this task to pending and retry its first safe attempt.
-	default:
-		return tasks.StreamRecoveryReady, fmt.Errorf(
-			"resolve interrupted instance delete task checkpoint %s returned unknown resolution %q",
-			recovery.Task().ID,
-			resolvedCheckpoint.Resolution,
+func validateInstanceDeleteTaskPayloadModel(payload instanceLifecycleTaskPayload, taskID string) error {
+	model := strings.TrimSpace(payload.OperationStateModel)
+	if model != instanceDeleteOperationFactsV1 {
+		return fmt.Errorf(
+			"instance delete task %s uses unsupported operation state model %q; immutable operation facts are required",
+			strings.TrimSpace(taskID),
+			model,
 		)
 	}
-
-	var receipt instanceDeleteOperationReceipt
-	if payload.DeleteReceipt != nil {
-		receipt = *cloneInstanceDeleteOperationReceipt(payload.DeleteReceipt)
-		if err := validateInstanceDeleteOperationReceipt(
-			receipt,
-			identity,
-			recovery.Task().ID,
-			payload.InstanceID,
-		); err != nil {
-			return tasks.StreamRecoveryReady, err
-		}
-	} else {
-		lookupOperation := cm.db.WaitPublishedWriteOperation
-		if cm.lookupDeleteRecoveryOperation != nil {
-			lookupOperation = cm.lookupDeleteRecoveryOperation
-		}
-		resolved, err := lookupOperation(observeCtx, identity.publishedWriteOperation())
-		if err != nil {
-			return tasks.StreamRecoveryReady, fmt.Errorf("resolve interrupted instance delete operation %s: %w", recovery.Task().ID, err)
-		}
-		switch resolved.Resolution {
-		case swarmionapp.BranchOperationReceiptAbsent:
-			// No event was accepted for this identity, so normal task recovery can
-			// safely resume the operation's first and only execution attempt.
-			return tasks.StreamRecoveryReady, nil
-		case swarmionapp.BranchOperationReceiptUnavailable:
-			// A foreign miss is never authoritative absence. Leave the running
-			// task and its replicated identity unchanged while peer state arrives.
-			// The next quiescent runner tick observes again; it does not publish
-			// task bookkeeping or a replacement delete.
-			cm.logInstanceDeleteRecoveryDeferred(
-				recovery.Task().ID,
-				identity,
-				instanceDeleteOperationReceipt{},
-				db.EventReceiptStatePending,
-				"foreign receipt unavailable",
-			)
-			return tasks.StreamRecoveryDeferred, nil
-		case swarmionapp.BranchOperationReceiptFound:
-			published, err := db.PublishedWriteReceiptFromOperation(resolved)
-			if err != nil {
-				return tasks.StreamRecoveryReady, fmt.Errorf("recover interrupted instance delete operation %s: %w", recovery.Task().ID, err)
-			}
-			receipt = instanceDeleteReceiptFromPublished(recovery.Task().ID, identity, published)
-			if err := validateInstanceDeleteOperationReceipt(
-				receipt,
-				identity,
-				recovery.Task().ID,
-				payload.InstanceID,
-			); err != nil {
-				return tasks.StreamRecoveryReady, err
-			}
-		default:
-			return tasks.StreamRecoveryReady, fmt.Errorf(
-				"resolve interrupted instance delete operation %s returned unknown resolution %q",
-				recovery.Task().ID,
-				resolved.Resolution,
-			)
-		}
+	if payload.DeleteOperation == nil {
+		return fmt.Errorf("instance delete task %s is missing its immutable operation identity", strings.TrimSpace(taskID))
 	}
-
-	// This is deliberately one read, not a wait that performs task writes or a
-	// publication retry. Startup recovery observes again on its next tick.
-	observeReceipt := cm.db.ObservePublishedWriteReceipt
-	if cm.observeDeleteRecoveryReceipt != nil {
-		observeReceipt = cm.observeDeleteRecoveryReceipt
-	}
-	observation, err := observeReceipt(observeCtx, receipt.publishedWriteReceipt())
-	if err != nil {
-		return tasks.StreamRecoveryReady, fmt.Errorf("observe interrupted instance delete operation %s: %w", recovery.Task().ID, err)
-	}
-	receipt.applyObservation(observation)
-	if observation.State != db.EventReceiptStateAppliedDurably || !receipt.AppliedDurably {
-		cm.logInstanceDeleteRecoveryDeferred(
-			recovery.Task().ID,
-			identity,
-			receipt,
-			observation.State,
-			string(observation.Status.ParkedReason),
-		)
-		return tasks.StreamRecoveryDeferred, nil
-	}
-
-	if strings.TrimSpace(receipt.DurableCheckpointCommitID) == "" {
-		return tasks.StreamRecoveryReady, fmt.Errorf(
-			"interrupted instance delete applied_durably without a durable checkpoint commit operation_id=%s event_id=%s",
-			recovery.Task().ID,
-			receipt.EventID,
-		)
-	}
-	status, ok := cm.db.SwarmionStatus()
-	if !ok || strings.TrimSpace(status.PeerID) == "" {
-		return tasks.StreamRecoveryReady, fmt.Errorf(
-			"interrupted instance delete cannot claim task checkpoint authorship: local Swarmion peer is unavailable",
-		)
-	}
-	// Persisting the exact receipt is safe only after protocol completion. The
-	// stream deliberately re-runs the durable-checkpoint invariant query so a
-	// later recreation becomes its normal application-level conflict outcome,
-	// rather than trapping startup recovery on a running task forever. The
-	// ordinary running->pending recovery write also publishes the recovering
-	// peer's checkpoint-author claim. Every later checkpoint by that peer is
-	// causally descended from this replicated handoff; the immutable delete
-	// operation continues to identify the original author's exact event.
-	payload.DeleteReceipt = cloneInstanceDeleteOperationReceipt(&receipt)
-	payload.CheckpointAuthorPeerID = strings.TrimSpace(status.PeerID)
-	recovery.ReplacePayload(payload)
-	return tasks.StreamRecoveryReady, nil
+	return nil
 }
 
 // recoverInstanceLifecycleTaskFromOperationFacts never resolves or claims a
@@ -1271,7 +1024,7 @@ func (cm *Manager) queueSetInstanceDesiredStatus(id string, desiredStatus string
 	}
 	instance.DesiredStatus = desiredStatus
 	im, _ := createInstanceLifecycleUpdateMapper(instance)
-	if err := db.Update(cm.db, im); err != nil {
+	if _, err := db.UpdateWithAvailabilityContext(context.Background(), cm.db, im); err != nil {
 		return tasks.Record{}, fmt.Errorf("failed to save instance '%s': %w", id, err)
 	}
 	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(context.Background(), instance.ID); authErr != nil {
@@ -1419,29 +1172,13 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 			Changed:       changed,
 		}, nil
 	case instanceLifecycleOperationDelete:
-		useOperationFacts := strings.TrimSpace(payload.OperationStateModel) == instanceDeleteOperationFactsV1
+		if err := validateInstanceDeleteTaskPayloadModel(payload, task.Task().ID); err != nil {
+			return instanceLifecycleTaskResult{}, tasks.MarkPermanent(err)
+		}
 		identity := payload.DeleteOperation
 		persistedInstance, persistedErr := cm.getInstanceRecord(instanceID)
 		if persistedErr != nil && !errors.Is(persistedErr, stdsql.ErrNoRows) {
 			return instanceLifecycleTaskResult{}, tasks.MarkPermanent(fmt.Errorf("load delete authority: %w", persistedErr))
-		}
-		if identity == nil {
-			if persistedErr != nil {
-				return instanceLifecycleTaskResult{}, fmt.Errorf("prepare instance delete operation: %w", persistedErr)
-			}
-			ownerPeerID, ownerErr := instanceLifecycleOwner(persistedInstance)
-			if ownerErr != nil {
-				return instanceLifecycleTaskResult{}, tasks.MarkPermanent(ownerErr)
-			}
-			prepared, err := newInstanceDeleteOperationIdentity(task.Task().ID, persistedInstance, payload.LocalOnly, ownerPeerID)
-			if err != nil {
-				return instanceLifecycleTaskResult{}, err
-			}
-			identity = &prepared
-			payload.DeleteOperation = identity
-			if !useOperationFacts {
-				payload.CheckpointAuthorPeerID = ownerPeerID
-			}
 		}
 		authorityInstance := persistedInstance
 		if persistedErr != nil {
@@ -1473,28 +1210,7 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 				return instanceLifecycleTaskResult{}, tasks.MarkPermanent(err)
 			}
 		}
-		checkpointAuthorPeerID := strings.TrimSpace(payload.CheckpointAuthorPeerID)
-		if checkpointAuthorPeerID == "" {
-			checkpointAuthorPeerID = strings.TrimSpace(identity.AuthorPeerID)
-			if !useOperationFacts {
-				payload.CheckpointAuthorPeerID = checkpointAuthorPeerID
-			}
-		}
 		if payload.DeleteReceipt == nil {
-			if !useOperationFacts {
-				// Legacy tasks keep their original checkpoint contract. New tasks put
-				// the immutable effect marker in D itself and never create T92.
-				if err := task.CheckpointPayloadWithOperationAuthor(
-					identity.Key,
-					checkpointAuthorPeerID,
-					payload,
-					4,
-					"prepared instance deletion operation",
-					lifecycleTaskDetails(payload),
-				); err != nil {
-					return instanceLifecycleTaskResult{}, err
-				}
-			}
 			if err := task.Update(5, "deleting instance", lifecycleTaskDetails(payload)); err != nil {
 				return instanceLifecycleTaskResult{}, err
 			}
@@ -1508,23 +1224,26 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 			*identity,
 			payload.PeerDrainAuthorization,
 			payload.DeleteReceipt,
-			func(next instanceDeleteOperationReceipt, progress int, message string) error {
+			func(next instanceDeleteOperationReceipt, _ int, _ string) error {
+				previous := cloneInstanceDeleteOperationReceipt(payload.DeleteReceipt)
 				payload.DeleteReceipt = cloneInstanceDeleteOperationReceipt(&next)
-				if useOperationFacts {
-					fact, err := newInstanceDeleteReceiptFact(next, *identity)
-					if err != nil {
+				fact, err := newInstanceDeleteReceiptFact(next, *identity)
+				if err != nil {
+					return err
+				}
+				if err := task.RecordOperationFact(ctx, fact); err != nil {
+					return err
+				}
+				// The immutable receipt fact is recovery authority as soon as D
+				// publishes. Keep the mutable task payload receipt-free until the
+				// exact event reaches applied_durably; startup recovery projects the
+				// fact back into the payload only after that boundary.
+				if next.AppliedDurably && (previous == nil || !previous.AppliedDurably) {
+					if err := task.ReplacePayload(payload); err != nil {
 						return err
 					}
-					return task.RecordOperationFact(ctx, fact)
 				}
-				return task.CheckpointPayloadWithOperationAuthor(
-					identity.Key,
-					checkpointAuthorPeerID,
-					payload,
-					progress,
-					message,
-					instanceDeleteReceiptDetails(next),
-				)
+				return nil
 			},
 		)
 		if err != nil {
@@ -1572,28 +1291,6 @@ func lifecycleTaskDetails(payload instanceLifecycleTaskPayload) map[string]any {
 		"desired_status":   payload.DesiredStatus,
 		"local_only":       payload.LocalOnly,
 		"requested_by_api": payload.RequestedByAPI,
-	}
-}
-
-func instanceDeleteReceiptDetails(receipt instanceDeleteOperationReceipt) map[string]any {
-	return map[string]any{
-		"operation_id":                 receipt.OperationID,
-		"operation":                    receipt.Operation,
-		"instance_id":                  receipt.ExpectedInvariant.InstanceID,
-		"event_id":                     receipt.EventID,
-		"published_root_hash":          receipt.PublishedRootHash,
-		"event_digest":                 receipt.EventDigest,
-		"operation_intent_digest":      receipt.OperationIntentDigest,
-		"operation_author_peer_id":     receipt.OperationAuthorPeerID,
-		"checkpoint_commit_id":         receipt.CheckpointCommitID,
-		"checkpoint_root_hash":         receipt.CheckpointRootHash,
-		"durable_checkpoint_commit_id": receipt.DurableCheckpointCommitID,
-		"durable_checkpoint_root_hash": receipt.DurableCheckpointRootHash,
-		"queryable_root_hash":          receipt.QueryableRootHash,
-		"checkpointed":                 receipt.Checkpointed,
-		"applied_durably":              receipt.AppliedDurably,
-		"content_coverage":             receipt.ContentCoverage,
-		"content_durable":              receipt.ContentDurable,
 	}
 }
 
@@ -1673,9 +1370,9 @@ func uploadLocalImageSubjectID(provisionerName string, location string, imageNam
 	return fmt.Sprintf("%s/%s/%s", provisionerName, location, imageName)
 }
 
-func (cm *Manager) updateDeploymentPlaceholder(instance InstanceInfo) error {
+func (cm *Manager) updateDeploymentPlaceholder(ctx context.Context, instance InstanceInfo) error {
 	im, cmm := createInstanceUpdateMapper(instance)
-	if err := db.Update(cm.db, im, cmm); err != nil {
+	if _, err := db.UpdateWithAvailabilityContext(ctx, cm.db, im, cmm); err != nil {
 		return fmt.Errorf("failed to update pending instance '%s': %w", instance.Name, err)
 	}
 	return nil
@@ -1698,7 +1395,7 @@ func (cm *Manager) persistDiscoveredDeploymentIdentity(ctx context.Context, pend
 	}
 	instance.ID = pendingID
 	im, cmm := createInstanceUpdateMapper(instance)
-	if err := db.UpdateAndInsertPublishedContext(
+	if _, err := db.UpdateAndInsertWithAvailabilityContext(
 		ctx,
 		cm.db,
 		[]db.UpdateMapper{im, cmm},
@@ -1709,13 +1406,13 @@ func (cm *Manager) persistDiscoveredDeploymentIdentity(ctx context.Context, pend
 	return nil
 }
 
-func (cm *Manager) completeDeploymentInstance(pendingID string, instance InstanceInfo) error {
+func (cm *Manager) completeDeploymentInstance(ctx context.Context, pendingID string, instance InstanceInfo) error {
 	if _, err := db.SelectOne(cm.db, createInstanceQueryMapper(pendingID)); err != nil {
 		return fmt.Errorf("pending instance '%s' no longer exists: %w", pendingID, err)
 	}
 	instance.ID = pendingID
 	im, cmm := createInstanceFinalizeMapper(pendingID, instance)
-	if err := db.Update(cm.db, im, cmm); err != nil {
+	if _, err := db.UpdateWithAvailabilityContext(ctx, cm.db, im, cmm); err != nil {
 		return err
 	}
 	return nil

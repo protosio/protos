@@ -303,7 +303,7 @@ func (m *Manager) EnsureOperationFact(ctx context.Context, fact OperationFact) e
 	} else if found {
 		return compareOperationFacts(existing, fact)
 	}
-	insertErr := db.InsertPublishedContext(ctx, m.db, InsertOperationFactMapper(fact))
+	_, insertErr := db.InsertWithAvailabilityContext(ctx, m.db, InsertOperationFactMapper(fact))
 	existing, found, readErr := m.OperationFact(context.WithoutCancel(ctx), fact.TaskID, fact.Kind)
 	if readErr == nil && found {
 		if compareErr := compareOperationFacts(existing, fact); compareErr != nil {

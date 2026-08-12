@@ -561,6 +561,7 @@ type Task struct {
 	StartedAt     string                 `protobuf:"bytes,16,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	FinishedAt    string                 `protobuf:"bytes,17,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	OwnerPeerId   string                 `protobuf:"bytes,18,opt,name=owner_peer_id,json=ownerPeerId,proto3" json:"owner_peer_id,omitempty"`
+	Confirmation  *WriteConfirmation     `protobuf:"bytes,19,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -719,6 +720,13 @@ func (x *Task) GetOwnerPeerId() string {
 		return x.OwnerPeerId
 	}
 	return ""
+}
+
+func (x *Task) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type TaskEvent struct {
@@ -1054,7 +1062,8 @@ type TaskProgressUpdate struct {
 	DetailsJson string                 `protobuf:"bytes,5,opt,name=details_json,json=detailsJson,proto3" json:"details_json,omitempty"`
 	CreatedAt   string                 `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability.
-	Durable       bool `protobuf:"varint,7,opt,name=durable,proto3" json:"durable,omitempty"`
+	Durable       bool               `protobuf:"varint,7,opt,name=durable,proto3" json:"durable,omitempty"`
+	Confirmation  *WriteConfirmation `protobuf:"bytes,8,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1136,6 +1145,13 @@ func (x *TaskProgressUpdate) GetDurable() bool {
 		return x.Durable
 	}
 	return false
+}
+
+func (x *TaskProgressUpdate) GetConfirmation() *WriteConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
 }
 
 type WatchTaskRequest struct {
@@ -2622,6 +2638,90 @@ func (x *RuntimeCompatibility) GetReason() string {
 	return ""
 }
 
+type WriteConfirmation struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Stage               string                 `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
+	EventId             string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	PublishedRootHash   string                 `protobuf:"bytes,3,opt,name=published_root_hash,json=publishedRootHash,proto3" json:"published_root_hash,omitempty"`
+	RequiredOtherPeers  int32                  `protobuf:"varint,4,opt,name=required_other_peers,json=requiredOtherPeers,proto3" json:"required_other_peers,omitempty"`
+	ConfirmedOtherPeers int32                  `protobuf:"varint,5,opt,name=confirmed_other_peers,json=confirmedOtherPeers,proto3" json:"confirmed_other_peers,omitempty"`
+	AvailabilityPending bool                   `protobuf:"varint,6,opt,name=availability_pending,json=availabilityPending,proto3" json:"availability_pending,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *WriteConfirmation) Reset() {
+	*x = WriteConfirmation{}
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteConfirmation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteConfirmation) ProtoMessage() {}
+
+func (x *WriteConfirmation) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_instance_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteConfirmation.ProtoReflect.Descriptor instead.
+func (*WriteConfirmation) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_instance_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *WriteConfirmation) GetStage() string {
+	if x != nil {
+		return x.Stage
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetPublishedRootHash() string {
+	if x != nil {
+		return x.PublishedRootHash
+	}
+	return ""
+}
+
+func (x *WriteConfirmation) GetRequiredOtherPeers() int32 {
+	if x != nil {
+		return x.RequiredOtherPeers
+	}
+	return 0
+}
+
+func (x *WriteConfirmation) GetConfirmedOtherPeers() int32 {
+	if x != nil {
+		return x.ConfirmedOtherPeers
+	}
+	return 0
+}
+
+func (x *WriteConfirmation) GetAvailabilityPending() bool {
+	if x != nil {
+		return x.AvailabilityPending
+	}
+	return false
+}
+
 var File_internal_p2p_proto_instance_proto protoreflect.FileDescriptor
 
 const file_internal_p2p_proto_instance_proto_rawDesc = "" +
@@ -2654,7 +2754,7 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\vallow_stale\x18\x01 \x01(\bR\n" +
 	"allowStale\"D\n" +
 	"\x17GetRuntimeStateResponse\x12)\n" +
-	"\x05state\x18\x01 \x01(\v2\x13.proto.RuntimeStateR\x05state\"\x9e\x04\n" +
+	"\x05state\x18\x01 \x01(\v2\x13.proto.RuntimeStateR\x05state\"\xdc\x04\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06stream\x18\x02 \x01(\tR\x06stream\x12!\n" +
@@ -2680,7 +2780,8 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"started_at\x18\x10 \x01(\tR\tstartedAt\x12\x1f\n" +
 	"\vfinished_at\x18\x11 \x01(\tR\n" +
 	"finishedAt\x12\"\n" +
-	"\rowner_peer_id\x18\x12 \x01(\tR\vownerPeerId\"\xc4\x01\n" +
+	"\rowner_peer_id\x18\x12 \x01(\tR\vownerPeerId\x12<\n" +
+	"\fconfirmation\x18\x13 \x01(\v2\x18.proto.WriteConfirmationR\fconfirmation\"\xc4\x01\n" +
 	"\tTaskEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x16\n" +
@@ -2706,7 +2807,7 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x0einclude_events\x18\x02 \x01(\bR\rincludeEvents\"\\\n" +
 	"\x0fGetTaskResponse\x12\x1f\n" +
 	"\x04task\x18\x01 \x01(\v2\v.proto.TaskR\x04task\x12(\n" +
-	"\x06events\x18\x02 \x03(\v2\x10.proto.TaskEventR\x06events\"\xd7\x01\n" +
+	"\x06events\x18\x02 \x03(\v2\x10.proto.TaskEventR\x06events\"\x95\x02\n" +
 	"\x12TaskProgressUpdate\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x18\n" +
@@ -2715,7 +2816,8 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\fdetails_json\x18\x05 \x01(\tR\vdetailsJson\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x06 \x01(\tR\tcreatedAt\x12\x18\n" +
-	"\adurable\x18\a \x01(\bR\adurable\"\xa8\x01\n" +
+	"\adurable\x18\a \x01(\bR\adurable\x12<\n" +
+	"\fconfirmation\x18\b \x01(\v2\x18.proto.WriteConfirmationR\fconfirmation\"\xa8\x01\n" +
 	"\x10WatchTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12)\n" +
 	"\x10include_snapshot\x18\x02 \x01(\bR\x0fincludeSnapshot\x12%\n" +
@@ -2869,7 +2971,14 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"compatible\x18\x04 \x01(\bR\n" +
 	"compatible\x12\x1a\n" +
 	"\bblocking\x18\x05 \x01(\bR\bblocking\x12\x16\n" +
-	"\x06reason\x18\x06 \x01(\tR\x06reason2\xed\x04\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason\"\x8d\x02\n" +
+	"\x11WriteConfirmation\x12\x14\n" +
+	"\x05stage\x18\x01 \x01(\tR\x05stage\x12\x19\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12.\n" +
+	"\x13published_root_hash\x18\x03 \x01(\tR\x11publishedRootHash\x120\n" +
+	"\x14required_other_peers\x18\x04 \x01(\x05R\x12requiredOtherPeers\x122\n" +
+	"\x15confirmed_other_peers\x18\x05 \x01(\x05R\x13confirmedOtherPeers\x121\n" +
+	"\x14availability_pending\x18\x06 \x01(\bR\x13availabilityPending2\xed\x04\n" +
 	"\bInstance\x121\n" +
 	"\x04Init\x12\x12.proto.InitRequest\x1a\x13.proto.InitResponse\"\x00\x12=\n" +
 	"\bGetPeers\x12\x16.proto.GetPeersRequest\x1a\x17.proto.GetPeersResponse\"\x00\x12:\n" +
@@ -2893,7 +3002,7 @@ func file_internal_p2p_proto_instance_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_instance_proto_rawDescData
 }
 
-var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_internal_p2p_proto_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_internal_p2p_proto_instance_proto_goTypes = []any{
 	(*InitRequest)(nil),             // 0: proto.InitRequest
 	(*InitResponse)(nil),            // 1: proto.InitResponse
@@ -2929,54 +3038,57 @@ var file_internal_p2p_proto_instance_proto_goTypes = []any{
 	(*RuntimeState)(nil),            // 31: proto.RuntimeState
 	(*RuntimePeerStatus)(nil),       // 32: proto.RuntimePeerStatus
 	(*RuntimeCompatibility)(nil),    // 33: proto.RuntimeCompatibility
-	nil,                             // 34: proto.GetPeersResponse.PeersEntry
-	nil,                             // 35: proto.RuntimePeerStatus.LastDialErrorsEntry
+	(*WriteConfirmation)(nil),       // 34: proto.WriteConfirmation
+	nil,                             // 35: proto.GetPeersResponse.PeersEntry
+	nil,                             // 36: proto.RuntimePeerStatus.LastDialErrorsEntry
 }
 var file_internal_p2p_proto_instance_proto_depIdxs = []int32{
-	34, // 0: proto.GetPeersResponse.peers:type_name -> proto.GetPeersResponse.PeersEntry
+	35, // 0: proto.GetPeersResponse.peers:type_name -> proto.GetPeersResponse.PeersEntry
 	21, // 1: proto.GetNetworkStateResponse.state:type_name -> proto.NetworkState
 	30, // 2: proto.GetExitRoutesResponse.routes:type_name -> proto.ExitRoute
 	31, // 3: proto.GetRuntimeStateResponse.state:type_name -> proto.RuntimeState
-	12, // 4: proto.GetTasksResponse.tasks:type_name -> proto.Task
-	12, // 5: proto.GetTaskResponse.task:type_name -> proto.Task
-	13, // 6: proto.GetTaskResponse.events:type_name -> proto.TaskEvent
-	12, // 7: proto.WatchTaskResponse.task:type_name -> proto.Task
-	13, // 8: proto.WatchTaskResponse.events:type_name -> proto.TaskEvent
-	18, // 9: proto.WatchTaskResponse.update:type_name -> proto.TaskProgressUpdate
-	23, // 10: proto.NetworkState.addresses:type_name -> proto.NetworkAddress
-	24, // 11: proto.NetworkState.routes:type_name -> proto.NetworkRoute
-	25, // 12: proto.NetworkState.wireguard_peers:type_name -> proto.WireGuardPeer
-	26, // 13: proto.NetworkState.firewall_tables:type_name -> proto.FirewallTable
-	29, // 14: proto.NetworkState.dns:type_name -> proto.DNSState
-	22, // 15: proto.NetworkState.interfaces:type_name -> proto.NetworkInterface
-	27, // 16: proto.FirewallTable.chains:type_name -> proto.FirewallChain
-	28, // 17: proto.FirewallChain.rules:type_name -> proto.FirewallRule
-	32, // 18: proto.RuntimeState.peer_statuses:type_name -> proto.RuntimePeerStatus
-	33, // 19: proto.RuntimeState.compatibility:type_name -> proto.RuntimeCompatibility
-	35, // 20: proto.RuntimePeerStatus.last_dial_errors:type_name -> proto.RuntimePeerStatus.LastDialErrorsEntry
-	0,  // 21: proto.Instance.Init:input_type -> proto.InitRequest
-	2,  // 22: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
-	4,  // 23: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
-	6,  // 24: proto.Instance.GetNetworkState:input_type -> proto.GetNetworkStateRequest
-	8,  // 25: proto.Instance.GetExitRoutes:input_type -> proto.GetExitRoutesRequest
-	10, // 26: proto.Instance.GetRuntimeState:input_type -> proto.GetRuntimeStateRequest
-	14, // 27: proto.Instance.GetTasks:input_type -> proto.GetTasksRequest
-	16, // 28: proto.Instance.GetTask:input_type -> proto.GetTaskRequest
-	19, // 29: proto.Instance.WatchTask:input_type -> proto.WatchTaskRequest
-	1,  // 30: proto.Instance.Init:output_type -> proto.InitResponse
-	3,  // 31: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
-	5,  // 32: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
-	7,  // 33: proto.Instance.GetNetworkState:output_type -> proto.GetNetworkStateResponse
-	9,  // 34: proto.Instance.GetExitRoutes:output_type -> proto.GetExitRoutesResponse
-	11, // 35: proto.Instance.GetRuntimeState:output_type -> proto.GetRuntimeStateResponse
-	15, // 36: proto.Instance.GetTasks:output_type -> proto.GetTasksResponse
-	17, // 37: proto.Instance.GetTask:output_type -> proto.GetTaskResponse
-	20, // 38: proto.Instance.WatchTask:output_type -> proto.WatchTaskResponse
-	30, // [30:39] is the sub-list for method output_type
-	21, // [21:30] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	34, // 4: proto.Task.confirmation:type_name -> proto.WriteConfirmation
+	12, // 5: proto.GetTasksResponse.tasks:type_name -> proto.Task
+	12, // 6: proto.GetTaskResponse.task:type_name -> proto.Task
+	13, // 7: proto.GetTaskResponse.events:type_name -> proto.TaskEvent
+	34, // 8: proto.TaskProgressUpdate.confirmation:type_name -> proto.WriteConfirmation
+	12, // 9: proto.WatchTaskResponse.task:type_name -> proto.Task
+	13, // 10: proto.WatchTaskResponse.events:type_name -> proto.TaskEvent
+	18, // 11: proto.WatchTaskResponse.update:type_name -> proto.TaskProgressUpdate
+	23, // 12: proto.NetworkState.addresses:type_name -> proto.NetworkAddress
+	24, // 13: proto.NetworkState.routes:type_name -> proto.NetworkRoute
+	25, // 14: proto.NetworkState.wireguard_peers:type_name -> proto.WireGuardPeer
+	26, // 15: proto.NetworkState.firewall_tables:type_name -> proto.FirewallTable
+	29, // 16: proto.NetworkState.dns:type_name -> proto.DNSState
+	22, // 17: proto.NetworkState.interfaces:type_name -> proto.NetworkInterface
+	27, // 18: proto.FirewallTable.chains:type_name -> proto.FirewallChain
+	28, // 19: proto.FirewallChain.rules:type_name -> proto.FirewallRule
+	32, // 20: proto.RuntimeState.peer_statuses:type_name -> proto.RuntimePeerStatus
+	33, // 21: proto.RuntimeState.compatibility:type_name -> proto.RuntimeCompatibility
+	36, // 22: proto.RuntimePeerStatus.last_dial_errors:type_name -> proto.RuntimePeerStatus.LastDialErrorsEntry
+	0,  // 23: proto.Instance.Init:input_type -> proto.InitRequest
+	2,  // 24: proto.Instance.GetPeers:input_type -> proto.GetPeersRequest
+	4,  // 25: proto.Instance.GetLogs:input_type -> proto.GetLogsRequest
+	6,  // 26: proto.Instance.GetNetworkState:input_type -> proto.GetNetworkStateRequest
+	8,  // 27: proto.Instance.GetExitRoutes:input_type -> proto.GetExitRoutesRequest
+	10, // 28: proto.Instance.GetRuntimeState:input_type -> proto.GetRuntimeStateRequest
+	14, // 29: proto.Instance.GetTasks:input_type -> proto.GetTasksRequest
+	16, // 30: proto.Instance.GetTask:input_type -> proto.GetTaskRequest
+	19, // 31: proto.Instance.WatchTask:input_type -> proto.WatchTaskRequest
+	1,  // 32: proto.Instance.Init:output_type -> proto.InitResponse
+	3,  // 33: proto.Instance.GetPeers:output_type -> proto.GetPeersResponse
+	5,  // 34: proto.Instance.GetLogs:output_type -> proto.GetLogsResponse
+	7,  // 35: proto.Instance.GetNetworkState:output_type -> proto.GetNetworkStateResponse
+	9,  // 36: proto.Instance.GetExitRoutes:output_type -> proto.GetExitRoutesResponse
+	11, // 37: proto.Instance.GetRuntimeState:output_type -> proto.GetRuntimeStateResponse
+	15, // 38: proto.Instance.GetTasks:output_type -> proto.GetTasksResponse
+	17, // 39: proto.Instance.GetTask:output_type -> proto.GetTaskResponse
+	20, // 40: proto.Instance.WatchTask:output_type -> proto.WatchTaskResponse
+	32, // [32:41] is the sub-list for method output_type
+	23, // [23:32] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_internal_p2p_proto_instance_proto_init() }
@@ -2990,7 +3102,7 @@ func file_internal_p2p_proto_instance_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_instance_proto_rawDesc), len(file_internal_p2p_proto_instance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   36,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

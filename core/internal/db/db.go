@@ -4163,13 +4163,6 @@ func (db *DB) executeOrdinaryPublishedWriteContext(
 	return receipt, executeErr
 }
 
-// Insert inserts and publishes a new entry using the sq query builder. It
-// returns after local root publication; checkpointing and durability are
-// asynchronous.
-func Insert(db *DB, mappers ...InsertMapper) error {
-	return InsertPublishedContext(context.Background(), db, mappers...)
-}
-
 func prepareInsertWriteStatements(label string, mappers []InsertMapper) ([]preparedWriteStatement, error) {
 	statements := make([]preparedWriteStatement, 0, len(mappers))
 	for _, mapper := range mappers {
@@ -4204,16 +4197,6 @@ func prepareDeleteWriteStatements(label string, mappers []DeleteMapper) ([]prepa
 		statements = append(statements, statement)
 	}
 	return statements, nil
-}
-
-func (db *DB) executeOrdinaryPublishedWriteWithoutReceiptContext(
-	ctx context.Context,
-	name string,
-	allowNoop bool,
-	statements []preparedWriteStatement,
-) error {
-	_, err := db.executeOrdinaryPublishedWriteContext(ctx, name, allowNoop, false, statements)
-	return err
 }
 
 func (db *DB) waitForOrdinaryPublishedWriteKnown(ctx context.Context, receipt PublishedWriteReceipt) error {
@@ -4275,31 +4258,6 @@ func InsertWithReceiptContext(ctx context.Context, db *DB, mappers ...InsertMapp
 	return db.executeOrdinaryPublishedWriteContext(ctx, "insert", false, true, statements)
 }
 
-// InsertPublished commits and publishes a declarative write, but does not wait
-// for the local durable checkpoint view to include that write. Use this for
-// user-facing desired-state and durable feedback writes whose effects are
-// observed by a reconciler or task stream.
-func InsertPublished(db *DB, mappers ...InsertMapper) error {
-	return InsertPublishedContext(context.Background(), db, mappers...)
-}
-
-func InsertPublishedContext(ctx context.Context, db *DB, mappers ...InsertMapper) error {
-	if db == nil {
-		return fmt.Errorf("db is nil")
-	}
-	statements, err := prepareInsertWriteStatements("insert", mappers)
-	if err != nil {
-		return err
-	}
-	return db.executeOrdinaryPublishedWriteWithoutReceiptContext(ctx, "insert", false, statements)
-}
-
-// Update publishes the updated root locally and leaves checkpoint/durable
-// observation asynchronous.
-func Update(db *DB, mappers ...UpdateMapper) error {
-	return UpdatePublishedContext(context.Background(), db, mappers...)
-}
-
 // UpdateWithReceiptContext publishes an update and returns the exact root
 // receipt for callers that need to observe its later lifecycle.
 func UpdateWithReceiptContext(ctx context.Context, db *DB, mappers ...UpdateMapper) (PublishedWriteReceipt, error) {
@@ -4313,44 +4271,12 @@ func UpdateWithReceiptContext(ctx context.Context, db *DB, mappers ...UpdateMapp
 	return db.executeOrdinaryPublishedWriteContext(ctx, "update", true, true, statements)
 }
 
-func UpdatePublishedContext(ctx context.Context, db *DB, mappers ...UpdateMapper) error {
-	if db == nil {
-		return fmt.Errorf("db is nil")
-	}
-	statements, err := prepareUpdateWriteStatements("update", mappers)
-	if err != nil {
-		return err
-	}
-	return db.executeOrdinaryPublishedWriteWithoutReceiptContext(ctx, "update", true, statements)
-}
-
-// UpdateAndInsertPublished commits update and insert mappers as one published
-// write, without synchronously waiting for local checkpoint visibility.
-func UpdateAndInsertPublished(db *DB, updates []UpdateMapper, inserts []InsertMapper) error {
-	return UpdateAndInsertPublishedContext(context.Background(), db, updates, inserts)
-}
-
-func UpdateAndInsertPublishedContext(ctx context.Context, db *DB, updates []UpdateMapper, inserts []InsertMapper) error {
-	if db == nil {
-		return fmt.Errorf("db is nil")
-	}
-	updateStatements, err := prepareUpdateWriteStatements("update", updates)
-	if err != nil {
-		return err
-	}
-	insertStatements, err := prepareInsertWriteStatements("insert", inserts)
-	if err != nil {
-		return err
-	}
-	statements := append(updateStatements, insertStatements...)
-	return db.executeOrdinaryPublishedWriteWithoutReceiptContext(ctx, "update and insert", true, statements)
-}
-
 // UpdateAndInsertWithReceiptContext commits update and insert mappers as one
-// published write and returns the exact event/root receipt. Ordinary callers
-// should use UpdateAndInsertPublishedContext. Restart-sensitive operations
-// must instead use UpdateAndInsertWithOperationReceiptContext with a stable key
-// and intent digest retained in replicated operation state.
+// published write and returns the exact event/root receipt. Ordinary product
+// callers should wrap it with UpdateAndInsertWithAvailabilityContext.
+// Restart-sensitive operations must instead use
+// UpdateAndInsertWithOperationReceiptContext with a stable key and intent
+// digest retained in replicated operation state.
 func UpdateAndInsertWithReceiptContext(ctx context.Context, db *DB, updates []UpdateMapper, inserts []InsertMapper) (PublishedWriteReceipt, error) {
 	if db == nil {
 		return PublishedWriteReceipt{}, fmt.Errorf("db is nil")
@@ -4450,12 +4376,6 @@ func DeleteAndInsertWithOperationReceiptContext(
 	})
 }
 
-// Delete publishes the deleted root locally and leaves checkpoint/durable
-// observation asynchronous. A revisitable parked status is not a write error.
-func Delete(db *DB, mappers ...DeleteMapper) error {
-	return DeletePublishedContext(context.Background(), db, mappers...)
-}
-
 // DeleteWithReceiptContext publishes a delete and returns the exact root
 // receipt for callers that need to observe its later lifecycle.
 func DeleteWithReceiptContext(ctx context.Context, db *DB, mappers ...DeleteMapper) (PublishedWriteReceipt, error) {
@@ -4488,17 +4408,6 @@ func DeleteWithOperationReceiptContext(
 	return db.executePublishedWriteOperationContext(ctx, operation, "delete", func(ctx context.Context, executor sqlContextExecer) error {
 		return executePreparedWriteStatements(ctx, executor, statements)
 	})
-}
-
-func DeletePublishedContext(ctx context.Context, db *DB, mappers ...DeleteMapper) error {
-	if db == nil {
-		return fmt.Errorf("db is nil")
-	}
-	statements, err := prepareDeleteWriteStatements("delete", mappers)
-	if err != nil {
-		return err
-	}
-	return db.executeOrdinaryPublishedWriteWithoutReceiptContext(ctx, "delete", true, statements)
 }
 
 func (db *DB) executePublishedWriteTransactionWithSafeRetryContext(

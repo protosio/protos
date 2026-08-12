@@ -201,6 +201,7 @@ message CreateAppRequest {
 
 message CreateAppResponse {
   string id = 1;
+  WriteConfirmation confirmation = 2;
 }
 
 message StartAppRequest {
@@ -208,6 +209,7 @@ message StartAppRequest {
 }
 
 message StartAppResponse {
+  WriteConfirmation confirmation = 1;
 }
 
 message StopAppRequest {
@@ -215,6 +217,7 @@ message StopAppRequest {
 }
 
 message StopAppResponse {
+  WriteConfirmation confirmation = 1;
 }
 
 message RemoveAppRequest {
@@ -222,6 +225,7 @@ message RemoveAppRequest {
 }
 
 message RemoveAppResponse {
+  WriteConfirmation confirmation = 1;
 }
 
 message GetAppLogsRequest {
@@ -451,6 +455,7 @@ message DeployInstanceRequest {
 
 message DeployInstanceResponse {
   CloudInstance instance = 1;
+  WriteConfirmation confirmation = 2;
 }
 
 message RemoveInstanceRequest {
@@ -468,6 +473,7 @@ message StartInstanceRequest {
 
 message StartInstanceResponse {
   string task_id = 1;
+  WriteConfirmation confirmation = 2;
 }
 
 message StopInstanceRequest {
@@ -476,6 +482,7 @@ message StopInstanceRequest {
 
 message StopInstanceResponse {
   string task_id = 1;
+  WriteConfirmation confirmation = 2;
 }
 
 message GetInstanceKeyRequest {
@@ -706,6 +713,7 @@ message Task {
   string started_at = 16;
   string finished_at = 17;
   string owner_peer_id = 18;
+  WriteConfirmation confirmation = 19;
 }
 
 message TaskEvent {
@@ -752,6 +760,7 @@ message TaskProgressUpdate {
   string created_at = 6;
   // True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability.
   bool durable = 7;
+  WriteConfirmation confirmation = 8;
 }
 
 message WatchTaskRequest {
@@ -778,6 +787,7 @@ message SetExitRouteRequest {
 
 message SetExitRouteResponse {
   ExitRoute route = 1;
+  WriteConfirmation confirmation = 2;
 }
 
 message ClearExitRouteRequest {
@@ -785,6 +795,7 @@ message ClearExitRouteRequest {
 }
 
 message ClearExitRouteResponse {
+  WriteConfirmation confirmation = 1;
 }
 
 message RuntimeState {
@@ -1160,4 +1171,15 @@ message ExecuteSqlResponse {
   int64 rows_affected = 3;
   bool truncated = 4;
   string message = 5;
+}
+
+message WriteConfirmation {
+  // Strongest observed boundary: no_change, local_accepted, or other_peer_available.
+  string stage = 1;
+  string event_id = 2;
+  string published_root_hash = 3;
+  int32 required_other_peers = 4;
+  int32 confirmed_other_peers = 5;
+  // The mutation was accepted, but exact other-peer retention was not proved before returning; do not replay it.
+  bool availability_pending = 6;
 }

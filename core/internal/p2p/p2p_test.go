@@ -1252,6 +1252,21 @@ func TestSiblingConnectionCallbacksReuseClientAndWaitForPeerRouteLoss(t *testing
 	if err := manager.host.Network().ClosePeer(remote.ID()); err != nil {
 		t.Fatalf("close all peer routes: %v", err)
 	}
+	// ClosePeer returns before every libp2p Disconnected callback has
+	// necessarily drained. Wait until the physical network and the callback-
+	// maintained membership agree that only the synthetic sibling remains;
+	// otherwise this test races the real connection's asynchronous removal.
+	physicalDeadline := time.Now().Add(time.Second)
+	for time.Now().Before(physicalDeadline) {
+		if manager.host.Network().Connectedness(remote.ID()) == network.NotConnected &&
+			manager.physicalRouteCount(remote.ID()) == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if connectedness, routes := manager.host.Network().Connectedness(remote.ID()), manager.physicalRouteCount(remote.ID()); connectedness != network.NotConnected || routes != 1 {
+		t.Fatalf("physical route callbacks did not drain: connectedness=%s routes=%d", connectedness, routes)
+	}
 	if remaining := manager.removePhysicalRoute(remote.ID(), "synthetic-quic-sibling"); remaining != 0 {
 		t.Fatalf("synthetic sibling removal left %d routes", remaining)
 	}

@@ -133,18 +133,15 @@ type Manager struct {
 	providerMutationDisabled bool
 	// Recovery-only test seams prove foreign pending/parked handling without
 	// synthesizing protocol state. Production always uses the DB methods.
-	lookupDeleteRecoveryOperation         func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
-	observeDeleteRecoveryReceipt          func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
-	lookupTaskCheckpointRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
-	observeTaskCheckpointRecoveryReceipt  func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
-	verifyTaskCheckpointRecoveryInvariant func(context.Context, string, tasks.Record) error
-	publishDeleteOperation                func(context.Context, db.PublishedWriteOperation, InstanceInfo) (db.PublishedWriteReceipt, error)
-	lookupPeerDrainAuthorization          func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
-	publishPeerDrainAuthorization         func(context.Context, db.PublishedWriteOperation, InstanceInfo, tasks.OperationFact) (db.PublishedWriteReceipt, error)
-	waitPeerDrainAuthorization            func(context.Context, db.PublishedWriteReceipt, string) (db.EventReceiptObservation, error)
-	verifyPeerDrainAuthorization          func(context.Context, string, instancePeerDrainAuthorization, tasks.OperationFact) error
+	lookupDeleteRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
+	observeDeleteRecoveryReceipt  func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
+	publishDeleteOperation        func(context.Context, db.PublishedWriteOperation, InstanceInfo) (db.PublishedWriteReceipt, error)
+	lookupPeerDrainAuthorization  func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
+	publishPeerDrainAuthorization func(context.Context, db.PublishedWriteOperation, InstanceInfo, tasks.OperationFact) (db.PublishedWriteReceipt, error)
+	waitPeerDrainAuthorization    func(context.Context, db.PublishedWriteReceipt, string) (db.EventReceiptObservation, error)
+	verifyPeerDrainAuthorization  func(context.Context, string, instancePeerDrainAuthorization, tasks.OperationFact) error
 	// afterInstanceDeletePublished is an internal fault-injection seam for the
-	// accepted-event-to-replicated-task-checkpoint crash boundary.
+	// accepted-event-to-immutable-receipt-fact crash boundary.
 	afterInstanceDeletePublished func(db.PublishedWriteReceipt)
 	// Phase-boundary fault injection proves that restart resolves P before
 	// repeating drain and that provider deletion never runs without durable P.
@@ -157,6 +154,12 @@ type Manager struct {
 	addPeerForInstance              func(InstanceInfo) (*p2p.Client, error)
 	initializePeerForInstance       func(context.Context, *p2p.Client, *proto.InitRequest) (*proto.InitResponse, error)
 	originBootstrapAddrsForInstance func(string, string) []string
+	// Deployment admission seams make the exact publication boundary directly
+	// testable. An exact unresolved receipt must never trigger a compensating
+	// delete or a second enqueue publication.
+	insertDeploymentPlaceholder func(context.Context, ...db.InsertMapper) (db.PublishedWriteConfirmation, error)
+	deleteDeploymentPlaceholder func(context.Context, ...db.DeleteMapper) (db.PublishedWriteConfirmation, error)
+	enqueueDeploymentTask       func(context.Context, tasks.EnqueueOptions[deployInstanceTaskPayload]) (tasks.Record, error)
 }
 
 // SetProviderMutationEnabled prevents task-stream registration on a
@@ -515,7 +518,7 @@ func (cm *Manager) DeleteProvisioner(name string) error {
 		return fmt.Errorf("could not find provisioner '%s'", name)
 	}
 
-	err = db.Delete(cm.db, createCloudProviderDeleteMapper(record.ID))
+	_, err = db.DeleteWithAvailabilityContext(context.Background(), cm.db, createCloudProviderDeleteMapper(record.ID))
 	if err != nil {
 		return fmt.Errorf("failed to delete provisioner '%s': %w", name, err)
 	}
@@ -584,7 +587,8 @@ func (cm *Manager) saveProviderRecord(record ProviderRecord) error {
 	}
 	if len(records) == 1 {
 		record.ID = records[0].ID
-		return db.Update(cm.db, createCloudProviderUpdateMapper(record))
+		_, err := db.UpdateWithAvailabilityContext(context.Background(), cm.db, createCloudProviderUpdateMapper(record))
+		return err
 	}
 
 	if strings.TrimSpace(record.ID) == "" {
@@ -592,7 +596,8 @@ func (cm *Manager) saveProviderRecord(record ProviderRecord) error {
 	} else if _, err := db.UUIDBytes(record.ID); err != nil {
 		return fmt.Errorf("cloud provider id must be a UUID: %w", err)
 	}
-	return db.Insert(cm.db, createCloudProviderInsertMapper(record))
+	_, err = db.InsertWithAvailabilityContext(context.Background(), cm.db, createCloudProviderInsertMapper(record))
+	return err
 }
 
 func (cm *Manager) findProviderRecord(ref string) (ProviderRecord, bool, error) {
@@ -638,22 +643,32 @@ func (cm *Manager) findProviderRecordsByID(id string) ([]ProviderRecord, error) 
 //
 
 // DeployInstance deploys an instance on the provided cloud
-func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, err error) {
+func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error) {
+	instance, _, err := cm.DeployInstanceWithConfirmation(context.Background(), instanceName, cloudName, cloudLocation, release, machineType)
+	return instance, err
+}
+
+// DeployInstanceWithConfirmation exposes the exact task-enqueue confirmation
+// while preserving DeployInstance for callers that do not render write stages.
+func (cm *Manager) DeployInstanceWithConfirmation(ctx context.Context, instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, task tasks.Record, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	provider, err := cm.ensureProviderForDeployment(cloudName)
 	if err != nil {
-		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
+		return InstanceInfo{}, tasks.Record{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
 	}
 	if _, err := requireComputeProvisioner(provider); err != nil {
-		return InstanceInfo{}, err
+		return InstanceInfo{}, tasks.Record{}, err
 	}
 	if _, err := requireImageProvisioner(provider); err != nil {
-		return InstanceInfo{}, err
+		return InstanceInfo{}, tasks.Record{}, err
 	}
 	if _, err := requireVolumeProvisioner(provider); err != nil {
-		return InstanceInfo{}, err
+		return InstanceInfo{}, tasks.Record{}, err
 	}
 	if existing, existingErr := db.SelectOne(cm.db, createInstanceQueryByNameMapper(instanceName)); existingErr == nil && existing.ID != "" {
-		return InstanceInfo{}, fmt.Errorf("instance '%s' already exists", instanceName)
+		return InstanceInfo{}, tasks.Record{}, fmt.Errorf("instance '%s' already exists", instanceName)
 	}
 
 	pendingID := newPendingInstanceID()
@@ -670,14 +685,17 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		LifecycleOwnerPeerID: lifecycleOwnerPeerID,
 	}
 	if err := cm.assertInstanceLifecycleExecutor(instance, lifecycleOwnerPeerID); err != nil {
-		return InstanceInfo{}, fmt.Errorf("authorize desired instance %q: %w", instanceName, err)
+		return InstanceInfo{}, tasks.Record{}, fmt.Errorf("authorize desired instance %q: %w", instanceName, err)
 	}
 	mm, cmm := createInstanceInsertMapper(instance)
-	if err := db.Insert(cm.db, mm, cmm); err != nil {
-		return InstanceInfo{}, fmt.Errorf("failed to save desired instance '%s': %w", instanceName, err)
+	if _, err := cm.insertDeploymentPlaceholderWithAvailability(ctx, mm, cmm); err != nil {
+		if errors.Is(err, db.ErrPublishedWriteConfirmationUnresolved) {
+			return instance, tasks.Record{}, fmt.Errorf("failed to resolve desired instance '%s' publication: %w", instanceName, err)
+		}
+		return InstanceInfo{}, tasks.Record{}, fmt.Errorf("failed to save desired instance '%s': %w", instanceName, err)
 	}
 
-	task, err := tasks.Enqueue(cm.tasks, tasks.EnqueueOptions[deployInstanceTaskPayload]{
+	task, err = cm.enqueueDeploymentTaskWithContext(ctx, tasks.EnqueueOptions[deployInstanceTaskPayload]{
 		Stream:      InstanceDeploymentTaskStream,
 		SubjectType: taskSubjectInstance,
 		SubjectID:   pendingID,
@@ -694,13 +712,58 @@ func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLo
 		},
 	})
 	if err != nil {
+		if errors.Is(err, db.ErrPublishedWriteConfirmationUnresolved) {
+			instance.Status = fmt.Sprintf("%s: %s", task.Status, task.Message)
+			return instance, task, fmt.Errorf("failed to resolve deployment task publication for instance '%s': %w", instanceName, err)
+		}
 		im, cmmd := createInstanceDeleteMapper(pendingID)
-		_ = db.Delete(cm.db, im, cmmd)
-		return InstanceInfo{}, fmt.Errorf("failed to queue deployment for instance '%s': %w", instanceName, err)
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancelCleanup()
+		_, _ = cm.deleteDeploymentPlaceholderWithAvailability(cleanupCtx, im, cmmd)
+		return InstanceInfo{}, tasks.Record{}, fmt.Errorf("failed to queue deployment for instance '%s': %w", instanceName, err)
 	}
 	instance.Status = fmt.Sprintf("%s: %s", task.Status, task.Message)
 	log.Infof("Queued deployment task '%s' for desired instance '%s'", task.ID, instanceName)
-	return instance, nil
+	return instance, task, nil
+}
+
+func (cm *Manager) insertDeploymentPlaceholderWithAvailability(
+	ctx context.Context,
+	mappers ...db.InsertMapper,
+) (db.PublishedWriteConfirmation, error) {
+	if cm != nil && cm.insertDeploymentPlaceholder != nil {
+		return cm.insertDeploymentPlaceholder(ctx, mappers...)
+	}
+	if cm == nil {
+		return db.PublishedWriteConfirmation{}, fmt.Errorf("cloud manager is nil")
+	}
+	return db.InsertWithAvailabilityContext(ctx, cm.db, mappers...)
+}
+
+func (cm *Manager) deleteDeploymentPlaceholderWithAvailability(
+	ctx context.Context,
+	mappers ...db.DeleteMapper,
+) (db.PublishedWriteConfirmation, error) {
+	if cm != nil && cm.deleteDeploymentPlaceholder != nil {
+		return cm.deleteDeploymentPlaceholder(ctx, mappers...)
+	}
+	if cm == nil {
+		return db.PublishedWriteConfirmation{}, fmt.Errorf("cloud manager is nil")
+	}
+	return db.DeleteWithAvailabilityContext(ctx, cm.db, mappers...)
+}
+
+func (cm *Manager) enqueueDeploymentTaskWithContext(
+	ctx context.Context,
+	opts tasks.EnqueueOptions[deployInstanceTaskPayload],
+) (tasks.Record, error) {
+	if cm != nil && cm.enqueueDeploymentTask != nil {
+		return cm.enqueueDeploymentTask(ctx, opts)
+	}
+	if cm == nil {
+		return tasks.Record{}, fmt.Errorf("cloud manager is nil")
+	}
+	return tasks.EnqueueContext(ctx, cm.tasks, opts)
 }
 
 func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(int, string, any) error, pendingInstanceID string, instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, err error) {
@@ -848,7 +911,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 		pendingUpdate.Architecture = ""
 		pendingUpdate.DesiredStatus = ServerStateRunning
 		pendingUpdate.ReplicationPriority = db.DefaultReplicationPriorityForMachine(pendingUpdate.Kind, pendingUpdate.KindID)
-		if updateErr := cm.updateDeploymentPlaceholder(pendingUpdate); updateErr != nil {
+		if updateErr := cm.updateDeploymentPlaceholder(ctx, pendingUpdate); updateErr != nil {
 			return InstanceInfo{}, updateErr
 		}
 	}
@@ -892,7 +955,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 		pendingUpdate.PublicKey = ""
 		pendingUpdate.Architecture = ""
 		pendingUpdate.DesiredStatus = ServerStateRunning
-		if updateErr := cm.updateDeploymentPlaceholder(pendingUpdate); updateErr != nil {
+		if updateErr := cm.updateDeploymentPlaceholder(ctx, pendingUpdate); updateErr != nil {
 			return InstanceInfo{}, updateErr
 		}
 	}
@@ -961,7 +1024,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 
 	_ = progress(95, "saving VM identity", map[string]string{"peer_id": discoveredPeer.ID})
 	if pendingInstanceID != "" {
-		if err := cm.completeDeploymentInstance(pendingInstanceID, instanceInfo); err != nil {
+		if err := cm.completeDeploymentInstance(ctx, pendingInstanceID, instanceInfo); err != nil {
 			return InstanceInfo{}, instanceInitializationRecoveryRequired(instanceInfo.ID, "complete_deployment", err)
 		}
 	}
@@ -1028,7 +1091,7 @@ func (cm *Manager) InitInstance(instanceName string, kind string, kindID string,
 	log.Infof("Discovered instance peer '%s' at '%s' with fingerprint '%s'", discoveredPeer.ID, discoveredPeer.Address, discoveredPeer.Fingerprint)
 
 	machineMapper, machineMetadataMapper := createInstanceInsertMapper(instanceInfo)
-	if err := db.Insert(cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.PublicKey)); err != nil {
+	if _, err := db.InsertWithAvailabilityContext(context.Background(), cm.db, machineMapper, machineMetadataMapper, db.CreatePeerInsertMapper(instanceInfo.PublicKey)); err != nil {
 		return instanceInitializationRecoveryRequired(instanceInfo.ID, "persist_discovered_identity", fmt.Errorf("failed to save instance '%s': %w", instanceName, err))
 	}
 
@@ -1177,7 +1240,7 @@ func (cm *Manager) UpdateInstance(id string, ip string) error {
 	}
 	instance.PublicIP = ip
 	im, cmm := createInstanceUpdateMapper(instance)
-	err = db.Update(cm.db, im, cmm)
+	_, err = db.UpdateWithAvailabilityContext(context.Background(), cm.db, im, cmm)
 	if err != nil {
 		return fmt.Errorf("failed to save instance '%s': %w", id, err)
 	}
@@ -1872,7 +1935,7 @@ func (cm *Manager) markInstanceDeleting(ctx context.Context, instance InstanceIn
 	}
 	instance.DesiredStatus = ServerStateDeleting
 	im, _ := createInstanceUpdateMapper(instance)
-	if err := db.Update(cm.db, im); err != nil {
+	if _, err := db.UpdateWithAvailabilityContext(context.Background(), cm.db, im); err != nil {
 		return fmt.Errorf("failed to mark instance '%s' as deleting: %w", instance.Name, err)
 	}
 	return nil
@@ -1886,7 +1949,7 @@ func (cm *Manager) deleteAppsForInstance(ctx context.Context, instanceID string)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := db.Delete(cm.db, createAppDeleteByInstanceMapper(instanceID)); err != nil {
+	if _, err := db.DeleteWithAvailabilityContext(ctx, cm.db, createAppDeleteByInstanceMapper(instanceID)); err != nil {
 		return fmt.Errorf("failed to delete apps for instance '%s': %w", instanceID, err)
 	}
 	return nil
@@ -2642,7 +2705,7 @@ func (cm *Manager) reconcileDesiredInstance(ctx context.Context, progress func(i
 		return false, updated, err
 	}
 	im, cmm := createInstanceLifecycleUpdateMapper(updated)
-	if err := db.Update(cm.db, im, cmm); err != nil {
+	if _, err := db.UpdateWithAvailabilityContext(ctx, cm.db, im, cmm); err != nil {
 		return false, updated, fmt.Errorf("save reconciled instance %s: %w", instance.Name, err)
 	}
 	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(ctx, instance.ID); authErr != nil {

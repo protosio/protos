@@ -1674,9 +1674,11 @@ class CreateAppRequest extends $pb.GeneratedMessage {
 class CreateAppResponse extends $pb.GeneratedMessage {
   factory CreateAppResponse({
     $core.String? id,
+    WriteConfirmation? confirmation,
   }) {
     final result = create();
     if (id != null) result.id = id;
+    if (confirmation != null) result.confirmation = confirmation;
     return result;
   }
 
@@ -1694,6 +1696,8 @@ class CreateAppResponse extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOM<WriteConfirmation>(2, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1723,6 +1727,17 @@ class CreateAppResponse extends $pb.GeneratedMessage {
   $core.bool hasId() => $_has(0);
   @$pb.TagNumber(1)
   void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  WriteConfirmation get confirmation => $_getN(1);
+  @$pb.TagNumber(2)
+  set confirmation(WriteConfirmation value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasConfirmation() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearConfirmation() => $_clearField(2);
+  @$pb.TagNumber(2)
+  WriteConfirmation ensureConfirmation() => $_ensure(1);
 }
 
 class StartAppRequest extends $pb.GeneratedMessage {
@@ -1780,7 +1795,13 @@ class StartAppRequest extends $pb.GeneratedMessage {
 }
 
 class StartAppResponse extends $pb.GeneratedMessage {
-  factory StartAppResponse() => create();
+  factory StartAppResponse({
+    WriteConfirmation? confirmation,
+  }) {
+    final result = create();
+    if (confirmation != null) result.confirmation = confirmation;
+    return result;
+  }
 
   StartAppResponse._();
 
@@ -1795,6 +1816,8 @@ class StartAppResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'StartAppResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOM<WriteConfirmation>(1, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1815,6 +1838,17 @@ class StartAppResponse extends $pb.GeneratedMessage {
   static StartAppResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<StartAppResponse>(create);
   static StartAppResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  WriteConfirmation get confirmation => $_getN(0);
+  @$pb.TagNumber(1)
+  set confirmation(WriteConfirmation value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConfirmation() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfirmation() => $_clearField(1);
+  @$pb.TagNumber(1)
+  WriteConfirmation ensureConfirmation() => $_ensure(0);
 }
 
 class StopAppRequest extends $pb.GeneratedMessage {
@@ -1872,7 +1906,13 @@ class StopAppRequest extends $pb.GeneratedMessage {
 }
 
 class StopAppResponse extends $pb.GeneratedMessage {
-  factory StopAppResponse() => create();
+  factory StopAppResponse({
+    WriteConfirmation? confirmation,
+  }) {
+    final result = create();
+    if (confirmation != null) result.confirmation = confirmation;
+    return result;
+  }
 
   StopAppResponse._();
 
@@ -1887,6 +1927,8 @@ class StopAppResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'StopAppResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOM<WriteConfirmation>(1, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1907,6 +1949,17 @@ class StopAppResponse extends $pb.GeneratedMessage {
   static StopAppResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<StopAppResponse>(create);
   static StopAppResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  WriteConfirmation get confirmation => $_getN(0);
+  @$pb.TagNumber(1)
+  set confirmation(WriteConfirmation value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConfirmation() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfirmation() => $_clearField(1);
+  @$pb.TagNumber(1)
+  WriteConfirmation ensureConfirmation() => $_ensure(0);
 }
 
 class RemoveAppRequest extends $pb.GeneratedMessage {
@@ -1964,7 +2017,13 @@ class RemoveAppRequest extends $pb.GeneratedMessage {
 }
 
 class RemoveAppResponse extends $pb.GeneratedMessage {
-  factory RemoveAppResponse() => create();
+  factory RemoveAppResponse({
+    WriteConfirmation? confirmation,
+  }) {
+    final result = create();
+    if (confirmation != null) result.confirmation = confirmation;
+    return result;
+  }
 
   RemoveAppResponse._();
 
@@ -1979,6 +2038,8 @@ class RemoveAppResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'RemoveAppResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOM<WriteConfirmation>(1, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1999,6 +2060,17 @@ class RemoveAppResponse extends $pb.GeneratedMessage {
   static RemoveAppResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<RemoveAppResponse>(create);
   static RemoveAppResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  WriteConfirmation get confirmation => $_getN(0);
+  @$pb.TagNumber(1)
+  set confirmation(WriteConfirmation value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConfirmation() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfirmation() => $_clearField(1);
+  @$pb.TagNumber(1)
+  WriteConfirmation ensureConfirmation() => $_ensure(0);
 }
 
 class GetAppLogsRequest extends $pb.GeneratedMessage {
@@ -4924,9 +4996,11 @@ class DeployInstanceRequest extends $pb.GeneratedMessage {
 class DeployInstanceResponse extends $pb.GeneratedMessage {
   factory DeployInstanceResponse({
     CloudInstance? instance,
+    WriteConfirmation? confirmation,
   }) {
     final result = create();
     if (instance != null) result.instance = instance;
+    if (confirmation != null) result.confirmation = confirmation;
     return result;
   }
 
@@ -4945,6 +5019,8 @@ class DeployInstanceResponse extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOM<CloudInstance>(1, _omitFieldNames ? '' : 'instance',
         subBuilder: CloudInstance.create)
+    ..aOM<WriteConfirmation>(2, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -4977,6 +5053,17 @@ class DeployInstanceResponse extends $pb.GeneratedMessage {
   void clearInstance() => $_clearField(1);
   @$pb.TagNumber(1)
   CloudInstance ensureInstance() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  WriteConfirmation get confirmation => $_getN(1);
+  @$pb.TagNumber(2)
+  set confirmation(WriteConfirmation value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasConfirmation() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearConfirmation() => $_clearField(2);
+  @$pb.TagNumber(2)
+  WriteConfirmation ensureConfirmation() => $_ensure(1);
 }
 
 class RemoveInstanceRequest extends $pb.GeneratedMessage {
@@ -5158,9 +5245,11 @@ class StartInstanceRequest extends $pb.GeneratedMessage {
 class StartInstanceResponse extends $pb.GeneratedMessage {
   factory StartInstanceResponse({
     $core.String? taskId,
+    WriteConfirmation? confirmation,
   }) {
     final result = create();
     if (taskId != null) result.taskId = taskId;
+    if (confirmation != null) result.confirmation = confirmation;
     return result;
   }
 
@@ -5178,6 +5267,8 @@ class StartInstanceResponse extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'taskId')
+    ..aOM<WriteConfirmation>(2, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5208,6 +5299,17 @@ class StartInstanceResponse extends $pb.GeneratedMessage {
   $core.bool hasTaskId() => $_has(0);
   @$pb.TagNumber(1)
   void clearTaskId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  WriteConfirmation get confirmation => $_getN(1);
+  @$pb.TagNumber(2)
+  set confirmation(WriteConfirmation value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasConfirmation() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearConfirmation() => $_clearField(2);
+  @$pb.TagNumber(2)
+  WriteConfirmation ensureConfirmation() => $_ensure(1);
 }
 
 class StopInstanceRequest extends $pb.GeneratedMessage {
@@ -5267,9 +5369,11 @@ class StopInstanceRequest extends $pb.GeneratedMessage {
 class StopInstanceResponse extends $pb.GeneratedMessage {
   factory StopInstanceResponse({
     $core.String? taskId,
+    WriteConfirmation? confirmation,
   }) {
     final result = create();
     if (taskId != null) result.taskId = taskId;
+    if (confirmation != null) result.confirmation = confirmation;
     return result;
   }
 
@@ -5287,6 +5391,8 @@ class StopInstanceResponse extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'taskId')
+    ..aOM<WriteConfirmation>(2, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5316,6 +5422,17 @@ class StopInstanceResponse extends $pb.GeneratedMessage {
   $core.bool hasTaskId() => $_has(0);
   @$pb.TagNumber(1)
   void clearTaskId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  WriteConfirmation get confirmation => $_getN(1);
+  @$pb.TagNumber(2)
+  set confirmation(WriteConfirmation value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasConfirmation() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearConfirmation() => $_clearField(2);
+  @$pb.TagNumber(2)
+  WriteConfirmation ensureConfirmation() => $_ensure(1);
 }
 
 class GetInstanceKeyRequest extends $pb.GeneratedMessage {
@@ -7958,6 +8075,7 @@ class Task extends $pb.GeneratedMessage {
     $core.String? startedAt,
     $core.String? finishedAt,
     $core.String? ownerPeerId,
+    WriteConfirmation? confirmation,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -7978,6 +8096,7 @@ class Task extends $pb.GeneratedMessage {
     if (startedAt != null) result.startedAt = startedAt;
     if (finishedAt != null) result.finishedAt = finishedAt;
     if (ownerPeerId != null) result.ownerPeerId = ownerPeerId;
+    if (confirmation != null) result.confirmation = confirmation;
     return result;
   }
 
@@ -8012,6 +8131,8 @@ class Task extends $pb.GeneratedMessage {
     ..aOS(16, _omitFieldNames ? '' : 'startedAt')
     ..aOS(17, _omitFieldNames ? '' : 'finishedAt')
     ..aOS(18, _omitFieldNames ? '' : 'ownerPeerId')
+    ..aOM<WriteConfirmation>(19, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8193,6 +8314,17 @@ class Task extends $pb.GeneratedMessage {
   $core.bool hasOwnerPeerId() => $_has(17);
   @$pb.TagNumber(18)
   void clearOwnerPeerId() => $_clearField(18);
+
+  @$pb.TagNumber(19)
+  WriteConfirmation get confirmation => $_getN(18);
+  @$pb.TagNumber(19)
+  set confirmation(WriteConfirmation value) => $_setField(19, value);
+  @$pb.TagNumber(19)
+  $core.bool hasConfirmation() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearConfirmation() => $_clearField(19);
+  @$pb.TagNumber(19)
+  WriteConfirmation ensureConfirmation() => $_ensure(18);
 }
 
 class TaskEvent extends $pb.GeneratedMessage {
@@ -8644,6 +8776,7 @@ class TaskProgressUpdate extends $pb.GeneratedMessage {
     $core.String? detailsJson,
     $core.String? createdAt,
     $core.bool? durable,
+    WriteConfirmation? confirmation,
   }) {
     final result = create();
     if (taskId != null) result.taskId = taskId;
@@ -8653,6 +8786,7 @@ class TaskProgressUpdate extends $pb.GeneratedMessage {
     if (detailsJson != null) result.detailsJson = detailsJson;
     if (createdAt != null) result.createdAt = createdAt;
     if (durable != null) result.durable = durable;
+    if (confirmation != null) result.confirmation = confirmation;
     return result;
   }
 
@@ -8676,6 +8810,8 @@ class TaskProgressUpdate extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'detailsJson')
     ..aOS(6, _omitFieldNames ? '' : 'createdAt')
     ..aOB(7, _omitFieldNames ? '' : 'durable')
+    ..aOM<WriteConfirmation>(8, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8760,6 +8896,17 @@ class TaskProgressUpdate extends $pb.GeneratedMessage {
   $core.bool hasDurable() => $_has(6);
   @$pb.TagNumber(7)
   void clearDurable() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  WriteConfirmation get confirmation => $_getN(7);
+  @$pb.TagNumber(8)
+  set confirmation(WriteConfirmation value) => $_setField(8, value);
+  @$pb.TagNumber(8)
+  $core.bool hasConfirmation() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearConfirmation() => $_clearField(8);
+  @$pb.TagNumber(8)
+  WriteConfirmation ensureConfirmation() => $_ensure(7);
 }
 
 class WatchTaskRequest extends $pb.GeneratedMessage {
@@ -9045,9 +9192,11 @@ class SetExitRouteRequest extends $pb.GeneratedMessage {
 class SetExitRouteResponse extends $pb.GeneratedMessage {
   factory SetExitRouteResponse({
     ExitRoute? route,
+    WriteConfirmation? confirmation,
   }) {
     final result = create();
     if (route != null) result.route = route;
+    if (confirmation != null) result.confirmation = confirmation;
     return result;
   }
 
@@ -9066,6 +9215,8 @@ class SetExitRouteResponse extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOM<ExitRoute>(1, _omitFieldNames ? '' : 'route',
         subBuilder: ExitRoute.create)
+    ..aOM<WriteConfirmation>(2, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9097,6 +9248,17 @@ class SetExitRouteResponse extends $pb.GeneratedMessage {
   void clearRoute() => $_clearField(1);
   @$pb.TagNumber(1)
   ExitRoute ensureRoute() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  WriteConfirmation get confirmation => $_getN(1);
+  @$pb.TagNumber(2)
+  set confirmation(WriteConfirmation value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasConfirmation() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearConfirmation() => $_clearField(2);
+  @$pb.TagNumber(2)
+  WriteConfirmation ensureConfirmation() => $_ensure(1);
 }
 
 class ClearExitRouteRequest extends $pb.GeneratedMessage {
@@ -9155,7 +9317,13 @@ class ClearExitRouteRequest extends $pb.GeneratedMessage {
 }
 
 class ClearExitRouteResponse extends $pb.GeneratedMessage {
-  factory ClearExitRouteResponse() => create();
+  factory ClearExitRouteResponse({
+    WriteConfirmation? confirmation,
+  }) {
+    final result = create();
+    if (confirmation != null) result.confirmation = confirmation;
+    return result;
+  }
 
   ClearExitRouteResponse._();
 
@@ -9170,6 +9338,8 @@ class ClearExitRouteResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ClearExitRouteResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
+    ..aOM<WriteConfirmation>(1, _omitFieldNames ? '' : 'confirmation',
+        subBuilder: WriteConfirmation.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9191,6 +9361,17 @@ class ClearExitRouteResponse extends $pb.GeneratedMessage {
   static ClearExitRouteResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<ClearExitRouteResponse>(create);
   static ClearExitRouteResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  WriteConfirmation get confirmation => $_getN(0);
+  @$pb.TagNumber(1)
+  set confirmation(WriteConfirmation value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConfirmation() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfirmation() => $_clearField(1);
+  @$pb.TagNumber(1)
+  WriteConfirmation ensureConfirmation() => $_ensure(0);
 }
 
 class RuntimeState extends $pb.GeneratedMessage {
@@ -13843,6 +14024,125 @@ class ExecuteSqlResponse extends $pb.GeneratedMessage {
   $core.bool hasMessage() => $_has(4);
   @$pb.TagNumber(5)
   void clearMessage() => $_clearField(5);
+}
+
+class WriteConfirmation extends $pb.GeneratedMessage {
+  factory WriteConfirmation({
+    $core.String? stage,
+    $core.String? eventId,
+    $core.String? publishedRootHash,
+    $core.int? requiredOtherPeers,
+    $core.int? confirmedOtherPeers,
+    $core.bool? availabilityPending,
+  }) {
+    final result = create();
+    if (stage != null) result.stage = stage;
+    if (eventId != null) result.eventId = eventId;
+    if (publishedRootHash != null) result.publishedRootHash = publishedRootHash;
+    if (requiredOtherPeers != null)
+      result.requiredOtherPeers = requiredOtherPeers;
+    if (confirmedOtherPeers != null)
+      result.confirmedOtherPeers = confirmedOtherPeers;
+    if (availabilityPending != null)
+      result.availabilityPending = availabilityPending;
+    return result;
+  }
+
+  WriteConfirmation._();
+
+  factory WriteConfirmation.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory WriteConfirmation.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'WriteConfirmation',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'stage')
+    ..aOS(2, _omitFieldNames ? '' : 'eventId')
+    ..aOS(3, _omitFieldNames ? '' : 'publishedRootHash')
+    ..aI(4, _omitFieldNames ? '' : 'requiredOtherPeers')
+    ..aI(5, _omitFieldNames ? '' : 'confirmedOtherPeers')
+    ..aOB(6, _omitFieldNames ? '' : 'availabilityPending')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WriteConfirmation clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WriteConfirmation copyWith(void Function(WriteConfirmation) updates) =>
+      super.copyWith((message) => updates(message as WriteConfirmation))
+          as WriteConfirmation;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static WriteConfirmation create() => WriteConfirmation._();
+  @$core.override
+  WriteConfirmation createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static WriteConfirmation getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<WriteConfirmation>(create);
+  static WriteConfirmation? _defaultInstance;
+
+  /// Strongest observed boundary: no_change, local_accepted, or other_peer_available.
+  @$pb.TagNumber(1)
+  $core.String get stage => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set stage($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStage() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStage() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get eventId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set eventId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEventId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEventId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get publishedRootHash => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set publishedRootHash($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasPublishedRootHash() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearPublishedRootHash() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get requiredOtherPeers => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set requiredOtherPeers($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRequiredOtherPeers() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRequiredOtherPeers() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get confirmedOtherPeers => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set confirmedOtherPeers($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasConfirmedOtherPeers() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearConfirmedOtherPeers() => $_clearField(5);
+
+  /// The mutation was accepted, but exact other-peer retention was not proved before returning; do not replay it.
+  @$pb.TagNumber(6)
+  $core.bool get availabilityPending => $_getBF(5);
+  @$pb.TagNumber(6)
+  set availabilityPending($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasAvailabilityPending() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearAvailabilityPending() => $_clearField(6);
 }
 
 class ProtosClientApiApi {

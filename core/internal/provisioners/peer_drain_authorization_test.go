@@ -302,7 +302,7 @@ func TestPeerDrainAuthorizationPublishesAtomicExactFactAndDeletingCAS(t *testing
 	stale := instance
 	stale.DesiredStatus = ServerStateRunning
 	staleMachine, staleMetadata := createInstanceLifecycleUpdateMapper(stale)
-	if err := db.Update(store, staleMachine, staleMetadata); err != nil {
+	if _, err := db.UpdateWithReceiptContext(context.Background(), store, staleMachine, staleMetadata); err != nil {
 		t.Fatalf("attempt stale lifecycle update: %v", err)
 	}
 	stored, err = db.SelectOne(store, createInstanceQueryMapper(instance.ID))

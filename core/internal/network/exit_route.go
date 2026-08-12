@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -26,33 +27,39 @@ type ExitRoute struct {
 	cidrsJSON     string
 }
 
-func SetExitRoute(database *db.DB, deviceID string, instanceID string, dnsServer string, cidrs []string) (ExitRoute, error) {
+// SetExitRouteWithConfirmationContext also returns the exact accepted-write
+// stage. Pending availability is represented in the confirmation and never as
+// a replayable route mutation error.
+func SetExitRouteWithConfirmationContext(ctx context.Context, database *db.DB, deviceID string, instanceID string, dnsServer string, cidrs []string) (ExitRoute, db.PublishedWriteConfirmation, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	deviceID = strings.TrimSpace(deviceID)
 	instanceID = strings.TrimSpace(instanceID)
 	if deviceID == "" {
-		return ExitRoute{}, fmt.Errorf("device id is required")
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, fmt.Errorf("device id is required")
 	}
 	if instanceID == "" {
-		return ExitRoute{}, fmt.Errorf("instance id is required")
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, fmt.Errorf("instance id is required")
 	}
 	if _, err := db.UUIDBytes(deviceID); err != nil {
-		return ExitRoute{}, fmt.Errorf("device id must be a UUID: %w", err)
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, fmt.Errorf("device id must be a UUID: %w", err)
 	}
 	if _, err := db.UUIDBytes(instanceID); err != nil {
-		return ExitRoute{}, fmt.Errorf("instance id must be a UUID: %w", err)
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, fmt.Errorf("instance id must be a UUID: %w", err)
 	}
 	normalizedDNSServer, err := NormalizeDNSServer(dnsServer)
 	if err != nil {
-		return ExitRoute{}, err
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, err
 	}
 	normalizedCIDRs, err := NormalizeExitRouteCIDRs(cidrs)
 	if err != nil {
-		return ExitRoute{}, err
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, err
 	}
 
 	routeID, err := db.NewUUIDv7()
 	if err != nil {
-		return ExitRoute{}, err
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, err
 	}
 	route := ExitRoute{
 		ID:            routeID,
@@ -63,44 +70,61 @@ func SetExitRoute(database *db.DB, deviceID string, instanceID string, dnsServer
 		CIDRs:         normalizedCIDRs,
 	}
 
-	existing, err := GetExitRoutesForDevice(database, deviceID)
+	existing, err := GetExitRoutesForDeviceContext(ctx, database, deviceID)
 	if err != nil {
-		return ExitRoute{}, err
+		return ExitRoute{}, db.PublishedWriteConfirmation{}, err
 	}
 	if len(existing) == 0 {
-		if err := db.Insert(database, createExitRouteInsertMapper(route)); err != nil {
-			return ExitRoute{}, err
+		confirmation, err := db.InsertWithAvailabilityContext(ctx, database, createExitRouteInsertMapper(route))
+		if err != nil {
+			return ExitRoute{}, confirmation, err
 		}
-		return route, nil
+		return route, confirmation, nil
 	}
 	route.ID = existing[0].ID
-	if err := db.Update(database, createExitRouteUpdateMapper(route)); err != nil {
-		return ExitRoute{}, err
+	confirmation, err := db.UpdateWithAvailabilityContext(ctx, database, createExitRouteUpdateMapper(route))
+	if err != nil {
+		return ExitRoute{}, confirmation, err
 	}
-	return route, nil
+	return route, confirmation, nil
 }
 
-func ClearExitRoute(database *db.DB, deviceID string) error {
+// ClearExitRouteWithConfirmationContext returns no_change when no route
+// exists, and otherwise preserves the accepted delete receipt even if another
+// peer cannot yet be proved to retain it.
+func ClearExitRouteWithConfirmationContext(ctx context.Context, database *db.DB, deviceID string) (db.PublishedWriteConfirmation, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	deviceID = strings.TrimSpace(deviceID)
 	if deviceID == "" {
-		return fmt.Errorf("device id is required")
+		return db.PublishedWriteConfirmation{}, fmt.Errorf("device id is required")
 	}
-	existing, err := GetExitRoutesForDevice(database, deviceID)
+	existing, err := GetExitRoutesForDeviceContext(ctx, database, deviceID)
 	if err != nil {
-		return err
+		return db.PublishedWriteConfirmation{}, err
 	}
 	if len(existing) == 0 {
-		return nil
+		return db.PublishedWriteConfirmation{Stage: db.PublishedWriteConfirmationNoChange}, nil
 	}
 	deletes := make([]db.DeleteMapper, 0, len(existing))
 	for _, route := range existing {
 		deletes = append(deletes, createExitRouteDeleteMapper(route.ID))
 	}
-	return db.Delete(database, deletes...)
+	return db.DeleteWithAvailabilityContext(ctx, database, deletes...)
 }
 
 func GetExitRoutes(database *db.DB) ([]ExitRoute, error) {
-	routes, err := db.SelectMultiple(database, createExitRouteQueryMapper(nil))
+	return GetExitRoutesContext(context.Background(), database)
+}
+
+// GetExitRoutesContext retrieves all desired exit routes with caller-owned
+// cancellation.
+func GetExitRoutesContext(ctx context.Context, database *db.DB) ([]ExitRoute, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	routes, err := db.SelectMultipleContext(ctx, database, createExitRouteQueryMapper(nil))
 	if err != nil {
 		return nil, fmt.Errorf("retrieve exit routes: %w", err)
 	}
@@ -108,9 +132,18 @@ func GetExitRoutes(database *db.DB) ([]ExitRoute, error) {
 }
 
 func GetExitRoutesForDevice(database *db.DB, deviceID string) ([]ExitRoute, error) {
+	return GetExitRoutesForDeviceContext(context.Background(), database, deviceID)
+}
+
+// GetExitRoutesForDeviceContext retrieves the desired routes for one device
+// with caller-owned cancellation.
+func GetExitRoutesForDeviceContext(ctx context.Context, database *db.DB, deviceID string) ([]ExitRoute, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	deviceID = strings.TrimSpace(deviceID)
 	model := sq.New[db.EXIT_ROUTE]("")
-	routes, err := db.SelectMultiple(database, createExitRouteQueryMapper([]sq.Predicate{db.UUIDEq(model.DEVICE_ID, deviceID)}))
+	routes, err := db.SelectMultipleContext(ctx, database, createExitRouteQueryMapper([]sq.Predicate{db.UUIDEq(model.DEVICE_ID, deviceID)}))
 	if err != nil {
 		return nil, fmt.Errorf("retrieve exit route for device %s: %w", deviceID, err)
 	}

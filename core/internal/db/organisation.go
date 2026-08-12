@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func CreateOrganisation(database *DB, name string) (Organisation, error) {
 		Name:      normalizeOrganisationName(name),
 		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	if err := Insert(database, createOrganisationInsertMapper(organisation)); err != nil {
+	if _, err := InsertWithAvailabilityContext(context.Background(), database, createOrganisationInsertMapper(organisation)); err != nil {
 		return Organisation{}, fmt.Errorf("create organisation: %w", err)
 	}
 	return organisation, nil

@@ -365,7 +365,7 @@ func TestSwarmionBackedDBRapidConsecutiveWrites(t *testing.T) {
 
 	for _, username := range []string{"first", "second"} {
 		userID := db.MustNewUUIDv7()
-		if err := db.Insert(store, func() sq.InsertQuery {
+		if _, err := db.InsertWithReceiptContext(context.Background(), store, func() sq.InsertQuery {
 			u := sq.New[db.USER]("")
 			return sq.InsertInto(u).ColumnValues(func(col *sq.Column) {
 				col.SetBytes(u.ID, db.MustUUIDBytes(userID))
@@ -599,7 +599,7 @@ func TestSwarmionBackedDBProvisionerWriteThenUserRead(t *testing.T) {
 	}
 
 	userID := db.MustNewUUIDv7()
-	if err := db.Insert(store, func() sq.InsertQuery {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, func() sq.InsertQuery {
 		u := sq.New[db.USER]("")
 		return sq.InsertInto(u).ColumnValues(func(col *sq.Column) {
 			col.SetBytes(u.ID, db.MustUUIDBytes(userID))
@@ -612,7 +612,7 @@ func TestSwarmionBackedDBProvisionerWriteThenUserRead(t *testing.T) {
 	}
 
 	providerID := db.MustNewUUIDv7()
-	if err := db.Insert(store, func() sq.InsertQuery {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, func() sq.InsertQuery {
 		cp := sq.New[db.CLOUD_PROVIDER]("")
 		return sq.InsertInto(cp).ColumnValues(func(col *sq.Column) {
 			col.SetBytes(cp.ID, db.MustUUIDBytes(providerID))

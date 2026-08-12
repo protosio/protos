@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/bokwoon95/sq"
 	"github.com/protosio/protos/internal/config"
@@ -106,9 +107,23 @@ func TestCreateAssignsAppPublicKeyAndOverlayIP(t *testing.T) {
 	store := newTestAppDB(t)
 	manager := CreateManager("local-node", &fakeRuntimePlatform{}, store, tasks.NewManager(store))
 
-	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", "vm-id", false, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	created, confirmation, err := manager.CreateWithConfirmation(ctx, "docker.io/library/busybox:latest", "app", "vm-id", false, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if err := ctx.Err(); err != nil {
+		t.Fatalf("single-peer create did not return promptly: %v", err)
+	}
+	if confirmation.Stage != db.PublishedWriteConfirmationLocalAccepted {
+		t.Fatalf("confirmation stage = %q, want %q", confirmation.Stage, db.PublishedWriteConfirmationLocalAccepted)
+	}
+	if !confirmation.AvailabilityPending {
+		t.Fatal("single-peer create should preserve pending other-peer availability")
+	}
+	if !confirmation.Receipt.HasExactEventIdentity() {
+		t.Fatalf("create confirmation did not preserve exact receipt: %+v", confirmation.Receipt)
 	}
 	if created.PublicKey == "" {
 		t.Fatal("PublicKey is empty")
@@ -290,7 +305,7 @@ func TestNotifyRepairsAlreadyRunningLocalApp(t *testing.T) {
 		IP:            appIPFromPublicKey(key.PublicString()),
 		PublicKey:     key.PublicString(),
 	}
-	if err := db.Insert(store, createAppInsertMapper(app)); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, createAppInsertMapper(app)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -345,7 +360,7 @@ func newTestAppDB(t *testing.T) *db.DB {
 
 func insertTestApp(t *testing.T, store *db.DB, id string, name string, instanceID string, desiredStatus string) {
 	t.Helper()
-	if err := db.Insert(store, createAppInsertMapper(App{
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, createAppInsertMapper(App{
 		ID:            id,
 		Name:          name,
 		InstallerRef:  "installer",
@@ -392,7 +407,7 @@ func insertTestMachine(t *testing.T, store *db.DB, name string) (string, string)
 		}
 		return sq.InsertInto(cmm).ColumnValues(mapper)
 	}
-	if err := db.Insert(store, machineInsert, metadataInsert); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, machineInsert, metadataInsert); err != nil {
 		t.Fatalf("insert machine %s: %v", name, err)
 	}
 	return instanceID, peerID

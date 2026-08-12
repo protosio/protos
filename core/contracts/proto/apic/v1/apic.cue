@@ -73,6 +73,20 @@ package apicv1
 	private?: string
 }
 
+// WriteConfirmation reports the strongest boundary observed for the exact
+// accepted mutation. other_peer_available proves retention by another peer;
+// it does not imply checkpoint application, canonical acceptance, or quorum.
+#WriteConfirmation: {
+	stage?:                 "no_change" | "local_accepted" | "other_peer_available"
+	event_id?:              string
+	published_root_hash?:    string
+	required_other_peers?:  int
+	confirmed_other_peers?: int
+	// A pending availability proof is still an accepted mutation. Clients must
+	// observe the receipt instead of replaying the write.
+	availability_pending?: bool
+}
+
 #App: {
 	id?:            string
 	name?:          string
@@ -91,13 +105,16 @@ package apicv1
 	instance_id?:  string
 	persistence?:  bool
 }
-#CreateAppResponse: id?: string
+#CreateAppResponse: {
+	id?:            string
+	confirmation?: #WriteConfirmation
+}
 #StartAppRequest: name?: string
-#StartAppResponse: {}
+#StartAppResponse: confirmation?: #WriteConfirmation
 #StopAppRequest: name?: string
-#StopAppResponse: {}
+#StopAppResponse: confirmation?: #WriteConfirmation
 #RemoveAppRequest: name?: string
-#RemoveAppResponse: {}
+#RemoveAppResponse: confirmation?: #WriteConfirmation
 #GetAppLogsRequest: name?:  string
 #GetAppLogsResponse: logs?: bytes
 
@@ -235,16 +252,25 @@ package apicv1
 	protos_version?: string
 	dev_img?:        string
 }
-#DeployInstanceResponse: instance?: #CloudInstance
+#DeployInstanceResponse: {
+	instance?:     #CloudInstance
+	confirmation?: #WriteConfirmation
+}
 #RemoveInstanceRequest: {
 	name?:       string
 	local_only?: bool
 }
 #RemoveInstanceResponse: task_id?: string
 #StartInstanceRequest: name?:      string
-#StartInstanceResponse: task_id?:  string
+#StartInstanceResponse: {
+	task_id?:      string
+	confirmation?: #WriteConfirmation
+}
 #StopInstanceRequest: name?:       string
-#StopInstanceResponse: task_id?:   string
+#StopInstanceResponse: {
+	task_id?:      string
+	confirmation?: #WriteConfirmation
+}
 #GetInstanceKeyRequest: name?:     string
 #GetInstanceKeyResponse: key?:     string
 #GetInstanceLogsRequest: name?:    string
@@ -417,6 +443,7 @@ package apicv1
 	updated_at?:    string
 	started_at?:    string
 	finished_at?:   string
+	confirmation?:  #WriteConfirmation
 }
 #TaskEvent: {
 	id?:           string
@@ -458,6 +485,7 @@ package apicv1
 	// True when the task state was saved and its local root published; this is
 	// not Swarmion event applied_durably or content durability.
 	durable?:      bool
+	confirmation?: #WriteConfirmation
 }
 #WatchTaskRequest: {
 	id?:                    string
@@ -478,11 +506,14 @@ package apicv1
 	dns_server?: string
 	cidrs?: [...string]
 }
-#SetExitRouteResponse: route?: #ExitRoute
+#SetExitRouteResponse: {
+	route?:        #ExitRoute
+	confirmation?: #WriteConfirmation
+}
 #ClearExitRouteRequest: {
 	device_id?: string
 }
-#ClearExitRouteResponse: {}
+#ClearExitRouteResponse: confirmation?: #WriteConfirmation
 
 #RuntimeState: {
 	peer_id?:                       string
@@ -966,13 +997,14 @@ contract: {
 			]},
 			{kind: "message", name: "CreateAppResponse", fields: [
 				{type: "string", name: "id", number: 1},
+				{type: "WriteConfirmation", name: "confirmation", number: 2},
 			]},
 			{kind: "message", name: "StartAppRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "StartAppResponse", fields: []},
+			{kind: "message", name: "StartAppResponse", fields: [{type: "WriteConfirmation", name: "confirmation", number: 1}]},
 			{kind: "message", name: "StopAppRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "StopAppResponse", fields: []},
+			{kind: "message", name: "StopAppResponse", fields: [{type: "WriteConfirmation", name: "confirmation", number: 1}]},
 			{kind: "message", name: "RemoveAppRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "RemoveAppResponse", fields: []},
+			{kind: "message", name: "RemoveAppResponse", fields: [{type: "WriteConfirmation", name: "confirmation", number: 1}]},
 			{kind: "message", name: "GetAppLogsRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "GetAppLogsResponse", fields: [{type: "bytes", name: "logs", number: 1}]},
 			{kind: "message", name: "Installer", fields: [
@@ -1109,16 +1141,25 @@ contract: {
 				{type: "string", name: "protos_version", number: 5},
 				{type: "string", name: "dev_img", number: 6},
 			]},
-			{kind: "message", name: "DeployInstanceResponse", fields: [{type: "CloudInstance", name: "instance", number: 1}]},
+			{kind: "message", name: "DeployInstanceResponse", fields: [
+				{type: "CloudInstance", name: "instance", number: 1},
+				{type: "WriteConfirmation", name: "confirmation", number: 2},
+			]},
 			{kind: "message", name: "RemoveInstanceRequest", fields: [
 				{type: "string", name: "name", number: 1},
 				{type: "bool", name: "local_only", number: 2},
 			]},
 			{kind: "message", name: "RemoveInstanceResponse", fields: [{type: "string", name: "task_id", number: 1}]},
 			{kind: "message", name: "StartInstanceRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "StartInstanceResponse", fields: [{type: "string", name: "task_id", number: 1}]},
+			{kind: "message", name: "StartInstanceResponse", fields: [
+				{type: "string", name: "task_id", number: 1},
+				{type: "WriteConfirmation", name: "confirmation", number: 2},
+			]},
 			{kind: "message", name: "StopInstanceRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "StopInstanceResponse", fields: [{type: "string", name: "task_id", number: 1}]},
+			{kind: "message", name: "StopInstanceResponse", fields: [
+				{type: "string", name: "task_id", number: 1},
+				{type: "WriteConfirmation", name: "confirmation", number: 2},
+			]},
 			{kind: "message", name: "GetInstanceKeyRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "GetInstanceKeyResponse", fields: [{type: "string", name: "key", number: 1}]},
 			{kind: "message", name: "GetInstanceLogsRequest", fields: [{type: "string", name: "name", number: 1}]},
@@ -1305,6 +1346,7 @@ contract: {
 				{type: "string", name: "started_at", number: 16},
 				{type: "string", name: "finished_at", number: 17},
 				{type: "string", name: "owner_peer_id", number: 18},
+				{type: "WriteConfirmation", name: "confirmation", number: 19},
 			]},
 			{kind: "message", name: "TaskEvent", fields: [
 				{type: "string", name: "id", number: 1},
@@ -1344,6 +1386,7 @@ contract: {
 				{type: "string", name: "details_json", number: 5},
 				{type: "string", name: "created_at", number: 6},
 				{type: "bool", name: "durable", number: 7, comment: "True when the task state was saved and its local root published; this is not Swarmion event applied_durably or content durability."},
+				{type: "WriteConfirmation", name: "confirmation", number: 8},
 			]},
 			{kind: "message", name: "WatchTaskRequest", fields: [
 				{type: "string", name: "id", number: 1},
@@ -1366,11 +1409,12 @@ contract: {
 			]},
 			{kind: "message", name: "SetExitRouteResponse", fields: [
 				{type: "ExitRoute", name: "route", number: 1},
+				{type: "WriteConfirmation", name: "confirmation", number: 2},
 			]},
 			{kind: "message", name: "ClearExitRouteRequest", fields: [
 				{type: "string", name: "device_id", number: 1},
 			]},
-			{kind: "message", name: "ClearExitRouteResponse", fields: []},
+			{kind: "message", name: "ClearExitRouteResponse", fields: [{type: "WriteConfirmation", name: "confirmation", number: 1}]},
 			{kind: "message", name: "RuntimeState", fields: [
 				{type: "string", name: "peer_id", number: 1},
 				{type: "string", name: "manifest_digest", number: 2},
@@ -1665,6 +1709,14 @@ contract: {
 				{type: "bool", name: "truncated", number: 4},
 				{type: "string", name: "message", number: 5},
 			]},
+			{kind: "message", name: "WriteConfirmation", fields: [
+				{type: "string", name: "stage", number: 1, comment: "Strongest observed boundary: no_change, local_accepted, or other_peer_available."},
+				{type: "string", name: "event_id", number: 2},
+				{type: "string", name: "published_root_hash", number: 3},
+				{type: "int32", name: "required_other_peers", number: 4},
+				{type: "int32", name: "confirmed_other_peers", number: 5},
+				{type: "bool", name: "availability_pending", number: 6, comment: "The mutation was accepted, but exact other-peer retention was not proved before returning; do not replay it."},
+			]},
 		]
 	}
 }
@@ -1693,6 +1745,7 @@ lineage: {
 			JoinOrganisationResponse?:           #JoinOrganisationResponse
 			GetLocalSSHKeyRequest?:              #GetLocalSSHKeyRequest
 			GetLocalSSHKeyResponse?:             #GetLocalSSHKeyResponse
+			WriteConfirmation?:                  #WriteConfirmation
 			App?:                                #App
 			GetAppsRequest?:                     #GetAppsRequest
 			GetAppsResponse?:                    #GetAppsResponse

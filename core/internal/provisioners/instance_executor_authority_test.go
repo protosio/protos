@@ -232,7 +232,7 @@ func TestLegacyBlankInstanceLifecycleOwnerFailsClosed(t *testing.T) {
 	instance := peerDrainAuthorizationTestInstance(t)
 	instance.LifecycleOwnerPeerID = ""
 	machine, metadata := createInstanceInsertMapper(instance)
-	if err := db.Insert(store, machine, metadata); err != nil {
+	if _, err := db.InsertWithReceiptContext(context.Background(), store, machine, metadata); err != nil {
 		t.Fatal(err)
 	}
 	provider := &fakeStopFailDeleteProvider{instances: map[string]InstanceInfo{}}
