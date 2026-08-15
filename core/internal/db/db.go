@@ -78,7 +78,7 @@ var (
 	// A non-empty stable operation that changes no content instead uses
 	// Swarmion's strict no-change policy and returns an exact same-root receipt.
 	ErrPublishedWriteNoChange = errors.New("published write operation made no content change")
-	// ErrMigrationSchemaConflict identifies a legacy schema object whose name
+	// ErrMigrationSchemaConflict identifies a pre-contract schema object whose name
 	// matches an embedded migration object but whose definition does not. The
 	// migration operation is not started and no receipt is created.
 	ErrMigrationSchemaConflict = errors.New("migration schema object conflicts with embedded definition")
@@ -311,20 +311,6 @@ func databaseExists(workDir string, dbName string) bool {
 	return err == nil
 }
 
-func (db *DB) openSwarmion(ctx context.Context, bootstrapPeers []string) error {
-	if db == nil {
-		return fmt.Errorf("db is nil")
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := db.openMu.LockContext(ctx); err != nil {
-		return err
-	}
-	defer db.openMu.Unlock()
-	return db.openSwarmionLocked(ctx, bootstrapPeers)
-}
-
 // openAndFinalizeSwarmion serializes the complete database-readiness
 // lifecycle. OpenHost establishes the SQL projection, but the backend does not
 // expose the database as initialized until its embedded migrations have also
@@ -362,9 +348,7 @@ func (db *DB) openAndFinalizeSwarmion(ctx context.Context, bootstrapPeers []stri
 }
 
 // openSwarmionLocked opens the scoped Swarmion runtime while openMu is held.
-// Callers that need a ready backend must use openAndFinalizeSwarmion. The
-// narrower openSwarmion wrapper remains for migration fixtures that
-// deliberately construct pre-migration repository state.
+// Callers that need a ready backend must use openAndFinalizeSwarmion.
 func (db *DB) openSwarmionLocked(ctx context.Context, bootstrapPeers []string) error {
 	db.mu.Lock()
 	if db.runtime != nil {
@@ -884,7 +868,7 @@ type migrationIndexSchema struct {
 	Fields    []migrationIndexFieldSchema
 }
 
-// appendMigrationStatementIfNeeded compiles duplicate-tolerant legacy DDL into
+// appendMigrationStatementIfNeeded compiles duplicate-tolerant pre-contract DDL into
 // the static operation body. An existing object is skipped only after its
 // definition is shown to be compatible; a same-name mismatch fails before
 // Execute can accept the migration operation.
@@ -1279,7 +1263,7 @@ func compareMigrationColumn(tableName string, expected *sqlparser.ColumnDefiniti
 	}
 	if expected.Type.GeneratedExpr != nil || expected.Type.ForeignKeyDef != nil || expected.Type.Constraint != nil || expected.Type.OnUpdate != nil {
 		return fmt.Errorf(
-			"%w: column %q on table %q uses embedded attributes that legacy preflight cannot prove equivalent",
+			"%w: column %q on table %q uses embedded attributes that migration preflight cannot prove equivalent",
 			ErrMigrationSchemaConflict,
 			expectedName,
 			tableName,
@@ -2427,33 +2411,20 @@ func splitCommitList(value string) []string {
 	return items
 }
 
-// PublishedWriteStatus is retained for the backend's persisted wire shape.
-// Swarmion's current publication contract exposes PublicationOutcome followed
-// by exact ReceiptSnapshot observation; pending_checkpoint is therefore a
-// backend projection rather than a second SDK state machine.
-type PublishedWriteStatus string
-
-const PublishedWriteStatusPendingCheckpoint PublishedWriteStatus = "pending_checkpoint"
-
 // PublishedWriteReceipt identifies the exact event/root pair accepted by
 // Swarmion. EventID, not PublishedRootHash alone, is the operation identity.
 // CheckpointCommitID and CheckpointRootHash are populated by a later exact
 // event observation and may be persisted for restart recovery.
 type PublishedWriteReceipt struct {
-	Status                PublishedWriteStatus `json:"status,omitempty"`
-	Committed             bool                 `json:"committed,omitempty"`
-	OutcomeUncertain      bool                 `json:"outcome_uncertain,omitempty"`
-	Checkpointed          bool                 `json:"checkpointed,omitempty"`
-	PendingCheckpoint     bool                 `json:"pending_checkpoint,omitempty"`
-	CommitHash            string               `json:"commit_hash,omitempty"`
-	EventID               string               `json:"event_id"`
-	PublishedRootHash     string               `json:"published_root_hash"`
-	EventDigest           string               `json:"event_digest,omitempty"`
-	AuthorPeerID          string               `json:"author_peer_id,omitempty"`
-	AuthorSeq             uint64               `json:"author_seq,omitempty"`
-	OperationIntentDigest string               `json:"operation_intent_digest,omitempty"`
-	CheckpointCommitID    string               `json:"checkpoint_commit_id,omitempty"`
-	CheckpointRootHash    string               `json:"checkpoint_root_hash,omitempty"`
+	Committed             bool   `json:"committed,omitempty"`
+	OutcomeUncertain      bool   `json:"outcome_uncertain,omitempty"`
+	Checkpointed          bool   `json:"checkpointed,omitempty"`
+	EventID               string `json:"event_id"`
+	PublishedRootHash     string `json:"published_root_hash"`
+	AuthorPeerID          string `json:"author_peer_id,omitempty"`
+	OperationIntentDigest string `json:"operation_intent_digest,omitempty"`
+	CheckpointCommitID    string `json:"checkpoint_commit_id,omitempty"`
+	CheckpointRootHash    string `json:"checkpoint_root_hash,omitempty"`
 }
 
 // PublishedWriteReceiptIdentityConflictError preserves the uncertain commit's
@@ -2711,9 +2682,7 @@ func PublishedWriteReceiptFromResolution(resolution swarmionapp.OperationResolut
 		return PublishedWriteReceipt{}, err
 	}
 	return PublishedWriteReceipt{
-		Status:                PublishedWriteStatusPendingCheckpoint,
 		Committed:             true,
-		PendingCheckpoint:     true,
 		EventID:               strings.TrimSpace(resolution.Receipt.EventID),
 		PublishedRootHash:     strings.TrimSpace(resolution.Receipt.PublishedRootHash),
 		AuthorPeerID:          strings.TrimSpace(resolution.AuthorPeerID),
@@ -2735,10 +2704,8 @@ func PublishedWriteReceiptFromOutcome(outcome swarmionapp.PublicationOutcome, un
 		return PublishedWriteReceipt{}, err
 	}
 	return PublishedWriteReceipt{
-		Status:                PublishedWriteStatusPendingCheckpoint,
 		Committed:             !unresolved,
 		OutcomeUncertain:      unresolved,
-		PendingCheckpoint:     true,
 		EventID:               strings.TrimSpace(outcome.Receipt.EventID),
 		PublishedRootHash:     strings.TrimSpace(outcome.Receipt.PublishedRootHash),
 		AuthorPeerID:          strings.TrimSpace(outcome.AuthorPeerID),
@@ -3178,7 +3145,6 @@ func eventReceiptObservationFromStatus(receipt PublishedWriteReceipt, status swa
 	observation.Receipt.PublishedRootHash = expectedRoot.String()
 	if status.Checkpointed {
 		observation.Receipt.Checkpointed = true
-		observation.Receipt.PendingCheckpoint = false
 		observation.Receipt.CheckpointCommitID = status.CheckpointCommitID
 		observation.Receipt.CheckpointRootHash = status.CheckpointRootHash
 	}
@@ -3374,7 +3340,6 @@ func waitForPublishedWriteApplied(ctx context.Context, runtime eventReceiptRunti
 		observation.Status = status
 		if status.Checkpointed {
 			observation.Receipt.Checkpointed = true
-			observation.Receipt.PendingCheckpoint = false
 			observation.Receipt.CheckpointCommitID = status.CheckpointCommitID
 			observation.Receipt.CheckpointRootHash = status.CheckpointRootHash
 		}
@@ -3815,7 +3780,7 @@ func newOrdinaryPublishedWriteOperation(name string, statements []preparedWriteS
 	if err != nil {
 		return PublishedWriteOperation{}, fmt.Errorf("encode ordinary %s write intent: %w", name, err)
 	}
-	return NewPublishedWriteOperation(key, "protos:ordinary-sql-write:v1", name, string(encoded))
+	return NewPublishedWriteOperation(key, "protos:ordinary-sql-write", name, string(encoded))
 }
 
 func (db *DB) executeOrdinaryPublishedWriteContext(

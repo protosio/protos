@@ -1,6 +1,38 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestValidateVMRunnerMode(t *testing.T) {
+	tests := []struct {
+		name         string
+		runVM        bool
+		manifestPath string
+		wantError    string
+	}{
+		{name: "daemon", runVM: false},
+		{name: "runner", runVM: true, manifestPath: "/tmp/manifest.json"},
+		{name: "runner missing manifest", runVM: true, wantError: "requires -manifest"},
+		{name: "bare manifest", manifestPath: "/tmp/manifest.json", wantError: "only with --run-vm"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateVMRunnerMode(tt.runVM, tt.manifestPath)
+			if tt.wantError == "" {
+				if err != nil {
+					t.Fatalf("validateVMRunnerMode() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("validateVMRunnerMode() error = %v, want containing %q", err, tt.wantError)
+			}
+		})
+	}
+}
 
 func TestVMRunnerManifestArg(t *testing.T) {
 	tests := []struct {

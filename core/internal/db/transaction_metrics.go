@@ -9,23 +9,10 @@ type TransactionMetricsSnapshot struct {
 	TransactionsStarted                  uint64
 	CommitsAttempted                     uint64
 	CommitsSucceeded                     uint64
-	CommitsFailed                        uint64
 	NoopCommitOutcomes                   uint64
-	RollbacksAttempted                   uint64
-	RollbacksSucceeded                   uint64
-	RollbacksFailed                      uint64
-	RollbacksApplyPhase                  uint64
-	RollbacksBeforeCommitPhase           uint64
-	RollbacksPanicPhase                  uint64
-	RollbacksApplyFailure                uint64
-	RollbacksContextCanceled             uint64
-	RollbacksContextDeadline             uint64
-	RollbacksSQLViewNotReady             uint64
-	RollbacksPanic                       uint64
 	TypedConflicts                       uint64
 	OperationReceiptsFoundAfterCommitErr uint64
 	UncertainEventReceiptsAfterCommitErr uint64
-	SQLViewNotReadyOutcomes              uint64
 	StaleWriteContextOutcomes            uint64
 	ProjectionTooWideOutcomes            uint64
 	OperationTransactionsAttempted       uint64
@@ -44,23 +31,10 @@ type transactionMetrics struct {
 	transactionsStarted                         atomic.Uint64
 	commitsAttempted                            atomic.Uint64
 	commitsSucceeded                            atomic.Uint64
-	commitsFailed                               atomic.Uint64
 	noopCommitOutcomes                          atomic.Uint64
-	rollbacksAttempted                          atomic.Uint64
-	rollbacksSucceeded                          atomic.Uint64
-	rollbacksFailed                             atomic.Uint64
-	rollbacksApplyPhase                         atomic.Uint64
-	rollbacksBeforeCommitPhase                  atomic.Uint64
-	rollbacksPanicPhase                         atomic.Uint64
-	rollbacksApplyFailure                       atomic.Uint64
-	rollbacksContextCanceled                    atomic.Uint64
-	rollbacksContextDeadline                    atomic.Uint64
-	rollbacksSQLViewNotReady                    atomic.Uint64
-	rollbacksPanic                              atomic.Uint64
 	typedConflicts                              atomic.Uint64
 	operationReceiptsFoundAfterCommitErr        atomic.Uint64
 	uncertainEventReceiptsAfterCommitErr        atomic.Uint64
-	sqlViewNotReadyOutcomes                     atomic.Uint64
 	staleWriteContextOutcomes                   atomic.Uint64
 	projectionTooWideOutcomes                   atomic.Uint64
 	operationTransactionsAttempted              atomic.Uint64
@@ -80,23 +54,10 @@ func (m *transactionMetrics) snapshot() TransactionMetricsSnapshot {
 		TransactionsStarted:                         m.transactionsStarted.Load(),
 		CommitsAttempted:                            m.commitsAttempted.Load(),
 		CommitsSucceeded:                            m.commitsSucceeded.Load(),
-		CommitsFailed:                               m.commitsFailed.Load(),
 		NoopCommitOutcomes:                          m.noopCommitOutcomes.Load(),
-		RollbacksAttempted:                          m.rollbacksAttempted.Load(),
-		RollbacksSucceeded:                          m.rollbacksSucceeded.Load(),
-		RollbacksFailed:                             m.rollbacksFailed.Load(),
-		RollbacksApplyPhase:                         m.rollbacksApplyPhase.Load(),
-		RollbacksBeforeCommitPhase:                  m.rollbacksBeforeCommitPhase.Load(),
-		RollbacksPanicPhase:                         m.rollbacksPanicPhase.Load(),
-		RollbacksApplyFailure:                       m.rollbacksApplyFailure.Load(),
-		RollbacksContextCanceled:                    m.rollbacksContextCanceled.Load(),
-		RollbacksContextDeadline:                    m.rollbacksContextDeadline.Load(),
-		RollbacksSQLViewNotReady:                    m.rollbacksSQLViewNotReady.Load(),
-		RollbacksPanic:                              m.rollbacksPanic.Load(),
 		TypedConflicts:                              m.typedConflicts.Load(),
 		OperationReceiptsFoundAfterCommitErr:        m.operationReceiptsFoundAfterCommitErr.Load(),
 		UncertainEventReceiptsAfterCommitErr:        m.uncertainEventReceiptsAfterCommitErr.Load(),
-		SQLViewNotReadyOutcomes:                     m.sqlViewNotReadyOutcomes.Load(),
 		StaleWriteContextOutcomes:                   m.staleWriteContextOutcomes.Load(),
 		ProjectionTooWideOutcomes:                   m.projectionTooWideOutcomes.Load(),
 		OperationTransactionsAttempted:              m.operationTransactionsAttempted.Load(),

@@ -1,6 +1,7 @@
 package provisioners
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	stdsql "database/sql"
@@ -8,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -30,8 +32,8 @@ const (
 	instanceLifecycleOperationDelete    = "delete"
 	instanceDeleteInvariantAbsent       = "instance_absent"
 	instanceDeleteRecoveryObserveLimit  = 5 * time.Second
-	instanceDeleteOperationFactsV1      = "immutable_operation_facts_v1"
-	instancePeerDrainAuthorizedV1       = "instance_peer_drain_authorized_v1"
+	instanceDeleteRecoveryModel         = "immutable_operation_facts"
+	instancePeerDrainAuthorizationFact  = "instance_peer_drain_authorization"
 
 	// Instance delete is an idempotent multi-phase lifecycle (mark deleting,
 	// remove apps, durable peer removal, provider stop, record deletion). Allowing
@@ -66,10 +68,9 @@ type instanceLifecycleTaskPayload struct {
 	LocalOnly              bool                             `json:"local_only"`
 	DesiredSig             string                           `json:"desired_sig,omitempty"`
 	RequestedByAPI         bool                             `json:"requested_by_api,omitempty"`
-	OperationStateModel    string                           `json:"operation_state_model,omitempty"`
+	RecoveryModel          string                           `json:"recovery_model,omitempty"`
 	DeleteOperation        *instanceDeleteOperationIdentity `json:"delete_operation,omitempty"`
 	PeerDrainAuthorization *instancePeerDrainAuthorization  `json:"peer_drain_authorization,omitempty"`
-	DeleteReceipt          *instanceDeleteOperationReceipt  `json:"delete_receipt,omitempty"`
 }
 
 type instanceLifecycleTaskResult struct {
@@ -106,7 +107,6 @@ type instanceDeleteOperationIdentity struct {
 // attempt or time. The persisted lifecycle owner is immutable application
 // authority and therefore is part of the snapshot and operation digest.
 type instancePeerDrainAuthorization struct {
-	Version         string                          `json:"version"`
 	Key             string                          `json:"key"`
 	IntentDigest    string                          `json:"intent_digest"`
 	AuthorPeerID    string                          `json:"author_peer_id"`
@@ -144,11 +144,8 @@ type instanceDeleteOperationReceipt struct {
 
 	EventID               string `json:"event_id"`
 	PublishedRootHash     string `json:"published_root_hash"`
-	EventDigest           string `json:"event_digest,omitempty"`
-	AuthorSeq             uint64 `json:"author_seq,omitempty"`
 	OperationIntentDigest string `json:"operation_intent_digest,omitempty"`
 	OperationAuthorPeerID string `json:"operation_author_peer_id,omitempty"`
-	CommitHash            string `json:"commit_hash,omitempty"`
 	OutcomeUncertain      bool   `json:"outcome_uncertain,omitempty"`
 
 	CheckpointCommitID        string `json:"checkpoint_commit_id,omitempty"`
@@ -173,26 +170,11 @@ type instanceDeleteEffectFactPayload struct {
 	ExpectedInvariant instanceDeleteInvariant `json:"expected_invariant"`
 }
 
-// instanceDeleteReceiptFactPayloadV1 is the legacy operation_receipt payload.
-// EventDigest and AuthorSeq were part of that immutable representation and
-// must remain decodable, including when nonzero, while old peers coexist.
-type instanceDeleteReceiptFactPayloadV1 struct {
-	OperationID           string                  `json:"operation_id"`
-	Operation             string                  `json:"operation"`
-	ExpectedInvariant     instanceDeleteInvariant `json:"expected_invariant"`
-	EventID               string                  `json:"event_id"`
-	PublishedRootHash     string                  `json:"published_root_hash"`
-	EventDigest           string                  `json:"event_digest,omitempty"`
-	AuthorSeq             uint64                  `json:"author_seq"`
-	OperationIntentDigest string                  `json:"operation_intent_digest"`
-	OperationAuthorPeerID string                  `json:"operation_author_peer_id"`
-}
-
-// instanceDeleteReceiptFactPayloadV2 contains only exact receipt identity
-// available in both the legacy and current public runtime contracts.
+// instanceDeleteReceiptFactPayload contains only exact receipt identity
+// available in the public runtime contract.
 // Checkpoint and durability observations remain mutable projections and never
 // participate in this fact's deterministic identity.
-type instanceDeleteReceiptFactPayloadV2 struct {
+type instanceDeleteReceiptFactPayload struct {
 	OperationID           string                  `json:"operation_id"`
 	Operation             string                  `json:"operation"`
 	ExpectedInvariant     instanceDeleteInvariant `json:"expected_invariant"`
@@ -276,9 +258,7 @@ func classifyDeploymentTaskError(err error) error {
 }
 
 // recoverInstanceLifecycleTask resolves immutable delete operation facts before
-// generic recovery changes interrupted running-state bookkeeping. Delete task
-// payloads from the retired mutable-checkpoint model fail closed: recovery must
-// never replay them as a fresh provider operation.
+// generic recovery changes interrupted running-state bookkeeping.
 func (cm *Manager) recoverInstanceLifecycleTask(
 	ctx context.Context,
 	recovery *tasks.RecoveryContext[instanceLifecycleTaskPayload],
@@ -294,10 +274,10 @@ func (cm *Manager) recoverInstanceLifecycleTask(
 }
 
 func validateInstanceDeleteTaskPayloadModel(payload instanceLifecycleTaskPayload, taskID string) error {
-	model := strings.TrimSpace(payload.OperationStateModel)
-	if model != instanceDeleteOperationFactsV1 {
+	model := strings.TrimSpace(payload.RecoveryModel)
+	if model != instanceDeleteRecoveryModel {
 		return fmt.Errorf(
-			"instance delete task %s uses unsupported operation state model %q; immutable operation facts are required",
+			"instance delete task %s uses unsupported recovery model %q; immutable operation facts are required",
 			strings.TrimSpace(taskID),
 			model,
 		)
@@ -348,7 +328,7 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 		}
 	}
 
-	receiptFacts, err := cm.readInstanceDeleteReceiptFacts(
+	receipt, receiptFound, err := cm.readInstanceDeleteReceiptFact(
 		observeCtx,
 		operationID,
 		identity,
@@ -356,10 +336,6 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 	if err != nil {
 		return tasks.StreamRecoveryReady, tasks.MarkPermanent(err)
 	}
-	receipt := receiptFacts.Receipt
-	receiptFound := receiptFacts.Found
-	currentReceiptFound := receiptFacts.CurrentFound
-	legacyReceiptFound := receiptFacts.LegacyFound
 	if receiptFound {
 		if !effectFound {
 			return tasks.StreamRecoveryReady, tasks.MarkPermanent(fmt.Errorf(
@@ -477,7 +453,7 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 		}
 	}
 
-	if !currentReceiptFound {
+	if !receiptFound {
 		fact, factErr := newInstanceDeleteReceiptFact(receipt, identity)
 		if factErr != nil {
 			return tasks.StreamRecoveryReady, tasks.MarkPermanent(factErr)
@@ -485,10 +461,7 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 		if factErr = cm.tasks.EnsureOperationFact(context.WithoutCancel(observeCtx), fact); factErr != nil {
 			return tasks.StreamRecoveryReady, fmt.Errorf("record recovered instance delete receipt fact %s: %w", operationID, factErr)
 		}
-		// An old peer can publish the additive legacy kind concurrently. Re-read
-		// both versions so a disagreement is observed before recovery projects
-		// either fact into mutable task state.
-		checkedFacts, checkErr := cm.readInstanceDeleteReceiptFacts(
+		checkedReceipt, checkedFound, checkErr := cm.readInstanceDeleteReceiptFact(
 			context.WithoutCancel(observeCtx),
 			operationID,
 			identity,
@@ -496,20 +469,13 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 		if checkErr != nil {
 			return tasks.StreamRecoveryReady, tasks.MarkPermanent(checkErr)
 		}
-		legacyReceiptFound = checkedFacts.LegacyFound
-		if legacyReceiptFound {
-			receipt.EventDigest = checkedFacts.Receipt.EventDigest
-			receipt.AuthorSeq = checkedFacts.Receipt.AuthorSeq
+		if !checkedFound || !instanceDeleteReceiptFactsMatch(receipt, checkedReceipt) {
+			return tasks.StreamRecoveryReady, tasks.MarkPermanent(fmt.Errorf(
+				"%w: persisted instance delete receipt fact disagrees with recovered receipt task_id=%s",
+				tasks.ErrOperationFactConflict,
+				operationID,
+			))
 		}
-	}
-	if legacyReceiptFound {
-		payload.DeleteReceipt = cloneInstanceDeleteOperationReceipt(&receipt)
-	} else {
-		// A v2-only fact cannot populate the legacy-only author sequence and
-		// event digest. Keep the shared payload receipt-free so an older runner
-		// resolves the immutable operation again instead of trying to write an
-		// invalid zero-valued v1 fact.
-		payload.DeleteReceipt = nil
 	}
 	recovery.ReplacePayload(payload)
 	return tasks.StreamRecoveryReady, nil
@@ -600,7 +566,7 @@ func newInstanceDeleteOperationIdentity(
 	}
 	operation, err := db.NewPublishedWriteOperation(
 		key,
-		"protos:instance-record-delete:v1",
+		"protos:instance-record-delete",
 		operationID,
 		invariant.InstanceID,
 		strconv.FormatBool(localOnly),
@@ -657,7 +623,7 @@ func newInstancePeerDrainAuthorization(
 		return instancePeerDrainAuthorization{}, fmt.Errorf("derive peer-drain authorization peer: %w", err)
 	}
 	keyDigest := sha256.Sum256([]byte(
-		"protos:instance-peer-drain-authorization-key:v1\x00" + strings.TrimSpace(deleteOperation.Key),
+		"protos:instance-peer-drain-authorization-key\x00" + strings.TrimSpace(deleteOperation.Key),
 	))
 	key := hex.EncodeToString(keyDigest[:])
 	snapshot := instancePeerDrainInstance{
@@ -675,8 +641,8 @@ func newInstancePeerDrainAuthorization(
 	}
 	operation, err := db.NewPublishedWriteOperation(
 		key,
-		"protos:instance-peer-drain-authorization:v1",
-		instancePeerDrainAuthorizedV1,
+		"protos:instance-peer-drain-authorization",
+		instancePeerDrainAuthorizationFact,
 		taskID,
 		strings.TrimSpace(deleteOperation.Key),
 		strings.TrimSpace(deleteOperation.IntentDigest),
@@ -700,7 +666,6 @@ func newInstancePeerDrainAuthorization(
 		return instancePeerDrainAuthorization{}, err
 	}
 	return instancePeerDrainAuthorization{
-		Version:         instancePeerDrainAuthorizedV1,
 		Key:             operation.Key,
 		IntentDigest:    operation.IntentDigest,
 		AuthorPeerID:    strings.TrimSpace(deleteOperation.AuthorPeerID),
@@ -745,8 +710,7 @@ func validateInstancePeerDrainAuthorization(
 	instanceID string,
 	localOnly bool,
 ) error {
-	if authorization.Version != instancePeerDrainAuthorizedV1 ||
-		strings.TrimSpace(authorization.TaskID) != strings.TrimSpace(taskID) ||
+	if strings.TrimSpace(authorization.TaskID) != strings.TrimSpace(taskID) ||
 		strings.TrimSpace(authorization.InstanceID) != strings.TrimSpace(instanceID) ||
 		authorization.LocalOnly != localOnly || authorization.DeleteOperation != deleteOperation {
 		return fmt.Errorf("invalid immutable peer-drain authorization identity for task %s", taskID)
@@ -771,7 +735,7 @@ func newInstancePeerDrainAuthorizationFact(
 ) (tasks.OperationFact, error) {
 	return tasks.NewOperationFact(
 		authorization.TaskID,
-		instancePeerDrainAuthorizedV1,
+		instancePeerDrainAuthorizationFact,
 		authorization.publishedWriteOperation(),
 		taskSubjectInstance,
 		authorization.InstanceID,
@@ -803,7 +767,7 @@ func newInstanceDeleteReceiptFact(
 ) (tasks.OperationFact, error) {
 	return tasks.NewOperationFact(
 		receipt.OperationID,
-		tasks.OperationFactKindReceiptV2,
+		tasks.OperationFactKindReceipt,
 		db.PublishedWriteOperation{
 			Key:          identity.Key,
 			IntentDigest: receipt.OperationIntentDigest,
@@ -811,7 +775,7 @@ func newInstanceDeleteReceiptFact(
 		},
 		taskSubjectInstance,
 		receipt.ExpectedInvariant.InstanceID,
-		instanceDeleteReceiptFactPayloadV2{
+		instanceDeleteReceiptFactPayload{
 			OperationID:           strings.TrimSpace(receipt.OperationID),
 			Operation:             instanceLifecycleOperationDelete,
 			ExpectedInvariant:     receipt.ExpectedInvariant,
@@ -825,7 +789,7 @@ func newInstanceDeleteReceiptFact(
 
 func instanceDeleteIdentityFromEffectFact(fact tasks.OperationFact) (instanceDeleteOperationIdentity, error) {
 	var payload instanceDeleteEffectFactPayload
-	if err := json.Unmarshal(fact.Payload, &payload); err != nil {
+	if err := decodeOperationFactPayload(fact.Payload, &payload); err != nil {
 		return instanceDeleteOperationIdentity{}, fmt.Errorf("decode instance delete effect fact: %w", err)
 	}
 	identity := instanceDeleteOperationIdentity{
@@ -843,121 +807,39 @@ func instanceDeleteIdentityFromEffectFact(fact tasks.OperationFact) (instanceDel
 	return identity, nil
 }
 
-type instanceDeleteReceiptFactSet struct {
-	Receipt      instanceDeleteOperationReceipt
-	Found        bool
-	LegacyFound  bool
-	CurrentFound bool
-}
-
-func (cm *Manager) readInstanceDeleteReceiptFacts(
+func (cm *Manager) readInstanceDeleteReceiptFact(
 	ctx context.Context,
 	operationID string,
 	identity instanceDeleteOperationIdentity,
-) (instanceDeleteReceiptFactSet, error) {
-	if cm == nil || cm.tasks == nil {
-		return instanceDeleteReceiptFactSet{}, fmt.Errorf("read instance delete receipt facts: manager is not configured")
-	}
-	legacyFact, legacyFound, err := cm.tasks.OperationFact(ctx, operationID, tasks.OperationFactKindReceipt)
-	if err != nil {
-		return instanceDeleteReceiptFactSet{}, fmt.Errorf("read legacy instance delete receipt fact %s: %w", operationID, err)
-	}
-	currentFact, currentFound, err := cm.tasks.OperationFact(ctx, operationID, tasks.OperationFactKindReceiptV2)
-	if err != nil {
-		return instanceDeleteReceiptFactSet{}, fmt.Errorf("read current instance delete receipt fact %s: %w", operationID, err)
-	}
-	var legacy, current *tasks.OperationFact
-	if legacyFound {
-		legacy = &legacyFact
-	}
-	if currentFound {
-		current = &currentFact
-	}
-	receipt, found, err := reconcileInstanceDeleteReceiptFacts(operationID, identity, legacy, current)
-	if err != nil {
-		return instanceDeleteReceiptFactSet{}, err
-	}
-	return instanceDeleteReceiptFactSet{
-		Receipt:      receipt,
-		Found:        found,
-		LegacyFound:  legacyFound,
-		CurrentFound: currentFound,
-	}, nil
-}
-
-// reconcileInstanceDeleteReceiptFacts validates every present version before
-// selecting recovery authority. The two additive kinds intentionally have
-// different row IDs, but if both are present their shared immutable identity
-// must agree. Legacy-only EventDigest and AuthorSeq are retained as historical
-// metadata; the current runtime no longer depends on either field.
-func reconcileInstanceDeleteReceiptFacts(
-	operationID string,
-	identity instanceDeleteOperationIdentity,
-	legacyFact *tasks.OperationFact,
-	currentFact *tasks.OperationFact,
 ) (instanceDeleteOperationReceipt, bool, error) {
-	decode := func(fact *tasks.OperationFact) (instanceDeleteOperationReceipt, error) {
-		receipt, err := instanceDeleteReceiptFromFact(*fact, identity)
-		if err != nil {
-			return instanceDeleteOperationReceipt{}, err
-		}
-		if err := validateInstanceDeleteOperationReceipt(
-			receipt,
-			identity,
-			operationID,
-			identity.ExpectedInvariant.InstanceID,
-		); err != nil {
-			// The immutable-fact conflict is the only classification exposed here;
-			// a nested validator error must remain diagnostic and cannot grant its
-			// own retry or lifecycle authority through this fail-closed boundary.
-			return instanceDeleteOperationReceipt{}, fmt.Errorf(
-				"%w: invalid %s instance delete receipt fact task_id=%s: %s",
-				tasks.ErrOperationFactConflict,
-				fact.Kind,
-				operationID,
-				err.Error(),
-			)
-		}
-		return receipt, nil
+	if cm == nil || cm.tasks == nil {
+		return instanceDeleteOperationReceipt{}, false, fmt.Errorf("read instance delete receipt fact: manager is not configured")
 	}
-
-	var legacyReceipt instanceDeleteOperationReceipt
-	if legacyFact != nil {
-		var err error
-		legacyReceipt, err = decode(legacyFact)
-		if err != nil {
-			return instanceDeleteOperationReceipt{}, false, err
-		}
+	fact, found, err := cm.tasks.OperationFact(ctx, operationID, tasks.OperationFactKindReceipt)
+	if err != nil {
+		return instanceDeleteOperationReceipt{}, false, fmt.Errorf("read instance delete receipt fact %s: %w", operationID, err)
 	}
-	var currentReceipt instanceDeleteOperationReceipt
-	if currentFact != nil {
-		var err error
-		currentReceipt, err = decode(currentFact)
-		if err != nil {
-			return instanceDeleteOperationReceipt{}, false, err
-		}
-	}
-
-	switch {
-	case legacyFact == nil && currentFact == nil:
+	if !found {
 		return instanceDeleteOperationReceipt{}, false, nil
-	case currentFact == nil:
-		return legacyReceipt, true, nil
-	case legacyFact == nil:
-		return currentReceipt, true, nil
-	case !instanceDeleteReceiptFactsMatch(legacyReceipt, currentReceipt):
+	}
+	receipt, err := instanceDeleteReceiptFromFact(fact, identity)
+	if err != nil {
+		return instanceDeleteOperationReceipt{}, false, err
+	}
+	if err := validateInstanceDeleteOperationReceipt(
+		receipt,
+		identity,
+		operationID,
+		identity.ExpectedInvariant.InstanceID,
+	); err != nil {
 		return instanceDeleteOperationReceipt{}, false, fmt.Errorf(
-			"%w: legacy and current instance delete receipt facts disagree task_id=%s",
+			"%w: invalid instance delete receipt fact task_id=%s: %s",
 			tasks.ErrOperationFactConflict,
 			operationID,
+			err.Error(),
 		)
-	default:
-		// Preserve legacy metadata for diagnostics without making it part of the
-		// v2 identity or requiring the current runtime to reproduce it.
-		currentReceipt.EventDigest = legacyReceipt.EventDigest
-		currentReceipt.AuthorSeq = legacyReceipt.AuthorSeq
-		return currentReceipt, true, nil
 	}
+	return receipt, true, nil
 }
 
 func instanceDeleteReceiptFactsMatch(left, right instanceDeleteOperationReceipt) bool {
@@ -974,52 +856,26 @@ func instanceDeleteReceiptFromFact(
 	fact tasks.OperationFact,
 	identity instanceDeleteOperationIdentity,
 ) (instanceDeleteOperationReceipt, error) {
-	var receipt instanceDeleteOperationReceipt
-	switch fact.Kind {
-	case tasks.OperationFactKindReceipt:
-		var payload instanceDeleteReceiptFactPayloadV1
-		if err := json.Unmarshal(fact.Payload, &payload); err != nil {
-			return instanceDeleteOperationReceipt{}, fmt.Errorf("decode legacy instance delete receipt fact: %w", err)
-		}
-		if payload.AuthorSeq == 0 {
-			return instanceDeleteOperationReceipt{}, fmt.Errorf(
-				"%w: legacy receipt fact is missing its immutable author sequence task_id=%s",
-				tasks.ErrOperationFactConflict,
-				fact.TaskID,
-			)
-		}
-		receipt = instanceDeleteOperationReceipt{
-			OperationID:           strings.TrimSpace(payload.OperationID),
-			Operation:             strings.TrimSpace(payload.Operation),
-			ExpectedInvariant:     payload.ExpectedInvariant,
-			EventID:               strings.TrimSpace(payload.EventID),
-			PublishedRootHash:     strings.TrimSpace(payload.PublishedRootHash),
-			EventDigest:           strings.TrimSpace(payload.EventDigest),
-			AuthorSeq:             payload.AuthorSeq,
-			OperationIntentDigest: strings.TrimSpace(payload.OperationIntentDigest),
-			OperationAuthorPeerID: strings.TrimSpace(payload.OperationAuthorPeerID),
-		}
-	case tasks.OperationFactKindReceiptV2:
-		var payload instanceDeleteReceiptFactPayloadV2
-		if err := json.Unmarshal(fact.Payload, &payload); err != nil {
-			return instanceDeleteOperationReceipt{}, fmt.Errorf("decode current instance delete receipt fact: %w", err)
-		}
-		receipt = instanceDeleteOperationReceipt{
-			OperationID:           strings.TrimSpace(payload.OperationID),
-			Operation:             strings.TrimSpace(payload.Operation),
-			ExpectedInvariant:     payload.ExpectedInvariant,
-			EventID:               strings.TrimSpace(payload.EventID),
-			PublishedRootHash:     strings.TrimSpace(payload.PublishedRootHash),
-			OperationIntentDigest: strings.TrimSpace(payload.OperationIntentDigest),
-			OperationAuthorPeerID: strings.TrimSpace(payload.OperationAuthorPeerID),
-		}
-	default:
+	if fact.Kind != tasks.OperationFactKindReceipt {
 		return instanceDeleteOperationReceipt{}, fmt.Errorf(
 			"%w: unsupported instance delete receipt fact kind %q task_id=%s",
 			tasks.ErrOperationFactConflict,
 			fact.Kind,
 			fact.TaskID,
 		)
+	}
+	var payload instanceDeleteReceiptFactPayload
+	if err := decodeOperationFactPayload(fact.Payload, &payload); err != nil {
+		return instanceDeleteOperationReceipt{}, fmt.Errorf("decode instance delete receipt fact: %w", err)
+	}
+	receipt := instanceDeleteOperationReceipt{
+		OperationID:           strings.TrimSpace(payload.OperationID),
+		Operation:             strings.TrimSpace(payload.Operation),
+		ExpectedInvariant:     payload.ExpectedInvariant,
+		EventID:               strings.TrimSpace(payload.EventID),
+		PublishedRootHash:     strings.TrimSpace(payload.PublishedRootHash),
+		OperationIntentDigest: strings.TrimSpace(payload.OperationIntentDigest),
+		OperationAuthorPeerID: strings.TrimSpace(payload.OperationAuthorPeerID),
 	}
 	if strings.TrimSpace(fact.SubjectType) != taskSubjectInstance ||
 		strings.TrimSpace(fact.SubjectID) != strings.TrimSpace(identity.ExpectedInvariant.InstanceID) ||
@@ -1031,6 +887,21 @@ func instanceDeleteReceiptFromFact(
 		return instanceDeleteOperationReceipt{}, fmt.Errorf("%w: receipt/effect identity mismatch task_id=%s", tasks.ErrOperationFactConflict, fact.TaskID)
 	}
 	return receipt, nil
+}
+
+func decodeOperationFactPayload(payload []byte, destination any) error {
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return errors.New("operation fact payload contains trailing JSON value")
+		}
+		return fmt.Errorf("decode trailing operation fact payload: %w", err)
+	}
+	return nil
 }
 
 func validateInstanceDeleteOperationIdentity(
@@ -1053,7 +924,7 @@ func validateInstanceDeleteOperationIdentity(
 	}
 	expected, err := db.NewPublishedWriteOperation(
 		key,
-		"protos:instance-record-delete:v1",
+		"protos:instance-record-delete",
 		strings.TrimSpace(operationID),
 		strings.TrimSpace(instanceID),
 		strconv.FormatBool(localOnly),
@@ -1108,11 +979,17 @@ func (cm *Manager) runDeployInstanceTask(ctx context.Context, task *tasks.RunCon
 	}, nil
 }
 
-func (cm *Manager) QueueDesiredInstanceReconciles() error {
+func (cm *Manager) QueueDesiredInstanceReconciles(ctx context.Context) error {
 	if cm == nil || cm.tasks == nil {
 		return fmt.Errorf("task manager is not configured")
 	}
-	instances, err := cm.GetInstances(false)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	instances, err := cm.GetInstancesContext(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -1122,7 +999,7 @@ func (cm *Manager) QueueDesiredInstanceReconciles() error {
 			continue
 		}
 		ownerPeerID, ownerErr := instanceLifecycleOwner(instance)
-		if ownerErr != nil || ownerPeerID != cm.localLifecycleExecutorPeerID() || cm.providerMutationDisabled {
+		if ownerErr != nil || ownerPeerID != cm.localLifecycleExecutorPeerID() || cm.provisionerMutationDisabled {
 			continue
 		}
 		desiredStatus := normalizeDesiredInstanceStatus(instance.DesiredStatus)
@@ -1133,7 +1010,7 @@ func (cm *Manager) QueueDesiredInstanceReconciles() error {
 		if cm.lifecycleSignatureCurrent(instance.ID, sig) {
 			continue
 		}
-		if _, err := cm.queueInstanceLifecycle(instance, instanceLifecycleOperationReconcile, desiredStatus, false, false, sig); err != nil {
+		if _, err := cm.queueInstanceLifecycle(ctx, instance, instanceLifecycleOperationReconcile, desiredStatus, false, false, sig); err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %v", instance.Name, err))
 			continue
 		}
@@ -1145,12 +1022,12 @@ func (cm *Manager) QueueDesiredInstanceReconciles() error {
 	return nil
 }
 
-func (cm *Manager) QueueStartInstance(id string) (tasks.Record, error) {
-	return cm.queueSetInstanceDesiredStatus(id, ServerStateRunning)
+func (cm *Manager) QueueStartInstance(ctx context.Context, id string) (tasks.Record, error) {
+	return cm.queueSetInstanceDesiredStatus(ctx, id, ServerStateRunning)
 }
 
-func (cm *Manager) QueueStopInstance(id string) (tasks.Record, error) {
-	return cm.queueSetInstanceDesiredStatus(id, ServerStateStopped)
+func (cm *Manager) QueueStopInstance(ctx context.Context, id string) (tasks.Record, error) {
+	return cm.queueSetInstanceDesiredStatus(ctx, id, ServerStateStopped)
 }
 
 func (cm *Manager) QueueDeleteInstance(ctx context.Context, id string) (tasks.Record, error) {
@@ -1161,10 +1038,19 @@ func (cm *Manager) QueueDeleteInstanceLocal(ctx context.Context, id string) (tas
 	return cm.queueDeleteInstance(ctx, id, true)
 }
 
-func (cm *Manager) queueSetInstanceDesiredStatus(id string, desiredStatus string) (tasks.Record, error) {
-	unlock := cm.lockInstanceLifecycle(id)
+func (cm *Manager) queueSetInstanceDesiredStatus(ctx context.Context, id string, desiredStatus string) (tasks.Record, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return tasks.Record{}, err
+	}
+	unlock, err := cm.acquireInstanceLifecycle(ctx, id)
+	if err != nil {
+		return tasks.Record{}, err
+	}
 	defer unlock()
-	instance, err := cm.getInstanceRecord(id)
+	instance, err := cm.getInstanceRecordContext(ctx, id)
 	if err != nil {
 		return tasks.Record{}, fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
@@ -1189,14 +1075,14 @@ func (cm *Manager) queueSetInstanceDesiredStatus(id string, desiredStatus string
 		// immutable ordering contract; until then this transition fails closed.
 		return tasks.Record{}, err
 	}
-	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(context.Background(), instance.ID); authErr != nil {
+	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(ctx, instance.ID); authErr != nil {
 		return tasks.Record{}, fmt.Errorf("inspect peer-drain authorization for instance '%s': %w", instance.Name, authErr)
 	} else if authorized {
 		return tasks.Record{}, fmt.Errorf("%w: instance '%s' has immutable peer-drain authorization", ErrInstanceLifecycleConflict, instance.Name)
 	}
 	if cm.tasks != nil {
 		deleteSubject := instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationDelete)
-		if task, found, lookupErr := cm.tasks.LatestForSubject(InstanceLifecycleTaskStream, taskSubjectInstance, deleteSubject); lookupErr != nil {
+		if task, found, lookupErr := cm.tasks.LatestForSubjectContext(ctx, InstanceLifecycleTaskStream, taskSubjectInstance, deleteSubject); lookupErr != nil {
 			return tasks.Record{}, fmt.Errorf("inspect delete ownership for instance '%s': %w", instance.Name, lookupErr)
 		} else if found && isActiveLifecycleTask(task) {
 			return tasks.Record{}, fmt.Errorf(
@@ -1209,21 +1095,21 @@ func (cm *Manager) queueSetInstanceDesiredStatus(id string, desiredStatus string
 	}
 	instance.DesiredStatus = desiredStatus
 	im, _ := createInstanceLifecycleUpdateMapper(instance)
-	if _, err := db.UpdateWithAvailabilityContext(context.Background(), cm.db, im); err != nil {
+	if _, err := db.UpdateWithAvailabilityContext(ctx, cm.db, im); err != nil {
 		return tasks.Record{}, fmt.Errorf("failed to save instance '%s': %w", id, err)
 	}
-	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(context.Background(), instance.ID); authErr != nil {
+	if authorized, authErr := cm.instancePeerDrainAuthorizationExists(ctx, instance.ID); authErr != nil {
 		return tasks.Record{}, fmt.Errorf("verify peer-drain authorization for instance '%s': %w", instance.Name, authErr)
 	} else if authorized {
 		return tasks.Record{}, fmt.Errorf("%w: instance '%s' became delete-authorized while changing desired status", ErrInstanceLifecycleConflict, instance.Name)
 	}
-	persisted, err := cm.getInstanceRecord(instance.ID)
+	persisted, err := cm.getInstanceRecordContext(ctx, instance.ID)
 	if err != nil || persisted.DesiredStatus != desiredStatus {
 		return tasks.Record{}, fmt.Errorf("%w: instance '%s' desired status update was not accepted", ErrInstanceLifecycleConflict, instance.Name)
 	}
 	sig := lifecycleDesiredSignature(instance, desiredStatus)
 	cm.clearLifecycleSignature(instance.ID)
-	record, err := cm.queueInstanceLifecycle(instance, instanceLifecycleOperationReconcile, desiredStatus, false, true, sig)
+	record, err := cm.queueInstanceLifecycle(ctx, instance, instanceLifecycleOperationReconcile, desiredStatus, false, true, sig)
 	if err != nil {
 		return tasks.Record{}, err
 	}
@@ -1233,22 +1119,25 @@ func (cm *Manager) queueSetInstanceDesiredStatus(id string, desiredStatus string
 }
 
 func (cm *Manager) queueDeleteInstance(ctx context.Context, id string, localOnly bool) (tasks.Record, error) {
-	unlock := cm.lockInstanceLifecycle(id)
-	defer unlock()
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
 		return tasks.Record{}, err
 	}
-	instance, err := cm.getInstanceRecord(id)
+	unlock, err := cm.acquireInstanceLifecycle(ctx, id)
+	if err != nil {
+		return tasks.Record{}, err
+	}
+	defer unlock()
+	instance, err := cm.getInstanceRecordContext(ctx, id)
 	if err != nil {
 		return tasks.Record{}, fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
 	if _, err := cm.lifecycleTaskOwner(instance); err != nil {
 		return tasks.Record{}, err
 	}
-	record, err := cm.queueInstanceLifecycle(instance, instanceLifecycleOperationDelete, ServerStateDeleting, localOnly, true, "")
+	record, err := cm.queueInstanceLifecycle(ctx, instance, instanceLifecycleOperationDelete, ServerStateDeleting, localOnly, true, "")
 	if err != nil {
 		return tasks.Record{}, err
 	}
@@ -1257,7 +1146,7 @@ func (cm *Manager) queueDeleteInstance(ctx context.Context, id string, localOnly
 	return record, nil
 }
 
-func (cm *Manager) queueInstanceLifecycle(instance InstanceInfo, operation string, desiredStatus string, localOnly bool, requestedByAPI bool, desiredSig string) (tasks.Record, error) {
+func (cm *Manager) queueInstanceLifecycle(ctx context.Context, instance InstanceInfo, operation string, desiredStatus string, localOnly bool, requestedByAPI bool, desiredSig string) (tasks.Record, error) {
 	if cm == nil || cm.tasks == nil {
 		return tasks.Record{}, fmt.Errorf("task manager is not configured")
 	}
@@ -1275,7 +1164,7 @@ func (cm *Manager) queueInstanceLifecycle(instance InstanceInfo, operation strin
 	taskID := ""
 	var deleteOperation *instanceDeleteOperationIdentity
 	var peerDrainAuthorization *instancePeerDrainAuthorization
-	operationStateModel := ""
+	recoveryModel := ""
 	if operation == instanceLifecycleOperationDelete {
 		title = fmt.Sprintf("Delete instance %s", instance.Name)
 		maxAttempts = instanceDeleteMaxAttempts
@@ -1296,9 +1185,9 @@ func (cm *Manager) queueInstanceLifecycle(instance InstanceInfo, operation strin
 			}
 			peerDrainAuthorization = &authorization
 		}
-		operationStateModel = instanceDeleteOperationFactsV1
+		recoveryModel = instanceDeleteRecoveryModel
 	}
-	record, _, err := tasks.EnqueueUnique(cm.tasks, tasks.EnqueueUniqueOptions[instanceLifecycleTaskPayload]{
+	record, _, err := tasks.EnqueueUniqueContext(ctx, cm.tasks, tasks.EnqueueUniqueOptions[instanceLifecycleTaskPayload]{
 		EnqueueOptions: tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 			ID:          taskID,
 			Stream:      InstanceLifecycleTaskStream,
@@ -1315,7 +1204,7 @@ func (cm *Manager) queueInstanceLifecycle(instance InstanceInfo, operation strin
 				LocalOnly:              localOnly,
 				DesiredSig:             desiredSig,
 				RequestedByAPI:         requestedByAPI,
-				OperationStateModel:    operationStateModel,
+				RecoveryModel:          recoveryModel,
 				DeleteOperation:        deleteOperation,
 				PeerDrainAuthorization: peerDrainAuthorization,
 			},
@@ -1395,10 +1284,8 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 				return instanceLifecycleTaskResult{}, tasks.MarkPermanent(err)
 			}
 		}
-		if payload.DeleteReceipt == nil {
-			if err := task.Update(5, "deleting instance", lifecycleTaskDetails(payload)); err != nil {
-				return instanceLifecycleTaskResult{}, err
-			}
+		if err := task.Update(5, "deleting instance", lifecycleTaskDetails(payload)); err != nil {
+			return instanceLifecycleTaskResult{}, err
 		}
 		var completedDeleteReceipt *instanceDeleteOperationReceipt
 		err := cm.deleteInstanceImperative(
@@ -1409,9 +1296,7 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 			task.Task().ID,
 			*identity,
 			payload.PeerDrainAuthorization,
-			payload.DeleteReceipt,
 			func(next instanceDeleteOperationReceipt, _ int, _ string) error {
-				previous := cloneInstanceDeleteOperationReceipt(payload.DeleteReceipt)
 				fact, err := newInstanceDeleteReceiptFact(next, *identity)
 				if err != nil {
 					return err
@@ -1419,7 +1304,7 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 				if err := task.RecordOperationFact(ctx, fact); err != nil {
 					return err
 				}
-				receiptFacts, err := cm.readInstanceDeleteReceiptFacts(
+				stored, found, err := cm.readInstanceDeleteReceiptFact(
 					context.WithoutCancel(ctx),
 					task.Task().ID,
 					*identity,
@@ -1427,24 +1312,14 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 				if err != nil {
 					return tasks.MarkPermanent(err)
 				}
-				if receiptFacts.LegacyFound {
-					next.EventDigest = receiptFacts.Receipt.EventDigest
-					next.AuthorSeq = receiptFacts.Receipt.AuthorSeq
-					payload.DeleteReceipt = cloneInstanceDeleteOperationReceipt(&next)
-				} else {
-					payload.DeleteReceipt = nil
+				if !found || !instanceDeleteReceiptFactsMatch(next, stored) {
+					return tasks.MarkPermanent(fmt.Errorf(
+						"%w: stored instance delete receipt fact disagrees with publication task_id=%s",
+						tasks.ErrOperationFactConflict,
+						task.Task().ID,
+					))
 				}
 				completedDeleteReceipt = cloneInstanceDeleteOperationReceipt(&next)
-				// The immutable receipt fact is recovery authority as soon as D
-				// publishes. Keep a v2-only receipt out of the shared payload even
-				// after applied_durably: an older runner must resolve the operation
-				// itself rather than consume missing v1-only metadata. A matching v1
-				// fact makes the projection downgrade-safe.
-				if receiptFacts.LegacyFound && next.AppliedDurably && (previous == nil || !previous.AppliedDurably) {
-					if err := task.ReplacePayload(payload); err != nil {
-						return err
-					}
-				}
 				return nil
 			},
 		)
@@ -1508,7 +1383,7 @@ func cloneInstanceDeleteOperationReceipt(receipt *instanceDeleteOperationReceipt
 	return &cloned
 }
 
-func (cm *Manager) QueueUploadLocalImage(imagePath string, imageName string, provisionerName string, location string, timeout time.Duration) (tasks.Record, error) {
+func (cm *Manager) QueueUploadLocalImage(ctx context.Context, imagePath string, imageName string, provisionerName string, location string, timeout time.Duration) (tasks.Record, error) {
 	if cm == nil || cm.tasks == nil {
 		return tasks.Record{}, fmt.Errorf("task manager is not configured")
 	}
@@ -1521,7 +1396,7 @@ func (cm *Manager) QueueUploadLocalImage(imagePath string, imageName string, pro
 	if provisionerName == "" {
 		return tasks.Record{}, fmt.Errorf("provisioner name is empty")
 	}
-	return tasks.Enqueue(cm.tasks, tasks.EnqueueOptions[uploadLocalImageTaskPayload]{
+	return tasks.EnqueueContext(ctx, cm.tasks, tasks.EnqueueOptions[uploadLocalImageTaskPayload]{
 		Stream:      ProvisionerImageUploadTaskStream,
 		SubjectType: taskSubjectProvisionerImage,
 		SubjectID:   uploadLocalImageSubjectID(provisionerName, location, imageName),

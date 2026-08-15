@@ -2139,16 +2139,14 @@ func (x *ExitRoute) GetCidrs() []string {
 }
 
 type RuntimeState struct {
-	state                      protoimpl.MessageState `protogen:"open.v1"`
-	PeerId                     string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	ManifestDigest             string                 `protobuf:"bytes,2,opt,name=manifest_digest,json=manifestDigest,proto3" json:"manifest_digest,omitempty"`
-	CheckpointRootHash         string                 `protobuf:"bytes,3,opt,name=checkpoint_root_hash,json=checkpointRootHash,proto3" json:"checkpoint_root_hash,omitempty"`
-	TentativeRootHash          string                 `protobuf:"bytes,4,opt,name=tentative_root_hash,json=tentativeRootHash,proto3" json:"tentative_root_hash,omitempty"`
-	ProtocolCheckpointRootHash string                 `protobuf:"bytes,5,opt,name=protocol_checkpoint_root_hash,json=protocolCheckpointRootHash,proto3" json:"protocol_checkpoint_root_hash,omitempty"`
-	DurableMainRootHash        string                 `protobuf:"bytes,6,opt,name=durable_main_root_hash,json=durableMainRootHash,proto3" json:"durable_main_root_hash,omitempty"`
-	StateProviders             []string               `protobuf:"bytes,10,rep,name=state_providers,json=stateProviders,proto3" json:"state_providers,omitempty"`
-	// Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections.
-	ConnectedPeers               []string                `protobuf:"bytes,11,rep,name=connected_peers,json=connectedPeers,proto3" json:"connected_peers,omitempty"`
+	state                        protoimpl.MessageState  `protogen:"open.v1"`
+	PeerId                       string                  `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	ManifestDigest               string                  `protobuf:"bytes,2,opt,name=manifest_digest,json=manifestDigest,proto3" json:"manifest_digest,omitempty"`
+	CheckpointRootHash           string                  `protobuf:"bytes,3,opt,name=checkpoint_root_hash,json=checkpointRootHash,proto3" json:"checkpoint_root_hash,omitempty"`
+	TentativeRootHash            string                  `protobuf:"bytes,4,opt,name=tentative_root_hash,json=tentativeRootHash,proto3" json:"tentative_root_hash,omitempty"`
+	ProtocolCheckpointRootHash   string                  `protobuf:"bytes,5,opt,name=protocol_checkpoint_root_hash,json=protocolCheckpointRootHash,proto3" json:"protocol_checkpoint_root_hash,omitempty"`
+	DurableMainRootHash          string                  `protobuf:"bytes,6,opt,name=durable_main_root_hash,json=durableMainRootHash,proto3" json:"durable_main_root_hash,omitempty"`
+	StateProviders               []string                `protobuf:"bytes,10,rep,name=state_providers,json=stateProviders,proto3" json:"state_providers,omitempty"`
 	FatalState                   string                  `protobuf:"bytes,12,opt,name=fatal_state,json=fatalState,proto3" json:"fatal_state,omitempty"`
 	RuntimeRefreshPending        bool                    `protobuf:"varint,13,opt,name=runtime_refresh_pending,json=runtimeRefreshPending,proto3" json:"runtime_refresh_pending,omitempty"`
 	RuntimeRefreshLastError      string                  `protobuf:"bytes,14,opt,name=runtime_refresh_last_error,json=runtimeRefreshLastError,proto3" json:"runtime_refresh_last_error,omitempty"`
@@ -2251,13 +2249,6 @@ func (x *RuntimeState) GetDurableMainRootHash() string {
 func (x *RuntimeState) GetStateProviders() []string {
 	if x != nil {
 		return x.StateProviders
-	}
-	return nil
-}
-
-func (x *RuntimeState) GetConnectedPeers() []string {
-	if x != nil {
-		return x.ConnectedPeers
 	}
 	return nil
 }
@@ -2389,25 +2380,21 @@ func (x *RuntimeState) GetPhysicalConnectedPeers() []string {
 }
 
 type RuntimePeerStatus struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	PeerId string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	// Deprecated: compatibility alias for routed.
-	Connected bool `protobuf:"varint,2,opt,name=connected,proto3" json:"connected,omitempty"`
-	// Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability.
-	Dialable             bool              `protobuf:"varint,3,opt,name=dialable,proto3" json:"dialable,omitempty"`
-	StateProvider        bool              `protobuf:"varint,4,opt,name=state_provider,json=stateProvider,proto3" json:"state_provider,omitempty"`
-	Compatible           bool              `protobuf:"varint,7,opt,name=compatible,proto3" json:"compatible,omitempty"`
-	Incompatible         bool              `protobuf:"varint,8,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
-	Ignored              bool              `protobuf:"varint,9,opt,name=ignored,proto3" json:"ignored,omitempty"`
-	RelayOnly            bool              `protobuf:"varint,10,opt,name=relay_only,json=relayOnly,proto3" json:"relay_only,omitempty"`
-	Addresses            []string          `protobuf:"bytes,11,rep,name=addresses,proto3" json:"addresses,omitempty"`
-	LastDialErrors       map[string]string `protobuf:"bytes,12,rep,name=last_dial_errors,json=lastDialErrors,proto3" json:"last_dial_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Reason               string            `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
-	Routed               bool              `protobuf:"varint,16,opt,name=routed,proto3" json:"routed,omitempty"`
-	Participating        bool              `protobuf:"varint,17,opt,name=participating,proto3" json:"participating,omitempty"`
-	Logical              bool              `protobuf:"varint,18,opt,name=logical,proto3" json:"logical,omitempty"`
-	PhysicalConnected    bool              `protobuf:"varint,19,opt,name=physical_connected,json=physicalConnected,proto3" json:"physical_connected,omitempty"`
-	LastRoutedAtUnixNano int64             `protobuf:"varint,20,opt,name=last_routed_at_unix_nano,json=lastRoutedAtUnixNano,proto3" json:"last_routed_at_unix_nano,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	PeerId               string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	StateProvider        bool                   `protobuf:"varint,4,opt,name=state_provider,json=stateProvider,proto3" json:"state_provider,omitempty"`
+	Compatible           bool                   `protobuf:"varint,7,opt,name=compatible,proto3" json:"compatible,omitempty"`
+	Incompatible         bool                   `protobuf:"varint,8,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
+	Ignored              bool                   `protobuf:"varint,9,opt,name=ignored,proto3" json:"ignored,omitempty"`
+	RelayOnly            bool                   `protobuf:"varint,10,opt,name=relay_only,json=relayOnly,proto3" json:"relay_only,omitempty"`
+	Addresses            []string               `protobuf:"bytes,11,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	LastDialErrors       map[string]string      `protobuf:"bytes,12,rep,name=last_dial_errors,json=lastDialErrors,proto3" json:"last_dial_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Reason               string                 `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
+	Routed               bool                   `protobuf:"varint,16,opt,name=routed,proto3" json:"routed,omitempty"`
+	Participating        bool                   `protobuf:"varint,17,opt,name=participating,proto3" json:"participating,omitempty"`
+	Logical              bool                   `protobuf:"varint,18,opt,name=logical,proto3" json:"logical,omitempty"`
+	PhysicalConnected    bool                   `protobuf:"varint,19,opt,name=physical_connected,json=physicalConnected,proto3" json:"physical_connected,omitempty"`
+	LastRoutedAtUnixNano int64                  `protobuf:"varint,20,opt,name=last_routed_at_unix_nano,json=lastRoutedAtUnixNano,proto3" json:"last_routed_at_unix_nano,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -2447,20 +2434,6 @@ func (x *RuntimePeerStatus) GetPeerId() string {
 		return x.PeerId
 	}
 	return ""
-}
-
-func (x *RuntimePeerStatus) GetConnected() bool {
-	if x != nil {
-		return x.Connected
-	}
-	return false
-}
-
-func (x *RuntimePeerStatus) GetDialable() bool {
-	if x != nil {
-		return x.Dialable
-	}
-	return false
 }
 
 func (x *RuntimePeerStatus) GetStateProvider() bool {
@@ -2939,7 +2912,7 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1d\n" +
 	"\n" +
 	"dns_server\x18\x05 \x01(\tR\tdnsServer\x12\x14\n" +
-	"\x05cidrs\x18\x06 \x03(\tR\x05cidrs\"\xd0\n" +
+	"\x05cidrs\x18\x06 \x03(\tR\x05cidrs\"\xbe\n" +
 	"\n" +
 	"\fRuntimeState\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12'\n" +
@@ -2949,8 +2922,7 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x1dprotocol_checkpoint_root_hash\x18\x05 \x01(\tR\x1aprotocolCheckpointRootHash\x123\n" +
 	"\x16durable_main_root_hash\x18\x06 \x01(\tR\x13durableMainRootHash\x12'\n" +
 	"\x0fstate_providers\x18\n" +
-	" \x03(\tR\x0estateProviders\x12'\n" +
-	"\x0fconnected_peers\x18\v \x03(\tR\x0econnectedPeers\x12\x1f\n" +
+	" \x03(\tR\x0estateProviders\x12\x1f\n" +
 	"\vfatal_state\x18\f \x01(\tR\n" +
 	"fatalState\x126\n" +
 	"\x17runtime_refresh_pending\x18\r \x01(\bR\x15runtimeRefreshPending\x12;\n" +
@@ -2970,11 +2942,9 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x13participating_peers\x18\x1d \x03(\tR\x12participatingPeers\x12#\n" +
 	"\rlogical_peers\x18\x1e \x03(\tR\flogicalPeers\x12.\n" +
 	"\x13logical_peer_target\x18\x1f \x01(\x05R\x11logicalPeerTarget\x128\n" +
-	"\x18physical_connected_peers\x18  \x03(\tR\x16physicalConnectedPeers\"\x9a\x05\n" +
+	"\x18physical_connected_peers\x18  \x03(\tR\x16physicalConnectedPeersJ\x04\b\v\x10\fR\x0fconnected_peers\"\x81\x05\n" +
 	"\x11RuntimePeerStatus\x12\x17\n" +
-	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1c\n" +
-	"\tconnected\x18\x02 \x01(\bR\tconnected\x12\x1a\n" +
-	"\bdialable\x18\x03 \x01(\bR\bdialable\x12%\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12%\n" +
 	"\x0estate_provider\x18\x04 \x01(\bR\rstateProvider\x12\x1e\n" +
 	"\n" +
 	"compatible\x18\a \x01(\bR\n" +
@@ -2994,7 +2964,7 @@ const file_internal_p2p_proto_instance_proto_rawDesc = "" +
 	"\x18last_routed_at_unix_nano\x18\x14 \x01(\x03R\x14lastRoutedAtUnixNano\x1aA\n" +
 	"\x13LastDialErrorsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcb\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\tconnectedR\bdialable\"\xcb\x01\n" +
 	"\x14RuntimeCompatibility\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12!\n" +
 	"\flocal_digest\x18\x02 \x01(\tR\vlocalDigest\x12#\n" +

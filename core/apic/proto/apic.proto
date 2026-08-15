@@ -20,11 +20,6 @@ service ProtosClientApi {
   rpc StopApp(StopAppRequest) returns (StopAppResponse) {}
   rpc RemoveApp(RemoveAppRequest) returns (RemoveAppResponse) {}
   rpc GetAppLogs(GetAppLogsRequest) returns (GetAppLogsResponse) {}
-  rpc GetSupportedCloudProviders(GetSupportedCloudProvidersRequest) returns (GetSupportedCloudProvidersResponse) {}
-  rpc GetCloudProviders(GetCloudProvidersRequest) returns (GetCloudProvidersResponse) {}
-  rpc GetCloudProvider(GetCloudProviderRequest) returns (GetCloudProviderResponse) {}
-  rpc AddCloudProvider(AddCloudProviderRequest) returns (AddCloudProviderResponse) {}
-  rpc RemoveCloudProvider(RemoveCloudProviderRequest) returns (RemoveCloudProviderResponse) {}
   rpc GetSupportedProvisioners(GetSupportedProvisionersRequest) returns (GetSupportedProvisionersResponse) {}
   rpc GetProvisioners(GetProvisionersRequest) returns (GetProvisionersResponse) {}
   rpc GetProvisioner(GetProvisionerRequest) returns (GetProvisionerResponse) {}
@@ -53,9 +48,6 @@ service ProtosClientApi {
   rpc SetExitRoute(SetExitRouteRequest) returns (SetExitRouteResponse) {}
   rpc ClearExitRoute(ClearExitRouteRequest) returns (ClearExitRouteResponse) {}
   rpc GetProtosdReleases(GetProtosdReleasesRequest) returns (GetProtosdReleasesResponse) {}
-  rpc GetCloudImages(GetCloudImagesRequest) returns (GetCloudImagesResponse) {}
-  rpc UploadCloudImage(UploadCloudImageRequest) returns (UploadCloudImageResponse) {}
-  rpc RemoveCloudImage(RemoveCloudImageRequest) returns (RemoveCloudImageResponse) {}
   rpc GetProvisionerImages(GetProvisionerImagesRequest) returns (GetProvisionerImagesResponse) {}
   rpc UploadProvisionerImage(UploadProvisionerImageRequest) returns (UploadProvisionerImageResponse) {}
   rpc RemoveProvisionerImage(RemoveProvisionerImageRequest) returns (RemoveProvisionerImageResponse) {}
@@ -236,91 +228,6 @@ message GetAppLogsResponse {
   bytes logs = 1;
 }
 
-message Installer {
-  string id = 1;
-  string name = 2;
-  string version = 3;
-  string description = 4;
-  repeated string requires_resources = 5;
-  repeated string provides_resources = 6;
-  repeated string capabilities = 7;
-}
-
-message GetInstallersRequest {
-}
-
-message GetInstallersResponse {
-  repeated Installer installers = 1;
-}
-
-message GetInstallerRequest {
-  string id = 1;
-}
-
-message GetInstallerResponse {
-  Installer installer = 1;
-}
-
-message CloudMachineSpec {
-  int32 cores = 1;
-  int32 memory = 2;
-  int32 default_storage = 3;
-  int32 bandwidth = 4;
-  int32 included_data_transfer = 5;
-  bool baremetal = 6;
-  float price_monthly = 7;
-}
-
-message CloudType {
-  string name = 1;
-  repeated string authentication_fields = 2;
-}
-
-message CloudProvider {
-  string name = 1;
-  CloudType type = 2;
-  repeated string supported_locations = 3;
-  map<string, CloudMachineSpec> supported_machines = 4;
-}
-
-message GetSupportedCloudProvidersRequest {
-}
-
-message GetSupportedCloudProvidersResponse {
-  repeated CloudType cloud_types = 1;
-}
-
-message GetCloudProvidersRequest {
-}
-
-message GetCloudProvidersResponse {
-  repeated CloudProvider cloud_providers = 1;
-}
-
-message GetCloudProviderRequest {
-  string name = 1;
-}
-
-message GetCloudProviderResponse {
-  CloudProvider cloud_provider = 1;
-}
-
-message AddCloudProviderRequest {
-  string name = 1;
-  string type = 2;
-  map<string, string> credentials = 3;
-}
-
-message AddCloudProviderResponse {
-}
-
-message RemoveCloudProviderRequest {
-  string name = 1;
-}
-
-message RemoveCloudProviderResponse {
-}
-
 message ProvisionerMachineSpec {
   int32 cores = 1;
   int32 memory = 2;
@@ -382,6 +289,7 @@ message RemoveProvisionerResponse {
 }
 
 message CloudInstance {
+  reserved "replication_connected";
   string name = 1;
   string public_ip = 2;
   string internal_ip = 3;
@@ -397,7 +305,7 @@ message CloudInstance {
   map<string, string> peers = 13;
   string provider_status = 14;
   string admin_api_reachability = 15;
-  bool replication_connected = 16;
+  bool replication_routed = 16;
   string admin_last_error = 17;
   string admin_last_seen = 18;
   string peer_id = 19;
@@ -799,6 +707,8 @@ message ClearExitRouteResponse {
 }
 
 message RuntimeState {
+  reserved 11;
+  reserved "connected_peers";
   string peer_id = 1;
   string manifest_digest = 2;
   string checkpoint_root_hash = 3;
@@ -806,8 +716,6 @@ message RuntimeState {
   string protocol_checkpoint_root_hash = 5;
   string durable_main_root_hash = 6;
   repeated string state_providers = 10;
-  // Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections.
-  repeated string connected_peers = 11;
   string fatal_state = 12;
   bool runtime_refresh_pending = 13;
   string runtime_refresh_last_error = 14;
@@ -834,11 +742,11 @@ message RuntimeState {
 }
 
 message RuntimePeerStatus {
+  reserved 2;
+  reserved 3;
+  reserved "connected";
+  reserved "dialable";
   string peer_id = 1;
-  // Deprecated: compatibility alias for routed.
-  bool connected = 2;
-  // Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability.
-  bool dialable = 3;
   bool state_provider = 4;
   bool compatible = 7;
   bool incompatible = 8;
@@ -872,7 +780,7 @@ message CloudImage {
   int64 release_date = 4;
 }
 
-message CloudSpecificImage {
+message ProvisionerImage {
   string id = 1;
   string name = 2;
   string location = 3;
@@ -896,33 +804,12 @@ message GetProtosdReleasesResponse {
   repeated Release releases = 1;
 }
 
-message GetCloudImagesRequest {
-  string name = 1;
-}
-
-message GetCloudImagesResponse {
-  map<string, CloudSpecificImage> cloud_images = 1;
-}
-
 message GetProvisionerImagesRequest {
   string name = 1;
 }
 
 message GetProvisionerImagesResponse {
-  map<string, CloudSpecificImage> images = 1;
-}
-
-message UploadCloudImageRequest {
-  string image_path = 1;
-  string image_name = 2;
-  string cloud_name = 3;
-  string cloud_location = 4;
-  int32 timeout = 5;
-}
-
-message UploadCloudImageResponse {
-  string id = 1;
-  string task_id = 2;
+  map<string, ProvisionerImage> images = 1;
 }
 
 message UploadProvisionerImageRequest {
@@ -936,15 +823,6 @@ message UploadProvisionerImageRequest {
 message UploadProvisionerImageResponse {
   string id = 1;
   string task_id = 2;
-}
-
-message RemoveCloudImageRequest {
-  string image_name = 2;
-  string cloud_name = 3;
-  string cloud_location = 4;
-}
-
-message RemoveCloudImageResponse {
 }
 
 message RemoveProvisionerImageRequest {

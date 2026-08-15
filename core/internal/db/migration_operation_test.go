@@ -93,7 +93,7 @@ func TestMigrationBatchReceiptSurvivesRestartWithoutRepublishing(t *testing.T) {
 	assertMigrationHistoryRowCount(t, reopened, len(filenames))
 }
 
-func TestMigrationBatchAdoptsCompatibleLegacySchemaWithoutDuplicateDDL(t *testing.T) {
+func TestMigrationBatchAdoptsCompatiblePreContractSchemaWithoutDuplicateDDL(t *testing.T) {
 	store := openMigrationDatabaseWithoutMigrations(t)
 	migrationsDir, filenames, operation := embeddedMigrationBatchForTest(t)
 
@@ -101,9 +101,9 @@ func TestMigrationBatchAdoptsCompatibleLegacySchemaWithoutDuplicateDDL(t *testin
 	// owned its history atomically. Applying the first migration directly proves
 	// the declarative preflight adopts compatible objects instead of publishing
 	// duplicate DDL.
-	legacyFilenames := []string{"protos_01_tables.sql"}
-	legacyStatements := make([]preparedWriteStatement, 0)
-	for _, filename := range legacyFilenames {
+	preContractFilenames := []string{"protos_01_tables.sql"}
+	preContractStatements := make([]preparedWriteStatement, 0)
+	for _, filename := range preContractFilenames {
 		contents, err := fs.ReadFile(migrationsDir, filename)
 		if err != nil {
 			t.Fatalf("read embedded migration %s: %v", filename, err)
@@ -114,14 +114,14 @@ func TestMigrationBatchAdoptsCompatibleLegacySchemaWithoutDuplicateDDL(t *testin
 		}
 		for _, piece := range pieces {
 			if piece = strings.TrimSpace(piece); piece != "" {
-				legacyStatements = append(legacyStatements, preparedWriteStatement{SQL: piece})
+				preContractStatements = append(preContractStatements, preparedWriteStatement{SQL: piece})
 			}
 		}
 	}
-	publishLegacyMigrationSchema(t, store, legacyStatements)
+	publishPreContractMigrationSchema(t, store, preContractStatements)
 
 	if err := store.runMigrations(context.Background()); err != nil {
-		t.Fatalf("adopt compatible legacy schema: %v", err)
+		t.Fatalf("adopt compatible pre-contract schema: %v", err)
 	}
 	assertMigrationHistoryRowCount(t, store, len(filenames))
 	_ = requireMigrationOperationReceipt(t, store, operation)
@@ -243,28 +243,35 @@ func openMigrationDatabaseWithoutMigrations(t *testing.T) *DB {
 	if err != nil {
 		t.Fatalf("open raw migration database: %v", err)
 	}
-	if err := store.openSwarmion(context.Background(), nil); err != nil {
+	ctx := context.Background()
+	if err := store.openMu.LockContext(ctx); err != nil {
 		_ = store.Close()
-		t.Fatalf("initialize raw migration database: %v", err)
+		t.Fatalf("lock raw migration database initialization: %v", err)
+	}
+	openErr := store.openSwarmionLocked(ctx, nil)
+	store.openMu.Unlock()
+	if openErr != nil {
+		_ = store.Close()
+		t.Fatalf("initialize raw migration database: %v", openErr)
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	return store
 }
 
-func publishLegacyMigrationSchema(t *testing.T, store *DB, statements []preparedWriteStatement) {
+func publishPreContractMigrationSchema(t *testing.T, store *DB, statements []preparedWriteStatement) {
 	t.Helper()
 	receipt, err := store.executeOrdinaryPublishedWriteContext(
 		context.Background(),
-		"legacy migration schema",
+		"pre-contract migration schema",
 		false,
 		false,
 		statements,
 	)
 	if err != nil {
-		t.Fatalf("publish legacy migration schema: %v", err)
+		t.Fatalf("publish pre-contract migration schema: %v", err)
 	}
 	if !receipt.Committed {
-		t.Fatalf("legacy schema write was not locally published: %+v", receipt)
+		t.Fatalf("pre-contract schema write was not locally published: %+v", receipt)
 	}
 }
 
@@ -414,8 +421,7 @@ func assertMigrationHistoryRowCount(t *testing.T, store *DB, want int) {
 func assertSingleMigrationTransaction(t *testing.T, metrics TransactionMetricsSnapshot) {
 	t.Helper()
 	if metrics.TransactionsStarted != 1 || metrics.CommitsAttempted != 1 ||
-		metrics.CommitsSucceeded != 1 || metrics.CommitsFailed != 0 ||
-		metrics.RollbacksAttempted != 0 || metrics.TypedConflicts != 0 ||
+		metrics.CommitsSucceeded != 1 || metrics.TypedConflicts != 0 ||
 		metrics.OperationTransactionsAttempted != 1 ||
 		metrics.OperationTransactionsExecuted != 1 ||
 		metrics.OperationTransactionsAlreadyAccepted != 0 ||

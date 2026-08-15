@@ -63,7 +63,7 @@ func (b *Backend) UploadInstanceImageArchive(ctx context.Context, in *pbApic.Upl
 		return nil, fmt.Errorf("resolve archive path: %w", err)
 	}
 
-	task, err := tasks.Enqueue(manager, tasks.EnqueueOptions[uploadInstanceImageArchiveTaskPayload]{
+	task, err := tasks.EnqueueContext(ctx, manager, tasks.EnqueueOptions[uploadInstanceImageArchiveTaskPayload]{
 		Stream:      InstanceImageArchiveUploadTaskStream,
 		SubjectType: taskSubjectInstanceImageArchive,
 		SubjectID:   fmt.Sprintf("%s/%s", instance, imageRef),

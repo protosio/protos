@@ -107,7 +107,7 @@ func TestOperationAwareDeletePublishesAllStatementsOnceAndReplaysReceipt(t *test
 	}
 	operation, err := db.NewPublishedWriteOperation(
 		operationKey,
-		"protos:test:multi-delete:v1",
+		"protos:test:multi-delete",
 		firstUserID,
 		firstOrganisationID,
 	)
@@ -150,7 +150,7 @@ func TestOperationAwareDeletePublishesAllStatementsOnceAndReplaysReceipt(t *test
 		t.Fatal("operation replay executed its changed SQL body")
 	}
 
-	conflicting, err := db.NewPublishedWriteOperation(operationKey, "protos:test:multi-delete:v2")
+	conflicting, err := db.NewPublishedWriteOperation(operationKey, "protos:test:multi-delete-conflict")
 	if err != nil {
 		t.Fatal(err)
 	}

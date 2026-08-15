@@ -22,6 +22,9 @@ enum {{ .name }} {
 }
 {{ else if eq .kind "message" -}}
 message {{ .name }} {
+{{- range .reserved_numbers }}
+  reserved {{ . }};
+{{- end }}
 {{- range .reserved_names }}
   reserved "{{ . }}";
 {{- end }}

@@ -18,7 +18,6 @@ import (
 	"github.com/containerd/platforms"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/protosio/protos/internal/config"
 	"github.com/protosio/protos/internal/imageregistry"
 )
 
@@ -555,16 +554,6 @@ func (cdp *containerdPlatform) LoadImageArchive(ctx context.Context, archivePath
 		TargetDigest: target.Digest.String(),
 		Platform:     platforms.DefaultString(),
 	}, nil
-}
-
-func cleanupLegacyImageArchives() {
-	archiveDir := filepath.Join(config.Get().WorkDir, "image-archives")
-	if strings.TrimSpace(config.Get().WorkDir) == "" || archiveDir == "/" {
-		return
-	}
-	if err := os.RemoveAll(archiveDir); err != nil {
-		log.Warnf("failed to clean legacy image archive cache %s: %v", archiveDir, err)
-	}
 }
 
 func namespacesContext(ctx context.Context) context.Context {

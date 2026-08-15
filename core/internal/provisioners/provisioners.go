@@ -89,13 +89,13 @@ func (ct Type) String() string {
 	return string(ct)
 }
 
-// CreateManager creates and returns a cloud manager.
+// CreateManager creates and returns a provisioner manager.
 //
 // Concrete provisioners are passed in by the caller so internal/provisioners owns the
 // orchestration contract without importing implementation packages.
 func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2P, taskManager *tasks.Manager, provisioners ...ProvisionerFactory) (*Manager, error) {
 	if db == nil || um == nil || sm == nil || p2p == nil || taskManager == nil {
-		return nil, fmt.Errorf("failed to create cloud manager: none of the inputs can be nil")
+		return nil, fmt.Errorf("failed to create provisioner manager: none of the inputs can be nil")
 	}
 
 	manager := &Manager{
@@ -119,19 +119,19 @@ func CreateManager(db *db.DB, um *user.Manager, sm *pcrypto.Manager, p2p *p2p.P2
 
 // Manager manages provisioners and instances.
 type Manager struct {
-	db                       *db.DB
-	um                       *user.Manager
-	sm                       *pcrypto.Manager
-	p2p                      *p2p.P2P
-	provisioners             *provisionerRegistry
-	tasks                    *tasks.Manager
-	lifecycleMu              sync.Mutex
-	lifecycleSig             map[string]string
-	instanceLifecycleMu      sync.Map
-	deleteReceiptTracker     instanceDeleteReceiptTracker
-	peerDrainRuntime         replicationPeerDrainRuntime
-	peerRouteFence           replicationPeerRouteFence
-	providerMutationDisabled bool
+	db                          *db.DB
+	um                          *user.Manager
+	sm                          *pcrypto.Manager
+	p2p                         *p2p.P2P
+	provisioners                *provisionerRegistry
+	tasks                       *tasks.Manager
+	lifecycleMu                 sync.Mutex
+	lifecycleSig                map[string]string
+	instanceLifecycleMu         sync.Map
+	deleteReceiptTracker        instanceDeleteReceiptTracker
+	peerDrainRuntime            replicationPeerDrainRuntime
+	peerRouteFence              replicationPeerRouteFence
+	provisionerMutationDisabled bool
 	// Recovery-only test seams prove foreign pending/parked handling without
 	// synthesizing protocol state. Production always uses the DB methods.
 	lookupDeleteRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResolution, error)
@@ -163,24 +163,57 @@ type Manager struct {
 	enqueueDeploymentTask       func(context.Context, tasks.EnqueueOptions[deployInstanceTaskPayload]) (tasks.Record, error)
 }
 
-// SetProviderMutationEnabled prevents task-stream registration on a
-// non-provisioning replica from becoming provider-side execution authority.
-func (cm *Manager) SetProviderMutationEnabled(enabled bool) {
+type instanceLifecycleGate struct {
+	available chan struct{}
+}
+
+func newInstanceLifecycleGate() *instanceLifecycleGate {
+	gate := &instanceLifecycleGate{available: make(chan struct{}, 1)}
+	gate.available <- struct{}{}
+	return gate
+}
+
+// SetProvisionerMutationEnabled prevents task-stream registration on a
+// non-provisioning replica from becoming provisioner-side execution authority.
+func (cm *Manager) SetProvisionerMutationEnabled(enabled bool) {
 	if cm == nil {
 		return
 	}
-	cm.providerMutationDisabled = !enabled
+	cm.provisionerMutationDisabled = !enabled
 }
 
 func (cm *Manager) lockInstanceLifecycle(instanceID string) func() {
+	unlock, _ := cm.acquireInstanceLifecycle(context.Background(), instanceID)
+	return unlock
+}
+
+func (cm *Manager) acquireInstanceLifecycle(ctx context.Context, instanceID string) (func(), error) {
 	if cm == nil {
-		return func() {}
+		return func() {}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	instanceID = strings.TrimSpace(instanceID)
-	value, _ := cm.instanceLifecycleMu.LoadOrStore(instanceID, &sync.Mutex{})
-	lock := value.(*sync.Mutex)
-	lock.Lock()
-	return lock.Unlock
+	value, _ := cm.instanceLifecycleMu.LoadOrStore(instanceID, newInstanceLifecycleGate())
+	gate := value.(*instanceLifecycleGate)
+	select {
+	case <-gate.available:
+		release := func() {
+			select {
+			case gate.available <- struct{}{}:
+			default:
+				panic("instance lifecycle gate released while not held")
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			release()
+			return nil, err
+		}
+		return release, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func instanceInitializationRecoveryRequired(instanceID string, stage string, cause error) error {
@@ -379,7 +412,7 @@ func (cm *Manager) deleteInstanceSSHKey(instanceID string) error {
 }
 
 //
-// Cloud manager methods
+// Provisioner manager methods
 //
 
 // RegisterProvisioner adds a concrete provisioner implementation to the manager.
@@ -397,15 +430,10 @@ func (cm *Manager) AddProvisioner(name string, provisionerType string, auth map[
 	if err := provisioner.Init(); err != nil {
 		return fmt.Errorf("failed to initialize provisioner: %w", err)
 	}
-	if err := cm.saveProviderRecord(provisioner.ProviderRecord()); err != nil {
+	if err := cm.saveProvisionerRecord(provisioner.ProvisionerRecord()); err != nil {
 		return fmt.Errorf("failed to save provisioner: %w", err)
 	}
 	return nil
-}
-
-// AddProvider validates and saves a cloud provider configuration.
-func (cm *Manager) AddProvider(cloudName string, cloud string, auth map[string]string) error {
-	return cm.AddProvisioner(cloudName, cloud, auth)
 }
 
 // SupportedProvisioners returns a list of supported provisioners.
@@ -418,11 +446,6 @@ func (cm *Manager) SupportedProvisioners() []string {
 	return supportedProvisioners
 }
 
-// SupportedProviders returns a list of supported cloud providers.
-func (cm *Manager) SupportedProviders() []string {
-	return cm.SupportedProvisioners()
-}
-
 // ProvisionerAuthFields returns the authentication fields required by a provisioner type.
 func (cm *Manager) ProvisionerAuthFields(provisionerType string) ([]string, error) {
 	factory, found := cm.provisioners.factory(Type(provisionerType))
@@ -432,14 +455,9 @@ func (cm *Manager) ProvisionerAuthFields(provisionerType string) ([]string, erro
 	return factory.AuthFields(), nil
 }
 
-// ProviderAuthFields returns the authentication fields required by a provider type.
-func (cm *Manager) ProviderAuthFields(cloud string) ([]string, error) {
-	return cm.ProvisionerAuthFields(cloud)
-}
-
 // GetProvisioner returns a provisioner instance from the db.
 func (cm *Manager) GetProvisioner(id string) (Provisioner, error) {
-	record, found, err := cm.findProviderRecord(id)
+	record, found, err := cm.findProvisionerRecord(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve provisioner '%s': %w", id, err)
 	}
@@ -467,11 +485,6 @@ func (cm *Manager) GetProvisionerOrDefault(id string) (Provisioner, error) {
 	return defaultProvisioner, nil
 }
 
-// GetProvider returns a cloud provider instance from the db.
-func (cm *Manager) GetProvider(id string) (ProviderClient, error) {
-	return cm.GetProvisioner(id)
-}
-
 func (cm *Manager) newDefaultProvisioner(id string) (Provisioner, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -487,8 +500,8 @@ func (cm *Manager) newDefaultProvisioner(id string) (Provisioner, error) {
 	return cm.newProvisioner(newProvisionerRecord(id, Type(id), nil))
 }
 
-func (cm *Manager) ensureProviderForDeployment(id string) (Provisioner, error) {
-	provisioner, err := cm.GetProvider(id)
+func (cm *Manager) ensureProvisionerForDeployment(id string) (Provisioner, error) {
+	provisioner, err := cm.GetProvisioner(id)
 	if err == nil {
 		return provisioner, nil
 	}
@@ -499,7 +512,7 @@ func (cm *Manager) ensureProviderForDeployment(id string) (Provisioner, error) {
 	if err := defaultProvisioner.Init(); err != nil {
 		return nil, fmt.Errorf("failed to initialize default provisioner '%s': %w", id, err)
 	}
-	if err := cm.saveProviderRecord(defaultProvisioner.ProviderRecord()); err != nil {
+	if err := cm.saveProvisionerRecord(defaultProvisioner.ProvisionerRecord()); err != nil {
 		return nil, fmt.Errorf("failed to save default provisioner '%s': %w", id, err)
 	}
 	return defaultProvisioner, nil
@@ -507,7 +520,7 @@ func (cm *Manager) ensureProviderForDeployment(id string) (Provisioner, error) {
 
 // DeleteProvisioner deletes a provisioner from the db.
 func (cm *Manager) DeleteProvisioner(name string) error {
-	record, found, err := cm.findProviderRecord(name)
+	record, found, err := cm.findProvisionerRecord(name)
 	if err != nil {
 		return err
 	}
@@ -515,7 +528,7 @@ func (cm *Manager) DeleteProvisioner(name string) error {
 		return fmt.Errorf("could not find provisioner '%s'", name)
 	}
 
-	_, err = db.DeleteWithAvailabilityContext(context.Background(), cm.db, createCloudProviderDeleteMapper(record.ID))
+	_, err = db.DeleteWithAvailabilityContext(context.Background(), cm.db, createProvisionerDeleteMapper(record.ID))
 	if err != nil {
 		return fmt.Errorf("failed to delete provisioner '%s': %w", name, err)
 	}
@@ -523,15 +536,10 @@ func (cm *Manager) DeleteProvisioner(name string) error {
 	return nil
 }
 
-// DeleteProvider deletes a cloud provider from the db.
-func (cm *Manager) DeleteProvider(name string) error {
-	return cm.DeleteProvisioner(name)
-}
-
 // GetProvisioners returns all configured provisioners from the db.
 func (cm *Manager) GetProvisioners() ([]Provisioner, error) {
 	provisioners := []Provisioner{}
-	records, err := db.SelectMultiple(cm.db, createCloudProviderQueryMapper(nil))
+	records, err := db.SelectMultiple(cm.db, createProvisionerQueryMapper(nil))
 	if err != nil {
 		return provisioners, fmt.Errorf("failed to retrieve provisioners: %w", err)
 	}
@@ -545,11 +553,6 @@ func (cm *Manager) GetProvisioners() ([]Provisioner, error) {
 	}
 
 	return provisioners, nil
-}
-
-// GetProviders returns all the cloud providers from the db.
-func (cm *Manager) GetProviders() ([]ProviderClient, error) {
-	return cm.GetProvisioners()
 }
 
 func (cm *Manager) provisionerDeps() ProvisionerDeps {
@@ -568,14 +571,14 @@ func (cm *Manager) newProvisioner(record ProvisionerRecord) (Provisioner, error)
 	return factory.NewClient(record, cm.provisionerDeps())
 }
 
-func (cm *Manager) saveProviderRecord(record ProviderRecord) error {
+func (cm *Manager) saveProvisionerRecord(record ProvisionerRecord) error {
 	record = record.normalized()
 	if record.Name == "" {
 		return fmt.Errorf("cloud provider name is empty")
 	}
 
 	cpModel := sq.New[db.CLOUD_PROVIDER]("")
-	records, err := db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.NAME.EqString(record.Name)}))
+	records, err := db.SelectMultiple(cm.db, createProvisionerQueryMapper([]sq.Predicate{cpModel.NAME.EqString(record.Name)}))
 	if err != nil {
 		return err
 	}
@@ -584,7 +587,7 @@ func (cm *Manager) saveProviderRecord(record ProviderRecord) error {
 	}
 	if len(records) == 1 {
 		record.ID = records[0].ID
-		_, err := db.UpdateWithAvailabilityContext(context.Background(), cm.db, createCloudProviderUpdateMapper(record))
+		_, err := db.UpdateWithAvailabilityContext(context.Background(), cm.db, createProvisionerUpdateMapper(record))
 		return err
 	}
 
@@ -593,65 +596,59 @@ func (cm *Manager) saveProviderRecord(record ProviderRecord) error {
 	} else if _, err := db.UUIDBytes(record.ID); err != nil {
 		return fmt.Errorf("cloud provider id must be a UUID: %w", err)
 	}
-	_, err = db.InsertWithAvailabilityContext(context.Background(), cm.db, createCloudProviderInsertMapper(record))
+	_, err = db.InsertWithAvailabilityContext(context.Background(), cm.db, createProvisionerInsertMapper(record))
 	return err
 }
 
-func (cm *Manager) findProviderRecord(ref string) (ProviderRecord, bool, error) {
+func (cm *Manager) findProvisionerRecord(ref string) (ProvisionerRecord, bool, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
-		return ProviderRecord{}, false, fmt.Errorf("cloud provider name is empty")
+		return ProvisionerRecord{}, false, fmt.Errorf("cloud provider name is empty")
 	}
 
 	if _, parseErr := db.UUIDBytes(ref); parseErr == nil {
-		records, err := cm.findProviderRecordsByID(ref)
+		records, err := cm.findProvisionerRecordsByID(ref)
 		if err != nil {
-			return ProviderRecord{}, false, err
+			return ProvisionerRecord{}, false, err
 		}
 		if len(records) == 1 {
 			return records[0], true, nil
 		}
 		if len(records) > 1 {
-			return ProviderRecord{}, false, fmt.Errorf("found multiple cloud providers with id '%s'", ref)
+			return ProvisionerRecord{}, false, fmt.Errorf("found multiple cloud providers with id '%s'", ref)
 		}
 	}
 
 	cpModel := sq.New[db.CLOUD_PROVIDER]("")
-	records, err := db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{cpModel.NAME.EqString(ref)}))
+	records, err := db.SelectMultiple(cm.db, createProvisionerQueryMapper([]sq.Predicate{cpModel.NAME.EqString(ref)}))
 	if err != nil {
-		return ProviderRecord{}, false, err
+		return ProvisionerRecord{}, false, err
 	}
 	if len(records) == 0 {
-		return ProviderRecord{}, false, nil
+		return ProvisionerRecord{}, false, nil
 	}
 	if len(records) > 1 {
-		return ProviderRecord{}, false, fmt.Errorf("found multiple cloud providers named '%s'", ref)
+		return ProvisionerRecord{}, false, fmt.Errorf("found multiple cloud providers named '%s'", ref)
 	}
 	return records[0], true, nil
 }
 
-func (cm *Manager) findProviderRecordsByID(id string) ([]ProviderRecord, error) {
+func (cm *Manager) findProvisionerRecordsByID(id string) ([]ProvisionerRecord, error) {
 	cpModel := sq.New[db.CLOUD_PROVIDER]("")
-	return db.SelectMultiple(cm.db, createCloudProviderQueryMapper([]sq.Predicate{db.UUIDEq(cpModel.ID, id)}))
+	return db.SelectMultiple(cm.db, createProvisionerQueryMapper([]sq.Predicate{db.UUIDEq(cpModel.ID, id)}))
 }
 
 //
 // Instance related methods
 //
 
-// DeployInstance deploys an instance on the provided cloud
-func (cm *Manager) DeployInstance(instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (InstanceInfo, error) {
-	instance, _, err := cm.DeployInstanceWithConfirmation(context.Background(), instanceName, cloudName, cloudLocation, release, machineType)
-	return instance, err
-}
-
-// DeployInstanceWithConfirmation exposes the exact task-enqueue confirmation
-// while preserving DeployInstance for callers that do not render write stages.
+// DeployInstanceWithConfirmation deploys an instance and exposes the exact
+// task-enqueue confirmation.
 func (cm *Manager) DeployInstanceWithConfirmation(ctx context.Context, instanceName string, cloudName string, cloudLocation string, release release.Release, machineType string) (result InstanceInfo, task tasks.Record, err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	provider, err := cm.ensureProviderForDeployment(cloudName)
+	provider, err := cm.ensureProvisionerForDeployment(cloudName)
 	if err != nil {
 		return InstanceInfo{}, tasks.Record{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
 	}
@@ -732,7 +729,7 @@ func (cm *Manager) insertDeploymentPlaceholderWithAvailability(
 		return cm.insertDeploymentPlaceholder(ctx, mappers...)
 	}
 	if cm == nil {
-		return db.PublishedWriteConfirmation{}, fmt.Errorf("cloud manager is nil")
+		return db.PublishedWriteConfirmation{}, fmt.Errorf("provisioner manager is nil")
 	}
 	return db.InsertWithAvailabilityContext(ctx, cm.db, mappers...)
 }
@@ -745,7 +742,7 @@ func (cm *Manager) deleteDeploymentPlaceholderWithAvailability(
 		return cm.deleteDeploymentPlaceholder(ctx, mappers...)
 	}
 	if cm == nil {
-		return db.PublishedWriteConfirmation{}, fmt.Errorf("cloud manager is nil")
+		return db.PublishedWriteConfirmation{}, fmt.Errorf("provisioner manager is nil")
 	}
 	return db.DeleteWithAvailabilityContext(ctx, cm.db, mappers...)
 }
@@ -758,7 +755,7 @@ func (cm *Manager) enqueueDeploymentTaskWithContext(
 		return cm.enqueueDeploymentTask(ctx, opts)
 	}
 	if cm == nil {
-		return tasks.Record{}, fmt.Errorf("cloud manager is nil")
+		return tasks.Record{}, fmt.Errorf("provisioner manager is nil")
 	}
 	return tasks.EnqueueContext(ctx, cm.tasks, opts)
 }
@@ -780,7 +777,7 @@ func (cm *Manager) deployInstanceImperative(ctx context.Context, progress func(i
 	lifecycleOwnerPeerID := pendingInstance.LifecycleOwnerPeerID
 	// init cloud
 	_ = progress(5, "initializing provisioner", nil)
-	provider, err := cm.ensureProviderForDeployment(cloudName)
+	provider, err := cm.ensureProvisionerForDeployment(cloudName)
 	if err != nil {
 		return InstanceInfo{}, fmt.Errorf("could not retrieve cloud '%s': %w", cloudName, err)
 	}
@@ -1253,16 +1250,6 @@ func (cm *Manager) UpdateInstance(id string, ip string) error {
 
 }
 
-// DeleteInstance queues deletion of an instance.
-func (cm *Manager) DeleteInstance(ctx context.Context, id string) (tasks.Record, error) {
-	return cm.QueueDeleteInstance(ctx, id)
-}
-
-// DeleteInstanceLocal deletes only local database and peer state for an instance.
-func (cm *Manager) DeleteInstanceLocal(ctx context.Context, id string) (tasks.Record, error) {
-	return cm.QueueDeleteInstanceLocal(ctx, id)
-}
-
 func (cm *Manager) deleteInstanceImperative(
 	ctx context.Context,
 	progress func(int, string, any) error,
@@ -1271,7 +1258,6 @@ func (cm *Manager) deleteInstanceImperative(
 	operationID string,
 	operationIdentity instanceDeleteOperationIdentity,
 	peerDrainAuthorization *instancePeerDrainAuthorization,
-	storedReceipt *instanceDeleteOperationReceipt,
 	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
 ) error {
 	ctx, cancel := instanceDeleteContext(ctx)
@@ -1304,24 +1290,6 @@ func (cm *Manager) deleteInstanceImperative(
 			operationIdentity.AuthorPeerID,
 		)
 	}
-	if storedReceipt != nil {
-		if err := validateInstanceDeleteOperationReceipt(*storedReceipt, operationIdentity, operationID, id); err != nil {
-			return err
-		}
-		if persistReceipt == nil {
-			return fmt.Errorf("instance delete receipt persistence is not configured")
-		}
-		// Receipt recovery is status-first. A replicated receipt-bearing task
-		// payload resumes this exact EventID/root and never republishes the delete.
-		if err := cm.completeInstanceDeleteReceipt(ctx, *storedReceipt, persistReceipt); err != nil {
-			return err
-		}
-		if err := cm.deleteInstanceSSHKey(id); err != nil {
-			log.Warnf("failed to delete SSH key for instance '%s': %s", id, err.Error())
-		}
-		return nil
-	}
-
 	// Resolve before reading the instance or repeating any provider-side work.
 	// A prior process may have lost the receipt immediately after Swarmion
 	// accepted the final delete event.
@@ -1400,7 +1368,7 @@ func (cm *Manager) deleteInstanceImperative(
 	}
 
 	if peerDrainAuthorization == nil && cm.tasks != nil {
-		if fact, found, factErr := cm.tasks.OperationFact(ctx, operationID, instancePeerDrainAuthorizedV1); factErr != nil {
+		if fact, found, factErr := cm.tasks.OperationFact(ctx, operationID, instancePeerDrainAuthorizationFact); factErr != nil {
 			return fmt.Errorf("read peer-drain authorization fact for task %s: %w", operationID, factErr)
 		} else if found {
 			recovered, recoverErr := instancePeerDrainAuthorizationFromFact(fact)
@@ -1412,7 +1380,7 @@ func (cm *Manager) deleteInstanceImperative(
 	}
 	if peerDrainAuthorization == nil {
 		if IsDeletingInstance(instance) {
-			return fmt.Errorf("%w: legacy deleting instance %s has no immutable peer-drain authorization P", ErrInstanceDeleteInvariantConflict, instance.ID)
+			return fmt.Errorf("%w: deleting instance %s has no immutable peer-drain authorization P", ErrInstanceDeleteInvariantConflict, instance.ID)
 		}
 		authorization, err := newInstancePeerDrainAuthorization(operationID, operationIdentity, instance, localOnly)
 		if err != nil {
@@ -1524,7 +1492,7 @@ func (cm *Manager) executeInstanceDeleteAfterAuthorization(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		provider, err := cm.GetProvider(instance.KindID)
+		provider, err := cm.GetProvisioner(instance.KindID)
 		if err != nil {
 			return fmt.Errorf("could not retrieve cloud '%s': %w", id, err)
 		}
@@ -1753,8 +1721,6 @@ func instanceDeleteReceiptFromPublished(
 		ExpectedInvariant:     identity.ExpectedInvariant,
 		EventID:               published.EventID,
 		PublishedRootHash:     published.PublishedRootHash,
-		EventDigest:           published.EventDigest,
-		AuthorSeq:             published.AuthorSeq,
 		OperationIntentDigest: identity.IntentDigest,
 		OperationAuthorPeerID: identity.AuthorPeerID,
 		OutcomeUncertain:      published.OutcomeUncertain,
@@ -1814,12 +1780,9 @@ func (receipt instanceDeleteOperationReceipt) publishedWriteReceipt() db.Publish
 		Committed:             !receipt.OutcomeUncertain,
 		OutcomeUncertain:      receipt.OutcomeUncertain,
 		Checkpointed:          receipt.Checkpointed,
-		CommitHash:            receipt.CommitHash,
 		EventID:               receipt.EventID,
 		PublishedRootHash:     receipt.PublishedRootHash,
-		EventDigest:           receipt.EventDigest,
 		AuthorPeerID:          receipt.OperationAuthorPeerID,
-		AuthorSeq:             receipt.AuthorSeq,
 		OperationIntentDigest: receipt.OperationIntentDigest,
 		CheckpointCommitID:    receipt.CheckpointCommitID,
 		CheckpointRootHash:    receipt.CheckpointRootHash,
@@ -2330,16 +2293,6 @@ func (cm *Manager) replicationCandidatesExcluding(peerID string) ([]db.Replicati
 	return candidates, nil
 }
 
-// StartInstance starts an instance
-func (cm *Manager) StartInstance(id string) (tasks.Record, error) {
-	return cm.QueueStartInstance(id)
-}
-
-// StopInstance stops an instance
-func (cm *Manager) StopInstance(id string) (tasks.Record, error) {
-	return cm.QueueStopInstance(id)
-}
-
 // TunnelInstance creates and SSH tunnel to the instance
 func (cm *Manager) TunnelInstance(id string) error {
 	instanceInfo, err := cm.GetInstance(id)
@@ -2424,7 +2377,7 @@ func (cm *Manager) logsRemoteInstanceViaProvisioner(instanceInfo InstanceInfo) (
 	if err := cm.assertInstanceLifecycleExecutor(instanceInfo, ""); err != nil {
 		return "", true, err
 	}
-	provider, err := cm.GetProvider(instanceInfo.KindID)
+	provider, err := cm.GetProvisioner(instanceInfo.KindID)
 	if err != nil && instanceInfo.Kind == KindLocalVM {
 		provider, err = cm.GetProvisionerOrDefault(instanceInfo.KindID)
 	}
@@ -2504,13 +2457,26 @@ func (cm *Manager) GetDeclaredInstance(id string) (InstanceInfo, error) {
 }
 
 func (cm *Manager) getInstanceRecord(id string) (InstanceInfo, error) {
+	return cm.getInstanceRecordContext(context.Background(), id)
+}
+
+func (cm *Manager) getInstanceRecordContext(ctx context.Context, id string) (InstanceInfo, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	iqm := createInstanceQueryMapper(id)
-	instance, err := db.SelectOne(cm.db, iqm)
+	instance, err := db.SelectOneContext(ctx, cm.db, iqm)
 	if err == nil {
 		return instance, nil
 	}
-	instanceByName, nameErr := db.SelectOne(cm.db, createInstanceQueryByNameMapper(id))
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return instance, fmt.Errorf("failed to retrieve instance: %w", ctxErr)
+	}
+	instanceByName, nameErr := db.SelectOneContext(ctx, cm.db, createInstanceQueryByNameMapper(id))
 	if nameErr != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return instance, fmt.Errorf("failed to retrieve instance: %w", ctxErr)
+		}
 		return instance, fmt.Errorf("failed to retrieve instance: %w", err)
 	}
 	return instanceByName, nil
@@ -2518,7 +2484,14 @@ func (cm *Manager) getInstanceRecord(id string) (InstanceInfo, error) {
 
 // GetInstances returns all the instances from the db
 func (cm *Manager) GetInstances(excludeLocalInstance bool) ([]InstanceInfo, error) {
+	return cm.GetInstancesContext(context.Background(), excludeLocalInstance)
+}
 
+// GetInstancesContext returns declared instances under the caller's deadline.
+func (cm *Manager) GetInstancesContext(ctx context.Context, excludeLocalInstance bool) ([]InstanceInfo, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	publicKey := ""
 	if excludeLocalInstance {
 		key, err := cm.sm.GetLocalKey()
@@ -2528,7 +2501,7 @@ func (cm *Manager) GetInstances(excludeLocalInstance bool) ([]InstanceInfo, erro
 		publicKey = key.PublicString()
 	}
 
-	instances, err := db.SelectMultiple(cm.db, createInstanceQueryAllMapper(publicKey))
+	instances, err := db.SelectMultipleContext(ctx, cm.db, createInstanceQueryAllMapper(publicKey))
 	if err != nil {
 		return instances, fmt.Errorf("failed to retrieve instances: %w", err)
 	}
@@ -2540,7 +2513,7 @@ func (cm *Manager) retrieveInstanceStatus(instance InstanceInfo) (string, error)
 	if err := cm.assertInstanceLifecycleExecutor(instance, ""); err != nil {
 		return "", err
 	}
-	provider, err := cm.GetProvider(instance.KindID)
+	provider, err := cm.GetProvisioner(instance.KindID)
 	if err != nil && instance.Kind == KindLocalVM {
 		provider, err = cm.GetProvisionerOrDefault(instance.KindID)
 	}
@@ -2879,7 +2852,7 @@ func (cm *Manager) uploadLocalImageImperative(ctx context.Context, progress func
 	}, true); err != nil {
 		return "", err
 	}
-	provider, err := cm.GetProvider(cloudName)
+	provider, err := cm.GetProvisioner(cloudName)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", errMsg, err)
 	}

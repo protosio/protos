@@ -35,7 +35,6 @@ require (
 	github.com/protosio/protos/network/modules/ipc v0.0.0
 	github.com/protosio/protos/network/modules/networkextension v0.0.0
 	github.com/protosio/protos/network/modules/wireguard v0.0.0
-	github.com/rakyll/statik v0.1.8
 	github.com/rs/xid v1.6.0
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.37
 	github.com/shirou/gopsutil v3.21.11+incompatible

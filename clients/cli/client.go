@@ -50,7 +50,7 @@ func main() {
 			cmdInit,
 			cmdOrg,
 			cmdApp,
-			cmdCloud,
+			cmdProvisioner,
 			cmdInstance,
 			cmdRoute,
 			cmdInspect,

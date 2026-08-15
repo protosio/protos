@@ -40,7 +40,7 @@ func TestInstanceLifecycleOwnerSerializesForeignReconcileAgainstOwnerDelete(t *t
 	nonOwner := newLifecycleTestManager(t, store, registry)
 	nonOwner.tasks.SetExecutorPeerID("peer-b")
 
-	if _, err := nonOwner.QueueStopInstance(instance.ID); !errors.Is(err, ErrInstanceLifecycleOwnerConflict) {
+	if _, err := nonOwner.QueueStopInstance(context.Background(), instance.ID); !errors.Is(err, ErrInstanceLifecycleOwnerConflict) {
 		t.Fatalf("foreign QueueStopInstance error=%v, want lifecycle-owner conflict", err)
 	}
 	deleteTask, err := nonOwner.QueueDeleteInstance(context.Background(), instance.ID)
@@ -63,7 +63,7 @@ func TestInstanceLifecycleOwnerSerializesForeignReconcileAgainstOwnerDelete(t *t
 	// Simulate a stale task created by B before learning the owner assignment.
 	// Even though B owns this task row and its runner selects it, the stream-level
 	// guard must fail before provider initialization, status lookup, Start or Stop.
-	stale, err := tasks.Enqueue(nonOwner.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
+	stale, err := tasks.EnqueueContext(context.Background(), nonOwner.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 		Stream:      InstanceLifecycleTaskStream,
 		SubjectType: taskSubjectInstance,
 		SubjectID:   instance.ID + "/stale-peer-b-reconcile",
@@ -168,7 +168,7 @@ func TestInstanceLifecycleOwnerOrdersBlockedReconcileBeforeRemoteDelete(t *testi
 	}
 	owner.peerRouteFence = &fakeReplicationPeerRouteFence{prefix: "blocked-owner-reconcile"}
 
-	reconcileTask, err := owner.QueueStopInstance(instance.ID)
+	reconcileTask, err := owner.QueueStopInstance(context.Background(), instance.ID)
 	if err != nil {
 		t.Fatalf("queue owner reconcile: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestInstanceLifecycleOwnerOrdersBlockedReconcileBeforeRemoteDelete(t *testi
 	}
 }
 
-func TestLegacyBlankInstanceLifecycleOwnerFailsClosed(t *testing.T) {
+func TestBlankInstanceLifecycleOwnerFailsClosed(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	instance := peerDrainAuthorizationTestInstance(t)
 	instance.LifecycleOwnerPeerID = ""
@@ -238,10 +238,10 @@ func TestLegacyBlankInstanceLifecycleOwnerFailsClosed(t *testing.T) {
 	provider := &fakeStopFailDeleteProvider{instances: map[string]InstanceInfo{}}
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}))
 	if _, err := manager.QueueDeleteInstance(context.Background(), instance.ID); !errors.Is(err, ErrInstanceLifecycleOwnerUnavailable) {
-		t.Fatalf("legacy blank delete error=%v, want owner unavailable", err)
+		t.Fatalf("blank-owner delete error=%v, want owner unavailable", err)
 	}
-	if _, err := manager.QueueStartInstance(instance.ID); !errors.Is(err, ErrInstanceLifecycleOwnerUnavailable) {
-		t.Fatalf("legacy blank start error=%v, want owner unavailable", err)
+	if _, err := manager.QueueStartInstance(context.Background(), instance.ID); !errors.Is(err, ErrInstanceLifecycleOwnerUnavailable) {
+		t.Fatalf("blank-owner start error=%v, want owner unavailable", err)
 	}
 	if provider.startCalls != 0 || provider.stopCalls != 0 || provider.deleteCalls != 0 {
 		t.Fatalf("blank authority entered provider: start=%d stop=%d delete=%d", provider.startCalls, provider.stopCalls, provider.deleteCalls)

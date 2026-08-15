@@ -149,15 +149,15 @@ type Node struct {
 	initOnce      sync.Once
 	initCh        chan struct{}
 
-	DB             *db.DB
-	Manager        *user.Manager
-	KeyManager     *pcrypto.Manager
-	AppManager     *app.Manager
-	NetworkManager *network.Manager
-	CloudManager   *provisioners.Manager
-	P2PManager     *p2p.P2P
-	TaskManager    *tasks.Manager
-	appRuntime     appruntime.RuntimePlatform
+	DB                 *db.DB
+	Manager            *user.Manager
+	KeyManager         *pcrypto.Manager
+	AppManager         *app.Manager
+	NetworkManager     *network.Manager
+	ProvisionerManager *provisioners.Manager
+	P2PManager         *p2p.P2P
+	TaskManager        *tasks.Manager
+	appRuntime         appruntime.RuntimePlatform
 
 	networkMu          sync.Mutex
 	networkLifecycleMu sync.Mutex
@@ -339,7 +339,7 @@ func (n *Node) Start() error {
 		n.P2PManager.SetNetworkInspector(n)
 	}
 
-	n.CloudManager, err = provisioners.CreateManager(
+	n.ProvisionerManager, err = provisioners.CreateManager(
 		n.DB,
 		n.Manager,
 		n.KeyManager,
@@ -352,7 +352,7 @@ func (n *Node) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create provisioner manager: %w", err)
 	}
-	n.CloudManager.SetProviderMutationEnabled(n.capabilities.Provision)
+	n.ProvisionerManager.SetProvisionerMutationEnabled(n.capabilities.Provision)
 
 	if n.capabilities.API {
 		apiStopper, err := apic.StartGRPCServer(n.cfg.WorkDir, n.version, n.APIServices())
@@ -403,7 +403,7 @@ func (n *Node) Start() error {
 
 	dbNotifier := &DBNotifier{
 		database:     n.DB,
-		cm:           n.CloudManager,
+		cm:           n.ProvisionerManager,
 		um:           n.Manager,
 		am:           n.AppManager,
 		network:      n,
@@ -462,23 +462,23 @@ func (n *Node) Start() error {
 
 func (n *Node) APIServices() *apic.Services {
 	return &apic.Services{
-		DB:              n.DB,
-		Manager:         n.Manager,
-		KeyManager:      n.KeyManager,
-		AppManager:      n.AppManager,
-		NetworkManager:  n.NetworkManager,
-		NetworkControl:  n,
-		CloudManager:    n.CloudManager,
-		P2PManager:      n.P2PManager,
-		TaskManager:     n.TaskManager,
-		Invites:         n.inviteManager,
-		CanProvision:    n.capabilities.Provision,
-		WorkDir:         n.cfg.WorkDir,
-		Capabilities:    n.capabilities.String(),
-		P2PPort:         n.cfg.P2PPort,
-		InitFunc:        n.Init,
-		MarkInitialized: n.markInitialized,
-		ReleaseFetch:    n.GetProtosAvailableReleases,
+		DB:                 n.DB,
+		Manager:            n.Manager,
+		KeyManager:         n.KeyManager,
+		AppManager:         n.AppManager,
+		NetworkManager:     n.NetworkManager,
+		NetworkControl:     n,
+		ProvisionerManager: n.ProvisionerManager,
+		P2PManager:         n.P2PManager,
+		TaskManager:        n.TaskManager,
+		Invites:            n.inviteManager,
+		CanProvision:       n.capabilities.Provision,
+		WorkDir:            n.cfg.WorkDir,
+		Capabilities:       n.capabilities.String(),
+		P2PPort:            n.cfg.P2PPort,
+		InitFunc:           n.Init,
+		MarkInitialized:    n.markInitialized,
+		ReleaseFetch:       n.GetProtosAvailableReleases,
 	}
 }
 
@@ -726,7 +726,7 @@ func (dbn *DBNotifier) Notify() {
 	}
 
 	if dbn.capabilities.Provision {
-		if err := dbn.cm.QueueDesiredInstanceReconciles(); err != nil {
+		if err := dbn.cm.QueueDesiredInstanceReconciles(context.Background()); err != nil {
 			log.Error(fmt.Errorf("failed to queue desired instance reconciliation: %w", err))
 		}
 	}

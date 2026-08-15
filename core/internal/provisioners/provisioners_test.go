@@ -86,15 +86,15 @@ func TestActiveInstancesExcludesStoppedAndDeleting(t *testing.T) {
 		{Name: "running", DesiredStatus: ServerStateRunning},
 		{Name: "stopped", DesiredStatus: ServerStateStopped},
 		{Name: "deleting", DesiredStatus: ServerStateDeleting},
-		{Name: "legacy"},
+		{Name: "unspecified"},
 	}
 
 	active := ActiveInstances(instances)
 	if len(active) != 2 {
-		t.Fatalf("active instances = %#v, want running and legacy only", active)
+		t.Fatalf("active instances = %#v, want running and unspecified only", active)
 	}
-	if active[0].Name != "running" || active[1].Name != "legacy" {
-		t.Fatalf("active instances = %#v, want running and legacy only", active)
+	if active[0].Name != "running" || active[1].Name != "unspecified" {
+		t.Fatalf("active instances = %#v, want running and unspecified only", active)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	cm := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeDeploymentFactory{}))
 	beforeTransactions := store.TransactionMetrics()
 
-	instance, err := cm.DeployInstance("vm", "fake", "test-location", release.Release{Version: "dev"}, "small")
+	instance, _, err := cm.DeployInstanceWithConfirmation(context.Background(), "vm", "fake", "test-location", release.Release{Version: "dev"}, "small")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,23 +211,16 @@ func TestDeployInstanceCreatesPendingRecordAndTask(t *testing.T) {
 	started := afterTransactions.TransactionsStarted - beforeTransactions.TransactionsStarted
 	commitsAttempted := afterTransactions.CommitsAttempted - beforeTransactions.CommitsAttempted
 	commitsSucceeded := afterTransactions.CommitsSucceeded - beforeTransactions.CommitsSucceeded
-	commitsFailed := afterTransactions.CommitsFailed - beforeTransactions.CommitsFailed
-	rollbacks := afterTransactions.RollbacksAttempted - beforeTransactions.RollbacksAttempted
 	typedConflicts := afterTransactions.TypedConflicts - beforeTransactions.TypedConflicts
-	viewNotReady := afterTransactions.SQLViewNotReadyOutcomes - beforeTransactions.SQLViewNotReadyOutcomes
 	// A first deployment of the credential-free fake provisioner publishes the
 	// default provider, the desired instance, and the queued task.
-	if started != 3 || commitsAttempted != 3 || commitsSucceeded != 3 || commitsFailed != 0 ||
-		rollbacks != 0 || typedConflicts != 0 || viewNotReady != 0 {
+	if started != 3 || commitsAttempted != 3 || commitsSucceeded != 3 || typedConflicts != 0 {
 		t.Fatalf(
-			"nominal deployment transaction metrics starts=%d commits=%d/%d failed=%d rollbacks=%d conflicts=%d sql_view_not_ready=%d",
+			"nominal deployment transaction metrics starts=%d commits=%d/%d conflicts=%d",
 			started,
 			commitsSucceeded,
 			commitsAttempted,
-			commitsFailed,
-			rollbacks,
 			typedConflicts,
-			viewNotReady,
 		)
 	}
 }
@@ -365,14 +358,14 @@ func TestDeleteLocalInstanceWithoutIdentityPreservesMissingManifestResource(t *t
 		t.Fatal(err)
 	}
 
-	if _, err := cm.DeleteInstance(context.Background(), "test1"); err != nil {
+	if _, err := cm.QueueDeleteInstance(context.Background(), "test1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := runLifecycleTasks(t, cm); err == nil || !strings.Contains(err.Error(), db.ErrReplicationPeerDrainPending.Error()) {
 		t.Fatalf("delete error = %v, want peer drain pending", err)
 	}
 	if len(provider.deleted) != 0 {
-		t.Fatalf("deleted refs = %#v, want no provider mutation without identity", provider.deleted)
+		t.Fatalf("deleted refs = %#v, want no provisioner mutation without identity", provider.deleted)
 	}
 	if stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID)); err != nil || stored.DesiredStatus != ServerStateRunning {
 		t.Fatalf("expected unchanged recovery row, stored=%#v err=%v", stored, err)
@@ -411,7 +404,7 @@ func TestDeleteInstanceWithoutIdentityDoesNotReachProviderStopFailure(t *testing
 		t.Fatal(err)
 	}
 
-	if _, err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
+	if _, err := cm.QueueDeleteInstance(context.Background(), "vm"); err != nil {
 		t.Fatal(err)
 	}
 	if err := runLifecycleTasks(t, cm); err == nil || !strings.Contains(err.Error(), db.ErrReplicationPeerDrainPending.Error()) {
@@ -463,7 +456,7 @@ func TestDeleteInstanceWithoutIdentityDoesNotAttemptVolumeDeletion(t *testing.T)
 		t.Fatal(err)
 	}
 
-	if _, err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
+	if _, err := cm.QueueDeleteInstance(context.Background(), "vm"); err != nil {
 		t.Fatal(err)
 	}
 	err := runLifecycleTasks(t, cm)
@@ -519,7 +512,7 @@ func TestDeleteInstanceWithoutIdentityDoesNotAttemptAttachedVolumeCleanup(t *tes
 		t.Fatal(err)
 	}
 
-	if _, err := cm.DeleteInstance(context.Background(), "vm"); err != nil {
+	if _, err := cm.QueueDeleteInstance(context.Background(), "vm"); err != nil {
 		t.Fatal(err)
 	}
 	err := runLifecycleTasks(t, cm)
@@ -563,9 +556,9 @@ func TestDeleteInstanceHonorsCanceledContextBeforeMutatingState(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := cm.DeleteInstance(ctx, "vm")
+	_, err := cm.QueueDeleteInstance(ctx, "vm")
 	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("DeleteInstance error = %v, want context.Canceled", err)
+		t.Fatalf("QueueDeleteInstance error = %v, want context.Canceled", err)
 	}
 
 	stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID))
@@ -837,7 +830,7 @@ func TestQueueDesiredInstanceReconcileAppliesLocalVMDesiredStatus(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	if err := cm.QueueDesiredInstanceReconciles(); err != nil {
+	if err := cm.QueueDesiredInstanceReconciles(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := runLifecycleTasks(t, cm); err != nil {

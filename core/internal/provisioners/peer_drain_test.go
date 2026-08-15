@@ -1029,7 +1029,6 @@ func TestProviderDeletionCannotRunBeforePeerDrainFinalizes(t *testing.T) {
 		operationID,
 		identity,
 		nil,
-		nil,
 		func(instanceDeleteOperationReceipt, int, string) error { return nil },
 	)
 	if !errors.Is(err, db.ErrReplicationPeerDrainPending) {
@@ -1066,7 +1065,7 @@ func TestProviderBackedBlankIdentityDeletionFailsClosed(t *testing.T) {
 			}
 
 			err := manager.deleteInstanceImperative(
-				context.Background(), nil, instance.ID, localOnly, operationID, identity, nil, nil,
+				context.Background(), nil, instance.ID, localOnly, operationID, identity, nil,
 				func(instanceDeleteOperationReceipt, int, string) error { return nil },
 			)
 			if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "no replicated peer identity") {
@@ -1117,7 +1116,7 @@ func TestInconsistentReadyPeerDrainWithoutPreFenceIngressFailsClosed(t *testing.
 		return db.PublishedWriteReceipt{}, fmt.Errorf("unexpected delete publication")
 	}
 	err := manager.deleteInstanceImperative(
-		context.Background(), nil, instance.ID, false, operationID, identity, nil, nil,
+		context.Background(), nil, instance.ID, false, operationID, identity, nil,
 		func(instanceDeleteOperationReceipt, int, string) error { return nil },
 	)
 	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "invalid event") {
@@ -1149,7 +1148,7 @@ func TestPeerDrainRuntimeUnavailableBeforePrepareCannotMutateProviderOrPublishDe
 		return db.PublishedWriteReceipt{}, fmt.Errorf("unexpected delete publication")
 	}
 	err := manager.deleteInstanceImperative(
-		context.Background(), nil, instance.ID, false, operationID, identity, nil, nil,
+		context.Background(), nil, instance.ID, false, operationID, identity, nil,
 		func(instanceDeleteOperationReceipt, int, string) error { return nil },
 	)
 	if !errors.Is(err, db.ErrReplicationPeerDrainUnavailable) {
@@ -1188,7 +1187,7 @@ func TestPeerDrainRuntimeDisappearsAfterBeginCannotMutateProviderOrPublishDelete
 		return db.PublishedWriteReceipt{}, fmt.Errorf("unexpected delete publication")
 	}
 	err := manager.deleteInstanceImperative(
-		context.Background(), nil, instance.ID, false, operationID, identity, nil, nil,
+		context.Background(), nil, instance.ID, false, operationID, identity, nil,
 		func(instanceDeleteOperationReceipt, int, string) error { return nil },
 	)
 	if !errors.Is(err, db.ErrReplicationPeerDrainUnavailable) {
@@ -1210,7 +1209,7 @@ func TestQueueStartInstanceRejectsReplicatedOrTaskOwnedDelete(t *testing.T) {
 		instance.DesiredStatus = ServerStateDeleting
 		insertInstanceForDeleteReceiptTest(t, store, &instance)
 
-		if _, err := manager.QueueStartInstance(instance.ID); !errors.Is(err, ErrInstanceLifecycleConflict) {
+		if _, err := manager.QueueStartInstance(context.Background(), instance.ID); !errors.Is(err, ErrInstanceLifecycleConflict) {
 			t.Fatalf("QueueStartInstance error = %v, want lifecycle conflict", err)
 		}
 		stored, err := manager.getInstanceRecord(instance.ID)
@@ -1231,7 +1230,7 @@ func TestQueueStartInstanceRejectsReplicatedOrTaskOwnedDelete(t *testing.T) {
 		if _, err := manager.QueueDeleteInstance(context.Background(), instance.ID); err != nil {
 			t.Fatalf("queue delete: %v", err)
 		}
-		if _, err := manager.QueueStartInstance(instance.ID); !errors.Is(err, ErrInstanceLifecycleConflict) {
+		if _, err := manager.QueueStartInstance(context.Background(), instance.ID); !errors.Is(err, ErrInstanceLifecycleConflict) {
 			t.Fatalf("QueueStartInstance error = %v, want lifecycle conflict", err)
 		}
 		stored, err := manager.getInstanceRecord(instance.ID)
@@ -1242,4 +1241,49 @@ func TestQueueStartInstanceRejectsReplicatedOrTaskOwnedDelete(t *testing.T) {
 			t.Fatalf("conflicting start changed desired status to %q", stored.DesiredStatus)
 		}
 	})
+}
+
+func TestCanceledLifecycleQueueContextDoesNotPersistTask(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
+	instance := peerDrainTestInstance(t)
+	instance.DesiredStatus = ServerStateStopped
+	insertInstanceForDeleteReceiptTest(t, store, &instance)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := manager.QueueDeleteInstance(ctx, instance.ID); !errors.Is(err, context.Canceled) {
+		t.Fatalf("QueueDeleteInstance error = %v, want context canceled", err)
+	}
+	if task, found, err := manager.tasks.LatestForSubject(
+		InstanceLifecycleTaskStream,
+		taskSubjectInstance,
+		instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationDelete),
+	); err != nil {
+		t.Fatal(err)
+	} else if found {
+		t.Fatalf("canceled delete persisted task %+v", task)
+	}
+
+	if _, err := manager.QueueStartInstance(ctx, instance.ID); !errors.Is(err, context.Canceled) {
+		t.Fatalf("QueueStartInstance error = %v, want context canceled", err)
+	}
+	if task, found, err := manager.tasks.LatestForSubject(
+		InstanceLifecycleTaskStream,
+		taskSubjectInstance,
+		instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationReconcile),
+	); err != nil {
+		t.Fatal(err)
+	} else if found {
+		t.Fatalf("canceled start persisted task %+v", task)
+	}
+
+	stored, err := manager.getInstanceRecord(instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.DesiredStatus != ServerStateStopped {
+		t.Fatalf("canceled lifecycle request changed desired status to %q", stored.DesiredStatus)
+	}
 }

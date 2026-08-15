@@ -33,11 +33,6 @@ const (
 	ProtosClientApi_StopApp_FullMethodName                    = "/apic.ProtosClientApi/StopApp"
 	ProtosClientApi_RemoveApp_FullMethodName                  = "/apic.ProtosClientApi/RemoveApp"
 	ProtosClientApi_GetAppLogs_FullMethodName                 = "/apic.ProtosClientApi/GetAppLogs"
-	ProtosClientApi_GetSupportedCloudProviders_FullMethodName = "/apic.ProtosClientApi/GetSupportedCloudProviders"
-	ProtosClientApi_GetCloudProviders_FullMethodName          = "/apic.ProtosClientApi/GetCloudProviders"
-	ProtosClientApi_GetCloudProvider_FullMethodName           = "/apic.ProtosClientApi/GetCloudProvider"
-	ProtosClientApi_AddCloudProvider_FullMethodName           = "/apic.ProtosClientApi/AddCloudProvider"
-	ProtosClientApi_RemoveCloudProvider_FullMethodName        = "/apic.ProtosClientApi/RemoveCloudProvider"
 	ProtosClientApi_GetSupportedProvisioners_FullMethodName   = "/apic.ProtosClientApi/GetSupportedProvisioners"
 	ProtosClientApi_GetProvisioners_FullMethodName            = "/apic.ProtosClientApi/GetProvisioners"
 	ProtosClientApi_GetProvisioner_FullMethodName             = "/apic.ProtosClientApi/GetProvisioner"
@@ -66,9 +61,6 @@ const (
 	ProtosClientApi_SetExitRoute_FullMethodName               = "/apic.ProtosClientApi/SetExitRoute"
 	ProtosClientApi_ClearExitRoute_FullMethodName             = "/apic.ProtosClientApi/ClearExitRoute"
 	ProtosClientApi_GetProtosdReleases_FullMethodName         = "/apic.ProtosClientApi/GetProtosdReleases"
-	ProtosClientApi_GetCloudImages_FullMethodName             = "/apic.ProtosClientApi/GetCloudImages"
-	ProtosClientApi_UploadCloudImage_FullMethodName           = "/apic.ProtosClientApi/UploadCloudImage"
-	ProtosClientApi_RemoveCloudImage_FullMethodName           = "/apic.ProtosClientApi/RemoveCloudImage"
 	ProtosClientApi_GetProvisionerImages_FullMethodName       = "/apic.ProtosClientApi/GetProvisionerImages"
 	ProtosClientApi_UploadProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/UploadProvisionerImage"
 	ProtosClientApi_RemoveProvisionerImage_FullMethodName     = "/apic.ProtosClientApi/RemoveProvisionerImage"
@@ -101,11 +93,6 @@ type ProtosClientApiClient interface {
 	StopApp(ctx context.Context, in *StopAppRequest, opts ...grpc.CallOption) (*StopAppResponse, error)
 	RemoveApp(ctx context.Context, in *RemoveAppRequest, opts ...grpc.CallOption) (*RemoveAppResponse, error)
 	GetAppLogs(ctx context.Context, in *GetAppLogsRequest, opts ...grpc.CallOption) (*GetAppLogsResponse, error)
-	GetSupportedCloudProviders(ctx context.Context, in *GetSupportedCloudProvidersRequest, opts ...grpc.CallOption) (*GetSupportedCloudProvidersResponse, error)
-	GetCloudProviders(ctx context.Context, in *GetCloudProvidersRequest, opts ...grpc.CallOption) (*GetCloudProvidersResponse, error)
-	GetCloudProvider(ctx context.Context, in *GetCloudProviderRequest, opts ...grpc.CallOption) (*GetCloudProviderResponse, error)
-	AddCloudProvider(ctx context.Context, in *AddCloudProviderRequest, opts ...grpc.CallOption) (*AddCloudProviderResponse, error)
-	RemoveCloudProvider(ctx context.Context, in *RemoveCloudProviderRequest, opts ...grpc.CallOption) (*RemoveCloudProviderResponse, error)
 	GetSupportedProvisioners(ctx context.Context, in *GetSupportedProvisionersRequest, opts ...grpc.CallOption) (*GetSupportedProvisionersResponse, error)
 	GetProvisioners(ctx context.Context, in *GetProvisionersRequest, opts ...grpc.CallOption) (*GetProvisionersResponse, error)
 	GetProvisioner(ctx context.Context, in *GetProvisionerRequest, opts ...grpc.CallOption) (*GetProvisionerResponse, error)
@@ -134,9 +121,6 @@ type ProtosClientApiClient interface {
 	SetExitRoute(ctx context.Context, in *SetExitRouteRequest, opts ...grpc.CallOption) (*SetExitRouteResponse, error)
 	ClearExitRoute(ctx context.Context, in *ClearExitRouteRequest, opts ...grpc.CallOption) (*ClearExitRouteResponse, error)
 	GetProtosdReleases(ctx context.Context, in *GetProtosdReleasesRequest, opts ...grpc.CallOption) (*GetProtosdReleasesResponse, error)
-	GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error)
-	UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error)
-	RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error)
 	GetProvisionerImages(ctx context.Context, in *GetProvisionerImagesRequest, opts ...grpc.CallOption) (*GetProvisionerImagesResponse, error)
 	UploadProvisionerImage(ctx context.Context, in *UploadProvisionerImageRequest, opts ...grpc.CallOption) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(ctx context.Context, in *RemoveProvisionerImageRequest, opts ...grpc.CallOption) (*RemoveProvisionerImageResponse, error)
@@ -293,56 +277,6 @@ func (c *protosClientApiClient) GetAppLogs(ctx context.Context, in *GetAppLogsRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetAppLogsResponse)
 	err := c.cc.Invoke(ctx, ProtosClientApi_GetAppLogs_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) GetSupportedCloudProviders(ctx context.Context, in *GetSupportedCloudProvidersRequest, opts ...grpc.CallOption) (*GetSupportedCloudProvidersResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetSupportedCloudProvidersResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetSupportedCloudProviders_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) GetCloudProviders(ctx context.Context, in *GetCloudProvidersRequest, opts ...grpc.CallOption) (*GetCloudProvidersResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetCloudProvidersResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetCloudProviders_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) GetCloudProvider(ctx context.Context, in *GetCloudProviderRequest, opts ...grpc.CallOption) (*GetCloudProviderResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetCloudProviderResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetCloudProvider_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) AddCloudProvider(ctx context.Context, in *AddCloudProviderRequest, opts ...grpc.CallOption) (*AddCloudProviderResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AddCloudProviderResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_AddCloudProvider_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) RemoveCloudProvider(ctx context.Context, in *RemoveCloudProviderRequest, opts ...grpc.CallOption) (*RemoveCloudProviderResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemoveCloudProviderResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_RemoveCloudProvider_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -647,36 +581,6 @@ func (c *protosClientApiClient) GetProtosdReleases(ctx context.Context, in *GetP
 	return out, nil
 }
 
-func (c *protosClientApiClient) GetCloudImages(ctx context.Context, in *GetCloudImagesRequest, opts ...grpc.CallOption) (*GetCloudImagesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetCloudImagesResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_GetCloudImages_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) UploadCloudImage(ctx context.Context, in *UploadCloudImageRequest, opts ...grpc.CallOption) (*UploadCloudImageResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UploadCloudImageResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_UploadCloudImage_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *protosClientApiClient) RemoveCloudImage(ctx context.Context, in *RemoveCloudImageRequest, opts ...grpc.CallOption) (*RemoveCloudImageResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemoveCloudImageResponse)
-	err := c.cc.Invoke(ctx, ProtosClientApi_RemoveCloudImage_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *protosClientApiClient) GetProvisionerImages(ctx context.Context, in *GetProvisionerImagesRequest, opts ...grpc.CallOption) (*GetProvisionerImagesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetProvisionerImagesResponse)
@@ -815,11 +719,6 @@ type ProtosClientApiServer interface {
 	StopApp(context.Context, *StopAppRequest) (*StopAppResponse, error)
 	RemoveApp(context.Context, *RemoveAppRequest) (*RemoveAppResponse, error)
 	GetAppLogs(context.Context, *GetAppLogsRequest) (*GetAppLogsResponse, error)
-	GetSupportedCloudProviders(context.Context, *GetSupportedCloudProvidersRequest) (*GetSupportedCloudProvidersResponse, error)
-	GetCloudProviders(context.Context, *GetCloudProvidersRequest) (*GetCloudProvidersResponse, error)
-	GetCloudProvider(context.Context, *GetCloudProviderRequest) (*GetCloudProviderResponse, error)
-	AddCloudProvider(context.Context, *AddCloudProviderRequest) (*AddCloudProviderResponse, error)
-	RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error)
 	GetSupportedProvisioners(context.Context, *GetSupportedProvisionersRequest) (*GetSupportedProvisionersResponse, error)
 	GetProvisioners(context.Context, *GetProvisionersRequest) (*GetProvisionersResponse, error)
 	GetProvisioner(context.Context, *GetProvisionerRequest) (*GetProvisionerResponse, error)
@@ -848,9 +747,6 @@ type ProtosClientApiServer interface {
 	SetExitRoute(context.Context, *SetExitRouteRequest) (*SetExitRouteResponse, error)
 	ClearExitRoute(context.Context, *ClearExitRouteRequest) (*ClearExitRouteResponse, error)
 	GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error)
-	GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error)
-	UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error)
-	RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error)
 	GetProvisionerImages(context.Context, *GetProvisionerImagesRequest) (*GetProvisionerImagesResponse, error)
 	UploadProvisionerImage(context.Context, *UploadProvisionerImageRequest) (*UploadProvisionerImageResponse, error)
 	RemoveProvisionerImage(context.Context, *RemoveProvisionerImageRequest) (*RemoveProvisionerImageResponse, error)
@@ -913,21 +809,6 @@ func (UnimplementedProtosClientApiServer) RemoveApp(context.Context, *RemoveAppR
 }
 func (UnimplementedProtosClientApiServer) GetAppLogs(context.Context, *GetAppLogsRequest) (*GetAppLogsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAppLogs not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetSupportedCloudProviders(context.Context, *GetSupportedCloudProvidersRequest) (*GetSupportedCloudProvidersResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetSupportedCloudProviders not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetCloudProviders(context.Context, *GetCloudProvidersRequest) (*GetCloudProvidersResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetCloudProviders not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetCloudProvider(context.Context, *GetCloudProviderRequest) (*GetCloudProviderResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetCloudProvider not implemented")
-}
-func (UnimplementedProtosClientApiServer) AddCloudProvider(context.Context, *AddCloudProviderRequest) (*AddCloudProviderResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method AddCloudProvider not implemented")
-}
-func (UnimplementedProtosClientApiServer) RemoveCloudProvider(context.Context, *RemoveCloudProviderRequest) (*RemoveCloudProviderResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RemoveCloudProvider not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetSupportedProvisioners(context.Context, *GetSupportedProvisionersRequest) (*GetSupportedProvisionersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSupportedProvisioners not implemented")
@@ -1012,15 +893,6 @@ func (UnimplementedProtosClientApiServer) ClearExitRoute(context.Context, *Clear
 }
 func (UnimplementedProtosClientApiServer) GetProtosdReleases(context.Context, *GetProtosdReleasesRequest) (*GetProtosdReleasesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProtosdReleases not implemented")
-}
-func (UnimplementedProtosClientApiServer) GetCloudImages(context.Context, *GetCloudImagesRequest) (*GetCloudImagesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetCloudImages not implemented")
-}
-func (UnimplementedProtosClientApiServer) UploadCloudImage(context.Context, *UploadCloudImageRequest) (*UploadCloudImageResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UploadCloudImage not implemented")
-}
-func (UnimplementedProtosClientApiServer) RemoveCloudImage(context.Context, *RemoveCloudImageRequest) (*RemoveCloudImageResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RemoveCloudImage not implemented")
 }
 func (UnimplementedProtosClientApiServer) GetProvisionerImages(context.Context, *GetProvisionerImagesRequest) (*GetProvisionerImagesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProvisionerImages not implemented")
@@ -1326,96 +1198,6 @@ func _ProtosClientApi_GetAppLogs_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProtosClientApiServer).GetAppLogs(ctx, req.(*GetAppLogsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_GetSupportedCloudProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSupportedCloudProvidersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetSupportedCloudProviders(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetSupportedCloudProviders_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetSupportedCloudProviders(ctx, req.(*GetSupportedCloudProvidersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_GetCloudProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetCloudProvidersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetCloudProviders(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetCloudProviders_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetCloudProviders(ctx, req.(*GetCloudProvidersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_GetCloudProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetCloudProviderRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetCloudProvider(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetCloudProvider_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetCloudProvider(ctx, req.(*GetCloudProviderRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_AddCloudProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddCloudProviderRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).AddCloudProvider(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_AddCloudProvider_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).AddCloudProvider(ctx, req.(*AddCloudProviderRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_RemoveCloudProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveCloudProviderRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).RemoveCloudProvider(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_RemoveCloudProvider_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).RemoveCloudProvider(ctx, req.(*RemoveCloudProviderRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1910,60 +1692,6 @@ func _ProtosClientApi_GetProtosdReleases_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProtosClientApi_GetCloudImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetCloudImagesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).GetCloudImages(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_GetCloudImages_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).GetCloudImages(ctx, req.(*GetCloudImagesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_UploadCloudImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UploadCloudImageRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).UploadCloudImage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_UploadCloudImage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).UploadCloudImage(ctx, req.(*UploadCloudImageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ProtosClientApi_RemoveCloudImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveCloudImageRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProtosClientApiServer).RemoveCloudImage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ProtosClientApi_RemoveCloudImage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProtosClientApiServer).RemoveCloudImage(ctx, req.(*RemoveCloudImageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ProtosClientApi_GetProvisionerImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetProvisionerImagesRequest)
 	if err := dec(in); err != nil {
@@ -2244,26 +1972,6 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProtosClientApi_GetAppLogs_Handler,
 		},
 		{
-			MethodName: "GetSupportedCloudProviders",
-			Handler:    _ProtosClientApi_GetSupportedCloudProviders_Handler,
-		},
-		{
-			MethodName: "GetCloudProviders",
-			Handler:    _ProtosClientApi_GetCloudProviders_Handler,
-		},
-		{
-			MethodName: "GetCloudProvider",
-			Handler:    _ProtosClientApi_GetCloudProvider_Handler,
-		},
-		{
-			MethodName: "AddCloudProvider",
-			Handler:    _ProtosClientApi_AddCloudProvider_Handler,
-		},
-		{
-			MethodName: "RemoveCloudProvider",
-			Handler:    _ProtosClientApi_RemoveCloudProvider_Handler,
-		},
-		{
 			MethodName: "GetSupportedProvisioners",
 			Handler:    _ProtosClientApi_GetSupportedProvisioners_Handler,
 		},
@@ -2366,18 +2074,6 @@ var ProtosClientApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProtosdReleases",
 			Handler:    _ProtosClientApi_GetProtosdReleases_Handler,
-		},
-		{
-			MethodName: "GetCloudImages",
-			Handler:    _ProtosClientApi_GetCloudImages_Handler,
-		},
-		{
-			MethodName: "UploadCloudImage",
-			Handler:    _ProtosClientApi_UploadCloudImage_Handler,
-		},
-		{
-			MethodName: "RemoveCloudImage",
-			Handler:    _ProtosClientApi_RemoveCloudImage_Handler,
 		},
 		{
 			MethodName: "GetProvisionerImages",

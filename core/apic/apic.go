@@ -45,20 +45,20 @@ func NewBackend(protosClient *Services) pbApic.ProtosClientApiServer {
 }
 
 type Services struct {
-	DB             *db.DB
-	Manager        *user.Manager
-	KeyManager     *pcrypto.Manager
-	AppManager     *app.Manager
-	NetworkManager *network.Manager
-	NetworkControl NetworkController
-	CloudManager   *provisioners.Manager
-	P2PManager     *p2p.P2P
-	TaskManager    *tasks.Manager
-	Invites        *invitations.Manager
-	CanProvision   bool
-	WorkDir        string
-	Capabilities   string
-	P2PPort        int
+	DB                 *db.DB
+	Manager            *user.Manager
+	KeyManager         *pcrypto.Manager
+	AppManager         *app.Manager
+	NetworkManager     *network.Manager
+	NetworkControl     NetworkController
+	ProvisionerManager *provisioners.Manager
+	P2PManager         *p2p.P2P
+	TaskManager        *tasks.Manager
+	Invites            *invitations.Manager
+	CanProvision       bool
+	WorkDir            string
+	Capabilities       string
+	P2PPort            int
 
 	InitFunc        func(username string, name string, organisation string) error
 	MarkInitialized func()

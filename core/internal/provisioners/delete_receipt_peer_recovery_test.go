@@ -78,8 +78,8 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	if operationIdentity.AuthorPeerID != authorStatus.PeerID {
 		t.Fatalf("delete operation author=%q, want author peer A %q", operationIdentity.AuthorPeerID, authorStatus.PeerID)
 	}
-	if queuedPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
-		t.Fatalf("queued operation state model=%q, want %q", queuedPayload.OperationStateModel, instanceDeleteOperationFactsV1)
+	if queuedPayload.RecoveryModel != instanceDeleteRecoveryModel {
+		t.Fatalf("queued recovery model=%q, want %q", queuedPayload.RecoveryModel, instanceDeleteRecoveryModel)
 	}
 	// A later same-author event can only be checkpointed after the task-create
 	// event in its transition chain. Waiting for this barrier therefore makes
@@ -166,8 +166,8 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 		t.Fatalf("read replicated delete task on relay peer C: %v", err)
 	}
 	relayPayload := decodeDeleteRestartPayload(t, replicatedOnRelay)
-	if relayPayload.DeleteOperation == nil || *relayPayload.DeleteOperation != operationIdentity || relayPayload.DeleteReceipt != nil ||
-		relayPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
+	if relayPayload.DeleteOperation == nil || *relayPayload.DeleteOperation != operationIdentity ||
+		relayPayload.RecoveryModel != instanceDeleteRecoveryModel {
 		t.Fatalf("relay task state=%+v, want exact operation identity and no receipt", relayPayload)
 	}
 
@@ -201,9 +201,6 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	interruptedPayload := decodeDeleteRestartPayload(t, interrupted)
 	if interruptedPayload.DeleteOperation == nil || *interruptedPayload.DeleteOperation != operationIdentity {
 		t.Fatalf("interrupted task lost replicated operation identity: %+v", interruptedPayload.DeleteOperation)
-	}
-	if interruptedPayload.DeleteReceipt != nil {
-		t.Fatalf("author crash unexpectedly checkpointed the returned receipt: %+v", interruptedPayload.DeleteReceipt)
 	}
 	if !relayPending.Known || relayPending.Checkpointed || relayPending.AppliedDurably {
 		t.Fatalf("relay did not retain the delete as an exact uncheckpointed pending event: %+v", relayPending)
@@ -281,7 +278,6 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 		true,
 		record.ID,
 		operationIdentity,
-		nil,
 		nil,
 		func(receipt instanceDeleteOperationReceipt, _ int, _ string) error {
 			directlyRecovered = append(directlyRecovered, receipt)

@@ -71,7 +71,7 @@ func TestVerifyNearbyInviteCodeBindsTargetUserID(t *testing.T) {
 	}
 }
 
-func TestVerifyNearbyInviteCodePreservesLegacyAnyModeHash(t *testing.T) {
+func TestVerifyNearbyInviteCodePreservesIssuedAnyModeHash(t *testing.T) {
 	invite := NearbyInvite{
 		InviteID:       "invite-1",
 		OrganisationID: "org-1",

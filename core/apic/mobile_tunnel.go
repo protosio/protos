@@ -23,7 +23,7 @@ const (
 )
 
 func (b *Backend) GetMobileTunnelConfig(ctx context.Context, in *pbApic.GetMobileTunnelConfigRequest) (*pbApic.GetMobileTunnelConfigResponse, error) {
-	if b.protosClient == nil || b.protosClient.CloudManager == nil || b.protosClient.Manager == nil || b.protosClient.KeyManager == nil {
+	if b.protosClient == nil || b.protosClient.ProvisionerManager == nil || b.protosClient.Manager == nil || b.protosClient.KeyManager == nil {
 		return nil, fmt.Errorf("mobile tunnel config is not available")
 	}
 
@@ -56,7 +56,7 @@ func (b *Backend) GetMobileTunnelConfig(ctx context.Context, in *pbApic.GetMobil
 		}
 	}
 
-	instance, err := b.protosClient.CloudManager.GetInstance(instanceRef)
+	instance, err := b.protosClient.ProvisionerManager.GetInstance(instanceRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve tunnel instance %q: %w", instanceRef, err)
 	}

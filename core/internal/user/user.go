@@ -131,14 +131,7 @@ func CreateManager(db *db.DB, sm *pcrypto.Manager) *Manager {
 
 // CreateUser creates and returns a user
 func (um *Manager) CreateUser(username string, name string, isadmin bool) (User, error) {
-	return um.CreateUserContext(context.Background(), username, name, isadmin)
-}
-
-// CreateUserContext creates a user and observes the ordinary one-other-peer
-// availability boundary. A fresh single-peer bootstrap returns after local
-// acceptance rather than waiting for a peer that does not exist.
-func (um *Manager) CreateUserContext(ctx context.Context, username string, name string, isadmin bool) (User, error) {
-	user, _, err := um.CreateUserWithConfirmationContext(ctx, username, name, isadmin)
+	user, _, err := um.CreateUserWithConfirmationContext(context.Background(), username, name, isadmin)
 	return user, err
 }
 
@@ -244,14 +237,7 @@ func (um *Manager) GetDeviceIdentities() ([]DeviceIdentity, error) {
 
 // AddDevice adds a device to the user
 func (um *Manager) AddDevice(userID string, name string, key *pcrypto.Key) error {
-	return um.AddDeviceContext(context.Background(), userID, name, key)
-}
-
-// AddDeviceContext adds the user device and peer row as one published write,
-// then observes another-peer availability without requiring checkpoint
-// application.
-func (um *Manager) AddDeviceContext(ctx context.Context, userID string, name string, key *pcrypto.Key) error {
-	_, err := um.AddDeviceWithConfirmationContext(ctx, userID, name, key)
+	_, err := um.AddDeviceWithConfirmationContext(context.Background(), userID, name, key)
 	return err
 }
 

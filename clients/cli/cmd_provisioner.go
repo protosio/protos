@@ -13,9 +13,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var cmdCloud *cli.Command = &cli.Command{
+var cmdProvisioner *cli.Command = &cli.Command{
 	Name:    "provisioner",
-	Aliases: []string{"cloud", "prov"},
+	Aliases: []string{"prov"},
 	Usage:   "Manage provisioners",
 	Subcommands: []*cli.Command{
 		{

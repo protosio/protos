@@ -98,8 +98,8 @@ class AppModel extends ChangeNotifier {
   pb.NetworkState? networkState;
   List<pb.ExitRoute> exitRoutes = [];
   List<pb.Release> releases = [];
-  Map<String, pb.CloudSpecificImage> provisionerImages = {};
-  List<MapEntry<String, pb.CloudSpecificImage>> sortedProvisionerImages = [];
+  Map<String, pb.ProvisionerImage> provisionerImages = {};
+  List<MapEntry<String, pb.ProvisionerImage>> sortedProvisionerImages = [];
   pb.RuntimeState? runtimeState;
   List<pb.RuntimePeerStatus> runtimePeers = [];
   List<pb.Commit> localCommits = [];
@@ -538,7 +538,7 @@ class AppModel extends ChangeNotifier {
   }
 
   void setProvisionerImages(
-    Map<String, pb.CloudSpecificImage> images, {
+    Map<String, pb.ProvisionerImage> images, {
     bool notify = true,
   }) {
     provisionerImages = images;
@@ -957,8 +957,8 @@ List<pb.RuntimePeerStatus> _sortedRuntimePeers(
 ) {
   final sorted = peers.toList(growable: false);
   sorted.sort((a, b) {
-    if (a.connected != b.connected) {
-      return a.connected ? -1 : 1;
+    if (a.routed != b.routed) {
+      return a.routed ? -1 : 1;
     }
     return a.peerId.compareTo(b.peerId);
   });

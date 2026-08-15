@@ -173,7 +173,7 @@ func instanceLifecycleOwnerMatches(instanceID string, ownerPeerID string) sq.Pre
 func instancePeerDrainAuthorizationAbsent(instanceID string) sq.Predicate {
 	facts := sq.New[db.TASK_OPERATION_FACT]("")
 	return sq.NotExists(sq.SelectOne().From(facts).Where(
-		facts.FACT_KIND.EqString(instancePeerDrainAuthorizedV1),
+		facts.FACT_KIND.EqString(instancePeerDrainAuthorizationFact),
 		facts.SUBJECT_TYPE.EqString(taskSubjectInstance),
 		facts.SUBJECT_ID.EqString(instanceID),
 	))
@@ -364,38 +364,38 @@ func createAppDeleteByInstanceMapper(instanceID string) db.DeleteMapper {
 }
 
 //
-// Cloud provider
+// Provisioner persistence
 //
 
-func createCloudProviderInsertMapper(provider ProviderRecord) db.InsertMapper {
+func createProvisionerInsertMapper(provisioner ProvisionerRecord) db.InsertMapper {
 	return func() sq.InsertQuery {
-		provider = provider.normalized()
+		provisioner = provisioner.normalized()
 		c := sq.New[db.CLOUD_PROVIDER]("")
 		mapper := func(col *sq.Column) {
-			col.SetBytes(c.ID, db.MustUUIDBytes(provider.ID))
-			col.SetString(c.NAME, provider.Name)
-			col.SetString(c.TYPE, provider.Type.String())
-			col.SetJSON(c.AUTH, provider.Auth)
+			col.SetBytes(c.ID, db.MustUUIDBytes(provisioner.ID))
+			col.SetString(c.NAME, provisioner.Name)
+			col.SetString(c.TYPE, provisioner.Type.String())
+			col.SetJSON(c.AUTH, provisioner.Auth)
 		}
 		return sq.InsertInto(c).ColumnValues(mapper)
 	}
 }
 
-func createCloudProviderUpdateMapper(provider ProviderRecord) db.UpdateMapper {
+func createProvisionerUpdateMapper(provisioner ProvisionerRecord) db.UpdateMapper {
 	return func() sq.UpdateQuery {
-		provider = provider.normalized()
+		provisioner = provisioner.normalized()
 		c := sq.New[db.CLOUD_PROVIDER]("")
-		predicates := []sq.Predicate{db.UUIDEq(c.ID, provider.ID)}
+		predicates := []sq.Predicate{db.UUIDEq(c.ID, provisioner.ID)}
 		mappper := func(col *sq.Column) {
-			col.SetString(c.NAME, provider.Name)
-			col.SetString(c.TYPE, provider.Type.String())
-			col.SetJSON(c.AUTH, provider.Auth)
+			col.SetString(c.NAME, provisioner.Name)
+			col.SetString(c.TYPE, provisioner.Type.String())
+			col.SetJSON(c.AUTH, provisioner.Auth)
 		}
 		return sq.Update(c).SetFunc(mappper).Where(predicates...)
 	}
 }
 
-func createCloudProviderQueryMapper(predicates []sq.Predicate) db.QueryMapper[ProviderRecord] {
+func createProvisionerQueryMapper(predicates []sq.Predicate) db.QueryMapper[ProvisionerRecord] {
 	cp := sq.New[db.CLOUD_PROVIDER]("")
 	var query sq.SelectQuery
 	if len(predicates) != 0 {
@@ -407,9 +407,9 @@ func createCloudProviderQueryMapper(predicates []sq.Predicate) db.QueryMapper[Pr
 			From(cp)
 	}
 
-	return func() (sq.SelectQuery, func(row *sq.Row) ProviderRecord) {
-		mapper := func(row *sq.Row) ProviderRecord {
-			record := ProviderRecord{
+	return func() (sq.SelectQuery, func(row *sq.Row) ProvisionerRecord) {
+		mapper := func(row *sq.Row) ProvisionerRecord {
+			record := ProvisionerRecord{
 				ID:   db.UUIDString(row.BytesField(cp.ID)),
 				Name: row.StringField(cp.NAME),
 				Type: Type(row.StringField(cp.TYPE)),
@@ -421,7 +421,7 @@ func createCloudProviderQueryMapper(predicates []sq.Predicate) db.QueryMapper[Pr
 	}
 }
 
-func createCloudProviderDeleteMapper(id string) db.DeleteMapper {
+func createProvisionerDeleteMapper(id string) db.DeleteMapper {
 	return func() sq.DeleteQuery {
 		c := sq.New[db.CLOUD_PROVIDER]("")
 		return sq.DeleteFrom(c).Where(db.UUIDEq(c.ID, id))

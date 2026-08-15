@@ -2,9 +2,12 @@ package provisioners
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +28,141 @@ type peerDrainAuthorizationCrashFixture struct {
 	accepted      bool
 	publishPCalls int
 	publishDCalls int
+}
+
+type lifecycleGateObservedContext struct {
+	context.Context
+	once     sync.Once
+	observed chan struct{}
+	target   int32
+	calls    atomic.Int32
+}
+
+func (ctx *lifecycleGateObservedContext) Done() <-chan struct{} {
+	target := ctx.target
+	if target <= 0 {
+		target = 1
+	}
+	if ctx.calls.Add(1) >= target {
+		ctx.once.Do(func() { close(ctx.observed) })
+	}
+	return ctx.Context.Done()
+}
+
+func TestLifecycleQueueCancellationInterruptsHeldInstanceGate(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	instance := instanceWithTestLifecycleOwner(t, store, peerDrainAuthorizationTestInstance(t))
+	instance.DesiredStatus = ServerStateStopped
+	insertInstanceForDeleteReceiptTest(t, store, &instance)
+	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
+
+	unlock := manager.lockInstanceLifecycle(instance.ID)
+	defer unlock()
+	baseCtx, cancel := context.WithCancel(context.Background())
+	ctx := &lifecycleGateObservedContext{Context: baseCtx, observed: make(chan struct{})}
+	queueDone := make(chan error, 1)
+	go func() {
+		_, err := manager.QueueStartInstance(ctx, instance.ID)
+		queueDone <- err
+	}()
+
+	<-ctx.observed
+	cancel()
+	select {
+	case err := <-queueDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("QueueStartInstance error = %v, want context canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("QueueStartInstance did not honor cancellation while the lifecycle gate was held")
+	}
+
+	if task, found, err := manager.tasks.LatestForSubject(
+		InstanceLifecycleTaskStream,
+		taskSubjectInstance,
+		instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationReconcile),
+	); err != nil {
+		t.Fatal(err)
+	} else if found {
+		t.Fatalf("canceled start persisted task %+v", task)
+	}
+	stored, err := manager.getInstanceRecord(instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.DesiredStatus != ServerStateStopped {
+		t.Fatalf("canceled start changed desired status to %q", stored.DesiredStatus)
+	}
+}
+
+func TestLifecycleQueueCancellationInterruptsBlockedInstanceRead(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	instance := instanceWithTestLifecycleOwner(t, store, peerDrainAuthorizationTestInstance(t))
+	instance.DesiredStatus = ServerStateStopped
+	insertInstanceForDeleteReceiptTest(t, store, &instance)
+	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
+
+	lockHeld := make(chan struct{})
+	releaseLock := make(chan struct{})
+	var releaseLockOnce sync.Once
+	release := func() { releaseLockOnce.Do(func() { close(releaseLock) }) }
+	defer release()
+	lockHolderDone := make(chan error, 1)
+	go func() {
+		lockHolderDone <- store.ReadRows(context.Background(), "SELECT 1", nil, func(rows *sql.Rows) error {
+			if !rows.Next() {
+				return fmt.Errorf("lock-holder query returned no rows")
+			}
+			close(lockHeld)
+			<-releaseLock
+			return rows.Err()
+		})
+	}()
+	<-lockHeld
+
+	baseCtx, cancel := context.WithCancel(context.Background())
+	ctx := &lifecycleGateObservedContext{
+		Context:  baseCtx,
+		observed: make(chan struct{}),
+		target:   2, // lifecycle-gate admission, then the blocked database read
+	}
+	queueDone := make(chan error, 1)
+	go func() {
+		_, err := manager.QueueStartInstance(ctx, instance.ID)
+		queueDone <- err
+	}()
+
+	<-ctx.observed
+	cancel()
+	select {
+	case err := <-queueDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("QueueStartInstance error = %v, want context canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("QueueStartInstance did not honor cancellation while the instance read was blocked")
+	}
+
+	release()
+	if err := <-lockHolderDone; err != nil {
+		t.Fatal(err)
+	}
+	if task, found, err := manager.tasks.LatestForSubject(
+		InstanceLifecycleTaskStream,
+		taskSubjectInstance,
+		instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationReconcile),
+	); err != nil {
+		t.Fatal(err)
+	} else if found {
+		t.Fatalf("canceled start persisted task %+v", task)
+	}
+	stored, err := manager.getInstanceRecord(instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.DesiredStatus != ServerStateStopped {
+		t.Fatalf("canceled start changed desired status to %q", stored.DesiredStatus)
+	}
 }
 
 func newPeerDrainAuthorizationCrashFixture(t *testing.T) *peerDrainAuthorizationCrashFixture {
@@ -89,7 +227,7 @@ func newPeerDrainAuthorizationCrashFixture(t *testing.T) *peerDrainAuthorization
 	}
 	manager.publishPeerDrainAuthorization = func(_ context.Context, operation db.PublishedWriteOperation, expected InstanceInfo, fact tasks.OperationFact) (db.PublishedWriteReceipt, error) {
 		fixture.publishPCalls++
-		if operation != authorization.publishedWriteOperation() || !persistentInstanceEqual(expected, authorization.expectedInstance()) || fact.Kind != instancePeerDrainAuthorizedV1 {
+		if operation != authorization.publishedWriteOperation() || !persistentInstanceEqual(expected, authorization.expectedInstance()) || fact.Kind != instancePeerDrainAuthorizationFact {
 			return db.PublishedWriteReceipt{}, fmt.Errorf("unexpected P publication body")
 		}
 		fixture.accepted = true
@@ -108,7 +246,7 @@ func newPeerDrainAuthorizationCrashFixture(t *testing.T) *peerDrainAuthorization
 		}, nil
 	}
 	manager.verifyPeerDrainAuthorization = func(_ context.Context, checkpoint string, got instancePeerDrainAuthorization, fact tasks.OperationFact) error {
-		if checkpoint != "event-P-checkpoint" || got != authorization || fact.Kind != instancePeerDrainAuthorizedV1 {
+		if checkpoint != "event-P-checkpoint" || got != authorization || fact.Kind != instancePeerDrainAuthorizationFact {
 			return fmt.Errorf("unexpected P checkpoint verification")
 		}
 		return nil
@@ -133,7 +271,6 @@ func (fixture *peerDrainAuthorizationCrashFixture) runDeleteContext(ctx context.
 		fixture.authorization.TaskID,
 		fixture.delete,
 		&fixture.authorization,
-		nil,
 		func(instanceDeleteOperationReceipt, int, string) error { return nil },
 	)
 }
@@ -202,7 +339,6 @@ func TestPeerDrainAuthorizationRejectsMismatchedReceiptIdentity(t *testing.T) {
 		EventID:               strings.Repeat("a", 64),
 		PublishedRootHash:     strings.Repeat("b", 32),
 		AuthorPeerID:          "wrong-author",
-		AuthorSeq:             1,
 		OperationIntentDigest: authorization.IntentDigest,
 	}
 	if err := validatePeerDrainAuthorizationReceipt(receipt, authorization); !errors.Is(err, db.ErrPublishedWriteReceiptIdentityConflict) {
@@ -238,7 +374,7 @@ func TestPeerDrainAuthorizationPublishesAtomicExactFactAndDeletingCAS(t *testing
 	}
 	queued := make(chan queueResult, 1)
 	go func() {
-		_, err := manager.QueueStartInstance(instance.ID)
+		_, err := manager.QueueStartInstance(context.Background(), instance.ID)
 		queued <- queueResult{err: err}
 	}()
 	select {
@@ -307,6 +443,25 @@ func TestPeerDrainAuthorizationPublishesAtomicExactFactAndDeletingCAS(t *testing
 	}
 	if stored.DesiredStatus != ServerStateDeleting {
 		t.Fatalf("cross-peer guard allowed stale desired status %q", stored.DesiredStatus)
+	}
+}
+
+func TestCurrentPeerDrainAuthorizationFactRejectsRemovedVersionField(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	instance := instanceWithTestLifecycleOwner(t, store, peerDrainAuthorizationTestInstance(t))
+	operationID := db.MustNewUUIDv7()
+	deleteOperation := instanceDeleteOperationIdentityForTest(t, store, operationID, instance, false)
+	authorization, err := newInstancePeerDrainAuthorization(operationID, deleteOperation, instance, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fact, err := newInstancePeerDrainAuthorizationFact(authorization)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fact.Payload = []byte(strings.TrimSuffix(string(fact.Payload), "}") + `,"version":"retired"}`)
+	if _, err := instancePeerDrainAuthorizationFromFact(fact); err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatalf("decode authorization fact error = %v, want unknown-field rejection", err)
 	}
 }
 
@@ -570,7 +725,7 @@ func TestPeerDrainAuthorizationNotAcceptedPRemainsRecoverableAfterLifecycleLoss(
 	if stored.DesiredStatus != fixture.instance.DesiredStatus {
 		t.Fatalf("P-not-accepted instance status=%q, want unchanged %q", stored.DesiredStatus, fixture.instance.DesiredStatus)
 	}
-	if _, found, factErr := fixture.manager.tasks.OperationFact(context.Background(), fixture.authorization.TaskID, instancePeerDrainAuthorizedV1); factErr != nil {
+	if _, found, factErr := fixture.manager.tasks.OperationFact(context.Background(), fixture.authorization.TaskID, instancePeerDrainAuthorizationFact); factErr != nil {
 		t.Fatal(factErr)
 	} else if found {
 		t.Fatal("typed not-accepted P unexpectedly persisted its authorization fact")

@@ -3,7 +3,6 @@ package provisioners
 import (
 	"context"
 	stdsql "database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -84,10 +83,10 @@ func isPeerDrainAuthorizationRejectionsExhausted(err error) bool {
 
 func instancePeerDrainAuthorizationFromFact(fact tasks.OperationFact) (instancePeerDrainAuthorization, error) {
 	var authorization instancePeerDrainAuthorization
-	if err := json.Unmarshal(fact.Payload, &authorization); err != nil {
+	if err := decodeOperationFactPayload(fact.Payload, &authorization); err != nil {
 		return instancePeerDrainAuthorization{}, fmt.Errorf("decode peer-drain authorization fact: %w", err)
 	}
-	if fact.Kind != instancePeerDrainAuthorizedV1 ||
+	if fact.Kind != instancePeerDrainAuthorizationFact ||
 		strings.TrimSpace(fact.TaskID) != strings.TrimSpace(authorization.TaskID) ||
 		strings.TrimSpace(fact.SubjectType) != taskSubjectInstance ||
 		strings.TrimSpace(fact.SubjectID) != strings.TrimSpace(authorization.InstanceID) ||
@@ -136,7 +135,7 @@ func (cm *Manager) instancePeerDrainAuthorizationExists(ctx context.Context, ins
 	err := cm.db.ReadRows(
 		ctx,
 		"SELECT id FROM task_operation_facts WHERE fact_kind = ? AND subject_type = ? AND subject_id = ? LIMIT 1",
-		[]any{instancePeerDrainAuthorizedV1, taskSubjectInstance, strings.TrimSpace(instanceID)},
+		[]any{instancePeerDrainAuthorizationFact, taskSubjectInstance, strings.TrimSpace(instanceID)},
 		func(rows *stdsql.Rows) error {
 			found = rows.Next()
 			if found {

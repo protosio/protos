@@ -13,21 +13,20 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 
 	state := &proto.RuntimeState{
 		PeerId:                 "local-peer",
-		ConnectedPeers:         []string{"connected-peer"},
-		RoutedPeers:            []string{"connected-peer"},
+		RoutedPeers:            []string{"routed-peer"},
 		ParticipatingPeers:     []string{"provider-peer"},
 		LogicalPeers:           []string{"database-peer"},
 		PhysicalConnectedPeers: []string{"provider-peer"},
 		StateProviders:         []string{"provider-peer"},
 		PeerStatuses: []*proto.RuntimePeerStatus{
-			{PeerId: "connected-peer", Connected: true, Dialable: true, Routed: true},
+			{PeerId: "routed-peer", Routed: true},
 		},
 	}
 
 	addKnownRuntimePeerStatuses(state, map[string]struct{}{
-		"connected-peer": {},
-		"database-peer":  {},
-		"provider-peer":  {},
+		"routed-peer":   {},
+		"database-peer": {},
+		"provider-peer": {},
 	})
 
 	statuses := map[string]*proto.RuntimePeerStatus{}
@@ -38,10 +37,10 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 	if len(statuses) != 4 {
 		t.Fatalf("peer statuses count = %d, want 4: %#v", len(statuses), statuses)
 	}
-	if self := statuses["local-peer"]; self == nil || self.GetConnected() || self.GetDialable() || self.GetRouted() || self.GetPhysicalConnected() || !self.GetCompatible() || self.GetReason() != "self" {
+	if self := statuses["local-peer"]; self == nil || self.GetRouted() || self.GetPhysicalConnected() || !self.GetCompatible() || self.GetReason() != "self" {
 		t.Fatalf("self status = %#v, want compatible self row without inferred reachability", self)
 	}
-	if databasePeer := statuses["database-peer"]; databasePeer == nil || databasePeer.GetConnected() || databasePeer.GetDialable() || databasePeer.GetStateProvider() || databasePeer.GetReason() != "known database peer" {
+	if databasePeer := statuses["database-peer"]; databasePeer == nil || databasePeer.GetRouted() || databasePeer.GetStateProvider() || databasePeer.GetReason() != "known database peer" {
 		t.Fatalf("database peer status = %#v, want inert known database row", databasePeer)
 	}
 	if provider := statuses["provider-peer"]; provider == nil || !provider.GetStateProvider() {
@@ -49,8 +48,8 @@ func TestAddKnownRuntimePeerStatusesAddsDbPeersAndSelf(t *testing.T) {
 	} else if !provider.GetParticipating() || !provider.GetPhysicalConnected() {
 		t.Fatalf("provider transport planes = %#v, want participating and physical", provider)
 	}
-	if connected := statuses["connected-peer"]; connected == nil || !connected.GetRouted() || !connected.GetConnected() || !connected.GetDialable() {
-		t.Fatalf("connected status = %#v, want routed and legacy aliases", connected)
+	if routed := statuses["routed-peer"]; routed == nil || !routed.GetRouted() {
+		t.Fatalf("routed status = %#v, want routed", routed)
 	}
 	if databasePeer := statuses["database-peer"]; databasePeer == nil || !databasePeer.GetLogical() {
 		t.Fatalf("database peer status = %#v, want logical plane", databasePeer)
@@ -63,15 +62,14 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 	state := &proto.RuntimeState{
 		PeerId:                 "local-peer",
 		StateProviders:         []string{"provider-peer", "deleted-peer", "provider-peer"},
-		ConnectedPeers:         []string{"provider-peer", "deleted-peer", "provider-peer"},
 		RoutedPeers:            []string{"provider-peer", "deleted-peer", "provider-peer"},
 		ParticipatingPeers:     []string{"provider-peer", "deleted-peer", "provider-peer"},
 		LogicalPeers:           []string{"provider-peer", "deleted-peer", "provider-peer"},
 		PhysicalConnectedPeers: []string{"provider-peer", "deleted-peer", "provider-peer"},
 		PeerStatuses: []*proto.RuntimePeerStatus{
-			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true, LastRoutedAtUnixNano: 1234},
-			{PeerId: "provider-peer", Connected: true, Dialable: true, StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true},
-			{PeerId: "deleted-peer", Connected: true, Dialable: true, StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true},
+			{PeerId: "provider-peer", StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true, LastRoutedAtUnixNano: 1234},
+			{PeerId: "provider-peer", StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true},
+			{PeerId: "deleted-peer", StateProvider: true, Routed: true, Participating: true, Logical: true, PhysicalConnected: true},
 		},
 		Compatibility: []*proto.RuntimeCompatibility{
 			{PeerId: "provider-peer", Compatible: true},
@@ -86,9 +84,6 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 
 	if got, want := state.GetStateProviders(), []string{"provider-peer"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("state providers = %#v, want %#v", got, want)
-	}
-	if got, want := state.GetConnectedPeers(), []string{"provider-peer"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("connected peers = %#v, want %#v", got, want)
 	}
 	for name, got := range map[string][]string{
 		"routed":        state.GetRoutedPeers(),
@@ -107,7 +102,7 @@ func TestFilterRuntimePeerSurfaceRemovesUnknownCachedPeers(t *testing.T) {
 		t.Fatalf("peer statuses count = %d, want 1", len(state.GetPeerStatuses()))
 	}
 	status := state.GetPeerStatuses()[0]
-	if !status.GetRouted() || !status.GetParticipating() || !status.GetLogical() || !status.GetPhysicalConnected() || !status.GetConnected() || !status.GetDialable() || status.GetLastRoutedAtUnixNano() != 1234 {
+	if !status.GetRouted() || !status.GetParticipating() || !status.GetLogical() || !status.GetPhysicalConnected() || status.GetLastRoutedAtUnixNano() != 1234 {
 		t.Fatalf("filtered transport status = %#v, want every explicit plane and timestamp retained", status)
 	}
 	if got := state.GetCompatibility(); len(got) != 1 || got[0].GetPeerId() != "provider-peer" {
@@ -128,8 +123,8 @@ func TestRuntimePeerStatusToP2PProtoPreservesExplicitPlanes(t *testing.T) {
 		Addresses:     []string{"/ip4/192.0.2.10/tcp/1111"},
 		LastRoutedAt:  lastRoutedAt,
 	})
-	if !status.GetRouted() || !status.GetParticipating() || !status.GetLogical() || !status.GetConnected() || !status.GetDialable() {
-		t.Fatalf("Swarmion transport planes or legacy aliases were not preserved: %#v", status)
+	if !status.GetRouted() || !status.GetParticipating() || !status.GetLogical() {
+		t.Fatalf("Swarmion transport planes were not preserved: %#v", status)
 	}
 	if status.GetPhysicalConnected() {
 		t.Fatalf("Swarmion status inferred physical connectivity: %#v", status)
@@ -147,13 +142,11 @@ func TestSynchronizeRuntimePeerStatusPlanesUsesOnlyPhysicalHostSurface(t *testin
 			PeerId:        "peer-a",
 			Participating: true,
 			Logical:       true,
-			Connected:     true,
-			Dialable:      true,
 		}},
 	}
 	synchronizeRuntimePeerStatusPlanes(state)
 	status := state.GetPeerStatuses()[0]
-	if !status.GetPhysicalConnected() || status.GetRouted() || status.GetConnected() || status.GetDialable() || !status.GetParticipating() || !status.GetLogical() {
+	if !status.GetPhysicalConnected() || status.GetRouted() || !status.GetParticipating() || !status.GetLogical() {
 		t.Fatalf("synchronized status = %#v, want physical-only host mapping with Swarmion planes unchanged", status)
 	}
 }

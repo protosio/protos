@@ -96,12 +96,6 @@ func (am *Manager) bindAll(apps []App) []App {
 // Client methods
 //
 
-// Create takes an image and creates an application, without starting it.
-func (am *Manager) Create(ctx context.Context, installer string, name string, instanceName string, persistence bool, installerParams map[string]string) (*App, error) {
-	app, _, err := am.CreateWithConfirmation(ctx, installer, name, instanceName, persistence, installerParams)
-	return app, err
-}
-
 // CreateWithConfirmation creates an application and returns the strongest
 // ordinary-write boundary observed before returning. A locally accepted write
 // remains successful when another-peer availability is not presently
@@ -228,7 +222,7 @@ func (am *Manager) Notify() {
 		return
 	}
 
-	_, inserted, err := am.enqueueReconcileTask()
+	_, inserted, err := am.enqueueReconcileTask(context.Background())
 	if err != nil {
 		log.Errorf("failed to queue app runtime reconciliation: %s", err.Error())
 		return
@@ -288,7 +282,7 @@ func (am *Manager) reconcileSignature() (string, error) {
 // any reconcile that is already pending or running. It returns whether a fresh
 // task was actually inserted so callers can decide whether to advance the
 // reconcile signature.
-func (am *Manager) enqueueReconcileTask() (tasks.Record, bool, error) {
+func (am *Manager) enqueueReconcileTask(ctx context.Context) (tasks.Record, bool, error) {
 	if am == nil || am.tasks == nil {
 		return tasks.Record{}, false, fmt.Errorf("app runtime task manager is not configured")
 	}
@@ -296,7 +290,7 @@ func (am *Manager) enqueueReconcileTask() (tasks.Record, bool, error) {
 	if peerID == "" {
 		peerID = "local"
 	}
-	return tasks.EnqueueUnique(am.tasks, tasks.EnqueueUniqueOptions[reconcileRuntimeTaskPayload]{
+	return tasks.EnqueueUniqueContext(ctx, am.tasks, tasks.EnqueueUniqueOptions[reconcileRuntimeTaskPayload]{
 		EnqueueOptions: tasks.EnqueueOptions[reconcileRuntimeTaskPayload]{
 			Stream:      AppReconcileTaskStream,
 			SubjectType: taskSubjectAppRuntime,
@@ -434,12 +428,6 @@ func (am *Manager) shouldReconcile(app App) bool {
 	return peerID == am.ptype
 }
 
-// Start sets the desired status of the app to running, which triggers the app reconciler on the hosting instance.
-func (am *Manager) Start(ctx context.Context, name string) error {
-	_, err := am.StartWithConfirmation(ctx, name)
-	return err
-}
-
 // StartWithConfirmation records the desired running state and exposes its
 // exact availability boundary without confusing a pending second-peer proof
 // with a failed mutation.
@@ -461,12 +449,6 @@ func (am *Manager) StartWithConfirmation(ctx context.Context, name string) (db.P
 	return confirmation, nil
 }
 
-// Stop sets the desired status of the app to stopped, which triggers the stopping of the app on the hosting instance
-func (am *Manager) Stop(ctx context.Context, name string) error {
-	_, err := am.StopWithConfirmation(ctx, name)
-	return err
-}
-
 // StopWithConfirmation records the desired stopped state and returns the
 // accepted write's current other-peer availability stage.
 func (am *Manager) StopWithConfirmation(ctx context.Context, name string) (db.PublishedWriteConfirmation, error) {
@@ -484,12 +466,6 @@ func (am *Manager) StopWithConfirmation(ctx context.Context, name string) (db.Pu
 		return confirmation, fmt.Errorf("failed to set desired application status to '%s'(%s): %w", statusStopped, app.Name, err)
 	}
 	return confirmation, nil
-}
-
-// Remove removes an application based on the provided id
-func (am *Manager) Remove(ctx context.Context, id string) error {
-	_, err := am.RemoveWithConfirmation(ctx, id)
-	return err
 }
 
 // RemoveWithConfirmation removes the declarative app row and returns its

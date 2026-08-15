@@ -84,10 +84,10 @@ func main() {
 		return
 	}
 
-	if manifestPath != "" {
-		if !runVM {
-			log.Warn("Running a VM directly with -manifest is deprecated; use --run-vm -manifest for child mode")
-		}
+	if err := validateVMRunnerMode(runVM, manifestPath); err != nil {
+		log.Fatal(err)
+	}
+	if runVM {
 		if err := localvm.Run(manifestPath); err != nil {
 			log.Fatal(err)
 		}
@@ -96,6 +96,18 @@ func main() {
 
 	if err := runDaemon(hostSocket, socketMode, socketUID, socketGID, workDir); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func validateVMRunnerMode(runVM bool, manifestPath string) error {
+	hasManifest := strings.TrimSpace(manifestPath) != ""
+	switch {
+	case runVM && !hasManifest:
+		return errors.New("--run-vm requires -manifest")
+	case !runVM && hasManifest:
+		return errors.New("-manifest is valid only with --run-vm")
+	default:
+		return nil
 	}
 }
 

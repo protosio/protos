@@ -24,17 +24,14 @@ var ErrVolumeNotFound = errors.New("provisioner volume not found")
 
 // ProvisionerRecord is the persisted provisioner configuration.
 //
-// The backing database and CLI still use "cloud provider" terminology for
-// compatibility, but the runtime abstraction is a provisioner.
+// The backing database retains its historical CLOUD_PROVIDER table name; the
+// runtime and client abstraction is a provisioner.
 type ProvisionerRecord struct {
 	ID   string
 	Name string
 	Type Type
 	Auth map[string]string
 }
-
-// ProviderRecord is kept as a compatibility alias for existing cloud APIs.
-type ProviderRecord = ProvisionerRecord
 
 func newProvisionerRecord(name string, provisionerType Type, auth map[string]string) ProvisionerRecord {
 	name = strings.TrimSpace(name)
@@ -69,7 +66,7 @@ func newProvisionerMetadata(record ProvisionerRecord, authFields []string) Provi
 	}
 }
 
-func (metadata ProvisionerMetadata) ProviderRecord() ProviderRecord {
+func (metadata ProvisionerMetadata) ProvisionerRecord() ProvisionerRecord {
 	return metadata.record.Clone()
 }
 
@@ -87,15 +84,12 @@ func (metadata ProvisionerMetadata) AuthFields() []string {
 
 // Provisioner is a configured infrastructure provisioner.
 type Provisioner interface {
-	ProviderRecord() ProviderRecord
+	ProvisionerRecord() ProvisionerRecord
 	NameStr() string
 	TypeStr() string
 	AuthFields() []string
 	Init() error
 }
-
-// ProviderClient is kept as a compatibility alias for existing cloud APIs.
-type ProviderClient = Provisioner
 
 // ComputeProvisioner provisions and manages VM instances.
 type ComputeProvisioner interface {
@@ -107,9 +101,6 @@ type ComputeProvisioner interface {
 	StopInstance(id string, location string) error
 	GetInstanceInfo(id string, location string) (InstanceInfo, error)
 }
-
-// ComputeProvider is kept as a compatibility alias for existing cloud APIs.
-type ComputeProvider = ComputeProvisioner
 
 // InstanceReconciler applies persisted desired instance state to provider resources.
 type InstanceReconciler interface {
@@ -180,9 +171,6 @@ type ImageProvisioner interface {
 	RemoveImage(name string, location string) error
 }
 
-// ImageProvider is kept as a compatibility alias for existing cloud APIs.
-type ImageProvider = ImageProvisioner
-
 // VolumeProvisioner manages block volumes.
 type VolumeProvisioner interface {
 	NewVolume(name string, size int, location string) (id string, err error)
@@ -191,25 +179,16 @@ type VolumeProvisioner interface {
 	DettachVolume(volumeID string, instanceID string, location string) error
 }
 
-// VolumeProvider is kept as a compatibility alias for existing cloud APIs.
-type VolumeProvider = VolumeProvisioner
-
 type ProvisionerDeps struct {
 	SecretManager *pcrypto.Manager
 	WorkDir       string
 }
-
-// ProviderDeps is kept as a compatibility alias for existing cloud APIs.
-type ProviderDeps = ProvisionerDeps
 
 type ProvisionerFactory interface {
 	Type() Type
 	AuthFields() []string
 	NewClient(record ProvisionerRecord, deps ProvisionerDeps) (Provisioner, error)
 }
-
-// ProviderFactory is kept as a compatibility alias for existing cloud APIs.
-type ProviderFactory = ProvisionerFactory
 
 type typedProvisionerFactory[C any] struct {
 	provisionerType Type

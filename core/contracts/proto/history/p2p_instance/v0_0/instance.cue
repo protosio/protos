@@ -205,6 +205,9 @@ package p2pv1
 	protocol_checkpoint_root_hash?: string
 	durable_main_root_hash?:        string
 	state_providers?: [...string]
+	// Deprecated: compatibility alias for routed_peers. It does not describe
+	// physical libp2p connections.
+	connected_peers?: [...string]
 	fatal_state?:                    string
 	runtime_refresh_pending?:        bool
 	runtime_refresh_last_error?:     string
@@ -231,6 +234,11 @@ package p2pv1
 }
 #RuntimePeerStatus: {
 	peer_id?:        string
+	// Deprecated: compatibility alias for routed.
+	connected?:      bool
+	// Deprecated: compatibility alias for routed. Swarmion no longer reports
+	// speculative dialability as database reachability.
+	dialable?:       bool
 	state_provider?: bool
 	compatible?:     bool
 	incompatible?:   bool
@@ -257,13 +265,13 @@ package p2pv1
 contract: {
 	surface: "p2p-instance-grpc"
 	migration: {
-		id:                  "protos-p2p-instance-v0.1"
+		id:                  "protos-p2p-instance-v0.0"
 		lineage_id:          "protos.p2p.instance"
-		from_version:        "0.0"
-		to_version:          "0.1"
-		compatibility:       "breaking"
-		backward_compatible: false
-		forward_compatible:  false
+		from_version:        ""
+		to_version:          "0.0"
+		compatibility:       "full"
+		backward_compatible: true
+		forward_compatible:  true
 	}
 	proto: {
 		syntax:     "proto3"
@@ -467,7 +475,7 @@ contract: {
 				{type: "string", name: "dns_server", number: 5},
 				{rule: "repeated", type: "string", name: "cidrs", number: 6},
 			]},
-			{kind: "message", name: "RuntimeState", reserved_numbers: [11], reserved_names: ["connected_peers"], fields: [
+			{kind: "message", name: "RuntimeState", fields: [
 				{type: "string", name: "peer_id", number: 1},
 				{type: "string", name: "manifest_digest", number: 2},
 				{type: "string", name: "checkpoint_root_hash", number: 3},
@@ -475,6 +483,7 @@ contract: {
 				{type: "string", name: "protocol_checkpoint_root_hash", number: 5},
 				{type: "string", name: "durable_main_root_hash", number: 6},
 				{rule: "repeated", type: "string", name: "state_providers", number: 10},
+				{rule: "repeated", type: "string", name: "connected_peers", number: 11, comment: "Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections."},
 				{type: "string", name: "fatal_state", number: 12},
 				{type: "bool", name: "runtime_refresh_pending", number: 13},
 				{type: "string", name: "runtime_refresh_last_error", number: 14},
@@ -494,8 +503,10 @@ contract: {
 				{type: "int32", name: "logical_peer_target", number: 31},
 				{rule: "repeated", type: "string", name: "physical_connected_peers", number: 32, comment: "Peers with a live connection on the application-owned physical host."},
 			]},
-			{kind: "message", name: "RuntimePeerStatus", reserved_numbers: [2, 3], reserved_names: ["connected", "dialable"], fields: [
+			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
+				{type: "bool", name: "connected", number: 2, comment: "Deprecated: compatibility alias for routed."},
+				{type: "bool", name: "dialable", number: 3, comment: "Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability."},
 				{type: "bool", name: "state_provider", number: 4},
 				{type: "bool", name: "compatible", number: 7},
 				{type: "bool", name: "incompatible", number: 8},
@@ -537,7 +548,7 @@ contract: {
 lineage: {
 	name: "protos.p2p.instance"
 	schemas: [{
-		version: [0, 1]
+		version: [0, 0]
 		schema: {
 			InitRequest?:             #InitRequest
 			InitResponse?:            #InitResponse

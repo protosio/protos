@@ -4,7 +4,92 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+(
+  cd contracts/proto/history
+  shasum -a 256 -c SHA256SUMS
+)
+
 HOF="$("$ROOT_DIR/scripts/ensure-hof.sh")"
+
+cue_json_value() {
+  local cue_file="$1"
+  local expression="$2"
+  "$HOF" eval "$cue_file" -e "$expression" --out json | tr -d '[:space:]'
+}
+
+cue_schema_version() {
+  local cue_file="$1"
+  local major
+  local minor
+  major="$(cue_json_value "$cue_file" 'lineage.schemas[0].version[0]')"
+  minor="$(cue_json_value "$cue_file" 'lineage.schemas[0].version[1]')"
+  printf '"%s.%s"' "$major" "$minor"
+}
+
+require_contract_value() {
+  local description="$1"
+  local actual="$2"
+  local expected="$3"
+  if [ "$actual" != "$expected" ]; then
+    printf '%s: expected %s, got %s\n' "$description" "$expected" "$actual" >&2
+    exit 1
+  fi
+}
+
+verify_breaking_proto_transition() {
+  local label="$1"
+  local archived="$2"
+  local current="$3"
+  local expected_lineage="$4"
+  local expected_from="$5"
+  local expected_to="$6"
+
+  local archived_lineage_id
+  local archived_lineage_name
+  local archived_to
+  local current_lineage_id
+  local current_lineage_name
+  local current_from
+  local current_to
+
+  archived_lineage_id="$(cue_json_value "$archived" contract.migration.lineage_id)"
+  archived_lineage_name="$(cue_json_value "$archived" lineage.name)"
+  archived_to="$(cue_json_value "$archived" contract.migration.to_version)"
+  current_lineage_id="$(cue_json_value "$current" contract.migration.lineage_id)"
+  current_lineage_name="$(cue_json_value "$current" lineage.name)"
+  current_from="$(cue_json_value "$current" contract.migration.from_version)"
+  current_to="$(cue_json_value "$current" contract.migration.to_version)"
+
+  require_contract_value "$label archived migration lineage" "$archived_lineage_id" "\"$expected_lineage\""
+  require_contract_value "$label archived schema lineage" "$archived_lineage_name" "$archived_lineage_id"
+  require_contract_value "$label current migration lineage" "$current_lineage_id" "$archived_lineage_id"
+  require_contract_value "$label current schema lineage" "$current_lineage_name" "$current_lineage_id"
+  require_contract_value "$label archived transition target" "$archived_to" "\"$expected_from\""
+  require_contract_value "$label archived schema version" "$(cue_schema_version "$archived")" "$archived_to"
+  require_contract_value "$label current transition source" "$current_from" "$archived_to"
+  require_contract_value "$label current transition target" "$current_to" "\"$expected_to\""
+  require_contract_value "$label current schema version" "$(cue_schema_version "$current")" "$current_to"
+  require_contract_value "$label transition compatibility" "$(cue_json_value "$current" contract.migration.compatibility)" '"breaking"'
+  require_contract_value "$label backward compatibility" "$(cue_json_value "$current" contract.migration.backward_compatible)" 'false'
+  require_contract_value "$label forward compatibility" "$(cue_json_value "$current" contract.migration.forward_compatible)" 'false'
+  require_contract_value "$label migration lenses" "$(cue_json_value "$current" lineage.lenses)" '[]'
+}
+
+verify_breaking_proto_transition \
+  "APIC protobuf" \
+  contracts/proto/history/apic/v0_0/apic.cue \
+  contracts/proto/apic/v1/apic.cue \
+  protos.client_api \
+  0.0 \
+  0.1
+verify_breaking_proto_transition \
+  "P2P instance protobuf" \
+  contracts/proto/history/p2p_instance/v0_0/instance.cue \
+  contracts/proto/p2p/v1/instance.cue \
+  protos.p2p.instance \
+  0.0 \
+  0.1
+
 tmp_dir="$(mktemp -d ".tmp-contracts.XXXXXX")"
 cleanup() {
   rm -rf "$tmp_dir"

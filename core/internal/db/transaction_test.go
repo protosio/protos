@@ -19,23 +19,10 @@ func transactionMetricsDelta(after, before TransactionMetricsSnapshot) Transacti
 		TransactionsStarted:                         after.TransactionsStarted - before.TransactionsStarted,
 		CommitsAttempted:                            after.CommitsAttempted - before.CommitsAttempted,
 		CommitsSucceeded:                            after.CommitsSucceeded - before.CommitsSucceeded,
-		CommitsFailed:                               after.CommitsFailed - before.CommitsFailed,
 		NoopCommitOutcomes:                          after.NoopCommitOutcomes - before.NoopCommitOutcomes,
-		RollbacksAttempted:                          after.RollbacksAttempted - before.RollbacksAttempted,
-		RollbacksSucceeded:                          after.RollbacksSucceeded - before.RollbacksSucceeded,
-		RollbacksFailed:                             after.RollbacksFailed - before.RollbacksFailed,
-		RollbacksApplyPhase:                         after.RollbacksApplyPhase - before.RollbacksApplyPhase,
-		RollbacksBeforeCommitPhase:                  after.RollbacksBeforeCommitPhase - before.RollbacksBeforeCommitPhase,
-		RollbacksPanicPhase:                         after.RollbacksPanicPhase - before.RollbacksPanicPhase,
-		RollbacksApplyFailure:                       after.RollbacksApplyFailure - before.RollbacksApplyFailure,
-		RollbacksContextCanceled:                    after.RollbacksContextCanceled - before.RollbacksContextCanceled,
-		RollbacksContextDeadline:                    after.RollbacksContextDeadline - before.RollbacksContextDeadline,
-		RollbacksSQLViewNotReady:                    after.RollbacksSQLViewNotReady - before.RollbacksSQLViewNotReady,
-		RollbacksPanic:                              after.RollbacksPanic - before.RollbacksPanic,
 		TypedConflicts:                              after.TypedConflicts - before.TypedConflicts,
 		OperationReceiptsFoundAfterCommitErr:        after.OperationReceiptsFoundAfterCommitErr - before.OperationReceiptsFoundAfterCommitErr,
 		UncertainEventReceiptsAfterCommitErr:        after.UncertainEventReceiptsAfterCommitErr - before.UncertainEventReceiptsAfterCommitErr,
-		SQLViewNotReadyOutcomes:                     after.SQLViewNotReadyOutcomes - before.SQLViewNotReadyOutcomes,
 		StaleWriteContextOutcomes:                   after.StaleWriteContextOutcomes - before.StaleWriteContextOutcomes,
 		ProjectionTooWideOutcomes:                   after.ProjectionTooWideOutcomes - before.ProjectionTooWideOutcomes,
 		OperationTransactionsAttempted:              after.OperationTransactionsAttempted - before.OperationTransactionsAttempted,
@@ -156,15 +143,15 @@ func TestPublishedWriteOperationIdentityIsStableAndIntentBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := NewPublishedWriteOperation(key, "protos:test:identity:v1", "a", "bc")
+	first, err := NewPublishedWriteOperation(key, "protos:test:identity", "a", "bc")
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebuilt, err := NewPublishedWriteOperation(key, "protos:test:identity:v1", "a", "bc")
+	rebuilt, err := NewPublishedWriteOperation(key, "protos:test:identity", "a", "bc")
 	if err != nil {
 		t.Fatal(err)
 	}
-	changed, err := NewPublishedWriteOperation(key, "protos:test:identity:v1", "ab", "c")
+	changed, err := NewPublishedWriteOperation(key, "protos:test:identity", "ab", "c")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +165,7 @@ func TestPublishedWriteOperationIdentityIsStableAndIntentBound(t *testing.T) {
 
 func TestStableOperationExecutedThenAlreadyAcceptedSkipsChangedBody(t *testing.T) {
 	store := openPeerTestDB(t)
-	operation := transactionTestOperation(t, "protos:test:stable-operation:v1")
+	operation := transactionTestOperation(t, "protos:test:stable-operation")
 	firstID := MustNewUUIDv7()
 	secondID := MustNewUUIDv7()
 
@@ -217,7 +204,7 @@ func TestStableOperationExecutedThenAlreadyAcceptedSkipsChangedBody(t *testing.T
 
 func TestStableOperationStatementFailureIsAtomicAndFailsClosed(t *testing.T) {
 	store := openPeerTestDB(t)
-	operation := transactionTestOperation(t, "protos:test:operation-atomicity:v1")
+	operation := transactionTestOperation(t, "protos:test:operation-atomicity")
 	id := MustNewUUIDv7()
 
 	receipt, err := UpdateAndInsertWithOperationReceiptContext(
@@ -254,7 +241,7 @@ func TestStableOperationStatementFailureIsAtomicAndFailsClosed(t *testing.T) {
 func TestSafeRejectionAlonePermitsApplicationOwnedRetry(t *testing.T) {
 	store := openPeerTestDB(t)
 	runtime := transactionTestRuntime(t, store)
-	operation := transactionTestOperation(t, "protos:test:safe-rejection:v1")
+	operation := transactionTestOperation(t, "protos:test:safe-rejection")
 	id := MustNewUUIDv7()
 	injected := errors.New("injected pre-publication rejection")
 
@@ -301,7 +288,7 @@ func TestSafeRejectionAlonePermitsApplicationOwnedRetry(t *testing.T) {
 func TestZeroOutcomeCannotBorrowSafeRejectionRetryAuthority(t *testing.T) {
 	store := openPeerTestDB(t)
 	runtime := transactionTestRuntime(t, store)
-	operation := transactionTestOperation(t, "protos:test:zero-outcome-safe-rejection:v1")
+	operation := transactionTestOperation(t, "protos:test:zero-outcome-safe-rejection")
 	id := MustNewUUIDv7()
 	executeCalls := 0
 
@@ -346,7 +333,7 @@ func TestZeroOutcomeCannotBorrowSafeRejectionRetryAuthority(t *testing.T) {
 func TestUnresolvedPublicationReturnsExactNonRetryableReceipt(t *testing.T) {
 	store := openPeerTestDB(t)
 	runtime := transactionTestRuntime(t, store)
-	operation := transactionTestOperation(t, "protos:test:unresolved-publication:v1")
+	operation := transactionTestOperation(t, "protos:test:unresolved-publication")
 	id := MustNewUUIDv7()
 
 	store.executeOperationForTest = func(ctx context.Context, request swarmionapp.OperationRequest) (swarmionapp.PublicationOutcome, error) {
@@ -511,7 +498,7 @@ func TestOrdinaryUnresolvedExactReceiptTracksInsteadOfRetryingStaleMarker(t *tes
 func TestInconclusivePublicationRecoversExactReceiptWithoutReexecution(t *testing.T) {
 	store := openPeerTestDB(t)
 	runtime := transactionTestRuntime(t, store)
-	operation := transactionTestOperation(t, "protos:test:inconclusive-publication:v1")
+	operation := transactionTestOperation(t, "protos:test:inconclusive-publication")
 	firstID := MustNewUUIDv7()
 	secondID := MustNewUUIDv7()
 
@@ -562,7 +549,7 @@ func TestInconclusivePublicationRecoversExactReceiptWithoutReexecution(t *testin
 
 func TestStableNoChangeConsumesIdentityAndReturnsExactReceipt(t *testing.T) {
 	store := openPeerTestDB(t)
-	operation := transactionTestOperation(t, "protos:test:no-change-operation:v1")
+	operation := transactionTestOperation(t, "protos:test:no-change-operation")
 	missingID := MustNewUUIDv7()
 	replayID := MustNewUUIDv7()
 
@@ -599,7 +586,7 @@ func TestStableNoChangeConsumesIdentityAndReturnsExactReceipt(t *testing.T) {
 func TestNoChangeTerminalErrorRetainsExactReceipt(t *testing.T) {
 	store := openPeerTestDB(t)
 	runtime := transactionTestRuntime(t, store)
-	operation := transactionTestOperation(t, "protos:test:no-change-terminal-receipt:v1")
+	operation := transactionTestOperation(t, "protos:test:no-change-terminal-receipt")
 	missingID := MustNewUUIDv7()
 
 	store.executeOperationForTest = func(ctx context.Context, request swarmionapp.OperationRequest) (swarmionapp.PublicationOutcome, error) {

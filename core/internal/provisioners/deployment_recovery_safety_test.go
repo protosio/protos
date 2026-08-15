@@ -93,7 +93,7 @@ func TestDeployFailureAfterDiscoveryRetainsProviderAndReplicatedIdentity(t *test
 	addErr := errors.New("injected add peer failure")
 	manager.addPeerForInstance = func(InstanceInfo) (*p2p.Client, error) { return nil, addErr }
 
-	pending, err := manager.DeployInstance("vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small")
+	pending, _, err := manager.DeployInstanceWithConfirmation(context.Background(), "vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestDeployFailureBeforeDiscoveryPreservesCompensation(t *testing.T) {
 		return nil, discoverErr
 	}
 
-	if _, err := manager.DeployInstance("vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small"); err != nil {
+	if _, _, err := manager.DeployInstanceWithConfirmation(context.Background(), "vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small"); err != nil {
 		t.Fatal(err)
 	}
 	if err := manager.tasks.RunPending(context.Background()); err == nil || !strings.Contains(err.Error(), discoverErr.Error()) {
@@ -171,7 +171,7 @@ func TestDeployCompletionReusesAtomicallyPersistedPeer(t *testing.T) {
 		return &proto.InitResponse{Architecture: "arm64"}, nil
 	}
 
-	pending, err := manager.DeployInstance("vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small")
+	pending, _, err := manager.DeployInstanceWithConfirmation(context.Background(), "vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestDeployCompletionReusesAtomicallyPersistedPeer(t *testing.T) {
 	}
 }
 
-func TestLegacyInitFailureRetainsReplicatedMachineAndPeer(t *testing.T) {
+func TestInitFailureRetainsReplicatedMachineAndPeer(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	originKey, err := pcrypto.GetLocalKey(t.TempDir())
 	if err != nil {
@@ -209,15 +209,15 @@ func TestLegacyInitFailureRetainsReplicatedMachineAndPeer(t *testing.T) {
 		return &p2p.DiscoveredPeer{ID: peerID, PublicKey: peerKey.PublicString()}, peerErr
 	}
 	manager.addPeerForInstance = func(InstanceInfo) (*p2p.Client, error) {
-		return nil, errors.New("injected legacy AddPeer failure")
+		return nil, errors.New("injected AddPeer failure")
 	}
 	manager.originBootstrapAddrsForInstance = func(string, string) []string { return nil }
 
-	err = manager.InitInstance("legacy-vm", KindCloudVM, "legacy-provider", "test", "192.0.2.20")
+	err = manager.InitInstance("existing-vm", KindCloudVM, "existing-provisioner", "test", "192.0.2.20")
 	if !errors.Is(err, ErrInstanceInitializationRecoveryRequired) {
 		t.Fatalf("InitInstance error = %v, want recovery required", err)
 	}
-	stored, err := manager.getInstanceRecord("legacy-vm")
+	stored, err := manager.getInstanceRecord("existing-vm")
 	if err != nil {
 		t.Fatalf("replicated machine was removed after admission failure: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestLegacyInitFailureRetainsReplicatedMachineAndPeer(t *testing.T) {
 func TestInterruptedDeploymentWithProviderIdentityIsNotRecoveredForReplay(t *testing.T) {
 	provider := &admissionSafetyProvider{}
 	manager, _, _ := newAdmissionSafetyManager(t, provider)
-	pending, err := manager.DeployInstance("vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small")
+	pending, _, err := manager.DeployInstanceWithConfirmation(context.Background(), "vm", admissionSafetyProvisionerType.String(), "test-location", release.Release{Version: "dev"}, "small")
 	if err != nil {
 		t.Fatal(err)
 	}

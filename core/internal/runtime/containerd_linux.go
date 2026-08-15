@@ -97,7 +97,6 @@ func (cdp *containerdPlatform) Init() error {
 		if err != nil {
 			return errors.Wrap(err, "Failed to initialize containerd runtime. Failed to connect, make sure you are running as root and the runtime has been started")
 		}
-		cleanupLegacyImageArchives()
 	}
 
 	cdp.initLock.Unlock()

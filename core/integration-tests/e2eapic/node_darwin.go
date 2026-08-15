@@ -512,7 +512,7 @@ func WaitForReplicationState(deadline time.Time, client pbApic.ProtosClientApiCl
 		checkpoint := state.GetCheckpointRootHash()
 		durable := state.GetDurableMainRootHash()
 		if checkpoint != "" && state.GetTentativeRootHash() == checkpoint && (durable == "" || durable == checkpoint) {
-			fmt.Printf("checkpoint assertion ok: %s checkpoint=%s providers=%v connected=%v priority_peers=%v\n", expect.Label, checkpoint, state.GetStateProviders(), state.GetConnectedPeers(), sortedPeerPriorityKeys(expect.Priorities))
+			fmt.Printf("checkpoint assertion ok: %s checkpoint=%s providers=%v routed=%v priority_peers=%v\n", expect.Label, checkpoint, state.GetStateProviders(), state.GetRoutedPeers(), sortedPeerPriorityKeys(expect.Priorities))
 			return nil
 		}
 		lastErr = fmt.Errorf("checkpoint state did not converge for %q: checkpoint=%s tentative=%s durable=%s", expect.Label, checkpoint, state.GetTentativeRootHash(), durable)
@@ -531,8 +531,8 @@ func WaitForPeerRemoved(deadline time.Time, client pbApic.ProtosClientApiClient,
 			lastErr = runtimeStateQueryError(deadline, client, "", err)
 		} else if stringSet(state.GetStateProviders())[peerID] {
 			lastErr = fmt.Errorf("state providers still contain %s", peerID)
-		} else if stringSet(state.GetConnectedPeers())[peerID] {
-			lastErr = fmt.Errorf("connected peers still contain %s", peerID)
+		} else if stringSet(state.GetRoutedPeers())[peerID] {
+			lastErr = fmt.Errorf("routed peers still contain %s", peerID)
 		} else if RuntimePeerStatus(state, peerID) != nil {
 			lastErr = fmt.Errorf("runtime peer statuses still contain %s", peerID)
 		} else if RuntimeCompatibility(state, peerID) != nil {
@@ -584,8 +584,8 @@ func peerAbsentFromRuntimeState(state *pbApic.RuntimeState, peerID string) error
 	if stringSet(state.GetStateProviders())[peerID] {
 		return fmt.Errorf("state providers still contain %s", peerID)
 	}
-	if stringSet(state.GetConnectedPeers())[peerID] {
-		return fmt.Errorf("connected peers still contain %s", peerID)
+	if stringSet(state.GetRoutedPeers())[peerID] {
+		return fmt.Errorf("routed peers still contain %s", peerID)
 	}
 	if RuntimePeerStatus(state, peerID) != nil {
 		return fmt.Errorf("runtime peer statuses still contain %s", peerID)
@@ -1176,7 +1176,7 @@ func RuntimeStateSummary(state *pbApic.RuntimeState) string {
 		trace = trace[len(trace)-8:]
 	}
 	return fmt.Sprintf(
-		"peer=%s providers=%v physical=%v routed=%v participating=%v logical=%v logical_target=%d legacy_connected=%v read_consistency=%s read_error=%q checkpoint_root=%s protocol_root=%s durable_root=%s event_receipt_content_dissent_observations=%d pending_checkpoint=%t checkpoint_error=%q refresh_pending=%t refresh_error=%q fatal=%q trace=%v",
+		"peer=%s providers=%v physical=%v routed=%v participating=%v logical=%v logical_target=%d read_consistency=%s read_error=%q checkpoint_root=%s protocol_root=%s durable_root=%s event_receipt_content_dissent_observations=%d pending_checkpoint=%t checkpoint_error=%q refresh_pending=%t refresh_error=%q fatal=%q trace=%v",
 		state.GetPeerId(),
 		state.GetStateProviders(),
 		state.GetPhysicalConnectedPeers(),
@@ -1184,7 +1184,6 @@ func RuntimeStateSummary(state *pbApic.RuntimeState) string {
 		state.GetParticipatingPeers(),
 		state.GetLogicalPeers(),
 		state.GetLogicalPeerTarget(),
-		state.GetConnectedPeers(),
 		state.GetReadConsistency(),
 		state.GetReadError(),
 		state.GetCheckpointRootHash(),

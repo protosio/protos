@@ -799,17 +799,13 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader, r
 		return nil, fmt.Errorf("swarmion status is not available")
 	}
 	out := &proto.RuntimeState{
-		PeerId:                     status.PeerID,
-		ManifestDigest:             status.ManifestDigest,
-		CheckpointRootHash:         status.CheckpointRootHash.String(),
-		TentativeRootHash:          status.TentativeRootHash.String(),
-		ProtocolCheckpointRootHash: status.RuntimeCheckpointDesiredRootHash.String(),
-		DurableMainRootHash:        status.DurableMainRootHash.String(),
-		StateProviders:             append([]string(nil), status.StateProviders...),
-		// ConnectedPeers is a legacy wire field. The closest safe r44
-		// equivalent is a peer with an application-approved physical route;
-		// logical participation must not be presented as connectivity.
-		ConnectedPeers:                         append([]string(nil), status.RoutedPeers...),
+		PeerId:                                 status.PeerID,
+		ManifestDigest:                         status.ManifestDigest,
+		CheckpointRootHash:                     status.CheckpointRootHash.String(),
+		TentativeRootHash:                      status.TentativeRootHash.String(),
+		ProtocolCheckpointRootHash:             status.RuntimeCheckpointDesiredRootHash.String(),
+		DurableMainRootHash:                    status.DurableMainRootHash.String(),
+		StateProviders:                         append([]string(nil), status.StateProviders...),
 		RoutedPeers:                            append([]string(nil), status.RoutedPeers...),
 		ParticipatingPeers:                     append([]string(nil), status.ParticipatingPeers...),
 		LogicalPeers:                           append([]string(nil), status.LogicalPeers...),
@@ -882,8 +878,6 @@ func runtimeStateToP2PProto(ctx context.Context, reader swarmionRuntimeReader, r
 func runtimePeerStatusToP2PProto(peerStatus swarmionapp.PeerStatus) *proto.RuntimePeerStatus {
 	return &proto.RuntimePeerStatus{
 		PeerId:               peerStatus.PeerID,
-		Connected:            peerStatus.Routed,
-		Dialable:             peerStatus.Routed,
 		StateProvider:        peerStatus.StateProvider,
 		Compatible:           peerStatus.Compatible,
 		Incompatible:         peerStatus.Incompatible,
@@ -914,7 +908,6 @@ func sanitizeRuntimeStateStrings(out *proto.RuntimeState) {
 	out.ProtocolCheckpointRootHash = validProtoString(out.GetProtocolCheckpointRootHash())
 	out.DurableMainRootHash = validProtoString(out.GetDurableMainRootHash())
 	out.StateProviders = validProtoStrings(out.GetStateProviders())
-	out.ConnectedPeers = validProtoStrings(out.GetConnectedPeers()) //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
 	out.RoutedPeers = validProtoStrings(out.GetRoutedPeers())
 	out.ParticipatingPeers = validProtoStrings(out.GetParticipatingPeers())
 	out.LogicalPeers = validProtoStrings(out.GetLogicalPeers())
@@ -985,7 +978,6 @@ func filterRuntimePeerSurface(out *proto.RuntimeState, peerIDs map[string]struct
 		allowed[localPeerID] = struct{}{}
 	}
 	out.StateProviders = filterStringsBySet(out.GetStateProviders(), allowed)
-	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed) //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
 	out.RoutedPeers = filterStringsBySet(out.GetRoutedPeers(), allowed)
 	out.ParticipatingPeers = filterStringsBySet(out.GetParticipatingPeers(), allowed)
 	out.LogicalPeers = filterStringsBySet(out.GetLogicalPeers(), allowed)
@@ -1073,9 +1065,6 @@ func synchronizeRuntimePeerStatusPlanes(out *proto.RuntimeState) {
 		}
 		peerID := strings.TrimSpace(peerStatus.GetPeerId())
 		_, peerStatus.PhysicalConnected = physical[peerID]
-		// Legacy fields are exact routed aliases.
-		peerStatus.Connected = peerStatus.Routed //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
-		peerStatus.Dialable = peerStatus.Routed  //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
 	}
 }
 
@@ -1122,8 +1111,6 @@ func knownRuntimePeerStatus(peerID string, state *proto.RuntimeState) *proto.Run
 	routed := stringInList(peerID, state.GetRoutedPeers())
 	status := &proto.RuntimePeerStatus{
 		PeerId:            peerID,
-		Connected:         routed,
-		Dialable:          routed,
 		StateProvider:     stringInList(peerID, state.GetStateProviders()),
 		Compatible:        isSelf,
 		Routed:            routed,

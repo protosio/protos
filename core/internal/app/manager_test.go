@@ -150,11 +150,11 @@ func TestStartPullsMissingImage(t *testing.T) {
 	runtime := &fakeRuntimePlatform{imageExists: false}
 	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 
-	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	created, _, err := manager.CreateWithConfirmation(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.Start(context.Background(), created.Name); err != nil {
+	if _, err := manager.StartWithConfirmation(context.Background(), created.Name); err != nil {
 		t.Fatal(err)
 	}
 	manager.Notify()
@@ -175,7 +175,7 @@ func TestReconcileDoesNotConsumeDesiredStateWrittenDuringTask(t *testing.T) {
 	runtime := &fakeRuntimePlatform{imageExists: true}
 	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 
-	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	created, _, err := manager.CreateWithConfirmation(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestReconcileDoesNotConsumeDesiredStateWrittenDuringTask(t *testing.T) {
 			return
 		}
 		updatedDuringReconcile = true
-		if err := manager.Start(context.Background(), created.Name); err != nil {
+		if _, err := manager.StartWithConfirmation(context.Background(), created.Name); err != nil {
 			t.Fatalf("start app during reconcile: %v", err)
 		}
 	}
@@ -220,7 +220,7 @@ func TestReconcileNotifyDuringRunningTaskStillQueuesFollowup(t *testing.T) {
 	runtime := &fakeRuntimePlatform{imageExists: true}
 	manager := CreateManager(localPeerID, runtime, store, tasks.NewManager(store))
 
-	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	created, _, err := manager.CreateWithConfirmation(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestReconcileNotifyDuringRunningTaskStillQueuesFollowup(t *testing.T) {
 			return
 		}
 		notifiedDuringReconcile = true
-		if err := manager.Start(context.Background(), created.Name); err != nil {
+		if _, err := manager.StartWithConfirmation(context.Background(), created.Name); err != nil {
 			t.Fatalf("start app during reconcile: %v", err)
 		}
 		// This notification is deduplicated against the running reconcile task.
@@ -270,11 +270,11 @@ func TestStartResolvesMissingImageFromPeersBeforePull(t *testing.T) {
 		},
 	})
 
-	created, err := manager.Create(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
+	created, _, err := manager.CreateWithConfirmation(context.Background(), "docker.io/library/busybox:latest", "app", localInstanceID, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.Start(context.Background(), created.Name); err != nil {
+	if _, err := manager.StartWithConfirmation(context.Background(), created.Name); err != nil {
 		t.Fatal(err)
 	}
 	manager.Notify()

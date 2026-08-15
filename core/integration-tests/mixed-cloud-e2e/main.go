@@ -228,42 +228,37 @@ type mixedCloudSummaryTaskUpdate struct {
 }
 
 type mixedCloudRuntimeSnapshot struct {
-	Phase                                  string   `json:"phase"`
-	Instance                               string   `json:"instance"`
-	PeerID                                 string   `json:"peer_id,omitempty"`
-	CheckpointRootHash                     string   `json:"checkpoint_root_hash,omitempty"`
-	TentativeRootHash                      string   `json:"tentative_root_hash,omitempty"`
-	DurableMainRootHash                    string   `json:"durable_main_root_hash,omitempty"`
-	EventReceiptContentDissentObservations uint64   `json:"event_receipt_content_dissent_observations"`
-	StateProviders                         []string `json:"state_providers,omitempty"`
-	RoutedPeers                            []string `json:"routed_peers,omitempty"`
-	ParticipatingPeers                     []string `json:"participating_peers,omitempty"`
-	LogicalPeers                           []string `json:"logical_peers,omitempty"`
-	LogicalPeerTarget                      int32    `json:"logical_peer_target"`
-	PhysicalConnectedPeers                 []string `json:"physical_connected_peers,omitempty"`
-	// ConnectedPeers is the deprecated routed-peers compatibility alias.
-	ConnectedPeers             []string                      `json:"connected_peers,omitempty"`
-	RuntimeRefreshPending      bool                          `json:"runtime_refresh_pending,omitempty"`
-	RuntimeRefreshLastError    string                        `json:"runtime_refresh_last_error,omitempty"`
-	RuntimeCheckpointPending   bool                          `json:"runtime_checkpoint_pending,omitempty"`
-	RuntimeCheckpointLastError string                        `json:"runtime_checkpoint_last_error,omitempty"`
-	PeerStatuses               []mixedCloudRuntimePeerStatus `json:"peer_statuses,omitempty"`
-	Compatibility              []mixedCloudRuntimeCompat     `json:"compatibility,omitempty"`
-	ContentSyncTrace           []string                      `json:"content_sync_trace,omitempty"`
-	Error                      string                        `json:"error,omitempty"`
-	CapturedAt                 string                        `json:"captured_at"`
+	Phase                                  string                        `json:"phase"`
+	Instance                               string                        `json:"instance"`
+	PeerID                                 string                        `json:"peer_id,omitempty"`
+	CheckpointRootHash                     string                        `json:"checkpoint_root_hash,omitempty"`
+	TentativeRootHash                      string                        `json:"tentative_root_hash,omitempty"`
+	DurableMainRootHash                    string                        `json:"durable_main_root_hash,omitempty"`
+	EventReceiptContentDissentObservations uint64                        `json:"event_receipt_content_dissent_observations"`
+	StateProviders                         []string                      `json:"state_providers,omitempty"`
+	RoutedPeers                            []string                      `json:"routed_peers,omitempty"`
+	ParticipatingPeers                     []string                      `json:"participating_peers,omitempty"`
+	LogicalPeers                           []string                      `json:"logical_peers,omitempty"`
+	LogicalPeerTarget                      int32                         `json:"logical_peer_target"`
+	PhysicalConnectedPeers                 []string                      `json:"physical_connected_peers,omitempty"`
+	RuntimeRefreshPending                  bool                          `json:"runtime_refresh_pending,omitempty"`
+	RuntimeRefreshLastError                string                        `json:"runtime_refresh_last_error,omitempty"`
+	RuntimeCheckpointPending               bool                          `json:"runtime_checkpoint_pending,omitempty"`
+	RuntimeCheckpointLastError             string                        `json:"runtime_checkpoint_last_error,omitempty"`
+	PeerStatuses                           []mixedCloudRuntimePeerStatus `json:"peer_statuses,omitempty"`
+	Compatibility                          []mixedCloudRuntimeCompat     `json:"compatibility,omitempty"`
+	ContentSyncTrace                       []string                      `json:"content_sync_trace,omitempty"`
+	Error                                  string                        `json:"error,omitempty"`
+	CapturedAt                             string                        `json:"captured_at"`
 }
 
 type mixedCloudRuntimePeerStatus struct {
-	PeerID               string `json:"peer_id"`
-	Routed               bool   `json:"routed"`
-	Participating        bool   `json:"participating"`
-	Logical              bool   `json:"logical"`
-	PhysicalConnected    bool   `json:"physical_connected"`
-	LastRoutedAtUnixNano int64  `json:"last_routed_at_unix_nano,omitempty"`
-	// Connected and Dialable are deprecated routed compatibility aliases.
-	Connected              bool              `json:"connected"`
-	Dialable               bool              `json:"dialable"`
+	PeerID                 string            `json:"peer_id"`
+	Routed                 bool              `json:"routed"`
+	Participating          bool              `json:"participating"`
+	Logical                bool              `json:"logical"`
+	PhysicalConnected      bool              `json:"physical_connected"`
+	LastRoutedAtUnixNano   int64             `json:"last_routed_at_unix_nano,omitempty"`
 	StateProvider          bool              `json:"state_provider"`
 	Compatible             bool              `json:"compatible"`
 	Incompatible           bool              `json:"incompatible"`
@@ -539,7 +534,6 @@ func (summary *mixedCloudRunSummary) recordRuntimeSnapshot(phase string, instanc
 	item.LogicalPeers = sortedStrings(state.GetLogicalPeers())
 	item.LogicalPeerTarget = state.GetLogicalPeerTarget()
 	item.PhysicalConnectedPeers = sortedStrings(state.GetPhysicalConnectedPeers())
-	item.ConnectedPeers = sortedStrings(state.GetConnectedPeers())
 	item.RuntimeRefreshPending = state.GetRuntimeRefreshPending()
 	item.RuntimeRefreshLastError = state.GetRuntimeRefreshLastError()
 	item.RuntimeCheckpointPending = state.GetRuntimeCheckpointPending()
@@ -556,8 +550,6 @@ func (summary *mixedCloudRunSummary) recordRuntimeSnapshot(phase string, instanc
 			Logical:                status.GetLogical(),
 			PhysicalConnected:      status.GetPhysicalConnected(),
 			LastRoutedAtUnixNano:   status.GetLastRoutedAtUnixNano(),
-			Connected:              status.GetConnected(),
-			Dialable:               status.GetDialable(),
 			StateProvider:          status.GetStateProvider(),
 			Compatible:             status.GetCompatible(),
 			Incompatible:           status.GetIncompatible(),

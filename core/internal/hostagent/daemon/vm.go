@@ -37,8 +37,8 @@ const (
 	gracefulStopTimeout = 30 * time.Second
 	forcedStopTimeout   = 15 * time.Second
 	stopPollInterval    = 500 * time.Millisecond
-	legacyRunVMFlag     = "--run-vm"
-	legacyManifestFlag  = "-manifest"
+	runVMFlag           = "--run-vm"
+	manifestFlag        = "-manifest"
 	manifestStatusField = "status"
 	manifestPIDField    = "pid"
 )
@@ -264,7 +264,7 @@ func (s *Server) startVM(manifestPath string) *hostagentpb.VMObservedState {
 	}
 	defer console.Close()
 
-	cmd := exec.Command(executable, legacyRunVMFlag, legacyManifestFlag, manifestPath)
+	cmd := exec.Command(executable, runVMFlag, manifestFlag, manifestPath)
 	cmd.Stdin = nil
 	cmd.Stdout = console
 	cmd.Stderr = console

@@ -11,8 +11,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var cloudName string
-var cloudLocation string
+var selectedProvisioner string
+var selectedProvisionerLocation string
 var protosVersion string
 var devImg string
 var machineType string
@@ -48,16 +48,15 @@ var cmdInstance *cli.Command = &cli.Command{
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:        "provisioner",
-					Aliases:     []string{"cloud"},
 					Usage:       "Specify which `PROVISIONER` to deploy the instance on",
 					Required:    true,
-					Destination: &cloudName,
+					Destination: &selectedProvisioner,
 				},
 				&cli.StringFlag{
 					Name:        "location",
 					Usage:       "Specify one of the supported `LOCATION`s to deploy the instance in",
 					Required:    true,
-					Destination: &cloudLocation,
+					Destination: &selectedProvisionerLocation,
 				},
 				&cli.StringFlag{
 					Name:        "version",
@@ -84,7 +83,7 @@ var cmdInstance *cli.Command = &cli.Command{
 					return showSubcommandHelp(c)
 				}
 
-				return deployInstance(name, cloudName, cloudLocation, protosVersion, machineType, devImg)
+				return deployInstance(name, selectedProvisioner, selectedProvisionerLocation, protosVersion, machineType, devImg)
 			},
 		},
 		{
@@ -257,10 +256,10 @@ func infoInstance(instanceName string) error {
 	return nil
 }
 
-func deployInstance(instanceName string, cloudName string, cloudLocation string, protosVersion string, machineType string, devImage string) error {
+func deployInstance(instanceName string, provisionerName string, provisionerLocation string, protosVersion string, machineType string, devImage string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Second)
 	defer cancel()
-	resp, err := client.DeployInstance(ctx, &apic.DeployInstanceRequest{Name: instanceName, CloudName: cloudName, CloudLocation: cloudLocation, ProtosVersion: protosVersion, MachineType: machineType, DevImg: devImage})
+	resp, err := client.DeployInstance(ctx, &apic.DeployInstanceRequest{Name: instanceName, CloudName: provisionerName, CloudLocation: provisionerLocation, ProtosVersion: protosVersion, MachineType: machineType, DevImg: devImage})
 	if err != nil {
 		return fmt.Errorf("could not deploy instance '%s': %w", instanceName, err)
 	}

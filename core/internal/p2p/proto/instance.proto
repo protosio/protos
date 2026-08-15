@@ -237,6 +237,8 @@ message ExitRoute {
 }
 
 message RuntimeState {
+  reserved 11;
+  reserved "connected_peers";
   string peer_id = 1;
   string manifest_digest = 2;
   string checkpoint_root_hash = 3;
@@ -244,8 +246,6 @@ message RuntimeState {
   string protocol_checkpoint_root_hash = 5;
   string durable_main_root_hash = 6;
   repeated string state_providers = 10;
-  // Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections.
-  repeated string connected_peers = 11;
   string fatal_state = 12;
   bool runtime_refresh_pending = 13;
   string runtime_refresh_last_error = 14;
@@ -272,11 +272,11 @@ message RuntimeState {
 }
 
 message RuntimePeerStatus {
+  reserved 2;
+  reserved 3;
+  reserved "connected";
+  reserved "dialable";
   string peer_id = 1;
-  // Deprecated: compatibility alias for routed.
-  bool connected = 2;
-  // Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability.
-  bool dialable = 3;
   bool state_provider = 4;
   bool compatible = 7;
   bool incompatible = 8;

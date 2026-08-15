@@ -182,8 +182,7 @@ func TestPendingWriteChainIsImmediatelyReadyAfterRestart(t *testing.T) {
 	}
 	dDelta := transactionMetricsDelta(store.TransactionMetrics(), beforeD)
 	if dDelta.TransactionsStarted != 1 || dDelta.CommitsAttempted != 1 || dDelta.CommitsSucceeded != 1 ||
-		dDelta.CommitsFailed != 0 || dDelta.TypedConflicts != 0 || dDelta.RollbacksAttempted != 0 ||
-		dDelta.SQLViewNotReadyOutcomes != 0 {
+		dDelta.TypedConflicts != 0 {
 		t.Fatalf("first post-restart D transaction metrics=%+v", dDelta)
 	}
 	dID := swarmionprotocol.ParseEventID(dReceipt.EventID)

@@ -7,7 +7,7 @@ root alone is not an operation identity.
 
 ## Instance-delete recovery
 
-New instance-delete tasks use `immutable_operation_facts_v1`:
+Instance-delete tasks use the `immutable_operation_facts` recovery model:
 
 1. The queued task contains a stable random operation key, intent digest,
    original `AuthorPeerID`, and the expected delete invariant.
@@ -15,9 +15,9 @@ New instance-delete tasks use `immutable_operation_facts_v1`:
    `task_operation_facts` publish in the same `Execute` request. Seeing that
    fact therefore proves which logical delete produced the SQL state.
 3. The validated publication address and exact event/root receipt are recorded
-   as a deterministic `operation_receipt_v2` fact. Its payload contains only
-   event/root and operation/author/intent identity, so every peer using the
-   current public receipt contract derives identical content.
+   as a deterministic `published_operation_receipt` fact. Its payload contains
+   only event/root and operation/author/intent identity, so every peer using
+   the current public receipt contract derives identical content.
 4. Task status, progress, owner, timestamps, checkpoint observations, and proof
    results remain mutable projections. They are never part of an immutable
    fact and are not recovery authority.
@@ -28,29 +28,25 @@ binding, observes that exact event through `applied_durably`, verifies that the
 atomic effect fact is present, and resumes the projection. It does not publish
 another delete.
 
-During a rolling upgrade, `operation_receipt` remains the readable legacy v1
-kind. Legacy facts may retain nonzero `event_digest` and `author_seq`; those
-fields are preserved as historical metadata but are not required or recreated
-by the current runtime. The additive v2 kind has a different deterministic row
-ID, so an old peer can still publish its v1 fact without colliding with a new
-peer. New peers read and validate both kinds, require their shared immutable
-identity to agree when both exist, and write only v2. A disagreement fails
-closed as an immutable-fact conflict. A v2-only receipt is not projected into
-the rolling task payload: an older runner must resolve the immutable operation
-again, where its own runtime can recover the legacy sequence metadata, rather
-than consume a zero-valued v1 receipt. When a matching v1 fact exists, its
-legacy metadata can be carried forward for downgrade-safe projection.
+The receipt fact has one current encoding and is not projected into the mutable
+task payload. Recovery resolves the immutable operation and reconstructs mutable
+observations from the exact receipt instead of trusting task progress state.
 
-Tasks created before this model are rejected as unsupported rather than routed
-through the removed mutable-checkpoint implementation. A foreign operation miss
-is not authoritative absence: no timeout permits replay. Restore the original
-author history or perform an explicit, application-verified operator
-migration/fence before taking ownership of such a task.
+The unversioned recovery model, fact kinds, fact-row identity domain, delete
+operation identity domain, and peer-drain authorization identity domain form a
+fresh persisted-state boundary. Tasks and facts written with the retired
+domains are deliberately unsupported and are not migrated through compatibility
+branches. Such state must be rebuilt from a fresh repository; it must never be
+treated as authoritative absence or permission to replay a destructive action.
+A foreign operation miss is likewise not authoritative absence: no timeout
+permits replay. Restore the original author history or perform an explicit,
+application-verified operator migration/fence before taking ownership of such a
+task.
 
-The `task_operation_facts` table is part of the regenerated v0.0 snapshot for
-new repositories. Later schema additions use explicit versioned migrations;
-legacy repositories are adopted only when their recorded schema matches a
-supported migration boundary and otherwise fail closed.
+The `task_operation_facts` table is part of the generated initial schema for new
+repositories. Later schema additions use explicit migrations; repositories are
+adopted only when their recorded schema matches a supported migration boundary
+and otherwise fail closed.
 
 ## Receipt and content semantics
 

@@ -9,7 +9,7 @@ import (
 
 func TestAuditProvisionerImageRowsMarksCanonicalCleanupCandidates(t *testing.T) {
 	cutoff := time.Unix(2000, 0)
-	rows := auditProvisionerImageRows(map[string]*apic.CloudSpecificImage{
+	rows := auditProvisionerImageRows(map[string]*apic.ProvisionerImage{
 		"old": {
 			Id:            "old",
 			Name:          "protos-image-release-19700101000001",
@@ -18,9 +18,9 @@ func TestAuditProvisionerImageRowsMarksCanonicalCleanupCandidates(t *testing.T) 
 			UpdatedAtUnix: 1,
 			Canonical:     true,
 		},
-		"legacy": {
-			Id:       "legacy",
-			Name:     "protos-mixed-e2e-legacy",
+		"noncanonical": {
+			Id:       "noncanonical",
+			Name:     "protos-mixed-e2e-noncanonical",
 			Location: "fsn1",
 		},
 		"other-location": {
@@ -43,13 +43,13 @@ func TestAuditProvisionerImageRowsMarksCanonicalCleanupCandidates(t *testing.T) 
 	if states["old"] != "cleanup-candidate" {
 		t.Fatalf("old state = %q, want cleanup-candidate", states["old"])
 	}
-	if states["legacy"] != "legacy-protos" {
-		t.Fatalf("legacy state = %q, want legacy-protos", states["legacy"])
+	if states["noncanonical"] != "noncanonical-protos" {
+		t.Fatalf("noncanonical state = %q, want noncanonical-protos", states["noncanonical"])
 	}
 }
 
 func TestCleanupProvisionerImageCandidatesKeepsCleanupCanonicalOnly(t *testing.T) {
-	candidates := cleanupProvisionerImageCandidates(map[string]*apic.CloudSpecificImage{
+	candidates := cleanupProvisionerImageCandidates(map[string]*apic.ProvisionerImage{
 		"canonical": {
 			Id:            "canonical",
 			Name:          "protos-image-release-19700101000001",
@@ -57,9 +57,9 @@ func TestCleanupProvisionerImageCandidatesKeepsCleanupCanonicalOnly(t *testing.T
 			UpdatedAtUnix: 1,
 			Canonical:     true,
 		},
-		"legacy": {
-			Id:            "legacy",
-			Name:          "protos-mixed-e2e-legacy",
+		"noncanonical": {
+			Id:            "noncanonical",
+			Name:          "protos-mixed-e2e-noncanonical",
 			Location:      "fsn1",
 			UpdatedAtUnix: 1,
 			Canonical:     false,

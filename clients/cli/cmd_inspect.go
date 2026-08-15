@@ -374,7 +374,7 @@ func printRuntimeState(instance string, state *pbApic.RuntimeState) {
 		fmt.Printf("Fatal: %s\n", fatal)
 	}
 	fmt.Printf("State Providers: %s\n", emptyDefault(strings.Join(state.GetStateProviders(), ","), "none"))
-	fmt.Printf("Connected Peers: %s\n", emptyDefault(strings.Join(state.GetConnectedPeers(), ","), "none"))
+	fmt.Printf("Routed Peers: %s\n", emptyDefault(strings.Join(state.GetRoutedPeers(), ","), "none"))
 	printRuntimePeerStatuses(state.GetPeerStatuses())
 	printRuntimeCompatibility(state.GetCompatibility())
 	printRuntimeTrace(state.GetContentSyncTrace())
@@ -388,13 +388,12 @@ func printRuntimePeerStatuses(peers []*pbApic.RuntimePeerStatus) {
 	}
 	w := tableWriter()
 	defer w.Flush()
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t\n", "Peer", "Connected", "Dialable", "Provider", "Compatible", "Reason")
-	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t%s\t\n", "----", "---------", "--------", "--------", "----------", "------")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t\n", "Peer", "Routed", "Provider", "Compatible", "Reason")
+	fmt.Fprintf(w, " %s\t%s\t%s\t%s\t%s\t\n", "----", "------", "--------", "----------", "------")
 	for _, peer := range peers {
-		fmt.Fprintf(w, " %s\t%t\t%t\t%t\t%t\t%s\t\n",
+		fmt.Fprintf(w, " %s\t%t\t%t\t%t\t%s\t\n",
 			peer.GetPeerId(),
-			peer.GetConnected(),
-			peer.GetDialable(),
+			peer.GetRouted(),
 			peer.GetStateProvider(),
 			peer.GetCompatible(),
 			peer.GetReason(),

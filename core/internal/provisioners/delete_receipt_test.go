@@ -48,8 +48,6 @@ func testInstanceDeleteReceipt() instanceDeleteOperationReceipt {
 		},
 		EventID:           strings.Repeat("a", 64),
 		PublishedRootHash: strings.Repeat("b", 32),
-		AuthorSeq:         1,
-		CommitHash:        "commit-1",
 	}
 }
 
@@ -59,7 +57,6 @@ func appliedInstanceDeleteObservation(receipt instanceDeleteOperationReceipt, co
 		Receipt: db.PublishedWriteReceipt{
 			Committed:          true,
 			Checkpointed:       true,
-			CommitHash:         receipt.CommitHash,
 			EventID:            receipt.EventID,
 			PublishedRootHash:  receipt.PublishedRootHash,
 			CheckpointCommitID: "event-checkpoint-commit",
@@ -183,8 +180,6 @@ func publishInstanceDeleteForTest(t *testing.T, store *db.DB, instance InstanceI
 		},
 		EventID:            published.EventID,
 		PublishedRootHash:  published.PublishedRootHash,
-		AuthorSeq:          published.AuthorSeq,
-		CommitHash:         published.CommitHash,
 		CheckpointCommitID: published.CheckpointCommitID,
 		CheckpointRootHash: published.CheckpointRootHash,
 		Checkpointed:       published.Checkpointed,
@@ -520,157 +515,6 @@ func TestInstanceDeleteReceiptLaterRecreationReturnsDurableConflict(t *testing.T
 	}
 }
 
-func TestInstanceDeleteTaskResumesPersistedReceiptBeforeInstanceLookup(t *testing.T) {
-	store := openProvisionerTestDB(t)
-	receipt := testInstanceDeleteReceipt()
-	taskID := db.MustNewUUIDv7()
-	receipt.OperationID = taskID
-	identity := instanceDeleteOperationIdentityForTest(t, store, taskID, InstanceInfo{ID: receipt.ExpectedInvariant.InstanceID}, true)
-	receipt.ExpectedInvariant = identity.ExpectedInvariant
-	receipt.OperationIntentDigest = identity.IntentDigest
-	receipt.OperationAuthorPeerID = identity.AuthorPeerID
-	tracker := &fakeInstanceDeleteReceiptTracker{observation: appliedInstanceDeleteObservation(receipt, swarmionapp.BranchEventContentCoverageDissent)}
-	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
-	manager.deleteReceiptTracker = tracker
-	legacyFact := legacyInstanceDeleteReceiptFactForTest(t, taskID, identity, receipt)
-	if err := manager.tasks.EnsureOperationFact(context.Background(), legacyFact); err != nil {
-		t.Fatalf("publish legacy receipt fact: %v", err)
-	}
-
-	record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
-		ID:          taskID,
-		Stream:      InstanceLifecycleTaskStream,
-		SubjectType: taskSubjectInstance,
-		SubjectID:   instanceLifecycleSubjectID(receipt.ExpectedInvariant.InstanceID, instanceLifecycleOperationDelete),
-		Title:       "resume delete receipt",
-		Payload: instanceLifecycleTaskPayload{
-			InstanceID:          receipt.ExpectedInvariant.InstanceID,
-			InstanceName:        "already-deleted",
-			Operation:           instanceLifecycleOperationDelete,
-			DesiredStatus:       ServerStateDeleting,
-			LocalOnly:           true,
-			OperationStateModel: instanceDeleteOperationFactsV1,
-			DeleteOperation:     &identity,
-			DeleteReceipt:       cloneInstanceDeleteOperationReceipt(&receipt),
-		},
-		MaxAttempts: instanceDeleteMaxAttempts,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// There is deliberately no instance row. A recovery path that starts the
-	// delete again would fail its initial lookup; receipt-first recovery succeeds.
-	if err := manager.tasks.RunPending(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	done, err := manager.tasks.Get(record.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if done.Status != tasks.StatusSucceeded || done.Attempts != 1 {
-		t.Fatalf("recovered task status=%s attempts=%d", done.Status, done.Attempts)
-	}
-	var result instanceLifecycleTaskResult
-	if err := json.Unmarshal(done.Result, &result); err != nil {
-		t.Fatal(err)
-	}
-	if result.DeleteReceipt == nil || result.DeleteReceipt.EventID != receipt.EventID || result.DeleteReceipt.PublishedRootHash != receipt.PublishedRootHash {
-		t.Fatalf("recovered result lost original receipt: %+v", result.DeleteReceipt)
-	}
-	if tracker.waitCalls != 1 || len(tracker.received) != 1 || tracker.received[0].EventID != receipt.EventID {
-		t.Fatalf("recovery did not resume exactly one receipt: calls=%d receipts=%+v", tracker.waitCalls, tracker.received)
-	}
-	var finalPayload instanceLifecycleTaskPayload
-	if err := json.Unmarshal(done.Payload, &finalPayload); err != nil {
-		t.Fatal(err)
-	}
-	if finalPayload.DeleteReceipt == nil || !finalPayload.DeleteReceipt.AppliedDurably ||
-		finalPayload.DeleteReceipt.EventID != receipt.EventID ||
-		finalPayload.DeleteReceipt.PublishedRootHash != receipt.PublishedRootHash {
-		t.Fatalf("task payload did not retain the applied receipt: %+v", finalPayload.DeleteReceipt)
-	}
-}
-
-func TestInstanceDeleteInvariantConflictIsPermanentTaskOutcome(t *testing.T) {
-	store := openProvisionerTestDB(t)
-	taskID := db.MustNewUUIDv7()
-	instance := InstanceInfo{ID: db.MustNewUUIDv7(), Name: "recreated-after-delete"}
-	identity := instanceDeleteOperationIdentityForTest(t, store, taskID, instance, true)
-	receipt := testInstanceDeleteReceipt()
-	receipt.OperationID = taskID
-	receipt.ExpectedInvariant = identity.ExpectedInvariant
-	receipt.OperationIntentDigest = identity.IntentDigest
-	receipt.OperationAuthorPeerID = identity.AuthorPeerID
-	tracker := &fakeInstanceDeleteReceiptTracker{
-		observation:    appliedInstanceDeleteObservation(receipt, swarmionapp.BranchEventContentCoverageDissent),
-		instanceExists: true,
-	}
-	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
-	manager.deleteReceiptTracker = tracker
-
-	before, err := store.LookupPublishedWriteOperation(context.Background(), identity.publishedWriteOperation())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if before.State != swarmionapp.OperationResolvedAbsent {
-		t.Fatalf("delete operation unexpectedly existed before task run: %+v", before)
-	}
-	record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
-		ID:          taskID,
-		Stream:      InstanceLifecycleTaskStream,
-		SubjectType: taskSubjectInstance,
-		SubjectID:   instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationDelete),
-		Title:       "conflicting recovered delete",
-		Payload: instanceLifecycleTaskPayload{
-			InstanceID:          instance.ID,
-			InstanceName:        instance.Name,
-			Operation:           instanceLifecycleOperationDelete,
-			DesiredStatus:       ServerStateDeleting,
-			LocalOnly:           true,
-			OperationStateModel: instanceDeleteOperationFactsV1,
-			DeleteOperation:     &identity,
-			DeleteReceipt:       cloneInstanceDeleteOperationReceipt(&receipt),
-		},
-		MaxAttempts: instanceDeleteMaxAttempts,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < instanceDeleteMaxAttempts; i++ {
-		_ = manager.tasks.RunPending(context.Background())
-	}
-
-	done, err := manager.tasks.Get(record.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if done.Status != tasks.StatusFailed || done.Attempts != 1 {
-		t.Fatalf("invariant-conflict task status=%s attempts=%d, want failed/1", done.Status, done.Attempts)
-	}
-	if !strings.Contains(done.ErrorMessage, ErrInstanceDeleteInvariantConflict.Error()) {
-		t.Fatalf("task error=%q, want invariant conflict", done.ErrorMessage)
-	}
-	if tracker.waitCalls != 1 || tracker.invariantCalls != 1 || len(tracker.received) != 1 {
-		t.Fatalf(
-			"permanent conflict receipt calls wait=%d invariant=%d receipts=%d, want 1/1/1",
-			tracker.waitCalls,
-			tracker.invariantCalls,
-			len(tracker.received),
-		)
-	}
-	if tracker.received[0].EventID != receipt.EventID || tracker.received[0].PublishedRootHash != receipt.PublishedRootHash {
-		t.Fatalf("permanent conflict changed exact receipt: got=%+v want=%+v", tracker.received[0], receipt)
-	}
-	after, err := store.LookupPublishedWriteOperation(context.Background(), identity.publishedWriteOperation())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if after.State != swarmionapp.OperationResolvedAbsent {
-		t.Fatalf("permanent conflict published a duplicate delete operation: %+v", after)
-	}
-}
-
 func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
@@ -726,20 +570,20 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 		}, nil
 	}
 
-	record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
+	record, err := tasks.EnqueueContext(context.Background(), manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 		ID:          taskID,
 		Stream:      InstanceLifecycleTaskStream,
 		SubjectType: taskSubjectInstance,
 		SubjectID:   instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationDelete),
 		Title:       "foreign parked delete",
 		Payload: instanceLifecycleTaskPayload{
-			InstanceID:          instance.ID,
-			InstanceName:        instance.Name,
-			Operation:           instanceLifecycleOperationDelete,
-			DesiredStatus:       ServerStateDeleting,
-			LocalOnly:           true,
-			OperationStateModel: instanceDeleteOperationFactsV1,
-			DeleteOperation:     &identity,
+			InstanceID:      instance.ID,
+			InstanceName:    instance.Name,
+			Operation:       instanceLifecycleOperationDelete,
+			DesiredStatus:   ServerStateDeleting,
+			LocalOnly:       true,
+			RecoveryModel:   instanceDeleteRecoveryModel,
+			DeleteOperation: &identity,
 		},
 		MaxAttempts: instanceDeleteMaxAttempts,
 	})
@@ -814,7 +658,7 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 	}
 }
 
-func TestOperationFactRecoveryPublishesV2WithoutDowngradeUnsafePayload(t *testing.T) {
+func TestOperationFactRecoveryPublishesCurrentReceiptFact(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
 	taskID := db.MustNewUUIDv7()
@@ -832,7 +676,6 @@ func TestOperationFactRecoveryPublishesV2WithoutDowngradeUnsafePayload(t *testin
 
 	accepted := testInstanceDeleteReceipt().publishedWriteReceipt()
 	accepted.AuthorPeerID = identity.AuthorPeerID
-	accepted.AuthorSeq = 7
 	accepted.OperationIntentDigest = identity.IntentDigest
 	deleteLookups := 0
 	manager.lookupDeleteRecoveryOperation = func(_ context.Context, operation db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
@@ -862,20 +705,20 @@ func TestOperationFactRecoveryPublishesV2WithoutDowngradeUnsafePayload(t *testin
 		}, nil
 	}
 
-	record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
+	record, err := tasks.EnqueueContext(context.Background(), manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 		ID:          taskID,
 		Stream:      InstanceLifecycleTaskStream,
 		SubjectType: taskSubjectInstance,
 		SubjectID:   instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationDelete),
 		Title:       "immutable delete recovery",
 		Payload: instanceLifecycleTaskPayload{
-			InstanceID:          instance.ID,
-			InstanceName:        instance.Name,
-			Operation:           instanceLifecycleOperationDelete,
-			DesiredStatus:       ServerStateDeleting,
-			LocalOnly:           true,
-			OperationStateModel: instanceDeleteOperationFactsV1,
-			DeleteOperation:     &identity,
+			InstanceID:      instance.ID,
+			InstanceName:    instance.Name,
+			Operation:       instanceLifecycleOperationDelete,
+			DesiredStatus:   ServerStateDeleting,
+			LocalOnly:       true,
+			RecoveryModel:   instanceDeleteRecoveryModel,
+			DeleteOperation: &identity,
 		},
 		MaxAttempts: instanceDeleteMaxAttempts,
 	})
@@ -897,10 +740,10 @@ func TestOperationFactRecoveryPublishesV2WithoutDowngradeUnsafePayload(t *testin
 		t.Fatal(err)
 	}
 	recoveredPayload := decodeDeleteRestartPayload(t, recoveredRecord)
-	if recoveredRecord.Status != tasks.StatusPending || recoveredPayload.DeleteReceipt != nil {
-		t.Fatalf("recovered record=%+v payload=%+v, want pending without a zero-valued legacy receipt", recoveredRecord, recoveredPayload)
+	if recoveredRecord.Status != tasks.StatusPending {
+		t.Fatalf("recovered record=%+v payload=%+v, want pending", recoveredRecord, recoveredPayload)
 	}
-	receiptFact, found, err := manager.tasks.OperationFact(context.Background(), taskID, tasks.OperationFactKindReceiptV2)
+	receiptFact, found, err := manager.tasks.OperationFact(context.Background(), taskID, tasks.OperationFactKindReceipt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -914,38 +757,119 @@ func TestOperationFactRecoveryPublishesV2WithoutDowngradeUnsafePayload(t *testin
 	if factReceipt.EventID != accepted.EventID || factReceipt.PublishedRootHash != accepted.PublishedRootHash {
 		t.Fatalf("receipt fact=%+v, want exact recovered receipt %s/%s", factReceipt, accepted.EventID, accepted.PublishedRootHash)
 	}
-	if factReceipt.EventDigest != "" || factReceipt.AuthorSeq != 0 {
-		t.Fatalf("v2 receipt fact unexpectedly contains legacy-only metadata: %+v", factReceipt)
-	}
-	if _, legacyFound, err := manager.tasks.OperationFact(context.Background(), taskID, tasks.OperationFactKindReceipt); err != nil {
+}
+
+func TestCurrentReceiptFactRejectsRemovedFields(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	taskID := db.MustNewUUIDv7()
+	instance := InstanceInfo{ID: db.MustNewUUIDv7()}
+	identity := instanceDeleteOperationIdentityForTest(t, store, taskID, instance, true)
+	receipt := testInstanceDeleteReceipt()
+	receipt.OperationID = taskID
+	receipt.ExpectedInvariant = identity.ExpectedInvariant
+	receipt.OperationIntentDigest = identity.IntentDigest
+	receipt.OperationAuthorPeerID = identity.AuthorPeerID
+	fact, err := newInstanceDeleteReceiptFact(receipt, identity)
+	if err != nil {
 		t.Fatal(err)
-	} else if legacyFound {
-		t.Fatal("new recovery wrote the legacy receipt fact kind")
+	}
+	fact.Payload = []byte(strings.TrimSuffix(string(fact.Payload), "}") + `,"event_digest":"retired"}`)
+	if _, err := instanceDeleteReceiptFromFact(fact, identity); err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatalf("decode receipt fact error = %v, want unknown-field rejection", err)
+	}
+}
+
+func TestCurrentReceiptFactWithoutEffectFailsRecoveryBeforeLookup(t *testing.T) {
+	store := openProvisionerTestDB(t)
+	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
+	taskID := db.MustNewUUIDv7()
+	instance := InstanceInfo{ID: db.MustNewUUIDv7(), Name: "receipt-without-effect"}
+	identity := instanceDeleteOperationIdentityForTest(t, store, taskID, instance, true)
+	receipt := testInstanceDeleteReceipt()
+	receipt.OperationID = taskID
+	receipt.ExpectedInvariant = identity.ExpectedInvariant
+	receipt.OperationIntentDigest = identity.IntentDigest
+	receipt.OperationAuthorPeerID = identity.AuthorPeerID
+	fact, err := newInstanceDeleteReceiptFact(receipt, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.tasks.EnsureOperationFact(context.Background(), fact); err != nil {
+		t.Fatal(err)
+	}
+	lookupCalls := 0
+	manager.lookupDeleteRecoveryOperation = func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
+		lookupCalls++
+		return swarmionapp.OperationResolution{}, errors.New("lookup must not run")
+	}
+	record, err := tasks.EnqueueContext(context.Background(), manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
+		ID:          taskID,
+		Stream:      InstanceLifecycleTaskStream,
+		SubjectType: taskSubjectInstance,
+		SubjectID:   instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationDelete),
+		Title:       "receipt without effect",
+		Payload: instanceLifecycleTaskPayload{
+			InstanceID:      instance.ID,
+			InstanceName:    instance.Name,
+			Operation:       instanceLifecycleOperationDelete,
+			LocalOnly:       true,
+			RecoveryModel:   instanceDeleteRecoveryModel,
+			DeleteOperation: &identity,
+		},
+		MaxAttempts: instanceDeleteMaxAttempts,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.tasks.Update(record.ID, tasks.StatusRunning, 90, "interrupted", nil); err != nil {
+		t.Fatal(err)
+	}
+	recovered, recoverErr := manager.tasks.RecoverOwnedRunning()
+	if recovered != 0 || recoverErr == nil || !tasks.IsPermanent(recoverErr) ||
+		!strings.Contains(recoverErr.Error(), "without its atomic effect fact") {
+		t.Fatalf("recovery = %d, error = %v; want permanent receipt-without-effect rejection", recovered, recoverErr)
+	}
+	if lookupCalls != 0 {
+		t.Fatalf("operation lookups = %d, want zero", lookupCalls)
+	}
+}
+
+func TestRetiredRawDeletePayloadCannotSelectCurrentRecoveryModel(t *testing.T) {
+	raw := []byte(`{"instance_id":"instance-a","operation":"delete","local_only":true,"operation_state_model":"immutable_operation_facts_v1"}`)
+	var payload instanceLifecycleTaskPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.RecoveryModel != "" {
+		t.Fatalf("retired payload selected current recovery model %q", payload.RecoveryModel)
+	}
+	if err := validateInstanceDeleteTaskPayloadModel(payload, "task-a"); err == nil || !strings.Contains(err.Error(), "unsupported recovery model") {
+		t.Fatalf("retired payload validation error = %v, want unsupported recovery model", err)
 	}
 }
 
 func TestUnsupportedInstanceDeletePayloadFailsClosedBeforeImperativeWork(t *testing.T) {
 	tests := []struct {
 		name          string
-		stateModel    string
+		recoveryModel string
 		withOperation bool
 		wantError     string
 	}{
 		{
-			name:          "missing state model",
+			name:          "missing recovery model",
 			withOperation: true,
-			wantError:     "unsupported operation state model",
+			wantError:     "unsupported recovery model",
 		},
 		{
 			name:          "retired mutable checkpoint model",
-			stateModel:    "mutable_task_checkpoint_v1",
+			recoveryModel: "unsupported_mutable_task_checkpoint",
 			withOperation: true,
-			wantError:     "unsupported operation state model",
+			wantError:     "unsupported recovery model",
 		},
 		{
-			name:       "missing immutable operation identity",
-			stateModel: instanceDeleteOperationFactsV1,
-			wantError:  "missing its immutable operation identity",
+			name:          "missing immutable operation identity",
+			recoveryModel: instanceDeleteRecoveryModel,
+			wantError:     "missing its immutable operation identity",
 		},
 	}
 	for _, tt := range tests {
@@ -964,18 +888,18 @@ func TestUnsupportedInstanceDeletePayloadFailsClosedBeforeImperativeWork(t *test
 				publishCalls++
 				return db.PublishedWriteReceipt{}, errors.New("delete publication must not run")
 			}
-			record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
+			record, err := tasks.EnqueueContext(context.Background(), manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 				ID:          taskID,
 				Stream:      InstanceLifecycleTaskStream,
 				SubjectType: taskSubjectInstance,
 				SubjectID:   instanceLifecycleSubjectID(instanceID, instanceLifecycleOperationDelete),
 				Title:       "unsupported delete payload",
 				Payload: instanceLifecycleTaskPayload{
-					InstanceID:          instanceID,
-					Operation:           instanceLifecycleOperationDelete,
-					LocalOnly:           true,
-					OperationStateModel: tt.stateModel,
-					DeleteOperation:     identity,
+					InstanceID:      instanceID,
+					Operation:       instanceLifecycleOperationDelete,
+					LocalOnly:       true,
+					RecoveryModel:   tt.recoveryModel,
+					DeleteOperation: identity,
 				},
 				MaxAttempts: instanceDeleteMaxAttempts,
 			})
@@ -1008,25 +932,25 @@ func TestUnsupportedRunningInstanceDeleteFailsRecoveryWithoutWriteOrReplay(t *te
 		publishCalls++
 		return db.PublishedWriteReceipt{}, errors.New("delete publication must not run")
 	}
-	record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
+	record, err := tasks.EnqueueContext(context.Background(), manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 		ID:          taskID,
 		Stream:      InstanceLifecycleTaskStream,
 		SubjectType: taskSubjectInstance,
 		SubjectID:   instanceLifecycleSubjectID(instanceID, instanceLifecycleOperationDelete),
 		Title:       "retired delete recovery payload",
 		Payload: instanceLifecycleTaskPayload{
-			InstanceID:          instanceID,
-			Operation:           instanceLifecycleOperationDelete,
-			LocalOnly:           true,
-			OperationStateModel: "mutable_task_checkpoint_v1",
-			DeleteOperation:     &identity,
+			InstanceID:      instanceID,
+			Operation:       instanceLifecycleOperationDelete,
+			LocalOnly:       true,
+			RecoveryModel:   "unsupported_mutable_task_checkpoint",
+			DeleteOperation: &identity,
 		},
 		MaxAttempts: instanceDeleteMaxAttempts,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.tasks.Update(record.ID, tasks.StatusRunning, 90, "interrupted legacy delete", nil); err != nil {
+	if err := manager.tasks.Update(record.ID, tasks.StatusRunning, 90, "interrupted unsupported delete", nil); err != nil {
 		t.Fatal(err)
 	}
 	before, err := manager.tasks.Get(record.ID)
@@ -1040,8 +964,8 @@ func TestUnsupportedRunningInstanceDeleteFailsRecoveryWithoutWriteOrReplay(t *te
 	metricsBefore := store.TransactionMetrics()
 	recovered, recoverErr := manager.tasks.RecoverOwnedRunning()
 	if recovered != 0 || recoverErr == nil || !tasks.IsPermanent(recoverErr) ||
-		!strings.Contains(recoverErr.Error(), "unsupported operation state model") {
-		t.Fatalf("legacy recovery=%d error=%v, want permanent fail-closed error", recovered, recoverErr)
+		!strings.Contains(recoverErr.Error(), "unsupported recovery model") {
+		t.Fatalf("unsupported recovery=%d error=%v, want permanent fail-closed error", recovered, recoverErr)
 	}
 	after, err := manager.tasks.Get(record.ID)
 	if err != nil {

@@ -64,13 +64,10 @@ func TestRuntimePeerTransportReadyRequiresExplicitPlanes(t *testing.T) {
 		RoutedPeers:            []string{"peer-a"},
 	}, false, []string{"participating"})
 	assertReady(t, &pbApic.RuntimeState{
-		ConnectedPeers: []string{"peer-a"},
-		LogicalPeers:   []string{"peer-a"},
+		LogicalPeers: []string{"peer-a"},
 		PeerStatuses: []*pbApic.RuntimePeerStatus{{
-			PeerId:    "peer-a",
-			Connected: true,
-			Dialable:  true,
-			Logical:   true,
+			PeerId:  "peer-a",
+			Logical: true,
 		}},
 	}, false, []string{"physical", "routed", "participating"})
 	assertReady(t, &pbApic.RuntimeState{PeerStatuses: []*pbApic.RuntimePeerStatus{{

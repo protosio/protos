@@ -550,7 +550,7 @@ func (b *Backend) GetApps(ctx context.Context, in *pbApic.GetAppsRequest) (*pbAp
 func (b *Backend) CreateApp(ctx context.Context, in *pbApic.CreateAppRequest) (*pbApic.CreateAppResponse, error) {
 
 	log.Debugf("Running app '%s' based on installer '%s', on instance '%s'", in.Name, in.InstallerId, in.InstanceId)
-	_, err := b.protosClient.CloudManager.GetDeclaredInstance(in.InstanceId)
+	_, err := b.protosClient.ProvisionerManager.GetDeclaredInstance(in.InstanceId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run app %s: %w", in.Name, err)
 	}
@@ -628,10 +628,10 @@ func (b *Backend) GetAppLogs(ctx context.Context, in *pbApic.GetAppLogsRequest) 
 }
 
 func (b *Backend) appInstancePeerID(instanceID string) (string, provisioners.InstanceInfo, error) {
-	if b.protosClient == nil || b.protosClient.CloudManager == nil {
-		return "", provisioners.InstanceInfo{}, fmt.Errorf("cloud manager is not available")
+	if b.protosClient == nil || b.protosClient.ProvisionerManager == nil {
+		return "", provisioners.InstanceInfo{}, fmt.Errorf("provisioner manager is not available")
 	}
-	instance, err := b.protosClient.CloudManager.GetInstance(instanceID)
+	instance, err := b.protosClient.ProvisionerManager.GetInstance(instanceID)
 	if err != nil {
 		return "", provisioners.InstanceInfo{}, err
 	}
@@ -642,135 +642,13 @@ func (b *Backend) appInstancePeerID(instanceID string) (string, provisioners.Ins
 	return peerID, instance, nil
 }
 
-//
-// Cloud provider methods
-//
-
-func (b *Backend) GetSupportedCloudProviders(ctx context.Context, in *pbApic.GetSupportedCloudProvidersRequest) (*pbApic.GetSupportedCloudProvidersResponse, error) {
-	log.Debug("Retrieving supported cloud providers")
-	supportedCloudProviders := b.protosClient.CloudManager.SupportedProviders()
-
-	resp := pbApic.GetSupportedCloudProvidersResponse{}
-	for _, supportedCloudProvider := range supportedCloudProviders {
-		authFields, err := b.protosClient.CloudManager.ProviderAuthFields(supportedCloudProvider)
-		if err != nil {
-			return nil, err
-		}
-		respCloudType := pbApic.CloudType{
-			Name:                 supportedCloudProvider,
-			AuthenticationFields: authFields,
-		}
-		resp.CloudTypes = append(resp.CloudTypes, &respCloudType)
-	}
-
-	return &resp, nil
-}
-
-func (b *Backend) GetCloudProviders(ctx context.Context, in *pbApic.GetCloudProvidersRequest) (*pbApic.GetCloudProvidersResponse, error) {
-	log.Debug("Retrieving cloud providers")
-	cloudProviders, err := b.protosClient.CloudManager.GetProviders()
-	if err != nil {
-		return nil, err
-	}
-
-	resp := pbApic.GetCloudProvidersResponse{}
-	for _, cloudProvider := range cloudProviders {
-		respCloudProvider := pbApic.CloudProvider{
-			Name: cloudProvider.NameStr(),
-			Type: &pbApic.CloudType{
-				Name:                 cloudProvider.TypeStr(),
-				AuthenticationFields: cloudProvider.AuthFields(),
-			},
-		}
-		resp.CloudProviders = append(resp.CloudProviders, &respCloudProvider)
-	}
-
-	return &resp, nil
-}
-
-func (b *Backend) GetCloudProvider(ctx context.Context, in *pbApic.GetCloudProviderRequest) (*pbApic.GetCloudProviderResponse, error) {
-	log.Debugf("Retrieving cloud provider '%s'", in.Name)
-	cloudProvider, err := b.protosClient.CloudManager.GetProvider(in.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve cloud provider: %w", err)
-	}
-
-	computeProvider, ok := cloudProvider.(provisioners.ComputeProvider)
-	if !ok {
-		return nil, fmt.Errorf("cloud provider '%s'(%s) does not support compute operations", in.Name, cloudProvider.TypeStr())
-	}
-	// initialize cloud provider before use
-	err = cloudProvider.Init()
-	if err != nil {
-		return nil, fmt.Errorf("error reaching cloud provider '%s'(%s) API: %w", in.Name, cloudProvider.TypeStr(), err)
-	}
-
-	supportedLocations := computeProvider.SupportedLocations()
-	if len(supportedLocations) == 0 {
-		return nil, fmt.Errorf("cloud provider '%s'(%s) does not report any supported locations", in.Name, cloudProvider.TypeStr())
-	}
-	supportedMachines, err := computeProvider.SupportedMachines(supportedLocations[0])
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve supported machines: %w", err)
-	}
-
-	respSupportedMachines := map[string]*pbApic.CloudMachineSpec{}
-	for name, supportedMachine := range supportedMachines {
-		respSupportedMachines[name] = &pbApic.CloudMachineSpec{
-			Cores:                int32(supportedMachine.Cores),
-			Memory:               int32(supportedMachine.Memory),
-			DefaultStorage:       int32(supportedMachine.DefaultStorage),
-			Bandwidth:            int32(supportedMachine.Bandwidth),
-			IncludedDataTransfer: int32(supportedMachine.IncludedDataTransfer),
-			Baremetal:            supportedMachine.Baremetal,
-			PriceMonthly:         supportedMachine.PriceMonthly,
-		}
-	}
-
-	resp := pbApic.GetCloudProviderResponse{
-		CloudProvider: &pbApic.CloudProvider{
-			Name:               cloudProvider.NameStr(),
-			SupportedLocations: supportedLocations,
-			SupportedMachines:  respSupportedMachines,
-			Type: &pbApic.CloudType{
-				Name:                 cloudProvider.TypeStr(),
-				AuthenticationFields: cloudProvider.AuthFields(),
-			},
-		},
-	}
-	return &resp, nil
-}
-
-func (b *Backend) AddCloudProvider(ctx context.Context, in *pbApic.AddCloudProviderRequest) (*pbApic.AddCloudProviderResponse, error) {
-	if err := b.requireProvisionerCapability("add cloud provider"); err != nil {
-		return nil, err
-	}
-	if err := b.protosClient.CloudManager.AddProvider(in.Name, in.Type, in.Credentials); err != nil {
-		return nil, err
-	}
-	return &pbApic.AddCloudProviderResponse{}, nil
-}
-
-func (b *Backend) RemoveCloudProvider(ctx context.Context, in *pbApic.RemoveCloudProviderRequest) (*pbApic.RemoveCloudProviderResponse, error) {
-	if err := b.requireProvisionerCapability("remove cloud provider"); err != nil {
-		return nil, err
-	}
-	// delete existing cloud provider
-	err := b.protosClient.CloudManager.DeleteProvider(in.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete cloud provider '%s': %w", in.Name, err)
-	}
-
-	return &pbApic.RemoveCloudProviderResponse{}, nil
-}
-
 func (b *Backend) GetSupportedProvisioners(ctx context.Context, in *pbApic.GetSupportedProvisionersRequest) (*pbApic.GetSupportedProvisionersResponse, error) {
 	log.Debug("Retrieving supported provisioners")
-	supportedProvisioners := b.protosClient.CloudManager.SupportedProvisioners()
+	supportedProvisioners := b.protosClient.ProvisionerManager.SupportedProvisioners()
 
 	resp := pbApic.GetSupportedProvisionersResponse{}
 	for _, supportedProvisioner := range supportedProvisioners {
-		authFields, err := b.protosClient.CloudManager.ProvisionerAuthFields(supportedProvisioner)
+		authFields, err := b.protosClient.ProvisionerManager.ProvisionerAuthFields(supportedProvisioner)
 		if err != nil {
 			return nil, err
 		}
@@ -785,7 +663,7 @@ func (b *Backend) GetSupportedProvisioners(ctx context.Context, in *pbApic.GetSu
 
 func (b *Backend) GetProvisioners(ctx context.Context, in *pbApic.GetProvisionersRequest) (*pbApic.GetProvisionersResponse, error) {
 	log.Debug("Retrieving provisioners")
-	provisioners, err := b.protosClient.CloudManager.GetProvisioners()
+	provisioners, err := b.protosClient.ProvisionerManager.GetProvisioners()
 	if err != nil {
 		return nil, err
 	}
@@ -806,7 +684,7 @@ func (b *Backend) GetProvisioners(ctx context.Context, in *pbApic.GetProvisioner
 
 func (b *Backend) GetProvisioner(ctx context.Context, in *pbApic.GetProvisionerRequest) (*pbApic.GetProvisionerResponse, error) {
 	log.Debugf("Retrieving provisioner '%s'", in.Name)
-	provisioner, err := b.protosClient.CloudManager.GetProvisioner(in.Name)
+	provisioner, err := b.protosClient.ProvisionerManager.GetProvisioner(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve provisioner: %w", err)
 	}
@@ -845,7 +723,7 @@ func (b *Backend) AddProvisioner(ctx context.Context, in *pbApic.AddProvisionerR
 	if err := b.requireProvisionerCapability("add provisioner"); err != nil {
 		return nil, err
 	}
-	if err := b.protosClient.CloudManager.AddProvisioner(in.Name, in.Type, in.Credentials); err != nil {
+	if err := b.protosClient.ProvisionerManager.AddProvisioner(in.Name, in.Type, in.Credentials); err != nil {
 		return nil, err
 	}
 	return &pbApic.AddProvisionerResponse{}, nil
@@ -855,7 +733,7 @@ func (b *Backend) RemoveProvisioner(ctx context.Context, in *pbApic.RemoveProvis
 	if err := b.requireProvisionerCapability("remove provisioner"); err != nil {
 		return nil, err
 	}
-	if err := b.protosClient.CloudManager.DeleteProvisioner(in.Name); err != nil {
+	if err := b.protosClient.ProvisionerManager.DeleteProvisioner(in.Name); err != nil {
 		return nil, fmt.Errorf("failed to delete provisioner '%s': %w", in.Name, err)
 	}
 	return &pbApic.RemoveProvisionerResponse{}, nil
@@ -888,9 +766,9 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 		err       error
 	)
 	if b.protosClient.CanProvision {
-		instances, err = b.protosClient.CloudManager.GetInstancesWithUpdatedStatus()
+		instances, err = b.protosClient.ProvisionerManager.GetInstancesWithUpdatedStatus()
 	} else {
-		instances, err = b.protosClient.CloudManager.GetInstances(false)
+		instances, err = b.protosClient.ProvisionerManager.GetInstances(false)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve instances: %w", err)
@@ -908,7 +786,7 @@ func (b *Backend) GetInstances(ctx context.Context, in *pbApic.GetInstancesReque
 
 func (b *Backend) GetInstance(ctx context.Context, in *pbApic.GetInstanceRequest) (*pbApic.GetInstanceResponse, error) {
 	log.Debugf("Retrieving instance '%s'", in.Name)
-	instance, err := b.protosClient.CloudManager.GetInstance(in.Name)
+	instance, err := b.protosClient.ProvisionerManager.GetInstance(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve instance '%s': %w", in.Name, err)
 	}
@@ -996,11 +874,9 @@ func runtimePeerMapFromP2PState(state *p2pproto.RuntimeState) map[string]string 
 			peers[peerID] = "participating"
 		}
 	}
-	for _, peerID := range append(append([]string(nil), state.GetRoutedPeers()...), state.GetConnectedPeers()...) {
+	for _, peerID := range state.GetRoutedPeers() {
 		peerID = strings.TrimSpace(peerID)
 		if peerID != "" {
-			// connected_peers is the legacy wire name for Swarmion's routed
-			// peers. It must not be presented as physical libp2p connectivity.
 			peers[peerID] = "routed"
 		}
 	}
@@ -1021,7 +897,7 @@ func runtimePeerStatusLabel(status *p2pproto.RuntimePeerStatus, existing string)
 		}
 		return "unknown"
 	}
-	if status.GetRouted() || status.GetConnected() || existing == "routed" {
+	if status.GetRouted() || existing == "routed" {
 		return "routed"
 	}
 	if status.GetIgnored() {
@@ -1041,9 +917,6 @@ func runtimePeerStatusLabel(status *p2pproto.RuntimePeerStatus, existing string)
 	}
 	if status.GetLogical() {
 		return "logical"
-	}
-	if status.GetDialable() {
-		return "dialable"
 	}
 	if strings.TrimSpace(status.GetReason()) != "" || len(status.GetLastDialErrors()) > 0 {
 		return "unreachable"
@@ -1075,9 +948,7 @@ func (b *Backend) cloudInstanceToProto(instance provisioners.InstanceInfo, admin
 		Peers:                admin.peers,
 		ProviderStatus:       instance.Status,
 		AdminApiReachability: admin.reachability,
-		// ReplicationConnected is the legacy wire name for a usable Swarmion
-		// route. Physical host connectivity is reported by the P2P manager.
-		ReplicationConnected: replicationRouted,
+		ReplicationRouted:    replicationRouted,
 		AdminLastError:       admin.lastError,
 		AdminLastSeen:        admin.lastSeen,
 		PeerId:               peerID,
@@ -1105,9 +976,9 @@ func (b *Backend) runtimeRoutedPeerIDs() map[string]struct{} {
 	if !ok {
 		return out
 	}
-	// ReplicationConnected is a legacy product field. The authoritative
-	// database-scoped signal available here is a usable Swarmion route, not a
-	// physical libp2p connection and not logical-overlay participation.
+	// The authoritative database-scoped signal available here is a usable
+	// Swarmion route, not a physical libp2p connection or logical-overlay
+	// participation.
 	for _, peerID := range status.RoutedPeers {
 		peerID = strings.TrimSpace(peerID)
 		if peerID != "" {
@@ -1145,7 +1016,7 @@ func (b *Backend) DeployInstance(ctx context.Context, in *pbApic.DeployInstanceR
 		}
 	}
 
-	instance, task, err := b.protosClient.CloudManager.DeployInstanceWithConfirmation(ctx, in.Name, in.CloudName, in.CloudLocation, rls, in.MachineType)
+	instance, task, err := b.protosClient.ProvisionerManager.DeployInstanceWithConfirmation(ctx, in.Name, in.CloudName, in.CloudLocation, rls, in.MachineType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy instance '%s': %w", in.Name, err)
 	}
@@ -1175,10 +1046,10 @@ func (b *Backend) instanceProvisionerLabels(instance provisioners.InstanceInfo) 
 	if provisionerName == "" || provisionerName == "local-id" {
 		provisionerName = "local"
 	}
-	if b.protosClient == nil || b.protosClient.CloudManager == nil || strings.TrimSpace(instance.KindID) == "" {
+	if b.protosClient == nil || b.protosClient.ProvisionerManager == nil || strings.TrimSpace(instance.KindID) == "" {
 		return provisionerName, provisionerType
 	}
-	provisioner, err := b.protosClient.CloudManager.GetProvisioner(instance.KindID)
+	provisioner, err := b.protosClient.ProvisionerManager.GetProvisioner(instance.KindID)
 	if err != nil {
 		return provisionerName, provisionerType
 	}
@@ -1212,9 +1083,9 @@ func (b *Backend) RemoveInstance(ctx context.Context, in *pbApic.RemoveInstanceR
 	var task tasks.Record
 	var err error
 	if in.LocalOnly {
-		task, err = b.protosClient.CloudManager.QueueDeleteInstanceLocal(ctx, in.Name)
+		task, err = b.protosClient.ProvisionerManager.QueueDeleteInstanceLocal(ctx, in.Name)
 	} else {
-		task, err = b.protosClient.CloudManager.QueueDeleteInstance(ctx, in.Name)
+		task, err = b.protosClient.ProvisionerManager.QueueDeleteInstance(ctx, in.Name)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove instance '%s': %w", in.Name, err)
@@ -1228,7 +1099,7 @@ func (b *Backend) StartInstance(ctx context.Context, in *pbApic.StartInstanceReq
 		return nil, err
 	}
 	log.Debugf("Starting instance '%s'", in.Name)
-	task, err := b.protosClient.CloudManager.QueueStartInstance(in.Name)
+	task, err := b.protosClient.ProvisionerManager.QueueStartInstance(ctx, in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start instance '%s': %w", in.Name, err)
 	}
@@ -1243,7 +1114,7 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 		return nil, err
 	}
 	log.Debugf("Stopping instance '%s'", in.Name)
-	task, err := b.protosClient.CloudManager.QueueStopInstance(in.Name)
+	task, err := b.protosClient.ProvisionerManager.QueueStopInstance(ctx, in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stop instance '%s': %w", in.Name, err)
 	}
@@ -1255,7 +1126,7 @@ func (b *Backend) StopInstance(ctx context.Context, in *pbApic.StopInstanceReque
 
 func (b *Backend) GetInstanceKey(ctx context.Context, in *pbApic.GetInstanceKeyRequest) (*pbApic.GetInstanceKeyResponse, error) {
 	log.Debugf("Retrieving key for instance '%s'", in.Name)
-	key, err := b.protosClient.CloudManager.GetInstanceSSHKey(in.Name)
+	key, err := b.protosClient.ProvisionerManager.GetInstanceSSHKey(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve key for instance '%s': %w", in.Name, err)
 	}
@@ -1290,7 +1161,7 @@ func (b *Backend) GetInstanceLogs(ctx context.Context, in *pbApic.GetInstanceLog
 
 func (b *Backend) getInstanceLogsViaSSH(instanceName string, p2pErr error) (*pbApic.GetInstanceLogsResponse, error) {
 	log.Debugf("Falling back to SSH logs for instance '%s' after p2p log retrieval failed: %s", instanceName, p2pErr.Error())
-	logs, err := b.protosClient.CloudManager.LogsRemoteInstance(instanceName)
+	logs, err := b.protosClient.ProvisionerManager.LogsRemoteInstance(instanceName)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve instance '%s' logs: p2p failed: %w; ssh fallback failed: %w", instanceName, p2pErr, err)
 	}
@@ -1298,14 +1169,14 @@ func (b *Backend) getInstanceLogsViaSSH(instanceName string, p2pErr error) (*pbA
 }
 
 func (b *Backend) localInstanceProviderLogs(instanceName string) (string, bool) {
-	if b == nil || b.protosClient.CloudManager == nil {
+	if b == nil || b.protosClient.ProvisionerManager == nil {
 		return "", false
 	}
-	instance, err := b.protosClient.CloudManager.GetInstance(instanceName)
+	instance, err := b.protosClient.ProvisionerManager.GetInstance(instanceName)
 	if err != nil || instance.Kind != provisioners.KindLocalVM {
 		return "", false
 	}
-	logs, err := b.protosClient.CloudManager.LogsRemoteInstance(instanceName)
+	logs, err := b.protosClient.ProvisionerManager.LogsRemoteInstance(instanceName)
 	if err != nil {
 		log.Debugf("failed to retrieve local provider logs for instance '%s': %s", instanceName, err.Error())
 		return "", false
@@ -1334,7 +1205,7 @@ func (b *Backend) InitInstance(ctx context.Context, in *pbApic.InitInstanceReque
 	}
 	log.Debugf("Initializing local instance '%s' at '%s'", in.Name, in.Ip)
 
-	err := b.protosClient.CloudManager.InitInstance(in.Name, provisioners.KindLocalVM, "local-id", "local", in.Ip)
+	err := b.protosClient.ProvisionerManager.InitInstance(in.Name, provisioners.KindLocalVM, "local-id", "local", in.Ip)
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize instance '%s': %w", in.Name, err)
 	}
@@ -1347,7 +1218,7 @@ func (b *Backend) UpdateInstance(ctx context.Context, in *pbApic.UpdateInstanceR
 	}
 	log.Debugf("Updating instance '%s' to ip '%s'", in.Id, in.Ip)
 
-	err := b.protosClient.CloudManager.UpdateInstance(in.Id, in.Ip)
+	err := b.protosClient.ProvisionerManager.UpdateInstance(in.Id, in.Ip)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update instance '%s': %w", in.Id, err)
 	}
@@ -2102,17 +1973,13 @@ func (b *Backend) localRuntimeState(ctx context.Context, allowStale bool) (*pbAp
 		return nil, fmt.Errorf("swarmion status is not available")
 	}
 	out := &pbApic.RuntimeState{
-		PeerId:                     status.PeerID,
-		ManifestDigest:             status.ManifestDigest,
-		CheckpointRootHash:         status.CheckpointRootHash.String(),
-		TentativeRootHash:          status.TentativeRootHash.String(),
-		ProtocolCheckpointRootHash: status.RuntimeCheckpointDesiredRootHash.String(),
-		DurableMainRootHash:        status.DurableMainRootHash.String(),
-		StateProviders:             append([]string(nil), status.StateProviders...),
-		// ConnectedPeers is retained for wire compatibility. In the borrowed
-		// transport contract it is an alias for routed peers, not physical host
-		// connections.
-		ConnectedPeers:               append([]string(nil), status.RoutedPeers...),
+		PeerId:                       status.PeerID,
+		ManifestDigest:               status.ManifestDigest,
+		CheckpointRootHash:           status.CheckpointRootHash.String(),
+		TentativeRootHash:            status.TentativeRootHash.String(),
+		ProtocolCheckpointRootHash:   status.RuntimeCheckpointDesiredRootHash.String(),
+		DurableMainRootHash:          status.DurableMainRootHash.String(),
+		StateProviders:               append([]string(nil), status.StateProviders...),
 		RoutedPeers:                  append([]string(nil), status.RoutedPeers...),
 		ParticipatingPeers:           append([]string(nil), status.ParticipatingPeers...),
 		LogicalPeers:                 append([]string(nil), status.LogicalPeers...),
@@ -2181,17 +2048,8 @@ func (b *Backend) localRuntimeState(ctx context.Context, allowStale bool) (*pbAp
 }
 
 func runtimePeerStatusFromSwarmion(peerStatus swarmion.PeerStatus) *pbApic.RuntimePeerStatus {
-	// RuntimePeerStatus predates the borrowed-Link contract. Keep its wire shape
-	// stable, but only populate fields with a sound mapping:
-	//   connected -> routed application path
-	//   dialable   -> routed application path (there is no longer a speculative
-	//                 dialability oracle in Swarmion)
-	// Participating and logical-overlay membership remain independent fields;
-	// neither is presented as physical network reachability.
 	return &pbApic.RuntimePeerStatus{
 		PeerId:               peerStatus.PeerID,
-		Connected:            peerStatus.Routed,
-		Dialable:             peerStatus.Routed,
 		StateProvider:        peerStatus.StateProvider,
 		Compatible:           peerStatus.Compatible,
 		Incompatible:         peerStatus.Incompatible,
@@ -2226,7 +2084,6 @@ func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struc
 		allowed[localPeerID] = struct{}{}
 	}
 	out.StateProviders = filterStringsBySet(out.GetStateProviders(), allowed)
-	out.ConnectedPeers = filterStringsBySet(out.GetConnectedPeers(), allowed) //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
 	out.RoutedPeers = filterStringsBySet(out.GetRoutedPeers(), allowed)
 	out.ParticipatingPeers = filterStringsBySet(out.GetParticipatingPeers(), allowed)
 	out.LogicalPeers = filterStringsBySet(out.GetLogicalPeers(), allowed)
@@ -2254,9 +2111,6 @@ func filterRuntimePeerSurface(out *pbApic.RuntimeState, peerIDs map[string]struc
 			peerStatus.StateProvider = false
 		}
 		_, peerStatus.PhysicalConnected = physical[peerID]
-		// Legacy fields are exact routed aliases.
-		peerStatus.Connected = peerStatus.Routed //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
-		peerStatus.Dialable = peerStatus.Routed  //nolint:staticcheck // Deprecated wire alias remains routed for compatibility.
 		filteredStatuses = append(filteredStatuses, peerStatus)
 	}
 	out.PeerStatuses = filteredStatuses
@@ -2319,7 +2173,6 @@ func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState
 		ProtocolCheckpointRootHash:             state.GetProtocolCheckpointRootHash(),
 		DurableMainRootHash:                    state.GetDurableMainRootHash(),
 		StateProviders:                         append([]string(nil), state.GetStateProviders()...),
-		ConnectedPeers:                         append([]string(nil), state.GetConnectedPeers()...),
 		FatalState:                             state.GetFatalState(),
 		RuntimeRefreshPending:                  state.GetRuntimeRefreshPending(),
 		RuntimeRefreshLastError:                state.GetRuntimeRefreshLastError(),
@@ -2340,8 +2193,6 @@ func runtimeStateFromP2PProto(state *p2pproto.RuntimeState) *pbApic.RuntimeState
 	for _, peerStatus := range state.GetPeerStatuses() {
 		out.PeerStatuses = append(out.PeerStatuses, &pbApic.RuntimePeerStatus{
 			PeerId:               peerStatus.GetPeerId(),
-			Connected:            peerStatus.GetConnected(),
-			Dialable:             peerStatus.GetDialable(),
 			StateProvider:        peerStatus.GetStateProvider(),
 			Compatible:           peerStatus.GetCompatible(),
 			Incompatible:         peerStatus.GetIncompatible(),
@@ -2425,8 +2276,8 @@ func (b *Backend) runtimePeerReplicationMetadata() (map[string]runtimePeerReplic
 	if b == nil || b.protosClient == nil {
 		return out, nil
 	}
-	if b.protosClient.CloudManager != nil {
-		instances, err := b.protosClient.CloudManager.GetInstances(false)
+	if b.protosClient.ProvisionerManager != nil {
+		instances, err := b.protosClient.ProvisionerManager.GetInstances(false)
 		if err != nil {
 			return nil, fmt.Errorf("load runtime instance replication metadata: %w", err)
 		}
@@ -2485,8 +2336,6 @@ func knownRuntimePeerStatus(peerID string, state *pbApic.RuntimeState) *pbApic.R
 	routed := stringInList(peerID, state.GetRoutedPeers())
 	status := &pbApic.RuntimePeerStatus{
 		PeerId:            peerID,
-		Connected:         routed,
-		Dialable:          routed,
 		StateProvider:     stringInList(peerID, state.GetStateProviders()),
 		Compatible:        isSelf,
 		Routed:            routed,
@@ -2541,7 +2390,7 @@ func (b *Backend) SetExitRoute(ctx context.Context, in *pbApic.SetExitRouteReque
 	if instanceRef == "" {
 		return nil, fmt.Errorf("instance is required")
 	}
-	instance, err := b.protosClient.CloudManager.GetInstance(instanceRef)
+	instance, err := b.protosClient.ProvisionerManager.GetInstance(instanceRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve exit instance '%s': %w", instanceRef, err)
 	}
@@ -2620,10 +2469,10 @@ func (b *Backend) exitRouteToProto(route network.ExitRoute) *pbApic.ExitRoute {
 		DnsServer:  route.DNSServer,
 		Cidrs:      route.CIDRs,
 	}
-	if b.protosClient == nil || b.protosClient.CloudManager == nil {
+	if b.protosClient == nil || b.protosClient.ProvisionerManager == nil {
 		return resp
 	}
-	instance, err := b.protosClient.CloudManager.GetInstance(route.InstanceID)
+	instance, err := b.protosClient.ProvisionerManager.GetInstance(route.InstanceID)
 	if err != nil {
 		log.Debugf("failed to enrich exit route %s: %s", route.ID, err.Error())
 		return resp
@@ -2668,35 +2517,9 @@ func (b *Backend) GetProtosdReleases(ctx context.Context, in *pbApic.GetProtosdR
 	return &resp, nil
 }
 
-func (b *Backend) GetCloudImages(ctx context.Context, in *pbApic.GetCloudImagesRequest) (*pbApic.GetCloudImagesResponse, error) {
-	log.Debugf("Retrieving cloud images from cloud '%s'", in.Name)
-	provider, err := b.protosClient.CloudManager.GetProvider(in.Name)
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve cloud '%s': %w", in.Name, err)
-	}
-
-	imageProvider, ok := provider.(provisioners.ImageProvider)
-	if !ok {
-		return nil, fmt.Errorf("cloud provider '%s'(%s) does not support image operations", in.Name, provider.TypeStr())
-	}
-	err = provider.Init()
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to cloud provider '%s'(%s) API: %w", in.Name, provider.TypeStr(), err)
-	}
-	images, err := imageProvider.GetProtosImages()
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve cloud images from cloud '%s': %w", in.Name, err)
-	}
-	resp := pbApic.GetCloudImagesResponse{CloudImages: map[string]*pbApic.CloudSpecificImage{}}
-	for id, image := range images {
-		resp.CloudImages[id] = cloudSpecificImageProto(image)
-	}
-	return &resp, nil
-}
-
 func (b *Backend) GetProvisionerImages(ctx context.Context, in *pbApic.GetProvisionerImagesRequest) (*pbApic.GetProvisionerImagesResponse, error) {
 	log.Debugf("Retrieving images from provisioner '%s'", in.Name)
-	provisioner, err := b.protosClient.CloudManager.GetProvisioner(in.Name)
+	provisioner, err := b.protosClient.ProvisionerManager.GetProvisioner(in.Name)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve provisioner '%s': %w", in.Name, err)
 	}
@@ -2712,15 +2535,15 @@ func (b *Backend) GetProvisionerImages(ctx context.Context, in *pbApic.GetProvis
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve images from provisioner '%s': %w", in.Name, err)
 	}
-	resp := pbApic.GetProvisionerImagesResponse{Images: map[string]*pbApic.CloudSpecificImage{}}
+	resp := pbApic.GetProvisionerImagesResponse{Images: map[string]*pbApic.ProvisionerImage{}}
 	for id, image := range images {
-		resp.Images[id] = cloudSpecificImageProto(image)
+		resp.Images[id] = provisionerImageProto(image)
 	}
 	return &resp, nil
 }
 
-func cloudSpecificImageProto(image provisioners.ImageInfo) *pbApic.CloudSpecificImage {
-	resp := &pbApic.CloudSpecificImage{
+func provisionerImageProto(image provisioners.ImageInfo) *pbApic.ProvisionerImage {
+	resp := &pbApic.ProvisionerImage{
 		Id:          image.ID,
 		Name:        image.Name,
 		LogicalName: image.LogicalName,
@@ -2734,56 +2557,16 @@ func cloudSpecificImageProto(image provisioners.ImageInfo) *pbApic.CloudSpecific
 	return resp
 }
 
-func (b *Backend) UploadCloudImage(ctx context.Context, in *pbApic.UploadCloudImageRequest) (*pbApic.UploadCloudImageResponse, error) {
-	if err := b.requireProvisionerCapability("upload cloud image"); err != nil {
-		return nil, err
-	}
-	log.Debugf("Queueing cloud image upload '%s'(%s) to cloud '%s'", in.ImageName, in.ImagePath, in.CloudName)
-	task, err := b.protosClient.CloudManager.QueueUploadLocalImage(in.ImagePath, in.ImageName, in.CloudName, in.CloudLocation, time.Duration(in.Timeout)*time.Minute)
-	if err != nil {
-		return nil, err
-	}
-	return &pbApic.UploadCloudImageResponse{TaskId: task.ID}, nil
-}
-
 func (b *Backend) UploadProvisionerImage(ctx context.Context, in *pbApic.UploadProvisionerImageRequest) (*pbApic.UploadProvisionerImageResponse, error) {
 	if err := b.requireProvisionerCapability("upload provisioner image"); err != nil {
 		return nil, err
 	}
 	log.Debugf("Queueing image upload '%s'(%s) to provisioner '%s'", in.ImageName, in.ImagePath, in.ProvisionerName)
-	task, err := b.protosClient.CloudManager.QueueUploadLocalImage(in.ImagePath, in.ImageName, in.ProvisionerName, in.Location, time.Duration(in.Timeout)*time.Minute)
+	task, err := b.protosClient.ProvisionerManager.QueueUploadLocalImage(ctx, in.ImagePath, in.ImageName, in.ProvisionerName, in.Location, time.Duration(in.Timeout)*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 	return &pbApic.UploadProvisionerImageResponse{TaskId: task.ID}, nil
-}
-
-func (b *Backend) RemoveCloudImage(ctx context.Context, in *pbApic.RemoveCloudImageRequest) (*pbApic.RemoveCloudImageResponse, error) {
-	if err := b.requireProvisionerCapability("remove cloud image"); err != nil {
-		return nil, err
-	}
-	log.Debugf("Removing cloud image '%s' from cloud '%s'", in.ImageName, in.CloudName)
-	errMsg := fmt.Sprintf("failed to delete image '%s' from cloud '%s'", in.ImageName, in.CloudLocation)
-	provider, err := b.protosClient.CloudManager.GetProvider(in.CloudName)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", errMsg, err)
-	}
-
-	imageProvider, ok := provider.(provisioners.ImageProvider)
-	if !ok {
-		return nil, fmt.Errorf("%s: cloud provider '%s'(%s) does not support image operations", errMsg, in.CloudName, provider.TypeStr())
-	}
-	err = provider.Init()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", errMsg, err)
-	}
-
-	// delete image
-	err = imageProvider.RemoveImage(in.ImageName, in.CloudLocation)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", errMsg, err)
-	}
-	return &pbApic.RemoveCloudImageResponse{}, nil
 }
 
 func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveProvisionerImageRequest) (*pbApic.RemoveProvisionerImageResponse, error) {
@@ -2792,7 +2575,7 @@ func (b *Backend) RemoveProvisionerImage(ctx context.Context, in *pbApic.RemoveP
 	}
 	log.Debugf("Removing image '%s' from provisioner '%s'", in.ImageName, in.ProvisionerName)
 	errMsg := fmt.Sprintf("failed to delete image '%s' from provisioner '%s'", in.ImageName, in.ProvisionerName)
-	provisioner, err := b.protosClient.CloudManager.GetProvisioner(in.ProvisionerName)
+	provisioner, err := b.protosClient.ProvisionerManager.GetProvisioner(in.ProvisionerName)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}

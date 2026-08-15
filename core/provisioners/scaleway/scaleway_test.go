@@ -40,7 +40,7 @@ func TestDeleteVolumeAttachedBlockDetachesBeforeRetryingBlockDelete(t *testing.T
 			}
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodDelete && r.URL.Path == instanceVolumePath():
-			t.Errorf("legacy Instance volume DELETE must not follow a non-not-found Block API error")
+			t.Errorf("Instance API volume DELETE must not follow a non-not-found Block API error")
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodGet && r.URL.Path == instanceVolumePath():
 			writeScalewayNotFound(w, "instance_volume", testScalewayVolumeID)
@@ -99,7 +99,7 @@ func TestDeleteVolumeAttachedBlockDetachesBeforeRetryingBlockDelete(t *testing.T
 	}
 }
 
-func TestDeleteVolumePreservesLegacyInstanceVolumeFallback(t *testing.T) {
+func TestDeleteVolumeUsesInstanceAPIFallback(t *testing.T) {
 	var mu sync.Mutex
 	requests := make([]string, 0, 10)
 	instanceDeletes := 0
@@ -188,7 +188,7 @@ func TestVolumeDeletedRequiresAbsenceFromBothScalewayAPIs(t *testing.T) {
 		wantDeleted    bool
 	}{
 		{name: "block volume remains", blockExists: true},
-		{name: "legacy volume remains", instanceExists: true},
+		{name: "Instance API volume remains", instanceExists: true},
 		{name: "both APIs report absent", wantDeleted: true},
 	}
 

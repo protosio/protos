@@ -103,7 +103,10 @@ func createTaskEventInsertMapper(event Event) db.InsertMapper {
 	}
 }
 
-func selectTaskRecords(database *db.DB, filters taskQueryFilters, includeDetails bool) ([]Record, error) {
+func selectTaskRecordsContext(ctx context.Context, database *db.DB, filters taskQueryFilters, includeDetails bool) ([]Record, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	query := strings.Builder{}
 	query.WriteString("SELECT ")
 	if includeDetails {
@@ -153,7 +156,7 @@ func selectTaskRecords(database *db.DB, filters taskQueryFilters, includeDetails
 	query.WriteString(" ORDER BY created_at ASC")
 
 	var records []Record
-	if err := database.ReadRows(context.Background(), query.String(), args, func(rows *stdsql.Rows) error {
+	if err := database.ReadRows(ctx, query.String(), args, func(rows *stdsql.Rows) error {
 		for rows.Next() {
 			record, err := scanTaskRow(rows)
 			if err != nil {

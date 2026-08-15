@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -38,6 +39,17 @@ type scriptedTaskWritePublisher struct {
 	insertCalls        int
 	updateCalls        int
 	insertContext      context.Context
+}
+
+type doneObservedContext struct {
+	context.Context
+	once     sync.Once
+	observed chan struct{}
+}
+
+func (ctx *doneObservedContext) Done() <-chan struct{} {
+	ctx.once.Do(func() { close(ctx.observed) })
+	return ctx.Context.Done()
 }
 
 func unresolvedTaskWriteForTest() (db.PublishedWriteConfirmation, error) {
@@ -78,6 +90,71 @@ func TestEnqueueContextForwardsCallerContextToAvailabilityPublisher(t *testing.T
 	}
 	if publisher.insertContext == nil || publisher.insertContext.Value(contextKey("request")) != "apic" {
 		t.Fatal("enqueue did not forward the caller context to the availability publisher")
+	}
+}
+
+func TestEnqueueUniqueContextCancellationInterruptsBlockedDedupRead(t *testing.T) {
+	store := openTaskTestDB(t)
+	manager := NewManager(store)
+	publisher := &scriptedTaskWritePublisher{
+		insertConfirmation: taskWriteConfirmationForTest(db.PublishedWriteConfirmationOtherPeerAvailable, false),
+	}
+	manager.taskWrites = publisher
+
+	lockHeld := make(chan struct{})
+	releaseLock := make(chan struct{})
+	var releaseLockOnce sync.Once
+	release := func() { releaseLockOnce.Do(func() { close(releaseLock) }) }
+	defer release()
+	lockHolderDone := make(chan error, 1)
+	go func() {
+		lockHolderDone <- store.ReadRows(context.Background(), "SELECT 1", nil, func(rows *sql.Rows) error {
+			if !rows.Next() {
+				return fmt.Errorf("lock-holder query returned no rows")
+			}
+			close(lockHeld)
+			<-releaseLock
+			return rows.Err()
+		})
+	}()
+	<-lockHeld
+
+	baseCtx, cancel := context.WithCancel(context.Background())
+	ctx := &doneObservedContext{Context: baseCtx, observed: make(chan struct{})}
+	type enqueueResult struct {
+		err error
+	}
+	enqueueDone := make(chan enqueueResult, 1)
+	go func() {
+		_, _, err := EnqueueUniqueContext(ctx, manager, EnqueueUniqueOptions[testPayload]{
+			EnqueueOptions: EnqueueOptions[testPayload]{
+				Stream:      "test.unique-context",
+				SubjectType: "test-subject",
+				SubjectID:   "subject-unique-context",
+				Payload:     testPayload{Value: "input"},
+			},
+		})
+		enqueueDone <- enqueueResult{err: err}
+	}()
+
+	<-ctx.observed
+	cancel()
+	result := <-enqueueDone
+	if !errors.Is(result.err, context.Canceled) {
+		t.Fatalf("unique enqueue error = %v, want context canceled", result.err)
+	}
+	if publisher.insertCalls != 0 {
+		t.Fatalf("canceled unique enqueue publications = %d, want 0", publisher.insertCalls)
+	}
+
+	release()
+	if err := <-lockHolderDone; err != nil {
+		t.Fatal(err)
+	}
+	if task, found, err := manager.LatestForSubject("test.unique-context", "test-subject", "subject-unique-context"); err != nil {
+		t.Fatal(err)
+	} else if found {
+		t.Fatalf("canceled unique enqueue persisted task %+v", task)
 	}
 }
 
@@ -187,7 +264,7 @@ func TestEnqueueReportsOtherPeerAvailableFromExactReceipt(t *testing.T) {
 	}
 	manager.taskWrites = publisher
 
-	record, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	record, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.available",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-available",
@@ -224,7 +301,7 @@ func TestEnqueueNoPeerReturnsLocalAcceptanceImmediately(t *testing.T) {
 	manager.taskWrites = publisher
 
 	started := time.Now()
-	record, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	record, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.local-accepted",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-local-accepted",
@@ -328,7 +405,7 @@ func TestExactUnresolvedTaskUpdateDefersRunnerUntilPassiveReceiptResolution(t *t
 	}); err != nil {
 		t.Fatal(err)
 	}
-	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.update-unresolved",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-update-unresolved",
@@ -402,7 +479,7 @@ func TestExactUnresolvedTaskUpdateDefersRunnerUntilPassiveReceiptResolution(t *t
 func TestStreamAdapterDoesNotRequeueOrFailAfterExactUnresolvedTaskSave(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
-	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.stream-save-unresolved",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-stream-save-unresolved",
@@ -500,7 +577,7 @@ func TestTaskManagerRunsRegisteredStream(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.stream",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-1",
@@ -560,7 +637,7 @@ func TestTaskRetriesUntilSuccessWithinMaxAttempts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.retry",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-retry",
@@ -630,7 +707,7 @@ func TestTaskReplacePayloadSurvivesRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queued, err := Enqueue(manager, EnqueueOptions[checkpointPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.replace-payload",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-replace-payload",
@@ -693,7 +770,7 @@ func TestTaskPayloadSemanticEqualityPreservesLargeIntegerIdentity(t *testing.T) 
 func TestStreamRunCarriesOwnedRecordAcrossReplacePayloadAndRetry(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
-	queued, err := Enqueue(manager, EnqueueOptions[checkpointPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.owned-record",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-owned-record",
@@ -755,7 +832,7 @@ func TestStreamRunCarriesOwnedRecordAcrossReplacePayloadAndRetry(t *testing.T) {
 func TestStreamCancellationPreservesOwnedRunningReceiptForStartupRecovery(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
-	queued, err := Enqueue(manager, EnqueueOptions[checkpointPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.cancel-owned-record",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-cancel-owned-record",
@@ -809,7 +886,7 @@ func TestStreamCancellationPreservesOwnedRunningReceiptForStartupRecovery(t *tes
 func TestPayloadSaveFailureRequeuesKnownReceiptFromOwnedRecord(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
-	queued, err := Enqueue(manager, EnqueueOptions[checkpointPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.receipt-save-failure",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-receipt-save-failure",
@@ -885,7 +962,7 @@ func TestRecoverOwnedRunningPreservesPayloadAndAttempt(t *testing.T) {
 	ownerB := NewManager(store)
 	ownerB.SetExecutorPeerID("peer-b")
 
-	interrupted, err := Enqueue(ownerA, EnqueueOptions[checkpointPayload]{
+	interrupted, err := EnqueueContext(context.Background(), ownerA, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.recover-running",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-recover-running",
@@ -896,7 +973,7 @@ func TestRecoverOwnedRunningPreservesPayloadAndAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherOwner, err := Enqueue(ownerB, EnqueueOptions[checkpointPayload]{
+	otherOwner, err := EnqueueContext(context.Background(), ownerB, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.other-owner-running",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-other-owner-running",
@@ -996,7 +1073,7 @@ func TestRecoverOwnedRunningDefersWithoutWriteAndPublishesPreparedPayloadOnlyWhe
 	store := openTaskTestDB(t)
 	original := NewManager(store)
 	original.SetExecutorPeerID("peer-recovery-preflight")
-	record, err := Enqueue(original, EnqueueOptions[checkpointPayload]{
+	record, err := EnqueueContext(context.Background(), original, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.recovery-preflight",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-recovery-preflight",
@@ -1087,7 +1164,7 @@ func TestManagerStartRecoversOwnedRunningBeforeRunningPending(t *testing.T) {
 	original := NewManager(store)
 	original.SetExecutorPeerID("peer-restart")
 
-	interrupted, err := Enqueue(original, EnqueueOptions[checkpointPayload]{
+	interrupted, err := EnqueueContext(context.Background(), original, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.startup-recovery",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-startup-recovery",
@@ -1177,7 +1254,7 @@ func TestManagerStartRecoversRunningTaskArrivingAfterEmptyTick(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	barrier, err := Enqueue(manager, EnqueueOptions[checkpointPayload]{
+	barrier, err := EnqueueContext(context.Background(), manager, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.late-recovery",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-empty-recovery-barrier",
@@ -1205,7 +1282,7 @@ func TestManagerStartRecoversRunningTaskArrivingAfterEmptyTick(t *testing.T) {
 	waitForTaskStatus(t, manager, barrier.ID, StatusSucceeded)
 	staging := NewManager(store)
 	staging.SetExecutorPeerID("peer-staging")
-	record, err := Enqueue(staging, EnqueueOptions[checkpointPayload]{
+	record, err := EnqueueContext(context.Background(), staging, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.late-recovery",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-late-recovery",
@@ -1271,7 +1348,7 @@ func TestManagerSameInstanceStopStartRecoversInterruptedRun(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	record, err := Enqueue(manager, EnqueueOptions[checkpointPayload]{
+	record, err := EnqueueContext(context.Background(), manager, EnqueueOptions[checkpointPayload]{
 		Stream:      "test.same-manager-restart",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-same-manager-restart",
@@ -1320,7 +1397,7 @@ func TestRecoveryHookErrorDoesNotStarveUnrelatedPendingTask(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
 	manager.SetExecutorPeerID("peer-recovery-error-isolation")
-	bad, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	bad, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.bad-recovery",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-bad-recovery",
@@ -1356,7 +1433,7 @@ func TestRecoveryHookErrorDoesNotStarveUnrelatedPendingTask(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	good, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	good, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.good-pending",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-good-pending",
@@ -1391,7 +1468,7 @@ func TestRecoveryCASDoesNotReviveConcurrentCancellation(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
 	manager.SetExecutorPeerID("peer-recovery-cas")
-	record, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	record, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.recovery-cas",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-recovery-cas",
@@ -1474,7 +1551,7 @@ func TestPermanentTaskErrorBypassesConfiguredRetries(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	record, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	record, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.permanent",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-permanent",
@@ -1519,7 +1596,7 @@ func TestDeferredTaskErrorLeavesOwnedTaskRunningWithoutBookkeeping(t *testing.T)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	record, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	record, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.deferred",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-deferred",
@@ -1569,7 +1646,7 @@ func TestTaskFailsTerminallyWhenMaxAttemptsIsOne(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.noretry",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-noretry",
@@ -1601,7 +1678,7 @@ func TestTaskProgressSubscriptionDoesNotPersistEvent(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
 
-	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.stream",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-1",
@@ -1671,7 +1748,7 @@ func TestTaskRunnerOnlyClaimsOwnedTasks(t *testing.T) {
 		}
 	}
 
-	queued, err := Enqueue(ownerA, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), ownerA, EnqueueOptions[testPayload]{
 		Stream:      "test.stream",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-1",
@@ -1734,7 +1811,7 @@ func TestRegisterIfAbsentKeepsExistingStream(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queued, err := Enqueue(manager, EnqueueOptions[testPayload]{
+	queued, err := EnqueueContext(context.Background(), manager, EnqueueOptions[testPayload]{
 		Stream:      "test.stream",
 		SubjectType: "test-subject",
 		SubjectID:   "subject-1",

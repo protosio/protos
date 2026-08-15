@@ -48,16 +48,15 @@ var cmdRelease *cli.Command = &cli.Command{
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:        "provisioner",
-					Aliases:     []string{"cloud"},
 					Usage:       "Specify which `PROVISIONER` to upload the image to",
 					Required:    true,
-					Destination: &cloudName,
+					Destination: &selectedProvisioner,
 				},
 				&cli.StringFlag{
 					Name:        "location",
 					Usage:       "Specify one of the supported `LOCATION`s to upload the image. Not required for all provisioners",
 					Required:    false,
-					Destination: &cloudLocation,
+					Destination: &selectedProvisionerLocation,
 				},
 				&cli.IntFlag{
 					Name:     "timeout",
@@ -87,7 +86,7 @@ var cmdRelease *cli.Command = &cli.Command{
 
 				timeout := c.Int("timeout")
 
-				return uploadLocalImageToProvisioner(imagePath, imageName, cloudName, cloudLocation, int32(timeout), c.Bool("follow") || c.Bool("jsonl"), c.Bool("jsonl"))
+				return uploadLocalImageToProvisioner(imagePath, imageName, selectedProvisioner, selectedProvisionerLocation, int32(timeout), c.Bool("follow") || c.Bool("jsonl"), c.Bool("jsonl"))
 			},
 		},
 		{
@@ -97,16 +96,15 @@ var cmdRelease *cli.Command = &cli.Command{
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:        "provisioner",
-					Aliases:     []string{"cloud"},
 					Usage:       "Specify which `PROVISIONER` to delete the image from",
 					Required:    true,
-					Destination: &cloudName,
+					Destination: &selectedProvisioner,
 				},
 				&cli.StringFlag{
 					Name:        "location",
 					Usage:       "Specify one of the supported `LOCATION`s for the image. Not required for all provisioners",
 					Required:    false,
-					Destination: &cloudLocation,
+					Destination: &selectedProvisionerLocation,
 				},
 			},
 			Action: func(c *cli.Context) error {
@@ -115,7 +113,7 @@ var cmdRelease *cli.Command = &cli.Command{
 					return showSubcommandHelp(c)
 				}
 
-				return deleteImageFromProvisioner(imageName, cloudName, cloudLocation)
+				return deleteImageFromProvisioner(imageName, selectedProvisioner, selectedProvisionerLocation)
 			},
 		},
 		{
@@ -131,7 +129,7 @@ var cmdRelease *cli.Command = &cli.Command{
 					Name:        "location",
 					Usage:       "Restrict audit to a specific `LOCATION`",
 					Required:    false,
-					Destination: &cloudLocation,
+					Destination: &selectedProvisionerLocation,
 				},
 			},
 			Action: func(c *cli.Context) error {
@@ -143,7 +141,7 @@ var cmdRelease *cli.Command = &cli.Command{
 				if olderThan < 0 {
 					return fmt.Errorf("--older-than cannot be negative")
 				}
-				return auditProvisionerImages(provisionerName, cloudLocation, olderThan)
+				return auditProvisionerImages(provisionerName, selectedProvisionerLocation, olderThan)
 			},
 		},
 		{
@@ -160,7 +158,7 @@ var cmdRelease *cli.Command = &cli.Command{
 					Name:        "location",
 					Usage:       "Restrict cleanup to a specific `LOCATION`",
 					Required:    false,
-					Destination: &cloudLocation,
+					Destination: &selectedProvisionerLocation,
 				},
 				&cli.BoolFlag{
 					Name:  "confirm",
@@ -176,7 +174,7 @@ var cmdRelease *cli.Command = &cli.Command{
 				if olderThan <= 0 {
 					return fmt.Errorf("--older-than must be greater than zero")
 				}
-				return cleanupProvisionerImages(provisionerName, cloudLocation, olderThan, c.Bool("confirm"))
+				return cleanupProvisionerImages(provisionerName, selectedProvisionerLocation, olderThan, c.Bool("confirm"))
 			},
 		},
 	},
@@ -296,10 +294,10 @@ func cleanupProvisionerImages(provisionerName string, location string, olderThan
 
 type provisionerImageAuditRow struct {
 	State string
-	Image *apic.CloudSpecificImage
+	Image *apic.ProvisionerImage
 }
 
-func auditProvisionerImageRows(images map[string]*apic.CloudSpecificImage, location string, cutoff time.Time) []provisionerImageAuditRow {
+func auditProvisionerImageRows(images map[string]*apic.ProvisionerImage, location string, cutoff time.Time) []provisionerImageAuditRow {
 	sorted := sortedProvisionerImages(images)
 	rows := make([]provisionerImageAuditRow, 0, len(sorted))
 	for _, img := range sorted {
@@ -317,7 +315,7 @@ func auditProvisionerImageRows(images map[string]*apic.CloudSpecificImage, locat
 	return rows
 }
 
-func auditProvisionerImageState(img *apic.CloudSpecificImage, cutoff time.Time) string {
+func auditProvisionerImageState(img *apic.ProvisionerImage, cutoff time.Time) string {
 	if img == nil {
 		return "unknown"
 	}
@@ -327,11 +325,11 @@ func auditProvisionerImageState(img *apic.CloudSpecificImage, cutoff time.Time) 
 		}
 		return "canonical"
 	}
-	return "legacy-protos"
+	return "noncanonical-protos"
 }
 
-func cleanupProvisionerImageCandidates(images map[string]*apic.CloudSpecificImage, location string, cutoff time.Time) []*apic.CloudSpecificImage {
-	candidates := make([]*apic.CloudSpecificImage, 0, len(images))
+func cleanupProvisionerImageCandidates(images map[string]*apic.ProvisionerImage, location string, cutoff time.Time) []*apic.ProvisionerImage {
+	candidates := make([]*apic.ProvisionerImage, 0, len(images))
 	for _, img := range images {
 		if img == nil || !img.Canonical || img.UpdatedAtUnix <= 0 {
 			continue
@@ -347,8 +345,8 @@ func cleanupProvisionerImageCandidates(images map[string]*apic.CloudSpecificImag
 	return candidates
 }
 
-func sortedProvisionerImages(images map[string]*apic.CloudSpecificImage) []*apic.CloudSpecificImage {
-	out := make([]*apic.CloudSpecificImage, 0, len(images))
+func sortedProvisionerImages(images map[string]*apic.ProvisionerImage) []*apic.ProvisionerImage {
+	out := make([]*apic.ProvisionerImage, 0, len(images))
 	for _, img := range images {
 		if img != nil {
 			out = append(out, img)
@@ -358,7 +356,7 @@ func sortedProvisionerImages(images map[string]*apic.CloudSpecificImage) []*apic
 	return out
 }
 
-func sortProvisionerImages(images []*apic.CloudSpecificImage) {
+func sortProvisionerImages(images []*apic.ProvisionerImage) {
 	sort.Slice(images, func(i, j int) bool {
 		left, right := images[i], images[j]
 		if left.UpdatedAtUnix != right.UpdatedAtUnix {
@@ -371,7 +369,7 @@ func sortProvisionerImages(images []*apic.CloudSpecificImage) {
 	})
 }
 
-func imageDateLabel(img *apic.CloudSpecificImage) string {
+func imageDateLabel(img *apic.ProvisionerImage) string {
 	if img == nil {
 		return "n/a"
 	}
@@ -384,7 +382,7 @@ func imageDateLabel(img *apic.CloudSpecificImage) string {
 	return "n/a"
 }
 
-func imageAgeLabel(img *apic.CloudSpecificImage) string {
+func imageAgeLabel(img *apic.ProvisionerImage) string {
 	if img == nil || img.UpdatedAtUnix <= 0 {
 		return "n/a"
 	}
@@ -402,7 +400,7 @@ func imageAgeLabel(img *apic.CloudSpecificImage) string {
 	return fmt.Sprintf("%dd", int(age/(24*time.Hour)))
 }
 
-func imageDeleteRef(img *apic.CloudSpecificImage) string {
+func imageDeleteRef(img *apic.ProvisionerImage) string {
 	if img == nil {
 		return ""
 	}

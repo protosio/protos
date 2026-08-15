@@ -49,17 +49,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.RemoveAppRequest request);
   $async.Future<$0.GetAppLogsResponse> getAppLogs(
       $pb.ServerContext ctx, $0.GetAppLogsRequest request);
-  $async.Future<$0.GetSupportedCloudProvidersResponse>
-      getSupportedCloudProviders(
-          $pb.ServerContext ctx, $0.GetSupportedCloudProvidersRequest request);
-  $async.Future<$0.GetCloudProvidersResponse> getCloudProviders(
-      $pb.ServerContext ctx, $0.GetCloudProvidersRequest request);
-  $async.Future<$0.GetCloudProviderResponse> getCloudProvider(
-      $pb.ServerContext ctx, $0.GetCloudProviderRequest request);
-  $async.Future<$0.AddCloudProviderResponse> addCloudProvider(
-      $pb.ServerContext ctx, $0.AddCloudProviderRequest request);
-  $async.Future<$0.RemoveCloudProviderResponse> removeCloudProvider(
-      $pb.ServerContext ctx, $0.RemoveCloudProviderRequest request);
   $async.Future<$0.GetSupportedProvisionersResponse> getSupportedProvisioners(
       $pb.ServerContext ctx, $0.GetSupportedProvisionersRequest request);
   $async.Future<$0.GetProvisionersResponse> getProvisioners(
@@ -116,12 +105,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.ClearExitRouteRequest request);
   $async.Future<$0.GetProtosdReleasesResponse> getProtosdReleases(
       $pb.ServerContext ctx, $0.GetProtosdReleasesRequest request);
-  $async.Future<$0.GetCloudImagesResponse> getCloudImages(
-      $pb.ServerContext ctx, $0.GetCloudImagesRequest request);
-  $async.Future<$0.UploadCloudImageResponse> uploadCloudImage(
-      $pb.ServerContext ctx, $0.UploadCloudImageRequest request);
-  $async.Future<$0.RemoveCloudImageResponse> removeCloudImage(
-      $pb.ServerContext ctx, $0.RemoveCloudImageRequest request);
   $async.Future<$0.GetProvisionerImagesResponse> getProvisionerImages(
       $pb.ServerContext ctx, $0.GetProvisionerImagesRequest request);
   $async.Future<$0.UploadProvisionerImageResponse> uploadProvisionerImage(
@@ -178,16 +161,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.RemoveAppRequest();
       case 'GetAppLogs':
         return $0.GetAppLogsRequest();
-      case 'GetSupportedCloudProviders':
-        return $0.GetSupportedCloudProvidersRequest();
-      case 'GetCloudProviders':
-        return $0.GetCloudProvidersRequest();
-      case 'GetCloudProvider':
-        return $0.GetCloudProviderRequest();
-      case 'AddCloudProvider':
-        return $0.AddCloudProviderRequest();
-      case 'RemoveCloudProvider':
-        return $0.RemoveCloudProviderRequest();
       case 'GetSupportedProvisioners':
         return $0.GetSupportedProvisionersRequest();
       case 'GetProvisioners':
@@ -244,12 +217,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return $0.ClearExitRouteRequest();
       case 'GetProtosdReleases':
         return $0.GetProtosdReleasesRequest();
-      case 'GetCloudImages':
-        return $0.GetCloudImagesRequest();
-      case 'UploadCloudImage':
-        return $0.UploadCloudImageRequest();
-      case 'RemoveCloudImage':
-        return $0.RemoveCloudImageRequest();
       case 'GetProvisionerImages':
         return $0.GetProvisionerImagesRequest();
       case 'UploadProvisionerImage':
@@ -311,18 +278,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return removeApp(ctx, request as $0.RemoveAppRequest);
       case 'GetAppLogs':
         return getAppLogs(ctx, request as $0.GetAppLogsRequest);
-      case 'GetSupportedCloudProviders':
-        return getSupportedCloudProviders(
-            ctx, request as $0.GetSupportedCloudProvidersRequest);
-      case 'GetCloudProviders':
-        return getCloudProviders(ctx, request as $0.GetCloudProvidersRequest);
-      case 'GetCloudProvider':
-        return getCloudProvider(ctx, request as $0.GetCloudProviderRequest);
-      case 'AddCloudProvider':
-        return addCloudProvider(ctx, request as $0.AddCloudProviderRequest);
-      case 'RemoveCloudProvider':
-        return removeCloudProvider(
-            ctx, request as $0.RemoveCloudProviderRequest);
       case 'GetSupportedProvisioners':
         return getSupportedProvisioners(
             ctx, request as $0.GetSupportedProvisionersRequest);
@@ -382,12 +337,6 @@ abstract class ProtosClientApiServiceBase extends $pb.GeneratedService {
         return clearExitRoute(ctx, request as $0.ClearExitRouteRequest);
       case 'GetProtosdReleases':
         return getProtosdReleases(ctx, request as $0.GetProtosdReleasesRequest);
-      case 'GetCloudImages':
-        return getCloudImages(ctx, request as $0.GetCloudImagesRequest);
-      case 'UploadCloudImage':
-        return uploadCloudImage(ctx, request as $0.UploadCloudImageRequest);
-      case 'RemoveCloudImage':
-        return removeCloudImage(ctx, request as $0.RemoveCloudImageRequest);
       case 'GetProvisionerImages':
         return getProvisionerImages(
             ctx, request as $0.GetProvisionerImagesRequest);

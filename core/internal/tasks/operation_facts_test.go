@@ -16,7 +16,7 @@ func TestOperationFactIsDeterministicAndImmutable(t *testing.T) {
 	taskID := db.MustNewUUIDv7()
 	operation, err := db.NewPublishedWriteOperation(
 		"0123456789abcdef0123456789abcdef",
-		"protos:test:immutable-operation-fact:v1",
+		"protos:test:immutable-operation-fact",
 		taskID,
 	)
 	if err != nil {
@@ -80,7 +80,7 @@ func TestOperationFactIsDeterministicAndImmutable(t *testing.T) {
 func TestOperationFactIdentityRejectsMutableOrMalformedInputs(t *testing.T) {
 	operation, err := db.NewPublishedWriteOperation(
 		"0123456789abcdef0123456789abcdef",
-		"protos:test:immutable-operation-fact:v1",
+		"protos:test:immutable-operation-fact",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func newCheckpointTestOperationFact(t *testing.T, taskID, subjectID string) Oper
 	t.Helper()
 	operation, err := db.NewPublishedWriteOperation(
 		"fedcba9876543210fedcba9876543210",
-		"protos:test:checkpoint-operation-fact:v1",
+		"protos:test:checkpoint-operation-fact",
 		taskID,
 	)
 	if err != nil {

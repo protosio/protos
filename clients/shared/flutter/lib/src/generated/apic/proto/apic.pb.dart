@@ -2182,1106 +2182,6 @@ class GetAppLogsResponse extends $pb.GeneratedMessage {
   void clearLogs() => $_clearField(1);
 }
 
-class Installer extends $pb.GeneratedMessage {
-  factory Installer({
-    $core.String? id,
-    $core.String? name,
-    $core.String? version,
-    $core.String? description,
-    $core.Iterable<$core.String>? requiresResources,
-    $core.Iterable<$core.String>? providesResources,
-    $core.Iterable<$core.String>? capabilities,
-  }) {
-    final result = create();
-    if (id != null) result.id = id;
-    if (name != null) result.name = name;
-    if (version != null) result.version = version;
-    if (description != null) result.description = description;
-    if (requiresResources != null)
-      result.requiresResources.addAll(requiresResources);
-    if (providesResources != null)
-      result.providesResources.addAll(providesResources);
-    if (capabilities != null) result.capabilities.addAll(capabilities);
-    return result;
-  }
-
-  Installer._();
-
-  factory Installer.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory Installer.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Installer',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'id')
-    ..aOS(2, _omitFieldNames ? '' : 'name')
-    ..aOS(3, _omitFieldNames ? '' : 'version')
-    ..aOS(4, _omitFieldNames ? '' : 'description')
-    ..pPS(5, _omitFieldNames ? '' : 'requiresResources')
-    ..pPS(6, _omitFieldNames ? '' : 'providesResources')
-    ..pPS(7, _omitFieldNames ? '' : 'capabilities')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Installer clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Installer copyWith(void Function(Installer) updates) =>
-      super.copyWith((message) => updates(message as Installer)) as Installer;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static Installer create() => Installer._();
-  @$core.override
-  Installer createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static Installer getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Installer>(create);
-  static Installer? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get id => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set id($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasId() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearId() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.String get name => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set name($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasName() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearName() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $core.String get version => $_getSZ(2);
-  @$pb.TagNumber(3)
-  set version($core.String value) => $_setString(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasVersion() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearVersion() => $_clearField(3);
-
-  @$pb.TagNumber(4)
-  $core.String get description => $_getSZ(3);
-  @$pb.TagNumber(4)
-  set description($core.String value) => $_setString(3, value);
-  @$pb.TagNumber(4)
-  $core.bool hasDescription() => $_has(3);
-  @$pb.TagNumber(4)
-  void clearDescription() => $_clearField(4);
-
-  @$pb.TagNumber(5)
-  $pb.PbList<$core.String> get requiresResources => $_getList(4);
-
-  @$pb.TagNumber(6)
-  $pb.PbList<$core.String> get providesResources => $_getList(5);
-
-  @$pb.TagNumber(7)
-  $pb.PbList<$core.String> get capabilities => $_getList(6);
-}
-
-class GetInstallersRequest extends $pb.GeneratedMessage {
-  factory GetInstallersRequest() => create();
-
-  GetInstallersRequest._();
-
-  factory GetInstallersRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetInstallersRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetInstallersRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallersRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallersRequest copyWith(void Function(GetInstallersRequest) updates) =>
-      super.copyWith((message) => updates(message as GetInstallersRequest))
-          as GetInstallersRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetInstallersRequest create() => GetInstallersRequest._();
-  @$core.override
-  GetInstallersRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetInstallersRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetInstallersRequest>(create);
-  static GetInstallersRequest? _defaultInstance;
-}
-
-class GetInstallersResponse extends $pb.GeneratedMessage {
-  factory GetInstallersResponse({
-    $core.Iterable<Installer>? installers,
-  }) {
-    final result = create();
-    if (installers != null) result.installers.addAll(installers);
-    return result;
-  }
-
-  GetInstallersResponse._();
-
-  factory GetInstallersResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetInstallersResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetInstallersResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..pPM<Installer>(1, _omitFieldNames ? '' : 'installers',
-        subBuilder: Installer.create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallersResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallersResponse copyWith(
-          void Function(GetInstallersResponse) updates) =>
-      super.copyWith((message) => updates(message as GetInstallersResponse))
-          as GetInstallersResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetInstallersResponse create() => GetInstallersResponse._();
-  @$core.override
-  GetInstallersResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetInstallersResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetInstallersResponse>(create);
-  static GetInstallersResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $pb.PbList<Installer> get installers => $_getList(0);
-}
-
-class GetInstallerRequest extends $pb.GeneratedMessage {
-  factory GetInstallerRequest({
-    $core.String? id,
-  }) {
-    final result = create();
-    if (id != null) result.id = id;
-    return result;
-  }
-
-  GetInstallerRequest._();
-
-  factory GetInstallerRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetInstallerRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetInstallerRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'id')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallerRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallerRequest copyWith(void Function(GetInstallerRequest) updates) =>
-      super.copyWith((message) => updates(message as GetInstallerRequest))
-          as GetInstallerRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetInstallerRequest create() => GetInstallerRequest._();
-  @$core.override
-  GetInstallerRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetInstallerRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetInstallerRequest>(create);
-  static GetInstallerRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get id => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set id($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasId() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearId() => $_clearField(1);
-}
-
-class GetInstallerResponse extends $pb.GeneratedMessage {
-  factory GetInstallerResponse({
-    Installer? installer,
-  }) {
-    final result = create();
-    if (installer != null) result.installer = installer;
-    return result;
-  }
-
-  GetInstallerResponse._();
-
-  factory GetInstallerResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetInstallerResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetInstallerResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOM<Installer>(1, _omitFieldNames ? '' : 'installer',
-        subBuilder: Installer.create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallerResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetInstallerResponse copyWith(void Function(GetInstallerResponse) updates) =>
-      super.copyWith((message) => updates(message as GetInstallerResponse))
-          as GetInstallerResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetInstallerResponse create() => GetInstallerResponse._();
-  @$core.override
-  GetInstallerResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetInstallerResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetInstallerResponse>(create);
-  static GetInstallerResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  Installer get installer => $_getN(0);
-  @$pb.TagNumber(1)
-  set installer(Installer value) => $_setField(1, value);
-  @$pb.TagNumber(1)
-  $core.bool hasInstaller() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearInstaller() => $_clearField(1);
-  @$pb.TagNumber(1)
-  Installer ensureInstaller() => $_ensure(0);
-}
-
-class CloudMachineSpec extends $pb.GeneratedMessage {
-  factory CloudMachineSpec({
-    $core.int? cores,
-    $core.int? memory,
-    $core.int? defaultStorage,
-    $core.int? bandwidth,
-    $core.int? includedDataTransfer,
-    $core.bool? baremetal,
-    $core.double? priceMonthly,
-  }) {
-    final result = create();
-    if (cores != null) result.cores = cores;
-    if (memory != null) result.memory = memory;
-    if (defaultStorage != null) result.defaultStorage = defaultStorage;
-    if (bandwidth != null) result.bandwidth = bandwidth;
-    if (includedDataTransfer != null)
-      result.includedDataTransfer = includedDataTransfer;
-    if (baremetal != null) result.baremetal = baremetal;
-    if (priceMonthly != null) result.priceMonthly = priceMonthly;
-    return result;
-  }
-
-  CloudMachineSpec._();
-
-  factory CloudMachineSpec.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory CloudMachineSpec.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CloudMachineSpec',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aI(1, _omitFieldNames ? '' : 'cores')
-    ..aI(2, _omitFieldNames ? '' : 'memory')
-    ..aI(3, _omitFieldNames ? '' : 'defaultStorage')
-    ..aI(4, _omitFieldNames ? '' : 'bandwidth')
-    ..aI(5, _omitFieldNames ? '' : 'includedDataTransfer')
-    ..aOB(6, _omitFieldNames ? '' : 'baremetal')
-    ..aD(7, _omitFieldNames ? '' : 'priceMonthly',
-        fieldType: $pb.PbFieldType.OF)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudMachineSpec clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudMachineSpec copyWith(void Function(CloudMachineSpec) updates) =>
-      super.copyWith((message) => updates(message as CloudMachineSpec))
-          as CloudMachineSpec;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static CloudMachineSpec create() => CloudMachineSpec._();
-  @$core.override
-  CloudMachineSpec createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static CloudMachineSpec getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloudMachineSpec>(create);
-  static CloudMachineSpec? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.int get cores => $_getIZ(0);
-  @$pb.TagNumber(1)
-  set cores($core.int value) => $_setSignedInt32(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasCores() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearCores() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.int get memory => $_getIZ(1);
-  @$pb.TagNumber(2)
-  set memory($core.int value) => $_setSignedInt32(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasMemory() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearMemory() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $core.int get defaultStorage => $_getIZ(2);
-  @$pb.TagNumber(3)
-  set defaultStorage($core.int value) => $_setSignedInt32(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasDefaultStorage() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearDefaultStorage() => $_clearField(3);
-
-  @$pb.TagNumber(4)
-  $core.int get bandwidth => $_getIZ(3);
-  @$pb.TagNumber(4)
-  set bandwidth($core.int value) => $_setSignedInt32(3, value);
-  @$pb.TagNumber(4)
-  $core.bool hasBandwidth() => $_has(3);
-  @$pb.TagNumber(4)
-  void clearBandwidth() => $_clearField(4);
-
-  @$pb.TagNumber(5)
-  $core.int get includedDataTransfer => $_getIZ(4);
-  @$pb.TagNumber(5)
-  set includedDataTransfer($core.int value) => $_setSignedInt32(4, value);
-  @$pb.TagNumber(5)
-  $core.bool hasIncludedDataTransfer() => $_has(4);
-  @$pb.TagNumber(5)
-  void clearIncludedDataTransfer() => $_clearField(5);
-
-  @$pb.TagNumber(6)
-  $core.bool get baremetal => $_getBF(5);
-  @$pb.TagNumber(6)
-  set baremetal($core.bool value) => $_setBool(5, value);
-  @$pb.TagNumber(6)
-  $core.bool hasBaremetal() => $_has(5);
-  @$pb.TagNumber(6)
-  void clearBaremetal() => $_clearField(6);
-
-  @$pb.TagNumber(7)
-  $core.double get priceMonthly => $_getN(6);
-  @$pb.TagNumber(7)
-  set priceMonthly($core.double value) => $_setFloat(6, value);
-  @$pb.TagNumber(7)
-  $core.bool hasPriceMonthly() => $_has(6);
-  @$pb.TagNumber(7)
-  void clearPriceMonthly() => $_clearField(7);
-}
-
-class CloudType extends $pb.GeneratedMessage {
-  factory CloudType({
-    $core.String? name,
-    $core.Iterable<$core.String>? authenticationFields,
-  }) {
-    final result = create();
-    if (name != null) result.name = name;
-    if (authenticationFields != null)
-      result.authenticationFields.addAll(authenticationFields);
-    return result;
-  }
-
-  CloudType._();
-
-  factory CloudType.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory CloudType.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CloudType',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'name')
-    ..pPS(2, _omitFieldNames ? '' : 'authenticationFields')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudType clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudType copyWith(void Function(CloudType) updates) =>
-      super.copyWith((message) => updates(message as CloudType)) as CloudType;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static CloudType create() => CloudType._();
-  @$core.override
-  CloudType createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static CloudType getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CloudType>(create);
-  static CloudType? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get name => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set name($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasName() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearName() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $pb.PbList<$core.String> get authenticationFields => $_getList(1);
-}
-
-class CloudProvider extends $pb.GeneratedMessage {
-  factory CloudProvider({
-    $core.String? name,
-    CloudType? type,
-    $core.Iterable<$core.String>? supportedLocations,
-    $core.Iterable<$core.MapEntry<$core.String, CloudMachineSpec>>?
-        supportedMachines,
-  }) {
-    final result = create();
-    if (name != null) result.name = name;
-    if (type != null) result.type = type;
-    if (supportedLocations != null)
-      result.supportedLocations.addAll(supportedLocations);
-    if (supportedMachines != null)
-      result.supportedMachines.addEntries(supportedMachines);
-    return result;
-  }
-
-  CloudProvider._();
-
-  factory CloudProvider.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory CloudProvider.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CloudProvider',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'name')
-    ..aOM<CloudType>(2, _omitFieldNames ? '' : 'type',
-        subBuilder: CloudType.create)
-    ..pPS(3, _omitFieldNames ? '' : 'supportedLocations')
-    ..m<$core.String, CloudMachineSpec>(
-        4, _omitFieldNames ? '' : 'supportedMachines',
-        entryClassName: 'CloudProvider.SupportedMachinesEntry',
-        keyFieldType: $pb.PbFieldType.OS,
-        valueFieldType: $pb.PbFieldType.OM,
-        valueCreator: CloudMachineSpec.create,
-        valueDefaultOrMaker: CloudMachineSpec.getDefault,
-        packageName: const $pb.PackageName('apic'))
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudProvider clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudProvider copyWith(void Function(CloudProvider) updates) =>
-      super.copyWith((message) => updates(message as CloudProvider))
-          as CloudProvider;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static CloudProvider create() => CloudProvider._();
-  @$core.override
-  CloudProvider createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static CloudProvider getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloudProvider>(create);
-  static CloudProvider? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get name => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set name($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasName() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearName() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  CloudType get type => $_getN(1);
-  @$pb.TagNumber(2)
-  set type(CloudType value) => $_setField(2, value);
-  @$pb.TagNumber(2)
-  $core.bool hasType() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearType() => $_clearField(2);
-  @$pb.TagNumber(2)
-  CloudType ensureType() => $_ensure(1);
-
-  @$pb.TagNumber(3)
-  $pb.PbList<$core.String> get supportedLocations => $_getList(2);
-
-  @$pb.TagNumber(4)
-  $pb.PbMap<$core.String, CloudMachineSpec> get supportedMachines =>
-      $_getMap(3);
-}
-
-class GetSupportedCloudProvidersRequest extends $pb.GeneratedMessage {
-  factory GetSupportedCloudProvidersRequest() => create();
-
-  GetSupportedCloudProvidersRequest._();
-
-  factory GetSupportedCloudProvidersRequest.fromBuffer(
-          $core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetSupportedCloudProvidersRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetSupportedCloudProvidersRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetSupportedCloudProvidersRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetSupportedCloudProvidersRequest copyWith(
-          void Function(GetSupportedCloudProvidersRequest) updates) =>
-      super.copyWith((message) =>
-              updates(message as GetSupportedCloudProvidersRequest))
-          as GetSupportedCloudProvidersRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetSupportedCloudProvidersRequest create() =>
-      GetSupportedCloudProvidersRequest._();
-  @$core.override
-  GetSupportedCloudProvidersRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetSupportedCloudProvidersRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetSupportedCloudProvidersRequest>(
-          create);
-  static GetSupportedCloudProvidersRequest? _defaultInstance;
-}
-
-class GetSupportedCloudProvidersResponse extends $pb.GeneratedMessage {
-  factory GetSupportedCloudProvidersResponse({
-    $core.Iterable<CloudType>? cloudTypes,
-  }) {
-    final result = create();
-    if (cloudTypes != null) result.cloudTypes.addAll(cloudTypes);
-    return result;
-  }
-
-  GetSupportedCloudProvidersResponse._();
-
-  factory GetSupportedCloudProvidersResponse.fromBuffer(
-          $core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetSupportedCloudProvidersResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetSupportedCloudProvidersResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..pPM<CloudType>(1, _omitFieldNames ? '' : 'cloudTypes',
-        subBuilder: CloudType.create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetSupportedCloudProvidersResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetSupportedCloudProvidersResponse copyWith(
-          void Function(GetSupportedCloudProvidersResponse) updates) =>
-      super.copyWith((message) =>
-              updates(message as GetSupportedCloudProvidersResponse))
-          as GetSupportedCloudProvidersResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetSupportedCloudProvidersResponse create() =>
-      GetSupportedCloudProvidersResponse._();
-  @$core.override
-  GetSupportedCloudProvidersResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetSupportedCloudProvidersResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetSupportedCloudProvidersResponse>(
-          create);
-  static GetSupportedCloudProvidersResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $pb.PbList<CloudType> get cloudTypes => $_getList(0);
-}
-
-class GetCloudProvidersRequest extends $pb.GeneratedMessage {
-  factory GetCloudProvidersRequest() => create();
-
-  GetCloudProvidersRequest._();
-
-  factory GetCloudProvidersRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetCloudProvidersRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetCloudProvidersRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProvidersRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProvidersRequest copyWith(
-          void Function(GetCloudProvidersRequest) updates) =>
-      super.copyWith((message) => updates(message as GetCloudProvidersRequest))
-          as GetCloudProvidersRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProvidersRequest create() => GetCloudProvidersRequest._();
-  @$core.override
-  GetCloudProvidersRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProvidersRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCloudProvidersRequest>(create);
-  static GetCloudProvidersRequest? _defaultInstance;
-}
-
-class GetCloudProvidersResponse extends $pb.GeneratedMessage {
-  factory GetCloudProvidersResponse({
-    $core.Iterable<CloudProvider>? cloudProviders,
-  }) {
-    final result = create();
-    if (cloudProviders != null) result.cloudProviders.addAll(cloudProviders);
-    return result;
-  }
-
-  GetCloudProvidersResponse._();
-
-  factory GetCloudProvidersResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetCloudProvidersResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetCloudProvidersResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..pPM<CloudProvider>(1, _omitFieldNames ? '' : 'cloudProviders',
-        subBuilder: CloudProvider.create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProvidersResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProvidersResponse copyWith(
-          void Function(GetCloudProvidersResponse) updates) =>
-      super.copyWith((message) => updates(message as GetCloudProvidersResponse))
-          as GetCloudProvidersResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProvidersResponse create() => GetCloudProvidersResponse._();
-  @$core.override
-  GetCloudProvidersResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProvidersResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCloudProvidersResponse>(create);
-  static GetCloudProvidersResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $pb.PbList<CloudProvider> get cloudProviders => $_getList(0);
-}
-
-class GetCloudProviderRequest extends $pb.GeneratedMessage {
-  factory GetCloudProviderRequest({
-    $core.String? name,
-  }) {
-    final result = create();
-    if (name != null) result.name = name;
-    return result;
-  }
-
-  GetCloudProviderRequest._();
-
-  factory GetCloudProviderRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetCloudProviderRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetCloudProviderRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'name')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProviderRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProviderRequest copyWith(
-          void Function(GetCloudProviderRequest) updates) =>
-      super.copyWith((message) => updates(message as GetCloudProviderRequest))
-          as GetCloudProviderRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProviderRequest create() => GetCloudProviderRequest._();
-  @$core.override
-  GetCloudProviderRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProviderRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCloudProviderRequest>(create);
-  static GetCloudProviderRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get name => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set name($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasName() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearName() => $_clearField(1);
-}
-
-class GetCloudProviderResponse extends $pb.GeneratedMessage {
-  factory GetCloudProviderResponse({
-    CloudProvider? cloudProvider,
-  }) {
-    final result = create();
-    if (cloudProvider != null) result.cloudProvider = cloudProvider;
-    return result;
-  }
-
-  GetCloudProviderResponse._();
-
-  factory GetCloudProviderResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetCloudProviderResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetCloudProviderResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOM<CloudProvider>(1, _omitFieldNames ? '' : 'cloudProvider',
-        subBuilder: CloudProvider.create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProviderResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudProviderResponse copyWith(
-          void Function(GetCloudProviderResponse) updates) =>
-      super.copyWith((message) => updates(message as GetCloudProviderResponse))
-          as GetCloudProviderResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProviderResponse create() => GetCloudProviderResponse._();
-  @$core.override
-  GetCloudProviderResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetCloudProviderResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCloudProviderResponse>(create);
-  static GetCloudProviderResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  CloudProvider get cloudProvider => $_getN(0);
-  @$pb.TagNumber(1)
-  set cloudProvider(CloudProvider value) => $_setField(1, value);
-  @$pb.TagNumber(1)
-  $core.bool hasCloudProvider() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearCloudProvider() => $_clearField(1);
-  @$pb.TagNumber(1)
-  CloudProvider ensureCloudProvider() => $_ensure(0);
-}
-
-class AddCloudProviderRequest extends $pb.GeneratedMessage {
-  factory AddCloudProviderRequest({
-    $core.String? name,
-    $core.String? type,
-    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? credentials,
-  }) {
-    final result = create();
-    if (name != null) result.name = name;
-    if (type != null) result.type = type;
-    if (credentials != null) result.credentials.addEntries(credentials);
-    return result;
-  }
-
-  AddCloudProviderRequest._();
-
-  factory AddCloudProviderRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory AddCloudProviderRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'AddCloudProviderRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'name')
-    ..aOS(2, _omitFieldNames ? '' : 'type')
-    ..m<$core.String, $core.String>(3, _omitFieldNames ? '' : 'credentials',
-        entryClassName: 'AddCloudProviderRequest.CredentialsEntry',
-        keyFieldType: $pb.PbFieldType.OS,
-        valueFieldType: $pb.PbFieldType.OS,
-        packageName: const $pb.PackageName('apic'))
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  AddCloudProviderRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  AddCloudProviderRequest copyWith(
-          void Function(AddCloudProviderRequest) updates) =>
-      super.copyWith((message) => updates(message as AddCloudProviderRequest))
-          as AddCloudProviderRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static AddCloudProviderRequest create() => AddCloudProviderRequest._();
-  @$core.override
-  AddCloudProviderRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static AddCloudProviderRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AddCloudProviderRequest>(create);
-  static AddCloudProviderRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get name => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set name($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasName() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearName() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.String get type => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set type($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasType() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearType() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $pb.PbMap<$core.String, $core.String> get credentials => $_getMap(2);
-}
-
-class AddCloudProviderResponse extends $pb.GeneratedMessage {
-  factory AddCloudProviderResponse() => create();
-
-  AddCloudProviderResponse._();
-
-  factory AddCloudProviderResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory AddCloudProviderResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'AddCloudProviderResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  AddCloudProviderResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  AddCloudProviderResponse copyWith(
-          void Function(AddCloudProviderResponse) updates) =>
-      super.copyWith((message) => updates(message as AddCloudProviderResponse))
-          as AddCloudProviderResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static AddCloudProviderResponse create() => AddCloudProviderResponse._();
-  @$core.override
-  AddCloudProviderResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static AddCloudProviderResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AddCloudProviderResponse>(create);
-  static AddCloudProviderResponse? _defaultInstance;
-}
-
-class RemoveCloudProviderRequest extends $pb.GeneratedMessage {
-  factory RemoveCloudProviderRequest({
-    $core.String? name,
-  }) {
-    final result = create();
-    if (name != null) result.name = name;
-    return result;
-  }
-
-  RemoveCloudProviderRequest._();
-
-  factory RemoveCloudProviderRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory RemoveCloudProviderRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'RemoveCloudProviderRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'name')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudProviderRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudProviderRequest copyWith(
-          void Function(RemoveCloudProviderRequest) updates) =>
-      super.copyWith(
-              (message) => updates(message as RemoveCloudProviderRequest))
-          as RemoveCloudProviderRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudProviderRequest create() => RemoveCloudProviderRequest._();
-  @$core.override
-  RemoveCloudProviderRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudProviderRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoveCloudProviderRequest>(create);
-  static RemoveCloudProviderRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get name => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set name($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasName() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearName() => $_clearField(1);
-}
-
-class RemoveCloudProviderResponse extends $pb.GeneratedMessage {
-  factory RemoveCloudProviderResponse() => create();
-
-  RemoveCloudProviderResponse._();
-
-  factory RemoveCloudProviderResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory RemoveCloudProviderResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'RemoveCloudProviderResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudProviderResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudProviderResponse copyWith(
-          void Function(RemoveCloudProviderResponse) updates) =>
-      super.copyWith(
-              (message) => updates(message as RemoveCloudProviderResponse))
-          as RemoveCloudProviderResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudProviderResponse create() =>
-      RemoveCloudProviderResponse._();
-  @$core.override
-  RemoveCloudProviderResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudProviderResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoveCloudProviderResponse>(create);
-  static RemoveCloudProviderResponse? _defaultInstance;
-}
-
 class ProvisionerMachineSpec extends $pb.GeneratedMessage {
   factory ProvisionerMachineSpec({
     $core.int? cores,
@@ -4090,7 +2990,7 @@ class CloudInstance extends $pb.GeneratedMessage {
     $core.Iterable<$core.MapEntry<$core.String, $core.String>>? peers,
     $core.String? providerStatus,
     $core.String? adminApiReachability,
-    $core.bool? replicationConnected,
+    $core.bool? replicationRouted,
     $core.String? adminLastError,
     $core.String? adminLastSeen,
     $core.String? peerId,
@@ -4113,8 +3013,7 @@ class CloudInstance extends $pb.GeneratedMessage {
     if (providerStatus != null) result.providerStatus = providerStatus;
     if (adminApiReachability != null)
       result.adminApiReachability = adminApiReachability;
-    if (replicationConnected != null)
-      result.replicationConnected = replicationConnected;
+    if (replicationRouted != null) result.replicationRouted = replicationRouted;
     if (adminLastError != null) result.adminLastError = adminLastError;
     if (adminLastSeen != null) result.adminLastSeen = adminLastSeen;
     if (peerId != null) result.peerId = peerId;
@@ -4153,7 +3052,7 @@ class CloudInstance extends $pb.GeneratedMessage {
         packageName: const $pb.PackageName('apic'))
     ..aOS(14, _omitFieldNames ? '' : 'providerStatus')
     ..aOS(15, _omitFieldNames ? '' : 'adminApiReachability')
-    ..aOB(16, _omitFieldNames ? '' : 'replicationConnected')
+    ..aOB(16, _omitFieldNames ? '' : 'replicationRouted')
     ..aOS(17, _omitFieldNames ? '' : 'adminLastError')
     ..aOS(18, _omitFieldNames ? '' : 'adminLastSeen')
     ..aOS(19, _omitFieldNames ? '' : 'peerId')
@@ -4308,13 +3207,13 @@ class CloudInstance extends $pb.GeneratedMessage {
   void clearAdminApiReachability() => $_clearField(15);
 
   @$pb.TagNumber(16)
-  $core.bool get replicationConnected => $_getBF(15);
+  $core.bool get replicationRouted => $_getBF(15);
   @$pb.TagNumber(16)
-  set replicationConnected($core.bool value) => $_setBool(15, value);
+  set replicationRouted($core.bool value) => $_setBool(15, value);
   @$pb.TagNumber(16)
-  $core.bool hasReplicationConnected() => $_has(15);
+  $core.bool hasReplicationRouted() => $_has(15);
   @$pb.TagNumber(16)
-  void clearReplicationConnected() => $_clearField(16);
+  void clearReplicationRouted() => $_clearField(16);
 
   @$pb.TagNumber(17)
   $core.String get adminLastError => $_getSZ(16);
@@ -9383,7 +8282,6 @@ class RuntimeState extends $pb.GeneratedMessage {
     $core.String? protocolCheckpointRootHash,
     $core.String? durableMainRootHash,
     $core.Iterable<$core.String>? stateProviders,
-    $core.Iterable<$core.String>? connectedPeers,
     $core.String? fatalState,
     $core.bool? runtimeRefreshPending,
     $core.String? runtimeRefreshLastError,
@@ -9414,7 +8312,6 @@ class RuntimeState extends $pb.GeneratedMessage {
     if (durableMainRootHash != null)
       result.durableMainRootHash = durableMainRootHash;
     if (stateProviders != null) result.stateProviders.addAll(stateProviders);
-    if (connectedPeers != null) result.connectedPeers.addAll(connectedPeers);
     if (fatalState != null) result.fatalState = fatalState;
     if (runtimeRefreshPending != null)
       result.runtimeRefreshPending = runtimeRefreshPending;
@@ -9467,7 +8364,6 @@ class RuntimeState extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'protocolCheckpointRootHash')
     ..aOS(6, _omitFieldNames ? '' : 'durableMainRootHash')
     ..pPS(10, _omitFieldNames ? '' : 'stateProviders')
-    ..pPS(11, _omitFieldNames ? '' : 'connectedPeers')
     ..aOS(12, _omitFieldNames ? '' : 'fatalState')
     ..aOB(13, _omitFieldNames ? '' : 'runtimeRefreshPending')
     ..aOS(14, _omitFieldNames ? '' : 'runtimeRefreshLastError')
@@ -9570,143 +8466,137 @@ class RuntimeState extends $pb.GeneratedMessage {
   @$pb.TagNumber(10)
   $pb.PbList<$core.String> get stateProviders => $_getList(6);
 
-  /// Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections.
-  @$pb.TagNumber(11)
-  $pb.PbList<$core.String> get connectedPeers => $_getList(7);
-
   @$pb.TagNumber(12)
-  $core.String get fatalState => $_getSZ(8);
+  $core.String get fatalState => $_getSZ(7);
   @$pb.TagNumber(12)
-  set fatalState($core.String value) => $_setString(8, value);
+  set fatalState($core.String value) => $_setString(7, value);
   @$pb.TagNumber(12)
-  $core.bool hasFatalState() => $_has(8);
+  $core.bool hasFatalState() => $_has(7);
   @$pb.TagNumber(12)
   void clearFatalState() => $_clearField(12);
 
   @$pb.TagNumber(13)
-  $core.bool get runtimeRefreshPending => $_getBF(9);
+  $core.bool get runtimeRefreshPending => $_getBF(8);
   @$pb.TagNumber(13)
-  set runtimeRefreshPending($core.bool value) => $_setBool(9, value);
+  set runtimeRefreshPending($core.bool value) => $_setBool(8, value);
   @$pb.TagNumber(13)
-  $core.bool hasRuntimeRefreshPending() => $_has(9);
+  $core.bool hasRuntimeRefreshPending() => $_has(8);
   @$pb.TagNumber(13)
   void clearRuntimeRefreshPending() => $_clearField(13);
 
   @$pb.TagNumber(14)
-  $core.String get runtimeRefreshLastError => $_getSZ(10);
+  $core.String get runtimeRefreshLastError => $_getSZ(9);
   @$pb.TagNumber(14)
-  set runtimeRefreshLastError($core.String value) => $_setString(10, value);
+  set runtimeRefreshLastError($core.String value) => $_setString(9, value);
   @$pb.TagNumber(14)
-  $core.bool hasRuntimeRefreshLastError() => $_has(10);
+  $core.bool hasRuntimeRefreshLastError() => $_has(9);
   @$pb.TagNumber(14)
   void clearRuntimeRefreshLastError() => $_clearField(14);
 
   @$pb.TagNumber(15)
-  $core.bool get runtimeCheckpointPending => $_getBF(11);
+  $core.bool get runtimeCheckpointPending => $_getBF(10);
   @$pb.TagNumber(15)
-  set runtimeCheckpointPending($core.bool value) => $_setBool(11, value);
+  set runtimeCheckpointPending($core.bool value) => $_setBool(10, value);
   @$pb.TagNumber(15)
-  $core.bool hasRuntimeCheckpointPending() => $_has(11);
+  $core.bool hasRuntimeCheckpointPending() => $_has(10);
   @$pb.TagNumber(15)
   void clearRuntimeCheckpointPending() => $_clearField(15);
 
   @$pb.TagNumber(16)
-  $core.String get runtimeCheckpointLastError => $_getSZ(12);
+  $core.String get runtimeCheckpointLastError => $_getSZ(11);
   @$pb.TagNumber(16)
-  set runtimeCheckpointLastError($core.String value) => $_setString(12, value);
+  set runtimeCheckpointLastError($core.String value) => $_setString(11, value);
   @$pb.TagNumber(16)
-  $core.bool hasRuntimeCheckpointLastError() => $_has(12);
+  $core.bool hasRuntimeCheckpointLastError() => $_has(11);
   @$pb.TagNumber(16)
   void clearRuntimeCheckpointLastError() => $_clearField(16);
 
   @$pb.TagNumber(17)
-  $core.String get runtimeMaterializationPolicy => $_getSZ(13);
+  $core.String get runtimeMaterializationPolicy => $_getSZ(12);
   @$pb.TagNumber(17)
   set runtimeMaterializationPolicy($core.String value) =>
-      $_setString(13, value);
+      $_setString(12, value);
   @$pb.TagNumber(17)
-  $core.bool hasRuntimeMaterializationPolicy() => $_has(13);
+  $core.bool hasRuntimeMaterializationPolicy() => $_has(12);
   @$pb.TagNumber(17)
   void clearRuntimeMaterializationPolicy() => $_clearField(17);
 
   @$pb.TagNumber(18)
-  $pb.PbList<RuntimePeerStatus> get peerStatuses => $_getList(14);
+  $pb.PbList<RuntimePeerStatus> get peerStatuses => $_getList(13);
 
   @$pb.TagNumber(19)
-  $pb.PbList<RuntimeCompatibility> get compatibility => $_getList(15);
+  $pb.PbList<RuntimeCompatibility> get compatibility => $_getList(14);
 
   @$pb.TagNumber(20)
-  $pb.PbList<$core.String> get contentSyncTrace => $_getList(16);
+  $pb.PbList<$core.String> get contentSyncTrace => $_getList(15);
 
   @$pb.TagNumber(24)
-  $core.String get protocolCheckpointDigest => $_getSZ(17);
+  $core.String get protocolCheckpointDigest => $_getSZ(16);
   @$pb.TagNumber(24)
-  set protocolCheckpointDigest($core.String value) => $_setString(17, value);
+  set protocolCheckpointDigest($core.String value) => $_setString(16, value);
   @$pb.TagNumber(24)
-  $core.bool hasProtocolCheckpointDigest() => $_has(17);
+  $core.bool hasProtocolCheckpointDigest() => $_has(16);
   @$pb.TagNumber(24)
   void clearProtocolCheckpointDigest() => $_clearField(24);
 
   @$pb.TagNumber(25)
-  $core.String get readConsistency => $_getSZ(18);
+  $core.String get readConsistency => $_getSZ(17);
   @$pb.TagNumber(25)
-  set readConsistency($core.String value) => $_setString(18, value);
+  set readConsistency($core.String value) => $_setString(17, value);
   @$pb.TagNumber(25)
-  $core.bool hasReadConsistency() => $_has(18);
+  $core.bool hasReadConsistency() => $_has(17);
   @$pb.TagNumber(25)
   void clearReadConsistency() => $_clearField(25);
 
   @$pb.TagNumber(26)
-  $core.String get readError => $_getSZ(19);
+  $core.String get readError => $_getSZ(18);
   @$pb.TagNumber(26)
-  set readError($core.String value) => $_setString(19, value);
+  set readError($core.String value) => $_setString(18, value);
   @$pb.TagNumber(26)
-  $core.bool hasReadError() => $_has(19);
+  $core.bool hasReadError() => $_has(18);
   @$pb.TagNumber(26)
   void clearReadError() => $_clearField(26);
 
   /// Exact-event content_dissent observations recorded by this backend process.
   @$pb.TagNumber(27)
-  $fixnum.Int64 get eventReceiptContentDissentObservations => $_getI64(20);
+  $fixnum.Int64 get eventReceiptContentDissentObservations => $_getI64(19);
   @$pb.TagNumber(27)
   set eventReceiptContentDissentObservations($fixnum.Int64 value) =>
-      $_setInt64(20, value);
+      $_setInt64(19, value);
   @$pb.TagNumber(27)
-  $core.bool hasEventReceiptContentDissentObservations() => $_has(20);
+  $core.bool hasEventReceiptContentDissentObservations() => $_has(19);
   @$pb.TagNumber(27)
   void clearEventReceiptContentDissentObservations() => $_clearField(27);
 
   /// Swarmion peers for which the application-owned transport has a route.
   @$pb.TagNumber(28)
-  $pb.PbList<$core.String> get routedPeers => $_getList(21);
+  $pb.PbList<$core.String> get routedPeers => $_getList(20);
 
   /// Routed peers participating in this Swarmion database scope.
   @$pb.TagNumber(29)
-  $pb.PbList<$core.String> get participatingPeers => $_getList(22);
+  $pb.PbList<$core.String> get participatingPeers => $_getList(21);
 
   /// The bounded Swarmion messaging overlay. This is not physical connectivity.
   @$pb.TagNumber(30)
-  $pb.PbList<$core.String> get logicalPeers => $_getList(23);
+  $pb.PbList<$core.String> get logicalPeers => $_getList(22);
 
   @$pb.TagNumber(31)
-  $core.int get logicalPeerTarget => $_getIZ(24);
+  $core.int get logicalPeerTarget => $_getIZ(23);
   @$pb.TagNumber(31)
-  set logicalPeerTarget($core.int value) => $_setSignedInt32(24, value);
+  set logicalPeerTarget($core.int value) => $_setSignedInt32(23, value);
   @$pb.TagNumber(31)
-  $core.bool hasLogicalPeerTarget() => $_has(24);
+  $core.bool hasLogicalPeerTarget() => $_has(23);
   @$pb.TagNumber(31)
   void clearLogicalPeerTarget() => $_clearField(31);
 
   /// Peers with a live connection on the application-owned physical host.
   @$pb.TagNumber(32)
-  $pb.PbList<$core.String> get physicalConnectedPeers => $_getList(25);
+  $pb.PbList<$core.String> get physicalConnectedPeers => $_getList(24);
 }
 
 class RuntimePeerStatus extends $pb.GeneratedMessage {
   factory RuntimePeerStatus({
     $core.String? peerId,
-    $core.bool? connected,
-    $core.bool? dialable,
     $core.bool? stateProvider,
     $core.bool? compatible,
     $core.bool? incompatible,
@@ -9725,8 +8615,6 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
   }) {
     final result = create();
     if (peerId != null) result.peerId = peerId;
-    if (connected != null) result.connected = connected;
-    if (dialable != null) result.dialable = dialable;
     if (stateProvider != null) result.stateProvider = stateProvider;
     if (compatible != null) result.compatible = compatible;
     if (incompatible != null) result.incompatible = incompatible;
@@ -9763,8 +8651,6 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'peerId')
-    ..aOB(2, _omitFieldNames ? '' : 'connected')
-    ..aOB(3, _omitFieldNames ? '' : 'dialable')
     ..aOB(4, _omitFieldNames ? '' : 'stateProvider')
     ..aOB(7, _omitFieldNames ? '' : 'compatible')
     ..aOB(8, _omitFieldNames ? '' : 'incompatible')
@@ -9814,146 +8700,126 @@ class RuntimePeerStatus extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearPeerId() => $_clearField(1);
 
-  /// Deprecated: compatibility alias for routed.
-  @$pb.TagNumber(2)
-  $core.bool get connected => $_getBF(1);
-  @$pb.TagNumber(2)
-  set connected($core.bool value) => $_setBool(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasConnected() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearConnected() => $_clearField(2);
-
-  /// Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability.
-  @$pb.TagNumber(3)
-  $core.bool get dialable => $_getBF(2);
-  @$pb.TagNumber(3)
-  set dialable($core.bool value) => $_setBool(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasDialable() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearDialable() => $_clearField(3);
-
   @$pb.TagNumber(4)
-  $core.bool get stateProvider => $_getBF(3);
+  $core.bool get stateProvider => $_getBF(1);
   @$pb.TagNumber(4)
-  set stateProvider($core.bool value) => $_setBool(3, value);
+  set stateProvider($core.bool value) => $_setBool(1, value);
   @$pb.TagNumber(4)
-  $core.bool hasStateProvider() => $_has(3);
+  $core.bool hasStateProvider() => $_has(1);
   @$pb.TagNumber(4)
   void clearStateProvider() => $_clearField(4);
 
   @$pb.TagNumber(7)
-  $core.bool get compatible => $_getBF(4);
+  $core.bool get compatible => $_getBF(2);
   @$pb.TagNumber(7)
-  set compatible($core.bool value) => $_setBool(4, value);
+  set compatible($core.bool value) => $_setBool(2, value);
   @$pb.TagNumber(7)
-  $core.bool hasCompatible() => $_has(4);
+  $core.bool hasCompatible() => $_has(2);
   @$pb.TagNumber(7)
   void clearCompatible() => $_clearField(7);
 
   @$pb.TagNumber(8)
-  $core.bool get incompatible => $_getBF(5);
+  $core.bool get incompatible => $_getBF(3);
   @$pb.TagNumber(8)
-  set incompatible($core.bool value) => $_setBool(5, value);
+  set incompatible($core.bool value) => $_setBool(3, value);
   @$pb.TagNumber(8)
-  $core.bool hasIncompatible() => $_has(5);
+  $core.bool hasIncompatible() => $_has(3);
   @$pb.TagNumber(8)
   void clearIncompatible() => $_clearField(8);
 
   @$pb.TagNumber(9)
-  $core.bool get ignored => $_getBF(6);
+  $core.bool get ignored => $_getBF(4);
   @$pb.TagNumber(9)
-  set ignored($core.bool value) => $_setBool(6, value);
+  set ignored($core.bool value) => $_setBool(4, value);
   @$pb.TagNumber(9)
-  $core.bool hasIgnored() => $_has(6);
+  $core.bool hasIgnored() => $_has(4);
   @$pb.TagNumber(9)
   void clearIgnored() => $_clearField(9);
 
   @$pb.TagNumber(10)
-  $core.bool get relayOnly => $_getBF(7);
+  $core.bool get relayOnly => $_getBF(5);
   @$pb.TagNumber(10)
-  set relayOnly($core.bool value) => $_setBool(7, value);
+  set relayOnly($core.bool value) => $_setBool(5, value);
   @$pb.TagNumber(10)
-  $core.bool hasRelayOnly() => $_has(7);
+  $core.bool hasRelayOnly() => $_has(5);
   @$pb.TagNumber(10)
   void clearRelayOnly() => $_clearField(10);
 
   @$pb.TagNumber(11)
-  $pb.PbList<$core.String> get addresses => $_getList(8);
+  $pb.PbList<$core.String> get addresses => $_getList(6);
 
   @$pb.TagNumber(12)
-  $pb.PbMap<$core.String, $core.String> get lastDialErrors => $_getMap(9);
+  $pb.PbMap<$core.String, $core.String> get lastDialErrors => $_getMap(7);
 
   @$pb.TagNumber(13)
-  $core.String get reason => $_getSZ(10);
+  $core.String get reason => $_getSZ(8);
   @$pb.TagNumber(13)
-  set reason($core.String value) => $_setString(10, value);
+  set reason($core.String value) => $_setString(8, value);
   @$pb.TagNumber(13)
-  $core.bool hasReason() => $_has(10);
+  $core.bool hasReason() => $_has(8);
   @$pb.TagNumber(13)
   void clearReason() => $_clearField(13);
 
   @$pb.TagNumber(14)
-  $core.int get replicationPriority => $_getIZ(11);
+  $core.int get replicationPriority => $_getIZ(9);
   @$pb.TagNumber(14)
-  set replicationPriority($core.int value) => $_setSignedInt32(11, value);
+  set replicationPriority($core.int value) => $_setSignedInt32(9, value);
   @$pb.TagNumber(14)
-  $core.bool hasReplicationPriority() => $_has(11);
+  $core.bool hasReplicationPriority() => $_has(9);
   @$pb.TagNumber(14)
   void clearReplicationPriority() => $_clearField(14);
 
   @$pb.TagNumber(15)
-  $core.String get replicationDeviceClass => $_getSZ(12);
+  $core.String get replicationDeviceClass => $_getSZ(10);
   @$pb.TagNumber(15)
-  set replicationDeviceClass($core.String value) => $_setString(12, value);
+  set replicationDeviceClass($core.String value) => $_setString(10, value);
   @$pb.TagNumber(15)
-  $core.bool hasReplicationDeviceClass() => $_has(12);
+  $core.bool hasReplicationDeviceClass() => $_has(10);
   @$pb.TagNumber(15)
   void clearReplicationDeviceClass() => $_clearField(15);
 
   @$pb.TagNumber(16)
-  $core.bool get routed => $_getBF(13);
+  $core.bool get routed => $_getBF(11);
   @$pb.TagNumber(16)
-  set routed($core.bool value) => $_setBool(13, value);
+  set routed($core.bool value) => $_setBool(11, value);
   @$pb.TagNumber(16)
-  $core.bool hasRouted() => $_has(13);
+  $core.bool hasRouted() => $_has(11);
   @$pb.TagNumber(16)
   void clearRouted() => $_clearField(16);
 
   @$pb.TagNumber(17)
-  $core.bool get participating => $_getBF(14);
+  $core.bool get participating => $_getBF(12);
   @$pb.TagNumber(17)
-  set participating($core.bool value) => $_setBool(14, value);
+  set participating($core.bool value) => $_setBool(12, value);
   @$pb.TagNumber(17)
-  $core.bool hasParticipating() => $_has(14);
+  $core.bool hasParticipating() => $_has(12);
   @$pb.TagNumber(17)
   void clearParticipating() => $_clearField(17);
 
   @$pb.TagNumber(18)
-  $core.bool get logical => $_getBF(15);
+  $core.bool get logical => $_getBF(13);
   @$pb.TagNumber(18)
-  set logical($core.bool value) => $_setBool(15, value);
+  set logical($core.bool value) => $_setBool(13, value);
   @$pb.TagNumber(18)
-  $core.bool hasLogical() => $_has(15);
+  $core.bool hasLogical() => $_has(13);
   @$pb.TagNumber(18)
   void clearLogical() => $_clearField(18);
 
   @$pb.TagNumber(19)
-  $core.bool get physicalConnected => $_getBF(16);
+  $core.bool get physicalConnected => $_getBF(14);
   @$pb.TagNumber(19)
-  set physicalConnected($core.bool value) => $_setBool(16, value);
+  set physicalConnected($core.bool value) => $_setBool(14, value);
   @$pb.TagNumber(19)
-  $core.bool hasPhysicalConnected() => $_has(16);
+  $core.bool hasPhysicalConnected() => $_has(14);
   @$pb.TagNumber(19)
   void clearPhysicalConnected() => $_clearField(19);
 
   @$pb.TagNumber(20)
-  $fixnum.Int64 get lastRoutedAtUnixNano => $_getI64(17);
+  $fixnum.Int64 get lastRoutedAtUnixNano => $_getI64(15);
   @$pb.TagNumber(20)
-  set lastRoutedAtUnixNano($fixnum.Int64 value) => $_setInt64(17, value);
+  set lastRoutedAtUnixNano($fixnum.Int64 value) => $_setInt64(15, value);
   @$pb.TagNumber(20)
-  $core.bool hasLastRoutedAtUnixNano() => $_has(17);
+  $core.bool hasLastRoutedAtUnixNano() => $_has(15);
   @$pb.TagNumber(20)
   void clearLastRoutedAtUnixNano() => $_clearField(20);
 }
@@ -10161,8 +9027,8 @@ class CloudImage extends $pb.GeneratedMessage {
   void clearReleaseDate() => $_clearField(4);
 }
 
-class CloudSpecificImage extends $pb.GeneratedMessage {
-  factory CloudSpecificImage({
+class ProvisionerImage extends $pb.GeneratedMessage {
+  factory ProvisionerImage({
     $core.String? id,
     $core.String? name,
     $core.String? location,
@@ -10182,17 +9048,17 @@ class CloudSpecificImage extends $pb.GeneratedMessage {
     return result;
   }
 
-  CloudSpecificImage._();
+  ProvisionerImage._();
 
-  factory CloudSpecificImage.fromBuffer($core.List<$core.int> data,
+  factory ProvisionerImage.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory CloudSpecificImage.fromJson($core.String json,
+  factory ProvisionerImage.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CloudSpecificImage',
+      _omitMessageNames ? '' : 'ProvisionerImage',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'id')
@@ -10205,23 +9071,23 @@ class CloudSpecificImage extends $pb.GeneratedMessage {
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudSpecificImage clone() => deepCopy();
+  ProvisionerImage clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CloudSpecificImage copyWith(void Function(CloudSpecificImage) updates) =>
-      super.copyWith((message) => updates(message as CloudSpecificImage))
-          as CloudSpecificImage;
+  ProvisionerImage copyWith(void Function(ProvisionerImage) updates) =>
+      super.copyWith((message) => updates(message as ProvisionerImage))
+          as ProvisionerImage;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static CloudSpecificImage create() => CloudSpecificImage._();
+  static ProvisionerImage create() => ProvisionerImage._();
   @$core.override
-  CloudSpecificImage createEmptyInstance() => create();
+  ProvisionerImage createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CloudSpecificImage getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloudSpecificImage>(create);
-  static CloudSpecificImage? _defaultInstance;
+  static ProvisionerImage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ProvisionerImage>(create);
+  static ProvisionerImage? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get id => $_getSZ(0);
@@ -10466,118 +9332,6 @@ class GetProtosdReleasesResponse extends $pb.GeneratedMessage {
   $pb.PbList<Release> get releases => $_getList(0);
 }
 
-class GetCloudImagesRequest extends $pb.GeneratedMessage {
-  factory GetCloudImagesRequest({
-    $core.String? name,
-  }) {
-    final result = create();
-    if (name != null) result.name = name;
-    return result;
-  }
-
-  GetCloudImagesRequest._();
-
-  factory GetCloudImagesRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetCloudImagesRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetCloudImagesRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'name')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudImagesRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudImagesRequest copyWith(
-          void Function(GetCloudImagesRequest) updates) =>
-      super.copyWith((message) => updates(message as GetCloudImagesRequest))
-          as GetCloudImagesRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetCloudImagesRequest create() => GetCloudImagesRequest._();
-  @$core.override
-  GetCloudImagesRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetCloudImagesRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCloudImagesRequest>(create);
-  static GetCloudImagesRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get name => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set name($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasName() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearName() => $_clearField(1);
-}
-
-class GetCloudImagesResponse extends $pb.GeneratedMessage {
-  factory GetCloudImagesResponse({
-    $core.Iterable<$core.MapEntry<$core.String, CloudSpecificImage>>?
-        cloudImages,
-  }) {
-    final result = create();
-    if (cloudImages != null) result.cloudImages.addEntries(cloudImages);
-    return result;
-  }
-
-  GetCloudImagesResponse._();
-
-  factory GetCloudImagesResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory GetCloudImagesResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetCloudImagesResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..m<$core.String, CloudSpecificImage>(
-        1, _omitFieldNames ? '' : 'cloudImages',
-        entryClassName: 'GetCloudImagesResponse.CloudImagesEntry',
-        keyFieldType: $pb.PbFieldType.OS,
-        valueFieldType: $pb.PbFieldType.OM,
-        valueCreator: CloudSpecificImage.create,
-        valueDefaultOrMaker: CloudSpecificImage.getDefault,
-        packageName: const $pb.PackageName('apic'))
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudImagesResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetCloudImagesResponse copyWith(
-          void Function(GetCloudImagesResponse) updates) =>
-      super.copyWith((message) => updates(message as GetCloudImagesResponse))
-          as GetCloudImagesResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static GetCloudImagesResponse create() => GetCloudImagesResponse._();
-  @$core.override
-  GetCloudImagesResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static GetCloudImagesResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCloudImagesResponse>(create);
-  static GetCloudImagesResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $pb.PbMap<$core.String, CloudSpecificImage> get cloudImages => $_getMap(0);
-}
-
 class GetProvisionerImagesRequest extends $pb.GeneratedMessage {
   factory GetProvisionerImagesRequest({
     $core.String? name,
@@ -10637,7 +9391,7 @@ class GetProvisionerImagesRequest extends $pb.GeneratedMessage {
 
 class GetProvisionerImagesResponse extends $pb.GeneratedMessage {
   factory GetProvisionerImagesResponse({
-    $core.Iterable<$core.MapEntry<$core.String, CloudSpecificImage>>? images,
+    $core.Iterable<$core.MapEntry<$core.String, ProvisionerImage>>? images,
   }) {
     final result = create();
     if (images != null) result.images.addEntries(images);
@@ -10657,12 +9411,12 @@ class GetProvisionerImagesResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'GetProvisionerImagesResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
       createEmptyInstance: create)
-    ..m<$core.String, CloudSpecificImage>(1, _omitFieldNames ? '' : 'images',
+    ..m<$core.String, ProvisionerImage>(1, _omitFieldNames ? '' : 'images',
         entryClassName: 'GetProvisionerImagesResponse.ImagesEntry',
         keyFieldType: $pb.PbFieldType.OS,
         valueFieldType: $pb.PbFieldType.OM,
-        valueCreator: CloudSpecificImage.create,
-        valueDefaultOrMaker: CloudSpecificImage.getDefault,
+        valueCreator: ProvisionerImage.create,
+        valueDefaultOrMaker: ProvisionerImage.getDefault,
         packageName: const $pb.PackageName('apic'))
     ..hasRequiredFields = false;
 
@@ -10689,177 +9443,7 @@ class GetProvisionerImagesResponse extends $pb.GeneratedMessage {
   static GetProvisionerImagesResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $pb.PbMap<$core.String, CloudSpecificImage> get images => $_getMap(0);
-}
-
-class UploadCloudImageRequest extends $pb.GeneratedMessage {
-  factory UploadCloudImageRequest({
-    $core.String? imagePath,
-    $core.String? imageName,
-    $core.String? cloudName,
-    $core.String? cloudLocation,
-    $core.int? timeout,
-  }) {
-    final result = create();
-    if (imagePath != null) result.imagePath = imagePath;
-    if (imageName != null) result.imageName = imageName;
-    if (cloudName != null) result.cloudName = cloudName;
-    if (cloudLocation != null) result.cloudLocation = cloudLocation;
-    if (timeout != null) result.timeout = timeout;
-    return result;
-  }
-
-  UploadCloudImageRequest._();
-
-  factory UploadCloudImageRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory UploadCloudImageRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UploadCloudImageRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'imagePath')
-    ..aOS(2, _omitFieldNames ? '' : 'imageName')
-    ..aOS(3, _omitFieldNames ? '' : 'cloudName')
-    ..aOS(4, _omitFieldNames ? '' : 'cloudLocation')
-    ..aI(5, _omitFieldNames ? '' : 'timeout')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  UploadCloudImageRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  UploadCloudImageRequest copyWith(
-          void Function(UploadCloudImageRequest) updates) =>
-      super.copyWith((message) => updates(message as UploadCloudImageRequest))
-          as UploadCloudImageRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static UploadCloudImageRequest create() => UploadCloudImageRequest._();
-  @$core.override
-  UploadCloudImageRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static UploadCloudImageRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UploadCloudImageRequest>(create);
-  static UploadCloudImageRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get imagePath => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set imagePath($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasImagePath() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearImagePath() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.String get imageName => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set imageName($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasImageName() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearImageName() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $core.String get cloudName => $_getSZ(2);
-  @$pb.TagNumber(3)
-  set cloudName($core.String value) => $_setString(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasCloudName() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearCloudName() => $_clearField(3);
-
-  @$pb.TagNumber(4)
-  $core.String get cloudLocation => $_getSZ(3);
-  @$pb.TagNumber(4)
-  set cloudLocation($core.String value) => $_setString(3, value);
-  @$pb.TagNumber(4)
-  $core.bool hasCloudLocation() => $_has(3);
-  @$pb.TagNumber(4)
-  void clearCloudLocation() => $_clearField(4);
-
-  @$pb.TagNumber(5)
-  $core.int get timeout => $_getIZ(4);
-  @$pb.TagNumber(5)
-  set timeout($core.int value) => $_setSignedInt32(4, value);
-  @$pb.TagNumber(5)
-  $core.bool hasTimeout() => $_has(4);
-  @$pb.TagNumber(5)
-  void clearTimeout() => $_clearField(5);
-}
-
-class UploadCloudImageResponse extends $pb.GeneratedMessage {
-  factory UploadCloudImageResponse({
-    $core.String? id,
-    $core.String? taskId,
-  }) {
-    final result = create();
-    if (id != null) result.id = id;
-    if (taskId != null) result.taskId = taskId;
-    return result;
-  }
-
-  UploadCloudImageResponse._();
-
-  factory UploadCloudImageResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory UploadCloudImageResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UploadCloudImageResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'id')
-    ..aOS(2, _omitFieldNames ? '' : 'taskId')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  UploadCloudImageResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  UploadCloudImageResponse copyWith(
-          void Function(UploadCloudImageResponse) updates) =>
-      super.copyWith((message) => updates(message as UploadCloudImageResponse))
-          as UploadCloudImageResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static UploadCloudImageResponse create() => UploadCloudImageResponse._();
-  @$core.override
-  UploadCloudImageResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static UploadCloudImageResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UploadCloudImageResponse>(create);
-  static UploadCloudImageResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get id => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set id($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasId() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearId() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.String get taskId => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set taskId($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasTaskId() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearTaskId() => $_clearField(2);
+  $pb.PbMap<$core.String, ProvisionerImage> get images => $_getMap(0);
 }
 
 class UploadProvisionerImageRequest extends $pb.GeneratedMessage {
@@ -11034,124 +9618,6 @@ class UploadProvisionerImageResponse extends $pb.GeneratedMessage {
   $core.bool hasTaskId() => $_has(1);
   @$pb.TagNumber(2)
   void clearTaskId() => $_clearField(2);
-}
-
-class RemoveCloudImageRequest extends $pb.GeneratedMessage {
-  factory RemoveCloudImageRequest({
-    $core.String? imageName,
-    $core.String? cloudName,
-    $core.String? cloudLocation,
-  }) {
-    final result = create();
-    if (imageName != null) result.imageName = imageName;
-    if (cloudName != null) result.cloudName = cloudName;
-    if (cloudLocation != null) result.cloudLocation = cloudLocation;
-    return result;
-  }
-
-  RemoveCloudImageRequest._();
-
-  factory RemoveCloudImageRequest.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory RemoveCloudImageRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'RemoveCloudImageRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..aOS(2, _omitFieldNames ? '' : 'imageName')
-    ..aOS(3, _omitFieldNames ? '' : 'cloudName')
-    ..aOS(4, _omitFieldNames ? '' : 'cloudLocation')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudImageRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudImageRequest copyWith(
-          void Function(RemoveCloudImageRequest) updates) =>
-      super.copyWith((message) => updates(message as RemoveCloudImageRequest))
-          as RemoveCloudImageRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudImageRequest create() => RemoveCloudImageRequest._();
-  @$core.override
-  RemoveCloudImageRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudImageRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoveCloudImageRequest>(create);
-  static RemoveCloudImageRequest? _defaultInstance;
-
-  @$pb.TagNumber(2)
-  $core.String get imageName => $_getSZ(0);
-  @$pb.TagNumber(2)
-  set imageName($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(2)
-  $core.bool hasImageName() => $_has(0);
-  @$pb.TagNumber(2)
-  void clearImageName() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $core.String get cloudName => $_getSZ(1);
-  @$pb.TagNumber(3)
-  set cloudName($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(3)
-  $core.bool hasCloudName() => $_has(1);
-  @$pb.TagNumber(3)
-  void clearCloudName() => $_clearField(3);
-
-  @$pb.TagNumber(4)
-  $core.String get cloudLocation => $_getSZ(2);
-  @$pb.TagNumber(4)
-  set cloudLocation($core.String value) => $_setString(2, value);
-  @$pb.TagNumber(4)
-  $core.bool hasCloudLocation() => $_has(2);
-  @$pb.TagNumber(4)
-  void clearCloudLocation() => $_clearField(4);
-}
-
-class RemoveCloudImageResponse extends $pb.GeneratedMessage {
-  factory RemoveCloudImageResponse() => create();
-
-  RemoveCloudImageResponse._();
-
-  factory RemoveCloudImageResponse.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory RemoveCloudImageResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'RemoveCloudImageResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'apic'),
-      createEmptyInstance: create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudImageResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  RemoveCloudImageResponse copyWith(
-          void Function(RemoveCloudImageResponse) updates) =>
-      super.copyWith((message) => updates(message as RemoveCloudImageResponse))
-          as RemoveCloudImageResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudImageResponse create() => RemoveCloudImageResponse._();
-  @$core.override
-  RemoveCloudImageResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static RemoveCloudImageResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoveCloudImageResponse>(create);
-  static RemoveCloudImageResponse? _defaultInstance;
 }
 
 class RemoveProvisionerImageRequest extends $pb.GeneratedMessage {
@@ -14257,30 +12723,6 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetAppLogsRequest request) =>
       _client.invoke<GetAppLogsResponse>(
           ctx, 'ProtosClientApi', 'GetAppLogs', request, GetAppLogsResponse());
-  $async.Future<GetSupportedCloudProvidersResponse> getSupportedCloudProviders(
-          $pb.ClientContext? ctx, GetSupportedCloudProvidersRequest request) =>
-      _client.invoke<GetSupportedCloudProvidersResponse>(
-          ctx,
-          'ProtosClientApi',
-          'GetSupportedCloudProviders',
-          request,
-          GetSupportedCloudProvidersResponse());
-  $async.Future<GetCloudProvidersResponse> getCloudProviders(
-          $pb.ClientContext? ctx, GetCloudProvidersRequest request) =>
-      _client.invoke<GetCloudProvidersResponse>(ctx, 'ProtosClientApi',
-          'GetCloudProviders', request, GetCloudProvidersResponse());
-  $async.Future<GetCloudProviderResponse> getCloudProvider(
-          $pb.ClientContext? ctx, GetCloudProviderRequest request) =>
-      _client.invoke<GetCloudProviderResponse>(ctx, 'ProtosClientApi',
-          'GetCloudProvider', request, GetCloudProviderResponse());
-  $async.Future<AddCloudProviderResponse> addCloudProvider(
-          $pb.ClientContext? ctx, AddCloudProviderRequest request) =>
-      _client.invoke<AddCloudProviderResponse>(ctx, 'ProtosClientApi',
-          'AddCloudProvider', request, AddCloudProviderResponse());
-  $async.Future<RemoveCloudProviderResponse> removeCloudProvider(
-          $pb.ClientContext? ctx, RemoveCloudProviderRequest request) =>
-      _client.invoke<RemoveCloudProviderResponse>(ctx, 'ProtosClientApi',
-          'RemoveCloudProvider', request, RemoveCloudProviderResponse());
   $async.Future<GetSupportedProvisionersResponse> getSupportedProvisioners(
           $pb.ClientContext? ctx, GetSupportedProvisionersRequest request) =>
       _client.invoke<GetSupportedProvisionersResponse>(
@@ -14401,18 +12843,6 @@ class ProtosClientApiApi {
           $pb.ClientContext? ctx, GetProtosdReleasesRequest request) =>
       _client.invoke<GetProtosdReleasesResponse>(ctx, 'ProtosClientApi',
           'GetProtosdReleases', request, GetProtosdReleasesResponse());
-  $async.Future<GetCloudImagesResponse> getCloudImages(
-          $pb.ClientContext? ctx, GetCloudImagesRequest request) =>
-      _client.invoke<GetCloudImagesResponse>(ctx, 'ProtosClientApi',
-          'GetCloudImages', request, GetCloudImagesResponse());
-  $async.Future<UploadCloudImageResponse> uploadCloudImage(
-          $pb.ClientContext? ctx, UploadCloudImageRequest request) =>
-      _client.invoke<UploadCloudImageResponse>(ctx, 'ProtosClientApi',
-          'UploadCloudImage', request, UploadCloudImageResponse());
-  $async.Future<RemoveCloudImageResponse> removeCloudImage(
-          $pb.ClientContext? ctx, RemoveCloudImageRequest request) =>
-      _client.invoke<RemoveCloudImageResponse>(ctx, 'ProtosClientApi',
-          'RemoveCloudImage', request, RemoveCloudImageResponse());
   $async.Future<GetProvisionerImagesResponse> getProvisionerImages(
           $pb.ClientContext? ctx, GetProvisionerImagesRequest request) =>
       _client.invoke<GetProvisionerImagesResponse>(ctx, 'ProtosClientApi',

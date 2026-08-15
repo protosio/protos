@@ -8,7 +8,7 @@ import (
 )
 
 // ErrInstanceLifecycleOwnerUnavailable means no immutable peer authority can
-// be proven for an instance. Legacy or ambiguous rows deliberately remain in
+// be proven for an instance. Historical or ambiguous rows deliberately remain in
 // this state until an explicit recovery protocol is introduced.
 var ErrInstanceLifecycleOwnerUnavailable = fmt.Errorf("instance lifecycle owner unavailable")
 
@@ -70,7 +70,7 @@ func (cm *Manager) assertInstanceLifecycleExecutor(instance InstanceInfo, taskOw
 			localPeerID,
 		)
 	}
-	if cm != nil && cm.providerMutationDisabled {
+	if cm != nil && cm.provisionerMutationDisabled {
 		return fmt.Errorf(
 			"%w: instance=%s executor=%s lacks the provision capability",
 			ErrInstanceLifecycleOwnerUnavailable,

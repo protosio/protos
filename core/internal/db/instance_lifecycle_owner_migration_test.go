@@ -16,22 +16,22 @@ func TestInstanceLifecycleOwnerMigrationBackfillsOnlyProvenAuthority(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacySchema, err := fs.ReadFile(migrationsDir, "protos_01_tables.sql")
+	preOwnerSchema, err := fs.ReadFile(migrationsDir, "protos_01_tables.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacyPieces, err := sqlparser.SplitStatementToPieces(string(legacySchema))
+	preOwnerPieces, err := sqlparser.SplitStatementToPieces(string(preOwnerSchema))
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacyStatements := make([]preparedWriteStatement, 0, len(legacyPieces)+1)
-	legacyStatements = append(legacyStatements, preparedWriteStatement{SQL: migrationHistoryCreateStatement})
-	for _, piece := range legacyPieces {
+	preOwnerStatements := make([]preparedWriteStatement, 0, len(preOwnerPieces)+1)
+	preOwnerStatements = append(preOwnerStatements, preparedWriteStatement{SQL: migrationHistoryCreateStatement})
+	for _, piece := range preOwnerPieces {
 		if piece = strings.TrimSpace(piece); piece != "" {
-			legacyStatements = append(legacyStatements, preparedWriteStatement{SQL: piece})
+			preOwnerStatements = append(preOwnerStatements, preparedWriteStatement{SQL: piece})
 		}
 	}
-	publishLegacyMigrationSchema(t, store, legacyStatements)
+	publishPreContractMigrationSchema(t, store, preOwnerStatements)
 
 	deleteAuthorizedID := MustNewUUIDv7()
 	deploymentOwnedID := MustNewUUIDv7()
@@ -67,22 +67,22 @@ VALUES (?, ?, 'instance_peer_drain_authorized_v1', 'operation-key', ?, ' peer-de
 			"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 			deleteAuthorizedID,
 		}})
-	if _, err := store.executeOrdinaryPublishedWriteContext(ctx, "legacy lifecycle-owner fixtures", false, false, fixtureStatements); err != nil {
-		t.Fatalf("publish legacy lifecycle-owner fixtures: %v", err)
+	if _, err := store.executeOrdinaryPublishedWriteContext(ctx, "pre-owner lifecycle fixtures", false, false, fixtureStatements); err != nil {
+		t.Fatalf("publish pre-owner lifecycle fixtures: %v", err)
 	}
 
 	operationKey, err := NewPublishedWriteOperationKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	operation, err := NewPublishedWriteOperation(operationKey, "protos:test:instance-lifecycle-owner-migration:v1")
+	operation, err := NewPublishedWriteOperation(operationKey, "protos:test:instance-lifecycle-owner-migration")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.executePublishedWriteOperationContext(ctx, operation, "instance lifecycle-owner migration", func(ctx context.Context, executor sqlContextExecer) error {
 		return store.applyMigration(ctx, store.GetSqlDB(), executor, migrationsDir, "protos_02_instance_lifecycle_owner.sql")
 	}); err != nil {
-		t.Fatalf("apply lifecycle-owner migration to legacy schema: %v", err)
+		t.Fatalf("apply lifecycle-owner migration to pre-owner schema: %v", err)
 	}
 
 	for _, test := range []struct {

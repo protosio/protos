@@ -61,7 +61,7 @@ func (b *Backend) GetInstanceDeployOptions(ctx context.Context, in *pbApic.GetIn
 	if err := b.requireProvisionerCapability("inspect instance deployment options"); err != nil {
 		return nil, err
 	}
-	if b.protosClient == nil || b.protosClient.CloudManager == nil {
+	if b.protosClient == nil || b.protosClient.ProvisionerManager == nil {
 		return nil, fmt.Errorf("provisioner manager is not configured")
 	}
 
@@ -81,7 +81,7 @@ func (b *Backend) GetInstanceDeployOptions(ctx context.Context, in *pbApic.GetIn
 	var provisionerType string
 
 	if selectedProvisioner != "" {
-		provisioner, err := b.protosClient.CloudManager.GetProvisionerOrDefault(selectedProvisioner)
+		provisioner, err := b.protosClient.ProvisionerManager.GetProvisionerOrDefault(selectedProvisioner)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve provisioner '%s': %w", selectedProvisioner, err)
 		}
@@ -202,7 +202,7 @@ func baseInstanceDeployFields() []*pbApic.InstanceDeployField {
 }
 
 func (b *Backend) instanceDeployProvisionerOptions() ([]*pbApic.InstanceDeployFieldOption, error) {
-	provisionersList, err := b.protosClient.CloudManager.GetProvisioners()
+	provisionersList, err := b.protosClient.ProvisionerManager.GetProvisioners()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve provisioners: %w", err)
 	}
@@ -220,18 +220,18 @@ func (b *Backend) instanceDeployProvisionerOptions() ([]*pbApic.InstanceDeployFi
 			Description: provisioner.TypeStr(),
 		})
 	}
-	for _, provisionerType := range b.protosClient.CloudManager.SupportedProvisioners() {
+	for _, provisionerType := range b.protosClient.ProvisionerManager.SupportedProvisioners() {
 		if _, found := seen[provisionerType]; found {
 			continue
 		}
-		authFields, err := b.protosClient.CloudManager.ProvisionerAuthFields(provisionerType)
+		authFields, err := b.protosClient.ProvisionerManager.ProvisionerAuthFields(provisionerType)
 		if err != nil {
 			return nil, err
 		}
 		if len(authFields) > 0 {
 			continue
 		}
-		provisioner, err := b.protosClient.CloudManager.GetProvisionerOrDefault(provisionerType)
+		provisioner, err := b.protosClient.ProvisionerManager.GetProvisionerOrDefault(provisionerType)
 		if err != nil || !supportsInstanceDeploy(provisioner) {
 			continue
 		}

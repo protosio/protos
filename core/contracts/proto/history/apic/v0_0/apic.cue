@@ -126,6 +126,39 @@ package apicv1
 #GetAppLogsRequest: name?:  string
 #GetAppLogsResponse: logs?: bytes
 
+#Installer: {
+	id?:          string
+	name?:        string
+	version?:     string
+	description?: string
+	requires_resources?: [...string]
+	provides_resources?: [...string]
+	capabilities?: [...string]
+}
+#GetInstallersRequest: {}
+#GetInstallersResponse: installers?: [...#Installer]
+#GetInstallerRequest: id?:         string
+#GetInstallerResponse: installer?: #Installer
+
+#CloudMachineSpec: {
+	cores?:                  int
+	memory?:                 int
+	default_storage?:        int
+	bandwidth?:              int
+	included_data_transfer?: int
+	baremetal?:              bool
+	price_monthly?:          number
+}
+#CloudType: {
+	name?: string
+	authentication_fields?: [...string]
+}
+#CloudProvider: {
+	name?: string
+	type?: #CloudType
+	supported_locations?: [...string]
+	supported_machines?: [string]: #CloudMachineSpec
+}
 #ProvisionerMachineSpec: {
 	cores?:                  int
 	memory?:                 int
@@ -145,6 +178,20 @@ package apicv1
 	supported_locations?: [...string]
 	supported_machines?: [string]: #ProvisionerMachineSpec
 }
+#GetSupportedCloudProvidersRequest: {}
+#GetSupportedCloudProvidersResponse: cloud_types?: [...#CloudType]
+#GetCloudProvidersRequest: {}
+#GetCloudProvidersResponse: cloud_providers?: [...#CloudProvider]
+#GetCloudProviderRequest: name?:            string
+#GetCloudProviderResponse: cloud_provider?: #CloudProvider
+#AddCloudProviderRequest: {
+	name?: string
+	type?: string
+	credentials?: [string]: string
+}
+#AddCloudProviderResponse: {}
+#RemoveCloudProviderRequest: name?: string
+#RemoveCloudProviderResponse: {}
 #GetSupportedProvisionersRequest: {}
 #GetSupportedProvisionersResponse: provisioner_types?: [...#ProvisionerType]
 #GetProvisionersRequest: {}
@@ -176,7 +223,7 @@ package apicv1
 	peers?: [string]: string
 	provider_status?:        string
 	admin_api_reachability?: string
-	replication_routed?:     bool
+	replication_connected?:  bool
 	admin_last_error?:       string
 	admin_last_seen?:        string
 	peer_id?:                string
@@ -484,6 +531,9 @@ package apicv1
 	protocol_checkpoint_root_hash?: string
 	durable_main_root_hash?:        string
 	state_providers?: [...string]
+	// Deprecated: compatibility alias for routed_peers. It does not describe
+	// physical libp2p connections.
+	connected_peers?: [...string]
 	fatal_state?:                    string
 	runtime_refresh_pending?:        bool
 	runtime_refresh_last_error?:     string
@@ -510,6 +560,11 @@ package apicv1
 }
 #RuntimePeerStatus: {
 	peer_id?:        string
+	// Deprecated: compatibility alias for routed.
+	connected?:      bool
+	// Deprecated: compatibility alias for routed. Swarmion no longer reports
+	// speculative dialability as database reachability.
+	dialable?:       bool
 	state_provider?: bool
 	compatible?:     bool
 	incompatible?:   bool
@@ -541,7 +596,7 @@ package apicv1
 	digest?:       string
 	release_date?: int
 }
-#ProvisionerImage: {
+#CloudSpecificImage: {
 	id?:              string
 	name?:            string
 	logical_name?:    string
@@ -558,8 +613,21 @@ package apicv1
 }
 #GetProtosdReleasesRequest: {}
 #GetProtosdReleasesResponse: releases?: [...#Release]
+#GetCloudImagesRequest: name?: string
+#GetCloudImagesResponse: cloud_images?: [string]: #CloudSpecificImage
 #GetProvisionerImagesRequest: name?: string
-#GetProvisionerImagesResponse: images?: [string]: #ProvisionerImage
+#GetProvisionerImagesResponse: images?: [string]: #CloudSpecificImage
+#UploadCloudImageRequest: {
+	image_path?:     string
+	image_name?:     string
+	cloud_name?:     string
+	cloud_location?: string
+	timeout?:        int
+}
+#UploadCloudImageResponse: {
+	id?:      string
+	task_id?: string
+}
 #UploadProvisionerImageRequest: {
 	image_path?:       string
 	image_name?:       string
@@ -571,6 +639,12 @@ package apicv1
 	id?:      string
 	task_id?: string
 }
+#RemoveCloudImageRequest: {
+	image_name?:     string
+	cloud_name?:     string
+	cloud_location?: string
+}
+#RemoveCloudImageResponse: {}
 #RemoveProvisionerImageRequest: {
 	image_name?:       string
 	provisioner_name?: string
@@ -750,13 +824,13 @@ package apicv1
 contract: {
 	surface: "client-api-grpc"
 	migration: {
-		id:                  "protos-client-api-v0.1"
+		id:                  "protos-client-api-v0.0"
 		lineage_id:          "protos.client_api"
-		from_version:        "0.0"
-		to_version:          "0.1"
-		compatibility:       "breaking"
-		backward_compatible: false
-		forward_compatible:  false
+		from_version:        ""
+		to_version:          "0.0"
+		compatibility:       "full"
+		backward_compatible: true
+		forward_compatible:  true
 	}
 	proto: {
 		syntax:     "proto3"
@@ -779,6 +853,11 @@ contract: {
 				{name: "StopApp", request: "StopAppRequest", response: "StopAppResponse"},
 				{name: "RemoveApp", request: "RemoveAppRequest", response: "RemoveAppResponse"},
 				{name: "GetAppLogs", request: "GetAppLogsRequest", response: "GetAppLogsResponse"},
+				{name: "GetSupportedCloudProviders", request: "GetSupportedCloudProvidersRequest", response: "GetSupportedCloudProvidersResponse"},
+				{name: "GetCloudProviders", request: "GetCloudProvidersRequest", response: "GetCloudProvidersResponse"},
+				{name: "GetCloudProvider", request: "GetCloudProviderRequest", response: "GetCloudProviderResponse"},
+				{name: "AddCloudProvider", request: "AddCloudProviderRequest", response: "AddCloudProviderResponse"},
+				{name: "RemoveCloudProvider", request: "RemoveCloudProviderRequest", response: "RemoveCloudProviderResponse"},
 				{name: "GetSupportedProvisioners", request: "GetSupportedProvisionersRequest", response: "GetSupportedProvisionersResponse"},
 				{name: "GetProvisioners", request: "GetProvisionersRequest", response: "GetProvisionersResponse"},
 				{name: "GetProvisioner", request: "GetProvisionerRequest", response: "GetProvisionerResponse"},
@@ -807,6 +886,9 @@ contract: {
 				{name: "SetExitRoute", request: "SetExitRouteRequest", response: "SetExitRouteResponse"},
 				{name: "ClearExitRoute", request: "ClearExitRouteRequest", response: "ClearExitRouteResponse"},
 				{name: "GetProtosdReleases", request: "GetProtosdReleasesRequest", response: "GetProtosdReleasesResponse"},
+				{name: "GetCloudImages", request: "GetCloudImagesRequest", response: "GetCloudImagesResponse"},
+				{name: "UploadCloudImage", request: "UploadCloudImageRequest", response: "UploadCloudImageResponse"},
+				{name: "RemoveCloudImage", request: "RemoveCloudImageRequest", response: "RemoveCloudImageResponse"},
 				{name: "GetProvisionerImages", request: "GetProvisionerImagesRequest", response: "GetProvisionerImagesResponse"},
 				{name: "UploadProvisionerImage", request: "UploadProvisionerImageRequest", response: "UploadProvisionerImageResponse"},
 				{name: "RemoveProvisionerImage", request: "RemoveProvisionerImageRequest", response: "RemoveProvisionerImageResponse"},
@@ -933,6 +1015,52 @@ contract: {
 			{kind: "message", name: "RemoveAppResponse", fields: [{type: "WriteConfirmation", name: "confirmation", number: 1}]},
 			{kind: "message", name: "GetAppLogsRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "GetAppLogsResponse", fields: [{type: "bytes", name: "logs", number: 1}]},
+			{kind: "message", name: "Installer", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "name", number: 2},
+				{type: "string", name: "version", number: 3},
+				{type: "string", name: "description", number: 4},
+				{rule: "repeated", type: "string", name: "requires_resources", number: 5},
+				{rule: "repeated", type: "string", name: "provides_resources", number: 6},
+				{rule: "repeated", type: "string", name: "capabilities", number: 7},
+			]},
+			{kind: "message", name: "GetInstallersRequest", fields: []},
+			{kind: "message", name: "GetInstallersResponse", fields: [{rule: "repeated", type: "Installer", name: "installers", number: 1}]},
+			{kind: "message", name: "GetInstallerRequest", fields: [{type: "string", name: "id", number: 1}]},
+			{kind: "message", name: "GetInstallerResponse", fields: [{type: "Installer", name: "installer", number: 1}]},
+			{kind: "message", name: "CloudMachineSpec", fields: [
+				{type: "int32", name: "cores", number: 1},
+				{type: "int32", name: "memory", number: 2},
+				{type: "int32", name: "default_storage", number: 3},
+				{type: "int32", name: "bandwidth", number: 4},
+				{type: "int32", name: "included_data_transfer", number: 5},
+				{type: "bool", name: "baremetal", number: 6},
+				{type: "float", name: "price_monthly", number: 7},
+			]},
+			{kind: "message", name: "CloudType", fields: [
+				{type: "string", name: "name", number: 1},
+				{rule: "repeated", type: "string", name: "authentication_fields", number: 2},
+			]},
+			{kind: "message", name: "CloudProvider", fields: [
+				{type: "string", name: "name", number: 1},
+				{type: "CloudType", name: "type", number: 2},
+				{rule: "repeated", type: "string", name: "supported_locations", number: 3},
+				{type: "map<string, CloudMachineSpec>", name: "supported_machines", number: 4},
+			]},
+			{kind: "message", name: "GetSupportedCloudProvidersRequest", fields: []},
+			{kind: "message", name: "GetSupportedCloudProvidersResponse", fields: [{rule: "repeated", type: "CloudType", name: "cloud_types", number: 1}]},
+			{kind: "message", name: "GetCloudProvidersRequest", fields: []},
+			{kind: "message", name: "GetCloudProvidersResponse", fields: [{rule: "repeated", type: "CloudProvider", name: "cloud_providers", number: 1}]},
+			{kind: "message", name: "GetCloudProviderRequest", fields: [{type: "string", name: "name", number: 1}]},
+			{kind: "message", name: "GetCloudProviderResponse", fields: [{type: "CloudProvider", name: "cloud_provider", number: 1}]},
+			{kind: "message", name: "AddCloudProviderRequest", fields: [
+				{type: "string", name: "name", number: 1},
+				{type: "string", name: "type", number: 2},
+				{type: "map<string, string>", name: "credentials", number: 3},
+			]},
+			{kind: "message", name: "AddCloudProviderResponse", fields: []},
+			{kind: "message", name: "RemoveCloudProviderRequest", fields: [{type: "string", name: "name", number: 1}]},
+			{kind: "message", name: "RemoveCloudProviderResponse", fields: []},
 			{kind: "message", name: "ProvisionerMachineSpec", fields: [
 				{type: "int32", name: "cores", number: 1},
 				{type: "int32", name: "memory", number: 2},
@@ -966,7 +1094,7 @@ contract: {
 			{kind: "message", name: "AddProvisionerResponse", fields: []},
 			{kind: "message", name: "RemoveProvisionerRequest", fields: [{type: "string", name: "name", number: 1}]},
 			{kind: "message", name: "RemoveProvisionerResponse", fields: []},
-			{kind: "message", name: "CloudInstance", reserved_names: ["replication_connected"], fields: [
+			{kind: "message", name: "CloudInstance", fields: [
 				{type: "string", name: "name", number: 1},
 				{type: "string", name: "public_ip", number: 2},
 				{type: "string", name: "internal_ip", number: 3},
@@ -982,7 +1110,7 @@ contract: {
 				{type: "map<string, string>", name: "peers", number: 13},
 				{type: "string", name: "provider_status", number: 14},
 				{type: "string", name: "admin_api_reachability", number: 15},
-				{type: "bool", name: "replication_routed", number: 16},
+				{type: "bool", name: "replication_connected", number: 16},
 				{type: "string", name: "admin_last_error", number: 17},
 				{type: "string", name: "admin_last_seen", number: 18},
 				{type: "string", name: "peer_id", number: 19},
@@ -1295,7 +1423,7 @@ contract: {
 				{type: "string", name: "device_id", number: 1},
 			]},
 			{kind: "message", name: "ClearExitRouteResponse", fields: [{type: "WriteConfirmation", name: "confirmation", number: 1}]},
-			{kind: "message", name: "RuntimeState", reserved_numbers: [11], reserved_names: ["connected_peers"], fields: [
+			{kind: "message", name: "RuntimeState", fields: [
 				{type: "string", name: "peer_id", number: 1},
 				{type: "string", name: "manifest_digest", number: 2},
 				{type: "string", name: "checkpoint_root_hash", number: 3},
@@ -1303,6 +1431,7 @@ contract: {
 				{type: "string", name: "protocol_checkpoint_root_hash", number: 5},
 				{type: "string", name: "durable_main_root_hash", number: 6},
 				{rule: "repeated", type: "string", name: "state_providers", number: 10},
+				{rule: "repeated", type: "string", name: "connected_peers", number: 11, comment: "Deprecated: compatibility alias for routed_peers. It does not describe physical libp2p connections."},
 				{type: "string", name: "fatal_state", number: 12},
 				{type: "bool", name: "runtime_refresh_pending", number: 13},
 				{type: "string", name: "runtime_refresh_last_error", number: 14},
@@ -1322,8 +1451,10 @@ contract: {
 				{type: "int32", name: "logical_peer_target", number: 31},
 				{rule: "repeated", type: "string", name: "physical_connected_peers", number: 32, comment: "Peers with a live connection on the application-owned physical host."},
 			]},
-			{kind: "message", name: "RuntimePeerStatus", reserved_numbers: [2, 3], reserved_names: ["connected", "dialable"], fields: [
+			{kind: "message", name: "RuntimePeerStatus", fields: [
 				{type: "string", name: "peer_id", number: 1},
+				{type: "bool", name: "connected", number: 2, comment: "Deprecated: compatibility alias for routed."},
+				{type: "bool", name: "dialable", number: 3, comment: "Deprecated: compatibility alias for routed. Swarmion no longer reports speculative dialability as database reachability."},
 				{type: "bool", name: "state_provider", number: 4},
 				{type: "bool", name: "compatible", number: 7},
 				{type: "bool", name: "incompatible", number: 8},
@@ -1354,7 +1485,7 @@ contract: {
 				{type: "string", name: "digest", number: 3},
 				{type: "int64", name: "release_date", number: 4},
 			]},
-			{kind: "message", name: "ProvisionerImage", fields: [
+			{kind: "message", name: "CloudSpecificImage", fields: [
 				{type: "string", name: "id", number: 1},
 				{type: "string", name: "name", number: 2},
 				{type: "string", name: "location", number: 3},
@@ -1371,8 +1502,21 @@ contract: {
 			]},
 			{kind: "message", name: "GetProtosdReleasesRequest", fields: []},
 			{kind: "message", name: "GetProtosdReleasesResponse", fields: [{rule: "repeated", type: "Release", name: "releases", number: 1}]},
+			{kind: "message", name: "GetCloudImagesRequest", fields: [{type: "string", name: "name", number: 1}]},
+			{kind: "message", name: "GetCloudImagesResponse", fields: [{type: "map<string, CloudSpecificImage>", name: "cloud_images", number: 1}]},
 			{kind: "message", name: "GetProvisionerImagesRequest", fields: [{type: "string", name: "name", number: 1}]},
-			{kind: "message", name: "GetProvisionerImagesResponse", fields: [{type: "map<string, ProvisionerImage>", name: "images", number: 1}]},
+			{kind: "message", name: "GetProvisionerImagesResponse", fields: [{type: "map<string, CloudSpecificImage>", name: "images", number: 1}]},
+			{kind: "message", name: "UploadCloudImageRequest", fields: [
+				{type: "string", name: "image_path", number: 1},
+				{type: "string", name: "image_name", number: 2},
+				{type: "string", name: "cloud_name", number: 3},
+				{type: "string", name: "cloud_location", number: 4},
+				{type: "int32", name: "timeout", number: 5},
+			]},
+			{kind: "message", name: "UploadCloudImageResponse", fields: [
+				{type: "string", name: "id", number: 1},
+				{type: "string", name: "task_id", number: 2},
+			]},
 			{kind: "message", name: "UploadProvisionerImageRequest", fields: [
 				{type: "string", name: "image_path", number: 1},
 				{type: "string", name: "image_name", number: 2},
@@ -1384,6 +1528,12 @@ contract: {
 				{type: "string", name: "id", number: 1},
 				{type: "string", name: "task_id", number: 2},
 			]},
+			{kind: "message", name: "RemoveCloudImageRequest", fields: [
+				{type: "string", name: "image_name", number: 2},
+				{type: "string", name: "cloud_name", number: 3},
+				{type: "string", name: "cloud_location", number: 4},
+			]},
+			{kind: "message", name: "RemoveCloudImageResponse", fields: []},
 			{kind: "message", name: "RemoveProvisionerImageRequest", fields: [
 				{type: "string", name: "image_name", number: 1},
 				{type: "string", name: "provisioner_name", number: 2},
@@ -1586,7 +1736,7 @@ contract: {
 lineage: {
 	name: "protos.client_api"
 	schemas: [{
-		version: [0, 1]
+		version: [0, 0]
 		schema: {
 			InitRequest?:                        #InitRequest
 			InitResponse?:                       #InitResponse
@@ -1621,6 +1771,24 @@ lineage: {
 			RemoveAppResponse?:                  #RemoveAppResponse
 			GetAppLogsRequest?:                  #GetAppLogsRequest
 			GetAppLogsResponse?:                 #GetAppLogsResponse
+			Installer?:                          #Installer
+			GetInstallersRequest?:               #GetInstallersRequest
+			GetInstallersResponse?:              #GetInstallersResponse
+			GetInstallerRequest?:                #GetInstallerRequest
+			GetInstallerResponse?:               #GetInstallerResponse
+			CloudMachineSpec?:                   #CloudMachineSpec
+			CloudType?:                          #CloudType
+			CloudProvider?:                      #CloudProvider
+			GetSupportedCloudProvidersRequest?:  #GetSupportedCloudProvidersRequest
+			GetSupportedCloudProvidersResponse?: #GetSupportedCloudProvidersResponse
+			GetCloudProvidersRequest?:           #GetCloudProvidersRequest
+			GetCloudProvidersResponse?:          #GetCloudProvidersResponse
+			GetCloudProviderRequest?:            #GetCloudProviderRequest
+			GetCloudProviderResponse?:           #GetCloudProviderResponse
+			AddCloudProviderRequest?:            #AddCloudProviderRequest
+			AddCloudProviderResponse?:           #AddCloudProviderResponse
+			RemoveCloudProviderRequest?:         #RemoveCloudProviderRequest
+			RemoveCloudProviderResponse?:        #RemoveCloudProviderResponse
 			ProvisionerMachineSpec?:             #ProvisionerMachineSpec
 			ProvisionerType?:                    #ProvisionerType
 			Provisioner?:                        #Provisioner
@@ -1700,14 +1868,20 @@ lineage: {
 			ClearExitRouteRequest?:              #ClearExitRouteRequest
 			ClearExitRouteResponse?:             #ClearExitRouteResponse
 			CloudImage?:                         #CloudImage
-			ProvisionerImage?:                   #ProvisionerImage
+			CloudSpecificImage?:                 #CloudSpecificImage
 			Release?:                            #Release
 			GetProtosdReleasesRequest?:          #GetProtosdReleasesRequest
 			GetProtosdReleasesResponse?:         #GetProtosdReleasesResponse
+			GetCloudImagesRequest?:              #GetCloudImagesRequest
+			GetCloudImagesResponse?:             #GetCloudImagesResponse
 			GetProvisionerImagesRequest?:        #GetProvisionerImagesRequest
 			GetProvisionerImagesResponse?:       #GetProvisionerImagesResponse
+			UploadCloudImageRequest?:            #UploadCloudImageRequest
+			UploadCloudImageResponse?:           #UploadCloudImageResponse
 			UploadProvisionerImageRequest?:      #UploadProvisionerImageRequest
 			UploadProvisionerImageResponse?:     #UploadProvisionerImageResponse
+			RemoveCloudImageRequest?:            #RemoveCloudImageRequest
+			RemoveCloudImageResponse?:           #RemoveCloudImageResponse
 			RemoveProvisionerImageRequest?:      #RemoveProvisionerImageRequest
 			RemoveProvisionerImageResponse?:     #RemoveProvisionerImageResponse
 			CoreEndpoint?:                       #CoreEndpoint

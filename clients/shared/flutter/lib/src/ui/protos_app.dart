@@ -2771,7 +2771,7 @@ class _ReleasesViewState extends State<ReleasesView> {
             ],
           ),
           const SizedBox(height: 12),
-          RowsPanel<MapEntry<String, pb.CloudSpecificImage>>(
+          RowsPanel<MapEntry<String, pb.ProvisionerImage>>(
             rows: model.sortedProvisionerImages,
             emptyTitle: 'No provisioner images',
             selectedId: selectedImage,
@@ -2902,7 +2902,7 @@ class _ReleasesViewState extends State<ReleasesView> {
     );
   }
 
-  MapEntry<String, pb.CloudSpecificImage>? _selectedProvisionerImage(
+  MapEntry<String, pb.ProvisionerImage>? _selectedProvisionerImage(
     AppModel model,
     String id,
   ) {
@@ -2914,7 +2914,7 @@ class _ReleasesViewState extends State<ReleasesView> {
     return null;
   }
 
-  List<MapEntry<String, pb.CloudSpecificImage>> _oldProvisionerImages(
+  List<MapEntry<String, pb.ProvisionerImage>> _oldProvisionerImages(
     AppModel model,
     int days,
   ) {
@@ -2979,10 +2979,10 @@ class _DvcViewState extends State<DvcView> {
                 shortHash(model.runtimeState?.tentativeRootHash),
               ),
               KeyValueItem(
-                'Connected peers',
+                'Routed peers',
                 model.runtimeState == null
                     ? null
-                    : '${model.runtimeState!.connectedPeers.length}',
+                    : '${model.runtimeState!.routedPeers.length}',
               ),
               KeyValueItem(
                 'State providers',
@@ -3004,7 +3004,7 @@ class _DvcViewState extends State<DvcView> {
                 'Peer',
                 (row) => _peerLabel(row, model.runtimeState?.peerId),
               ),
-              RowColumn('Connection', _peerConnection),
+              RowColumn('Routing', _peerRouting),
               RowColumn(
                 'Roles',
                 (row) => _peerRoles(row, model.runtimeState?.peerId),
@@ -4761,7 +4761,7 @@ String _taskDateLabel(String value) {
   return '$y-$m-$d $h:$min';
 }
 
-String _imageDateLabel(pb.CloudSpecificImage image) {
+String _imageDateLabel(pb.ProvisionerImage image) {
   final unixSeconds = image.updatedAtUnix.toInt();
   if (unixSeconds > 0) {
     final date = DateTime.fromMillisecondsSinceEpoch(
@@ -4778,7 +4778,7 @@ String _imageDateLabel(pb.CloudSpecificImage image) {
   return image.dateSuffix.nonEmpty ?? 'n/a';
 }
 
-String _imageAgeLabel(pb.CloudSpecificImage image) {
+String _imageAgeLabel(pb.ProvisionerImage image) {
   final unixSeconds = image.updatedAtUnix.toInt();
   if (unixSeconds <= 0) {
     return 'n/a';
@@ -4891,7 +4891,7 @@ String _instanceReplicationText(pb.CloudInstance instance) {
   if (instance.peerId.nonEmpty == null) {
     return 'not applicable';
   }
-  return instance.replicationConnected ? 'connected' : 'not connected';
+  return instance.replicationRouted ? 'routed' : 'not routed';
 }
 
 String? _statusText(String? status) {
@@ -4993,14 +4993,8 @@ String _routeOutput(pb.ExitRoute route) {
   return lines.join('\n');
 }
 
-String _peerConnection(pb.RuntimePeerStatus peer) {
-  if (peer.connected) {
-    return 'Connected';
-  }
-  if (peer.dialable) {
-    return 'Dialable';
-  }
-  return 'Not connected';
+String _peerRouting(pb.RuntimePeerStatus peer) {
+  return peer.routed ? 'Routed' : 'Not routed';
 }
 
 String _peerLabel(pb.RuntimePeerStatus peer, String? localPeerId) {

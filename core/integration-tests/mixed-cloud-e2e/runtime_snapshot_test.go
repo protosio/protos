@@ -12,7 +12,6 @@ import (
 func TestRecordRuntimeSnapshotPreservesTransportPlanes(t *testing.T) {
 	summary := &mixedCloudRunSummary{}
 	summary.recordRuntimeSnapshot("mesh-ready", "local", &pbApic.RuntimeState{
-		ConnectedPeers:         []string{"legacy"},
 		RoutedPeers:            []string{"routed-b", "routed-a"},
 		ParticipatingPeers:     []string{"participating"},
 		LogicalPeers:           []string{"logical"},

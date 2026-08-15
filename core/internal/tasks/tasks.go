@@ -582,13 +582,8 @@ func register[P any, R any](manager *Manager, stream Stream[P, R], allowExisting
 	return nil
 }
 
-func Enqueue[P any](manager *Manager, opts EnqueueOptions[P]) (Record, error) {
-	return EnqueueContext(context.Background(), manager, opts)
-}
-
 // EnqueueContext persists a task and observes its exact availability boundary
-// under the caller's deadline. The compatibility Enqueue API retains its
-// background-context behavior.
+// under the caller's deadline.
 func EnqueueContext[P any](ctx context.Context, manager *Manager, opts EnqueueOptions[P]) (Record, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -673,7 +668,16 @@ func EnqueueContext[P any](ctx context.Context, manager *Manager, opts EnqueueOp
 	return record, nil
 }
 
-func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Record, bool, error) {
+// EnqueueUniqueContext reuses an active task for the same subject or persists
+// a new task and observes its exact availability boundary under the caller's
+// deadline.
+func EnqueueUniqueContext[P any](ctx context.Context, manager *Manager, opts EnqueueUniqueOptions[P]) (Record, bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return Record{}, false, err
+	}
 	if manager == nil {
 		return Record{}, false, fmt.Errorf("task manager is nil")
 	}
@@ -689,7 +693,7 @@ func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Recor
 		if !validStatus(status) {
 			continue
 		}
-		records, err := selectTaskRecords(manager.db, taskQueryFilters{
+		records, err := selectTaskRecordsContext(ctx, manager.db, taskQueryFilters{
 			Stream:      opts.Stream,
 			SubjectType: opts.SubjectType,
 			SubjectID:   opts.SubjectID,
@@ -697,6 +701,9 @@ func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Recor
 			Status:      status,
 		}, true)
 		if err != nil {
+			return Record{}, false, err
+		}
+		if err := ctx.Err(); err != nil {
 			return Record{}, false, err
 		}
 		latest, found, err := latestRecord(records)
@@ -707,7 +714,10 @@ func EnqueueUnique[P any](manager *Manager, opts EnqueueUniqueOptions[P]) (Recor
 			return manager.withWriteConfirmation(latest), false, nil
 		}
 	}
-	record, err := Enqueue(manager, opts.EnqueueOptions)
+	if err := ctx.Err(); err != nil {
+		return Record{}, false, err
+	}
+	record, err := EnqueueContext(ctx, manager, opts.EnqueueOptions)
 	return record, err == nil, err
 }
 
@@ -804,7 +814,7 @@ func (m *Manager) runPending(ctx context.Context) error {
 	if ownerPeerID == "" {
 		return fmt.Errorf("task executor peer id is empty")
 	}
-	records, err := selectTaskRecords(m.db, taskQueryFilters{Status: StatusPending, OwnerPeerID: ownerPeerID}, true)
+	records, err := selectTaskRecordsContext(ctx, m.db, taskQueryFilters{Status: StatusPending, OwnerPeerID: ownerPeerID}, true)
 	if err != nil {
 		return err
 	}
@@ -863,7 +873,7 @@ func (m *Manager) recoverOwnedRunning(ctx context.Context) (int, int, error) {
 	if ownerPeerID == "" {
 		return 0, 0, fmt.Errorf("task executor peer id is empty")
 	}
-	records, err := selectTaskRecords(m.db, taskQueryFilters{
+	records, err := selectTaskRecordsContext(ctx, m.db, taskQueryFilters{
 		Status:      StatusRunning,
 		OwnerPeerID: ownerPeerID,
 	}, true)
@@ -926,7 +936,7 @@ func (m *Manager) Get(id string) (Record, error) {
 	if id == "" {
 		return Record{}, fmt.Errorf("task id is empty")
 	}
-	records, err := selectTaskRecords(m.db, taskQueryFilters{IDs: []string{id}}, true)
+	records, err := selectTaskRecordsContext(context.Background(), m.db, taskQueryFilters{IDs: []string{id}}, true)
 	if err != nil {
 		return Record{}, err
 	}
@@ -946,7 +956,7 @@ func (m *Manager) List(opts ListOptions) ([]Record, bool, error) {
 			return []Record{}, false, nil
 		}
 	}
-	records, err := selectTaskRecords(m.db, taskQueryFilters{
+	records, err := selectTaskRecordsContext(context.Background(), m.db, taskQueryFilters{
 		Stream:      opts.Stream,
 		SubjectType: opts.SubjectType,
 		SubjectID:   opts.SubjectID,
@@ -1050,7 +1060,11 @@ func (m *Manager) LatestWriteConfirmation(taskID string) (WriteConfirmation, boo
 }
 
 func (m *Manager) LatestForSubject(stream string, subjectType string, subjectID string) (Record, bool, error) {
-	records, err := selectTaskRecords(m.db, taskQueryFilters{
+	return m.LatestForSubjectContext(context.Background(), stream, subjectType, subjectID)
+}
+
+func (m *Manager) LatestForSubjectContext(ctx context.Context, stream string, subjectType string, subjectID string) (Record, bool, error) {
+	records, err := selectTaskRecordsContext(ctx, m.db, taskQueryFilters{
 		Stream:      stream,
 		SubjectType: subjectType,
 		SubjectID:   subjectID,
