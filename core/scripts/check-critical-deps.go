@@ -34,7 +34,7 @@ type checkResult struct {
 
 const swarmionRepository = "https://github.com/nustiueudinastea/swarmion"
 
-var swarmionDependencyQuery = envOrDefault("SWARMION_DEP_QUERY", "codex/r44-cascade-attribution")
+var swarmionDependencyQuery = envOrDefault("SWARMION_DEP_QUERY", "main")
 
 var criticalDependencies = []dependency{
 	{Name: "containerd runtime", Path: "github.com/containerd/containerd/v2", Query: "latest"},

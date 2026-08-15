@@ -139,7 +139,15 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 		_ = firstManager.tasks.RunPending(context.Background())
 	}()
 	if recovered != "process exited before delete receipt fact" {
-		t.Fatalf("delete task interruption=%v, want post-publication process exit", recovered)
+		interrupted, getErr := firstManager.tasks.Get(record.ID)
+		t.Fatalf(
+			"delete task interruption=%v, want post-publication process exit; task status=%q attempts=%d error=%q get_error=%v",
+			recovered,
+			interrupted.Status,
+			interrupted.Attempts,
+			interrupted.ErrorMessage,
+			getErr,
+		)
 	}
 	if accepted.EventID == "" || accepted.PublishedRootHash == "" {
 		t.Fatalf("post-publication interruption lost accepted receipt: %+v", accepted)
@@ -168,7 +176,7 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 	if err != nil {
 		t.Fatalf("resolve delete operation after restart: %v", err)
 	}
-	recoveredReceipt, err := db.PublishedWriteReceiptFromOperation(resolved)
+	recoveredReceipt, err := db.PublishedWriteReceiptFromResolution(resolved)
 	if err != nil {
 		t.Fatalf("convert recovered delete operation receipt: %v", err)
 	}
@@ -190,7 +198,7 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 	restartedManager := newLifecycleTestManager(t, store, newProvisionerRegistry())
 	effectFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindEffect)
 	assertDeleteRestartEffectFact(t, effectFact, operationIdentity)
-	if receiptFact, found, err := restartedManager.tasks.OperationFact(context.Background(), record.ID, tasks.OperationFactKindReceipt); err != nil {
+	if receiptFact, found, err := restartedManager.tasks.OperationFact(context.Background(), record.ID, tasks.OperationFactKindReceiptV2); err != nil {
 		t.Fatalf("read pre-recovery delete receipt fact: %v", err)
 	} else if found {
 		t.Fatalf("delete receipt fact unexpectedly existed before startup recovery: %+v", receiptFact)
@@ -223,13 +231,8 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 		restartMetrics,
 	)
 	finalPayload := decodeDeleteRestartPayload(t, done)
-	if finalPayload.DeleteReceipt == nil ||
-		finalPayload.DeleteReceipt.EventID != accepted.EventID ||
-		finalPayload.DeleteReceipt.PublishedRootHash != accepted.PublishedRootHash {
-		t.Fatalf("restart did not persist the recovered exact receipt: %+v", finalPayload.DeleteReceipt)
-	}
-	if !finalPayload.DeleteReceipt.AppliedDurably || finalPayload.DeleteReceipt.DurableCheckpointCommitID == "" {
-		t.Fatalf("recovered delete did not complete its durable invariant: %+v", finalPayload.DeleteReceipt)
+	if finalPayload.DeleteReceipt != nil {
+		t.Fatalf("v2-only recovery projected a downgrade-unsafe receipt into the task payload: %+v", finalPayload.DeleteReceipt)
 	}
 	if done.Attempts != 1 {
 		t.Fatalf("recovered task attempts=%d, want one resumed logical attempt", done.Attempts)
@@ -238,7 +241,7 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 	if finalPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
 		t.Fatalf("recovered task changed its immutable operation state model: %+v", finalPayload)
 	}
-	receiptFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindReceipt)
+	receiptFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindReceiptV2)
 	assertDeleteRestartReceiptFact(
 		t,
 		receiptFact,
@@ -443,7 +446,7 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 	restartedManager := newLifecycleTestManager(t, store, newProvisionerRegistry())
 	effectFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindEffect)
 	assertDeleteRestartEffectFact(t, effectFact, operationIdentity)
-	receiptFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindReceipt)
+	receiptFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindReceiptV2)
 	assertDeleteRestartReceiptFact(t, receiptFact, operationIdentity, originalReceipt)
 
 	restored, err := restartedManager.tasks.Get(record.ID)
@@ -483,17 +486,8 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 	}
 
 	finalPayload := decodeDeleteRestartPayload(t, done)
-	if finalPayload.DeleteReceipt == nil || finalPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
-		t.Fatalf("completed task lost delete receipt: %+v", finalPayload)
-	}
-	finalReceipt := finalPayload.DeleteReceipt
-	if finalReceipt.EventID != originalReceipt.EventID ||
-		finalReceipt.PublishedRootHash != originalReceipt.PublishedRootHash ||
-		finalReceipt.OperationID != originalReceipt.OperationID {
-		t.Fatalf("restart changed delete receipt identity: before=%+v after=%+v", originalReceipt, finalReceipt)
-	}
-	if !finalReceipt.AppliedDurably || finalReceipt.DurableCheckpointCommitID == "" {
-		t.Fatalf("completed delete receipt lacks durable application: %+v", finalReceipt)
+	if finalPayload.DeleteReceipt != nil || finalPayload.OperationStateModel != instanceDeleteOperationFactsV1 {
+		t.Fatalf("completed v2-only task retained a downgrade-unsafe payload receipt: %+v", finalPayload)
 	}
 	var result instanceLifecycleTaskResult
 	if err := json.Unmarshal(done.Result, &result); err != nil {
@@ -504,25 +498,27 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 		result.DeleteReceipt.PublishedRootHash != originalReceipt.PublishedRootHash {
 		t.Fatalf("completed result did not retain exact delete receipt: %+v", result)
 	}
-	finalReceiptFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindReceipt)
+	finalReceiptFact := waitForDeleteRestartOperationFact(t, restartedManager.tasks, record.ID, tasks.OperationFactKindReceiptV2)
 	assertDeleteRestartReceiptFact(t, finalReceiptFact, operationIdentity, originalReceipt)
 
-	// Fact-first startup recovery performs exactly three task publications:
-	// running->pending recovery (which projects the fact), mark-running, and task
-	// success. Reading or re-recording identical immutable facts publishes
-	// nothing. Compare task rows, checkpoint events, and authored event IDs
-	// one-for-one: any extra event would be a duplicate domain or receipt-fact
+	// Fact-first startup recovery performs exactly four task publications:
+	// running->pending recovery (which deliberately keeps a v2-only receipt out
+	// of the payload), mark-running, the ordinary receipt-free "deleting"
+	// progress update, and task success. Reading or re-recording identical
+	// immutable facts publishes nothing. Compare task rows, checkpoint events,
+	// and authored event IDs one-for-one: any extra event would be a duplicate
+	// domain or receipt-fact
 	// publication. Requiring the clock to drain also proves that the restored
 	// author sequence continued without an unfillable gap.
 	afterRecovery := waitForDeleteRestartRuntimeQuiescent(t, store, "settle restarted delete task")
 	recoveryTaskEventDelta := deleteRestartTaskEventCount(t, store, record.ID) - baselineTaskEvents
 	recoveryCheckpointDelta := afterRecovery.CheckpointEventCount - baseline.CheckpointEventCount
 	recoveryAuthoredEventIDs := deleteRestartNewAuthoredEventIDs(baselineAuthoredEventIDs, afterRecovery)
-	if recoveryTaskEventDelta != 3 ||
+	if recoveryTaskEventDelta != 4 ||
 		recoveryCheckpointDelta != recoveryTaskEventDelta ||
 		len(recoveryAuthoredEventIDs) != recoveryTaskEventDelta {
 		t.Fatalf(
-			"restart task/checkpoint/authored deltas=%d/%d/%d ids=%v, want exactly 3 one-for-one task-only events",
+			"restart task/checkpoint/authored deltas=%d/%d/%d ids=%v, want exactly 4 one-for-one task-only events",
 			recoveryTaskEventDelta,
 			recoveryCheckpointDelta,
 			len(recoveryAuthoredEventIDs),
@@ -649,10 +645,21 @@ func assertDeleteRestartReceiptFact(
 		actual.ExpectedInvariant != expected.ExpectedInvariant ||
 		actual.EventID != expected.EventID ||
 		actual.PublishedRootHash != expected.PublishedRootHash ||
-		actual.EventDigest != expected.EventDigest ||
 		actual.OperationIntentDigest != expected.OperationIntentDigest ||
 		actual.OperationAuthorPeerID != expected.OperationAuthorPeerID {
 		t.Fatalf("immutable delete receipt fact=%+v, want exact accepted identity %+v", actual, expected)
+	}
+	switch fact.Kind {
+	case tasks.OperationFactKindReceipt:
+		if actual.EventDigest != expected.EventDigest || actual.AuthorSeq != expected.AuthorSeq {
+			t.Fatalf("legacy delete receipt metadata=%q/%d, want %q/%d", actual.EventDigest, actual.AuthorSeq, expected.EventDigest, expected.AuthorSeq)
+		}
+	case tasks.OperationFactKindReceiptV2:
+		if actual.EventDigest != "" || actual.AuthorSeq != 0 {
+			t.Fatalf("v2 delete receipt retained legacy metadata: %+v", actual)
+		}
+	default:
+		t.Fatalf("unexpected delete receipt fact kind %q", fact.Kind)
 	}
 	return actual
 }

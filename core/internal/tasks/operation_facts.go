@@ -19,8 +19,15 @@ const (
 	// application effect to the business mutation that publishes it.
 	OperationFactKindEffect = "operation_effect"
 	// OperationFactKindReceipt retains the immutable exact event/root receipt.
-	// Mutable lifecycle observations belong in separate facts or projections.
+	// It is the legacy v1 wire kind and remains readable during rolling
+	// coexistence. New writers use OperationFactKindReceiptV2 so removing
+	// receipt fields cannot conflict with a legacy peer's deterministic row.
 	OperationFactKindReceipt = "operation_receipt"
+	// OperationFactKindReceiptV2 retains only the receipt identity shared by
+	// the current public runtime contract and legacy receipts: event/root plus
+	// operation key, author, and intent. Mutable lifecycle observations belong
+	// in separate facts or projections.
+	OperationFactKindReceiptV2 = "operation_receipt_v2"
 )
 
 // ErrOperationFactConflict means peers produced different immutable content

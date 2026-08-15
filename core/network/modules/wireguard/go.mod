@@ -2,7 +2,7 @@ module github.com/protosio/protos/network/modules/wireguard
 
 go 1.26.4
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	filippo.io/edwards25519 v1.2.0

@@ -65,7 +65,7 @@ func appliedInstanceDeleteObservation(receipt instanceDeleteOperationReceipt, co
 			CheckpointCommitID: "event-checkpoint-commit",
 			CheckpointRootHash: "event-checkpoint-root",
 		},
-		Status: swarmionapp.BranchEventReceiptStatus{
+		Status: swarmionapp.ReceiptStatus{
 			EventID:                   receipt.EventID,
 			ExpectedPublishedRootHash: receipt.PublishedRootHash,
 			Known:                     true,
@@ -246,7 +246,7 @@ func TestCompleteInstanceDeleteReceiptParkedPersistsExactReceiptWithoutInvariant
 	receipt := testInstanceDeleteReceipt()
 	observation := db.EventReceiptObservation{
 		Receipt: receipt.publishedWriteReceipt(),
-		Status: swarmionapp.BranchEventReceiptStatus{
+		Status: swarmionapp.ReceiptStatus{
 			EventID:                   receipt.EventID,
 			ExpectedPublishedRootHash: receipt.PublishedRootHash,
 			Known:                     true,
@@ -306,7 +306,7 @@ func TestCompleteInstanceDeleteReceiptPendingReturnsBoundedDiagnostic(t *testing
 			CheckpointCommitID: "pending-checkpoint-commit",
 			CheckpointRootHash: "pending-checkpoint-root",
 		},
-		Status: swarmionapp.BranchEventReceiptStatus{
+		Status: swarmionapp.ReceiptStatus{
 			EventID:                   receipt.EventID,
 			ExpectedPublishedRootHash: receipt.PublishedRootHash,
 			Known:                     true,
@@ -532,6 +532,10 @@ func TestInstanceDeleteTaskResumesPersistedReceiptBeforeInstanceLookup(t *testin
 	tracker := &fakeInstanceDeleteReceiptTracker{observation: appliedInstanceDeleteObservation(receipt, swarmionapp.BranchEventContentCoverageDissent)}
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
 	manager.deleteReceiptTracker = tracker
+	legacyFact := legacyInstanceDeleteReceiptFactForTest(t, taskID, identity, receipt)
+	if err := manager.tasks.EnsureOperationFact(context.Background(), legacyFact); err != nil {
+		t.Fatalf("publish legacy receipt fact: %v", err)
+	}
 
 	record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 		ID:          taskID,
@@ -609,7 +613,7 @@ func TestInstanceDeleteInvariantConflictIsPermanentTaskOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before.Resolution != swarmionapp.BranchOperationReceiptAbsent {
+	if before.State != swarmionapp.OperationResolvedAbsent {
 		t.Fatalf("delete operation unexpectedly existed before task run: %+v", before)
 	}
 	record, err := tasks.Enqueue(manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
@@ -662,7 +666,7 @@ func TestInstanceDeleteInvariantConflictIsPermanentTaskOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.Resolution != swarmionapp.BranchOperationReceiptAbsent {
+	if after.State != swarmionapp.OperationResolvedAbsent {
 		t.Fatalf("permanent conflict published a duplicate delete operation: %+v", after)
 	}
 }
@@ -677,7 +681,7 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 	eventID := strings.Repeat("a", 64)
 	publishedRoot := strings.Repeat("b", 32)
 	lookupCalls := 0
-	manager.lookupDeleteRecoveryOperation = func(ctx context.Context, operation db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error) {
+	manager.lookupDeleteRecoveryOperation = func(ctx context.Context, operation db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
 		lookupCalls++
 		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > instanceDeleteRecoveryObserveLimit+time.Second {
 			t.Fatalf("foreign recovery lookup did not receive its bounded context")
@@ -685,13 +689,7 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 		if operation != identity.publishedWriteOperation() {
 			t.Fatalf("foreign recovery operation=%+v, want %+v", operation, identity.publishedWriteOperation())
 		}
-		return swarmionapp.BranchOperationReceipt{
-			Resolution:        swarmionapp.BranchOperationReceiptFound,
-			EventID:           eventID,
-			PublishedRootHash: publishedRoot,
-			AuthorPeerID:      identity.AuthorPeerID,
-			IntentDigest:      identity.IntentDigest,
-		}, nil
+		return acceptedOperationResolutionForTest(operation, eventID, publishedRoot), nil
 	}
 	parkedStates := []struct {
 		state  db.EventReceiptState
@@ -715,7 +713,7 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 		observedReceipts = append(observedReceipts, receipt)
 		return db.EventReceiptObservation{
 			Receipt: receipt,
-			Status: swarmionapp.BranchEventReceiptStatus{
+			Status: swarmionapp.ReceiptStatus{
 				EventID:                   receipt.EventID,
 				ExpectedPublishedRootHash: receipt.PublishedRootHash,
 				Known:                     true,
@@ -816,7 +814,7 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 	}
 }
 
-func TestOperationFactRecoveryPublishesExactReceiptFact(t *testing.T) {
+func TestOperationFactRecoveryPublishesV2WithoutDowngradeUnsafePayload(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
 	taskID := db.MustNewUUIDv7()
@@ -837,26 +835,18 @@ func TestOperationFactRecoveryPublishesExactReceiptFact(t *testing.T) {
 	accepted.AuthorSeq = 7
 	accepted.OperationIntentDigest = identity.IntentDigest
 	deleteLookups := 0
-	manager.lookupDeleteRecoveryOperation = func(_ context.Context, operation db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error) {
+	manager.lookupDeleteRecoveryOperation = func(_ context.Context, operation db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
 		deleteLookups++
 		if operation != identity.publishedWriteOperation() {
 			t.Fatalf("operation lookup=%+v, want %+v", operation, identity.publishedWriteOperation())
 		}
-		return swarmionapp.BranchOperationReceipt{
-			Resolution:        swarmionapp.BranchOperationReceiptFound,
-			EventID:           accepted.EventID,
-			PublishedRootHash: accepted.PublishedRootHash,
-			EventDigest:       accepted.EventDigest,
-			AuthorPeerID:      identity.AuthorPeerID,
-			AuthorSeq:         accepted.AuthorSeq,
-			IntentDigest:      identity.IntentDigest,
-		}, nil
+		return acceptedOperationResolutionForTest(operation, accepted.EventID, accepted.PublishedRootHash), nil
 	}
 	manager.observeDeleteRecoveryReceipt = func(_ context.Context, published db.PublishedWriteReceipt) (db.EventReceiptObservation, error) {
 		return db.EventReceiptObservation{
 			Receipt: published,
 			State:   db.EventReceiptStateAppliedDurably,
-			Status: swarmionapp.BranchEventReceiptStatus{
+			Status: swarmionapp.ReceiptStatus{
 				EventID:                   published.EventID,
 				ExpectedPublishedRootHash: published.PublishedRootHash,
 				Known:                     true,
@@ -907,10 +897,10 @@ func TestOperationFactRecoveryPublishesExactReceiptFact(t *testing.T) {
 		t.Fatal(err)
 	}
 	recoveredPayload := decodeDeleteRestartPayload(t, recoveredRecord)
-	if recoveredRecord.Status != tasks.StatusPending || recoveredPayload.DeleteReceipt == nil {
-		t.Fatalf("recovered record=%+v payload=%+v, want pending with exact receipt", recoveredRecord, recoveredPayload)
+	if recoveredRecord.Status != tasks.StatusPending || recoveredPayload.DeleteReceipt != nil {
+		t.Fatalf("recovered record=%+v payload=%+v, want pending without a zero-valued legacy receipt", recoveredRecord, recoveredPayload)
 	}
-	receiptFact, found, err := manager.tasks.OperationFact(context.Background(), taskID, tasks.OperationFactKindReceipt)
+	receiptFact, found, err := manager.tasks.OperationFact(context.Background(), taskID, tasks.OperationFactKindReceiptV2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -923,6 +913,14 @@ func TestOperationFactRecoveryPublishesExactReceiptFact(t *testing.T) {
 	}
 	if factReceipt.EventID != accepted.EventID || factReceipt.PublishedRootHash != accepted.PublishedRootHash {
 		t.Fatalf("receipt fact=%+v, want exact recovered receipt %s/%s", factReceipt, accepted.EventID, accepted.PublishedRootHash)
+	}
+	if factReceipt.EventDigest != "" || factReceipt.AuthorSeq != 0 {
+		t.Fatalf("v2 receipt fact unexpectedly contains legacy-only metadata: %+v", factReceipt)
+	}
+	if _, legacyFound, err := manager.tasks.OperationFact(context.Background(), taskID, tasks.OperationFactKindReceipt); err != nil {
+		t.Fatal(err)
+	} else if legacyFound {
+		t.Fatal("new recovery wrote the legacy receipt fact kind")
 	}
 }
 
@@ -1071,9 +1069,9 @@ func TestInstanceDeleteUnsafeNoReceiptPublicationDoesNotReplayTask(t *testing.T)
 		want error
 	}{
 		{
-			name: "dirty operation workspace",
-			err:  fmt.Errorf("ordinary draft blocked delete: %w", swarmionapp.ErrOperationWorkspaceDirty),
-			want: swarmionapp.ErrOperationWorkspaceDirty,
+			name: "inconclusive publication without receipt",
+			err:  fmt.Errorf("delete publication became inconclusive: %w", swarmionapp.ErrPublicationInconclusive),
+			want: swarmionapp.ErrPublicationInconclusive,
 		},
 		{
 			name: "ambiguous apply rollback",
@@ -1124,10 +1122,11 @@ func TestInstanceDeleteUnsafeNoReceiptPublicationDoesNotReplayTask(t *testing.T)
 			}
 			if done.Status != tasks.StatusFailed || done.Attempts != 1 || publishCalls != 1 {
 				t.Fatalf(
-					"unsafe delete task status=%s attempts=%d publications=%d, want failed/1/1",
+					"unsafe delete task status=%s attempts=%d publications=%d error=%q, want failed/1/1",
 					done.Status,
 					done.Attempts,
 					publishCalls,
+					done.ErrorMessage,
 				)
 			}
 			if tt.want != nil && !strings.Contains(done.ErrorMessage, tt.want.Error()) {
@@ -1140,7 +1139,7 @@ func TestInstanceDeleteUnsafeNoReceiptPublicationDoesNotReplayTask(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if resolved.Resolution != swarmionapp.BranchOperationReceiptAbsent {
+			if resolved.State != swarmionapp.OperationResolvedAbsent {
 				t.Fatalf("unsafe delete authored an operation despite no receipt: %+v", resolved)
 			}
 			if _, err := manager.GetInstance(instance.ID); err != nil {

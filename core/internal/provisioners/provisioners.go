@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -133,10 +134,10 @@ type Manager struct {
 	providerMutationDisabled bool
 	// Recovery-only test seams prove foreign pending/parked handling without
 	// synthesizing protocol state. Production always uses the DB methods.
-	lookupDeleteRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
+	lookupDeleteRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResolution, error)
 	observeDeleteRecoveryReceipt  func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
 	publishDeleteOperation        func(context.Context, db.PublishedWriteOperation, InstanceInfo) (db.PublishedWriteReceipt, error)
-	lookupPeerDrainAuthorization  func(context.Context, db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error)
+	lookupPeerDrainAuthorization  func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResolution, error)
 	publishPeerDrainAuthorization func(context.Context, db.PublishedWriteOperation, InstanceInfo, tasks.OperationFact) (db.PublishedWriteReceipt, error)
 	waitPeerDrainAuthorization    func(context.Context, db.PublishedWriteReceipt, string) (db.EventReceiptObservation, error)
 	verifyPeerDrainAuthorization  func(context.Context, string, instancePeerDrainAuthorization, tasks.OperationFact) error
@@ -229,9 +230,13 @@ func (cm *Manager) deploymentOriginBootstrapAddrs(originPublicKey string, peerPu
 type replicationPeerDrainRuntime interface {
 	Available() bool
 	Prepare(context.Context, string, []db.ReplicationCandidate) error
-	Begin(context.Context, string, string) (swarmionapp.PeerDrainStatus, error)
-	Watch(context.Context, string, string) (<-chan swarmionapp.PeerDrainEvent, error)
-	Finalize(context.Context, string, string) (swarmionapp.PeerDrainFinalizeResponse, error)
+	Start(context.Context, string, string) (replicationPeerDrainSession, error)
+}
+
+type replicationPeerDrainSession interface {
+	Events() <-chan swarmionapp.PeerDrainEvent
+	Finalize(context.Context) (swarmionapp.PeerDrainFinalizeResult, error)
+	Close()
 }
 
 type replicationPeerRouteFence interface {
@@ -253,16 +258,8 @@ func (runtime databasePeerDrainRuntime) Prepare(ctx context.Context, peerID stri
 	return runtime.database.PrepareReplicationPeerDrain(ctx, peerID, candidates)
 }
 
-func (runtime databasePeerDrainRuntime) Begin(ctx context.Context, peerID, generation string) (swarmionapp.PeerDrainStatus, error) {
-	return runtime.database.BeginReplicationPeerDrain(ctx, peerID, generation)
-}
-
-func (runtime databasePeerDrainRuntime) Watch(ctx context.Context, peerID, generation string) (<-chan swarmionapp.PeerDrainEvent, error) {
-	return runtime.database.WatchReplicationPeerDrain(ctx, peerID, generation)
-}
-
-func (runtime databasePeerDrainRuntime) Finalize(ctx context.Context, peerID, generation string) (swarmionapp.PeerDrainFinalizeResponse, error) {
-	return runtime.database.FinalizeReplicationPeerDrain(ctx, peerID, generation)
+func (runtime databasePeerDrainRuntime) Start(ctx context.Context, peerID, generation string) (replicationPeerDrainSession, error) {
+	return runtime.database.StartReplicationPeerDrain(ctx, peerID, generation)
 }
 
 func (cm *Manager) replicationPeerDrainRuntime() replicationPeerDrainRuntime {
@@ -1332,9 +1329,9 @@ func (cm *Manager) deleteInstanceImperative(
 	if err != nil {
 		return fmt.Errorf("resolve instance delete operation %s: %w", operationID, err)
 	}
-	switch resolved.Resolution {
-	case swarmionapp.BranchOperationReceiptFound:
-		published, err := db.PublishedWriteReceiptFromOperation(resolved)
+	switch resolved.State {
+	case swarmionapp.OperationResolvedAccepted:
+		published, err := db.PublishedWriteReceiptFromResolution(resolved)
 		if err != nil {
 			return fmt.Errorf("recover instance delete operation %s: %w", operationID, err)
 		}
@@ -1349,15 +1346,15 @@ func (cm *Manager) deleteInstanceImperative(
 			log.Warnf("failed to delete SSH key for instance '%s': %s", id, err.Error())
 		}
 		return nil
-	case swarmionapp.BranchOperationReceiptUnavailable:
+	case swarmionapp.OperationResolvedUnavailable:
 		return fmt.Errorf("%w: instance delete operation=%s", db.ErrOperationReceiptUnavailable, operationID)
-	case swarmionapp.BranchOperationReceiptAbsent:
-		if !resolved.SafeToPublish {
+	case swarmionapp.OperationResolvedAbsent:
+		if !resolved.SafeToExecute {
 			return fmt.Errorf("%w: instance delete operation=%s was absent without safe publication authority", db.ErrOperationReceiptUnavailable, operationID)
 		}
 		// Authoritative local absence permits the one and only first attempt.
 	default:
-		return fmt.Errorf("resolve instance delete operation %s returned unknown resolution %q", operationID, resolved.Resolution)
+		return fmt.Errorf("resolve instance delete operation %s returned unknown resolution %q", operationID, resolved.State)
 	}
 
 	instance, err := cm.getInstanceRecord(id)
@@ -2035,19 +2032,22 @@ func (cm *Manager) withInstancePeerDurableRemovalReady(
 			return fmt.Errorf("fenced peer id %s does not match instance peer id %s", fencedPeerID, peerID)
 		}
 
-		status, err := runtime.Begin(drainCtx, peerID, generation)
+		session, err := runtime.Start(drainCtx, peerID, generation)
 		if err != nil {
 			if !runtime.Available() {
-				return fmt.Errorf("%w for instance '%s' while beginning generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, err)
+				return fmt.Errorf("%w for instance '%s' while starting generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, err)
 			}
-			return fmt.Errorf("%w: begin generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, err)
+			return fmt.Errorf("%w: start generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, err)
+		}
+		if session == nil {
+			return fmt.Errorf("%w: start generation %s for instance '%s' returned a nil session", db.ErrReplicationPeerDrainPending, generation, instance.Name)
 		}
 		restart, err := cm.observeInstancePeerDrainGeneration(
 			drainCtx,
 			instance,
 			peerID,
 			generation,
-			status,
+			session,
 			runtime,
 			routeFence,
 			afterFinalize,
@@ -2061,90 +2061,71 @@ func (cm *Manager) withInstancePeerDurableRemovalReady(
 	}
 }
 
-// observeInstancePeerDrainGeneration consumes only passive, generation-scoped
-// status events. The application route remains fenced for the entire call. A
-// true result means the watch was canceled and the caller must establish a new
-// route generation before beginning another drain.
+// observeInstancePeerDrainGeneration consumes only the public SDK session's
+// passive, generation-scoped events. A true result means the session has been
+// closed and joined and the caller must establish a byte-distinct route fence
+// before starting another drain.
 func (cm *Manager) observeInstancePeerDrainGeneration(
 	ctx context.Context,
 	instance InstanceInfo,
 	peerID string,
 	generation string,
-	status swarmionapp.PeerDrainStatus,
+	session replicationPeerDrainSession,
 	runtime replicationPeerDrainRuntime,
 	routeFence replicationPeerRouteFence,
 	afterFinalize func() error,
 ) (bool, error) {
-	watchCtx, cancelWatch := context.WithCancel(ctx)
-	events, err := runtime.Watch(watchCtx, peerID, generation)
-	if err != nil {
-		cancelWatch()
-		if !runtime.Available() {
-			return false, fmt.Errorf("%w for instance '%s' while watching generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, err)
-		}
-		return false, fmt.Errorf("%w: watch generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, err)
+	if session == nil {
+		return false, fmt.Errorf("%w: generation %s for instance '%s' has no peer-drain session", db.ErrReplicationPeerDrainPending, generation, instance.Name)
 	}
+	defer session.Close()
+	request := swarmionapp.PeerDrainRequest{PeerID: peerID, RouteFenceToken: generation}
+	if err := request.Validate(); err != nil {
+		// Keep the validator diagnostic non-wrapping: malformed forwarded state
+		// must not lend any nested authority to this pending boundary.
+		return false, fmt.Errorf("%w: invalid generation %s for instance '%s': %v", db.ErrReplicationPeerDrainPending, generation, instance.Name, err) //nolint:errorlint
+	}
+	events := session.Events()
 	if events == nil {
-		cancelWatch()
-		return false, fmt.Errorf("%w: watch generation %s for instance '%s' returned a nil event channel", db.ErrReplicationPeerDrainPending, generation, instance.Name)
+		return false, fmt.Errorf("%w: generation %s for instance '%s' returned a nil event channel", db.ErrReplicationPeerDrainPending, generation, instance.Name)
 	}
-	defer cancelWatch()
 
 	var (
+		status          swarmionapp.PeerDrainSnapshot
+		haveStatus      bool
 		retryFinalize   bool
 		lastFinalizeErr error
 	)
 	for {
 		if !runtime.Available() {
-			return false, fmt.Errorf("%w for instance '%s' after beginning generation %s", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation)
-		}
-		if err := validatePeerDrainStatusIdentity(status, peerID, generation); err != nil {
-			return false, fmt.Errorf("%w: observe generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, err)
-		}
-		log.Debugf("swarmion peer drain status for instance '%s': %s", instance.Name, db.PeerDrainStatusSummary(status))
-
-		if peerDrainStatusInvalidatesGeneration(status) {
-			log.Debugf(
-				"invalidating swarmion peer drain generation %s for instance '%s' after status codes %v at heartbeat sequence %d",
-				generation,
-				instance.Name,
-				status.BlockingReasonCodes,
-				status.HeartbeatIngressFenceSequence,
-			)
-			return true, nil
-		}
-		if status.Finalized && (status.Active || !status.RouteGenerationMatches || !status.ReadyToFinalize ||
-			status.PostFenceHeartbeatAccepted || len(status.BlockingReasonCodes) != 0) {
-			return false, fmt.Errorf("%w: inconsistent finalized peer-drain status: %s", db.ErrReplicationPeerDrainPending, db.PeerDrainStatusSummary(status))
-		}
-		if status.ReadyToFinalize && (!status.PreFenceHeartbeatIngressObserved || len(status.BlockingReasonCodes) != 0) {
-			return false, fmt.Errorf("%w: inconsistent ready peer-drain status: %s", db.ErrReplicationPeerDrainPending, db.PeerDrainStatusSummary(status))
+			return false, fmt.Errorf("%w for instance '%s' after starting generation %s", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation)
 		}
 
-		if (status.ReadyToFinalize || status.Finalized) && !retryFinalize {
+		if haveStatus && (status.ReadyToFinalize || status.Finalized) && !retryFinalize {
 			var (
-				finalized          swarmionapp.PeerDrainFinalizeResponse
+				finalized          swarmionapp.PeerDrainFinalizeResult
 				finalizeCalled     bool
 				finalizeRuntimeErr error
 				finalizeCompleted  bool
 			)
 			finalizeErr := routeFence.WithPeerFenceGeneration(ctx, peerID, generation, func() error {
 				finalizeCalled = true
-				finalized, finalizeRuntimeErr = runtime.Finalize(ctx, peerID, generation)
+				finalized, finalizeRuntimeErr = session.Finalize(ctx)
+				if validationErr := finalized.ValidateFor(request); validationErr != nil {
+					// Do not expose an invalid result's nested error identity through
+					// the deletion-adjacent pending classification.
+					return fmt.Errorf("%w: validate generation %s finalization for instance '%s': %v", db.ErrReplicationPeerDrainPending, generation, instance.Name, validationErr) //nolint:errorlint
+				}
 				if finalizeRuntimeErr != nil {
 					return finalizeRuntimeErr
 				}
 				if !finalized.Finalized {
 					return fmt.Errorf("%w: generation %s returned without finalization", db.ErrReplicationPeerDrainPending, generation)
 				}
-				if err := validatePeerDrainFinalizeResponse(finalized, peerID, generation); err != nil {
-					return err
-				}
 				finalizeCompleted = true
-				// The watch is no longer useful after successful Swarmion
-				// completion. Stop it before potentially slow P/provider work while
-				// retaining the route-generation lease held by this callback.
-				cancelWatch()
+				// Join the SDK session before potentially slow P/provider work while
+				// retaining the exact application route-generation lease.
+				session.Close()
 				if afterFinalize != nil {
 					return afterFinalize()
 				}
@@ -2155,15 +2136,14 @@ func (cm *Manager) observeInstancePeerDrainGeneration(
 			}
 			// Finalize succeeded and the guarded phase continuation failed. Do
 			// not re-finalize in this attempt; recovery resolves P first. If P
-			// exhausted only explicitly-not-accepted retries, preserve this as a
+			// exhausted only validated pre-publication retries, preserve this as a
 			// deferred drain outcome. Its replicated instance snapshot remains
 			// pre-delete, so a later attempt must establish a fresh route fence
 			// and drain generation before trying P again.
 			if finalizeCompleted {
-				var noReceipt *instanceDeletePublicationWithoutReceiptError
-				if errors.As(finalizeErr, &noReceipt) && db.IsRetryablePublishedWriteError(finalizeErr) {
+				if isPeerDrainAuthorizationRejectionsExhausted(finalizeErr) {
 					return false, fmt.Errorf(
-						"%w: generation %s finalized but peer-drain authorization P was explicitly not accepted: %w",
+						"%w: generation %s finalized but peer-drain authorization P remained safely rejected: %w",
 						db.ErrReplicationPeerDrainPending,
 						generation,
 						finalizeErr,
@@ -2182,48 +2162,58 @@ func (cm *Manager) observeInstancePeerDrainGeneration(
 				return true, nil
 			}
 
-			finalizeStatusObserved := false
-			if typedStatus, ok := peerDrainStatusFromTypedError(finalizeErr); ok {
-				if err := validatePeerDrainStatusIdentity(typedStatus, peerID, generation); err != nil {
-					return false, fmt.Errorf("%w: typed finalize status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, err)
-				}
-				status = typedStatus
-				finalizeStatusObserved = true
-			} else if finalized.Status.PeerID != "" || finalized.Status.RouteGeneration != "" {
-				if err := validatePeerDrainStatusIdentity(finalized.Status, peerID, generation); err != nil {
-					return false, fmt.Errorf("%w: finalize status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, err)
-				}
-				status = finalized.Status
-				finalizeStatusObserved = true
+			if !runtime.Available() {
+				return false, fmt.Errorf("%w for instance '%s' while finalizing generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, finalizeErr)
 			}
 
-			if errors.Is(finalizeErr, swarmionapp.ErrPeerDrainGenerationInactive) || peerDrainStatusInvalidatesGeneration(status) {
+			if finalized.Snapshot.PeerID == "" || finalized.Snapshot.RouteGeneration == "" {
+				return false, fmt.Errorf("%w: finalize generation %s for instance '%s' returned no correlated snapshot: %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, finalizeErr)
+			}
+			if validationErr := finalized.ValidateFor(request); validationErr != nil {
+				// Validation failure is diagnostic only; the pending boundary must not
+				// expose any nested error classification as finalization authority.
+				return false, fmt.Errorf("%w: invalid finalize result for generation %s: %s", db.ErrReplicationPeerDrainPending, generation, validationErr.Error())
+			}
+			status = finalized.Snapshot
+			haveStatus = true
+
+			var invalidated *swarmionapp.PeerDrainGenerationInvalidatedError
+			if errors.As(finalizeErr, &invalidated) && invalidated != nil {
+				if validationErr := invalidated.Snapshot.ValidateFor(request); validationErr != nil {
+					// Preserve only the pending classification at this fail-closed
+					// boundary; the malformed snapshot error is descriptive evidence.
+					return false, fmt.Errorf("%w: invalid generation-invalidation snapshot for %s: %s", db.ErrReplicationPeerDrainPending, generation, validationErr.Error())
+				}
+				if !reflect.DeepEqual(invalidated.Snapshot, finalized.Snapshot) {
+					return false, fmt.Errorf("%w: generation-invalidation error for %s contradicts its ordinary finalization result", db.ErrReplicationPeerDrainPending, generation)
+				}
 				return true, nil
 			}
-			if errors.Is(finalizeErr, swarmionapp.ErrPeerDrainNotReady) {
-				if !finalizeStatusObserved {
-					return false, fmt.Errorf("%w: finalize reported not-ready without typed status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, finalizeErr)
+			var retryable *swarmionapp.PeerDrainFinalizationRetryableError
+			if errors.As(finalizeErr, &retryable) && retryable != nil {
+				if validationErr := retryable.Snapshot.ValidateFor(request); validationErr != nil {
+					// The pending sentinel is authoritative; malformed nested snapshot
+					// diagnostics must not expose a second error classification.
+					return false, fmt.Errorf("%w: invalid retryable finalization snapshot for %s: %s", db.ErrReplicationPeerDrainPending, generation, validationErr.Error())
 				}
+				if !reflect.DeepEqual(retryable.Snapshot, finalized.Snapshot) {
+					return false, fmt.Errorf("%w: retryable finalization error for %s contradicts its ordinary result", db.ErrReplicationPeerDrainPending, generation)
+				}
+				if finalized.Finalized || !status.Active || !status.RouteGenerationMatches || !status.ReadyToFinalize {
+					return false, fmt.Errorf("%w: retryable finalization for generation %s lacks active ready authority", db.ErrReplicationPeerDrainPending, generation)
+				}
+				retryFinalize = true
+				lastFinalizeErr = finalizeErr
+				continue
+			}
+			if errors.Is(finalizeErr, swarmionapp.ErrPeerDrainNotReady) {
 				if status.ReadyToFinalize || status.Finalized {
 					return false, fmt.Errorf("%w: finalize reported not-ready with ready status for generation %s: %w", db.ErrReplicationPeerDrainPending, generation, finalizeErr)
 				}
 				lastFinalizeErr = finalizeErr
 				continue
 			}
-
-			if !runtime.Available() {
-				return false, fmt.Errorf("%w for instance '%s' while finalizing generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, finalizeErr)
-			}
-			// Cache clearing can fail while the generation remains active and
-			// ready. No status transition is emitted for that failure, so retry
-			// Finalize explicitly after a bounded backoff while still consuming
-			// invalidating watch events. This is not status polling.
-			if finalizeStatusObserved && status.Active && status.RouteGenerationMatches && status.ReadyToFinalize {
-				retryFinalize = true
-				lastFinalizeErr = finalizeErr
-			} else {
-				return false, fmt.Errorf("%w: finalize generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, finalizeErr)
-			}
+			return false, fmt.Errorf("%w: finalize generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, finalizeErr)
 		}
 
 		var retryTimer *time.Timer
@@ -2265,78 +2255,34 @@ func (cm *Manager) observeInstancePeerDrainGeneration(
 				}
 				return false, fmt.Errorf("%w: watch generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, event.Err)
 			}
-			status = event.Status
+			if validationErr := event.ValidateFor(request); validationErr != nil {
+				// Treat invalid forwarded state as descriptive evidence behind the
+				// package-minted pending boundary, never as independent authority.
+				return false, fmt.Errorf("%w: invalid event for generation %s of instance '%s': %s", db.ErrReplicationPeerDrainPending, generation, instance.Name, validationErr.Error())
+			}
+			status = event.Snapshot
+			haveStatus = true
+			log.Debugf("swarmion peer drain status for instance '%s': %s", instance.Name, db.PeerDrainStatusSummary(status))
+			if event.Kind == swarmionapp.PeerDrainEventGenerationInvalidated {
+				log.Debugf(
+					"invalidating swarmion peer drain generation %s for instance '%s' after status codes %v at heartbeat sequence %d",
+					generation,
+					instance.Name,
+					status.BlockingReasonCodes,
+					status.HeartbeatIngressFenceSequence,
+				)
+				return true, nil
+			}
 			// The initial watch snapshot can arrive after a cache-clear
 			// failure. An unchanged ready snapshot is not a reason to bypass
 			// the retry backoff; only an actual invalidating/not-ready state
 			// cancels that scheduled Finalize retry.
 			if wasWaitingToRetryFinalize &&
-				status.Active && status.RouteGenerationMatches && status.ReadyToFinalize &&
-				!peerDrainStatusInvalidatesGeneration(status) {
+				event.Kind == swarmionapp.PeerDrainEventReady {
 				retryFinalize = true
 			}
 		}
 	}
-}
-
-func validatePeerDrainStatusIdentity(status swarmionapp.PeerDrainStatus, peerID, generation string) error {
-	if status.PeerID != peerID || status.RouteGeneration != generation {
-		return fmt.Errorf(
-			"peer-drain status identity peer=%q generation=%q expected=%q/%q",
-			status.PeerID,
-			status.RouteGeneration,
-			peerID,
-			generation,
-		)
-	}
-	return nil
-}
-
-func validatePeerDrainFinalizeResponse(response swarmionapp.PeerDrainFinalizeResponse, peerID, generation string) error {
-	if response.PeerID != peerID || response.RouteGeneration != generation ||
-		(response.Status.PeerID != "" && response.Status.PeerID != peerID) ||
-		(response.Status.RouteGeneration != "" && response.Status.RouteGeneration != generation) {
-		return fmt.Errorf(
-			"%w: finalize response identity peer=%q generation=%q status_peer=%q status_generation=%q expected=%q/%q",
-			db.ErrReplicationPeerDrainPending,
-			response.PeerID,
-			response.RouteGeneration,
-			response.Status.PeerID,
-			response.Status.RouteGeneration,
-			peerID,
-			generation,
-		)
-	}
-	return nil
-}
-
-func peerDrainStatusHasReason(status swarmionapp.PeerDrainStatus, reason swarmionapp.PeerDrainBlockingReason) bool {
-	for _, candidate := range status.BlockingReasonCodes {
-		if candidate == reason {
-			return true
-		}
-	}
-	return false
-}
-
-func peerDrainStatusInvalidatesGeneration(status swarmionapp.PeerDrainStatus) bool {
-	if status.Finalized {
-		return false
-	}
-	return status.PostFenceHeartbeatAccepted ||
-		peerDrainStatusHasReason(status, swarmionapp.PeerDrainBlockingReasonPostFenceHeartbeatAccepted) ||
-		peerDrainStatusHasReason(status, swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive) ||
-		peerDrainStatusHasReason(status, swarmionapp.PeerDrainBlockingReasonNoActiveGeneration) ||
-		!status.Active ||
-		!status.RouteGenerationMatches
-}
-
-func peerDrainStatusFromTypedError(err error) (swarmionapp.PeerDrainStatus, bool) {
-	var notReady *swarmionapp.PeerDrainNotReadyError
-	if !errors.As(err, &notReady) || notReady == nil {
-		return swarmionapp.PeerDrainStatus{}, false
-	}
-	return notReady.Status, true
 }
 
 func (cm *Manager) replicationCandidatesExcluding(peerID string) ([]db.ReplicationCandidate, error) {

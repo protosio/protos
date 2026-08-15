@@ -10,7 +10,6 @@ import (
 
 	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
-	swarmionadmin "github.com/nustiueudinastea/swarmion/runtime/adminrpc"
 )
 
 // ErrReplicationPeerDrainPending means a generation-matched drain has not yet
@@ -53,13 +52,8 @@ type swarmionPeerDrainRuntime interface {
 	Status() swarmionapp.Status
 	Peers() []swarmionapp.PeerInfo
 	PeerStatus(context.Context) ([]swarmionapp.PeerStatus, error)
-	CatchUpCheckpoint(context.Context, swarmionadmin.CheckpointCatchUpRequest) (swarmionadmin.CheckpointCatchUpResponse, error)
+	ReconcileCheckpoint(context.Context, swarmionapp.CheckpointReconcileRequest) (swarmionapp.CheckpointReconcileResult, error)
 	Compatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error)
-	BeginPeerDrain(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error)
-	PeerDrainStatus(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error)
-	WatchPeerDrain(context.Context, swarmionapp.PeerDrainRequest) (<-chan swarmionapp.PeerDrainEvent, error)
-	WaitPeerDrainReady(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error)
-	FinalizePeerDrain(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainFinalizeResponse, error)
 }
 
 func ReplicationPriorityForDeviceClass(deviceClass string) (int, bool) {
@@ -302,103 +296,38 @@ func prepareReplicationPeerDrainWithRuntime(
 	)
 }
 
-func (db *DB) BeginReplicationPeerDrain(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainStatus, error) {
+// StartReplicationPeerDrain begins one public SDK session bound to the exact
+// application-owned route-fence token. The returned session owns its passive
+// event forwarding; callers must Close it before installing a replacement
+// fence.
+func (db *DB) StartReplicationPeerDrain(ctx context.Context, peerID, routeFenceToken string) (*swarmionapp.PeerDrainSession, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
-	if err != nil {
-		return swarmionapp.PeerDrainStatus{}, err
-	}
-	status, err := app.BeginPeerDrain(ctx, req)
-	if err != nil {
-		return status, fmt.Errorf("begin swarmion peer drain for %s: %w", req.PeerID, err)
-	}
-	return status, nil
-}
-
-func (db *DB) ReplicationPeerDrainStatus(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainStatus, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
-	if err != nil {
-		return swarmionapp.PeerDrainStatus{}, err
-	}
-	status, err := app.PeerDrainStatus(ctx, req)
-	if err != nil {
-		return status, fmt.Errorf("read swarmion peer drain status for %s: %w", req.PeerID, err)
-	}
-	return status, nil
-}
-
-// WatchReplicationPeerDrain passively forwards Swarmion's event-driven status
-// stream for one application-owned route generation. It does not poll, retry,
-// fence routes, clear caches, or otherwise advance the drain.
-func (db *DB) WatchReplicationPeerDrain(ctx context.Context, peerID, routeGeneration string) (<-chan swarmionapp.PeerDrainEvent, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
+	app, req, err := db.peerDrainRuntime(peerID, routeFenceToken)
 	if err != nil {
 		return nil, err
 	}
-	events, err := app.WatchPeerDrain(ctx, req)
+	session, err := app.StartPeerDrain(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("watch swarmion peer drain for %s: %w", req.PeerID, err)
+		return nil, fmt.Errorf("start swarmion peer drain for %s: %w", req.PeerID, err)
 	}
-	return events, nil
+	if session == nil {
+		return nil, fmt.Errorf("start swarmion peer drain for %s returned a nil session", req.PeerID)
+	}
+	return session, nil
 }
 
-// WaitReplicationPeerDrainReady passively waits for a generation to become
-// ready or to reach its in-process finalized tombstone. A post-fence heartbeat
-// or a superseding generation returns Swarmion's typed terminal error. Route
-// fencing and lifecycle retries remain application responsibilities.
-func (db *DB) WaitReplicationPeerDrainReady(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainStatus, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
-	if err != nil {
-		return swarmionapp.PeerDrainStatus{}, err
-	}
-	status, err := app.WaitPeerDrainReady(ctx, req)
-	if err != nil {
-		return status, fmt.Errorf("wait for swarmion peer drain readiness for %s: %w", req.PeerID, err)
-	}
-	return status, nil
-}
-
-func (db *DB) FinalizeReplicationPeerDrain(ctx context.Context, peerID, routeGeneration string) (swarmionapp.PeerDrainFinalizeResponse, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	app, req, err := db.peerDrainRuntime(peerID, routeGeneration)
-	if err != nil {
-		return swarmionapp.PeerDrainFinalizeResponse{}, err
-	}
-	response, err := app.FinalizePeerDrain(ctx, req)
-	if err != nil {
-		return response, fmt.Errorf("finalize swarmion peer drain for %s: %w", req.PeerID, err)
-	}
-	if !response.Finalized {
-		return response, fmt.Errorf("swarmion peer drain for %s returned without finalization", req.PeerID)
-	}
-	return response, nil
-}
-
-func (db *DB) peerDrainRuntime(peerID, routeGeneration string) (swarmionPeerDrainRuntime, swarmionapp.PeerDrainRequest, error) {
-	peerID = strings.TrimSpace(peerID)
-	routeGeneration = strings.TrimSpace(routeGeneration)
-	req := swarmionapp.PeerDrainRequest{PeerID: peerID, RouteGeneration: routeGeneration}
+func (db *DB) peerDrainRuntime(peerID, routeFenceToken string) (*swarmionapp.DatabaseRuntime, swarmionapp.PeerDrainRequest, error) {
+	// PeerID is canonical and RouteFenceToken is an opaque byte-exact identity.
+	// Do not trim or canonicalize either value before the public SDK validates
+	// the request.
+	req := swarmionapp.PeerDrainRequest{PeerID: peerID, RouteFenceToken: routeFenceToken}
 	if db == nil {
 		return nil, req, fmt.Errorf("%w: database is nil", ErrReplicationPeerDrainUnavailable)
 	}
-	if peerID == "" {
-		return nil, req, fmt.Errorf("peer id is required")
-	}
-	if routeGeneration == "" {
-		return nil, req, fmt.Errorf("route generation is required")
+	if err := req.Validate(); err != nil {
+		return nil, req, fmt.Errorf("invalid peer drain request: %w", err)
 	}
 	db.mu.Lock()
 	app := db.runtime
@@ -409,7 +338,7 @@ func (db *DB) peerDrainRuntime(peerID, routeGeneration string) (swarmionPeerDrai
 	return app, req, nil
 }
 
-func PeerDrainStatusSummary(status swarmionapp.PeerDrainStatus) string {
+func PeerDrainStatusSummary(status swarmionapp.PeerDrainSnapshot) string {
 	peerID := strings.TrimSpace(status.PeerID)
 	if peerID == "" {
 		peerID = "peer"

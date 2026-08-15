@@ -51,14 +51,14 @@ func newPeerDrainAuthorizationCrashFixture(t *testing.T) *peerDrainAuthorization
 	}
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fixture := &peerDrainAuthorizationCrashFixture{
 		manager:       manager,
@@ -71,25 +71,21 @@ func newPeerDrainAuthorizationCrashFixture(t *testing.T) *peerDrainAuthorization
 	}
 	manager.peerDrainRuntime = runtime
 	manager.peerRouteFence = fixture.fence
-	branchReceipt := func() swarmionapp.BranchOperationReceipt {
-		return swarmionapp.BranchOperationReceipt{
-			Resolution:        swarmionapp.BranchOperationReceiptFound,
-			EventID:           strings.Repeat("a", 64),
-			PublishedRootHash: strings.Repeat("b", 32),
-			EventDigest:       strings.Repeat("c", 64),
-			AuthorPeerID:      authorization.AuthorPeerID,
-			AuthorSeq:         7,
-			IntentDigest:      authorization.IntentDigest,
-		}
+	acceptedResolution := func() swarmionapp.OperationResolution {
+		return acceptedOperationResolutionForTest(
+			authorization.publishedWriteOperation(),
+			strings.Repeat("a", 64),
+			strings.Repeat("b", 32),
+		)
 	}
-	manager.lookupPeerDrainAuthorization = func(_ context.Context, operation db.PublishedWriteOperation) (swarmionapp.BranchOperationReceipt, error) {
+	manager.lookupPeerDrainAuthorization = func(_ context.Context, operation db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
 		if operation != authorization.publishedWriteOperation() {
-			return swarmionapp.BranchOperationReceipt{}, fmt.Errorf("unexpected P operation: %+v", operation)
+			return swarmionapp.OperationResolution{}, fmt.Errorf("unexpected P operation: %+v", operation)
 		}
 		if !fixture.accepted {
-			return swarmionapp.BranchOperationReceipt{Resolution: swarmionapp.BranchOperationReceiptAbsent, SafeToPublish: true}, nil
+			return absentOperationResolutionForTest(operation), nil
 		}
-		return branchReceipt(), nil
+		return acceptedResolution(), nil
 	}
 	manager.publishPeerDrainAuthorization = func(_ context.Context, operation db.PublishedWriteOperation, expected InstanceInfo, fact tasks.OperationFact) (db.PublishedWriteReceipt, error) {
 		fixture.publishPCalls++
@@ -97,13 +93,13 @@ func newPeerDrainAuthorizationCrashFixture(t *testing.T) *peerDrainAuthorization
 			return db.PublishedWriteReceipt{}, fmt.Errorf("unexpected P publication body")
 		}
 		fixture.accepted = true
-		return db.PublishedWriteReceiptFromOperation(branchReceipt())
+		return db.PublishedWriteReceiptFromResolution(acceptedResolution())
 	}
 	manager.waitPeerDrainAuthorization = func(_ context.Context, receipt db.PublishedWriteReceipt, _ string) (db.EventReceiptObservation, error) {
 		return db.EventReceiptObservation{
 			Receipt: receipt,
 			State:   db.EventReceiptStateAppliedDurably,
-			Status: swarmionapp.BranchEventReceiptStatus{
+			Status: swarmionapp.ReceiptStatus{
 				AppliedDurably:            true,
 				Checkpointed:              true,
 				CheckpointCommitID:        "event-P-checkpoint",
@@ -145,14 +141,14 @@ func (fixture *peerDrainAuthorizationCrashFixture) runDeleteContext(ctx context.
 func (fixture *peerDrainAuthorizationCrashFixture) restartPeerDrainLifecycle(prefix string) (*fakeReplicationPeerDrainRuntime, *fakeReplicationPeerRouteFence) {
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: prefix}
 	fixture.runtime = runtime
@@ -349,7 +345,7 @@ func TestPeerDrainAuthorizationStaleSnapshotConsumesReceiptButCannotAuthorize(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.Resolution != swarmionapp.BranchOperationReceiptFound {
+	if resolved.State != swarmionapp.OperationResolvedAccepted {
 		t.Fatalf("stale no-change P resolution = %+v, want found", resolved)
 	}
 	stored, err := db.SelectOne(store, createInstanceQueryMapper(instance.ID))
@@ -407,7 +403,7 @@ func TestPeerDrainAuthorizationRecoveredDurablePBlocksProviderUntilFreshDrainFin
 	}
 
 	restartedRuntime, restartedFence := fixture.restartPeerDrainLifecycle("blocked-restart")
-	restartedRuntime.begin = swarmionapp.PeerDrainStatus{
+	restartedRuntime.begin = swarmionapp.PeerDrainSnapshot{
 		Active:                       true,
 		RouteGenerationMatches:       true,
 		LocalCheckpointCovered:       false,
@@ -442,6 +438,62 @@ func TestPeerDrainAuthorizationRecoveredDurablePBlocksProviderUntilFreshDrainFin
 	}
 }
 
+func rejectedPeerDrainAuthorizationPublicationForTest(t *testing.T, operation db.PublishedWriteOperation) error {
+	t.Helper()
+	identity, err := swarmionapp.CanonicalOperationIdentity(operation.Key, operation.IntentDigest)
+	if err != nil {
+		t.Fatalf("canonicalize rejected peer-drain authorization identity: %v", err)
+	}
+	outcome := swarmionapp.PublicationOutcome{
+		Identity:        identity,
+		Scope:           swarmionapp.DatabasePublicationScope("/protos/tests/peer-drain-authorization"),
+		AuthorPeerID:    operation.AuthorPeerID,
+		State:           swarmionapp.PublicationRejectedSafeToRetry,
+		RejectionReason: swarmionapp.PublicationRejectionNotAccepted,
+	}
+	if err := outcome.Validate(); err != nil {
+		t.Fatalf("validate rejected peer-drain authorization outcome: %v", err)
+	}
+	return &swarmionapp.PublicationRejectedError{
+		Outcome: outcome,
+		Cause:   errors.New("transient P rejection"),
+	}
+}
+
+func TestPeerDrainAuthorizationExhaustedRejectionMarkerIsLocalAndFailClosed(t *testing.T) {
+	rejection := rejectedPeerDrainAuthorizationPublicationForTest(t, db.PublishedWriteOperation{
+		Key:          "peer-drain-marker-test",
+		IntentDigest: strings.Repeat("a", 64),
+		AuthorPeerID: "peer-a",
+	})
+	marker := newPeerDrainAuthorizationRejectionsExhaustedError(context.DeadlineExceeded, rejection)
+	marked := instanceDeletePublicationWithoutReceipt(marker)
+	if !isPeerDrainAuthorizationRejectionsExhausted(marked) {
+		t.Fatalf("exact exhausted-rejection marker was not recognized: %v", marked)
+	}
+	if db.IsRetryablePublishedWriteError(marked) || errors.Is(marked, swarmionapp.ErrPublicationRejectedSafeToRetry) {
+		t.Fatalf("exhausted marker leaked publication retry authority: %v", marked)
+	}
+	if !errors.Is(marked, context.DeadlineExceeded) || !strings.Contains(marked.Error(), "transient P rejection") {
+		t.Fatalf("exhausted marker lost terminal context or diagnostics: %v", marked)
+	}
+
+	for name, malformed := range map[string]error{
+		"marker without no-receipt boundary": marker,
+		"public rejection only":              instanceDeletePublicationWithoutReceipt(rejection),
+		"joined outer sibling":               errors.Join(marked, errors.New("unrelated sibling")),
+		"joined marker cause": instanceDeletePublicationWithoutReceipt(
+			errors.Join(marker, errors.New("unrelated sibling")),
+		),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if isPeerDrainAuthorizationRejectionsExhausted(malformed) {
+				t.Fatalf("malformed exhausted marker was accepted: %v", malformed)
+			}
+		})
+	}
+}
+
 func TestPeerDrainAuthorizationRetriesTypedNotAcceptedPUnderFinalizedFence(t *testing.T) {
 	fixture := newPeerDrainAuthorizationCrashFixture(t)
 	publishAccepted := fixture.manager.publishPeerDrainAuthorization
@@ -454,7 +506,7 @@ func TestPeerDrainAuthorizationRetriesTypedNotAcceptedPUnderFinalizedFence(t *te
 	) (db.PublishedWriteReceipt, error) {
 		attempts++
 		if attempts == 1 {
-			return db.PublishedWriteReceipt{}, fmt.Errorf("transient P rejection: %w", swarmionapp.ErrCommitNotAcceptedSafeToRetry)
+			return db.PublishedWriteReceipt{}, rejectedPeerDrainAuthorizationPublicationForTest(t, operation)
 		}
 		return publishAccepted(ctx, operation, expected, fact)
 	}
@@ -484,20 +536,23 @@ func TestPeerDrainAuthorizationNotAcceptedPRemainsRecoverableAfterLifecycleLoss(
 	publishAccepted := fixture.manager.publishPeerDrainAuthorization
 	transientAttempts := 0
 	fixture.manager.publishPeerDrainAuthorization = func(
-		context.Context,
-		db.PublishedWriteOperation,
-		InstanceInfo,
-		tasks.OperationFact,
+		_ context.Context,
+		operation db.PublishedWriteOperation,
+		_ InstanceInfo,
+		_ tasks.OperationFact,
 	) (db.PublishedWriteReceipt, error) {
 		transientAttempts++
-		return db.PublishedWriteReceipt{}, fmt.Errorf("transient P rejection: %w", swarmionapp.ErrCommitNotAcceptedSafeToRetry)
+		return db.PublishedWriteReceipt{}, rejectedPeerDrainAuthorizationPublicationForTest(t, operation)
 	}
 
 	firstCtx, cancelFirst := context.WithTimeout(context.Background(), 40*time.Millisecond)
 	defer cancelFirst()
 	err := fixture.runDeleteContext(firstCtx)
-	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !db.IsRetryablePublishedWriteError(err) {
-		t.Fatalf("first delete error = %v, want deferred typed-not-accepted P", err)
+	if !errors.Is(err, db.ErrReplicationPeerDrainPending) ||
+		db.IsRetryablePublishedWriteError(err) ||
+		errors.Is(err, swarmionapp.ErrPublicationRejectedSafeToRetry) ||
+		!errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("first delete error = %v, want non-authorizing deferred exhausted P rejection", err)
 	}
 	if transientAttempts != 1 || fixture.runtime.beginCalls != 1 || fixture.runtime.finalizeCalls != 1 || fixture.provider.deleteCalls != 0 {
 		t.Fatalf(
@@ -526,14 +581,14 @@ func TestPeerDrainAuthorizationNotAcceptedPRemainsRecoverableAfterLifecycleLoss(
 	// state; recovery must establish a wholly new fence and drain generation.
 	restartedRuntime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	restartedFence := &fakeReplicationPeerRouteFence{prefix: "restarted"}
 	fixture.manager.peerDrainRuntime = restartedRuntime

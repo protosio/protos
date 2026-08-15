@@ -127,7 +127,7 @@ func TestOperationAwareDeletePublishesAllStatementsOnceAndReplaysReceipt(t *test
 	if rowCount("users", firstUserID) != 0 || rowCount("organisations", firstOrganisationID) != 0 {
 		t.Fatal("operation transaction did not execute every delete statement")
 	}
-	if first.EventDigest == "" || first.AuthorPeerID == "" || first.OperationIntentDigest != operation.IntentDigest {
+	if !first.HasExactEventIdentity() || first.AuthorPeerID == "" || first.OperationIntentDigest != operation.IntentDigest {
 		t.Fatalf("operation receipt metadata is incomplete: %+v", first)
 	}
 

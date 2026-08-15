@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
-	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 )
 
@@ -39,7 +39,7 @@ type PublishedWriteAvailabilityOptions struct {
 // EventID/published-root pair.
 type PublishedWriteAvailabilityObservation struct {
 	Receipt PublishedWriteReceipt
-	Status  swarmionapp.ReceiptAvailabilityStatus
+	Status  swarmionapp.OtherPeerRetentionStatus
 }
 
 // PublishedWriteConfirmationStage is the strongest post-write boundary that
@@ -61,7 +61,7 @@ const (
 type PublishedWriteConfirmation struct {
 	Receipt             PublishedWriteReceipt
 	Stage               PublishedWriteConfirmationStage
-	Availability        swarmionapp.ReceiptAvailabilityStatus
+	Availability        swarmionapp.OtherPeerRetentionStatus
 	AvailabilityPending bool
 	AvailabilityError   string
 }
@@ -162,23 +162,23 @@ func (e *PublishedWriteAvailabilityPendingError) Unwrap() error {
 	return e.Cause
 }
 
-// ReceiptAvailabilityRequestFromPublishedWriteReceipt converts the complete
-// Protos receipt into Swarmion's immutable observation address. The receipt
+// ReceiptTrackingRequestFromPublishedWriteReceipt converts the complete Protos
+// receipt into Swarmion's immutable lifecycle-observation address. The receipt
 // need not claim a certain commit outcome: an exact uncertain receipt may be
 // observed safely, and observation never grants publication replay authority.
-func ReceiptAvailabilityRequestFromPublishedWriteReceipt(
+func ReceiptTrackingRequestFromPublishedWriteReceipt(
 	receipt PublishedWriteReceipt,
 	options PublishedWriteAvailabilityOptions,
-) (swarmionapp.ReceiptAvailabilityRequest, error) {
+) (swarmionapp.ReceiptTrackingRequest, error) {
 	eventID, root, err := validateEventReceiptIdentity(receipt.EventID, receipt.PublishedRootHash)
 	if err != nil {
-		return swarmionapp.ReceiptAvailabilityRequest{}, err
+		return swarmionapp.ReceiptTrackingRequest{}, err
 	}
 	if options.MinimumOtherPeers < 0 {
-		return swarmionapp.ReceiptAvailabilityRequest{}, fmt.Errorf("minimum other peers cannot be negative")
+		return swarmionapp.ReceiptTrackingRequest{}, fmt.Errorf("minimum other peers cannot be negative")
 	}
 	if options.MaxObservationAge < 0 {
-		return swarmionapp.ReceiptAvailabilityRequest{}, fmt.Errorf("maximum observation age cannot be negative")
+		return swarmionapp.ReceiptTrackingRequest{}, fmt.Errorf("maximum observation age cannot be negative")
 	}
 	minimumOtherPeers := options.MinimumOtherPeers
 	if minimumOtherPeers == 0 {
@@ -186,16 +186,18 @@ func ReceiptAvailabilityRequestFromPublishedWriteReceipt(
 	}
 	peerIDs, err := normalizePublishedWriteAvailabilityPeerIDs(options.PeerIDs)
 	if err != nil {
-		return swarmionapp.ReceiptAvailabilityRequest{}, err
+		return swarmionapp.ReceiptTrackingRequest{}, err
 	}
-	return swarmionapp.ReceiptAvailabilityRequest{
+	return swarmionapp.ReceiptTrackingRequest{
 		Receipt: swarmionapp.EventReceipt{
 			EventID:           eventID.String(),
 			PublishedRootHash: root.String(),
 		},
-		MinimumOtherPeers: minimumOtherPeers,
-		PeerIDs:           peerIDs,
-		MaxObservationAge: options.MaxObservationAge,
+		OtherPeerRetention: &swarmionapp.OtherPeerRetentionRequirement{
+			MinimumPeers:      minimumOtherPeers,
+			PeerIDs:           peerIDs,
+			MaxObservationAge: options.MaxObservationAge,
+		},
 	}, nil
 }
 
@@ -206,6 +208,9 @@ func normalizePublishedWriteAvailabilityPeerIDs(raw []string) ([]string, error) 
 	seen := make(map[string]struct{}, len(raw))
 	peerIDs := make([]string, 0, len(raw))
 	for _, candidate := range raw {
+		if !utf8.ValidString(candidate) || strings.ContainsRune(candidate, utf8.RuneError) {
+			return nil, fmt.Errorf("availability peer ids must contain valid JSON-stable UTF-8")
+		}
 		peerID := strings.TrimSpace(candidate)
 		if peerID == "" {
 			return nil, fmt.Errorf("availability peer ids cannot contain an empty peer")
@@ -221,8 +226,8 @@ func normalizePublishedWriteAvailabilityPeerIDs(raw []string) ([]string, error) 
 }
 
 type publishedWriteAvailabilityRuntime interface {
-	ReceiptAvailabilityStatus(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error)
-	WaitReceiptAvailability(context.Context, swarmionapp.ReceiptAvailabilityRequest) (swarmionapp.ReceiptAvailabilityStatus, error)
+	ObserveReceipt(context.Context, swarmionapp.ReceiptTrackingRequest) (swarmionapp.ReceiptSnapshot, error)
+	WaitReceipt(context.Context, swarmionapp.ReceiptWaitRequest) (swarmionapp.ReceiptWaitResult, error)
 }
 
 var _ publishedWriteAvailabilityRuntime = (*swarmionapp.DatabaseRuntime)(nil)
@@ -245,7 +250,7 @@ func (db *DB) ObservePublishedWriteAvailabilityWithOptions(
 	receipt PublishedWriteReceipt,
 	options PublishedWriteAvailabilityOptions,
 ) (PublishedWriteAvailabilityObservation, error) {
-	request, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, options)
+	request, err := ReceiptTrackingRequestFromPublishedWriteReceipt(receipt, options)
 	if err != nil {
 		return PublishedWriteAvailabilityObservation{Receipt: receipt}, err
 	}
@@ -278,7 +283,7 @@ func (db *DB) WaitForPublishedWriteAvailabilityWithOptions(
 	reason string,
 	options PublishedWriteAvailabilityOptions,
 ) (PublishedWriteAvailabilityObservation, error) {
-	request, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, options)
+	request, err := ReceiptTrackingRequestFromPublishedWriteReceipt(receipt, options)
 	if err != nil {
 		return PublishedWriteAvailabilityObservation{Receipt: receipt}, err
 	}
@@ -317,7 +322,7 @@ func observePublishedWriteAvailability(
 	ctx context.Context,
 	runtime publishedWriteAvailabilityRuntime,
 	receipt PublishedWriteReceipt,
-	request swarmionapp.ReceiptAvailabilityRequest,
+	request swarmionapp.ReceiptTrackingRequest,
 ) (PublishedWriteAvailabilityObservation, error) {
 	observation := PublishedWriteAvailabilityObservation{
 		Receipt: canonicalPublishedWriteAvailabilityReceipt(receipt, request),
@@ -325,18 +330,18 @@ func observePublishedWriteAvailability(
 	if runtime == nil {
 		return observation, fmt.Errorf("swarmion receipt availability runtime is not initialized")
 	}
-	status, err := runtime.ReceiptAvailabilityStatus(ctx, request)
+	snapshot, err := runtime.ObserveReceipt(ctx, request)
 	if err != nil {
 		return observation, fmt.Errorf("read swarmion published write availability: %w", err)
 	}
-	return publishedWriteAvailabilityObservation(observation.Receipt, request, status)
+	return publishedWriteAvailabilityObservation(observation.Receipt, request, snapshot)
 }
 
 func waitForPublishedWriteAvailability(
 	ctx context.Context,
 	runtime publishedWriteAvailabilityRuntime,
 	receipt PublishedWriteReceipt,
-	request swarmionapp.ReceiptAvailabilityRequest,
+	request swarmionapp.ReceiptTrackingRequest,
 	reason string,
 ) (PublishedWriteAvailabilityObservation, error) {
 	reason = strings.TrimSpace(reason)
@@ -351,15 +356,16 @@ func waitForPublishedWriteAvailability(
 		return latest, nil
 	}
 
-	status, waitErr := runtime.WaitReceiptAvailability(ctx, request)
-	if receiptAvailabilityStatusHasIdentity(status) {
-		observed, validationErr := publishedWriteAvailabilityObservation(latest.Receipt, request, status)
+	waitRequest := publishedWriteAvailabilityWaitRequest(request)
+	result, waitErr := runtime.WaitReceipt(ctx, waitRequest)
+	if receiptSnapshotHasIdentity(result.Snapshot) {
+		observed, validationErr := publishedWriteAvailabilityWaitObservation(latest.Receipt, waitRequest, result, waitErr)
 		if validationErr != nil {
 			return latest, validationErr
 		}
 		latest = observed
 	}
-	if waitErr == nil && latest.Status.Available {
+	if waitErr == nil && result.Satisfied && latest.Status.Available {
 		return latest, nil
 	}
 	if waitErr == nil {
@@ -374,203 +380,69 @@ func waitForPublishedWriteAvailability(
 
 func publishedWriteAvailabilityObservation(
 	receipt PublishedWriteReceipt,
-	request swarmionapp.ReceiptAvailabilityRequest,
-	status swarmionapp.ReceiptAvailabilityStatus,
+	request swarmionapp.ReceiptTrackingRequest,
+	snapshot swarmionapp.ReceiptSnapshot,
 ) (PublishedWriteAvailabilityObservation, error) {
-	observation := PublishedWriteAvailabilityObservation{Receipt: receipt, Status: status}
-	expectedEventID := swarmionprotocol.ParseEventID(request.Receipt.EventID)
-	expectedRoot := swarmionprotocol.ParseRootHash(request.Receipt.PublishedRootHash)
-	if swarmionprotocol.ParseEventID(status.Receipt.EventID) != expectedEventID ||
-		swarmionprotocol.ParseRootHash(status.Receipt.PublishedRootHash) != expectedRoot {
-		return observation, fmt.Errorf(
-			"%w: availability status identity mismatch requested=%s/%s returned=%s/%s",
-			errSwarmionPublishedWriteIncomplete,
-			expectedEventID,
-			expectedRoot,
-			status.Receipt.EventID,
-			status.Receipt.PublishedRootHash,
-		)
+	observation := PublishedWriteAvailabilityObservation{Receipt: receipt}
+	if err := snapshot.ValidateFor(request); err != nil {
+		return observation, fmt.Errorf("%w: invalid receipt lifecycle snapshot: %w", errSwarmionPublishedWriteIncomplete, err)
 	}
-	if status.RequiredOtherPeers != request.MinimumOtherPeers || status.ConfirmedOtherPeers < 0 {
-		return observation, fmt.Errorf(
-			"%w: inconsistent availability threshold required=%d want=%d confirmed=%d",
-			errSwarmionPublishedWriteIncomplete,
-			status.RequiredOtherPeers,
-			request.MinimumOtherPeers,
-			status.ConfirmedOtherPeers,
-		)
+	if snapshot.OtherPeerRetention == nil {
+		return observation, fmt.Errorf("%w: receipt lifecycle snapshot omitted requested other-peer retention", errSwarmionPublishedWriteIncomplete)
 	}
-	expectedScope := swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers
-	if len(request.PeerIDs) > 0 {
-		expectedScope = swarmionapp.ReceiptAvailabilityCandidateScopeExplicitPeerIDs
-	}
-	if status.CandidateScope != expectedScope {
-		return observation, fmt.Errorf(
-			"%w: inconsistent availability candidate scope returned=%q want=%q",
-			errSwarmionPublishedWriteIncomplete,
-			status.CandidateScope,
-			expectedScope,
-		)
-	}
-	eligiblePeerIDs, err := normalizePublishedWriteAvailabilityPeerIDs(status.EligiblePeerIDs)
-	if err != nil || !equalStrings(eligiblePeerIDs, status.EligiblePeerIDs) {
-		return observation, fmt.Errorf(
-			"%w: availability eligible peer ids are not canonical: %v",
-			errSwarmionPublishedWriteIncomplete,
-			status.EligiblePeerIDs,
-		)
-	}
-	if expectedScope == swarmionapp.ReceiptAvailabilityCandidateScopeExplicitPeerIDs &&
-		!equalStrings(eligiblePeerIDs, request.PeerIDs) {
-		return observation, fmt.Errorf(
-			"%w: explicit availability candidates returned=%v want=%v",
-			errSwarmionPublishedWriteIncomplete,
-			eligiblePeerIDs,
-			request.PeerIDs,
-		)
-	}
-	expectedNoCurrentEligiblePeers := expectedScope == swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers &&
-		len(eligiblePeerIDs) == 0
-	if status.NoCurrentEligiblePeers != expectedNoCurrentEligiblePeers {
-		return observation, fmt.Errorf(
-			"%w: inconsistent no-current-eligible-peers=%t scope=%q eligible=%v",
-			errSwarmionPublishedWriteIncomplete,
-			status.NoCurrentEligiblePeers,
-			status.CandidateScope,
-			eligiblePeerIDs,
-		)
-	}
-	if status.ConfirmedOtherPeers > len(eligiblePeerIDs) {
-		return observation, fmt.Errorf(
-			"%w: confirmed availability peers=%d exceed eligible peers=%d",
-			errSwarmionPublishedWriteIncomplete,
-			status.ConfirmedOtherPeers,
-			len(eligiblePeerIDs),
-		)
-	}
-	eligiblePeers := make(map[string]struct{}, len(eligiblePeerIDs))
-	for _, peerID := range eligiblePeerIDs {
-		eligiblePeers[peerID] = struct{}{}
-	}
-	evidencePeers := make(map[string]struct{}, len(status.Peers))
-	confirmedFromEvidence := 0
-	for _, peer := range status.Peers {
-		peerID := strings.TrimSpace(peer.PeerID)
-		if peerID == "" || peerID != peer.PeerID {
-			return observation, fmt.Errorf(
-				"%w: availability evidence contains a noncanonical peer id %q",
-				errSwarmionPublishedWriteIncomplete,
-				peer.PeerID,
-			)
-		}
-		if _, eligible := eligiblePeers[peerID]; !eligible {
-			return observation, fmt.Errorf(
-				"%w: availability evidence peer %q is not eligible",
-				errSwarmionPublishedWriteIncomplete,
-				peerID,
-			)
-		}
-		if _, duplicate := evidencePeers[peerID]; duplicate {
-			return observation, fmt.Errorf(
-				"%w: availability evidence repeats peer %q",
-				errSwarmionPublishedWriteIncomplete,
-				peerID,
-			)
-		}
-		evidencePeers[peerID] = struct{}{}
-		if peer.Retained && peer.Fresh {
-			confirmedFromEvidence++
-		}
-	}
-	if status.ConfirmedOtherPeers != confirmedFromEvidence {
-		return observation, fmt.Errorf(
-			"%w: confirmed availability peers=%d do not match retained fresh evidence=%d",
-			errSwarmionPublishedWriteIncomplete,
-			status.ConfirmedOtherPeers,
-			confirmedFromEvidence,
-		)
-	}
-	expectedAvailable := status.ConfirmedOtherPeers >= status.RequiredOtherPeers
-	if status.Available != expectedAvailable || (status.Available && (!status.Known || !status.LocalRootReady)) {
-		return observation, fmt.Errorf(
-			"%w: inconsistent availability status available=%t known=%t local_root_ready=%t required=%d confirmed=%d",
-			errSwarmionPublishedWriteIncomplete,
-			status.Available,
-			status.Known,
-			status.LocalRootReady,
-			status.RequiredOtherPeers,
-			status.ConfirmedOtherPeers,
-		)
-	}
-	if status.NoCurrentEligiblePeers {
-		if status.Available || status.ConfirmedOtherPeers != 0 || len(status.Peers) != 0 ||
-			status.ReasonCode != swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers {
-			return observation, fmt.Errorf(
-				"%w: inconsistent no-current-eligible-peers status available=%t confirmed=%d evidence=%d reason_code=%q",
-				errSwarmionPublishedWriteIncomplete,
-				status.Available,
-				status.ConfirmedOtherPeers,
-				len(status.Peers),
-				status.ReasonCode,
-			)
-		}
-	}
-	expectedReasonCode := swarmionapp.ReceiptAvailabilityReasonNone
-	switch {
-	case expectedNoCurrentEligiblePeers:
-		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers
-	case !status.Known:
-		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyLive
-	case !status.LocalRootReady:
-		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyRootReady
-	case expectedScope == swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers &&
-		len(eligiblePeerIDs) < status.RequiredOtherPeers:
-		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonInsufficientCurrentEligible
-	case !status.Available:
-		expectedReasonCode = swarmionapp.ReceiptAvailabilityReasonInsufficientOtherPeerReceipts
-	}
-	if status.ReasonCode != expectedReasonCode {
-		return observation, fmt.Errorf(
-			"%w: inconsistent availability reason code returned=%q want=%q",
-			errSwarmionPublishedWriteIncomplete,
-			status.ReasonCode,
-			expectedReasonCode,
-		)
-	}
-	if (expectedReasonCode == swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyLive ||
-		expectedReasonCode == swarmionapp.ReceiptAvailabilityReasonReceiptNotLocallyRootReady ||
-		expectedReasonCode == swarmionapp.ReceiptAvailabilityReasonInsufficientCurrentEligible) &&
-		len(status.Peers) != 0 {
-		return observation, fmt.Errorf(
-			"%w: early availability status reason_code=%q unexpectedly contains %d peer evidence records",
-			errSwarmionPublishedWriteIncomplete,
-			expectedReasonCode,
-			len(status.Peers),
-		)
-	}
-	observation.Status.Receipt = request.Receipt
+	observation.Status = *snapshot.OtherPeerRetention
 	return observation, nil
 }
 
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
+func publishedWriteAvailabilityWaitObservation(
+	receipt PublishedWriteReceipt,
+	request swarmionapp.ReceiptWaitRequest,
+	result swarmionapp.ReceiptWaitResult,
+	waitErr error,
+) (PublishedWriteAvailabilityObservation, error) {
+	observation, err := publishedWriteAvailabilityObservation(receipt, request.Tracking, result.Snapshot)
+	if err != nil {
+		return observation, err
 	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
+	if result.Condition != request.Condition {
+		return observation, fmt.Errorf(
+			"%w: receipt wait returned condition %q for request %q",
+			errSwarmionPublishedWriteIncomplete,
+			result.Condition,
+			request.Condition,
+		)
 	}
-	return true
+	// A terminal watch event intentionally wins over a just-observed boundary:
+	// Swarmion returns the validated latest snapshot with Satisfied=false and
+	// the terminal error. Retain that evidence for diagnostics, but let the
+	// caller return pending+terminal rather than success. Without an error the
+	// same mismatch is a malformed result and must fail closed.
+	terminalHandoff := observation.Status.Available && !result.Satisfied && waitErr != nil
+	if result.Satisfied != observation.Status.Available && !terminalHandoff {
+		return observation, fmt.Errorf(
+			"%w: receipt wait satisfaction=%t contradicts other-peer retention available=%t",
+			errSwarmionPublishedWriteIncomplete,
+			result.Satisfied,
+			observation.Status.Available,
+		)
+	}
+	return observation, nil
 }
 
-func receiptAvailabilityStatusHasIdentity(status swarmionapp.ReceiptAvailabilityStatus) bool {
-	return strings.TrimSpace(status.Receipt.EventID) != "" || strings.TrimSpace(status.Receipt.PublishedRootHash) != ""
+func receiptSnapshotHasIdentity(snapshot swarmionapp.ReceiptSnapshot) bool {
+	return strings.TrimSpace(snapshot.Receipt.EventID) != "" || strings.TrimSpace(snapshot.Receipt.PublishedRootHash) != ""
+}
+
+func publishedWriteAvailabilityWaitRequest(request swarmionapp.ReceiptTrackingRequest) swarmionapp.ReceiptWaitRequest {
+	return swarmionapp.ReceiptWaitRequest{
+		Tracking:  request,
+		Condition: swarmionapp.ReceiptConditionOtherPeerRetained,
+	}
 }
 
 func canonicalPublishedWriteAvailabilityReceipt(
 	receipt PublishedWriteReceipt,
-	request swarmionapp.ReceiptAvailabilityRequest,
+	request swarmionapp.ReceiptTrackingRequest,
 ) PublishedWriteReceipt {
 	receipt.EventID = request.Receipt.EventID
 	receipt.PublishedRootHash = request.Receipt.PublishedRootHash
@@ -602,7 +474,7 @@ func (db *DB) ConfirmPublishedWriteAvailability(
 		return confirmation
 	}
 	confirmation.Stage = PublishedWriteConfirmationLocalAccepted
-	request, err := ReceiptAvailabilityRequestFromPublishedWriteReceipt(receipt, PublishedWriteAvailabilityOptions{})
+	request, err := ReceiptTrackingRequestFromPublishedWriteReceipt(receipt, PublishedWriteAvailabilityOptions{})
 	if err != nil {
 		confirmation.AvailabilityPending = true
 		confirmation.AvailabilityError = err.Error()
@@ -623,7 +495,7 @@ func confirmPublishedWriteAvailability(
 	ctx context.Context,
 	runtime publishedWriteAvailabilityRuntime,
 	receipt PublishedWriteReceipt,
-	request swarmionapp.ReceiptAvailabilityRequest,
+	request swarmionapp.ReceiptTrackingRequest,
 	reason string,
 ) PublishedWriteConfirmation {
 	confirmation := PublishedWriteConfirmation{
@@ -655,9 +527,10 @@ func confirmPublishedWriteAvailability(
 		return confirmation
 	}
 
-	status, waitErr := runtime.WaitReceiptAvailability(ctx, request)
-	if receiptAvailabilityStatusHasIdentity(status) {
-		observed, validationErr := publishedWriteAvailabilityObservation(initial.Receipt, request, status)
+	waitRequest := publishedWriteAvailabilityWaitRequest(request)
+	result, waitErr := runtime.WaitReceipt(ctx, waitRequest)
+	if receiptSnapshotHasIdentity(result.Snapshot) {
+		observed, validationErr := publishedWriteAvailabilityWaitObservation(initial.Receipt, waitRequest, result, waitErr)
 		if validationErr != nil {
 			confirmation.AvailabilityPending = true
 			confirmation.AvailabilityError = validationErr.Error()
@@ -668,14 +541,19 @@ func confirmPublishedWriteAvailability(
 	}
 	if waitErr != nil {
 		confirmation.AvailabilityPending = true
-		if errors.Is(waitErr, swarmionapp.ErrReceiptAvailabilityPending) &&
-			confirmation.Availability.NoCurrentEligiblePeers {
+		if errors.Is(waitErr, swarmionapp.ErrReceiptPending) &&
+			confirmation.Availability.NoCurrentEligiblePeers &&
+			!errors.Is(waitErr, swarmionapp.ErrDatabaseRuntimeClosed) &&
+			!errors.Is(waitErr, swarmionapp.ErrBranchRuntimeClosed) &&
+			!errors.Is(waitErr, swarmionapp.ErrReceiptWatchClosed) &&
+			!errors.Is(waitErr, context.Canceled) &&
+			!errors.Is(waitErr, context.DeadlineExceeded) {
 			return confirmation
 		}
 		confirmation.AvailabilityError = waitErr.Error()
 		return confirmation
 	}
-	if !confirmation.Availability.Available {
+	if !result.Satisfied || !confirmation.Availability.Available {
 		confirmation.AvailabilityPending = true
 		confirmation.AvailabilityError = (&PublishedWriteAvailabilityPendingError{
 			Observation: PublishedWriteAvailabilityObservation{

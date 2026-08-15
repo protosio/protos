@@ -3,43 +3,51 @@ package db
 import (
 	"context"
 	"io/fs"
+	"strings"
 	"testing"
+
+	"github.com/dolthub/vitess/go/vt/sqlparser"
 )
 
 func TestInstanceLifecycleOwnerMigrationBackfillsOnlyProvenAuthority(t *testing.T) {
-	workDir, databaseName, signer, link := newMigrationOperationTestDatabase(t)
-	store, err := Open(workDir, databaseName, signer, link)
+	store := openMigrationDatabaseWithoutMigrations(t)
+	ctx := context.Background()
+	migrationsDir, err := fs.Sub(rootDir, "migrations")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = store.Close() })
-	if err := store.Init(); err != nil {
+	legacySchema, err := fs.ReadFile(migrationsDir, "protos_01_tables.sql")
+	if err != nil {
 		t.Fatal(err)
 	}
-	sqldb := store.GetSqlDB()
-	ctx := context.Background()
-	if _, err := sqldb.ExecContext(ctx, `ALTER TABLE cloud_machines_metadata DROP COLUMN lifecycle_owner_peer_id`); err != nil {
-		t.Fatalf("restore pre-v0.1 metadata shape: %v", err)
+	legacyPieces, err := sqlparser.SplitStatementToPieces(string(legacySchema))
+	if err != nil {
+		t.Fatal(err)
 	}
+	legacyStatements := make([]preparedWriteStatement, 0, len(legacyPieces)+1)
+	legacyStatements = append(legacyStatements, preparedWriteStatement{SQL: migrationHistoryCreateStatement})
+	for _, piece := range legacyPieces {
+		if piece = strings.TrimSpace(piece); piece != "" {
+			legacyStatements = append(legacyStatements, preparedWriteStatement{SQL: piece})
+		}
+	}
+	publishLegacyMigrationSchema(t, store, legacyStatements)
 
 	deleteAuthorizedID := MustNewUUIDv7()
 	deploymentOwnedID := MustNewUUIDv7()
 	ambiguousID := MustNewUUIDv7()
+	fixtureStatements := make([]preparedWriteStatement, 0, 10)
 	for _, id := range []string{deleteAuthorizedID, deploymentOwnedID, ambiguousID} {
-		if _, err := sqldb.ExecContext(ctx, `INSERT INTO cloud_machines_metadata
+		fixtureStatements = append(fixtureStatements, preparedWriteStatement{SQL: `INSERT INTO cloud_machines_metadata
 (id, cloud_id, provider_resource_id, public_ip, location, architecture, public_key)
-VALUES (?, 'test', 'provider-id', '', 'test', '', '')`, MustUUIDBytes(id)); err != nil {
-			t.Fatalf("insert legacy metadata %s: %v", id, err)
-		}
+VALUES (?, 'test', 'provider-id', '', 'test', '', '')`, Args: []any{MustUUIDBytes(id)}})
 	}
 	insertTask := func(id, subjectID, owner string) {
 		t.Helper()
-		if _, err := sqldb.ExecContext(ctx, `INSERT INTO tasks
+		fixtureStatements = append(fixtureStatements, preparedWriteStatement{SQL: `INSERT INTO tasks
 (id, task_stream, subject_type, subject_id, owner_peer_id, status, title, message, progress, payload, result, attempts, max_attempts, created_at, updated_at)
 VALUES (?, 'provisioners.instance.deploy', 'instance', ?, ?, 'succeeded', 'deploy', 'done', 100, '{}', '{}', 1, 1, '2026-08-11T00:00:00Z', '2026-08-11T00:00:00Z')`,
-			MustUUIDBytes(id), subjectID, owner); err != nil {
-			t.Fatalf("insert legacy deployment task: %v", err)
-		}
+			Args: []any{MustUUIDBytes(id), subjectID, owner}})
 	}
 	insertTask(MustNewUUIDv7(), deleteAuthorizedID, "peer-deployment")
 	insertTask(MustNewUUIDv7(), deploymentOwnedID, " peer-deployment-only ")
@@ -50,22 +58,30 @@ VALUES (?, 'provisioners.instance.deploy', 'instance', ?, ?, 'succeeded', 'deplo
 	insertTask(MustNewUUIDv7(), "not-a-uuid", "peer-malformed")
 
 	factTaskID := MustNewUUIDv7()
-	if _, err := sqldb.ExecContext(ctx, `INSERT INTO task_operation_facts
+	fixtureStatements = append(fixtureStatements, preparedWriteStatement{SQL: `INSERT INTO task_operation_facts
 (id, task_id, fact_kind, operation_key, intent_digest, author_peer_id, subject_type, subject_id, payload)
 VALUES (?, ?, 'instance_peer_drain_authorized_v1', 'operation-key', ?, ' peer-delete-author ', 'instance', ?, '{}')`,
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		MustUUIDBytes(factTaskID),
-		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		deleteAuthorizedID,
-	); err != nil {
-		t.Fatalf("insert historical P fact: %v", err)
+		Args: []any{
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			MustUUIDBytes(factTaskID),
+			"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			deleteAuthorizedID,
+		}})
+	if _, err := store.executeOrdinaryPublishedWriteContext(ctx, "legacy lifecycle-owner fixtures", false, false, fixtureStatements); err != nil {
+		t.Fatalf("publish legacy lifecycle-owner fixtures: %v", err)
 	}
 
-	migrationsDir, err := fs.Sub(rootDir, "migrations")
+	operationKey, err := NewPublishedWriteOperationKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.applyMigration(ctx, sqldb, sqldb, migrationsDir, "protos_02_instance_lifecycle_owner.sql"); err != nil {
+	operation, err := NewPublishedWriteOperation(operationKey, "protos:test:instance-lifecycle-owner-migration:v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.executePublishedWriteOperationContext(ctx, operation, "instance lifecycle-owner migration", func(ctx context.Context, executor sqlContextExecer) error {
+		return store.applyMigration(ctx, store.GetSqlDB(), executor, migrationsDir, "protos_02_instance_lifecycle_owner.sql")
+	}); err != nil {
 		t.Fatalf("apply lifecycle-owner migration to legacy schema: %v", err)
 	}
 
@@ -78,7 +94,7 @@ VALUES (?, ?, 'instance_peer_drain_authorized_v1', 'operation-key', ?, ' peer-de
 		{ambiguousID, ""},
 	} {
 		var got string
-		if err := sqldb.QueryRowContext(ctx, `SELECT lifecycle_owner_peer_id FROM cloud_machines_metadata WHERE id = ?`, MustUUIDBytes(test.id)).Scan(&got); err != nil {
+		if err := store.GetSqlDB().QueryRowContext(ctx, `SELECT lifecycle_owner_peer_id FROM cloud_machines_metadata WHERE id = ?`, MustUUIDBytes(test.id)).Scan(&got); err != nil {
 			t.Fatalf("read migrated owner %s: %v", test.id, err)
 		}
 		if got != test.want {

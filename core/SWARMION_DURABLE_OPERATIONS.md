@@ -12,11 +12,12 @@ New instance-delete tasks use `immutable_operation_facts_v1`:
 1. The queued task contains a stable random operation key, intent digest,
    original `AuthorPeerID`, and the expected delete invariant.
 2. The final business delete and one deterministic `operation_effect` row in
-   `task_operation_facts` commit in the same operation transaction. Seeing that
+   `task_operation_facts` publish in the same `Execute` request. Seeing that
    fact therefore proves which logical delete produced the SQL state.
-3. The exact event ID, published root, event digest, author, and intent are
-   recorded as a deterministic `operation_receipt` fact. Any peer that learns
-   the original author-scoped Swarmion binding derives identical content.
+3. The validated publication address and exact event/root receipt are recorded
+   as a deterministic `operation_receipt_v2` fact. Its payload contains only
+   event/root and operation/author/intent identity, so every peer using the
+   current public receipt contract derives identical content.
 4. Task status, progress, owner, timestamps, checkpoint observations, and proof
    results remain mutable projections. They are never part of an immutable
    fact and are not recovery authority.
@@ -26,6 +27,19 @@ from the correctness path. A recovering peer waits for the original operation
 binding, observes that exact event through `applied_durably`, verifies that the
 atomic effect fact is present, and resumes the projection. It does not publish
 another delete.
+
+During a rolling upgrade, `operation_receipt` remains the readable legacy v1
+kind. Legacy facts may retain nonzero `event_digest` and `author_seq`; those
+fields are preserved as historical metadata but are not required or recreated
+by the current runtime. The additive v2 kind has a different deterministic row
+ID, so an old peer can still publish its v1 fact without colliding with a new
+peer. New peers read and validate both kinds, require their shared immutable
+identity to agree when both exist, and write only v2. A disagreement fails
+closed as an immutable-fact conflict. A v2-only receipt is not projected into
+the rolling task payload: an older runner must resolve the immutable operation
+again, where its own runtime can recover the legacy sequence metadata, rather
+than consume a zero-valued v1 receipt. When a matching v1 fact exists, its
+legacy metadata can be carried forward for downgrade-safe projection.
 
 Tasks created before this model are rejected as unsupported rather than routed
 through the removed mutable-checkpoint implementation. A foreign operation miss
@@ -56,7 +70,8 @@ configuration, and VM deployment state, use receipt availability instead of
 waiting for `applied_durably`:
 
 1. Publish and retain the exact event/root receipt.
-2. Passively observe `WaitReceiptAvailability` with `MinimumOtherPeers: 1`.
+2. Passively call `WaitReceipt` with an `OtherPeerRetention` requirement of one
+   peer and the `OtherPeerRetained` condition.
 3. Report `local_accepted` or `other_peer_available` as distinct stages.
 
 An availability success proves one other peer retained the live event/root
@@ -79,36 +94,24 @@ a checkpoint snapshot. Provider deletion keeps immutable authorization `P` and
 final deletion `D` on exact `applied_durably` receipts with their `AS OF`
 business-invariant checks.
 
-Use Swarmion's public operation-receipt and exact-event wait helpers with a
-caller-owned deadline. They do not hold the SQL workspace while waiting.
+Use Swarmion's public `OperationAddress`/`OperationResolution` and
+`ObserveReceipt`/`WaitReceipt` helpers with a caller-owned deadline. They do
+not hold the SQL workspace while waiting.
 
 ## SQL adapter expectations
 
-`SQLDB()` exposes a serialized mutable workspace, not independent database
-sessions. Swarmion buffers result rows and provides several adapter connections
-so an unclosed result no longer pins all unrelated calls, but workspace
-statements are still serialized. Inspect `SQLCapabilities()` rather than
-assuming transaction queries, isolation selection, named parameters, or
-`LastInsertId` support.
+The public runtime does not expose a mutable `*sql.DB`. `QuerySQL` returns
+buffered rows for scoped reads, and this backend's `database/sql` adapter is
+read-only. Every mutation enters `DatabaseRuntime.Execute` with an immutable
+`OperationIdentity`; its `PublicationOutcome` is the only retry/publication
+authority.
 
-Use `RunOperationTransaction` for idempotent mutations. Its typed error reports
-the failing phase, commit status, and rollback result. The backend consumes
-those fields directly for exact transaction metrics; only a custom runner that
-discards `OperationTransactionError`, or `database/sql` reporting that cleanup
-already happened without revealing the driver rollback outcome, increments the
-opaque-lifecycle counter.
-
-Backend operations with caller-stable keys always select
-`OperationNoChangePolicyRecordReceipt`. If their SQL body changes no content,
-the same-root event and exact receipt still consume the key, and a replay skips
-the body. This prevents a delete/update that is a no-op today from executing
-later under the same key after database state changes. Ordinary convenience
-updates/deletes keep conventional SQL semantics instead: a no-op succeeds with
-no event or receipt, using Swarmion's explicit transaction no-change
-observation rather than inferring the outcome from receipt absence.
-
-Inspect and compare-and-swap discard ordinary drafts through the public draft
-API; never issue raw `DOLT_RESET('--hard')` against the shared workspace.
+An accepted or recorded no-change `PublicationOutcome` consumes the stable
+identity and carries an exact receipt; a replay resolves that same outcome and
+does not rerun the SQL body. Rejected-safe-to-retry is the sole mutation retry
+authority. Unresolved, inconclusive, unavailable, unknown, and terminal
+outcomes remain non-authorizing and must be recovered through the complete
+outcome/address contract.
 
 ## Dependency updates
 

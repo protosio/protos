@@ -114,9 +114,8 @@ func TestRetryablePublishedWriteErrorsRequireTypedNotAcceptedProof(t *testing.T)
 		ErrOperationReceiptUnavailable,
 		errors.New("staged SQL root=abc conflicts with protocol root=def"),
 		&swarmionapp.ContentConflictError{CandidateRootHash: "abc", ProtocolRootHash: "def"},
-		&swarmionapp.CommitOutcomeUncertainError{Cause: errors.New("outbox result unknown")},
 		viewNotReady,
-		errors.Join(viewNotReady, errors.New("transaction rollback failed")),
+		errors.Join(viewNotReady, errors.New("publication failed")),
 		errors.New("swarmion SQL view is not ready"),
 	} {
 		if IsRetryablePublishedWriteError(err) {
@@ -124,40 +123,104 @@ func TestRetryablePublishedWriteErrorsRequireTypedNotAcceptedProof(t *testing.T)
 		}
 	}
 
-	safe := fmt.Errorf("commit failed: %w", &swarmionapp.CommitNotAcceptedError{Cause: errors.New("event admission rejected")})
+	safeOutcome := swarmionapp.PublicationOutcome{
+		Identity:        swarmionapp.OperationIdentity{Key: "retry-test", IntentDigest: strings.Repeat("a", 64)},
+		Scope:           swarmionapp.DatabasePublicationScope("/protos/db/retry-test"),
+		AuthorPeerID:    "peer-a",
+		State:           swarmionapp.PublicationRejectedSafeToRetry,
+		RejectionReason: swarmionapp.PublicationRejectionNotAccepted,
+	}
+	safe := &swarmionapp.PublicationRejectedError{Outcome: safeOutcome, Cause: errors.New("event admission rejected")}
 	if !IsRetryablePublishedWriteError(safe) {
 		t.Fatalf("typed not-accepted outcome should be retryable: %v", safe)
 	}
-
-	cleanedView := retryableSQLViewWriteError("apply test operation", viewNotReady)
-	if !IsRetryablePublishedWriteError(cleanedView) || !errors.Is(cleanedView, swarmionapp.ErrSQLViewNotReady) {
-		t.Fatalf("typed pre-execution outcome with successful cleanup should be retryable: %v", cleanedView)
-	}
-}
-
-func TestPublishedWriteReceiptFromUncertainCommitRetainsExactAddressWithoutClaimingPublication(t *testing.T) {
-	exact := eventReceiptForTest()
-	operation := PublishedWriteOperation{IntentDigest: strings.Repeat("a", 64), AuthorPeerID: "peer-a"}
-	for _, persistence := range []swarmionapp.CommitReceiptPersistence{
-		swarmionapp.CommitReceiptPersistenceUnknown,
-		swarmionapp.CommitReceiptPersistencePersisted,
+	for _, stale := range []error{
+		swarmionprotocol.ErrStaleWriteContext,
+		fmt.Errorf("capture current SQL projection: %w", swarmionprotocol.ErrStaleWriteContext),
+		swarmionprotocol.ErrProjectionTooWide,
+		&swarmionprotocol.ProjectionTooWideError{HeadCount: 9, MaxHeads: 8},
+		fmt.Errorf("capture current SQL projection: %w", &swarmionprotocol.ProjectionTooWideError{HeadCount: 9, MaxHeads: 8}),
 	} {
-		receipt, ok := publishedWriteReceiptFromUncertainCommit(&swarmionapp.CommitOutcomeUncertainError{
-			EventReceipt: swarmionapp.BranchEventReceiptStatusRequest{
-				EventID:                   exact.EventID,
-				ExpectedPublishedRootHash: exact.PublishedRootHash,
+		if !IsRetryablePublishedWriteError(stale) {
+			t.Fatalf("typed pre-publication projection error should be retryable: %v", stale)
+		}
+	}
+	if IsRetryablePublishedWriteError(errors.Join(safe, errors.New("unrelated sibling"))) {
+		t.Fatal("joined sibling errors must not preserve publication retry authority")
+	}
+	if IsRetryablePublishedWriteError(errors.Join(swarmionprotocol.ErrStaleWriteContext, errors.New("unrelated sibling"))) {
+		t.Fatal("joined sibling errors must not preserve stale-context retry authority")
+	}
+
+	receipt := eventReceiptForTest()
+	for _, test := range []struct {
+		name     string
+		boundary error
+		cause    error
+	}{
+		{
+			name:     "event pending rejection",
+			boundary: &EventReceiptPendingError{Observation: EventReceiptObservation{Receipt: receipt}, Cause: safe},
+			cause:    safe,
+		},
+		{
+			name:     "event pending stale projection",
+			boundary: &EventReceiptPendingError{Observation: EventReceiptObservation{Receipt: receipt}, Cause: swarmionprotocol.ErrStaleWriteContext},
+			cause:    swarmionprotocol.ErrStaleWriteContext,
+		},
+		{
+			name: "availability pending rejection",
+			boundary: &PublishedWriteAvailabilityPendingError{
+				Observation: PublishedWriteAvailabilityObservation{Receipt: receipt},
+				Cause:       safe,
 			},
-			ReceiptPersistence: persistence,
-			Cause:              errors.New("outbox replacement outcome uncertain"),
-		}, operation)
-		if !ok || !receipt.HasExactEventIdentity() {
-			t.Fatalf("persistence=%s uncertain commit did not retain exact receipt: %+v", persistence, receipt)
-		}
-		if receipt.Committed || !receipt.OutcomeUncertain {
-			t.Fatalf("persistence=%s uncertain outcome was mislabeled locally published: %+v", persistence, receipt)
-		}
-		if receipt.OperationIntentDigest != operation.IntentDigest || receipt.AuthorPeerID != operation.AuthorPeerID {
-			t.Fatalf("persistence=%s uncertain receipt lost operation provenance: %+v", persistence, receipt)
+			cause: safe,
+		},
+		{
+			name: "availability pending stale projection",
+			boundary: &PublishedWriteAvailabilityPendingError{
+				Observation: PublishedWriteAvailabilityObservation{Receipt: receipt},
+				Cause:       swarmionprotocol.ErrStaleWriteContext,
+			},
+			cause: swarmionprotocol.ErrStaleWriteContext,
+		},
+		{
+			name: "receipt identity conflict rejection",
+			boundary: &PublishedWriteReceiptIdentityConflictError{
+				Receipt: receipt,
+				Cause:   safe,
+			},
+			cause: safe,
+		},
+		{
+			name: "receipt identity conflict stale projection",
+			boundary: &PublishedWriteReceiptIdentityConflictError{
+				Receipt: receipt,
+				Cause:   swarmionprotocol.ErrStaleWriteContext,
+			},
+			cause: swarmionprotocol.ErrStaleWriteContext,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			wrapped := fmt.Errorf("caller context: %w", test.boundary)
+			if !errors.Is(wrapped, test.cause) {
+				t.Fatalf("synthetic boundary did not retain its diagnostic cause: %v", wrapped)
+			}
+			if IsRetryablePublishedWriteError(wrapped) {
+				t.Fatalf("exact-receipt boundary leaked nested retry authority: %v", wrapped)
+			}
+		})
+	}
+
+	for _, boundary := range []error{
+		&PublishedWriteConfirmationUnresolvedError{
+			Confirmation: PublishedWriteConfirmation{Receipt: receipt},
+			Cause:        safe,
+		},
+		&EventReceiptParkedError{Observation: EventReceiptObservation{Receipt: receipt}},
+	} {
+		if IsRetryablePublishedWriteError(fmt.Errorf("caller context: %w", boundary)) {
+			t.Fatalf("explicit non-retryable lifecycle boundary granted retry: %v", boundary)
 		}
 	}
 }
@@ -185,7 +248,7 @@ func TestObserveEventReceiptAppliedDurablyTerminatesForEveryCoverage(t *testing.
 	} {
 		t.Run(string(coverage), func(t *testing.T) {
 			receipt := eventReceiptForTest()
-			runtime := &scriptedEventReceiptRuntime{statuses: []swarmionapp.BranchEventReceiptStatus{appliedEventStatusForTest(receipt, coverage)}}
+			runtime := &scriptedEventReceiptRuntime{statuses: []swarmionapp.ReceiptStatus{appliedEventStatusForTest(receipt, coverage)}}
 			observation, err := observePublishedWriteReceipt(context.Background(), runtime, receipt)
 			if err != nil {
 				t.Fatalf("observe applied receipt: %v", err)
@@ -223,7 +286,7 @@ func TestObserveEventReceiptUsesExactEventParking(t *testing.T) {
 			status.ParkedReason = tt.reason
 			status.Revisitable = tt.parked
 			runtime := &scriptedEventReceiptRuntime{
-				statuses: []swarmionapp.BranchEventReceiptStatus{status},
+				statuses: []swarmionapp.ReceiptStatus{status},
 			}
 			observation, err := observePublishedWriteReceipt(context.Background(), runtime, receipt)
 			if err != nil {
@@ -245,18 +308,18 @@ func TestValidateEventReceiptStatusRejectsInconsistentExactParking(t *testing.T)
 	root := swarmionprotocol.ParseRootHash(receipt.PublishedRootHash)
 	tests := []struct {
 		name   string
-		mutate func(*swarmionapp.BranchEventReceiptStatus)
+		mutate func(*swarmionapp.ReceiptStatus)
 	}{
 		{
 			name: "parked without revisitable",
-			mutate: func(status *swarmionapp.BranchEventReceiptStatus) {
+			mutate: func(status *swarmionapp.ReceiptStatus) {
 				status.Parked = true
 				status.ParkedReason = swarmionapp.BranchRootParkedReasonConflict
 			},
 		},
 		{
 			name: "parked with unknown reason",
-			mutate: func(status *swarmionapp.BranchEventReceiptStatus) {
+			mutate: func(status *swarmionapp.ReceiptStatus) {
 				status.Parked = true
 				status.ParkedReason = "future_reason"
 				status.Revisitable = true
@@ -264,14 +327,14 @@ func TestValidateEventReceiptStatusRejectsInconsistentExactParking(t *testing.T)
 		},
 		{
 			name: "non parked with stale metadata",
-			mutate: func(status *swarmionapp.BranchEventReceiptStatus) {
+			mutate: func(status *swarmionapp.ReceiptStatus) {
 				status.ParkedReason = swarmionapp.BranchRootParkedReasonConflict
 				status.Revisitable = true
 			},
 		},
 		{
 			name: "checkpointed and parked",
-			mutate: func(status *swarmionapp.BranchEventReceiptStatus) {
+			mutate: func(status *swarmionapp.ReceiptStatus) {
 				status.Checkpointed = true
 				status.CheckpointCommitID = swarmionprotocol.NewCheckpointCommitID("parked checkpoint").String()
 				status.CheckpointRootHash = swarmionprotocol.NewRootHash("parked checkpoint root").String()
@@ -295,7 +358,7 @@ func TestValidateEventReceiptStatusRejectsInconsistentExactParking(t *testing.T)
 func TestWaitForEventReceiptUsesTypedWaitAndStopsOnDissent(t *testing.T) {
 	receipt := eventReceiptForTest()
 	runtime := &scriptedEventReceiptRuntime{
-		statuses: []swarmionapp.BranchEventReceiptStatus{
+		statuses: []swarmionapp.ReceiptStatus{
 			pendingEventStatusForTest(receipt),
 			appliedEventStatusForTest(receipt, swarmionapp.BranchEventContentCoverageDissent),
 		},
@@ -320,7 +383,7 @@ func TestWaitForEventReceiptReturnsTypedParkedWithoutPublication(t *testing.T) {
 	parked.ParkedReason = swarmionapp.BranchRootParkedReasonDependencyParked
 	parked.Revisitable = true
 	runtime := &scriptedEventReceiptRuntime{
-		statuses: []swarmionapp.BranchEventReceiptStatus{parked},
+		statuses: []swarmionapp.ReceiptStatus{parked},
 	}
 	observation, err := waitForPublishedWriteApplied(context.Background(), runtime, receipt, "delete parked test")
 	if !errors.Is(err, ErrEventReceiptParked) {
@@ -345,7 +408,7 @@ func TestWaitForEventReceiptPendingIsBoundedAndRetainsCheckpoint(t *testing.T) {
 	pending.CheckpointCommitID = swarmionprotocol.NewCheckpointCommitID("pending checkpoint").String()
 	pending.CheckpointRootHash = swarmionprotocol.NewRootHash("pending checkpoint root").String()
 	runtime := &scriptedEventReceiptRuntime{
-		statuses: []swarmionapp.BranchEventReceiptStatus{pending},
+		statuses: []swarmionapp.ReceiptStatus{pending},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -362,6 +425,42 @@ func TestWaitForEventReceiptPendingIsBoundedAndRetainsCheckpoint(t *testing.T) {
 	}
 	if !reflect.DeepEqual(runtime.trace, []string{"wait_status"}) {
 		t.Fatalf("runtime trace=%v, want exact-event wait only", runtime.trace)
+	}
+}
+
+func TestWaitForEventReceiptTerminalCloseRetainsSatisfiedLatestSnapshot(t *testing.T) {
+	receipt := eventReceiptForTest()
+	status := appliedEventStatusForTest(receipt, swarmionapp.BranchEventContentCoverageCovered)
+	closed := &swarmionapp.DatabaseRuntimeClosedError{}
+	runtime := &terminalEventReceiptRuntime{
+		result: swarmionapp.ReceiptWaitResult{
+			Snapshot: swarmionapp.ReceiptSnapshot{
+				Receipt: swarmionapp.EventReceipt{
+					EventID:           receipt.EventID,
+					PublishedRootHash: receipt.PublishedRootHash,
+				},
+				Event:      status,
+				ObservedAt: time.Now(),
+			},
+			Condition: swarmionapp.ReceiptConditionAppliedDurably,
+			Satisfied: false,
+		},
+		err: closed,
+	}
+
+	observation, err := waitForPublishedWriteApplied(context.Background(), runtime, receipt, "terminal handoff test")
+	if !errors.Is(err, ErrEventReceiptPending) || !errors.Is(err, swarmionapp.ErrDatabaseRuntimeClosed) {
+		t.Fatalf("terminal wait error=%v, want pending plus typed runtime closure", err)
+	}
+	var pending *EventReceiptPendingError
+	if !errors.As(err, &pending) || pending == nil {
+		t.Fatalf("terminal wait error=%T, want *EventReceiptPendingError", err)
+	}
+	if observation.State != EventReceiptStateAppliedDurably || !observation.Status.AppliedDurably ||
+		pending.Observation.State != EventReceiptStateAppliedDurably ||
+		pending.Observation.Receipt.EventID != receipt.EventID ||
+		pending.Observation.Receipt.PublishedRootHash != receipt.PublishedRootHash {
+		t.Fatalf("terminal wait lost its latest satisfied snapshot: observation=%+v pending=%+v", observation, pending.Observation)
 	}
 }
 
@@ -400,42 +499,91 @@ func TestRecordContentDissentObservationEmitsWhenDurableHeadChanges(t *testing.T
 }
 
 type scriptedEventReceiptRuntime struct {
-	statuses []swarmionapp.BranchEventReceiptStatus
+	statuses []swarmionapp.ReceiptStatus
 	trace    []string
 	statusAt int
 }
 
-func (r *scriptedEventReceiptRuntime) EventReceiptStatus(_ context.Context, _ swarmionapp.BranchEventReceiptStatusRequest) (swarmionapp.BranchEventReceiptStatus, error) {
+type terminalEventReceiptRuntime struct {
+	result swarmionapp.ReceiptWaitResult
+	err    error
+}
+
+func (r *terminalEventReceiptRuntime) ObserveReceipt(context.Context, swarmionapp.ReceiptTrackingRequest) (swarmionapp.ReceiptSnapshot, error) {
+	return swarmionapp.ReceiptSnapshot{}, errors.New("terminal event receipt runtime does not support observation")
+}
+
+func (r *terminalEventReceiptRuntime) WaitReceipt(context.Context, swarmionapp.ReceiptWaitRequest) (swarmionapp.ReceiptWaitResult, error) {
+	return r.result, r.err
+}
+
+func (r *scriptedEventReceiptRuntime) ObserveReceipt(_ context.Context, request swarmionapp.ReceiptTrackingRequest) (swarmionapp.ReceiptSnapshot, error) {
 	r.trace = append(r.trace, "status")
 	if len(r.statuses) == 0 {
-		return swarmionapp.BranchEventReceiptStatus{}, fmt.Errorf("no scripted event status")
+		return swarmionapp.ReceiptSnapshot{}, fmt.Errorf("no scripted event status")
 	}
 	index := r.statusAt
 	if index >= len(r.statuses) {
 		index = len(r.statuses) - 1
 	}
 	r.statusAt++
-	return r.statuses[index], nil
+	return swarmionapp.ReceiptSnapshot{
+		Receipt:    request.Receipt,
+		Event:      r.statuses[index],
+		ObservedAt: time.Now(),
+	}, nil
 }
 
-func (r *scriptedEventReceiptRuntime) WaitEventReceiptStatus(ctx context.Context, _ swarmionapp.BranchEventReceiptStatusWaitRequest) (swarmionapp.BranchEventReceiptStatus, error) {
+func (r *scriptedEventReceiptRuntime) WaitReceipt(ctx context.Context, request swarmionapp.ReceiptWaitRequest) (swarmionapp.ReceiptWaitResult, error) {
 	r.trace = append(r.trace, "wait_status")
 	if len(r.statuses) == 0 {
-		return swarmionapp.BranchEventReceiptStatus{}, fmt.Errorf("no scripted event status")
+		return swarmionapp.ReceiptWaitResult{}, fmt.Errorf("no scripted event status")
+	}
+	result := func(status swarmionapp.ReceiptStatus) swarmionapp.ReceiptWaitResult {
+		return swarmionapp.ReceiptWaitResult{
+			Snapshot: swarmionapp.ReceiptSnapshot{
+				Receipt:    request.Tracking.Receipt,
+				Event:      status,
+				ObservedAt: time.Now(),
+			},
+			Satisfied: eventReceiptConditionSatisfiedForTest(status, request.Condition),
+			Condition: request.Condition,
+		}
 	}
 	for r.statusAt < len(r.statuses) {
 		status := r.statuses[r.statusAt]
 		r.statusAt++
 		if status.AppliedDurably {
-			return status, nil
+			return result(status), nil
 		}
 		if status.Parked {
-			return status, fmt.Errorf("scripted parked event remains revisitable")
+			return result(status), fmt.Errorf("scripted parked event remains revisitable")
 		}
 	}
 	status := r.statuses[len(r.statuses)-1]
 	<-ctx.Done()
-	return status, ctx.Err()
+	return result(status), ctx.Err()
+}
+
+func eventReceiptConditionSatisfiedForTest(status swarmionapp.ReceiptStatus, condition swarmionapp.ReceiptCondition) bool {
+	switch condition {
+	case swarmionapp.ReceiptConditionLocallyAccepted:
+		return status.Known
+	case swarmionapp.ReceiptConditionCheckpointed:
+		return status.Checkpointed
+	case swarmionapp.ReceiptConditionAppliedDurably:
+		return status.AppliedDurably
+	case swarmionapp.ReceiptConditionContentEvaluated:
+		return status.AppliedDurably &&
+			(status.ContentCoverage == swarmionapp.BranchEventContentCoverageCovered ||
+				status.ContentCoverage == swarmionapp.BranchEventContentCoverageDissent)
+	case swarmionapp.ReceiptConditionContentCovered:
+		return status.Durable && status.ContentCoverage == swarmionapp.BranchEventContentCoverageCovered
+	case swarmionapp.ReceiptConditionParked:
+		return status.Parked
+	default:
+		return false
+	}
 }
 
 func eventReceiptForTest() PublishedWriteReceipt {
@@ -446,8 +594,8 @@ func eventReceiptForTest() PublishedWriteReceipt {
 	}
 }
 
-func pendingEventStatusForTest(receipt PublishedWriteReceipt) swarmionapp.BranchEventReceiptStatus {
-	return swarmionapp.BranchEventReceiptStatus{
+func pendingEventStatusForTest(receipt PublishedWriteReceipt) swarmionapp.ReceiptStatus {
+	return swarmionapp.ReceiptStatus{
 		EventID:                   receipt.EventID,
 		ExpectedPublishedRootHash: receipt.PublishedRootHash,
 		Known:                     true,
@@ -455,8 +603,8 @@ func pendingEventStatusForTest(receipt PublishedWriteReceipt) swarmionapp.Branch
 	}
 }
 
-func appliedEventStatusForTest(receipt PublishedWriteReceipt, coverage swarmionapp.BranchEventContentCoverage) swarmionapp.BranchEventReceiptStatus {
-	return swarmionapp.BranchEventReceiptStatus{
+func appliedEventStatusForTest(receipt PublishedWriteReceipt, coverage swarmionapp.BranchEventContentCoverage) swarmionapp.ReceiptStatus {
+	status := swarmionapp.ReceiptStatus{
 		EventID:                   receipt.EventID,
 		ExpectedPublishedRootHash: receipt.PublishedRootHash,
 		Known:                     true,
@@ -470,4 +618,27 @@ func appliedEventStatusForTest(receipt PublishedWriteReceipt, coverage swarmiona
 		DurableCheckpointRootHash: swarmionprotocol.NewRootHash("durable checkpoint root").String(),
 		QueryableRootHash:         swarmionprotocol.NewRootHash("queryable root").String(),
 	}
+	proof := &swarmionapp.BranchRootDurableProofObservation{
+		TargetRootHash:              status.ExpectedPublishedRootHash,
+		QueryableRootHash:           status.QueryableRootHash,
+		DurableCheckpointCommitID:   status.DurableCheckpointCommitID,
+		DurableCheckpointRootHash:   status.DurableCheckpointRootHash,
+		CandidateCheckpointCommitID: status.CheckpointCommitID,
+		CandidateCheckpointRootHash: status.CheckpointRootHash,
+		CandidateEventID:            status.EventID,
+		EventContained:              true,
+	}
+	switch coverage {
+	case swarmionapp.BranchEventContentCoverageCovered:
+		proof.ProofRan = true
+		proof.Covered = true
+		proof.MergedRootHash = status.QueryableRootHash
+	case swarmionapp.BranchEventContentCoverageDissent:
+		proof.ProofRan = true
+		proof.Conflict = true
+	case swarmionapp.BranchEventContentCoverageUnavailable:
+		proof.ProofUnavailable = true
+	}
+	status.DurableProofObservation = proof
+	return status
 }

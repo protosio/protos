@@ -34,33 +34,11 @@ type TransactionMetricsSnapshot struct {
 	OperationTransactionsNoChange        uint64
 	OperationTransactionsFailed          uint64
 	OperationWorkspaceDirtyOutcomes      uint64
-	// OperationTransactionLifecycleOpaqueFailures counts custom/injected helper
-	// errors that do not preserve Swarmion's OperationTransactionError, plus the
-	// database/sql "rollback already done" result where the driver outcome is
-	// unknowable. Other SDK failures expose begin/execute/rollback/commit/receipt
-	// phases and are recorded exactly. When this counter is non-zero,
-	// TransactionsStarted and Rollbacks* remain exact observed lower bounds but
-	// cannot be used as a complete operation-transaction rollback denominator.
+	// OperationTransactionLifecycleOpaqueFailures counts malformed or
+	// unclassified results at the public Execute/PublicationOutcome boundary.
+	// Such results never grant replay authority.
 	OperationTransactionLifecycleOpaqueFailures uint64
 }
-
-type transactionRollbackReason uint8
-
-const (
-	transactionRollbackApplyFailure transactionRollbackReason = iota
-	transactionRollbackContextCanceled
-	transactionRollbackContextDeadline
-	transactionRollbackSQLViewNotReady
-	transactionRollbackPanic
-)
-
-type transactionRollbackPhase uint8
-
-const (
-	transactionRollbackPhaseApply transactionRollbackPhase = iota
-	transactionRollbackPhaseBeforeCommit
-	transactionRollbackPhasePanic
-)
 
 type transactionMetrics struct {
 	transactionsStarted                         atomic.Uint64
@@ -92,38 +70,6 @@ type transactionMetrics struct {
 	operationTransactionsFailed                 atomic.Uint64
 	operationWorkspaceDirtyOutcomes             atomic.Uint64
 	operationTransactionLifecycleOpaqueFailures atomic.Uint64
-}
-
-func (m *transactionMetrics) recordRollback(phase transactionRollbackPhase, reason transactionRollbackReason, err error) {
-	if m == nil {
-		return
-	}
-	m.rollbacksAttempted.Add(1)
-	switch phase {
-	case transactionRollbackPhaseBeforeCommit:
-		m.rollbacksBeforeCommitPhase.Add(1)
-	case transactionRollbackPhasePanic:
-		m.rollbacksPanicPhase.Add(1)
-	default:
-		m.rollbacksApplyPhase.Add(1)
-	}
-	switch reason {
-	case transactionRollbackContextCanceled:
-		m.rollbacksContextCanceled.Add(1)
-	case transactionRollbackContextDeadline:
-		m.rollbacksContextDeadline.Add(1)
-	case transactionRollbackSQLViewNotReady:
-		m.rollbacksSQLViewNotReady.Add(1)
-	case transactionRollbackPanic:
-		m.rollbacksPanic.Add(1)
-	default:
-		m.rollbacksApplyFailure.Add(1)
-	}
-	if err == nil {
-		m.rollbacksSucceeded.Add(1)
-	} else {
-		m.rollbacksFailed.Add(1)
-	}
 }
 
 func (m *transactionMetrics) snapshot() TransactionMetricsSnapshot {

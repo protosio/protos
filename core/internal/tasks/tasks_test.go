@@ -140,16 +140,16 @@ func taskWriteConfirmationForTest(stage db.PublishedWriteConfirmationStage, pend
 			PublishedRootHash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		},
 		Stage:               stage,
-		Availability:        swarmionReceiptAvailabilityStatusForTaskTest(available, confirmed),
+		Availability:        swarmionOtherPeerRetentionStatusForTaskTest(available, confirmed),
 		AvailabilityPending: pending,
 	}
 }
 
-func swarmionReceiptAvailabilityStatusForTaskTest(available bool, confirmed int) swarmionapp.ReceiptAvailabilityStatus {
-	status := swarmionapp.ReceiptAvailabilityStatus{
+func swarmionOtherPeerRetentionStatusForTaskTest(available bool, confirmed int) swarmionapp.OtherPeerRetentionStatus {
+	status := swarmionapp.OtherPeerRetentionStatus{
 		RequiredOtherPeers:  1,
 		ConfirmedOtherPeers: confirmed,
-		CandidateScope:      swarmionapp.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers,
+		CandidateScope:      swarmionapp.OtherPeerRetentionCandidateScopeCurrentLogicalPeers,
 		Available:           available,
 	}
 	if available {
@@ -157,7 +157,7 @@ func swarmionReceiptAvailabilityStatusForTaskTest(available bool, confirmed int)
 		return status
 	}
 	status.NoCurrentEligiblePeers = true
-	status.ReasonCode = swarmionapp.ReceiptAvailabilityReasonNoCurrentEligiblePeers
+	status.ReasonCode = swarmionapp.OtherPeerRetentionReasonNoCurrentEligiblePeers
 	return status
 }
 
@@ -358,7 +358,7 @@ func TestExactUnresolvedTaskUpdateDefersRunnerUntilPassiveReceiptResolution(t *t
 		}
 		return db.EventReceiptObservation{
 			Receipt: receipt,
-			Status:  swarmionapp.BranchEventReceiptStatus{Known: known},
+			Status:  swarmionapp.ReceiptStatus{Known: known},
 		}, nil
 	}
 

@@ -16,6 +16,72 @@ import (
 
 var errInstancePeerDrainAuthorizationFactAbsent = errors.New("peer-drain authorization fact absent from checkpoint")
 
+// peerDrainAuthorizationRejectionsExhaustedError records that every P attempt
+// made under one already-finalized route fence carried Swarmion's explicit
+// pre-publication retry authority before the lifecycle context ended. It
+// intentionally exposes only the terminal context through Unwrap: the prior
+// publication error is diagnostic text, not retry authority that callers may
+// recover from this terminal handoff.
+type peerDrainAuthorizationRejectionsExhaustedError struct {
+	terminal       error
+	lastDiagnostic string
+}
+
+func (err *peerDrainAuthorizationRejectionsExhaustedError) Error() string {
+	if err == nil {
+		return "peer-drain authorization safe rejections exhausted"
+	}
+	message := "peer-drain authorization safe rejections exhausted"
+	if err.terminal != nil {
+		message += ": " + err.terminal.Error()
+	}
+	if strings.TrimSpace(err.lastDiagnostic) != "" {
+		message += ": last rejection: " + err.lastDiagnostic
+	}
+	return message
+}
+
+func (err *peerDrainAuthorizationRejectionsExhaustedError) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.terminal
+}
+
+func newPeerDrainAuthorizationRejectionsExhaustedError(terminal, lastRejection error) error {
+	diagnostic := ""
+	if lastRejection != nil {
+		diagnostic = lastRejection.Error()
+	}
+	return &peerDrainAuthorizationRejectionsExhaustedError{
+		terminal:       terminal,
+		lastDiagnostic: diagnostic,
+	}
+}
+
+// isPeerDrainAuthorizationRejectionsExhausted accepts only the exact
+// provisioner-owned no-receipt -> exhausted marker chain, allowing ordinary
+// single-error wrappers around it. Joined/sibling errors and direct public
+// publication rejections remain non-authorizing and fail closed.
+//
+//nolint:errorlint // Exact current-node assertions are the fail-closed boundary; errors.As would skip over disallowed wrappers.
+func isPeerDrainAuthorizationRejectionsExhausted(err error) bool {
+	for err != nil {
+		if _, joined := err.(interface{ Unwrap() []error }); joined {
+			return false
+		}
+		if noReceipt, ok := err.(*instanceDeletePublicationWithoutReceiptError); ok {
+			if noReceipt == nil {
+				return false
+			}
+			marker, ok := noReceipt.Cause.(*peerDrainAuthorizationRejectionsExhaustedError)
+			return ok && marker != nil && marker.terminal != nil
+		}
+		err = errors.Unwrap(err)
+	}
+	return false
+}
+
 func instancePeerDrainAuthorizationFromFact(fact tasks.OperationFact) (instancePeerDrainAuthorization, error) {
 	var authorization instancePeerDrainAuthorization
 	if err := json.Unmarshal(fact.Payload, &authorization); err != nil {
@@ -97,9 +163,9 @@ func (cm *Manager) resolveInstancePeerDrainAuthorization(
 	if err != nil {
 		return db.PublishedWriteReceipt{}, false, fmt.Errorf("resolve peer-drain authorization P for task %s: %w", authorization.TaskID, err)
 	}
-	switch resolved.Resolution {
-	case swarmionapp.BranchOperationReceiptFound:
-		receipt, err := db.PublishedWriteReceiptFromOperation(resolved)
+	switch resolved.State {
+	case swarmionapp.OperationResolvedAccepted:
+		receipt, err := db.PublishedWriteReceiptFromResolution(resolved)
 		if err != nil {
 			return db.PublishedWriteReceipt{}, false, fmt.Errorf("decode peer-drain authorization P receipt for task %s: %w", authorization.TaskID, err)
 		}
@@ -107,15 +173,15 @@ func (cm *Manager) resolveInstancePeerDrainAuthorization(
 			return db.PublishedWriteReceipt{}, false, err
 		}
 		return receipt, true, nil
-	case swarmionapp.BranchOperationReceiptUnavailable:
+	case swarmionapp.OperationResolvedUnavailable:
 		return db.PublishedWriteReceipt{}, false, fmt.Errorf("%w: peer-drain authorization P task=%s", db.ErrOperationReceiptUnavailable, authorization.TaskID)
-	case swarmionapp.BranchOperationReceiptAbsent:
-		if !resolved.SafeToPublish {
+	case swarmionapp.OperationResolvedAbsent:
+		if !resolved.SafeToExecute {
 			return db.PublishedWriteReceipt{}, false, fmt.Errorf("%w: peer-drain authorization P task=%s absent without publication authority", db.ErrOperationReceiptUnavailable, authorization.TaskID)
 		}
 		return db.PublishedWriteReceipt{}, false, nil
 	default:
-		return db.PublishedWriteReceipt{}, false, fmt.Errorf("peer-drain authorization P task=%s returned unknown resolution %q", authorization.TaskID, resolved.Resolution)
+		return db.PublishedWriteReceipt{}, false, fmt.Errorf("peer-drain authorization P task=%s returned unknown resolution %q", authorization.TaskID, resolved.State)
 	}
 }
 
@@ -127,34 +193,17 @@ func validatePeerDrainAuthorizationReceipt(
 		return fmt.Errorf("peer-drain authorization P task=%s returned no exact event identity", authorization.TaskID)
 	}
 	if strings.TrimSpace(receipt.OperationIntentDigest) != strings.TrimSpace(authorization.IntentDigest) ||
-		strings.TrimSpace(receipt.AuthorPeerID) != strings.TrimSpace(authorization.AuthorPeerID) ||
-		receipt.AuthorSeq == 0 {
+		strings.TrimSpace(receipt.AuthorPeerID) != strings.TrimSpace(authorization.AuthorPeerID) {
 		return fmt.Errorf("%w: peer-drain authorization P response identity does not match task %s", db.ErrPublishedWriteReceiptIdentityConflict, authorization.TaskID)
 	}
 	return nil
 }
 
 func samePeerDrainAuthorizationReceipt(left, right db.PublishedWriteReceipt) bool {
-	return swarmionapp.SameBranchOperationReceiptIdentity(
-		swarmionapp.BranchOperationReceipt{
-			Resolution:        swarmionapp.BranchOperationReceiptFound,
-			EventID:           left.EventID,
-			PublishedRootHash: left.PublishedRootHash,
-			EventDigest:       left.EventDigest,
-			AuthorPeerID:      left.AuthorPeerID,
-			AuthorSeq:         left.AuthorSeq,
-			IntentDigest:      left.OperationIntentDigest,
-		},
-		swarmionapp.BranchOperationReceipt{
-			Resolution:        swarmionapp.BranchOperationReceiptFound,
-			EventID:           right.EventID,
-			PublishedRootHash: right.PublishedRootHash,
-			EventDigest:       right.EventDigest,
-			AuthorPeerID:      right.AuthorPeerID,
-			AuthorSeq:         right.AuthorSeq,
-			IntentDigest:      right.OperationIntentDigest,
-		},
-	)
+	return strings.TrimSpace(left.EventID) == strings.TrimSpace(right.EventID) &&
+		strings.TrimSpace(left.PublishedRootHash) == strings.TrimSpace(right.PublishedRootHash) &&
+		strings.TrimSpace(left.AuthorPeerID) == strings.TrimSpace(right.AuthorPeerID) &&
+		strings.TrimSpace(left.OperationIntentDigest) == strings.TrimSpace(right.OperationIntentDigest)
 }
 
 // completeInstancePeerDrainAuthorization publishes P once except for outcomes
@@ -190,7 +239,7 @@ func (cm *Manager) completeInstancePeerDrainAuthorization(
 			if err := ctx.Err(); err != nil {
 				if lastPublishErr != nil {
 					return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(
-						fmt.Errorf("%w while publishing peer-drain authorization P: %w", err, lastPublishErr),
+						newPeerDrainAuthorizationRejectionsExhaustedError(err, lastPublishErr),
 					)
 				}
 				return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(err)
@@ -219,7 +268,7 @@ func (cm *Manager) completeInstancePeerDrainAuthorization(
 
 			// Finalize has already consumed the Swarmion drain generation. Keep
 			// the same application route-generation lease while retrying only a
-			// typed, explicitly not-accepted P outcome. This prevents a transient
+			// validated pre-publication P rejection. This prevents a transient
 			// SQL-view/commit rejection from forcing a second target-dependent
 			// drain. Ambiguous outcomes never enter this loop.
 			lastPublishErr = publishErr

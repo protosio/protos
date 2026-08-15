@@ -81,10 +81,10 @@ func TestPublishedWriteConfirmationToProtoPreservesMachineReadableBoundary(t *te
 			PublishedRootHash: "root-1",
 		},
 		Stage: db.PublishedWriteConfirmationOtherPeerAvailable,
-		Availability: swarmion.ReceiptAvailabilityStatus{
+		Availability: swarmion.OtherPeerRetentionStatus{
 			RequiredOtherPeers:  1,
 			ConfirmedOtherPeers: 1,
-			CandidateScope:      swarmion.ReceiptAvailabilityCandidateScopeCurrentLogicalPeers,
+			CandidateScope:      swarmion.OtherPeerRetentionCandidateScopeCurrentLogicalPeers,
 			EligiblePeerIDs:     eligiblePeerIDs,
 		},
 		AvailabilityPending: true,

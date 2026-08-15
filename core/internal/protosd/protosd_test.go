@@ -210,6 +210,7 @@ func TestDBNotifierDoesNotPreClearOrFinalizeRemovedSwarmionPeers(t *testing.T) {
 		"WatchReplicationPeerDrain":     {},
 		"WaitReplicationPeerDrainReady": {},
 		"FinalizeReplicationPeerDrain":  {},
+		"StartReplicationPeerDrain":     {},
 	}
 	foundNotify := false
 	ast.Inspect(parsed, func(node ast.Node) bool {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,15 +18,15 @@ import (
 type fakeReplicationPeerDrainRuntime struct {
 	available                bool
 	unavailableAfterBegin    bool
-	begin                    swarmionapp.PeerDrainStatus
-	beginStatuses            []swarmionapp.PeerDrainStatus
+	begin                    swarmionapp.PeerDrainSnapshot
+	beginStatuses            []swarmionapp.PeerDrainSnapshot
 	beginErrors              []error
 	watchEvents              [][]swarmionapp.PeerDrainEvent
 	watchErrors              []error
 	closeWatchAfterEvents    bool
 	preserveWatchIdentity    bool
-	finalize                 swarmionapp.PeerDrainFinalizeResponse
-	finalizeResponses        []swarmionapp.PeerDrainFinalizeResponse
+	finalize                 swarmionapp.PeerDrainFinalizeResult
+	finalizeResponses        []swarmionapp.PeerDrainFinalizeResult
 	finalizeErrors           []error
 	preserveFinalizeIdentity bool
 
@@ -44,36 +45,27 @@ func (f *fakeReplicationPeerDrainRuntime) Prepare(context.Context, string, []db.
 	return nil
 }
 
-func (f *fakeReplicationPeerDrainRuntime) Begin(_ context.Context, peerID, generation string) (swarmionapp.PeerDrainStatus, error) {
+func (f *fakeReplicationPeerDrainRuntime) Start(ctx context.Context, peerID, generation string) (replicationPeerDrainSession, error) {
 	f.beginCalls++
 	f.generations = append(f.generations, generation)
-	status := f.begin
+	initial := f.begin
 	if len(f.beginStatuses) > 0 {
 		idx := f.beginCalls - 1
 		if idx >= len(f.beginStatuses) {
 			idx = len(f.beginStatuses) - 1
 		}
-		status = f.beginStatuses[idx]
+		initial = f.beginStatuses[idx]
 	}
-	status.PeerID = peerID
-	status.RouteGeneration = generation
-	if f.unavailableAfterBegin {
-		f.available = false
-	}
-	var err error
 	if len(f.beginErrors) > 0 {
 		idx := f.beginCalls - 1
 		if idx >= len(f.beginErrors) {
 			idx = len(f.beginErrors) - 1
 		}
-		err = f.beginErrors[idx]
+		if f.beginErrors[idx] != nil {
+			return nil, f.beginErrors[idx]
+		}
 	}
-	return status, err
-}
-
-func (f *fakeReplicationPeerDrainRuntime) Watch(ctx context.Context, peerID, generation string) (<-chan swarmionapp.PeerDrainEvent, error) {
 	f.watchCalls++
-	f.watchContexts = append(f.watchContexts, ctx)
 	if len(f.watchErrors) > 0 {
 		idx := f.watchCalls - 1
 		if idx >= len(f.watchErrors) {
@@ -83,6 +75,8 @@ func (f *fakeReplicationPeerDrainRuntime) Watch(ctx context.Context, peerID, gen
 			return nil, f.watchErrors[idx]
 		}
 	}
+	sessionCtx, cancel := context.WithCancel(ctx)
+	f.watchContexts = append(f.watchContexts, sessionCtx)
 	var events []swarmionapp.PeerDrainEvent
 	if len(f.watchEvents) > 0 {
 		idx := f.watchCalls - 1
@@ -91,35 +85,83 @@ func (f *fakeReplicationPeerDrainRuntime) Watch(ctx context.Context, peerID, gen
 		}
 		events = f.watchEvents[idx]
 	}
-	watch := make(chan swarmionapp.PeerDrainEvent, len(events))
+	watch := make(chan swarmionapp.PeerDrainEvent, len(events)+1)
+	initial = correlatePeerDrainSnapshotForTest(initial, peerID, generation)
+	watch <- swarmionapp.PeerDrainEvent{
+		Kind:     peerDrainEventKindForTest(initial),
+		Snapshot: initial,
+		Initial:  true,
+	}
 	for _, event := range events {
 		if !f.preserveWatchIdentity {
-			event.Status.PeerID = peerID
-			event.Status.RouteGeneration = generation
+			event.Snapshot = correlatePeerDrainSnapshotForTest(event.Snapshot, peerID, generation)
+		}
+		if event.Kind == "" {
+			event.Kind = peerDrainEventKindForTest(event.Snapshot)
 		}
 		watch <- event
 	}
+	done := make(chan struct{})
 	if f.closeWatchAfterEvents {
 		close(watch)
+		close(done)
+	} else {
+		go func() {
+			<-sessionCtx.Done()
+			close(watch)
+			close(done)
+		}()
 	}
-	return watch, nil
+	if f.unavailableAfterBegin {
+		f.available = false
+	}
+	return &fakeReplicationPeerDrainSession{
+		runtime:    f,
+		peerID:     peerID,
+		generation: generation,
+		events:     watch,
+		cancel:     cancel,
+		done:       done,
+	}, nil
 }
 
-func (f *fakeReplicationPeerDrainRuntime) Finalize(_ context.Context, peerID, generation string) (swarmionapp.PeerDrainFinalizeResponse, error) {
+type fakeReplicationPeerDrainSession struct {
+	runtime    *fakeReplicationPeerDrainRuntime
+	peerID     string
+	generation string
+	events     <-chan swarmionapp.PeerDrainEvent
+	cancel     context.CancelFunc
+	done       <-chan struct{}
+	closeOnce  sync.Once
+}
+
+func (s *fakeReplicationPeerDrainSession) Events() <-chan swarmionapp.PeerDrainEvent {
+	if s == nil {
+		return nil
+	}
+	return s.events
+}
+
+func (s *fakeReplicationPeerDrainSession) Finalize(context.Context) (swarmionapp.PeerDrainFinalizeResult, error) {
+	if s == nil || s.runtime == nil {
+		return swarmionapp.PeerDrainFinalizeResult{}, fmt.Errorf("fake peer-drain session is unavailable")
+	}
+	f := s.runtime
 	f.finalizeCalls++
-	response := f.finalize
+	result := f.finalize
 	if len(f.finalizeResponses) > 0 {
 		idx := f.finalizeCalls - 1
 		if idx >= len(f.finalizeResponses) {
 			idx = len(f.finalizeResponses) - 1
 		}
-		response = f.finalizeResponses[idx]
+		result = f.finalizeResponses[idx]
 	}
 	if !f.preserveFinalizeIdentity {
-		response.PeerID = peerID
-		response.RouteGeneration = generation
-		response.Status.PeerID = peerID
-		response.Status.RouteGeneration = generation
+		if result.Finalized && result.Snapshot.PeerID == "" {
+			result.Snapshot = finalizedPeerDrainSnapshotForTest(s.peerID, s.generation)
+		} else {
+			result.Snapshot = correlatePeerDrainSnapshotForTest(result.Snapshot, s.peerID, s.generation)
+		}
 	}
 	var err error
 	if len(f.finalizeErrors) > 0 {
@@ -129,12 +171,125 @@ func (f *fakeReplicationPeerDrainRuntime) Finalize(_ context.Context, peerID, ge
 		}
 		err = f.finalizeErrors[idx]
 	}
-	var notReady *swarmionapp.PeerDrainNotReadyError
-	if !f.preserveFinalizeIdentity && errors.As(err, &notReady) && notReady != nil {
-		notReady.Status.PeerID = peerID
-		notReady.Status.RouteGeneration = generation
+	if !f.preserveFinalizeIdentity {
+		var invalidated *swarmionapp.PeerDrainGenerationInvalidatedError
+		if errors.As(err, &invalidated) && invalidated != nil {
+			invalidated.Snapshot = correlatePeerDrainSnapshotForTest(invalidated.Snapshot, s.peerID, s.generation)
+		}
+		var retryable *swarmionapp.PeerDrainFinalizationRetryableError
+		if errors.As(err, &retryable) && retryable != nil {
+			retryable.Snapshot = correlatePeerDrainSnapshotForTest(retryable.Snapshot, s.peerID, s.generation)
+		}
 	}
-	return response, err
+	return result, err
+}
+
+func (s *fakeReplicationPeerDrainSession) Close() {
+	if s == nil {
+		return
+	}
+	s.closeOnce.Do(func() {
+		if s.cancel != nil {
+			s.cancel()
+		}
+	})
+	if s.done != nil {
+		<-s.done
+	}
+}
+
+func correlatePeerDrainSnapshotForTest(snapshot swarmionapp.PeerDrainSnapshot, peerID, generation string) swarmionapp.PeerDrainSnapshot {
+	snapshot.PeerID = peerID
+	snapshot.RouteGeneration = generation
+	if snapshot.Finalized {
+		return snapshot
+	}
+	if len(snapshot.BlockingReasonCodes) == 0 {
+		switch {
+		case !snapshot.Active:
+			snapshot.BlockingReasonCodes = []swarmionapp.PeerDrainBlockingReason{swarmionapp.PeerDrainBlockingReasonNoActiveGeneration}
+		case !snapshot.RouteGenerationMatches:
+			snapshot.BlockingReasonCodes = []swarmionapp.PeerDrainBlockingReason{swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive}
+		default:
+			if !snapshot.PreFenceHeartbeatIngressObserved {
+				snapshot.BlockingReasonCodes = append(snapshot.BlockingReasonCodes, swarmionapp.PeerDrainBlockingReasonPreFenceHeartbeatPending)
+			}
+			if snapshot.PostFenceHeartbeatAccepted {
+				snapshot.BlockingReasonCodes = append(snapshot.BlockingReasonCodes, swarmionapp.PeerDrainBlockingReasonPostFenceHeartbeatAccepted)
+			}
+			if !snapshot.LocalCheckpointCovered && snapshot.CheckpointCoverageReasonCode != "" {
+				snapshot.BlockingReasonCodes = append(snapshot.BlockingReasonCodes, snapshot.CheckpointCoverageReasonCode)
+			}
+		}
+	}
+	if snapshot.CheckpointCoverageReasonCode != "" && snapshot.CheckpointCoverageReason == "" {
+		snapshot.CheckpointCoverageReason = peerDrainReasonTextForTest(snapshot.CheckpointCoverageReasonCode)
+	}
+	if len(snapshot.BlockingReasons) == 0 && len(snapshot.BlockingReasonCodes) > 0 {
+		snapshot.BlockingReasons = make([]string, len(snapshot.BlockingReasonCodes))
+		for index, reason := range snapshot.BlockingReasonCodes {
+			snapshot.BlockingReasons[index] = peerDrainReasonTextForTest(reason)
+		}
+	}
+	return snapshot
+}
+
+func finalizedPeerDrainSnapshotForTest(peerID, generation string) swarmionapp.PeerDrainSnapshot {
+	return swarmionapp.PeerDrainSnapshot{
+		PeerID:                           peerID,
+		RouteGeneration:                  generation,
+		Finalized:                        true,
+		RouteGenerationMatches:           true,
+		LocalCheckpointCovered:           true,
+		PreFenceHeartbeatIngressObserved: true,
+		ReadyToFinalize:                  true,
+	}
+}
+
+func peerDrainEventKindForTest(snapshot swarmionapp.PeerDrainSnapshot) swarmionapp.PeerDrainEventKind {
+	if snapshot.Finalized {
+		return swarmionapp.PeerDrainEventFinalized
+	}
+	for _, reason := range snapshot.BlockingReasonCodes {
+		if reason == swarmionapp.PeerDrainBlockingReasonPostFenceHeartbeatAccepted ||
+			reason == swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive ||
+			reason == swarmionapp.PeerDrainBlockingReasonNoActiveGeneration {
+			return swarmionapp.PeerDrainEventGenerationInvalidated
+		}
+	}
+	if snapshot.ReadyToFinalize {
+		return swarmionapp.PeerDrainEventReady
+	}
+	return swarmionapp.PeerDrainEventBlocked
+}
+
+func peerDrainReasonTextForTest(reason swarmionapp.PeerDrainBlockingReason) string {
+	switch reason {
+	case swarmionapp.PeerDrainBlockingReasonAppNotInitialized:
+		return "app is not initialized"
+	case swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive:
+		return "a newer route generation is active"
+	case swarmionapp.PeerDrainBlockingReasonNoActiveGeneration:
+		return "no active peer drain for this route generation"
+	case swarmionapp.PeerDrainBlockingReasonIngressFenceUnavailable:
+		return "heartbeat ingress fencing is unavailable"
+	case swarmionapp.PeerDrainBlockingReasonPreFenceHeartbeatPending:
+		return "an acknowledged pre-fence heartbeat has not reached local observation state"
+	case swarmionapp.PeerDrainBlockingReasonPostFenceHeartbeatAccepted:
+		return "a heartbeat was accepted after the application route fence"
+	case swarmionapp.PeerDrainBlockingReasonLocalLineageUnavailable:
+		return "local checkpoint lineage is unavailable"
+	case swarmionapp.PeerDrainBlockingReasonPeerCheckpointMissingRoot:
+		return "peer advertises a checkpoint commit without a checkpoint root"
+	case swarmionapp.PeerDrainBlockingReasonPeerCheckpointNotValidated:
+		return "peer checkpoint is not present in local validated lineage"
+	case swarmionapp.PeerDrainBlockingReasonCheckpointMetadataIncomplete:
+		return "local checkpoint lineage metadata is incomplete"
+	case swarmionapp.PeerDrainBlockingReasonPeerCheckpointNotCovered:
+		return "local checkpoint lineage does not cover the peer checkpoint"
+	default:
+		return ""
+	}
 }
 
 type fakeReplicationPeerRouteFence struct {
@@ -143,6 +298,8 @@ type fakeReplicationPeerRouteFence struct {
 	currentPeer string
 	current     string
 	beforeFence func(int) error
+	beforeGuard func(string, string) error
+	guardCalls  int
 }
 
 func (f *fakeReplicationPeerRouteFence) FencePeer(machine p2p.Machine) (string, string, error) {
@@ -169,6 +326,12 @@ func (f *fakeReplicationPeerRouteFence) WithPeerFenceGeneration(
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	f.guardCalls++
+	if f.beforeGuard != nil {
+		if err := f.beforeGuard(peerID, generation); err != nil {
+			return err
+		}
 	}
 	if peerID != f.currentPeer || generation != f.current {
 		return fmt.Errorf("route-fence generation changed")
@@ -197,14 +360,14 @@ func TestInstancePeerDrainPreFenceIngressFinalizesExactGeneration(t *testing.T) 
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "boot-a"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
@@ -223,17 +386,16 @@ func TestInstancePeerDrainRejectsWrongSuccessfulFinalizeIdentity(t *testing.T) {
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{
-			Finalized:       true,
-			PeerID:          "wrong-peer",
-			RouteGeneration: "wrong-generation",
+		finalize: swarmionapp.PeerDrainFinalizeResult{
+			Finalized: true,
+			Snapshot:  finalizedPeerDrainSnapshotForTest("wrong-peer", "wrong-generation"),
 		},
 		preserveFinalizeIdentity: true,
 	}
@@ -246,7 +408,7 @@ func TestInstancePeerDrainRejectsWrongSuccessfulFinalizeIdentity(t *testing.T) {
 		continued++
 		return nil
 	})
-	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "finalize response identity") {
+	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "validate generation") {
 		t.Fatalf("wrong finalize identity error = %v", err)
 	}
 	if continued != 0 {
@@ -258,7 +420,7 @@ func TestInstancePeerDrainInactiveGenerationRefencesBeforeContinuation(t *testin
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		beginStatuses: []swarmionapp.PeerDrainStatus{
+		beginStatuses: []swarmionapp.PeerDrainSnapshot{
 			{Active: false, RouteGenerationMatches: false},
 			{
 				Active:                           true,
@@ -268,7 +430,7 @@ func TestInstancePeerDrainInactiveGenerationRefencesBeforeContinuation(t *testin
 				ReadyToFinalize:                  true,
 			},
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "inactive"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
@@ -287,17 +449,67 @@ func TestInstancePeerDrainInactiveGenerationRefencesBeforeContinuation(t *testin
 	}
 }
 
+func TestInstancePeerDrainRouteFenceReplacementBeforeFinalizeStartsFreshSession(t *testing.T) {
+	instance := peerDrainTestInstance(t)
+	ready := swarmionapp.PeerDrainSnapshot{
+		Active:                           true,
+		RouteGenerationMatches:           true,
+		LocalCheckpointCovered:           true,
+		PreFenceHeartbeatIngressObserved: true,
+		ReadyToFinalize:                  true,
+	}
+	runtime := &fakeReplicationPeerDrainRuntime{
+		available:         true,
+		beginStatuses:     []swarmionapp.PeerDrainSnapshot{ready, ready},
+		finalizeResponses: []swarmionapp.PeerDrainFinalizeResult{{Finalized: true}},
+	}
+	fence := &fakeReplicationPeerRouteFence{prefix: "guard-race"}
+	fence.beforeGuard = func(_, generation string) error {
+		if fence.guardCalls == 1 {
+			fence.current = generation + "-replaced"
+		}
+		return nil
+	}
+	fence.beforeFence = func(next int) error {
+		if next > 1 && (len(runtime.watchContexts) == 0 || runtime.watchContexts[0].Err() == nil) {
+			return fmt.Errorf("prior generation session was not closed before re-fence")
+		}
+		return nil
+	}
+	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
+	continued := 0
+	if err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func() error {
+		continued++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.beginCalls != 2 || runtime.finalizeCalls != 1 || fence.next != 2 || fence.guardCalls != 2 || continued != 1 {
+		t.Fatalf(
+			"starts=%d finalizes=%d fences=%d guards=%d continued=%d, want 2/1/2/2/1",
+			runtime.beginCalls,
+			runtime.finalizeCalls,
+			fence.next,
+			fence.guardCalls,
+			continued,
+		)
+	}
+	if runtime.generations[0] == runtime.generations[1] {
+		t.Fatalf("route guard race reused generation %q", runtime.generations[0])
+	}
+}
+
 func TestInstancePeerDrainWaitsForPreFenceIngressObservation(t *testing.T) {
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                 true,
 			RouteGenerationMatches: true,
 			LocalCheckpointCovered: true,
 		},
 		watchEvents: [][]swarmionapp.PeerDrainEvent{{{
-			Status: swarmionapp.PeerDrainStatus{
+			Snapshot: swarmionapp.PeerDrainSnapshot{
 				Active:                           true,
 				RouteGenerationMatches:           true,
 				LocalCheckpointCovered:           true,
@@ -305,7 +517,7 @@ func TestInstancePeerDrainWaitsForPreFenceIngressObservation(t *testing.T) {
 				ReadyToFinalize:                  true,
 			},
 		}}},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "boot-wait"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
@@ -321,11 +533,11 @@ func TestInstancePeerDrainUncoveredCheckpointRemainsPending(t *testing.T) {
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                         true,
 			RouteGenerationMatches:         true,
 			LocalCheckpointCovered:         false,
-			CheckpointCoverageReason:       "peer checkpoint is not present in local validated lineage",
+			CheckpointCoverageReasonCode:   swarmionapp.PeerDrainBlockingReasonPeerCheckpointNotValidated,
 			CachedContentProviderHintCount: 1,
 		},
 	}
@@ -368,7 +580,7 @@ func TestInstancePeerDrainPostFenceHeartbeatStartsNewGeneration(t *testing.T) {
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		beginStatuses: []swarmionapp.PeerDrainStatus{
+		beginStatuses: []swarmionapp.PeerDrainSnapshot{
 			{
 				Active:                 true,
 				RouteGenerationMatches: true,
@@ -383,7 +595,7 @@ func TestInstancePeerDrainPostFenceHeartbeatStartsNewGeneration(t *testing.T) {
 			},
 		},
 		watchEvents: [][]swarmionapp.PeerDrainEvent{{{
-			Status: swarmionapp.PeerDrainStatus{
+			Snapshot: swarmionapp.PeerDrainSnapshot{
 				Active:                           true,
 				RouteGenerationMatches:           true,
 				LocalCheckpointCovered:           true,
@@ -392,7 +604,7 @@ func TestInstancePeerDrainPostFenceHeartbeatStartsNewGeneration(t *testing.T) {
 				BlockingReasonCodes:              []swarmionapp.PeerDrainBlockingReason{swarmionapp.PeerDrainBlockingReasonPostFenceHeartbeatAccepted},
 			},
 		}}, nil},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "boot-a"}
 	fence.beforeFence = func(next int) error {
@@ -415,7 +627,7 @@ func TestInstancePeerDrainPostFenceHeartbeatStartsNewGeneration(t *testing.T) {
 
 func TestInstancePeerDrainFinalizeRaceStartsNewGeneration(t *testing.T) {
 	instance := peerDrainTestInstance(t)
-	ready := swarmionapp.PeerDrainStatus{
+	ready := swarmionapp.PeerDrainSnapshot{
 		Active:                           true,
 		RouteGenerationMatches:           true,
 		LocalCheckpointCovered:           true,
@@ -424,9 +636,9 @@ func TestInstancePeerDrainFinalizeRaceStartsNewGeneration(t *testing.T) {
 	}
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available:     true,
-		beginStatuses: []swarmionapp.PeerDrainStatus{ready, ready},
-		finalizeResponses: []swarmionapp.PeerDrainFinalizeResponse{
-			{Status: swarmionapp.PeerDrainStatus{
+		beginStatuses: []swarmionapp.PeerDrainSnapshot{ready, ready},
+		finalizeResponses: []swarmionapp.PeerDrainFinalizeResult{
+			{Snapshot: swarmionapp.PeerDrainSnapshot{
 				Active:                           true,
 				RouteGenerationMatches:           true,
 				LocalCheckpointCovered:           true,
@@ -437,7 +649,7 @@ func TestInstancePeerDrainFinalizeRaceStartsNewGeneration(t *testing.T) {
 			{Finalized: true},
 		},
 		finalizeErrors: []error{
-			&swarmionapp.PeerDrainNotReadyError{Status: swarmionapp.PeerDrainStatus{
+			&swarmionapp.PeerDrainGenerationInvalidatedError{Snapshot: swarmionapp.PeerDrainSnapshot{
 				Active:                           true,
 				RouteGenerationMatches:           true,
 				LocalCheckpointCovered:           true,
@@ -465,7 +677,7 @@ func TestInstancePeerDrainNewerGenerationCodeCancelsWatchBeforeRefence(t *testin
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		beginStatuses: []swarmionapp.PeerDrainStatus{
+		beginStatuses: []swarmionapp.PeerDrainSnapshot{
 			{Active: true, RouteGenerationMatches: true, LocalCheckpointCovered: true},
 			{
 				Active:                           true,
@@ -476,16 +688,15 @@ func TestInstancePeerDrainNewerGenerationCodeCancelsWatchBeforeRefence(t *testin
 			},
 		},
 		watchEvents: [][]swarmionapp.PeerDrainEvent{{{
-			Status: swarmionapp.PeerDrainStatus{
+			Snapshot: swarmionapp.PeerDrainSnapshot{
 				Active:                 true,
-				RouteGenerationMatches: true,
-				LocalCheckpointCovered: true,
+				RouteGenerationMatches: false,
 				BlockingReasonCodes: []swarmionapp.PeerDrainBlockingReason{
 					swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive,
 				},
 			},
 		}}, nil},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "newer-generation"}
 	fence.beforeFence = func(next int) error {
@@ -505,7 +716,7 @@ func TestInstancePeerDrainNewerGenerationCodeCancelsWatchBeforeRefence(t *testin
 
 func TestInstancePeerDrainTypedInactiveFinalizeRefences(t *testing.T) {
 	instance := peerDrainTestInstance(t)
-	ready := swarmionapp.PeerDrainStatus{
+	ready := swarmionapp.PeerDrainSnapshot{
 		Active:                           true,
 		RouteGenerationMatches:           true,
 		LocalCheckpointCovered:           true,
@@ -513,10 +724,16 @@ func TestInstancePeerDrainTypedInactiveFinalizeRefences(t *testing.T) {
 		ReadyToFinalize:                  true,
 	}
 	runtime := &fakeReplicationPeerDrainRuntime{
-		available:         true,
-		beginStatuses:     []swarmionapp.PeerDrainStatus{ready, ready},
-		finalizeResponses: []swarmionapp.PeerDrainFinalizeResponse{{Status: ready}, {Finalized: true}},
-		finalizeErrors:    []error{swarmionapp.ErrPeerDrainGenerationInactive, nil},
+		available:     true,
+		beginStatuses: []swarmionapp.PeerDrainSnapshot{ready, ready},
+		finalizeResponses: []swarmionapp.PeerDrainFinalizeResult{
+			{Snapshot: swarmionapp.PeerDrainSnapshot{Active: true, BlockingReasonCodes: []swarmionapp.PeerDrainBlockingReason{swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive}}},
+			{Finalized: true},
+		},
+		finalizeErrors: []error{
+			&swarmionapp.PeerDrainGenerationInvalidatedError{Snapshot: swarmionapp.PeerDrainSnapshot{Active: true, BlockingReasonCodes: []swarmionapp.PeerDrainBlockingReason{swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive}}},
+			nil,
+		},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "typed-inactive"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
@@ -533,18 +750,19 @@ func TestInstancePeerDrainTypedInactiveFinalizeRefences(t *testing.T) {
 
 func TestInstancePeerDrainTypedNotReadyContinuesWatch(t *testing.T) {
 	instance := peerDrainTestInstance(t)
-	ready := swarmionapp.PeerDrainStatus{
+	ready := swarmionapp.PeerDrainSnapshot{
 		Active:                           true,
 		RouteGenerationMatches:           true,
 		LocalCheckpointCovered:           true,
 		PreFenceHeartbeatIngressObserved: true,
 		ReadyToFinalize:                  true,
 	}
-	waiting := swarmionapp.PeerDrainStatus{
-		Active:                       true,
-		RouteGenerationMatches:       true,
-		LocalCheckpointCovered:       false,
-		CheckpointCoverageReasonCode: swarmionapp.PeerDrainBlockingReasonPeerCheckpointNotCovered,
+	waiting := swarmionapp.PeerDrainSnapshot{
+		Active:                           true,
+		RouteGenerationMatches:           true,
+		LocalCheckpointCovered:           false,
+		PreFenceHeartbeatIngressObserved: true,
+		CheckpointCoverageReasonCode:     swarmionapp.PeerDrainBlockingReasonPeerCheckpointNotCovered,
 		BlockingReasonCodes: []swarmionapp.PeerDrainBlockingReason{
 			swarmionapp.PeerDrainBlockingReasonPeerCheckpointNotCovered,
 		},
@@ -553,11 +771,11 @@ func TestInstancePeerDrainTypedNotReadyContinuesWatch(t *testing.T) {
 		available: true,
 		begin:     ready,
 		watchEvents: [][]swarmionapp.PeerDrainEvent{{{
-			Status: ready,
+			Snapshot: ready,
 		}}},
-		finalizeResponses: []swarmionapp.PeerDrainFinalizeResponse{{Status: waiting}, {Finalized: true}},
+		finalizeResponses: []swarmionapp.PeerDrainFinalizeResult{{Snapshot: waiting}, {Finalized: true}},
 		finalizeErrors: []error{
-			&swarmionapp.PeerDrainNotReadyError{Status: waiting},
+			swarmionapp.ErrPeerDrainNotReady,
 			nil,
 		},
 	}
@@ -573,7 +791,7 @@ func TestInstancePeerDrainTypedNotReadyContinuesWatch(t *testing.T) {
 
 func TestInstancePeerDrainCacheClearErrorRetriesFinalizeSameGeneration(t *testing.T) {
 	instance := peerDrainTestInstance(t)
-	ready := swarmionapp.PeerDrainStatus{
+	ready := swarmionapp.PeerDrainSnapshot{
 		Active:                           true,
 		RouteGenerationMatches:           true,
 		LocalCheckpointCovered:           true,
@@ -583,8 +801,11 @@ func TestInstancePeerDrainCacheClearErrorRetriesFinalizeSameGeneration(t *testin
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available:         true,
 		begin:             ready,
-		finalizeResponses: []swarmionapp.PeerDrainFinalizeResponse{{Status: ready}, {Finalized: true}},
-		finalizeErrors:    []error{errors.New("clear local provider cache: transient failure"), nil},
+		finalizeResponses: []swarmionapp.PeerDrainFinalizeResult{{Snapshot: ready}, {Finalized: true}},
+		finalizeErrors: []error{
+			&swarmionapp.PeerDrainFinalizationRetryableError{Snapshot: ready, Cause: errors.New("clear local provider cache: transient failure")},
+			nil,
+		},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "cache-retry"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
@@ -596,17 +817,47 @@ func TestInstancePeerDrainCacheClearErrorRetriesFinalizeSameGeneration(t *testin
 	}
 }
 
+func TestInstancePeerDrainUntypedFinalizeErrorCannotGrantRetryAuthority(t *testing.T) {
+	instance := peerDrainTestInstance(t)
+	ready := swarmionapp.PeerDrainSnapshot{
+		Active:                           true,
+		RouteGenerationMatches:           true,
+		LocalCheckpointCovered:           true,
+		PreFenceHeartbeatIngressObserved: true,
+		ReadyToFinalize:                  true,
+	}
+	runtime := &fakeReplicationPeerDrainRuntime{
+		available:         true,
+		begin:             ready,
+		finalizeResponses: []swarmionapp.PeerDrainFinalizeResult{{Snapshot: ready}, {Finalized: true}},
+		finalizeErrors:    []error{errors.New("untyped cache failure"), nil},
+	}
+	fence := &fakeReplicationPeerRouteFence{prefix: "untyped-cache-error"}
+	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
+	continued := 0
+	err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func() error {
+		continued++
+		return nil
+	})
+	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "untyped cache failure") {
+		t.Fatalf("untyped finalization error = %v, want pending", err)
+	}
+	if runtime.finalizeCalls != 1 || fence.next != 1 || continued != 0 {
+		t.Fatalf("untyped finalization retried or continued: finalizes=%d fences=%d continued=%d", runtime.finalizeCalls, fence.next, continued)
+	}
+}
+
 func TestInstancePeerDrainFinalizedStatusUsesIdempotentFinalize(t *testing.T) {
 	instance := peerDrainTestInstance(t)
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                 true,
 			RouteGenerationMatches: true,
 			LocalCheckpointCovered: true,
 		},
 		watchEvents: [][]swarmionapp.PeerDrainEvent{{{
-			Status: swarmionapp.PeerDrainStatus{
+			Snapshot: swarmionapp.PeerDrainSnapshot{
 				Finalized:                        true,
 				RouteGenerationMatches:           true,
 				LocalCheckpointCovered:           true,
@@ -614,7 +865,7 @@ func TestInstancePeerDrainFinalizedStatusUsesIdempotentFinalize(t *testing.T) {
 				ReadyToFinalize:                  true,
 			},
 		}}},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	fence := &fakeReplicationPeerRouteFence{prefix: "finalized"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
@@ -631,7 +882,7 @@ func TestInstancePeerDrainFinalizedStatusUsesIdempotentFinalize(t *testing.T) {
 
 func TestInstancePeerDrainWatchFailuresRemainPending(t *testing.T) {
 	instance := peerDrainTestInstance(t)
-	waiting := swarmionapp.PeerDrainStatus{Active: true, RouteGenerationMatches: true, LocalCheckpointCovered: true}
+	waiting := swarmionapp.PeerDrainSnapshot{Active: true, RouteGenerationMatches: true, LocalCheckpointCovered: true}
 	tests := []struct {
 		name    string
 		runtime *fakeReplicationPeerDrainRuntime
@@ -673,7 +924,7 @@ func TestInstancePeerDrainWatchFailuresRemainPending(t *testing.T) {
 				begin:                 waiting,
 				preserveWatchIdentity: true,
 				watchEvents: [][]swarmionapp.PeerDrainEvent{{{
-					Status: swarmionapp.PeerDrainStatus{
+					Snapshot: swarmionapp.PeerDrainSnapshot{
 						PeerID:                 "wrong-peer",
 						RouteGeneration:        "wrong-generation",
 						Active:                 true,
@@ -681,7 +932,7 @@ func TestInstancePeerDrainWatchFailuresRemainPending(t *testing.T) {
 					},
 				}}},
 			},
-			want: "peer-drain status identity",
+			want: "does not match request",
 		},
 	}
 	for _, tt := range tests {
@@ -703,7 +954,7 @@ func TestInstancePeerDrainRestartUsesFreshGeneration(t *testing.T) {
 	instance := peerDrainTestInstance(t)
 	firstRuntime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin:     swarmionapp.PeerDrainStatus{Active: true, RouteGenerationMatches: true},
+		begin:     swarmionapp.PeerDrainSnapshot{Active: true, RouteGenerationMatches: true},
 	}
 	firstFence := &fakeReplicationPeerRouteFence{prefix: "boot-before-restart"}
 	first := &Manager{peerDrainRuntime: firstRuntime, peerRouteFence: firstFence}
@@ -716,14 +967,14 @@ func TestInstancePeerDrainRestartUsesFreshGeneration(t *testing.T) {
 
 	secondRuntime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	secondFence := &fakeReplicationPeerRouteFence{prefix: "boot-after-restart"}
 	second := &Manager{peerDrainRuntime: secondRuntime, peerRouteFence: secondFence}
@@ -744,7 +995,7 @@ func TestProviderDeletionCannotRunBeforePeerDrainFinalizes(t *testing.T) {
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}))
 	manager.peerDrainRuntime = &fakeReplicationPeerDrainRuntime{
 		available: true,
-		beginStatuses: []swarmionapp.PeerDrainStatus{
+		beginStatuses: []swarmionapp.PeerDrainSnapshot{
 			{
 				Active:                           true,
 				RouteGenerationMatches:           true,
@@ -841,13 +1092,13 @@ func TestInconsistentReadyPeerDrainWithoutPreFenceIngressFailsClosed(t *testing.
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry(fakeStopFailDeleteFactory{provider: provider}))
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                 true,
 			RouteGenerationMatches: true,
 			LocalCheckpointCovered: true,
 			ReadyToFinalize:        true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	manager.peerDrainRuntime = runtime
 	manager.peerRouteFence = &fakeReplicationPeerRouteFence{prefix: "boot-ready"}
@@ -869,7 +1120,7 @@ func TestInconsistentReadyPeerDrainWithoutPreFenceIngressFailsClosed(t *testing.
 		context.Background(), nil, instance.ID, false, operationID, identity, nil, nil,
 		func(instanceDeleteOperationReceipt, int, string) error { return nil },
 	)
-	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "inconsistent ready peer-drain status") {
+	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "invalid event") {
 		t.Fatalf("delete error = %v, want inconsistent ready status pending", err)
 	}
 	if runtime.finalizeCalls != 0 {
@@ -916,7 +1167,7 @@ func TestPeerDrainRuntimeDisappearsAfterBeginCannotMutateProviderOrPublishDelete
 	runtime := &fakeReplicationPeerDrainRuntime{
 		available:             true,
 		unavailableAfterBegin: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                 true,
 			RouteGenerationMatches: true,
 			LocalCheckpointCovered: true,

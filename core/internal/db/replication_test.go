@@ -10,7 +10,6 @@ import (
 
 	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
-	swarmionadmin "github.com/nustiueudinastea/swarmion/runtime/adminrpc"
 )
 
 type peerDrainPreparationRuntime struct {
@@ -27,28 +26,11 @@ func (r *peerDrainPreparationRuntime) Peers() []swarmionapp.PeerInfo {
 func (r *peerDrainPreparationRuntime) PeerStatus(context.Context) ([]swarmionapp.PeerStatus, error) {
 	return append([]swarmionapp.PeerStatus(nil), r.peerStatuses...), nil
 }
-func (r *peerDrainPreparationRuntime) CatchUpCheckpoint(context.Context, swarmionadmin.CheckpointCatchUpRequest) (swarmionadmin.CheckpointCatchUpResponse, error) {
-	return swarmionadmin.CheckpointCatchUpResponse{Status: string(swarmionadmin.CheckpointCatchUpStatusAlreadyCurrent)}, nil
+func (r *peerDrainPreparationRuntime) ReconcileCheckpoint(context.Context, swarmionapp.CheckpointReconcileRequest) (swarmionapp.CheckpointReconcileResult, error) {
+	return swarmionapp.CheckpointReconcileResult{State: swarmionapp.CheckpointReconcileNoTarget}, nil
 }
 func (r *peerDrainPreparationRuntime) Compatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error) {
 	return append([]swarmionapp.ManifestCompatibility(nil), r.compat...), nil
-}
-func (r *peerDrainPreparationRuntime) BeginPeerDrain(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error) {
-	return swarmionapp.PeerDrainStatus{}, nil
-}
-func (r *peerDrainPreparationRuntime) PeerDrainStatus(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error) {
-	return swarmionapp.PeerDrainStatus{}, nil
-}
-func (r *peerDrainPreparationRuntime) WatchPeerDrain(context.Context, swarmionapp.PeerDrainRequest) (<-chan swarmionapp.PeerDrainEvent, error) {
-	events := make(chan swarmionapp.PeerDrainEvent)
-	close(events)
-	return events, nil
-}
-func (r *peerDrainPreparationRuntime) WaitPeerDrainReady(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainStatus, error) {
-	return swarmionapp.PeerDrainStatus{}, nil
-}
-func (r *peerDrainPreparationRuntime) FinalizePeerDrain(context.Context, swarmionapp.PeerDrainRequest) (swarmionapp.PeerDrainFinalizeResponse, error) {
-	return swarmionapp.PeerDrainFinalizeResponse{}, nil
 }
 
 func TestReplicationPriorityForDeviceClass(t *testing.T) {
@@ -209,18 +191,25 @@ func TestPrepareReplicationPeerDrainRequiresFreshTargetAndExactReplacementCovera
 	})
 }
 
-func TestCheckpointCatchUpOperationalErrorUsesStructuredStatus(t *testing.T) {
-	if err := checkpointCatchUpOperationalError(swarmionadmin.CheckpointCatchUpResponse{
-		Status:    string(swarmionadmin.CheckpointCatchUpStatusNoSnapshot),
-		Retryable: true,
+func TestCheckpointReconcileOperationalErrorUsesStructuredResult(t *testing.T) {
+	if err := checkpointReconcileOperationalError(swarmionapp.CheckpointReconcileResult{
+		State:          swarmionapp.CheckpointReconcileNoSnapshot,
+		Retryable:      true,
+		BlockingReason: "no protocol checkpoint snapshot is available",
 	}); err != nil {
-		t.Fatalf("no snapshot response should not fail reads: %v", err)
+		t.Fatalf("no snapshot result should not fail checkpoint reads: %v", err)
 	}
 
-	err := checkpointCatchUpOperationalError(swarmionadmin.CheckpointCatchUpResponse{
-		Status:         string(swarmionadmin.CheckpointCatchUpStatusTargetChanged),
-		TargetChanged:  true,
-		BlockingReason: "checkpoint target changed before catch-up",
+	attempted := &swarmionapp.CheckpointTarget{
+		CheckpointCommitID: swarmionprotocol.NewCheckpointCommitID("attempted-checkpoint").String(),
+		CheckpointRootHash: swarmionprotocol.NewRootHash("attempted-checkpoint-root").String(),
+	}
+	err := checkpointReconcileOperationalError(swarmionapp.CheckpointReconcileResult{
+		State:           swarmionapp.CheckpointReconcileTargetChanged,
+		Retryable:       true,
+		TargetChanged:   true,
+		AttemptedTarget: attempted,
+		BlockingReason:  "checkpoint target changed before catch-up",
 	})
 	if !errors.Is(err, errSwarmionCheckpointCatchUpRetryable) {
 		t.Fatalf("target changed error = %v, want retryable checkpoint error", err)
@@ -229,8 +218,9 @@ func TestCheckpointCatchUpOperationalErrorUsesStructuredStatus(t *testing.T) {
 		t.Fatalf("target changed error = %v, want blocking reason", err)
 	}
 
-	err = checkpointCatchUpOperationalError(swarmionadmin.CheckpointCatchUpResponse{
-		Status:         string(swarmionadmin.CheckpointCatchUpStatusBlockedFatal),
+	err = checkpointReconcileOperationalError(swarmionapp.CheckpointReconcileResult{
+		State:          swarmionapp.CheckpointReconcileBlockedFatal,
+		BlockedByFatal: true,
 		BlockingReason: "fatal manifest mismatch",
 	})
 	if err == nil || errors.Is(err, errSwarmionCheckpointCatchUpRetryable) {
@@ -239,7 +229,7 @@ func TestCheckpointCatchUpOperationalErrorUsesStructuredStatus(t *testing.T) {
 }
 
 func TestPeerDrainStatusSummaryIncludesExactGenerationAndBlockers(t *testing.T) {
-	summary := PeerDrainStatusSummary(swarmionapp.PeerDrainStatus{
+	summary := PeerDrainStatusSummary(swarmionapp.PeerDrainSnapshot{
 		PeerID:                           "peer-a",
 		RouteGeneration:                  "generation-7",
 		Active:                           true,
@@ -278,146 +268,104 @@ func TestReplicationPeerDrainFinalizesCoveredUnknownPeerThroughScopedRuntime(t *
 	store := openPeerTestDB(t)
 	peerID := mustPeerIDFromPublicKeyString(t, testPeerPublicKey(t))
 	const generation = "backend-route-generation-1"
-	status, err := store.BeginReplicationPeerDrain(context.Background(), peerID, generation)
+	request := swarmionapp.PeerDrainRequest{PeerID: peerID, RouteFenceToken: generation}
+	session, err := store.StartReplicationPeerDrain(context.Background(), peerID, generation)
 	if err != nil {
-		t.Fatalf("begin peer drain: %v", err)
+		t.Fatalf("start peer drain: %v", err)
 	}
-	if !status.Active || !status.RouteGenerationMatches || !status.LocalCheckpointCovered ||
-		!status.PreFenceHeartbeatIngressObserved || status.PostFenceHeartbeatAccepted || !status.ReadyToFinalize {
-		t.Fatalf("covered unknown peer drain status = %+v", status)
-	}
+	defer session.Close()
 
-	watchCtx, cancelWatch := context.WithCancel(context.Background())
-	watch, err := store.WatchReplicationPeerDrain(watchCtx, peerID, generation)
-	if err != nil {
-		cancelWatch()
-		t.Fatalf("watch peer drain: %v", err)
-	}
 	select {
-	case event, ok := <-watch:
+	case event, ok := <-session.Events():
 		if !ok {
-			cancelWatch()
 			t.Fatal("peer drain watch closed before its initial status")
 		}
-		if event.Err != nil || !event.Initial || !event.Status.ReadyToFinalize || event.Status.Finalized {
-			cancelWatch()
+		if event.Err != nil || !event.Initial || event.Kind != swarmionapp.PeerDrainEventReady ||
+			!event.Snapshot.ReadyToFinalize || event.Snapshot.Finalized {
 			t.Fatalf("initial peer drain event = %+v", event)
 		}
+		if err := event.ValidateFor(request); err != nil {
+			t.Fatalf("validate initial peer drain event: %v", err)
+		}
 	case <-time.After(5 * time.Second):
-		cancelWatch()
 		t.Fatal("timed out waiting for initial peer drain event")
 	}
-	cancelWatch()
 
 	waitCtx, cancelWait := context.WithTimeout(context.Background(), 5*time.Second)
-	ready, err := store.WaitReplicationPeerDrainReady(waitCtx, peerID, generation)
+	ready, err := session.WaitReady(waitCtx)
 	cancelWait()
 	if err != nil {
 		t.Fatalf("wait peer drain ready: %v", err)
 	}
-	if !ready.ReadyToFinalize || ready.Finalized || !ready.RouteGenerationMatches {
+	if err := ready.ValidateFor(request); err != nil || !ready.ReadyToFinalize || ready.Finalized || !ready.RouteGenerationMatches {
 		t.Fatalf("ready peer drain status = %+v", ready)
 	}
 
-	response, err := store.FinalizeReplicationPeerDrain(context.Background(), peerID, generation)
+	response, err := session.Finalize(context.Background())
 	if err != nil {
 		t.Fatalf("finalize peer drain: %v", err)
 	}
-	if !response.Finalized || response.RouteGeneration != generation || !response.Status.Finalized ||
-		response.Status.Active || !response.Status.RouteGenerationMatches || !response.Status.ReadyToFinalize {
+	if err := response.ValidateFor(request); err != nil {
+		t.Fatalf("validate finalize response: %v", err)
+	}
+	if !response.Finalized || !response.Snapshot.Finalized || response.Snapshot.Active ||
+		!response.Snapshot.RouteGenerationMatches || !response.Snapshot.ReadyToFinalize {
 		t.Fatalf("finalize response = %+v", response)
 	}
 
-	retried, err := store.FinalizeReplicationPeerDrain(context.Background(), peerID, generation)
+	retried, err := session.Finalize(context.Background())
 	if err != nil {
 		t.Fatalf("retry finalized peer drain: %v", err)
 	}
-	if !retried.Finalized || !retried.Status.Finalized || retried.Status.Active {
+	if err := retried.ValidateFor(request); err != nil || !retried.Finalized || !retried.Snapshot.Finalized || retried.Snapshot.Active {
 		t.Fatalf("idempotent finalize response = %+v", retried)
 	}
 
-	finalized, err := store.ReplicationPeerDrainStatus(context.Background(), peerID, generation)
+	finalized, err := session.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("read finalized drain status: %v", err)
 	}
-	if finalized.Active || !finalized.Finalized || !finalized.RouteGenerationMatches || !finalized.ReadyToFinalize ||
+	if err := finalized.ValidateFor(request); err != nil || finalized.Active || !finalized.Finalized || !finalized.RouteGenerationMatches || !finalized.ReadyToFinalize ||
 		len(finalized.BlockingReasonCodes) != 0 || len(finalized.BlockingReasons) != 0 {
 		t.Fatalf("finalized generation tombstone = %+v", finalized)
 	}
+	session.Close()
 
-	finalizedWatchCtx, cancelFinalizedWatch := context.WithCancel(context.Background())
-	finalizedWatch, err := store.WatchReplicationPeerDrain(finalizedWatchCtx, peerID, generation)
+	finalizedSession, err := store.StartReplicationPeerDrain(context.Background(), peerID, generation)
 	if err != nil {
-		cancelFinalizedWatch()
-		t.Fatalf("watch finalized peer drain: %v", err)
+		t.Fatalf("restart finalized peer drain session: %v", err)
 	}
+	defer finalizedSession.Close()
 	select {
-	case event, ok := <-finalizedWatch:
-		if !ok || event.Err != nil || !event.Initial || !event.Status.Finalized || event.Status.Active {
-			cancelFinalizedWatch()
+	case event, ok := <-finalizedSession.Events():
+		if !ok || event.Err != nil || !event.Initial || event.Kind != swarmionapp.PeerDrainEventFinalized || !event.Snapshot.Finalized || event.Snapshot.Active {
 			t.Fatalf("finalized peer drain event = %+v, open=%t", event, ok)
 		}
+		if err := event.ValidateFor(request); err != nil {
+			t.Fatalf("validate finalized peer drain event: %v", err)
+		}
 	case <-time.After(5 * time.Second):
-		cancelFinalizedWatch()
 		t.Fatal("timed out waiting for finalized peer drain event")
 	}
-	cancelFinalizedWatch()
-
-	finalizedWaitCtx, cancelFinalizedWait := context.WithTimeout(context.Background(), 5*time.Second)
-	finalizedReady, err := store.WaitReplicationPeerDrainReady(finalizedWaitCtx, peerID, generation)
-	cancelFinalizedWait()
-	if err != nil {
-		t.Fatalf("wait finalized peer drain: %v", err)
-	}
-	if !finalizedReady.Finalized || finalizedReady.Active || !finalizedReady.ReadyToFinalize {
-		t.Fatalf("finalized wait status = %+v", finalizedReady)
-	}
+	finalizedSession.Close()
 
 	const newerGeneration = "backend-route-generation-2"
-	newer, err := store.BeginReplicationPeerDrain(context.Background(), peerID, newerGeneration)
+	newerRequest := swarmionapp.PeerDrainRequest{PeerID: peerID, RouteFenceToken: newerGeneration}
+	newerSession, err := store.StartReplicationPeerDrain(context.Background(), peerID, newerGeneration)
 	if err != nil {
-		t.Fatalf("begin newer peer drain generation: %v", err)
+		t.Fatalf("start newer peer drain generation: %v", err)
 	}
-	if !newer.Active || !newer.RouteGenerationMatches || !newer.ReadyToFinalize {
-		t.Fatalf("newer peer drain status = %+v", newer)
-	}
-
-	inactiveWaitCtx, cancelInactiveWait := context.WithTimeout(context.Background(), 5*time.Second)
-	inactiveWait, err := store.WaitReplicationPeerDrainReady(inactiveWaitCtx, peerID, generation)
-	cancelInactiveWait()
-	if !errors.Is(err, swarmionapp.ErrPeerDrainGenerationInactive) {
-		t.Fatalf("superseded wait error = %v, want generation-inactive sentinel", err)
-	}
-	var inactiveWaitError *swarmionapp.PeerDrainNotReadyError
-	if !errors.As(err, &inactiveWaitError) || inactiveWaitError == nil {
-		t.Fatalf("superseded wait error = %v, want typed peer-drain status", err)
-	}
-	if inactiveWait.PeerID != peerID || inactiveWait.RouteGeneration != generation ||
-		inactiveWait.RouteGenerationMatches ||
-		inactiveWaitError.Status.PeerID != inactiveWait.PeerID ||
-		inactiveWaitError.Status.RouteGeneration != inactiveWait.RouteGeneration ||
-		inactiveWaitError.Status.RouteGenerationMatches != inactiveWait.RouteGenerationMatches ||
-		inactiveWaitError.Status.Active != inactiveWait.Active {
-		t.Fatalf("superseded wait status = %+v, typed = %+v", inactiveWait, inactiveWaitError.Status)
-	}
-	if !reflect.DeepEqual(inactiveWait.BlockingReasonCodes, []swarmionapp.PeerDrainBlockingReason{
-		swarmionapp.PeerDrainBlockingReasonNewerRouteGenerationActive,
-	}) {
-		t.Fatalf("superseded wait blocking codes = %v", inactiveWait.BlockingReasonCodes)
-	}
-
-	const inactiveGeneration = "backend-route-generation-inactive"
-	_, err = store.FinalizeReplicationPeerDrain(context.Background(), peerID, inactiveGeneration)
-	if !errors.Is(err, swarmionapp.ErrPeerDrainGenerationInactive) {
-		t.Fatalf("inactive finalize error = %v, want generation-inactive sentinel", err)
-	}
-	var notReady *swarmionapp.PeerDrainNotReadyError
-	if !errors.As(err, &notReady) || notReady == nil {
-		t.Fatalf("inactive finalize error = %v, want typed peer-drain status", err)
-	}
-	if notReady.Status.PeerID != peerID || notReady.Status.RouteGeneration != inactiveGeneration ||
-		notReady.Status.RouteGenerationMatches {
-		t.Fatalf("inactive finalize typed status = %+v", notReady.Status)
+	defer newerSession.Close()
+	select {
+	case event := <-newerSession.Events():
+		if event.Err != nil || event.Kind != swarmionapp.PeerDrainEventReady {
+			t.Fatalf("newer initial event = %+v", event)
+		}
+		if err := event.ValidateFor(newerRequest); err != nil {
+			t.Fatalf("validate newer event: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for newer initial event")
 	}
 }
 

@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   TIMEOUT: '{{.TIMEOUT | default "5m"}}'
-  GO_TOOLCHAIN: '{{.GO_TOOLCHAIN | default "go1.26.5"}}'
+  GO_TOOLCHAIN: '{{.GO_TOOLCHAIN | default "go1.26.6"}}'
   GO_TEST_CACHE: '{{.GO_TEST_CACHE | default "/tmp/protos-gocache"}}'
   NATIVE_GO_TAGS: '{{.NATIVE_GO_TAGS | default "dolt_purego_zstd,gms_pure_go"}}'
   SWARMION_CHECKPOINT_SCHEDULER_PROFILE: '{{.SWARMION_CHECKPOINT_SCHEDULER_PROFILE | default "single_node_development"}}'

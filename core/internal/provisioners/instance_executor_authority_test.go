@@ -95,14 +95,14 @@ func TestInstanceLifecycleOwnerSerializesForeignReconcileAgainstOwnerDelete(t *t
 
 	owner.peerDrainRuntime = &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	owner.peerRouteFence = &fakeReplicationPeerRouteFence{prefix: "executor-authority"}
 	if err := owner.tasks.RunPending(context.Background()); err != nil {
@@ -157,14 +157,14 @@ func TestInstanceLifecycleOwnerOrdersBlockedReconcileBeforeRemoteDelete(t *testi
 	nonOwner.tasks.SetExecutorPeerID("peer-b")
 	owner.peerDrainRuntime = &fakeReplicationPeerDrainRuntime{
 		available: true,
-		begin: swarmionapp.PeerDrainStatus{
+		begin: swarmionapp.PeerDrainSnapshot{
 			Active:                           true,
 			RouteGenerationMatches:           true,
 			LocalCheckpointCovered:           true,
 			PreFenceHeartbeatIngressObserved: true,
 			ReadyToFinalize:                  true,
 		},
-		finalize: swarmionapp.PeerDrainFinalizeResponse{Finalized: true},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
 	}
 	owner.peerRouteFence = &fakeReplicationPeerRouteFence{prefix: "blocked-owner-reconcile"}
 

@@ -2,7 +2,7 @@ module github.com/protosio/protos/network/modules/ipc
 
 go 1.26.4
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	github.com/protosio/protos v0.0.0

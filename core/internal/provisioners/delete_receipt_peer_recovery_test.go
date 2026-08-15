@@ -3,6 +3,7 @@ package provisioners
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -172,7 +173,7 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 
 	const simulatedAuthorCrash = "author peer exited before delete receipt fact"
 	var accepted db.PublishedWriteReceipt
-	var relayPending swarmionapp.BranchEventReceiptStatus
+	var relayPending swarmionapp.ReceiptStatus
 	authorManager = newLifecycleTestManager(t, authorStore, newProvisionerRegistry())
 	authorManager.afterInstanceDeletePublished = func(receipt db.PublishedWriteReceipt) {
 		accepted = receipt
@@ -187,7 +188,7 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	if recoveredPanic != simulatedAuthorCrash {
 		t.Fatalf("author delete interruption=%v, want simulated post-publication crash", recoveredPanic)
 	}
-	if accepted.EventID == "" || accepted.PublishedRootHash == "" || accepted.EventDigest == "" {
+	if accepted.EventID == "" || accepted.PublishedRootHash == "" {
 		t.Fatalf("author crash lost accepted exact receipt: %+v", accepted)
 	}
 	if accepted.AuthorPeerID != authorStatus.PeerID || accepted.OperationIntentDigest != operationIdentity.IntentDigest {
@@ -240,7 +241,7 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	if err != nil {
 		t.Fatalf("repeat relay resolution of A-authored pending delete: %v", err)
 	}
-	if repeatedResolved != relayResolved {
+	if !reflect.DeepEqual(repeatedResolved, relayResolved) {
 		t.Fatalf("repeated pending receipt changed: first=%+v repeated=%+v", relayResolved, repeatedResolved)
 	}
 
@@ -260,7 +261,7 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	if err != nil {
 		t.Fatalf("resolve relay-authored operation before recovery: %v", err)
 	}
-	if locallyResolvedBefore.Resolution != swarmionapp.BranchOperationReceiptAbsent {
+	if locallyResolvedBefore.State != swarmionapp.OperationResolvedAbsent || !locallyResolvedBefore.SafeToExecute {
 		t.Fatalf("relay-authored operation before recovery=%+v, want authoritative absent", locallyResolvedBefore)
 	}
 
@@ -321,12 +322,12 @@ func waitForForeignDeletePendingEvent(
 	relay *db.DB,
 	identity instanceDeleteOperationIdentity,
 	want db.PublishedWriteReceipt,
-) swarmionapp.BranchEventReceiptStatus {
+) swarmionapp.ReceiptStatus {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	var (
-		lastStatus  swarmionapp.BranchEventReceiptStatus
-		lastReceipt swarmionapp.BranchOperationReceipt
+		lastStatus  swarmionapp.ReceiptStatus
+		lastReceipt swarmionapp.OperationResolution
 		lastErr     error
 	)
 	for {
@@ -343,7 +344,7 @@ func waitForForeignDeletePendingEvent(
 				context.Background(),
 				identity.publishedWriteOperation(),
 			)
-			if lastErr == nil && lastReceipt.Resolution == swarmionapp.BranchOperationReceiptFound {
+			if lastErr == nil && lastReceipt.State == swarmionapp.OperationResolvedAccepted {
 				assertForeignDeleteOperationReceipt(t, lastReceipt, identity, want)
 				return lastStatus
 			}
@@ -371,43 +372,42 @@ func assertForeignDeleteOperationUnavailable(
 	if err != nil {
 		t.Fatalf("%s lookup failed: %v", reason, err)
 	}
-	if resolved.Resolution != swarmionapp.BranchOperationReceiptUnavailable {
-		t.Fatalf("%s resolution=%q, want unavailable (never authoritative absent): %+v", reason, resolved.Resolution, resolved)
+	if resolved.State != swarmionapp.OperationResolvedUnavailable || resolved.SafeToExecute {
+		t.Fatalf("%s resolution=%q, want unavailable (never authoritative absent): %+v", reason, resolved.State, resolved)
 	}
 }
 
 func assertForeignDeleteOperationReceipt(
 	t *testing.T,
-	resolved swarmionapp.BranchOperationReceipt,
+	resolved swarmionapp.OperationResolution,
 	identity instanceDeleteOperationIdentity,
 	want db.PublishedWriteReceipt,
 ) {
 	t.Helper()
-	if resolved.Resolution != swarmionapp.BranchOperationReceiptFound ||
-		resolved.EventID != want.EventID ||
-		resolved.PublishedRootHash != want.PublishedRootHash ||
-		resolved.EventDigest != want.EventDigest ||
+	expectedIdentity, err := swarmionapp.CanonicalOperationIdentity(identity.Key, identity.IntentDigest)
+	if err != nil {
+		t.Fatalf("canonicalize expected foreign operation identity: %v", err)
+	}
+	if err := resolved.Validate(); err != nil {
+		t.Fatalf("validate foreign operation resolution: %v", err)
+	}
+	if resolved.State != swarmionapp.OperationResolvedAccepted ||
+		resolved.Receipt == nil ||
+		resolved.Receipt.EventID != want.EventID ||
+		resolved.Receipt.PublishedRootHash != want.PublishedRootHash ||
 		resolved.AuthorPeerID != identity.AuthorPeerID ||
-		resolved.IntentDigest != identity.IntentDigest {
+		resolved.Identity != expectedIdentity {
 		t.Fatalf("foreign operation receipt=%+v, want exact accepted receipt %+v with identity %+v", resolved, want, identity)
 	}
-	if resolved.AuthorSeq == 0 {
-		t.Fatalf("foreign operation receipt has no signed author sequence: %+v", resolved)
-	}
-	if resolved.EvidenceSource != swarmionapp.OperationReceiptEvidenceSignedEvent &&
-		resolved.EvidenceSource != swarmionapp.OperationReceiptEvidenceCheckpointMetadata {
-		t.Fatalf("foreign operation receipt has invalid evidence source %q: %+v", resolved.EvidenceSource, resolved)
-	}
-	if resolved.SafeToPublish || resolved.UnavailableReason != "" {
+	if resolved.SafeToExecute || resolved.ReasonCode != "" {
 		t.Fatalf("found foreign operation receipt exposes unavailable/publication guidance: %+v", resolved)
 	}
-	got, err := db.PublishedWriteReceiptFromOperation(resolved)
+	got, err := db.PublishedWriteReceiptFromResolution(resolved)
 	if err != nil {
 		t.Fatalf("convert foreign operation receipt: %v", err)
 	}
 	if got.EventID != want.EventID ||
 		got.PublishedRootHash != want.PublishedRootHash ||
-		got.EventDigest != want.EventDigest ||
 		got.AuthorPeerID != identity.AuthorPeerID ||
 		got.OperationIntentDigest != identity.IntentDigest {
 		t.Fatalf("foreign operation receipt=%+v, want exact accepted receipt %+v with identity %+v", got, want, identity)
