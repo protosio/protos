@@ -977,8 +977,8 @@ github.com/nustiueudinastea/dolt/go v0.0.0-20260816223032-fffa2866aac8 h1:cq0PtI
 github.com/nustiueudinastea/dolt/go v0.0.0-20260816223032-fffa2866aac8/go.mod h1:wq/EDEOBCq6aCr/MhnXQeGDSz889hJSex21gYpWr6OI=
 github.com/nustiueudinastea/doltsqldriver/v2 v2.0.0-20260816223133-4aac8f91668e h1:rLpoZYZLlxvRSRpzDNoiRfzvQjyyh/rL9EhRC5JFjeE=
 github.com/nustiueudinastea/doltsqldriver/v2 v2.0.0-20260816223133-4aac8f91668e/go.mod h1:rY6o3/2G+UxBDjHmLiBksoTMj/q/8sV8Z/dSJy/VDmU=
-github.com/nustiueudinastea/swarmion v0.0.0-20260817022949-8da98fb41a07 h1:PI07vtEGh4GVnwzFbGreQemJf/+NJtOnDFtSc+b0luQ=
-github.com/nustiueudinastea/swarmion v0.0.0-20260817022949-8da98fb41a07/go.mod h1:saStFLogA0pT+A+0qYK8P9kzlvn+wbP3ZqAAUGz+bQ8=
+github.com/nustiueudinastea/swarmion v0.0.0-20260817025232-fa92b9487816 h1:Q2w2a2VB73RYC4cgmVJEVsaLOfEPivo6rGTCZP2bGO4=
+github.com/nustiueudinastea/swarmion v0.0.0-20260817025232-fa92b9487816/go.mod h1:saStFLogA0pT+A+0qYK8P9kzlvn+wbP3ZqAAUGz+bQ8=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo/v2 v2.25.1 h1:Fwp6crTREKM+oA6Cz4MsO8RhKQzs2/gOIVOUscMAfZY=
 github.com/onsi/ginkgo/v2 v2.25.1/go.mod h1:ppTWQ1dh9KM/F1XgpeRqelR+zHVwV81DGRSDnFxK7Sk=
