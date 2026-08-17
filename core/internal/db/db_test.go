@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,15 +100,10 @@ func TestOperationAwareDeletePublishesAllStatementsOnceAndReplaysReceipt(t *test
 	firstUserID := db.MustNewUUIDv7()
 	firstOrganisationID := db.MustNewUUIDv7()
 	insertPair(firstUserID, firstOrganisationID, "first")
-	operationKey, err := db.NewPublishedWriteOperationKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	operation, err := db.NewPublishedWriteOperation(
-		operationKey,
-		"protos:test:multi-delete",
-		firstUserID,
-		firstOrganisationID,
+	operation, err := store.NewPublishedWriteOperation(
+		"io.protos.tests.multi-delete/v1",
+		[]byte(firstUserID),
+		[]byte(firstOrganisationID),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +121,7 @@ func TestOperationAwareDeletePublishesAllStatementsOnceAndReplaysReceipt(t *test
 	if rowCount("users", firstUserID) != 0 || rowCount("organisations", firstOrganisationID) != 0 {
 		t.Fatal("operation transaction did not execute every delete statement")
 	}
-	if !first.HasExactEventIdentity() || first.AuthorPeerID == "" || first.OperationIntentDigest != operation.IntentDigest {
+	if !first.HasExactEventIdentity() || first.AuthorPeerID == "" || first.OperationIntentDigest != operation.IntentDigest() {
 		t.Fatalf("operation receipt metadata is incomplete: %+v", first)
 	}
 
@@ -150,20 +144,78 @@ func TestOperationAwareDeletePublishesAllStatementsOnceAndReplaysReceipt(t *test
 		t.Fatal("operation replay executed its changed SQL body")
 	}
 
-	conflicting, err := db.NewPublishedWriteOperation(operationKey, "protos:test:multi-delete-conflict")
+}
+
+func TestSQLReadConnectorPreservesBinaryAndTextResultTypes(t *testing.T) {
+	useSingleNodeDevelopmentScheduler(t)
+	workDir := t.TempDir()
+	key, err := pcrypto.GetLocalKey(workDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DeleteWithOperationReceiptContext(
-		context.Background(),
-		store,
-		conflicting,
-		deletePair(secondUserID, secondOrganisationID)...,
-	); !errors.Is(err, swarmionprotocol.ErrOperationKeyConflict) {
-		t.Fatalf("conflicting operation error=%v, want ErrOperationKeyConflict", err)
+	store, err := db.Open(workDir, "protos_sqlread_binary_test", key, testswarmion.NewBorrowedLink(t, key))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if rowCount("users", secondUserID) != 1 || rowCount("organisations", secondOrganisationID) != 1 {
-		t.Fatal("conflicting operation executed SQL")
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	wantBinary := []byte{0x00, 0xff, 0x80, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d}
+	const wantText = "sqlread-text"
+	_, err = db.InsertWithReceiptContext(context.Background(), store, func() sq.InsertQuery {
+		user := sq.New[db.USER]("")
+		return sq.InsertInto(user).ColumnValues(func(col *sq.Column) {
+			col.SetBytes(user.ID, wantBinary)
+			col.SetString(user.USERNAME, "sqlread-binary")
+			col.SetString(user.NAME, wantText)
+			col.SetBool(user.IS_DISABLED, false)
+		})
+	})
+	if err != nil {
+		t.Fatalf("insert binary fixture: %v", err)
+	}
+
+	assertValues := func(source string, gotBinary []byte, gotText string) {
+		t.Helper()
+		if !slices.Equal(gotBinary, wantBinary) {
+			t.Fatalf("%s binary = %x, want %x", source, gotBinary, wantBinary)
+		}
+		if gotText != wantText {
+			t.Fatalf("%s text = %q, want %q", source, gotText, wantText)
+		}
+	}
+
+	var directBinary []byte
+	var directText string
+	if err := store.GetSqlDB().QueryRowContext(
+		context.Background(),
+		"SELECT id, name FROM users WHERE username = ?",
+		"sqlread-binary",
+	).Scan(&directBinary, &directText); err != nil {
+		t.Fatalf("query through GetSqlDB: %v", err)
+	}
+	assertValues("GetSqlDB", directBinary, directText)
+
+	if err := store.ReadRows(
+		context.Background(),
+		"SELECT id, name FROM users WHERE username = ?",
+		[]any{"sqlread-binary"},
+		func(rows *sql.Rows) error {
+			if !rows.Next() {
+				return sql.ErrNoRows
+			}
+			var gotBinary []byte
+			var gotText string
+			if err := rows.Scan(&gotBinary, &gotText); err != nil {
+				return err
+			}
+			assertValues("ReadRows", gotBinary, gotText)
+			return nil
+		},
+	); err != nil {
+		t.Fatalf("query through ReadRows: %v", err)
 	}
 }
 

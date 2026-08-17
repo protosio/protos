@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/nustiueudinastea/swarmion/runtime/schema"
+	swarmion "github.com/nustiueudinastea/swarmion/runtime"
 	protoscontracts "github.com/protosio/protos/internal/db/contracts/sql/protos"
 )
 
@@ -80,8 +80,8 @@ type CommitDiff struct {
 
 type commitDiffTableSchema struct {
 	Name       string
-	Columns    []schema.SQLColumn
-	PrimaryKey []schema.SQLColumn
+	Columns    []swarmion.SchemaSQLColumn
+	PrimaryKey []swarmion.SchemaSQLColumn
 }
 
 func (db *DB) GetCommit(ref string) (Commit, error) {
@@ -320,7 +320,7 @@ func commitDiffMapHasValue(values map[string]CommitDiffValue) bool {
 	return false
 }
 
-func formatCommitDiffSQLValue(value any, column schema.SQLColumn) CommitDiffValue {
+func formatCommitDiffSQLValue(value any, column swarmion.SchemaSQLColumn) CommitDiffValue {
 	if value == nil {
 		return CommitDiffValue{Null: true}
 	}
@@ -544,7 +544,7 @@ func commitDiffTaskSummary(task CommitDiffTaskContext) string {
 	return strings.Join(parts, " - ")
 }
 
-func commitDiffCUELiteral(value CommitDiffValue, column schema.SQLColumn) string {
+func commitDiffCUELiteral(value CommitDiffValue, column swarmion.SchemaSQLColumn) string {
 	if value.Null {
 		return "null"
 	}
@@ -756,7 +756,7 @@ func renderCommitDiffUpdateSQL(b *strings.Builder, tableSchema commitDiffTableSc
 }
 
 type commitDiffSQLField struct {
-	column schema.SQLColumn
+	column swarmion.SchemaSQLColumn
 	value  CommitDiffValue
 }
 
@@ -779,8 +779,8 @@ func commitDiffChangedSQLFields(tableSchema commitDiffTableSchema, row CommitDif
 	return fields
 }
 
-func commitDiffColumnsWithValues(columns []schema.SQLColumn, values map[string]CommitDiffValue) []schema.SQLColumn {
-	out := make([]schema.SQLColumn, 0, len(columns))
+func commitDiffColumnsWithValues(columns []swarmion.SchemaSQLColumn, values map[string]CommitDiffValue) []swarmion.SchemaSQLColumn {
+	out := make([]swarmion.SchemaSQLColumn, 0, len(columns))
 	for _, column := range columns {
 		if _, ok := values[column.Name]; ok {
 			out = append(out, column)
@@ -808,7 +808,7 @@ func commitDiffWhereClause(tableSchema commitDiffTableSchema, preferred map[stri
 	return strings.Join(parts, " AND ")
 }
 
-func commitDiffSQLPredicate(column schema.SQLColumn, value CommitDiffValue) string {
+func commitDiffSQLPredicate(column swarmion.SchemaSQLColumn, value CommitDiffValue) string {
 	name := sqlIdent(column.Name)
 	if value.Null {
 		return name + " IS NULL"
@@ -816,7 +816,7 @@ func commitDiffSQLPredicate(column schema.SQLColumn, value CommitDiffValue) stri
 	return name + " = " + commitDiffSQLLiteral(value, column)
 }
 
-func commitDiffSQLLiteral(value CommitDiffValue, column schema.SQLColumn) string {
+func commitDiffSQLLiteral(value CommitDiffValue, column swarmion.SchemaSQLColumn) string {
 	if value.Null {
 		return "NULL"
 	}
@@ -1059,7 +1059,7 @@ func renderCommitDiffRowCUE(row CommitDiffRow) string {
 	return b.String()
 }
 
-func renderCommitDiffRowValuesCUE(columns []schema.SQLColumn, values map[string]CommitDiffValue) string {
+func renderCommitDiffRowValuesCUE(columns []swarmion.SchemaSQLColumn, values map[string]CommitDiffValue) string {
 	var b strings.Builder
 	b.WriteString("{\n")
 	for _, column := range columns {
@@ -1142,7 +1142,7 @@ func commitDiffTableSchemas() []commitDiffTableSchema {
 		for _, table := range version.SQL.Tables {
 			tableSchema := commitDiffTableSchema{
 				Name:    table.Name,
-				Columns: append([]schema.SQLColumn(nil), table.Columns...),
+				Columns: append([]swarmion.SchemaSQLColumn(nil), table.Columns...),
 			}
 			for _, column := range table.Columns {
 				if column.PrimaryKey {

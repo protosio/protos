@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"fmt"
 	"io/fs"
 	"sort"
 	"strings"
@@ -21,7 +22,7 @@ import (
 
 func TestMigrationBatchReceiptSurvivesRestartWithoutRepublishing(t *testing.T) {
 	workDir, databaseName, signer, link := newMigrationOperationTestDatabase(t)
-	migrationsDir, filenames, operation := embeddedMigrationBatchForTest(t)
+	migrationsDir, filenames := embeddedMigrationBatchForTest(t)
 
 	store, err := Open(workDir, databaseName, signer, link)
 	if err != nil {
@@ -31,16 +32,21 @@ func TestMigrationBatchReceiptSurvivesRestartWithoutRepublishing(t *testing.T) {
 		_ = store.Close()
 		t.Fatalf("initialize migration database: %v", err)
 	}
+	assertOperationRecoveryJournalEmpty(t, store, "completed initial migrations")
+	operation, err := store.migrationBatchPublishedWriteOperation(migrationsDir, filenames)
+	if err != nil {
+		t.Fatalf("recover migration operation identity: %v", err)
+	}
 
 	assertSingleMigrationTransaction(t, store.TransactionMetrics())
-	initialResolution := requireMigrationOperationReceipt(t, store, operation)
-	initialPublished := requireExactMigrationPublishedReceipt(t, initialResolution)
+	initialResult := requireMigrationOperationReceipt(t, store, operation)
+	initialPublished := requireExactMigrationPublishedReceipt(t, operation, initialResult)
 	initialObservation := waitForMigrationReceiptApplied(t, store, initialPublished)
 	assertDurableMigrationHistory(
 		t,
 		store,
 		operation,
-		initialResolution.Receipt.EventID,
+		initialPublished.EventID,
 		initialObservation.Status.DurableCheckpointCommitID,
 		migrationsDir,
 		filenames,
@@ -59,14 +65,16 @@ func TestMigrationBatchReceiptSurvivesRestartWithoutRepublishing(t *testing.T) {
 		t.Fatalf("reopen migration database: %v", err)
 	}
 	t.Cleanup(func() { _ = reopened.Close() })
+	assertOperationRecoveryJournalEmpty(t, reopened, "completed restart migration recovery")
 
 	if got := reopened.TransactionMetrics(); got != (TransactionMetricsSnapshot{}) {
 		t.Fatalf("restart migration recovery started a backend write: %+v", got)
 	}
-	recoveredResolution := requireMigrationOperationReceipt(t, reopened, operation)
-	if recoveredResolution.Receipt.EventID != initialResolution.Receipt.EventID ||
-		recoveredResolution.Receipt.PublishedRootHash != initialResolution.Receipt.PublishedRootHash {
-		t.Fatalf("recovered migration resolution=%+v, want original %+v", recoveredResolution, initialResolution)
+	recoveredResult := requireMigrationOperationReceipt(t, reopened, operation)
+	recoveredPublished := requireExactMigrationPublishedReceipt(t, operation, recoveredResult)
+	if recoveredPublished.EventID != initialPublished.EventID ||
+		recoveredPublished.PublishedRootHash != initialPublished.PublishedRootHash {
+		t.Fatalf("recovered migration receipt=%+v, want original %+v", recoveredPublished, initialPublished)
 	}
 	recoveredStatus, ok := reopened.SwarmionStatus()
 	if !ok {
@@ -79,13 +87,12 @@ func TestMigrationBatchReceiptSurvivesRestartWithoutRepublishing(t *testing.T) {
 			recoveredStatus.CheckpointEventCount,
 		)
 	}
-	recoveredPublished := requireExactMigrationPublishedReceipt(t, recoveredResolution)
 	recoveredObservation := waitForMigrationReceiptApplied(t, reopened, recoveredPublished)
 	assertDurableMigrationHistory(
 		t,
 		reopened,
 		operation,
-		recoveredResolution.Receipt.EventID,
+		recoveredPublished.EventID,
 		recoveredObservation.Status.DurableCheckpointCommitID,
 		migrationsDir,
 		filenames,
@@ -93,9 +100,58 @@ func TestMigrationBatchReceiptSurvivesRestartWithoutRepublishing(t *testing.T) {
 	assertMigrationHistoryRowCount(t, reopened, len(filenames))
 }
 
+func TestMigrationCatalogIdentityUsesOneBoundedBinaryPart(t *testing.T) {
+	store := openMigrationDatabaseWithoutMigrations(t)
+	migrations := make(fstest.MapFS, 80)
+	filenames := make([]string, 0, 80)
+	for index := 0; index < 80; index++ {
+		filename := fmt.Sprintf("migration-%03d.sql", index)
+		filenames = append(filenames, filename)
+		migrations[filename] = &fstest.MapFile{Data: []byte(fmt.Sprintf("SELECT %d;", index))}
+	}
+	operation, err := store.migrationBatchPublishedWriteOperation(migrations, filenames)
+	if err != nil {
+		t.Fatalf("build 80-file migration identity: %v", err)
+	}
+	if err := operation.Validate(); err != nil {
+		t.Fatalf("validate 80-file migration identity: %v", err)
+	}
+
+	reversed := append([]string(nil), filenames...)
+	for left, right := 0, len(reversed)-1; left < right; left, right = left+1, right-1 {
+		reversed[left], reversed[right] = reversed[right], reversed[left]
+	}
+	framed, err := encodeMigrationCatalogIntent(migrations, reversed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recomputed, err := swarmionapp.NewOperationIdentity(operation.Key(), OperationSchemaMigrationBatch, framed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recomputed.Key() != operation.Key() || recomputed.IntentDigest() != operation.IntentDigest() {
+		t.Fatal("migration catalog framing depends on caller filename order")
+	}
+}
+
+func assertOperationRecoveryJournalEmpty(t *testing.T, store *DB, reason string) {
+	t.Helper()
+	operations, err := store.loadPublishedWriteOperations()
+	if err != nil {
+		t.Fatalf("load operation recovery journal after %s: %v", reason, err)
+	}
+	if len(operations) != 0 {
+		t.Fatalf("operation recovery journal after %s contains %d stale records: %+v", reason, len(operations), operations)
+	}
+}
+
 func TestMigrationBatchAdoptsCompatiblePreContractSchemaWithoutDuplicateDDL(t *testing.T) {
 	store := openMigrationDatabaseWithoutMigrations(t)
-	migrationsDir, filenames, operation := embeddedMigrationBatchForTest(t)
+	migrationsDir, filenames := embeddedMigrationBatchForTest(t)
+	operation, err := store.migrationBatchPublishedWriteOperation(migrationsDir, filenames)
+	if err != nil {
+		t.Fatalf("build migration operation: %v", err)
+	}
 
 	// Model the last schema that could exist before the migration operation
 	// owned its history atomically. Applying the first migration directly proves
@@ -150,7 +206,11 @@ func TestMigrationBatchAdoptsCompatiblePreContractSchemaWithoutDuplicateDDL(t *t
 
 func TestMigrationBatchRejectsIncompatibleSchemaWithoutReceipt(t *testing.T) {
 	store := openMigrationDatabaseWithoutMigrations(t)
-	_, _, operation := embeddedMigrationBatchForTest(t)
+	migrationsDir, filenames := embeddedMigrationBatchForTest(t)
+	operation, buildErr := store.migrationBatchPublishedWriteOperation(migrationsDir, filenames)
+	if buildErr != nil {
+		t.Fatalf("build migration operation: %v", buildErr)
+	}
 
 	_, err := store.executePublishedWriteOperationContext(
 		context.Background(),
@@ -164,15 +224,15 @@ name INT NOT NULL
 			return executeErr
 		},
 	)
-	if err == nil || IsRetryablePublishedWriteError(err) {
-		t.Fatalf("incompatible migration error=%v retryable=%t, want fail-closed rejection", err, IsRetryablePublishedWriteError(err))
+	if err == nil {
+		t.Fatal("incompatible migration unexpectedly succeeded")
 	}
 	resolution, lookupErr := store.LookupPublishedWriteOperation(context.Background(), operation)
 	if lookupErr != nil {
 		t.Fatalf("lookup rejected migration operation: %v", lookupErr)
 	}
-	if resolution.State != swarmionapp.OperationResolvedAbsent || !resolution.SafeToExecute || resolution.Receipt != nil {
-		t.Fatalf("rejected migration resolution=%+v, want safe exact absence", resolution)
+	if resolution.Disposition() != swarmionapp.OperationRetryPermitted {
+		t.Fatalf("rejected migration disposition=%s diagnostic=%v, want retry permitted", resolution.Disposition(), resolution.Diagnostic())
 	}
 	historyColumns, inspectErr := loadMigrationTableColumns(context.Background(), store.GetSqlDB(), "sqddl_history")
 	if inspectErr != nil {
@@ -199,7 +259,7 @@ id BINARY(16) NOT NULL PRIMARY KEY
 INSERT INTO definitely_missing_migration_table (id) VALUES (1);`)},
 	}
 	filenames := []string{"partial.sql"}
-	operation, err := migrationBatchPublishedWriteOperation(migrationsDir, filenames)
+	operation, err := store.migrationBatchPublishedWriteOperation(migrationsDir, filenames)
 	if err != nil {
 		t.Fatalf("build partial migration operation: %v", err)
 	}
@@ -231,8 +291,8 @@ INSERT INTO definitely_missing_migration_table (id) VALUES (1);`)},
 	if lookupErr != nil {
 		t.Fatalf("lookup failed migration operation: %v", lookupErr)
 	}
-	if resolution.State != swarmionapp.OperationResolvedAbsent || !resolution.SafeToExecute || resolution.Receipt != nil {
-		t.Fatalf("failed migration resolution=%+v, want safe exact absence", resolution)
+	if resolution.Disposition() != swarmionapp.OperationRetryPermitted {
+		t.Fatalf("failed migration disposition=%s diagnostic=%v, want retry permitted", resolution.Disposition(), resolution.Diagnostic())
 	}
 }
 
@@ -294,7 +354,7 @@ func newMigrationOperationTestDatabase(t *testing.T) (string, string, testSwarmi
 	return t.TempDir(), "protos_migration_operation_test", signer, testswarmion.NewBorrowedLink(t, signer)
 }
 
-func embeddedMigrationBatchForTest(t *testing.T) (fs.FS, []string, PublishedWriteOperation) {
+func embeddedMigrationBatchForTest(t *testing.T) (fs.FS, []string) {
 	t.Helper()
 	migrationsDir, err := fs.Sub(rootDir, "migrations")
 	if err != nil {
@@ -315,39 +375,35 @@ func embeddedMigrationBatchForTest(t *testing.T) (fs.FS, []string, PublishedWrit
 	if len(filenames) == 0 {
 		t.Fatal("embedded migration batch is empty")
 	}
-	operation, err := migrationBatchPublishedWriteOperation(migrationsDir, filenames)
-	if err != nil {
-		t.Fatalf("build embedded migration operation: %v", err)
-	}
-	return migrationsDir, filenames, operation
+	return migrationsDir, filenames
 }
 
 func requireMigrationOperationReceipt(
 	t *testing.T,
 	store *DB,
 	operation PublishedWriteOperation,
-) swarmionapp.OperationResolution {
+) swarmionapp.OperationResult {
 	t.Helper()
 	resolution, err := store.LookupPublishedWriteOperation(context.Background(), operation)
 	if err != nil {
 		t.Fatalf("resolve migration operation receipt: %v", err)
 	}
-	if resolution.State != swarmionapp.OperationResolvedAccepted ||
-		resolution.Receipt == nil ||
-		strings.TrimSpace(resolution.Receipt.EventID) == "" ||
-		strings.TrimSpace(resolution.Receipt.PublishedRootHash) == "" ||
-		resolution.Identity.IntentDigest != operation.IntentDigest {
-		t.Fatalf("migration operation resolution is not an exact accepted result: %+v", resolution)
+	if resolution.Disposition() != swarmionapp.OperationAccepted {
+		t.Fatalf("migration operation disposition=%s diagnostic=%v, want accepted", resolution.Disposition(), resolution.Diagnostic())
+	}
+	if _, err := PublishedWriteReceiptFromResult(operation, resolution); err != nil {
+		t.Fatalf("migration operation result is not exact: %v", err)
 	}
 	return resolution
 }
 
 func requireExactMigrationPublishedReceipt(
 	t *testing.T,
-	resolution swarmionapp.OperationResolution,
+	operation PublishedWriteOperation,
+	resolution swarmionapp.OperationResult,
 ) PublishedWriteReceipt {
 	t.Helper()
-	published, err := PublishedWriteReceiptFromResolution(resolution)
+	published, err := PublishedWriteReceiptFromResult(operation, resolution)
 	if err != nil {
 		t.Fatalf("convert migration operation resolution: %v", err)
 	}
@@ -387,7 +443,7 @@ func assertDurableMigrationHistory(
 	t.Helper()
 	if err := store.validateMigrationHistoryAtCheckpoint(
 		context.Background(),
-		operation.Key,
+		operation.Key(),
 		eventID,
 		checkpointCommitID,
 		migrationsDir,

@@ -54,6 +54,7 @@ require (
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/monitoring v1.29.0 // indirect
+	cuelabs.dev/go/oci/ociregistry v0.0.0-20251212221603-3adeb8663819 // indirect
 	cuelang.org/go v0.16.1 // indirect
 	filippo.io/bigmod v0.1.1-0.20260103110540-f8a47775ebe5 // indirect
 	filippo.io/keygen v0.0.0-20260114151900-8e2790ea4c5b // indirect
@@ -68,11 +69,9 @@ require (
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.11 // indirect
-	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
-	github.com/cockroachdb/apd/v2 v2.0.2 // indirect
 	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/cockroachdb/errors v1.13.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
@@ -83,7 +82,6 @@ require (
 	github.com/containerd/plugin v1.1.0 // indirect
 	github.com/containernetworking/plugins v1.9.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/dolthub/driver/v2 v2.1.4 // indirect
 	github.com/dolthub/eventsapi_schema v0.0.0-20260310172945-37a9265ade69 // indirect
 	github.com/dolthub/ishell v0.0.0-20260414231531-5f031e3e9037 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
@@ -98,7 +96,6 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/gocraft/dbr/v2 v2.7.7 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/golang/glog v1.2.5 // indirect
 	github.com/google/go-github/v57 v57.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/nftables v0.3.0 // indirect
@@ -110,8 +107,10 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
-	github.com/mpvl/unique v0.0.0-20150818121801-cbe035fff7de // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/nustiueudinastea/dolt/go v0.0.0-20260816223032-fffa2866aac8 // indirect
+	github.com/nustiueudinastea/doltsqldriver/v2 v2.0.0-20260816223133-4aac8f91668e // indirect
+	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/pion/datachannel v1.6.0 // indirect
 	github.com/pion/dtls/v3 v3.1.2 // indirect
 	github.com/pion/ice/v4 v4.2.5 // indirect
@@ -149,6 +148,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
@@ -202,7 +202,6 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1 // indirect
 	github.com/dennwc/ioctl v1.0.1 // indirect
 	github.com/dolthub/aws-sdk-go-ini-parser v0.0.0-20250305001723-2821c37f6c12 // indirect
-	github.com/dolthub/dolt/go v0.51.14-0.20260618144749-e33adf34a994 // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/fslock v0.0.5 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20260610153742-72563bc7ca83 // indirect
@@ -280,11 +279,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3 // indirect
 	github.com/multiformats/go-multistream v0.6.1
 	github.com/multiformats/go-varint v0.1.0 // indirect
-	github.com/nustiueudinastea/swarmion/protocol v0.0.0
-	github.com/nustiueudinastea/swarmion/runtime v0.0.0
-	github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260815115756-e54c93c1bd91
-	github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260815115756-e54c93c1bd91
-	github.com/nustiueudinastea/swarmion/transports v0.0.0
+	github.com/nustiueudinastea/swarmion v0.0.0-20260817015429-1a041d798c29
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/oracle/oci-go-sdk/v65 v65.114.2 // indirect
@@ -341,25 +336,3 @@ require (
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
-
-replace github.com/grafana/thema => github.com/nustiueudinastea/thema v0.0.0-20240605110052-2016107581da
-
-replace cuelang.org/go => github.com/grafana/cue v0.0.0-20230926092038-971951014e3f
-
-replace github.com/protocolbuffers/txtpbfmt => github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b
-
-replace github.com/dolthub/dolt/go => github.com/nustiueudinastea/dolt/go v0.0.0-20260623145826-b1ec65352883
-
-replace github.com/dolthub/driver/v2 => github.com/nustiueudinastea/doltsqldriver/v2 v2.0.0-20260618154213-1ce90ff21070
-
-replace github.com/nustiueudinastea/swarmion/protocol v0.0.0 => github.com/nustiueudinastea/swarmion/protocol v0.0.0-20260815115756-e54c93c1bd91
-
-replace github.com/nustiueudinastea/swarmion/runtime v0.0.0 => github.com/nustiueudinastea/swarmion/runtime v0.0.0-20260815115756-e54c93c1bd91
-
-replace github.com/nustiueudinastea/swarmion/transports v0.0.0 => github.com/nustiueudinastea/swarmion/transports v0.0.0-20260815115756-e54c93c1bd91
-
-replace github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0 => github.com/nustiueudinastea/swarmion/transport-adapters v0.0.0-20260815115756-e54c93c1bd91
-
-replace github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/cue v0.0.0-20260815115756-e54c93c1bd91
-
-replace github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0 => github.com/nustiueudinastea/swarmion/schema-engines/declarative v0.0.0-20260815115756-e54c93c1bd91

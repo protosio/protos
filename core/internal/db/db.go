@@ -1,11 +1,12 @@
 package db
 
 import (
+	"bytes"
 	"context"
-	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"embed"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -27,6 +28,7 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
+	"github.com/nustiueudinastea/swarmion/runtime/sqlread"
 	cueschema "github.com/nustiueudinastea/swarmion/schema-engines/cue"
 	declarativeschema "github.com/nustiueudinastea/swarmion/schema-engines/declarative"
 	swarmiontransport "github.com/nustiueudinastea/swarmion/transports"
@@ -55,7 +57,6 @@ const (
 var (
 	errSwarmionCheckpointCatchUpRetryable = errors.New("swarmion checkpoint catch-up retryable")
 	errSwarmionPublishedWriteIncomplete   = errors.New("swarmion published write receipt incomplete")
-	errSwarmionPublicationOutcomeMissing  = errors.New("swarmion publication outcome missing")
 	errPublishedWriteRetryExhausted       = errors.New("published write retry budget exhausted")
 
 	// ErrEventReceiptPending identifies a published event that did not reach a
@@ -82,11 +83,6 @@ var (
 	// matches an embedded migration object but whose definition does not. The
 	// migration operation is not started and no receipt is created.
 	ErrMigrationSchemaConflict = errors.New("migration schema object conflicts with embedded definition")
-
-	// errPublishedWriteSafeToExecute is minted only after a validated passive
-	// resolution proves that an inconclusive operation is exactly absent and
-	// safe to execute again. Diagnostic error text never grants this authority.
-	errPublishedWriteSafeToExecute = errors.New("swarmion published write is safe to execute")
 )
 
 type Signer interface {
@@ -186,8 +182,9 @@ type DB struct {
 	initialized          bool
 	existingRepository   bool
 	runtimeOpenedAt      time.Time
+	runtimeGeneration    uint64
 	watchCancel          context.CancelFunc
-	watchWG              sync.WaitGroup
+	backgroundWork       backgroundWorkRegistry
 	tableChangeCallbacks *util.Map[string, tableChangeCallback]
 	runtimeCallbacks     *util.Map[string, Notifier]
 	replicationNoticeSig string
@@ -204,22 +201,86 @@ type DB struct {
 	// protocol-head movement, emulate typed publication outcomes, and inject
 	// receipt, status, or migration-finalization outcomes. They are
 	// never configured by production code.
-	lookupPublishedWriteForTest  func(context.Context, swarmionapp.OperationAddress) (swarmionapp.OperationResolution, error)
-	observePublishedWriteForTest func(context.Context, PublishedWriteReceipt) (EventReceiptObservation, error)
-	executeOperationForTest      func(context.Context, swarmionapp.OperationRequest) (swarmionapp.PublicationOutcome, error)
-	runMigrationsForTest         func(context.Context) error
-	waitSQLViewReadyForTest      func(context.Context) error
-	waitMutationReadyForTest     func(context.Context) error
+	observePublishedWriteForTest           func(context.Context, PublishedWriteReceipt) (EventReceiptObservation, error)
+	runMigrationsForTest                   func(context.Context) error
+	waitSQLViewReadyForTest                func(context.Context) error
+	waitMutationReadyForTest               func(context.Context) error
+	waitPublishedWriteAppliedForTest       func(context.Context, PublishedWriteReceipt, string) (EventReceiptObservation, error)
+	beforeOperationRecoveryReplaceForTest  func(PublishedWriteOperation) error
+	beforeOperationCleanupAdmissionForTest func()
+	executeOperationForTest                func(context.Context, *swarmionapp.DatabaseRuntime, swarmionapp.OperationRequest) swarmionapp.OperationResult
+	waitPublishedWriteRetryForTest         func(context.Context, int, swarmionapp.OperationRetryReason) error
 
 	bootstrapRetryMu     sync.Mutex
 	bootstrapRetryCancel context.CancelFunc
 	bootstrapRetryDone   chan struct{}
 	bootstrapRetryErr    error
+
+	operationRecoveryMu sync.Mutex
 }
 
 type contextMutex struct {
 	once sync.Once
 	ch   chan struct{}
+}
+
+// backgroundWorkRegistry serializes lifecycle-owned goroutine admission with
+// shutdown. Once sealed, no Add can race the close-side Wait; a later runtime
+// open resets the registry only after the preceding close joined every worker.
+type backgroundWorkRegistry struct {
+	mu       sync.Mutex
+	wg       sync.WaitGroup
+	sealed   bool
+	active   int
+	admitted uint64
+}
+
+func (registry *backgroundWorkRegistry) reset() error {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	if registry.active != 0 {
+		return fmt.Errorf("reset background work registry with %d active workers", registry.active)
+	}
+	registry.sealed = false
+	return nil
+}
+
+func (registry *backgroundWorkRegistry) begin() (func(), bool) {
+	registry.mu.Lock()
+	if registry.sealed {
+		registry.mu.Unlock()
+		return nil, false
+	}
+	registry.active++
+	registry.admitted++
+	registry.wg.Add(1)
+	registry.mu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			registry.mu.Lock()
+			registry.active--
+			registry.mu.Unlock()
+			registry.wg.Done()
+		})
+	}, true
+}
+
+func (registry *backgroundWorkRegistry) seal() {
+	registry.mu.Lock()
+	registry.sealed = true
+	registry.mu.Unlock()
+}
+
+func (registry *backgroundWorkRegistry) wait() {
+	registry.wg.Wait()
+}
+
+func (registry *backgroundWorkRegistry) admissionCount() uint64 {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	return registry.admitted
 }
 
 func (m *contextMutex) init() {
@@ -380,14 +441,13 @@ func (db *DB) openSwarmionLocked(ctx context.Context, bootstrapPeers []string) e
 			CommitName:  db.signer.GetID(),
 			CommitEmail: db.signer.GetID() + "@protos.local",
 		},
-		BootstrapPeers:                  append([]string(nil), bootstrapPeers...),
-		Namespace:                       fmt.Sprintf(swarmionNamespaceTemplate, db.name),
-		AdminNamespace:                  fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name),
-		HeartbeatInterval:               5 * time.Second,
-		CheckpointMaterializationPolicy: swarmionapp.CheckpointMaterializationManualLazy,
-		SchemaEngine:                    cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
-		OnWriteNotification:             db.handleWriteNotification,
-		Logger:                          logger,
+		BootstrapPeers:      append([]string(nil), bootstrapPeers...),
+		Namespace:           fmt.Sprintf(swarmionNamespaceTemplate, db.name),
+		AdminNamespace:      fmt.Sprintf(swarmionAdminNamespaceTemplate, db.name),
+		HeartbeatInterval:   5 * time.Second,
+		SchemaEngine:        cueschema.New(protoscontracts.Catalog, declarativeschema.New(protoscontracts.Catalog)),
+		OnWriteNotification: db.handleWriteNotification,
+		Logger:              logger,
 	}
 	if hasSwarmManifest {
 		databaseConfig.SwarmManifest = swarmManifest
@@ -410,12 +470,29 @@ func (db *DB) openSwarmionLocked(ctx context.Context, bootstrapPeers []string) e
 		_ = host.Close()
 		return err
 	}
+	readDB, err := sqlread.Open(runtime)
+	if err != nil {
+		_ = host.Close()
+		return fmt.Errorf("open read-only Swarmion database/sql adapter: %w", err)
+	}
+	if err := db.backgroundWork.reset(); err != nil {
+		_ = readDB.Close()
+		_ = host.Close()
+		return fmt.Errorf("prepare Swarmion background work: %w", err)
+	}
 
 	db.mu.Lock()
+	if db.runtimeGeneration == ^uint64(0) {
+		db.mu.Unlock()
+		_ = readDB.Close()
+		_ = host.Close()
+		return fmt.Errorf("swarmion runtime generation exhausted")
+	}
+	db.runtimeGeneration++
 	db.host = host
 	db.runtime = runtime
 	db.runtimeOpenedAt = time.Now()
-	db.sqldb = openRuntimeReadDB(runtime)
+	db.sqldb = readDB
 	configureEmbeddedSQLDB(db.sqldb)
 	db.initialized = false
 	db.watchCancel = nil
@@ -424,6 +501,9 @@ func (db *DB) openSwarmionLocked(ctx context.Context, bootstrapPeers []string) e
 }
 
 func (db *DB) finalizeSwarmionOpenLocked(ctx context.Context) error {
+	if err := db.recoverPublishedWriteOperations(ctx); err != nil {
+		return err
+	}
 	db.mu.Lock()
 	runMigrationsForTest := db.runMigrationsForTest
 	db.mu.Unlock()
@@ -492,7 +572,7 @@ func (db *DB) persistSwarmManifest(ctx context.Context, runtime *swarmionapp.Dat
 	if runtime == nil {
 		return fmt.Errorf("swarmion database runtime is not initialized")
 	}
-	status, err := runtime.SwarmManifestStatus(ctx)
+	status, err := runtime.Diagnostics().SwarmManifestStatus(ctx)
 	if err != nil {
 		return fmt.Errorf("read swarmion manifest status: %w", err)
 	}
@@ -524,42 +604,205 @@ func (db *DB) startSwarmionWatchers(ctx context.Context, runtime *swarmionapp.Da
 	if db == nil || runtime == nil {
 		return
 	}
-	if events, err := runtime.WatchStatus(ctx); err == nil {
-		db.watchWG.Add(1)
-		go func() {
-			defer db.watchWG.Done()
-			db.forwardSwarmionStatusEvents(events)
-		}()
-	} else {
-		notifyLog.Warnf("failed to watch swarmion status: %s", err.Error())
+	statusDone, admitted := db.backgroundWork.begin()
+	if !admitted {
+		return
 	}
-	if events, err := runtime.WatchCheckpointRoots(ctx); err == nil {
-		db.watchWG.Add(1)
-		go func() {
-			defer db.watchWG.Done()
-			db.forwardSwarmionCheckpointRootEvents(events)
-		}()
-	} else {
-		notifyLog.Warnf("failed to watch swarmion checkpoint roots: %s", err.Error())
+	go func() {
+		defer statusDone()
+		db.runSwarmionStatusSubscription(ctx, func(ctx context.Context) (statusEventSubscription, error) {
+			return runtime.SubscribeStatus(ctx)
+		})
+	}()
+
+	checkpointDone, admitted := db.backgroundWork.begin()
+	if !admitted {
+		return
+	}
+	go func() {
+		defer checkpointDone()
+		db.runSwarmionCheckpointSubscription(ctx, func(ctx context.Context) (checkpointEventSubscription, error) {
+			return runtime.SubscribeCheckpointRoots(ctx)
+		})
+	}()
+}
+
+type statusEventSubscription interface {
+	Events() <-chan swarmionapp.StatusEvent
+	Close()
+}
+
+type checkpointEventSubscription interface {
+	Events() <-chan swarmionapp.CheckpointEvent
+	Close()
+}
+
+const (
+	swarmionSubscriptionRetryInitial = 50 * time.Millisecond
+	swarmionSubscriptionRetryMaximum = 2 * time.Second
+)
+
+func (db *DB) runSwarmionStatusSubscription(
+	ctx context.Context,
+	subscribe func(context.Context) (statusEventSubscription, error),
+) {
+	recovering := false
+	backoff := swarmionSubscriptionRetryInitial
+	for {
+		subscription, err := subscribe(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			notifyLog.Warnf("failed to subscribe to Swarmion status: %s", err.Error())
+			db.triggerRuntimeChangeCallbacks()
+			// This worker is bound to one DatabaseRuntime. If that owner reports
+			// itself closed while the local watch context is still live, invalidate
+			// consumers but do not spin forever against the same closed handle.
+			if errors.Is(err, swarmionapp.ErrDatabaseRuntimeClosed) {
+				return
+			}
+			recovering = true
+			if !waitForSwarmionSubscriptionRetry(ctx, backoff) {
+				return
+			}
+			backoff = min(backoff*2, swarmionSubscriptionRetryMaximum)
+			continue
+		}
+		unexpectedTerminal := db.forwardSwarmionStatusEvents(ctx, subscription.Events(), recovering)
+		subscription.Close()
+		if !unexpectedTerminal || ctx.Err() != nil {
+			return
+		}
+		recovering = true
+		if !waitForSwarmionSubscriptionRetry(ctx, backoff) {
+			return
+		}
+		backoff = min(backoff*2, swarmionSubscriptionRetryMaximum)
 	}
 }
 
-func (db *DB) forwardSwarmionStatusEvents(events <-chan swarmionapp.StatusEvent) {
+func (db *DB) runSwarmionCheckpointSubscription(
+	ctx context.Context,
+	subscribe func(context.Context) (checkpointEventSubscription, error),
+) {
+	recovering := false
+	backoff := swarmionSubscriptionRetryInitial
+	for {
+		subscription, err := subscribe(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			notifyLog.Warnf("failed to subscribe to Swarmion checkpoints: %s", err.Error())
+			db.triggerPublishedTableChangeCallbacks()
+			if errors.Is(err, swarmionapp.ErrDatabaseRuntimeClosed) {
+				return
+			}
+			recovering = true
+			if !waitForSwarmionSubscriptionRetry(ctx, backoff) {
+				return
+			}
+			backoff = min(backoff*2, swarmionSubscriptionRetryMaximum)
+			continue
+		}
+		unexpectedTerminal := db.forwardSwarmionCheckpointRootEvents(ctx, subscription.Events(), recovering)
+		subscription.Close()
+		if !unexpectedTerminal || ctx.Err() != nil {
+			return
+		}
+		recovering = true
+		if !waitForSwarmionSubscriptionRetry(ctx, backoff) {
+			return
+		}
+		backoff = min(backoff*2, swarmionSubscriptionRetryMaximum)
+	}
+}
+
+func waitForSwarmionSubscriptionRetry(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func (db *DB) forwardSwarmionStatusEvents(ctx context.Context, events <-chan swarmionapp.StatusEvent, invalidateInitial ...bool) bool {
+	invalidateFirst := len(invalidateInitial) != 0 && invalidateInitial[0]
 	for event := range events {
-		switch event.Kind {
-		case swarmionapp.StatusEventCheckpointRootChanged,
-			swarmionapp.StatusEventTentativeRootChanged,
-			swarmionapp.StatusEventFatalChanged,
-			swarmionapp.StatusEventStateProvidersChanged:
+		if err := event.Validate(); err != nil {
+			notifyLog.Warnf("Swarmion status subscription violated its event contract: %s", err.Error())
 			db.triggerRuntimeChangeCallbacks()
+			return true
+		}
+		if terminalErr := event.Terminal(); terminalErr != nil {
+			// A forwarded reason is descriptive only. Normal shutdown is proven by
+			// this worker's own context, never by source-controlled metadata.
+			if ctx.Err() != nil {
+				return false
+			}
+			notifyLog.Warnf("Swarmion status subscription terminated unexpectedly; retrying: %s", terminalErr.Error())
+			db.triggerRuntimeChangeCallbacks()
+			return true
+		}
+		if event.Initial {
+			if invalidateFirst {
+				db.triggerRuntimeChangeCallbacks()
+				invalidateFirst = false
+			}
+			continue
+		}
+		// A sequence gap carries a complete replacement snapshot but no adjacent
+		// change hints. Treat it as a full runtime invalidation.
+		db.triggerRuntimeChangeCallbacks()
+	}
+	// Closing without a terminal event loses the source-specific handoff.
+	if ctx.Err() != nil {
+		return false
+	}
+	db.triggerRuntimeChangeCallbacks()
+	return true
+}
+
+func (db *DB) forwardSwarmionCheckpointRootEvents(ctx context.Context, events <-chan swarmionapp.CheckpointEvent, invalidateInitial ...bool) bool {
+	invalidateFirst := len(invalidateInitial) != 0 && invalidateInitial[0]
+	for event := range events {
+		if err := event.Validate(); err != nil {
+			notifyLog.Warnf("Swarmion checkpoint subscription violated its event contract: %s", err.Error())
+			db.triggerPublishedTableChangeCallbacks()
+			return true
+		}
+		if terminalErr := event.Terminal(); terminalErr != nil {
+			if ctx.Err() != nil {
+				return false
+			}
+			notifyLog.Warnf("Swarmion checkpoint subscription terminated unexpectedly; retrying: %s", terminalErr.Error())
+			db.triggerPublishedTableChangeCallbacks()
+			return true
+		}
+		if event.Initial {
+			if invalidateFirst {
+				db.triggerPublishedTableChangeCallbacks()
+				invalidateFirst = false
+			}
+			continue
+		}
+		if event.SequenceGap || !event.ChangedTablesComplete {
+			db.triggerPublishedTableChangeCallbacks()
+			continue
+		}
+		if len(event.ChangedTables) != 0 {
+			db.triggerPublishedTableChangeCallbacks(event.ChangedTables...)
 		}
 	}
-}
-
-func (db *DB) forwardSwarmionCheckpointRootEvents(events <-chan swarmionapp.CheckpointRootEvent) {
-	for event := range events {
-		db.triggerPublishedTableChangeCallbacks(event.ChangedTables...)
+	if ctx.Err() != nil {
+		return false
 	}
+	db.triggerPublishedTableChangeCallbacks()
+	return true
 }
 
 const migrationHistoryCreateStatement = `CREATE TABLE IF NOT EXISTS sqddl_history (
@@ -598,18 +841,18 @@ func (db *DB) runMigrations(ctx context.Context) error {
 		filenames = append(filenames, name)
 	}
 	sort.Strings(filenames)
-	operation, err := migrationBatchPublishedWriteOperation(migrationsDir, filenames)
+	operation, err := db.migrationBatchPublishedWriteOperation(migrationsDir, filenames)
 	if err != nil {
 		return err
 	}
-	operationID := operation.Key
+	operationID := operation.Key()
 	resolved, err := db.LookupPublishedWriteOperation(ctx, operation)
 	if err != nil {
 		return fmt.Errorf("resolve migration batch %q: %w", operationID, err)
 	}
-	switch resolved.State {
-	case swarmionapp.OperationResolvedAccepted:
-		published, err := PublishedWriteReceiptFromResolution(resolved)
+	switch resolved.Disposition() {
+	case swarmionapp.OperationAccepted:
+		published, err := PublishedWriteReceiptFromResult(operation, resolved)
 		if err != nil {
 			return fmt.Errorf("recover migration batch %q receipt: %w", operationID, err)
 		}
@@ -617,24 +860,29 @@ func (db *DB) runMigrations(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("checkpoint recovered migrations: %w", err)
 		}
-		return db.validateMigrationHistoryAtCheckpoint(
+		if err := db.validateMigrationHistoryAtCheckpoint(
 			ctx,
 			operationID,
 			published.EventID,
 			observation.Status.DurableCheckpointCommitID,
 			migrationsDir,
 			filenames,
-		)
-	case swarmionapp.OperationResolvedUnavailable:
-		return fmt.Errorf("%w: migration batch %q", ErrOperationReceiptUnavailable, operationID)
-	case swarmionapp.OperationResolvedAbsent:
-		if !resolved.SafeToExecute {
-			return fmt.Errorf("%w: migration batch %q was absent without execution authority", ErrOperationReceiptUnavailable, operationID)
+		); err != nil {
+			return err
 		}
+		if err := db.removePublishedWriteOperation(operation); err != nil {
+			return fmt.Errorf("retire recovered migration batch %q: %w", operationID, err)
+		}
+		return nil
+	case swarmionapp.OperationRecoveryRequired:
+		return fmt.Errorf("%w: migration batch %q", ErrOperationReceiptUnavailable, operationID)
+	case swarmionapp.OperationRetryPermitted:
 		// It is safe to stage the batch only after Swarmion has authoritatively
 		// proved this operation absent from the recovered lineage.
+	case swarmionapp.OperationFailedClosed:
+		return fmt.Errorf("resolve migration batch %q failed closed: %s", operationID, operationDiagnosticText(resolved.Diagnostic()))
 	default:
-		return fmt.Errorf("resolve migration batch %q returned unknown resolution %q", operationID, resolved.State)
+		return fmt.Errorf("resolve migration batch %q returned unknown disposition %q", operationID, resolved.Disposition())
 	}
 
 	pendingFilenames := make([]string, 0, len(filenames))
@@ -654,6 +902,9 @@ func (db *DB) runMigrations(ctx context.Context) error {
 		pendingFilenames = append(pendingFilenames, filename)
 	}
 	if len(pendingFilenames) == 0 {
+		if err := db.removePublishedWriteOperation(operation); err != nil {
+			return fmt.Errorf("retire empty migration batch %q: %w", operationID, err)
+		}
 		return nil
 	}
 
@@ -706,26 +957,50 @@ func (db *DB) runMigrations(ctx context.Context) error {
 	); err != nil {
 		return err
 	}
+	if err := db.removePublishedWriteOperation(operation); err != nil {
+		return fmt.Errorf("retire applied migration batch %q: %w", operationID, err)
+	}
 
 	return nil
 }
 
-func migrationBatchPublishedWriteOperation(migrationsDir fs.FS, filenames []string) (PublishedWriteOperation, error) {
-	intentParts := []string{"protos:migration-batch:v1"}
-	keyParts := append([]string{"protos:migration-batch-key:v1"}, filenames...)
-	for _, filename := range filenames {
-		contents, err := fs.ReadFile(migrationsDir, filename)
-		if err != nil {
-			return PublishedWriteOperation{}, fmt.Errorf("read migration %s for operation identity: %w", filename, err)
-		}
-		checksum := sha256.Sum256(contents)
-		intentParts = append(intentParts, filename, hex.EncodeToString(checksum[:]))
-	}
-	keySeed, err := NewPublishedWriteOperation("pending", keyParts...)
+func (db *DB) migrationBatchPublishedWriteOperation(migrationsDir fs.FS, filenames []string) (PublishedWriteOperation, error) {
+	intent, err := encodeMigrationCatalogIntent(migrationsDir, filenames)
 	if err != nil {
 		return PublishedWriteOperation{}, err
 	}
-	return NewPublishedWriteOperation("migration-batch-"+keySeed.IntentDigest, intentParts...)
+	return db.migrationPublishedWriteOperation(intent)
+}
+
+func encodeMigrationCatalogIntent(migrationsDir fs.FS, filenames []string) ([]byte, error) {
+	canonicalFilenames := append([]string(nil), filenames...)
+	sort.Strings(canonicalFilenames)
+	if uint64(len(canonicalFilenames)) > uint64(^uint32(0)) {
+		return nil, fmt.Errorf("migration catalog contains too many files")
+	}
+	var intent bytes.Buffer
+	intent.WriteString("PROTOS-MIGRATION-CATALOG")
+	intent.WriteByte(0)
+	intent.WriteByte(1)
+	if err := binary.Write(&intent, binary.BigEndian, uint32(len(canonicalFilenames))); err != nil {
+		return nil, fmt.Errorf("encode migration catalog file count: %w", err)
+	}
+	for _, filename := range canonicalFilenames {
+		if uint64(len(filename)) > uint64(^uint32(0)) {
+			return nil, fmt.Errorf("migration filename is too long")
+		}
+		contents, err := fs.ReadFile(migrationsDir, filename)
+		if err != nil {
+			return nil, fmt.Errorf("read migration %s for operation identity: %w", filename, err)
+		}
+		checksum := sha256.Sum256(contents)
+		if err := binary.Write(&intent, binary.BigEndian, uint32(len(filename))); err != nil {
+			return nil, fmt.Errorf("encode migration filename length: %w", err)
+		}
+		intent.WriteString(filename)
+		intent.Write(checksum[:])
+	}
+	return intent.Bytes(), nil
 }
 
 func (db *DB) validateMigrationHistoryAtCheckpoint(
@@ -1732,6 +2007,10 @@ func (db *DB) closeSwarmionRuntimeLocked() error {
 	db.initialized = false
 	db.watchCancel = nil
 	db.mu.Unlock()
+	// Seal while opMu is still held. An Execute that completed before this close
+	// may attempt to schedule journal cleanup only after releasing opMu; that
+	// admission must observe the sealed registry before close starts waiting.
+	db.backgroundWork.seal()
 	db.opMu.Unlock()
 	if watchCancel != nil {
 		watchCancel()
@@ -1743,7 +2022,7 @@ func (db *DB) closeSwarmionRuntimeLocked() error {
 	if host != nil {
 		closeErr = errors.Join(closeErr, host.Close())
 	}
-	db.watchWG.Wait()
+	db.backgroundWork.wait()
 	return closeErr
 }
 
@@ -1875,7 +2154,37 @@ func (db *DB) SwarmionStatus() (swarmionapp.Status, bool) {
 	if app == nil {
 		return swarmionapp.Status{}, false
 	}
-	return app.Status(), true
+	status, err := app.Diagnostics().Status()
+	return status, err == nil
+}
+
+// SwarmionRuntimeGeneration identifies the currently open runtime instance.
+// It changes monotonically on every successful close/open replacement and is
+// used only to bind application side-effect leases to the drain runtime that
+// established their prerequisites.
+func (db *DB) SwarmionRuntimeGeneration() (uint64, bool) {
+	if db == nil {
+		return 0, false
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.runtimeGeneration, db.runtime != nil && db.runtimeGeneration != 0
+}
+
+// SwarmionDetailedStatus returns the detached high-cardinality diagnostic
+// snapshot. It is observational only and never grants operation authority.
+func (db *DB) SwarmionDetailedStatus() (swarmionapp.DetailedStatus, bool) {
+	if db == nil {
+		return swarmionapp.DetailedStatus{}, false
+	}
+	db.mu.Lock()
+	runtime := db.runtime
+	db.mu.Unlock()
+	if runtime == nil {
+		return swarmionapp.DetailedStatus{}, false
+	}
+	status, err := runtime.Diagnostics().DetailedStatus()
+	return status, err == nil
 }
 
 // RuntimeSnapshot returns a copy of Swarmion's current protocol state for
@@ -1890,7 +2199,8 @@ func (db *DB) RuntimeSnapshot() (*swarmionprotocol.NodeState, bool) {
 	if runtime == nil {
 		return nil, false
 	}
-	return runtime.Snapshot(), true
+	snapshot, err := runtime.Diagnostics().Snapshot()
+	return snapshot, err == nil
 }
 
 // EventReceiptState is the backend-facing lifecycle of one exact
@@ -2023,7 +2333,7 @@ func (db *DB) SwarmionRootStatus(ctx context.Context, rootHash string) (swarmion
 	if app == nil {
 		return swarmionapp.BranchRootStatus{}, fmt.Errorf("db is not initialized")
 	}
-	return app.RootStatus(ctx, swarmionapp.BranchRootStatusRequest{RootHash: rootHash})
+	return app.Diagnostics().RootStatus(ctx, swarmionapp.BranchRootStatusRequest{RootHash: rootHash})
 }
 
 // SwarmionEventReceiptStatus reports checkpoint application and historical
@@ -2101,7 +2411,7 @@ func (db *DB) catchUpCheckpointStrict(ctx context.Context, reason string) error 
 	if strings.TrimSpace(reason) == "" {
 		reason = "protos checkpoint read"
 	}
-	if err := catchUpSwarmionCheckpoint(ctx, app, reason); err != nil {
+	if err := catchUpSwarmionCheckpoint(ctx, app.Maintenance(), reason); err != nil {
 		return fmt.Errorf("catch up swarmion checkpoint view: %w", err)
 	}
 	return nil
@@ -2184,7 +2494,7 @@ func (db *DB) SwarmionCompatibility(ctx context.Context) ([]swarmionapp.Manifest
 	if app == nil {
 		return nil, fmt.Errorf("swarmion app is not initialized")
 	}
-	return app.Compatibility(ctx)
+	return app.Diagnostics().Compatibility(ctx)
 }
 
 func (db *DB) SwarmionPeerStatus(ctx context.Context) ([]swarmionapp.PeerStatus, error) {
@@ -2197,7 +2507,7 @@ func (db *DB) SwarmionPeerStatus(ctx context.Context) ([]swarmionapp.PeerStatus,
 	if app == nil {
 		return nil, fmt.Errorf("swarmion database runtime is not initialized")
 	}
-	return app.PeerStatus(ctx)
+	return app.Diagnostics().PeerStatus(ctx)
 }
 
 func (db *DB) SwarmionContentSyncTrace() ([]string, bool) {
@@ -2210,7 +2520,8 @@ func (db *DB) SwarmionContentSyncTrace() ([]string, bool) {
 	if app == nil {
 		return nil, false
 	}
-	return app.ContentSyncTrace(), true
+	trace, err := app.Diagnostics().ContentSyncTrace()
+	return trace, err == nil
 }
 
 func (db *DB) GetSqlDB() *sql.DB {
@@ -2476,152 +2787,18 @@ func (r PublishedWriteReceipt) HasExactEventIdentity() bool {
 	return err == nil
 }
 
-// PublishedWriteOperation is a caller-stable identity for one logical write.
-// Key must carry at least 128 bits of entropy.
-// IntentDigest describes the immutable application intent and must not be a
-// digest of the resulting Dolt root.
-type PublishedWriteOperation struct {
-	Key          string
-	IntentDigest string
-	AuthorPeerID string
-}
-
-// NewPublishedWriteOperationKey returns an opaque 256-bit correlation key.
-// Persist it in replicated task/operation state before publishing the write.
-func NewPublishedWriteOperationKey() (string, error) {
-	key := make([]byte, 32)
-	if _, err := cryptorand.Read(key); err != nil {
-		return "", fmt.Errorf("generate published write operation key: %w", err)
-	}
-	return hex.EncodeToString(key), nil
-}
-
-// NewPublishedWriteOperation hashes length-preserving JSON string framing so
-// callers can construct the same intent digest after a process restart.
-func NewPublishedWriteOperation(key string, intentParts ...string) (PublishedWriteOperation, error) {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return PublishedWriteOperation{}, fmt.Errorf("published write operation key is empty")
-	}
-	encoded, err := json.Marshal(intentParts)
-	if err != nil {
-		return PublishedWriteOperation{}, fmt.Errorf("marshal published write operation intent: %w", err)
-	}
-	digest := sha256.Sum256(encoded)
-	return PublishedWriteOperation{
-		Key:          key,
-		IntentDigest: hex.EncodeToString(digest[:]),
-	}, nil
-}
-
-func (db *DB) publishedWriteOperationAddress(operation PublishedWriteOperation) (
-	*swarmionapp.DatabaseRuntime,
-	swarmionapp.OperationAddress,
-	error,
-) {
-	identity, err := swarmionapp.CanonicalOperationIdentity(operation.Key, operation.IntentDigest)
-	if err != nil {
-		return nil, swarmionapp.OperationAddress{}, fmt.Errorf("published write operation identity: %w", err)
-	}
-	db.mu.Lock()
-	runtime := db.runtime
-	databaseName := db.name
-	db.mu.Unlock()
-	authorPeerID := strings.TrimSpace(operation.AuthorPeerID)
-	if authorPeerID == "" && runtime != nil {
-		authorPeerID = strings.TrimSpace(runtime.PeerID())
-	}
-	if authorPeerID == "" {
-		return runtime, swarmionapp.OperationAddress{}, fmt.Errorf("published write operation author peer ID is unavailable")
-	}
-	if runtime != nil {
-		address, addressErr := runtime.OperationAddress(identity, authorPeerID)
-		if addressErr != nil {
-			return runtime, swarmionapp.OperationAddress{}, fmt.Errorf("published write operation address: %w", addressErr)
-		}
-		return runtime, address, nil
-	}
-	address := swarmionapp.OperationAddress{
-		Identity:     identity,
-		Scope:        swarmionapp.DatabasePublicationScope(fmt.Sprintf(swarmionNamespaceTemplate, databaseName)),
-		AuthorPeerID: authorPeerID,
-	}
-	if err := address.Validate(); err != nil {
-		return nil, swarmionapp.OperationAddress{}, fmt.Errorf("published write operation address: %w", err)
-	}
-	return nil, address, nil
-}
-
 // LookupPublishedWriteOperation resolves the original exact receipt before a
-// caller considers running a logical write. Unavailable is a safe, explicit
-// result and must never be treated as absent.
-func (db *DB) LookupPublishedWriteOperation(ctx context.Context, operation PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
-	if db == nil {
-		return swarmionapp.OperationResolution{}, fmt.Errorf("db is nil")
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	runtime, address, err := db.publishedWriteOperationAddress(operation)
-	if err != nil {
-		return swarmionapp.OperationResolution{}, err
-	}
-	if db.lookupPublishedWriteForTest != nil {
-		resolution, lookupErr := db.lookupPublishedWriteForTest(ctx, address)
-		if lookupErr == nil {
-			if validationErr := resolution.ValidateFor(address); validationErr != nil {
-				return swarmionapp.OperationResolution{}, fmt.Errorf("validate injected operation resolution: %w", validationErr)
-			}
-		}
-		return resolution, lookupErr
-	}
-	if runtime == nil {
-		resolution := swarmionapp.OperationResolution{
-			Identity:     address.Identity,
-			Scope:        address.Scope,
-			AuthorPeerID: address.AuthorPeerID,
-			State:        swarmionapp.OperationResolvedUnavailable,
-			ReasonCode:   swarmionapp.OperationResolutionReasonRuntimeNotReady,
-		}
-		return resolution, resolution.ValidateFor(address)
-	}
-	return runtime.ResolveOperation(ctx, address)
+// caller considers running a logical write. The returned disposition is the
+// only control-flow authority; Diagnostic remains non-authorizing detail.
+func (db *DB) LookupPublishedWriteOperation(ctx context.Context, operation PublishedWriteOperation) (swarmionapp.OperationResult, error) {
+	return db.resolvePublishedWriteOperation(ctx, operation, false)
 }
 
 // WaitPublishedWriteOperation waits only for replicated operation evidence to
 // arrive. It never executes SQL or republishes the operation. Foreign history
 // that remains incomplete is returned as unavailable when ctx ends.
-func (db *DB) WaitPublishedWriteOperation(ctx context.Context, operation PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
-	if db == nil {
-		return swarmionapp.OperationResolution{}, fmt.Errorf("db is nil")
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	runtime, address, err := db.publishedWriteOperationAddress(operation)
-	if err != nil {
-		return swarmionapp.OperationResolution{}, err
-	}
-	if db.lookupPublishedWriteForTest != nil {
-		resolution, lookupErr := db.lookupPublishedWriteForTest(ctx, address)
-		if lookupErr == nil {
-			if validationErr := resolution.ValidateFor(address); validationErr != nil {
-				return swarmionapp.OperationResolution{}, fmt.Errorf("validate injected operation resolution: %w", validationErr)
-			}
-		}
-		return resolution, lookupErr
-	}
-	if runtime == nil {
-		resolution := swarmionapp.OperationResolution{
-			Identity:     address.Identity,
-			Scope:        address.Scope,
-			AuthorPeerID: address.AuthorPeerID,
-			State:        swarmionapp.OperationResolvedUnavailable,
-			ReasonCode:   swarmionapp.OperationResolutionReasonRuntimeNotReady,
-		}
-		return resolution, resolution.ValidateFor(address)
-	}
-	return runtime.WaitOperation(ctx, address)
+func (db *DB) WaitPublishedWriteOperation(ctx context.Context, operation PublishedWriteOperation) (swarmionapp.OperationResult, error) {
+	return db.resolvePublishedWriteOperation(ctx, operation, true)
 }
 
 // WaitSQLViewReady performs Swarmion's connection-free readiness wait. It is
@@ -2667,50 +2844,109 @@ func (db *DB) WaitMutationReady(ctx context.Context) error {
 	return app.WaitMutationReady(ctx)
 }
 
-// PublishedWriteReceiptFromResolution converts an accepted operation
-// resolution into the exact EventID/root identity used by backend status
-// tracking. Operation intent and author stay bound by the validated resolution
-// rather than by private receipt fields.
-func PublishedWriteReceiptFromResolution(resolution swarmionapp.OperationResolution) (PublishedWriteReceipt, error) {
-	if resolution.State != swarmionapp.OperationResolvedAccepted || resolution.Receipt == nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("operation resolution is %q, want accepted", resolution.State)
+// WithPublishedWriteAbsenceLease runs one non-database side effect only while
+// the current runtime directly proves operation absent. The database operation
+// lock keeps that exact runtime owner live until action returns, so Close or a
+// replacement runtime cannot revoke and rebind the proof mid-effect. action
+// must not call back into DB methods because they share the same operation
+// lock. An already accepted operation returns its exact receipt without running
+// action.
+func (db *DB) WithPublishedWriteAbsenceLease(
+	ctx context.Context,
+	operation PublishedWriteOperation,
+	expectedRuntimeGeneration uint64,
+	name string,
+	action func() error,
+) (PublishedWriteReceipt, bool, error) {
+	if db == nil {
+		return PublishedWriteReceipt{}, false, fmt.Errorf("db is nil")
 	}
-	if err := resolution.Validate(); err != nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("validate operation resolution: %w", err)
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if _, _, err := validateEventReceiptIdentity(resolution.Receipt.EventID, resolution.Receipt.PublishedRootHash); err != nil {
-		return PublishedWriteReceipt{}, err
+	if action == nil {
+		return PublishedWriteReceipt{}, false, fmt.Errorf("published write absence lease %q has no action", name)
 	}
-	return PublishedWriteReceipt{
-		Committed:             true,
-		EventID:               strings.TrimSpace(resolution.Receipt.EventID),
-		PublishedRootHash:     strings.TrimSpace(resolution.Receipt.PublishedRootHash),
-		AuthorPeerID:          strings.TrimSpace(resolution.AuthorPeerID),
-		OperationIntentDigest: strings.TrimSpace(resolution.Identity.IntentDigest),
-	}, nil
+	if err := operation.Validate(); err != nil {
+		return PublishedWriteReceipt{}, false, fmt.Errorf("published write absence lease %q: %w", name, err)
+	}
+	if err := db.persistPublishedWriteOperation(operation); err != nil {
+		return PublishedWriteReceipt{}, false, fmt.Errorf("persist published write absence lease %q: %w", name, err)
+	}
+	if err := db.opMu.LockContext(ctx); err != nil {
+		return PublishedWriteReceipt{}, false, fmt.Errorf("lock published write absence lease %q: %w", name, err)
+	}
+	defer db.opMu.Unlock()
+
+	db.mu.Lock()
+	runtime := db.runtime
+	runtimeGeneration := db.runtimeGeneration
+	db.mu.Unlock()
+	if runtime == nil {
+		return PublishedWriteReceipt{}, false, fmt.Errorf("%w: published write absence lease %q has no live runtime", ErrOperationReceiptUnavailable, name)
+	}
+	if expectedRuntimeGeneration != 0 && runtimeGeneration != expectedRuntimeGeneration {
+		return PublishedWriteReceipt{}, false, fmt.Errorf(
+			"%w: published write absence lease %q runtime generation changed from %d to %d",
+			ErrOperationReceiptUnavailable,
+			name,
+			expectedRuntimeGeneration,
+			runtimeGeneration,
+		)
+	}
+	if localAuthor := strings.TrimSpace(runtime.PeerID()); localAuthor == "" || localAuthor != strings.TrimSpace(operation.AuthorPeerID()) {
+		return PublishedWriteReceipt{}, false, fmt.Errorf(
+			"%w: published write absence lease %q author=%q runtime_author=%q",
+			ErrOperationReceiptUnavailable,
+			name,
+			operation.AuthorPeerID(),
+			localAuthor,
+		)
+	}
+	result, err := db.resolvePublishedWriteOnRuntimeLocked(ctx, runtime, operation, "side-effect preflight")
+	if err != nil {
+		return PublishedWriteReceipt{}, false, fmt.Errorf("resolve published write absence lease %q: %w", name, err)
+	}
+	switch result.Disposition() {
+	case swarmionapp.OperationAccepted:
+		receipt, err := publishedWriteReceiptFromAcceptedResult(operation, result)
+		return receipt, true, err
+	case swarmionapp.OperationRetryPermitted:
+		reason, ok := result.RetryReason()
+		if !ok || reason != swarmionapp.RetryResolvedAbsent {
+			return PublishedWriteReceipt{}, false, fmt.Errorf(
+				"%w: published write absence lease %q returned retry reason %q",
+				ErrOperationReceiptUnavailable,
+				name,
+				reason,
+			)
+		}
+		// Re-read the dynamic result at the last instruction before the effect.
+		// DB Close cannot begin while opMu is held, but this also fails closed if
+		// the runtime owner was closed directly by an internal test or fault path.
+		if result.Disposition() != swarmionapp.OperationRetryPermitted {
+			return PublishedWriteReceipt{}, false, fmt.Errorf("%w: published write absence lease %q was revoked before its action", ErrOperationReceiptUnavailable, name)
+		}
+		if err := action(); err != nil {
+			return PublishedWriteReceipt{}, false, err
+		}
+		return PublishedWriteReceipt{}, false, nil
+	case swarmionapp.OperationRecoveryRequired:
+		return PublishedWriteReceipt{}, false, fmt.Errorf("%w: published write absence lease %q requires recovery", ErrOperationReceiptUnavailable, name)
+	case swarmionapp.OperationFailedClosed:
+		// Diagnostic is descriptive and must not add authority-bearing nodes to
+		// this application error graph.
+		return PublishedWriteReceipt{}, false, fmt.Errorf("published write absence lease %q failed closed: %s", name, operationDiagnosticText(result.Diagnostic()))
+	default:
+		return PublishedWriteReceipt{}, false, fmt.Errorf("published write absence lease %q returned unknown disposition %q", name, result.Disposition())
+	}
 }
 
-// PublishedWriteReceiptFromOutcome converts an accepted, unresolved, or
-// recorded no-change publication carrying an exact receipt. unresolved marks
-// the local publication boundary as unproven until ObserveReceipt confirms it.
-func PublishedWriteReceiptFromOutcome(outcome swarmionapp.PublicationOutcome, unresolved bool) (PublishedWriteReceipt, error) {
-	if err := outcome.Validate(); err != nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("validate publication outcome: %w", err)
-	}
-	if outcome.Receipt == nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("publication outcome %q has no exact receipt", outcome.State)
-	}
-	if _, _, err := validateEventReceiptIdentity(outcome.Receipt.EventID, outcome.Receipt.PublishedRootHash); err != nil {
-		return PublishedWriteReceipt{}, err
-	}
-	return PublishedWriteReceipt{
-		Committed:             !unresolved,
-		OutcomeUncertain:      unresolved,
-		EventID:               strings.TrimSpace(outcome.Receipt.EventID),
-		PublishedRootHash:     strings.TrimSpace(outcome.Receipt.PublishedRootHash),
-		AuthorPeerID:          strings.TrimSpace(outcome.AuthorPeerID),
-		OperationIntentDigest: strings.TrimSpace(outcome.Identity.IntentDigest),
-	}, nil
+// PublishedWriteReceiptFromResult extracts an exact accepted receipt from the
+// normalized backend result. Recovery-required and retryable results are never
+// promoted to accepted by diagnostic inspection.
+func PublishedWriteReceiptFromResult(operation PublishedWriteOperation, result swarmionapp.OperationResult) (PublishedWriteReceipt, error) {
+	return publishedWriteReceiptFromAcceptedResult(operation, result)
 }
 
 type sqlContextExecer interface {
@@ -2737,14 +2973,27 @@ func (c *operationStatementCollector) ExecContext(ctx context.Context, query str
 	return operationStatementResult{}, nil
 }
 
-func (db *DB) recordStaleWriteContextOutcome(err error) {
-	if db == nil || !errors.Is(err, swarmionprotocol.ErrStaleWriteContext) {
-		return
+func (db *DB) resolvePublishedWriteOnRuntimeLocked(
+	ctx context.Context,
+	runtime *swarmionapp.DatabaseRuntime,
+	operation PublishedWriteOperation,
+	source string,
+) (swarmionapp.OperationResult, error) {
+	if runtime == nil {
+		return swarmionapp.OperationResult{}, ErrOperationReceiptUnavailable
 	}
-	db.transactionMetrics.staleWriteContextOutcomes.Add(1)
-	if errors.Is(err, swarmionprotocol.ErrProjectionTooWide) {
-		db.transactionMetrics.projectionTooWideOutcomes.Add(1)
+	result := runtime.ResolveOperation(ctx, operation.Recovery)
+	recovery, err := recoveryFromOperationResult(operation, result)
+	if err != nil {
+		if diagnostic := result.Diagnostic(); diagnostic != nil {
+			notifyLog.Warnf("operation resolution returned malformed recovery operation=%s diagnostic=%s", operation.Key(), diagnostic.Error())
+		}
+		return swarmionapp.OperationResult{}, err
 	}
+	if err := db.enrichOperationRecoveryFromResult(operation, result, recovery, source); err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 func (db *DB) executePublishedWriteAttemptContext(
@@ -2753,127 +3002,159 @@ func (db *DB) executePublishedWriteAttemptContext(
 	name string,
 	allowNoop bool,
 	requireReceipt bool,
+	expectedRuntimeGeneration uint64,
+	retryGuard *publishedWriteRetryGuard,
 	apply func(context.Context, sqlContextExecer) error,
-) (PublishedWriteReceipt, error) {
+) (swarmionapp.OperationResult, bool, *swarmionapp.DatabaseRuntime, error) {
 	if db == nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("db is nil")
+		return swarmionapp.OperationResult{}, false, nil, fmt.Errorf("db is nil")
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if apply == nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("published write operation %q has no SQL body", name)
+		return swarmionapp.OperationResult{}, false, nil, fmt.Errorf("published write operation %q has no SQL body", name)
+	}
+	if err := operation.Validate(); err != nil {
+		return swarmionapp.OperationResult{}, false, nil, fmt.Errorf("published write operation %q: %w", name, err)
+	}
+	// This write is mandatory even for callers that already persisted the
+	// operation in replicated business state. It closes the ordinary-SQL gap and
+	// guarantees a process-local exact recovery record before runtime admission.
+	if err := db.persistPublishedWriteOperation(operation); err != nil {
+		return swarmionapp.OperationResult{}, false, nil, fmt.Errorf("persist published write operation %q before execution: %w", name, err)
 	}
 
 	lockStart := time.Now()
 	if err := db.opMu.LockContext(ctx); err != nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("lock published write operation %q: %w", name, err)
+		return swarmionapp.OperationResult{}, false, nil, fmt.Errorf("lock published write operation %q: %w", name, err)
 	}
 	defer db.opMu.Unlock()
 	if elapsed := time.Since(lockStart); elapsed > time.Second {
 		notifyLog.Debugf("published write operation %s waited %s for db operation lock", name, elapsed)
 	}
 
-	collector := &operationStatementCollector{}
-	if err := apply(ctx, collector); err != nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("prepare published write operation %q: %w", name, err)
-	}
-	if len(collector.statements) == 0 {
-		if allowNoop {
-			return PublishedWriteReceipt{}, nil
-		}
-		return PublishedWriteReceipt{}, fmt.Errorf("%w: operation=%s has no statements", ErrPublishedWriteNoChange, name)
-	}
-
-	identity, err := swarmionapp.CanonicalOperationIdentity(operation.Key, operation.IntentDigest)
-	if err != nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("published write operation %q identity: %w", name, err)
-	}
-	operation.Key = identity.Key
-	operation.IntentDigest = identity.IntentDigest
-
 	db.mu.Lock()
 	runtime := db.runtime
-	executeForTest := db.executeOperationForTest
+	runtimeGeneration := db.runtimeGeneration
 	db.mu.Unlock()
 	if runtime == nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("db is not initialized")
+		if retryGuard != nil {
+			return retryGuard.result, false, nil, fmt.Errorf("%w: published %s write runtime closed before authorized retry", ErrOperationReceiptUnavailable, name)
+		}
+		return swarmionapp.OperationResult{}, false, nil, fmt.Errorf("db is not initialized")
+	}
+	if expectedRuntimeGeneration != 0 && runtimeGeneration != expectedRuntimeGeneration {
+		return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf(
+			"%w: published %s write runtime generation changed from %d to %d",
+			ErrOperationReceiptUnavailable,
+			name,
+			expectedRuntimeGeneration,
+			runtimeGeneration,
+		)
+	}
+	if retryGuard != nil {
+		guardDisposition := retryGuard.result.Disposition()
+		guardReason, guardReasonOK := retryGuard.result.RetryReason()
+		if runtime != retryGuard.runtime || guardDisposition != swarmionapp.OperationRetryPermitted || !guardReasonOK || guardReason != retryGuard.reason {
+			return retryGuard.result, false, runtime, fmt.Errorf(
+				"%w: published %s write retry authority changed before the next execution (disposition=%s reason=%q runtime_match=%t)",
+				ErrOperationReceiptUnavailable,
+				name,
+				guardDisposition,
+				guardReason,
+				runtime == retryGuard.runtime,
+			)
+		}
 	}
 	localAuthor := strings.TrimSpace(runtime.PeerID())
 	if localAuthor == "" {
-		return PublishedWriteReceipt{}, fmt.Errorf("%w: operation=%s local author is unavailable", ErrOperationReceiptUnavailable, name)
+		return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf("%w: operation=%s local author is unavailable", ErrOperationReceiptUnavailable, name)
 	}
-	if requestedAuthor := strings.TrimSpace(operation.AuthorPeerID); requestedAuthor != "" && requestedAuthor != localAuthor {
+	if requestedAuthor := strings.TrimSpace(operation.AuthorPeerID()); requestedAuthor != localAuthor {
 		resolved, resolveErr := db.LookupPublishedWriteOperation(ctx, operation)
-		if resolveErr != nil {
-			return PublishedWriteReceipt{}, fmt.Errorf("resolve foreign published write operation %q: %w", name, resolveErr)
+		if resolved.Disposition() == swarmionapp.OperationAccepted {
+			return resolved, false, runtime, nil
 		}
-		switch resolved.State {
-		case swarmionapp.OperationResolvedAccepted:
-			return PublishedWriteReceiptFromResolution(resolved)
-		case swarmionapp.OperationResolvedUnavailable:
-			return PublishedWriteReceipt{}, fmt.Errorf("%w: foreign operation=%s author=%s", ErrOperationReceiptUnavailable, name, requestedAuthor)
-		case swarmionapp.OperationResolvedAbsent:
-			return PublishedWriteReceipt{}, fmt.Errorf(
+		if resolved.Disposition() == swarmionapp.OperationRetryPermitted {
+			return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf(
 				"foreign published write operation %q for author %q returned authoritative absence; refusing local publication",
 				name,
 				requestedAuthor,
 			)
-		default:
-			return PublishedWriteReceipt{}, fmt.Errorf("resolve foreign published write operation %q returned unknown state %q", name, resolved.State)
 		}
+		return swarmionapp.OperationResult{}, false, runtime, errors.Join(resolveErr, fmt.Errorf("%w: foreign operation=%s author=%s", ErrOperationReceiptUnavailable, name, requestedAuthor))
+	}
+	preflight, preflightErr := db.resolvePublishedWriteOnRuntimeLocked(ctx, runtime, operation, "pre-execution")
+	if preflightErr != nil {
+		return preflight, false, runtime, fmt.Errorf("resolve published write operation %q immediately before execution: %w", name, preflightErr)
+	}
+	switch preflight.Disposition() {
+	case swarmionapp.OperationAccepted:
+		if requireReceipt {
+			if _, err := publishedWriteReceiptFromAcceptedResult(operation, preflight); err != nil {
+				return swarmionapp.OperationResult{}, false, runtime, err
+			}
+		}
+		db.transactionMetrics.operationTransactionsAlreadyAccepted.Add(1)
+		return preflight, false, runtime, nil
+	case swarmionapp.OperationRetryPermitted:
+		preflightReason, ok := preflight.RetryReason()
+		if !ok || preflightReason != swarmionapp.RetryResolvedAbsent {
+			return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf(
+				"%w: published write operation %q preflight returned non-absence retry reason %q",
+				ErrOperationReceiptUnavailable,
+				name,
+				preflightReason,
+			)
+		}
+	case swarmionapp.OperationRecoveryRequired, swarmionapp.OperationFailedClosed:
+		return preflight, false, runtime, nil
+	default:
+		return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf("published write operation %q preflight returned unknown disposition %q", name, preflight.Disposition())
+	}
+
+	collector := &operationStatementCollector{}
+	if err := apply(ctx, collector); err != nil {
+		return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf("prepare published write operation %q: %w", name, err)
+	}
+	if len(collector.statements) == 0 {
+		if allowNoop {
+			return swarmionapp.OperationResult{}, true, runtime, nil
+		}
+		return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf("%w: operation=%s has no statements", ErrPublishedWriteNoChange, name)
 	}
 
 	request := swarmionapp.OperationRequest{
-		Identity:   identity,
+		Identity:   operation.Identity,
 		Statements: append([]swarmionapp.Statement(nil), collector.statements...),
 	}
-	if readyErr := db.WaitMutationReady(ctx); readyErr != nil {
-		return PublishedWriteReceipt{}, fmt.Errorf("wait to execute published write operation %q: %w", name, readyErr)
+	var readyErr error
+	if db.waitMutationReadyForTest != nil {
+		readyErr = db.waitMutationReadyForTest(ctx)
+	} else {
+		readyErr = runtime.WaitMutationReady(ctx)
+	}
+	if readyErr != nil {
+		return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf("wait to execute published write operation %q: %w", name, readyErr)
 	}
 	db.transactionMetrics.operationTransactionsAttempted.Add(1)
-	var outcome swarmionapp.PublicationOutcome
-	var executeErr error
-	if executeForTest != nil {
-		outcome, executeErr = executeForTest(ctx, request)
+	var result swarmionapp.OperationResult
+	if db.executeOperationForTest != nil {
+		result = db.executeOperationForTest(ctx, runtime, request)
 	} else {
-		outcome, executeErr = runtime.Execute(ctx, request)
+		result = runtime.Execute(ctx, request)
 	}
-	if outcome.State == "" {
-		db.transactionMetrics.operationTransactionsFailed.Add(1)
-		prePublicationProjectionFailure := linearStaleWriteContextRetryPermitted(executeErr)
-		if !prePublicationProjectionFailure {
-			db.transactionMetrics.operationTransactionLifecycleOpaqueFailures.Add(1)
-			missingOutcomeErr := fmt.Errorf("%w: operation=%s", errSwarmionPublicationOutcomeMissing, name)
-			if executeErr == nil {
-				executeErr = missingOutcomeErr
-			} else {
-				// A typed rejection authorizes retry only when it is correlated to
-				// the PublicationOutcome returned by Execute. With no outcome there
-				// is no such proof, so retain the diagnostic error in a joined,
-				// deliberately non-authorizing contract failure.
-				executeErr = errors.Join(executeErr, missingOutcomeErr)
-			}
+	recovery, recoveryErr := recoveryFromOperationResult(operation, result)
+	if recoveryErr != nil {
+		if diagnostic := result.Diagnostic(); diagnostic != nil {
+			notifyLog.Warnf("operation execution returned malformed recovery operation=%s diagnostic=%s", name, diagnostic.Error())
 		}
-		db.recordStaleWriteContextOutcome(executeErr)
-		if errors.Is(executeErr, swarmionapp.ErrContentConflict) {
-			db.transactionMetrics.typedConflicts.Add(1)
-		}
-		return PublishedWriteReceipt{}, executeErr
+		return swarmionapp.OperationResult{}, false, runtime, recoveryErr
 	}
-	if err := outcome.ValidateForScope(runtime.PublicationScope()); err != nil ||
-		outcome.Identity != identity ||
-		outcome.AuthorPeerID != localAuthor {
-		db.transactionMetrics.operationTransactionsFailed.Add(1)
-		db.transactionMetrics.operationTransactionLifecycleOpaqueFailures.Add(1)
-		contractErr := err
-		if contractErr == nil {
-			contractErr = fmt.Errorf("publication outcome does not match requested identity or local author")
-		}
-		return PublishedWriteReceipt{}, errors.Join(
-			executeErr,
-			fmt.Errorf("published write operation %q returned an invalid outcome: %w", name, contractErr),
-		)
+	var recoveryPersistErr error
+	if persistErr := db.persistPublishedWriteOperation(PublishedWriteOperation{Identity: operation.Identity, Recovery: recovery}); persistErr != nil {
+		recoveryPersistErr = fmt.Errorf("persist operation recovery after execution: %w", persistErr)
 	}
 
 	recordExecutedCommit := func() {
@@ -2882,170 +3163,122 @@ func (db *DB) executePublishedWriteAttemptContext(
 		db.transactionMetrics.commitsSucceeded.Add(1)
 	}
 
-	switch outcome.State {
-	case swarmionapp.PublicationAccepted:
-		if outcome.BodyExecuted {
+	switch result.Disposition() {
+	case swarmionapp.OperationAccepted:
+		acceptance, ok := result.Acceptance()
+		if !ok {
+			return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf("accepted published write operation %q has no acceptance history", name)
+		}
+		switch acceptance {
+		case swarmionapp.AcceptanceExecuted:
 			recordExecutedCommit()
 			db.transactionMetrics.operationTransactionsExecuted.Add(1)
-		} else {
+		case swarmionapp.AcceptanceAlreadyAccepted:
 			db.transactionMetrics.operationTransactionsAlreadyAccepted.Add(1)
-		}
-		receipt, receiptErr := PublishedWriteReceiptFromOutcome(outcome, false)
-		if receiptErr != nil {
-			return PublishedWriteReceipt{}, receiptErr
-		}
-		if executeErr != nil {
-			db.transactionMetrics.operationTransactionsFailed.Add(1)
-			return receipt, errors.Join(
-				executeErr,
-				fmt.Errorf("accepted published write operation %q returned an error", name),
-			)
-		}
-		if !requireReceipt {
-			return PublishedWriteReceipt{
-				Committed:             true,
-				AuthorPeerID:          outcome.AuthorPeerID,
-				OperationIntentDigest: outcome.Identity.IntentDigest,
-			}, nil
-		}
-		return receipt, nil
-
-	case swarmionapp.PublicationNoChange:
-		recordExecutedCommit()
-		db.transactionMetrics.operationTransactionsNoChange.Add(1)
-		db.transactionMetrics.noopCommitOutcomes.Add(1)
-		receipt, receiptErr := PublishedWriteReceiptFromOutcome(outcome, false)
-		if receiptErr != nil {
-			return PublishedWriteReceipt{}, errors.Join(executeErr, receiptErr)
-		}
-		if executeErr != nil {
-			db.transactionMetrics.operationTransactionsFailed.Add(1)
-			return receipt, errors.Join(
-				executeErr,
-				fmt.Errorf("no-change published write operation %q returned an error", name),
-			)
-		}
-		if allowNoop {
-			return PublishedWriteReceipt{}, nil
-		}
-		return receipt, nil
-
-	case swarmionapp.PublicationUnresolved:
-		db.transactionMetrics.operationTransactionsFailed.Add(1)
-		db.transactionMetrics.operationTransactionLifecycleOpaqueFailures.Add(1)
-		db.transactionMetrics.uncertainEventReceiptsAfterCommitErr.Add(1)
-		receipt, receiptErr := PublishedWriteReceiptFromOutcome(outcome, true)
-		if receiptErr != nil {
-			return PublishedWriteReceipt{}, errors.Join(executeErr, receiptErr)
-		}
-		if executeErr == nil {
-			executeErr = fmt.Errorf("%w: operation=%s", swarmionapp.ErrPublicationUnresolved, name)
-		}
-		// The exact receipt may already name an accepted event. Preserve the
-		// runtime error for diagnostics, but join an explicit non-authorizing
-		// boundary so a mismatched stale-context or safe-rejection marker cannot
-		// grant permission to execute this operation again.
-		return receipt, errors.Join(
-			executeErr,
-			fmt.Errorf(
-				"%w: operation=%s event_id=%s published_root=%s",
-				ErrPublishedWriteConfirmationUnresolved,
-				name,
-				receipt.EventID,
-				receipt.PublishedRootHash,
-			),
-		)
-
-	case swarmionapp.PublicationInconclusive:
-		db.transactionMetrics.operationTransactionsFailed.Add(1)
-		db.transactionMetrics.operationTransactionLifecycleOpaqueFailures.Add(1)
-		if executeErr == nil {
-			executeErr = fmt.Errorf("%w: operation=%s", swarmionapp.ErrPublicationInconclusive, name)
-		}
-		lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		resolved, resolveErr := runtime.ResolvePublication(lookupCtx, outcome)
-		if resolveErr != nil {
-			return PublishedWriteReceipt{}, errors.Join(
-				executeErr,
-				fmt.Errorf("resolve inconclusive published write operation %q: %w", name, resolveErr),
-			)
-		}
-		switch resolved.State {
-		case swarmionapp.OperationResolvedAccepted:
-			receipt, receiptErr := PublishedWriteReceiptFromResolution(resolved)
-			if receiptErr != nil {
-				return PublishedWriteReceipt{}, errors.Join(executeErr, receiptErr)
-			}
+		case swarmionapp.AcceptanceNoChange:
 			recordExecutedCommit()
-			db.transactionMetrics.operationTransactionsExecuted.Add(1)
-			db.transactionMetrics.operationReceiptsFoundAfterCommitErr.Add(1)
-			notifyLog.Warnf(
-				"published write operation recovered its exact receipt after an inconclusive outcome operation=%s event_id=%s published_root=%s error=%s",
-				name,
-				receipt.EventID,
-				receipt.PublishedRootHash,
-				executeErr.Error(),
-			)
-			return receipt, nil
-		case swarmionapp.OperationResolvedAbsent:
-			if resolved.SafeToExecute {
-				// executeErr is diagnostic only; wrapping it could let unrelated
-				// nested authority escape the package-minted exact-absence proof.
-				//nolint:errorlint // Deliberately do not wrap the diagnostic error.
-				return PublishedWriteReceipt{}, fmt.Errorf("%w: operation=%s: %v", errPublishedWriteSafeToExecute, name, executeErr)
+			db.transactionMetrics.operationTransactionsNoChange.Add(1)
+			db.transactionMetrics.noopCommitOutcomes.Add(1)
+		}
+		if requireReceipt {
+			if _, err := publishedWriteReceiptFromAcceptedResult(operation, result); err != nil {
+				return swarmionapp.OperationResult{}, false, runtime, err
 			}
-			return PublishedWriteReceipt{}, errors.Join(
-				executeErr,
-				fmt.Errorf("%w: operation=%s was absent without execution authority", ErrOperationReceiptUnavailable, name),
-			)
-		case swarmionapp.OperationResolvedUnavailable:
-			return PublishedWriteReceipt{}, errors.Join(
-				executeErr,
-				fmt.Errorf("%w: operation=%s", ErrOperationReceiptUnavailable, name),
-			)
-		default:
-			return PublishedWriteReceipt{}, errors.Join(
-				executeErr,
-				fmt.Errorf("resolve inconclusive published write operation %q returned unknown state %q", name, resolved.State),
+		}
+		if recoveryPersistErr != nil {
+			// The complete receipt-less recovery address was synced before Execute.
+			// Losing only the post-accept enrichment must not turn accepted evidence
+			// into a retryable application error and mint a second random identity.
+			db.transactionMetrics.operationRecoveryPersistenceFailures.Add(1)
+			acceptedReceipt, _ := result.Receipt()
+			notifyLog.Warnf(
+				"accepted published write retained its pre-execute recovery record after enrichment failure operation=%s event_id=%s error=%s",
+				name,
+				acceptedReceipt.EventID,
+				recoveryPersistErr.Error(),
 			)
 		}
+		return result, false, runtime, nil
 
-	case swarmionapp.PublicationRejectedSafeToRetry:
+	case swarmionapp.OperationRetryPermitted:
 		db.transactionMetrics.operationTransactionsFailed.Add(1)
-		if outcome.RejectionReason == swarmionapp.PublicationRejectionWorkspaceDirty {
+		retryReason, ok := result.RetryReason()
+		if !ok {
+			return swarmionapp.OperationResult{}, false, runtime, fmt.Errorf("retry-permitted published write operation %q has no retry reason", name)
+		}
+		if retryReason == swarmionapp.RetryWorkspaceDirty {
 			db.transactionMetrics.operationWorkspaceDirtyOutcomes.Add(1)
 		}
-		db.recordStaleWriteContextOutcome(executeErr)
-		if errors.Is(executeErr, swarmionapp.ErrContentConflict) {
+		if retryReason == swarmionapp.RetryStaleWriteContext {
+			db.transactionMetrics.staleWriteContextOutcomes.Add(1)
+		}
+		if retryReason == swarmionapp.RetryProjectionTooWide {
+			db.transactionMetrics.staleWriteContextOutcomes.Add(1)
+			db.transactionMetrics.projectionTooWideOutcomes.Add(1)
+		}
+		if errors.Is(result.Diagnostic(), swarmionapp.ErrContentConflict) {
 			db.transactionMetrics.typedConflicts.Add(1)
 		}
-		var rejected *swarmionapp.PublicationRejectedError
-		if errors.As(executeErr, &rejected) && rejected != nil && rejected.Outcome == outcome {
-			return PublishedWriteReceipt{}, executeErr
+		return result, false, runtime, recoveryPersistErr
+
+	case swarmionapp.OperationRecoveryRequired:
+		db.transactionMetrics.operationTransactionsFailed.Add(1)
+		db.transactionMetrics.operationTransactionLifecycleOpaqueFailures.Add(1)
+		if receipt, _ := publishedWriteReceiptFromRecoveryRequired(operation, result); receipt.HasExactEventIdentity() {
+			db.transactionMetrics.uncertainEventReceiptsAfterCommitErr.Add(1)
 		}
-		return PublishedWriteReceipt{}, &swarmionapp.PublicationRejectedError{Outcome: outcome, Cause: executeErr}
+		return result, false, runtime, recoveryPersistErr
 
 	default:
 		db.transactionMetrics.operationTransactionsFailed.Add(1)
 		db.transactionMetrics.operationTransactionLifecycleOpaqueFailures.Add(1)
-		return PublishedWriteReceipt{}, errors.Join(
-			executeErr,
-			fmt.Errorf("published write operation %q returned unknown outcome %q", name, outcome.State),
-		)
+		return result, false, runtime, recoveryPersistErr
 	}
 }
 
+type publishedWriteRetryGuard struct {
+	runtime *swarmionapp.DatabaseRuntime
+	result  swarmionapp.OperationResult
+	reason  swarmionapp.OperationRetryReason
+}
+
 // executePublishedWriteOperationContext runs one idempotent operation through
-// the public Execute contract. It never retries and requires an exact receipt,
-// including for a body that produces no content change.
+// the public Execute contract. It retries only direct, same-call
+// OperationRetryPermitted evidence and requires an exact receipt, including
+// for a body that produces no content change.
 func (db *DB) executePublishedWriteOperationContext(
 	ctx context.Context,
 	operation PublishedWriteOperation,
 	name string,
 	apply func(context.Context, sqlContextExecer) error,
 ) (PublishedWriteReceipt, error) {
-	return db.executePublishedWriteAttemptContext(ctx, operation, name, false, true, apply)
+	return db.executePublishedWriteTransactionWithSafeRetryContext(ctx, operation, name, false, true, apply)
+}
+
+// executePublishedWriteOperationForRuntimeGenerationContext is the
+// generation-bound form used by workflows whose permission to continue was
+// established by an earlier runtime-owned lifecycle result. A non-zero
+// generation must still be current at every Execute attempt; a replacement
+// runtime can never inherit that permission.
+func (db *DB) executePublishedWriteOperationForRuntimeGenerationContext(
+	ctx context.Context,
+	operation PublishedWriteOperation,
+	name string,
+	expectedRuntimeGeneration uint64,
+	apply func(context.Context, sqlContextExecer) error,
+) (PublishedWriteReceipt, error) {
+	if expectedRuntimeGeneration == 0 {
+		return PublishedWriteReceipt{}, fmt.Errorf("published write operation %q has no runtime generation", name)
+	}
+	return db.executePublishedWriteTransactionForRuntimeGenerationWithSafeRetryContext(
+		ctx,
+		operation,
+		name,
+		false,
+		true,
+		expectedRuntimeGeneration,
+		apply,
+	)
 }
 
 func (db *DB) executePublishedWriteTransactionContext(
@@ -3054,14 +3287,18 @@ func (db *DB) executePublishedWriteTransactionContext(
 	name string,
 	allowNoop bool,
 	requireReceiptAfterCommit bool,
+	expectedRuntimeGeneration uint64,
+	retryGuard *publishedWriteRetryGuard,
 	apply func(context.Context, sqlContextExecer) error,
-) (PublishedWriteReceipt, error) {
+) (swarmionapp.OperationResult, bool, *swarmionapp.DatabaseRuntime, error) {
 	return db.executePublishedWriteAttemptContext(
 		ctx,
 		operation,
 		name,
 		allowNoop,
 		requireReceiptAfterCommit,
+		expectedRuntimeGeneration,
+		retryGuard,
 		apply,
 	)
 }
@@ -3280,6 +3517,9 @@ func (db *DB) WaitForPublishedWriteApplied(ctx context.Context, receipt Publishe
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if waitForTest := db.waitPublishedWriteAppliedForTest; waitForTest != nil {
+		return waitForTest(ctx, receipt, reason)
 	}
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
@@ -3771,16 +4011,12 @@ func executePreparedWriteStatements(ctx context.Context, executor sqlContextExec
 	return nil
 }
 
-func newOrdinaryPublishedWriteOperation(name string, statements []preparedWriteStatement) (PublishedWriteOperation, error) {
-	key, err := NewPublishedWriteOperationKey()
-	if err != nil {
-		return PublishedWriteOperation{}, err
-	}
+func (db *DB) newOrdinaryPublishedWriteOperation(name string, statements []preparedWriteStatement) (PublishedWriteOperation, error) {
 	encoded, err := json.Marshal(statements)
 	if err != nil {
 		return PublishedWriteOperation{}, fmt.Errorf("encode ordinary %s write intent: %w", name, err)
 	}
-	return NewPublishedWriteOperation(key, "protos:ordinary-sql-write", name, string(encoded))
+	return db.NewPublishedWriteOperation(OperationSchemaOrdinarySQLWrite, []byte(name), encoded)
 }
 
 func (db *DB) executeOrdinaryPublishedWriteContext(
@@ -3796,7 +4032,7 @@ func (db *DB) executeOrdinaryPublishedWriteContext(
 		}
 		return PublishedWriteReceipt{}, fmt.Errorf("ordinary %s write has no SQL statements", name)
 	}
-	operation, err := newOrdinaryPublishedWriteOperation(name, statements)
+	operation, err := db.newOrdinaryPublishedWriteOperation(name, statements)
 	if err != nil {
 		return PublishedWriteReceipt{}, err
 	}
@@ -4115,6 +4351,40 @@ func InsertAndUpdateWithOperationReceiptContext(
 	})
 }
 
+// InsertAndUpdateWithOperationReceiptForRuntimeGenerationContext is the
+// generation-bound variant for a phase transition authorized by a lifecycle
+// result from the same DatabaseRuntime generation.
+func InsertAndUpdateWithOperationReceiptForRuntimeGenerationContext(
+	ctx context.Context,
+	db *DB,
+	operation PublishedWriteOperation,
+	expectedRuntimeGeneration uint64,
+	inserts []InsertMapper,
+	updates []UpdateMapper,
+) (PublishedWriteReceipt, error) {
+	if db == nil {
+		return PublishedWriteReceipt{}, fmt.Errorf("db is nil")
+	}
+	insertStatements, err := prepareInsertWriteStatements("operation conditional insert", inserts)
+	if err != nil {
+		return PublishedWriteReceipt{}, err
+	}
+	updateStatements, err := prepareUpdateWriteStatements("operation conditional update", updates)
+	if err != nil {
+		return PublishedWriteReceipt{}, err
+	}
+	statements := append(insertStatements, updateStatements...)
+	return db.executePublishedWriteOperationForRuntimeGenerationContext(
+		ctx,
+		operation,
+		"insert and update",
+		expectedRuntimeGeneration,
+		func(ctx context.Context, executor sqlContextExecer) error {
+			return executePreparedWriteStatements(ctx, executor, statements)
+		},
+	)
+}
+
 // DeleteAndInsertWithOperationReceiptContext publishes deletes and immutable
 // marker inserts as one operation-correlated SQL transaction. It is intended
 // for side-effect workflows whose stable recovery marker must be inseparable
@@ -4141,6 +4411,40 @@ func DeleteAndInsertWithOperationReceiptContext(
 	return db.executePublishedWriteOperationContext(ctx, operation, "delete and insert", func(ctx context.Context, executor sqlContextExecer) error {
 		return executePreparedWriteStatements(ctx, executor, statements)
 	})
+}
+
+// DeleteAndInsertWithOperationReceiptForRuntimeGenerationContext is the
+// generation-bound variant for final mutations authorized by an earlier
+// lifecycle result from the same DatabaseRuntime generation.
+func DeleteAndInsertWithOperationReceiptForRuntimeGenerationContext(
+	ctx context.Context,
+	db *DB,
+	operation PublishedWriteOperation,
+	expectedRuntimeGeneration uint64,
+	deletes []DeleteMapper,
+	inserts []InsertMapper,
+) (PublishedWriteReceipt, error) {
+	if db == nil {
+		return PublishedWriteReceipt{}, fmt.Errorf("db is nil")
+	}
+	deleteStatements, err := prepareDeleteWriteStatements("operation delete", deletes)
+	if err != nil {
+		return PublishedWriteReceipt{}, err
+	}
+	insertStatements, err := prepareInsertWriteStatements("operation marker insert", inserts)
+	if err != nil {
+		return PublishedWriteReceipt{}, err
+	}
+	statements := append(deleteStatements, insertStatements...)
+	return db.executePublishedWriteOperationForRuntimeGenerationContext(
+		ctx,
+		operation,
+		"delete and insert",
+		expectedRuntimeGeneration,
+		func(ctx context.Context, executor sqlContextExecer) error {
+			return executePreparedWriteStatements(ctx, executor, statements)
+		},
+	)
 }
 
 // DeleteWithReceiptContext publishes a delete and returns the exact root
@@ -4185,37 +4489,122 @@ func (db *DB) executePublishedWriteTransactionWithSafeRetryContext(
 	requireReceiptAfterCommit bool,
 	apply func(context.Context, sqlContextExecer) error,
 ) (PublishedWriteReceipt, error) {
+	return db.executePublishedWriteTransactionForRuntimeGenerationWithSafeRetryContext(
+		ctx,
+		operation,
+		name,
+		allowNoop,
+		requireReceiptAfterCommit,
+		0,
+		apply,
+	)
+}
+
+func (db *DB) executePublishedWriteTransactionForRuntimeGenerationWithSafeRetryContext(
+	ctx context.Context,
+	operation PublishedWriteOperation,
+	name string,
+	allowNoop bool,
+	requireReceiptAfterCommit bool,
+	expectedRuntimeGeneration uint64,
+	apply func(context.Context, sqlContextExecer) error,
+) (PublishedWriteReceipt, error) {
+	var retryGuard *publishedWriteRetryGuard
 	for attempt := 1; ; attempt++ {
-		receipt, err := db.executePublishedWriteTransactionContext(
+		result, noOp, resultRuntime, callErr := db.executePublishedWriteTransactionContext(
 			ctx,
 			operation,
 			name,
 			allowNoop,
 			requireReceiptAfterCommit,
+			expectedRuntimeGeneration,
+			retryGuard,
 			apply,
 		)
-		if err == nil || receipt.HasExactEventIdentity() || !IsRetryablePublishedWriteError(err) {
-			return receipt, err
+		if noOp {
+			return PublishedWriteReceipt{}, callErr
+		}
+		switch result.Disposition() {
+		case swarmionapp.OperationAccepted:
+			receipt, err := publishedWriteReceiptFromAcceptedResult(operation, result)
+			if err != nil {
+				return PublishedWriteReceipt{}, err
+			}
+			exactReceipt := receipt
+			if !requireReceiptAfterCommit {
+				receipt.EventID = ""
+				receipt.PublishedRootHash = ""
+			}
+			if result.Diagnostic() != nil {
+				notifyLog.Warnf(
+					"accepted published write retained a terminal diagnostic operation=%s event_id=%s error=%s",
+					name,
+					receipt.EventID,
+					result.Diagnostic(),
+				)
+			}
+			db.schedulePublishedWriteOperationCleanup(operation, exactReceipt)
+			return receipt, callErr
+		case swarmionapp.OperationRecoveryRequired:
+			receipt, receiptErr := publishedWriteReceiptFromRecoveryRequired(operation, result)
+			if diagnostic := result.Diagnostic(); diagnostic != nil {
+				notifyLog.Warnf("published write requires recovery operation=%s diagnostic=%s", name, diagnostic.Error())
+			}
+			return receipt, errors.Join(callErr, receiptErr, ErrOperationReceiptUnavailable)
+		case swarmionapp.OperationFailedClosed:
+			return PublishedWriteReceipt{}, errors.Join(
+				callErr,
+				fmt.Errorf("published %s write failed closed: %s", name, operationDiagnosticText(result.Diagnostic())),
+			)
+		case swarmionapp.OperationRetryPermitted:
+			// Continue only on the direct result returned under the current runtime
+			// lease. Neither Diagnostic nor any reachable error node is inspected.
+			if callErr != nil {
+				return PublishedWriteReceipt{}, callErr
+			}
+		default:
+			return PublishedWriteReceipt{}, errors.Join(callErr, fmt.Errorf("published %s write returned unknown disposition %q", name, result.Disposition()))
 		}
 		if attempt >= ordinaryWriteSafeRetryMaxAttempts {
-			return receipt, fmt.Errorf(
-				"%w: published %s write remained safely rejected after %d attempts: %w",
+			return PublishedWriteReceipt{}, fmt.Errorf(
+				"%w: published %s write remained safely rejected after %d attempts: %v",
 				errPublishedWriteRetryExhausted,
 				name,
 				attempt,
-				err,
+				operationDiagnosticText(result.Diagnostic()),
 			)
 		}
-		if errors.Is(err, swarmionprotocol.ErrProjectionTooWide) {
+		retryReason, ok := result.RetryReason()
+		if !ok {
+			return PublishedWriteReceipt{}, fmt.Errorf("retry-permitted published %s write has no retry reason", name)
+		}
+		if resultRuntime == nil {
+			return PublishedWriteReceipt{}, fmt.Errorf("%w: retry-permitted published %s write has no owning runtime", ErrOperationReceiptUnavailable, name)
+		}
+		retryGuard = &publishedWriteRetryGuard{runtime: resultRuntime, result: result, reason: retryReason}
+		if db.waitPublishedWriteRetryForTest != nil {
+			if waitErr := db.waitPublishedWriteRetryForTest(ctx, attempt, retryReason); waitErr != nil {
+				return PublishedWriteReceipt{}, fmt.Errorf("wait before safely retrying published %s write: %w", name, waitErr)
+			}
+			continue
+		}
+		if retryReason == swarmionapp.RetryProjectionTooWide {
 			if readyErr := db.WaitMutationReady(ctx); readyErr != nil {
-				return receipt, errors.Join(err, readyErr)
+				return PublishedWriteReceipt{}, fmt.Errorf("wait for published %s write projection readiness: %w", name, readyErr)
 			}
 			continue
 		}
 		if waitErr := waitBeforeDatabaseRetryContext(ctx, attempt); waitErr != nil {
-			return receipt, errors.Join(err, waitErr)
+			return PublishedWriteReceipt{}, fmt.Errorf("wait before safely retrying published %s write: %w", name, waitErr)
 		}
 	}
+}
+
+func operationDiagnosticText(err error) string {
+	if err == nil {
+		return "<none>"
+	}
+	return err.Error()
 }
 
 func queryWhenSQLViewReady(ctx context.Context, query func() (*sql.Rows, error)) (*sql.Rows, error) {
@@ -4279,84 +4668,6 @@ func waitBeforeDatabaseRetryContext(ctx context.Context, attempt int) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-// IsRetryablePublishedWriteError reports only authority carried by Swarmion's
-// typed pre-publication stale/projection errors (including a raw Execute error
-// with no PublicationOutcome), by a validated safe-rejection outcome, or by a
-// passive exact-absence resolution produced by this package.
-// Joined sibling errors and diagnostic text never grant retry permission;
-// unresolved and unavailable outcomes remain non-authorizing.
-func IsRetryablePublishedWriteError(err error) bool {
-	if publishedWriteRetryDeniedByBoundary(err) {
-		return false
-	}
-	if linearStaleWriteContextRetryPermitted(err) {
-		return true
-	}
-	for err != nil {
-		if _, joined := err.(interface{ Unwrap() []error }); joined {
-			return false
-		}
-		if err == errPublishedWriteRetryExhausted { //nolint:errorlint // Retry exhaustion is an exact package-minted barrier.
-			return false
-		}
-		if err == errPublishedWriteSafeToExecute { //nolint:errorlint // Only the exact package-minted absence proof grants retry.
-			return true
-		}
-		if rejected, ok := err.(*swarmionapp.PublicationRejectedError); ok { //nolint:errorlint // Walk the chain explicitly; custom As must not grant authority.
-			return rejected != nil && rejected.Outcome.RetryPermitted()
-		}
-		err = errors.Unwrap(err)
-	}
-	return false
-}
-
-// publishedWriteRetryDeniedByBoundary recognizes backend results that already
-// carry an exact receipt or a fail-closed receipt-identity classification.
-// Their causes remain unwrap-able for context cancellation and typed terminal
-// diagnostics, but no nested pre-publication marker may escape the boundary and
-// authorize execution of the mutation again. Ordinary contextual wrappers do
-// not weaken that rule.
-func publishedWriteRetryDeniedByBoundary(err error) bool {
-	for err != nil {
-		switch err.(type) { //nolint:errorlint // Exact per-node boundary check while manually walking ordinary wrappers.
-		case *EventReceiptPendingError,
-			*EventReceiptParkedError,
-			*PublishedWriteAvailabilityPendingError,
-			*PublishedWriteReceiptIdentityConflictError,
-			*PublishedWriteConfirmationUnresolvedError:
-			return true
-		}
-		if _, joined := err.(interface{ Unwrap() []error }); joined {
-			return false
-		}
-		err = errors.Unwrap(err)
-	}
-	return false
-}
-
-// linearStaleWriteContextRetryPermitted recognizes only Swarmion's explicit
-// pre-publication projection failures through an ordinary one-error unwrap
-// chain. ErrStaleWriteContext means no event was authored and the operation
-// identity remains absent. ProjectionTooWideError has the same boundary and
-// asks the caller to wait for a representable projection before re-executing.
-// Joined graphs and custom Is implementations cannot grant this authority.
-func linearStaleWriteContextRetryPermitted(err error) bool {
-	for err != nil {
-		if _, joined := err.(interface{ Unwrap() []error }); joined {
-			return false
-		}
-		switch err { //nolint:errorlint // Only exact Swarmion sentinels on this linear chain grant retry.
-		case swarmionprotocol.ErrStaleWriteContext, swarmionprotocol.ErrProjectionTooWide: //nolint:errorlint // Exact sentinel identity is the retry authority.
-			return true
-		}
-		if tooWide, ok := err.(*swarmionprotocol.ProjectionTooWideError); ok { //nolint:errorlint // Custom As must not forge pre-publication authority.
-			return tooWide != nil
-		}
-		err = errors.Unwrap(err)
-	}
-	return false
 }
 
 func isTransientWorkspaceAccessError(err error) bool {

@@ -31,8 +31,11 @@ var ErrOperationFactConflict = errors.New("task operation fact conflicts with im
 
 // OperationFact is replicated, append-only recovery authority. ID is derived
 // only from TaskID and Kind so a second value for the same logical fact cannot
-// silently coexist. Payload is canonical JSON and must contain no observation
-// timestamp, executor identity, attempt count, or mutable progress field.
+// silently coexist. OperationKey, IntentDigest, and AuthorPeerID are searchable
+// copies, not sufficient recovery authority; the owning versioned payload must
+// retain the complete opaque operation identity/recovery. Payload is canonical
+// JSON and must contain no observation timestamp, executor identity, attempt
+// count, or mutable progress field.
 type OperationFact struct {
 	ID           string          `json:"id"`
 	TaskID       string          `json:"task_id"`
@@ -58,9 +61,12 @@ func NewOperationFact(
 ) (OperationFact, error) {
 	taskID = strings.TrimSpace(taskID)
 	kind = strings.TrimSpace(kind)
-	operation.Key = strings.TrimSpace(operation.Key)
-	operation.IntentDigest = strings.TrimSpace(operation.IntentDigest)
-	operation.AuthorPeerID = strings.TrimSpace(operation.AuthorPeerID)
+	if err := operation.Validate(); err != nil {
+		return OperationFact{}, fmt.Errorf("task operation fact operation: %w", err)
+	}
+	operationKey := strings.TrimSpace(operation.Key())
+	intentDigest := strings.TrimSpace(operation.IntentDigest())
+	authorPeerID := strings.TrimSpace(operation.AuthorPeerID())
 	subjectType = strings.TrimSpace(subjectType)
 	subjectID = strings.TrimSpace(subjectID)
 	if _, err := db.UUIDBytes(taskID); err != nil {
@@ -69,13 +75,13 @@ func NewOperationFact(
 	if kind == "" {
 		return OperationFact{}, fmt.Errorf("task operation fact kind is empty")
 	}
-	if operation.Key == "" {
+	if operationKey == "" {
 		return OperationFact{}, fmt.Errorf("task operation fact key is empty")
 	}
-	if digest, err := hex.DecodeString(operation.IntentDigest); err != nil || len(digest) != sha256.Size {
+	if digest, err := hex.DecodeString(intentDigest); err != nil || len(digest) != sha256.Size {
 		return OperationFact{}, fmt.Errorf("task operation fact intent digest must be a 32-byte hexadecimal digest")
 	}
-	if operation.AuthorPeerID == "" {
+	if authorPeerID == "" {
 		return OperationFact{}, fmt.Errorf("task operation fact author peer ID is empty")
 	}
 	if subjectType == "" || subjectID == "" {
@@ -89,9 +95,9 @@ func NewOperationFact(
 		ID:           operationFactID(taskID, kind),
 		TaskID:       taskID,
 		Kind:         kind,
-		OperationKey: operation.Key,
-		IntentDigest: operation.IntentDigest,
-		AuthorPeerID: operation.AuthorPeerID,
+		OperationKey: operationKey,
+		IntentDigest: intentDigest,
+		AuthorPeerID: authorPeerID,
 		SubjectType:  subjectType,
 		SubjectID:    subjectID,
 		Payload:      canonicalPayload,
@@ -347,15 +353,16 @@ func validateOperationFactIdentity(fact OperationFact) error {
 		return err
 	}
 	fact.Payload = canonical
-	_, err = NewOperationFact(
-		fact.TaskID,
-		fact.Kind,
-		db.PublishedWriteOperation{Key: fact.OperationKey, IntentDigest: fact.IntentDigest, AuthorPeerID: fact.AuthorPeerID},
-		fact.SubjectType,
-		fact.SubjectID,
-		fact.Payload,
-	)
-	return err
+	if strings.TrimSpace(fact.OperationKey) == "" || strings.TrimSpace(fact.AuthorPeerID) == "" {
+		return fmt.Errorf("task operation fact has incomplete cached operation identity")
+	}
+	if digest, err := hex.DecodeString(strings.TrimSpace(fact.IntentDigest)); err != nil || len(digest) != sha256.Size {
+		return fmt.Errorf("task operation fact intent digest must be a 32-byte hexadecimal digest")
+	}
+	if strings.TrimSpace(fact.SubjectType) == "" || strings.TrimSpace(fact.SubjectID) == "" {
+		return fmt.Errorf("task operation fact subject is incomplete")
+	}
+	return nil
 }
 
 func compareOperationFacts(existing, candidate OperationFact) error {

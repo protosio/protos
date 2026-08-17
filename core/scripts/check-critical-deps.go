@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -33,17 +34,13 @@ type checkResult struct {
 }
 
 const swarmionRepository = "https://github.com/nustiueudinastea/swarmion"
+const swarmionModulePath = "github.com/nustiueudinastea/swarmion"
 
 var swarmionDependencyQuery = envOrDefault("SWARMION_DEP_QUERY", "main")
 
 var criticalDependencies = []dependency{
 	{Name: "containerd runtime", Path: "github.com/containerd/containerd/v2", Query: "latest"},
-	{Name: "Swarmion protocol", Path: "github.com/nustiueudinastea/swarmion/protocol", Query: swarmionDependencyQuery, Repository: swarmionRepository},
-	{Name: "Swarmion runtime", Path: "github.com/nustiueudinastea/swarmion/runtime", Query: swarmionDependencyQuery, Repository: swarmionRepository},
-	{Name: "Swarmion CUE schema engine", Path: "github.com/nustiueudinastea/swarmion/schema-engines/cue", Query: swarmionDependencyQuery, Repository: swarmionRepository},
-	{Name: "Swarmion declarative schema engine", Path: "github.com/nustiueudinastea/swarmion/schema-engines/declarative", Query: swarmionDependencyQuery, Repository: swarmionRepository},
-	{Name: "Swarmion transports", Path: "github.com/nustiueudinastea/swarmion/transports", Query: swarmionDependencyQuery, Repository: swarmionRepository},
-	{Name: "Swarmion reference transport adapters", Path: "github.com/nustiueudinastea/swarmion/transport-adapters", Query: swarmionDependencyQuery, Repository: swarmionRepository},
+	{Name: "Swarmion", Path: swarmionModulePath, Query: swarmionDependencyQuery, Repository: swarmionRepository},
 	{Name: "gRPC", Path: "google.golang.org/grpc", Query: "latest"},
 	{Name: "protobuf", Path: "google.golang.org/protobuf", Query: "latest"},
 	{Name: "Hetzner SDK", Path: "github.com/hetznercloud/hcloud-go/v2", Query: "latest"},
@@ -69,6 +66,9 @@ func main() {
 
 	var results []checkResult
 	var failures []string
+	if err := checkSwarmionPackageOwnership(commandOutput); err != nil {
+		failures = append(failures, err.Error())
+	}
 	for _, dep := range dependencies {
 		result, err := checkDependency(dep)
 		if err != nil {
@@ -98,6 +98,52 @@ func main() {
 		fmt.Fprintf(os.Stderr, "- %s\n", failure)
 	}
 	os.Exit(1)
+}
+
+type packageInfo struct {
+	ImportPath string      `json:"ImportPath"`
+	Module     *moduleInfo `json:"Module"`
+}
+
+func checkSwarmionPackageOwnership(run outputRunner) error {
+	out, err := run("go", "list", "-deps", "-json", "./...")
+	if err != nil {
+		return fmt.Errorf("inspect Swarmion package ownership: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(out))
+	var packages []packageInfo
+	for {
+		var pkg packageInfo
+		err := decoder.Decode(&pkg)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("decode package ownership: %w", err)
+		}
+		packages = append(packages, pkg)
+	}
+	return validateSwarmionPackageOwnership(packages)
+}
+
+func validateSwarmionPackageOwnership(packages []packageInfo) error {
+	found := false
+	for _, pkg := range packages {
+		if pkg.ImportPath != swarmionModulePath && !strings.HasPrefix(pkg.ImportPath, swarmionModulePath+"/") {
+			continue
+		}
+		found = true
+		if pkg.Module == nil {
+			return fmt.Errorf("Swarmion package %s has no owning module", pkg.ImportPath)
+		}
+		if pkg.Module.Path != swarmionModulePath {
+			return fmt.Errorf("Swarmion package %s is owned by split module %s, want coherent root module %s", pkg.ImportPath, pkg.Module.Path, swarmionModulePath)
+		}
+	}
+	if !found {
+		return fmt.Errorf("module graph contains no imported Swarmion packages")
+	}
+	return nil
 }
 
 func checkDependency(dep dependency) (checkResult, error) {

@@ -160,8 +160,8 @@ func TestWaitForPublishedWriteAvailabilityTimeoutPreservesLatestExactStatus(t *t
 		!reflect.DeepEqual(observation.Status.EligiblePeerIDs, []string{"peer-b"}) {
 		t.Fatalf("timeout lost stable topology status: %+v", observation.Status)
 	}
-	if observation.Status.Available || IsRetryablePublishedWriteError(err) {
-		t.Fatalf("pending availability became success/replay authority: observation=%+v error=%v", observation, err)
+	if observation.Status.Available {
+		t.Fatalf("pending availability became success: observation=%+v error=%v", observation, err)
 	}
 }
 
@@ -406,9 +406,6 @@ func TestWaitForPublishedWriteAvailabilityRetainsAvailableSnapshotOnRuntimeClose
 	if !observation.Status.Available || observation.Status.ConfirmedOtherPeers < 1 {
 		t.Fatalf("terminal availability lost its latest validated evidence: %+v", observation)
 	}
-	if IsRetryablePublishedWriteError(err) {
-		t.Fatalf("terminal availability granted replay authority: %v", err)
-	}
 }
 
 func TestConfirmPublishedWriteAvailabilityKeepsRuntimeCloseTerminalAfterAvailableSnapshot(t *testing.T) {
@@ -475,8 +472,8 @@ func TestPublishedWriteAvailabilityWaitIsCallerBoundedAndNeverGrantsReplay(t *te
 	if remaining <= 8*time.Second || remaining > publishedWriteAvailabilityTimeout {
 		t.Fatalf("wait context remaining=%s, want caller-bounded ten-second cap", remaining)
 	}
-	if observation.Receipt.Committed || !observation.Receipt.OutcomeUncertain || IsRetryablePublishedWriteError(err) {
-		t.Fatalf("passive wait changed uncertain receipt or granted replay: observation=%+v error=%v", observation, err)
+	if observation.Receipt.Committed || !observation.Receipt.OutcomeUncertain {
+		t.Fatalf("passive wait changed uncertain receipt: observation=%+v error=%v", observation, err)
 	}
 	if !reflect.DeepEqual(runtime.trace, []string{"status", "wait"}) {
 		t.Fatalf("runtime trace=%v, want observation only", runtime.trace)
@@ -669,30 +666,11 @@ func TestConfirmPublishedWriteAvailabilityDoesNotClaimUnresolvedReceiptAccepted(
 	}
 }
 
-func TestOrdinaryAvailabilityBoundaryPreservesExactPublicationErrorWithoutAvailabilityOrReplay(t *testing.T) {
+func TestOrdinaryAvailabilityBoundaryPreservesExactFailureWithoutAvailability(t *testing.T) {
 	receipt := eventReceiptForTest()
 	receipt.Committed = false
 	receipt.OutcomeUncertain = true
-	rejectedOutcome := swarmionapp.PublicationOutcome{
-		Identity: swarmionapp.OperationIdentity{
-			Key:          "receipt-availability-publication",
-			IntentDigest: strings.Repeat("a", 64),
-		},
-		Scope:           swarmionapp.DatabasePublicationScope("protos/receipt-availability-test"),
-		AuthorPeerID:    "receipt-availability-peer",
-		State:           swarmionapp.PublicationRejectedSafeToRetry,
-		RejectionReason: swarmionapp.PublicationRejectionNotAccepted,
-	}
-	cause := fmt.Errorf(
-		"injected publication response: %w",
-		&swarmionapp.PublicationRejectedError{
-			Outcome: rejectedOutcome,
-			Cause:   errors.New("injected not-accepted marker"),
-		},
-	)
-	if !IsRetryablePublishedWriteError(cause) {
-		t.Fatalf("test cause=%v must carry a retryable marker", cause)
-	}
+	cause := errors.New("injected execution failure after exact receipt")
 
 	publicationCalls := 0
 	availabilityCalls := 0
@@ -729,8 +707,8 @@ func TestOrdinaryAvailabilityBoundaryPreservesExactPublicationErrorWithoutAvaila
 	if !errors.Is(unresolved.Cause, cause) || !reflect.DeepEqual(unresolved.Confirmation, confirmation) {
 		t.Fatalf("typed unresolved error=%+v, want exact confirmation and original cause", unresolved)
 	}
-	if errors.Is(err, cause) || IsRetryablePublishedWriteError(err) {
-		t.Fatalf("exact unresolved result exposed replay authority: %v", err)
+	if errors.Is(err, cause) {
+		t.Fatalf("exact unresolved result exposed its diagnostic cause as control flow: %v", err)
 	}
 	extracted, ok := PublishedWriteConfirmationFromError(fmt.Errorf("caller context: %w", err))
 	if !ok || !reflect.DeepEqual(extracted, confirmation) {

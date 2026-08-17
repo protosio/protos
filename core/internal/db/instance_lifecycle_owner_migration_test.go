@@ -71,11 +71,7 @@ VALUES (?, ?, 'instance_peer_drain_authorized_v1', 'operation-key', ?, ' peer-de
 		t.Fatalf("publish pre-owner lifecycle fixtures: %v", err)
 	}
 
-	operationKey, err := NewPublishedWriteOperationKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	operation, err := NewPublishedWriteOperation(operationKey, "protos:test:instance-lifecycle-owner-migration")
+	operation, err := store.NewPublishedWriteOperation("io.protos.tests.instance-lifecycle-owner-migration/v1")
 	if err != nil {
 		t.Fatal(err)
 	}

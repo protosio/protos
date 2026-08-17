@@ -17,11 +17,15 @@ type peerDrainPreparationRuntime struct {
 	peers        []swarmionapp.PeerInfo
 	peerStatuses []swarmionapp.PeerStatus
 	compat       []swarmionapp.ManifestCompatibility
+	statusErr    error
+	peersErr     error
 }
 
-func (r *peerDrainPreparationRuntime) Status() swarmionapp.Status { return r.status }
-func (r *peerDrainPreparationRuntime) Peers() []swarmionapp.PeerInfo {
-	return append([]swarmionapp.PeerInfo(nil), r.peers...)
+func (r *peerDrainPreparationRuntime) Status() (swarmionapp.Status, error) {
+	return r.status, r.statusErr
+}
+func (r *peerDrainPreparationRuntime) Peers() ([]swarmionapp.PeerInfo, error) {
+	return append([]swarmionapp.PeerInfo(nil), r.peers...), r.peersErr
 }
 func (r *peerDrainPreparationRuntime) PeerStatus(context.Context) ([]swarmionapp.PeerStatus, error) {
 	return append([]swarmionapp.PeerStatus(nil), r.peerStatuses...), nil
@@ -142,7 +146,8 @@ func TestPrepareReplicationPeerDrainRequiresFreshTargetAndExactReplacementCovera
 	}
 
 	t.Run("no candidates remains pending", func(t *testing.T) {
-		err := prepareReplicationPeerDrainWithRuntime(context.Background(), base(), "target", nil, openedAt)
+		runtime := base()
+		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, runtime, "target", nil, openedAt)
 		if !errors.Is(err, ErrReplicationPeerDrainPending) {
 			t.Fatalf("error = %v, want pending", err)
 		}
@@ -151,7 +156,7 @@ func TestPrepareReplicationPeerDrainRequiresFreshTargetAndExactReplacementCovera
 	t.Run("target unobserved remains pending", func(t *testing.T) {
 		runtime := base()
 		runtime.peers = runtime.peers[1:]
-		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, "target", []ReplicationCandidate{{PeerID: "local", DeviceClass: ReplicationDeviceClassLocalUserClient}}, openedAt)
+		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, runtime, "target", []ReplicationCandidate{{PeerID: "local", DeviceClass: ReplicationDeviceClassLocalUserClient}}, openedAt)
 		if !errors.Is(err, ErrReplicationPeerDrainPending) || !strings.Contains(err.Error(), "freshly observed") {
 			t.Fatalf("error = %v, want fresh-target pending", err)
 		}
@@ -161,21 +166,23 @@ func TestPrepareReplicationPeerDrainRequiresFreshTargetAndExactReplacementCovera
 		runtime := base()
 		runtime.peers[1].CheckpointCommitID = swarmionprotocol.NewCheckpointCommitID("behind")
 		runtime.peers[1].CheckpointRootHash = swarmionprotocol.NewRootHash("behind-root")
-		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, "target", []ReplicationCandidate{{PeerID: "remote", DeviceClass: ReplicationDeviceClassCloudVM}}, openedAt)
+		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, runtime, "target", []ReplicationCandidate{{PeerID: "remote", DeviceClass: ReplicationDeviceClassCloudVM}}, openedAt)
 		if !errors.Is(err, ErrReplicationPeerDrainPending) {
 			t.Fatalf("error = %v, want pending", err)
 		}
 	})
 
 	t.Run("exact current remote succeeds", func(t *testing.T) {
-		err := prepareReplicationPeerDrainWithRuntime(context.Background(), base(), "target", []ReplicationCandidate{{PeerID: "remote", DeviceClass: ReplicationDeviceClassCloudVM}}, openedAt)
+		runtime := base()
+		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, runtime, "target", []ReplicationCandidate{{PeerID: "remote", DeviceClass: ReplicationDeviceClassCloudVM}}, openedAt)
 		if err != nil {
 			t.Fatalf("prepare exact remote: %v", err)
 		}
 	})
 
 	t.Run("current local candidate succeeds", func(t *testing.T) {
-		err := prepareReplicationPeerDrainWithRuntime(context.Background(), base(), "target", []ReplicationCandidate{{PeerID: "local", DeviceClass: ReplicationDeviceClassLocalUserClient}}, openedAt)
+		runtime := base()
+		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, runtime, "target", []ReplicationCandidate{{PeerID: "local", DeviceClass: ReplicationDeviceClassLocalUserClient}}, openedAt)
 		if err != nil {
 			t.Fatalf("prepare current local: %v", err)
 		}
@@ -184,7 +191,7 @@ func TestPrepareReplicationPeerDrainRequiresFreshTargetAndExactReplacementCovera
 	t.Run("restart rejects persisted pre-open target observation", func(t *testing.T) {
 		runtime := base()
 		runtime.peers[0].LastSeenUnixMillis = openedAt.Add(-time.Second).UnixMilli()
-		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, "target", []ReplicationCandidate{{PeerID: "local", DeviceClass: ReplicationDeviceClassLocalUserClient}}, openedAt)
+		err := prepareReplicationPeerDrainWithRuntime(context.Background(), runtime, runtime, "target", []ReplicationCandidate{{PeerID: "local", DeviceClass: ReplicationDeviceClassLocalUserClient}}, openedAt)
 		if !errors.Is(err, ErrReplicationPeerDrainPending) {
 			t.Fatalf("error = %v, want pending", err)
 		}

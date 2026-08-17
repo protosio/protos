@@ -54,8 +54,8 @@ func TestInstanceLifecycleOwnerSerializesForeignReconcileAgainstOwnerDelete(t *t
 	if err := json.Unmarshal(deleteTask.Payload, &deletePayload); err != nil {
 		t.Fatal(err)
 	}
-	if deletePayload.DeleteOperation == nil || deletePayload.DeleteOperation.AuthorPeerID != ownerPeerID ||
-		deletePayload.PeerDrainAuthorization == nil || deletePayload.PeerDrainAuthorization.AuthorPeerID != ownerPeerID ||
+	if deletePayload.DeleteOperation == nil || deletePayload.DeleteOperation.Operation.AuthorPeerID() != ownerPeerID ||
+		deletePayload.PeerDrainAuthorization == nil || deletePayload.PeerDrainAuthorization.Operation.AuthorPeerID() != ownerPeerID ||
 		deletePayload.PeerDrainAuthorization.Instance.LifecycleOwnerPeerID != ownerPeerID {
 		t.Fatalf("delete/P authority escaped persisted owner: %+v", deletePayload)
 	}

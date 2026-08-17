@@ -7,15 +7,14 @@ import (
 	"testing"
 )
 
-func TestResolveDependencyQueriesResolvesSharedBranchOnce(t *testing.T) {
+func TestResolveDependencyQueriesResolvesSwarmionRootBranchOnce(t *testing.T) {
 	const (
 		repository = "https://example.test/swarmion"
 		branch     = "codex/r44-cascade-attribution"
 		commit     = "e3a94518969305edf957c707a4bae5f95eb83cd9"
 	)
 	dependencies := []dependency{
-		{Name: "protocol", Path: "example.test/swarmion/protocol", Query: branch, Repository: repository},
-		{Name: "runtime", Path: "example.test/swarmion/runtime", Query: branch, Repository: repository},
+		{Name: "Swarmion", Path: "example.test/swarmion", Query: branch, Repository: repository},
 		{Name: "unrelated", Path: "example.test/unrelated", Query: "latest"},
 	}
 	var calls [][]string
@@ -35,30 +34,57 @@ func TestResolveDependencyQueriesResolvesSharedBranchOnce(t *testing.T) {
 	if !reflect.DeepEqual(calls[0], wantCall) {
 		t.Fatalf("git invocation = %#v, want %#v", calls[0], wantCall)
 	}
-	for _, index := range []int{0, 1} {
-		if got := resolved[index].ResolvedQuery; got != commit {
-			t.Errorf("resolved[%d].ResolvedQuery = %q, want %q", index, got, commit)
-		}
-		if got := resolved[index].Query; got != branch {
-			t.Errorf("resolved[%d].Query = %q, want original branch %q", index, got, branch)
-		}
-		if got := dependencyQuery(resolved[index]); got != commit {
-			t.Errorf("dependencyQuery(resolved[%d]) = %q, want %q", index, got, commit)
-		}
+	if got := resolved[0].ResolvedQuery; got != commit {
+		t.Errorf("resolved Swarmion query = %q, want %q", got, commit)
+	}
+	if got := resolved[0].Query; got != branch {
+		t.Errorf("Swarmion query = %q, want original branch %q", got, branch)
+	}
+	if got := dependencyQuery(resolved[0]); got != commit {
+		t.Errorf("dependencyQuery(Swarmion) = %q, want %q", got, commit)
 	}
 	if dependencies[0].ResolvedQuery != "" {
 		t.Fatalf("input dependency was mutated: %#v", dependencies[0])
 	}
-	if got := resolved[2].ResolvedQuery; got != "" {
+	if got := resolved[1].ResolvedQuery; got != "" {
 		t.Fatalf("unrelated resolved query = %q, want empty", got)
+	}
+}
+
+func TestCriticalDependenciesContainOneSwarmionRootModule(t *testing.T) {
+	var paths []string
+	for _, dep := range criticalDependencies {
+		if dep.Path == swarmionModulePath || strings.HasPrefix(dep.Path, swarmionModulePath+"/") {
+			paths = append(paths, dep.Path)
+		}
+	}
+	if !reflect.DeepEqual(paths, []string{swarmionModulePath}) {
+		t.Fatalf("Swarmion dependency paths = %v, want only root module", paths)
+	}
+}
+
+func TestValidateSwarmionPackageOwnershipRequiresRootModule(t *testing.T) {
+	root := &moduleInfo{Path: swarmionModulePath, Version: "v0.0.0-20260817000000-deadbeefdead"}
+	packages := []packageInfo{
+		{ImportPath: swarmionModulePath + "/runtime", Module: root},
+		{ImportPath: swarmionModulePath + "/protocol", Module: root},
+		{ImportPath: "example.test/unrelated", Module: &moduleInfo{Path: "example.test/unrelated"}},
+	}
+	if err := validateSwarmionPackageOwnership(packages); err != nil {
+		t.Fatalf("validate root ownership: %v", err)
+	}
+
+	packages[1].Module = &moduleInfo{Path: swarmionModulePath + "/protocol", Version: "v0.0.0"}
+	if err := validateSwarmionPackageOwnership(packages); err == nil || !strings.Contains(err.Error(), "split module") {
+		t.Fatalf("split ownership error = %v, want split-module rejection", err)
 	}
 }
 
 func TestResolveDependencyQueriesLeavesImmutableQueriesAlone(t *testing.T) {
 	const commit = "e3a94518969305edf957c707a4bae5f95eb83cd9"
 	dependencies := []dependency{
-		{Path: "example.test/swarmion/runtime", Query: commit, Repository: "https://example.test/swarmion"},
-		{Path: "example.test/swarmion/protocol", Query: "v1.2.3", Repository: "https://example.test/swarmion"},
+		{Path: "example.test/swarmion", Query: commit, Repository: "https://example.test/swarmion"},
+		{Path: "example.test/other", Query: "v1.2.3", Repository: "https://example.test/other"},
 	}
 	run := func(string, ...string) ([]byte, error) {
 		t.Fatal("immutable queries must not invoke git")

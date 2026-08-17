@@ -33,8 +33,9 @@ vars:
 
 env:
   GOTOOLCHAIN: '{{.GO_TOOLCHAIN}}'
-  GOPRIVATE: '{{.GOPRIVATE | default "github.com/nustiueudinastea/swarmion"}}'
-  GONOSUMDB: '{{.GONOSUMDB | default "github.com/nustiueudinastea/swarmion"}}'
+  GOPRIVATE: '{{if .GOPRIVATE}}{{.GOPRIVATE}},{{end}}github.com/nustiueudinastea/swarmion'
+  GONOPROXY: '{{if .GONOPROXY}}{{.GONOPROXY}},{{end}}github.com/nustiueudinastea/swarmion'
+  GONOSUMDB: '{{if .GONOSUMDB}}{{.GONOSUMDB}},{{end}}github.com/nustiueudinastea/swarmion'
 
 tasks:
   generate:

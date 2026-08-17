@@ -21,8 +21,9 @@ type TransactionMetricsSnapshot struct {
 	OperationTransactionsNoChange        uint64
 	OperationTransactionsFailed          uint64
 	OperationWorkspaceDirtyOutcomes      uint64
+	OperationRecoveryPersistenceFailures uint64
 	// OperationTransactionLifecycleOpaqueFailures counts malformed or
-	// unclassified results at the public Execute/PublicationOutcome boundary.
+	// results that fail closed at the public Execute/OperationResult boundary.
 	// Such results never grant replay authority.
 	OperationTransactionLifecycleOpaqueFailures uint64
 }
@@ -43,6 +44,7 @@ type transactionMetrics struct {
 	operationTransactionsNoChange               atomic.Uint64
 	operationTransactionsFailed                 atomic.Uint64
 	operationWorkspaceDirtyOutcomes             atomic.Uint64
+	operationRecoveryPersistenceFailures        atomic.Uint64
 	operationTransactionLifecycleOpaqueFailures atomic.Uint64
 }
 
@@ -66,6 +68,7 @@ func (m *transactionMetrics) snapshot() TransactionMetricsSnapshot {
 		OperationTransactionsNoChange:               m.operationTransactionsNoChange.Load(),
 		OperationTransactionsFailed:                 m.operationTransactionsFailed.Load(),
 		OperationWorkspaceDirtyOutcomes:             m.operationWorkspaceDirtyOutcomes.Load(),
+		OperationRecoveryPersistenceFailures:        m.operationRecoveryPersistenceFailures.Load(),
 		OperationTransactionLifecycleOpaqueFailures: m.operationTransactionLifecycleOpaqueFailures.Load(),
 	}
 }

@@ -75,38 +75,30 @@ tasks:
       - |
         if [ -n "{{.SWARMION_SOURCE}}" ]; then
           swarmion_source="$(cd "{{.SWARMION_SOURCE}}" && pwd)"
-          for module in \
-            protocol \
-            runtime \
-            transports \
-            transport-adapters \
-            schema-engines/cue \
-            schema-engines/declarative
-          do
-            if [ ! -f "$swarmion_source/$module/go.mod" ]; then
-              echo "Swarmion source module is missing: $swarmion_source/$module/go.mod" >&2
-              exit 1
-            fi
-            mkdir -p "{{.DOCKER_CONTEXT}}/swarmion/$(dirname "$module")"
-            rsync -a --delete \
-              --exclude '.git' \
-              --exclude '.claude' \
-              --exclude 'perf-artifacts' \
-              --exclude 'tmp' \
-              --exclude '*.log' \
-              "$swarmion_source/$module/" \
-              "{{.DOCKER_CONTEXT}}/swarmion/$module/"
-          done
+          if [ ! -f "$swarmion_source/go.mod" ]; then
+            echo "Swarmion root module is missing: $swarmion_source/go.mod" >&2
+            exit 1
+          fi
+          mkdir -p "{{.DOCKER_CONTEXT}}/swarmion"
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude '.claude' \
+            --exclude '.gotmp' \
+            --exclude '.venv*' \
+            --exclude '_apalache-out' \
+            --exclude 'integrationtests.test' \
+            --exclude 'perf-artifacts' \
+            --exclude 'tmp' \
+            --exclude 'go.work' \
+            --exclude 'go.work.sum' \
+            --exclude '*.log' \
+            "$swarmion_source/" \
+            "{{.DOCKER_CONTEXT}}/swarmion/"
           (
             cd "{{.DOCKER_CONTEXT}}"
             go work init \
               ./backend/core \
-              ./swarmion/protocol \
-              ./swarmion/runtime \
-              ./swarmion/transports \
-              ./swarmion/transport-adapters \
-              ./swarmion/schema-engines/cue \
-              ./swarmion/schema-engines/declarative
+              ./swarmion
             go work edit -go=1.26.4
           )
         fi

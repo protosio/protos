@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	swarmionprotocol "github.com/nustiueudinastea/swarmion/protocol"
 	swarmionapp "github.com/nustiueudinastea/swarmion/runtime"
 	"github.com/protosio/protos/internal/db"
 	"github.com/protosio/protos/internal/tasks"
@@ -157,11 +155,89 @@ func instanceDeleteOperationIdentityForTest(
 	if !ok || strings.TrimSpace(status.PeerID) == "" {
 		t.Fatal("swarmion author is unavailable")
 	}
-	identity, err := newInstanceDeleteOperationIdentity(operationID, instance, localOnly, status.PeerID)
+	identity, err := newInstanceDeleteOperationIdentity(store, operationID, instance, localOnly, status.PeerID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return identity
+}
+
+// publishedWriteOperationWithAuthorForTest models a recovery record persisted
+// by a different peer. It uses the public strict JSON contract instead of
+// mutating opaque runtime fields.
+func publishedWriteOperationWithAuthorForTest(
+	t *testing.T,
+	operation db.PublishedWriteOperation,
+	author string,
+) db.PublishedWriteOperation {
+	t.Helper()
+	encoded, err := json.Marshal(operation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(encoded, &document); err != nil {
+		t.Fatal(err)
+	}
+	recovery, ok := document["recovery"].(map[string]any)
+	if !ok {
+		t.Fatalf("operation recovery JSON has unexpected shape: %s", encoded)
+	}
+	recovery["author_peer_id"] = strings.TrimSpace(author)
+	encoded, err = json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rewritten db.PublishedWriteOperation
+	if err := json.Unmarshal(encoded, &rewritten); err != nil {
+		t.Fatal(err)
+	}
+	if err := rewritten.Validate(); err != nil {
+		t.Fatalf("rewritten foreign operation: %v", err)
+	}
+	return rewritten
+}
+
+func publishedWriteOperationWithKeyForTest(
+	t *testing.T,
+	operation db.PublishedWriteOperation,
+	key string,
+) db.PublishedWriteOperation {
+	t.Helper()
+	encoded, err := json.Marshal(operation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(encoded, &document); err != nil {
+		t.Fatal(err)
+	}
+	identity, ok := document["identity"].(map[string]any)
+	if !ok {
+		t.Fatalf("operation identity JSON has unexpected shape: %s", encoded)
+	}
+	recovery, ok := document["recovery"].(map[string]any)
+	if !ok {
+		t.Fatalf("operation recovery JSON has unexpected shape: %s", encoded)
+	}
+	recoveryIdentity, ok := recovery["identity"].(map[string]any)
+	if !ok {
+		t.Fatalf("recovery identity JSON has unexpected shape: %s", encoded)
+	}
+	identity["key"] = strings.TrimSpace(key)
+	recoveryIdentity["key"] = strings.TrimSpace(key)
+	encoded, err = json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rewritten db.PublishedWriteOperation
+	if err := json.Unmarshal(encoded, &rewritten); err != nil {
+		t.Fatal(err)
+	}
+	if err := rewritten.Validate(); err != nil {
+		t.Fatalf("rewritten operation key: %v", err)
+	}
+	return rewritten
 }
 
 func publishInstanceDeleteForTest(t *testing.T, store *db.DB, instance InstanceInfo, operationID string) instanceDeleteOperationReceipt {
@@ -331,19 +407,12 @@ func TestCompleteInstanceDeleteReceiptPendingReturnsBoundedDiagnostic(t *testing
 }
 
 func TestValidateInstanceDeleteOperationReceiptRequiresRecoveryProvenance(t *testing.T) {
+	store := openProvisionerTestDB(t)
 	receipt := testInstanceDeleteReceipt()
-	identity := instanceDeleteOperationIdentity{
-		Key:          strings.Repeat("1", 64),
-		IntentDigest: strings.Repeat("2", 64),
-		AuthorPeerID: "receipt-author",
-		ExpectedInvariant: instanceDeleteInvariant{
-			Kind:       instanceDeleteInvariantAbsent,
-			InstanceID: receipt.ExpectedInvariant.InstanceID,
-		},
-	}
+	identity := instanceDeleteOperationIdentityForTest(t, store, receipt.OperationID, InstanceInfo{ID: receipt.ExpectedInvariant.InstanceID}, true)
 	receipt.ExpectedInvariant = identity.ExpectedInvariant
-	receipt.OperationIntentDigest = identity.IntentDigest
-	receipt.OperationAuthorPeerID = identity.AuthorPeerID
+	receipt.OperationIntentDigest = identity.Operation.IntentDigest()
+	receipt.OperationAuthorPeerID = identity.Operation.AuthorPeerID()
 	if err := validateInstanceDeleteOperationReceipt(receipt, identity, receipt.OperationID, receipt.ExpectedInvariant.InstanceID); err != nil {
 		t.Fatalf("validate complete receipt provenance: %v", err)
 	}
@@ -358,57 +427,6 @@ func TestValidateInstanceDeleteOperationReceiptRequiresRecoveryProvenance(t *tes
 	withoutAuthor.OperationAuthorPeerID = ""
 	if err := validateInstanceDeleteOperationReceipt(withoutAuthor, identity, receipt.OperationID, receipt.ExpectedInvariant.InstanceID); err == nil || !strings.Contains(err.Error(), "author") {
 		t.Fatalf("missing author provenance error=%v", err)
-	}
-}
-
-func TestDeleteInstanceRecordsReturnsOperationKeyConflictWithoutRetry(t *testing.T) {
-	store := openProvisionerTestDB(t)
-	instance := InstanceInfo{
-		ID:            db.MustNewUUIDv7(),
-		Name:          "operation-conflict-delete",
-		Kind:          KindLocalVM,
-		KindID:        "operation-conflict-provider",
-		DesiredStatus: ServerStateRunning,
-		Location:      "test",
-	}
-	insertInstanceForDeleteReceiptTest(t, store, &instance)
-
-	operationID := db.MustNewUUIDv7()
-	identity := instanceDeleteOperationIdentityForTest(t, store, operationID, instance, true)
-	conflicting, err := db.NewPublishedWriteOperation(identity.Key, "different immutable delete intent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	conflicting.AuthorPeerID = identity.AuthorPeerID
-	machine, metadata := createInstanceDeleteMapper(instance.ID)
-	accepted, err := db.DeleteWithOperationReceiptContext(context.Background(), store, conflicting, machine, metadata)
-	if err != nil {
-		t.Fatalf("bind conflicting operation key: %v", err)
-	}
-	waitForTestPublishedEvent(t, store, accepted, "checkpoint conflicting operation key")
-	before, _ := store.SwarmionStatus()
-
-	manager := &Manager{db: store}
-	persistCalls := 0
-	started := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	err = manager.deleteInstanceRecords(ctx, operationID, identity, instance, func(instanceDeleteOperationReceipt, int, string) error {
-		persistCalls++
-		return nil
-	})
-	if !errors.Is(err, swarmionprotocol.ErrOperationKeyConflict) {
-		t.Fatalf("delete error=%v, want operation key conflict", err)
-	}
-	if elapsed := time.Since(started); elapsed >= time.Second {
-		t.Fatalf("operation conflict was retried for %s instead of failing promptly", elapsed)
-	}
-	if persistCalls != 0 {
-		t.Fatalf("operation conflict persisted %d receipts, want none", persistCalls)
-	}
-	after, _ := store.SwarmionStatus()
-	if after.ClockEvents != before.ClockEvents || after.CheckpointEventCount != before.CheckpointEventCount {
-		t.Fatalf("operation conflict published another event: clock %d->%d checkpoint %d->%d", before.ClockEvents, after.ClockEvents, before.CheckpointEventCount, after.CheckpointEventCount)
 	}
 }
 
@@ -515,26 +533,28 @@ func TestInstanceDeleteReceiptLaterRecreationReturnsDurableConflict(t *testing.T
 	}
 }
 
-func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *testing.T) {
+func TestParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *testing.T) {
 	store := openProvisionerTestDB(t)
 	manager := newLifecycleTestManager(t, store, newProvisionerRegistry())
 	taskID := db.MustNewUUIDv7()
-	instance := InstanceInfo{ID: db.MustNewUUIDv7(), Name: "foreign-parked-delete"}
+	instance := InstanceInfo{ID: db.MustNewUUIDv7(), Name: "parked-delete"}
 	identity := instanceDeleteOperationIdentityForTest(t, store, taskID, instance, true)
-	identity.AuthorPeerID = "foreign-delete-author"
-	eventID := strings.Repeat("a", 64)
-	publishedRoot := strings.Repeat("b", 32)
-	lookupCalls := 0
-	manager.lookupDeleteRecoveryOperation = func(ctx context.Context, operation db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
-		lookupCalls++
-		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > instanceDeleteRecoveryObserveLimit+time.Second {
-			t.Fatalf("foreign recovery lookup did not receive its bounded context")
-		}
-		if operation != identity.publishedWriteOperation() {
-			t.Fatalf("foreign recovery operation=%+v, want %+v", operation, identity.publishedWriteOperation())
-		}
-		return acceptedOperationResolutionForTest(operation, eventID, publishedRoot), nil
+	effectFact, err := newInstanceDeleteEffectFact(taskID, identity)
+	if err != nil {
+		t.Fatal(err)
 	}
+	accepted, err := db.DeleteAndInsertWithOperationReceiptContext(
+		context.Background(),
+		store,
+		identity.Operation,
+		nil,
+		[]db.InsertMapper{tasks.InsertOperationFactMapper(effectFact)},
+	)
+	if err != nil {
+		t.Fatalf("publish parked-recovery fixture operation: %v", err)
+	}
+	eventID := accepted.EventID
+	publishedRoot := accepted.PublishedRootHash
 	parkedStates := []struct {
 		state  db.EventReceiptState
 		reason string
@@ -575,7 +595,7 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 		Stream:      InstanceLifecycleTaskStream,
 		SubjectType: taskSubjectInstance,
 		SubjectID:   instanceLifecycleSubjectID(instance.ID, instanceLifecycleOperationDelete),
-		Title:       "foreign parked delete",
+		Title:       "parked delete",
 		Payload: instanceLifecycleTaskPayload{
 			InstanceID:      instance.ID,
 			InstanceName:    instance.Name,
@@ -616,16 +636,16 @@ func TestForeignParkedDeleteRecoveryReobservesWithoutTaskWriteOrRepublish(t *tes
 			t.Fatalf("parked recovery %d changed %d task(s), want 0", index+1, recovered)
 		}
 	}
-	if lookupCalls != len(parkedStates) || observeCalls != len(parkedStates) {
-		t.Fatalf("parked recovery calls lookup=%d observe=%d, want %d/%d", lookupCalls, observeCalls, len(parkedStates), len(parkedStates))
+	if observeCalls != len(parkedStates) {
+		t.Fatalf("parked recovery observations=%d, want %d", observeCalls, len(parkedStates))
 	}
 	for _, receipt := range observedReceipts {
-		if receipt.EventID != eventID || receipt.PublishedRootHash != publishedRoot || receipt.AuthorPeerID != identity.AuthorPeerID {
+		if receipt.EventID != eventID || receipt.PublishedRootHash != publishedRoot || receipt.AuthorPeerID != identity.Operation.AuthorPeerID() {
 			t.Fatalf("parked recovery changed exact foreign receipt: %+v", receipt)
 		}
 	}
 	if metricsAfter := store.TransactionMetrics(); metricsAfter != metricsBefore {
-		t.Fatalf("parked foreign recovery wrote a transaction: before=%+v after=%+v", metricsBefore, metricsAfter)
+		t.Fatalf("parked recovery wrote a transaction: before=%+v after=%+v", metricsBefore, metricsAfter)
 	}
 	statusAfter, ok := store.RuntimeSnapshot()
 	if !ok {
@@ -664,26 +684,20 @@ func TestOperationFactRecoveryPublishesCurrentReceiptFact(t *testing.T) {
 	taskID := db.MustNewUUIDv7()
 	instance := InstanceInfo{ID: db.MustNewUUIDv7(), Name: "immutable-delete-recovery"}
 	identity := instanceDeleteOperationIdentityForTest(t, store, taskID, instance, true)
-	identity.AuthorPeerID = "foreign-delete-author-a"
 
 	effectFact, err := newInstanceDeleteEffectFact(taskID, identity)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.tasks.EnsureOperationFact(context.Background(), effectFact); err != nil {
-		t.Fatal(err)
-	}
-
-	accepted := testInstanceDeleteReceipt().publishedWriteReceipt()
-	accepted.AuthorPeerID = identity.AuthorPeerID
-	accepted.OperationIntentDigest = identity.IntentDigest
-	deleteLookups := 0
-	manager.lookupDeleteRecoveryOperation = func(_ context.Context, operation db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
-		deleteLookups++
-		if operation != identity.publishedWriteOperation() {
-			t.Fatalf("operation lookup=%+v, want %+v", operation, identity.publishedWriteOperation())
-		}
-		return acceptedOperationResolutionForTest(operation, accepted.EventID, accepted.PublishedRootHash), nil
+	accepted, err := db.DeleteAndInsertWithOperationReceiptContext(
+		context.Background(),
+		store,
+		identity.Operation,
+		nil,
+		[]db.InsertMapper{tasks.InsertOperationFactMapper(effectFact)},
+	)
+	if err != nil {
+		t.Fatalf("publish immutable delete effect operation: %v", err)
 	}
 	manager.observeDeleteRecoveryReceipt = func(_ context.Context, published db.PublishedWriteReceipt) (db.EventReceiptObservation, error) {
 		return db.EventReceiptObservation{
@@ -731,10 +745,6 @@ func TestOperationFactRecoveryPublishesCurrentReceiptFact(t *testing.T) {
 	if recovered, err := manager.tasks.RecoverOwnedRunning(); err != nil || recovered != 1 {
 		t.Fatalf("recover immutable delete task=%d error=%v, want 1/nil", recovered, err)
 	}
-	if deleteLookups != 1 {
-		t.Fatalf("delete operation lookups=%d, want one", deleteLookups)
-	}
-
 	recoveredRecord, err := manager.tasks.Get(taskID)
 	if err != nil {
 		t.Fatal(err)
@@ -767,8 +777,8 @@ func TestCurrentReceiptFactRejectsRemovedFields(t *testing.T) {
 	receipt := testInstanceDeleteReceipt()
 	receipt.OperationID = taskID
 	receipt.ExpectedInvariant = identity.ExpectedInvariant
-	receipt.OperationIntentDigest = identity.IntentDigest
-	receipt.OperationAuthorPeerID = identity.AuthorPeerID
+	receipt.OperationIntentDigest = identity.Operation.IntentDigest()
+	receipt.OperationAuthorPeerID = identity.Operation.AuthorPeerID()
 	fact, err := newInstanceDeleteReceiptFact(receipt, identity)
 	if err != nil {
 		t.Fatal(err)
@@ -788,8 +798,8 @@ func TestCurrentReceiptFactWithoutEffectFailsRecoveryBeforeLookup(t *testing.T) 
 	receipt := testInstanceDeleteReceipt()
 	receipt.OperationID = taskID
 	receipt.ExpectedInvariant = identity.ExpectedInvariant
-	receipt.OperationIntentDigest = identity.IntentDigest
-	receipt.OperationAuthorPeerID = identity.AuthorPeerID
+	receipt.OperationIntentDigest = identity.Operation.IntentDigest()
+	receipt.OperationAuthorPeerID = identity.Operation.AuthorPeerID()
 	fact, err := newInstanceDeleteReceiptFact(receipt, identity)
 	if err != nil {
 		t.Fatal(err)
@@ -798,9 +808,9 @@ func TestCurrentReceiptFactWithoutEffectFailsRecoveryBeforeLookup(t *testing.T) 
 		t.Fatal(err)
 	}
 	lookupCalls := 0
-	manager.lookupDeleteRecoveryOperation = func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResolution, error) {
+	manager.lookupDeleteRecoveryOperation = func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResult, error) {
 		lookupCalls++
-		return swarmionapp.OperationResolution{}, errors.New("lookup must not run")
+		return swarmionapp.OperationResult{}, errors.New("lookup must not run")
 	}
 	record, err := tasks.EnqueueContext(context.Background(), manager.tasks, tasks.EnqueueOptions[instanceLifecycleTaskPayload]{
 		ID:          taskID,
@@ -994,8 +1004,8 @@ func TestInstanceDeleteUnsafeNoReceiptPublicationDoesNotReplayTask(t *testing.T)
 	}{
 		{
 			name: "inconclusive publication without receipt",
-			err:  fmt.Errorf("delete publication became inconclusive: %w", swarmionapp.ErrPublicationInconclusive),
-			want: swarmionapp.ErrPublicationInconclusive,
+			err:  errors.New("delete publication became inconclusive without a receipt"),
+			want: errors.New("delete publication became inconclusive without a receipt"),
 		},
 		{
 			name: "ambiguous apply rollback",
@@ -1032,7 +1042,7 @@ func TestInstanceDeleteUnsafeNoReceiptPublicationDoesNotReplayTask(t *testing.T)
 				got InstanceInfo,
 			) (db.PublishedWriteReceipt, error) {
 				publishCalls++
-				if operation != payload.DeleteOperation.publishedWriteOperation() || got.ID != instance.ID {
+				if !operation.Equal(payload.DeleteOperation.publishedWriteOperation()) || got.ID != instance.ID {
 					t.Fatalf("delete publication changed operation/instance: operation=%+v instance=%+v", operation, got)
 				}
 				return db.PublishedWriteReceipt{}, tt.err
@@ -1063,8 +1073,8 @@ func TestInstanceDeleteUnsafeNoReceiptPublicationDoesNotReplayTask(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if resolved.State != swarmionapp.OperationResolvedAbsent {
-				t.Fatalf("unsafe delete authored an operation despite no receipt: %+v", resolved)
+			if resolved.Disposition() != swarmionapp.OperationRetryPermitted {
+				t.Fatalf("unsafe delete disposition=%s diagnostic=%v, want retry permitted absence", resolved.Disposition(), resolved.Diagnostic())
 			}
 			if _, err := manager.GetInstance(instance.ID); err != nil {
 				t.Fatalf("unsafe delete removed instance despite failed final publication: %v", err)

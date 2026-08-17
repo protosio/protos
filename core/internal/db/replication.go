@@ -48,12 +48,15 @@ type prioritizedReplicationCandidate struct {
 	Priority    int
 }
 
-type swarmionPeerDrainRuntime interface {
-	Status() swarmionapp.Status
-	Peers() []swarmionapp.PeerInfo
+type swarmionPeerDrainDiagnostics interface {
+	Status() (swarmionapp.Status, error)
+	Peers() ([]swarmionapp.PeerInfo, error)
 	PeerStatus(context.Context) ([]swarmionapp.PeerStatus, error)
-	ReconcileCheckpoint(context.Context, swarmionapp.CheckpointReconcileRequest) (swarmionapp.CheckpointReconcileResult, error)
 	Compatibility(context.Context) ([]swarmionapp.ManifestCompatibility, error)
+}
+
+type swarmionCheckpointMaintenance interface {
+	ReconcileCheckpoint(context.Context, swarmionapp.CheckpointReconcileRequest) (swarmionapp.CheckpointReconcileResult, error)
 }
 
 func ReplicationPriorityForDeviceClass(deviceClass string) (int, bool) {
@@ -130,11 +133,15 @@ func (db *DB) ReconcileReplicationPeers(ctx context.Context, candidates []Replic
 		return nil
 	}
 
-	status := app.Status()
+	diagnostics := app.Diagnostics()
+	status, err := diagnostics.Status()
+	if err != nil {
+		return fmt.Errorf("read Swarmion status for replication reconciliation: %w", err)
+	}
 	if status.Fatal != nil {
 		return fmt.Errorf("swarmion fatal state blocks replication metadata reconciliation: %s", status.Fatal.State)
 	}
-	if err := blockOnIncompatiblePeers(ctx, app); err != nil {
+	if err := blockOnIncompatiblePeers(ctx, diagnostics); err != nil {
 		return err
 	}
 
@@ -203,27 +210,31 @@ func (db *DB) PrepareReplicationPeerDrain(ctx context.Context, peerID string, ca
 	if app == nil {
 		return fmt.Errorf("%w: database runtime is not initialized", ErrReplicationPeerDrainUnavailable)
 	}
-	return prepareReplicationPeerDrainWithRuntime(ctx, app, peerID, candidates, runtimeOpenedAt)
+	return prepareReplicationPeerDrainWithRuntime(ctx, app.Diagnostics(), app.Maintenance(), peerID, candidates, runtimeOpenedAt)
 }
 
 func prepareReplicationPeerDrainWithRuntime(
 	ctx context.Context,
-	app swarmionPeerDrainRuntime,
+	diagnostics swarmionPeerDrainDiagnostics,
+	maintenance swarmionCheckpointMaintenance,
 	peerID string,
 	candidates []ReplicationCandidate,
 	runtimeOpenedAt time.Time,
 ) error {
-	if app == nil {
+	if diagnostics == nil || maintenance == nil {
 		return fmt.Errorf("%w: database runtime is not initialized", ErrReplicationPeerDrainUnavailable)
 	}
-	if err := catchUpSwarmionCheckpoint(ctx, app, "prepare Protos replication peer drain"); err != nil {
+	if err := catchUpSwarmionCheckpoint(ctx, maintenance, "prepare Protos replication peer drain"); err != nil {
 		return fmt.Errorf("catch up swarmion checkpoint state before draining peer %s: %w", peerID, err)
 	}
-	status := app.Status()
+	status, err := diagnostics.Status()
+	if err != nil {
+		return fmt.Errorf("%w for peer %s: read Swarmion status: %w", ErrReplicationPeerDrainUnavailable, peerID, err)
+	}
 	if status.Fatal != nil {
 		return fmt.Errorf("swarmion fatal state blocks peer drain for %s: %s", peerID, status.Fatal.State)
 	}
-	if err := blockOnIncompatiblePeers(ctx, app); err != nil {
+	if err := blockOnIncompatiblePeers(ctx, diagnostics); err != nil {
 		return err
 	}
 	prioritized := prioritizedReplicationCandidates(candidates)
@@ -231,7 +242,7 @@ func prepareReplicationPeerDrainWithRuntime(
 		return fmt.Errorf("%w for peer %s: no surviving replication candidate", ErrReplicationPeerDrainPending, peerID)
 	}
 
-	peerStatuses, err := app.PeerStatus(ctx)
+	peerStatuses, err := diagnostics.PeerStatus(ctx)
 	if err != nil {
 		return fmt.Errorf("read swarmion peer status before draining peer %s: %w", peerID, err)
 	}
@@ -240,7 +251,11 @@ func prepareReplicationPeerDrainWithRuntime(
 		peerStatusByID[strings.TrimSpace(item.PeerID)] = item
 	}
 	peerInfoByID := make(map[string]swarmionapp.PeerInfo)
-	for _, item := range app.Peers() {
+	peers, err := diagnostics.Peers()
+	if err != nil {
+		return fmt.Errorf("%w for peer %s: read Swarmion peers: %w", ErrReplicationPeerDrainUnavailable, peerID, err)
+	}
+	for _, item := range peers {
 		peerInfoByID[strings.TrimSpace(string(item.ID))] = item
 	}
 

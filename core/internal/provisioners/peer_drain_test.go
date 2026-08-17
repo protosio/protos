@@ -2,6 +2,7 @@ package provisioners
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,19 +17,22 @@ import (
 )
 
 type fakeReplicationPeerDrainRuntime struct {
-	available                bool
-	unavailableAfterBegin    bool
-	begin                    swarmionapp.PeerDrainSnapshot
-	beginStatuses            []swarmionapp.PeerDrainSnapshot
-	beginErrors              []error
-	watchEvents              [][]swarmionapp.PeerDrainEvent
-	watchErrors              []error
-	closeWatchAfterEvents    bool
-	preserveWatchIdentity    bool
-	finalize                 swarmionapp.PeerDrainFinalizeResult
-	finalizeResponses        []swarmionapp.PeerDrainFinalizeResult
-	finalizeErrors           []error
-	preserveFinalizeIdentity bool
+	available                 bool
+	runtimeGeneration         uint64
+	unavailableOnSessionClose bool
+	unavailableAfterBegin     bool
+	begin                     swarmionapp.PeerDrainSnapshot
+	beginStatuses             []swarmionapp.PeerDrainSnapshot
+	beginErrors               []error
+	watchEvents               [][]swarmionapp.PeerDrainEvent
+	watchErrors               []error
+	closeWatchAfterEvents     bool
+	preserveWatchIdentity     bool
+	finalize                  swarmionapp.PeerDrainFinalizeResult
+	finalizeResponses         []swarmionapp.PeerDrainFinalizeResult
+	finalizeErrors            []error
+	preserveFinalizeIdentity  bool
+	afterStart                func()
 
 	prepareCalls  int
 	beginCalls    int
@@ -39,6 +43,16 @@ type fakeReplicationPeerDrainRuntime struct {
 }
 
 func (f *fakeReplicationPeerDrainRuntime) Available() bool { return f != nil && f.available }
+
+func (f *fakeReplicationPeerDrainRuntime) RuntimeGeneration() uint64 {
+	if f == nil {
+		return 0
+	}
+	if f.runtimeGeneration == 0 {
+		return 1
+	}
+	return f.runtimeGeneration
+}
 
 func (f *fakeReplicationPeerDrainRuntime) Prepare(context.Context, string, []db.ReplicationCandidate) error {
 	f.prepareCalls++
@@ -115,14 +129,18 @@ func (f *fakeReplicationPeerDrainRuntime) Start(ctx context.Context, peerID, gen
 	if f.unavailableAfterBegin {
 		f.available = false
 	}
-	return &fakeReplicationPeerDrainSession{
+	session := &fakeReplicationPeerDrainSession{
 		runtime:    f,
 		peerID:     peerID,
 		generation: generation,
 		events:     watch,
 		cancel:     cancel,
 		done:       done,
-	}, nil
+	}
+	if f.afterStart != nil {
+		f.afterStart()
+	}
+	return session, nil
 }
 
 type fakeReplicationPeerDrainSession struct {
@@ -191,6 +209,9 @@ func (s *fakeReplicationPeerDrainSession) Close() {
 	s.closeOnce.Do(func() {
 		if s.cancel != nil {
 			s.cancel()
+		}
+		if s.runtime != nil && s.runtime.unavailableOnSessionClose {
+			s.runtime.available = false
 		}
 	})
 	if s.done != nil {
@@ -404,7 +425,7 @@ func TestInstancePeerDrainRejectsWrongSuccessfulFinalizeIdentity(t *testing.T) {
 		peerRouteFence:   &fakeReplicationPeerRouteFence{prefix: "identity"},
 	}
 	continued := 0
-	err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func() error {
+	err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func(uint64) error {
 		continued++
 		return nil
 	})
@@ -413,6 +434,40 @@ func TestInstancePeerDrainRejectsWrongSuccessfulFinalizeIdentity(t *testing.T) {
 	}
 	if continued != 0 {
 		t.Fatalf("phase continuation ran %d times after wrong finalize identity", continued)
+	}
+}
+
+func TestInstancePeerDrainRuntimeCloseAfterFinalizeCannotContinuePhase(t *testing.T) {
+	instance := peerDrainTestInstance(t)
+	runtime := &fakeReplicationPeerDrainRuntime{
+		available:                 true,
+		unavailableOnSessionClose: true,
+		begin: swarmionapp.PeerDrainSnapshot{
+			Active:                           true,
+			RouteGenerationMatches:           true,
+			LocalCheckpointCovered:           true,
+			PreFenceHeartbeatIngressObserved: true,
+			ReadyToFinalize:                  true,
+		},
+		finalize: swarmionapp.PeerDrainFinalizeResult{Finalized: true},
+	}
+	manager := &Manager{
+		peerDrainRuntime: runtime,
+		peerRouteFence:   &fakeReplicationPeerRouteFence{prefix: "runtime-close"},
+	}
+	continued := 0
+	err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func(uint64) error {
+		continued++
+		return nil
+	})
+	if !errors.Is(err, db.ErrReplicationPeerDrainUnavailable) {
+		t.Fatalf("post-finalize runtime close error=%v, want drain unavailable", err)
+	}
+	if continued != 0 {
+		t.Fatalf("phase continuation ran %d times after its runtime owner closed", continued)
+	}
+	if runtime.finalizeCalls != 1 {
+		t.Fatalf("finalize calls=%d, want 1", runtime.finalizeCalls)
 	}
 }
 
@@ -435,7 +490,7 @@ func TestInstancePeerDrainInactiveGenerationRefencesBeforeContinuation(t *testin
 	fence := &fakeReplicationPeerRouteFence{prefix: "inactive"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
 	continued := 0
-	if err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func() error {
+	if err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func(uint64) error {
 		continued++
 		return nil
 	}); err != nil {
@@ -478,7 +533,7 @@ func TestInstancePeerDrainRouteFenceReplacementBeforeFinalizeStartsFreshSession(
 	}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
 	continued := 0
-	if err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func() error {
+	if err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func(uint64) error {
 		continued++
 		return nil
 	}); err != nil {
@@ -835,7 +890,7 @@ func TestInstancePeerDrainUntypedFinalizeErrorCannotGrantRetryAuthority(t *testi
 	fence := &fakeReplicationPeerRouteFence{prefix: "untyped-cache-error"}
 	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
 	continued := 0
-	err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func() error {
+	err := manager.withInstancePeerDurableRemovalReady(context.Background(), instance, func(uint64) error {
 		continued++
 		return nil
 	})
@@ -903,7 +958,10 @@ func TestInstancePeerDrainWatchFailuresRemainPending(t *testing.T) {
 				available: true,
 				begin:     waiting,
 				watchEvents: [][]swarmionapp.PeerDrainEvent{{{
-					Err: errors.New("status read failed"),
+					Kind:               swarmionapp.PeerDrainEventTerminated,
+					Terminated:         true,
+					TerminalReasonCode: swarmionapp.LifecycleEventTerminalReasonSourceFailure,
+					Err:                errors.New("status read failed"),
 				}}},
 			},
 			want: "status read failed",
@@ -947,6 +1005,53 @@ func TestInstancePeerDrainWatchFailuresRemainPending(t *testing.T) {
 				t.Fatalf("watch failure finalized=%d fences=%d, want 0/1", tt.runtime.finalizeCalls, fence.next)
 			}
 		})
+	}
+}
+
+func TestInstancePeerDrainJSONForwardedTerminalReadySnapshotCannotFinalize(t *testing.T) {
+	instance := peerDrainTestInstance(t)
+	ready := swarmionapp.PeerDrainSnapshot{
+		Active:                           true,
+		RouteGenerationMatches:           true,
+		LocalCheckpointCovered:           true,
+		PreFenceHeartbeatIngressObserved: true,
+		ReadyToFinalize:                  true,
+	}
+	forwarded := swarmionapp.PeerDrainEvent{
+		Kind:               swarmionapp.PeerDrainEventTerminated,
+		Snapshot:           ready,
+		Terminated:         true,
+		TerminalReasonCode: swarmionapp.LifecycleEventTerminalReasonSourceFailure,
+	}
+	encoded, err := json.Marshal(forwarded)
+	if err != nil {
+		t.Fatalf("marshal terminal event: %v", err)
+	}
+	var decoded swarmionapp.PeerDrainEvent
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("unmarshal terminal event: %v", err)
+	}
+	if decoded.Err != nil {
+		t.Fatalf("forwarded terminal diagnostic = %v, want nil after JSON", decoded.Err)
+	}
+
+	runtime := &fakeReplicationPeerDrainRuntime{
+		available:   true,
+		begin:       swarmionapp.PeerDrainSnapshot{Active: true, RouteGenerationMatches: true, LocalCheckpointCovered: true},
+		watchEvents: [][]swarmionapp.PeerDrainEvent{{decoded}},
+		finalize:    swarmionapp.PeerDrainFinalizeResult{Finalized: true},
+	}
+	fence := &fakeReplicationPeerRouteFence{prefix: "forwarded-terminal"}
+	manager := &Manager{peerDrainRuntime: runtime, peerRouteFence: fence}
+	err = manager.waitForInstancePeerDurableRemovalReady(context.Background(), instance)
+	if !errors.Is(err, db.ErrReplicationPeerDrainPending) || !errors.Is(err, swarmionapp.ErrLifecycleEventTerminated) {
+		t.Fatalf("forwarded terminal error = %v, want pending terminal classification", err)
+	}
+	if runtime.finalizeCalls != 0 {
+		t.Fatalf("forwarded terminal finalized %d times, want 0", runtime.finalizeCalls)
+	}
+	if fence.next != 1 {
+		t.Fatalf("route fences = %d, want 1", fence.next)
 	}
 }
 

@@ -176,7 +176,7 @@ func TestInstanceDeleteTaskRestartRecoversOperationBeforeReceiptCheckpoint(t *te
 	if err != nil {
 		t.Fatalf("resolve delete operation after restart: %v", err)
 	}
-	recoveredReceipt, err := db.PublishedWriteReceiptFromResolution(resolved)
+	recoveredReceipt, err := db.PublishedWriteReceiptFromResult(operationIdentity.Operation, resolved)
 	if err != nil {
 		t.Fatalf("convert recovered delete operation receipt: %v", err)
 	}
@@ -400,7 +400,7 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 	}
 	interruptedPayload := decodeDeleteRestartPayload(t, interruptedRecord)
 	if interruptedPayload.RecoveryModel != instanceDeleteRecoveryModel ||
-		interruptedPayload.DeleteOperation == nil || *interruptedPayload.DeleteOperation != operationIdentity {
+		interruptedPayload.DeleteOperation == nil || !sameInstanceDeleteOperationIdentity(*interruptedPayload.DeleteOperation, operationIdentity) {
 		t.Fatalf("interrupted immutable-fact task retained mutable receipt state: record=%+v payload=%+v", interruptedRecord, interruptedPayload)
 	}
 	originalReceipt := instanceDeleteReceiptFromPublished(record.ID, operationIdentity, interruptTracker.receipt)
@@ -435,7 +435,7 @@ func testInstanceDeleteTaskRestartResumesExactReceipt(t *testing.T, interruption
 	interruptedAttempt := restored.Attempts
 	restoredPayload := decodeDeleteRestartPayload(t, restored)
 	if restoredPayload.RecoveryModel != instanceDeleteRecoveryModel ||
-		restoredPayload.DeleteOperation == nil || *restoredPayload.DeleteOperation != operationIdentity {
+		restoredPayload.DeleteOperation == nil || !sameInstanceDeleteOperationIdentity(*restoredPayload.DeleteOperation, operationIdentity) {
 		t.Fatalf("restored mutable task row became receipt authority before startup recovery: %+v", restoredPayload)
 	}
 
@@ -651,7 +651,7 @@ func waitForDeleteRestartTaskSucceeded(t *testing.T, manager *tasks.Manager, tas
 	}
 }
 
-func deleteRestartAuthoredEventIDs(status swarmionapp.Status) map[string]struct{} {
+func deleteRestartAuthoredEventIDs(status swarmionapp.DetailedStatus) map[string]struct{} {
 	result := make(map[string]struct{}, len(status.RecentAuthoredWrites))
 	for _, write := range status.RecentAuthoredWrites {
 		if eventID := strings.TrimSpace(write.EventID); eventID != "" {
@@ -661,7 +661,7 @@ func deleteRestartAuthoredEventIDs(status swarmionapp.Status) map[string]struct{
 	return result
 }
 
-func deleteRestartNewAuthoredEventIDs(before map[string]struct{}, after swarmionapp.Status) []string {
+func deleteRestartNewAuthoredEventIDs(before map[string]struct{}, after swarmionapp.DetailedStatus) []string {
 	var result []string
 	for eventID := range deleteRestartAuthoredEventIDs(after) {
 		if _, found := before[eventID]; !found {
@@ -672,12 +672,12 @@ func deleteRestartNewAuthoredEventIDs(before map[string]struct{}, after swarmion
 	return result
 }
 
-func waitForDeleteRestartRuntimeQuiescent(t *testing.T, store *db.DB, reason string) swarmionapp.Status {
+func waitForDeleteRestartRuntimeQuiescent(t *testing.T, store *db.DB, reason string) swarmionapp.DetailedStatus {
 	t.Helper()
 	deadline := time.Now().Add(20 * time.Second)
-	var last swarmionapp.Status
+	var last swarmionapp.DetailedStatus
 	for {
-		status, ok := store.SwarmionStatus()
+		status, ok := store.SwarmionDetailedStatus()
 		if ok {
 			last = status
 			if status.ClockEvents == 0 &&

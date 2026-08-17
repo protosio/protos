@@ -136,7 +136,7 @@ func TestDeleteInstanceRecordsRealDissentAfterCompetingRecreation(t *testing.T) 
 	defer cancel()
 	operationID := db.MustNewUUIDv7()
 	identity := instanceDeleteOperationIdentityForTest(t, store, operationID, target, true)
-	err = manager.deleteInstanceRecords(ctx, operationID, identity, target, persistReceipt)
+	err = manager.deleteInstanceRecords(ctx, operationID, identity, target, 0, persistReceipt)
 	if !errors.Is(err, ErrInstanceDeleteInvariantConflict) {
 		t.Fatalf("delete completion error=%v, want %v", err, ErrInstanceDeleteInvariantConflict)
 	}

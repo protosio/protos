@@ -33,6 +33,16 @@ import (
 
 var log = util.GetLogger("provisioners")
 
+// operationDiagnosticText keeps Swarmion's diagnostic channel as prose. Only
+// OperationResult disposition/retry evidence controls authority; a diagnostic
+// must never enter the returned error graph where a caller might classify it.
+func operationDiagnosticText(err error) string {
+	if err == nil {
+		return "none"
+	}
+	return err.Error()
+}
+
 // ErrInstanceDeleteInvariantConflict means a later durable write made the
 // provision visible again after its delete event was applied.
 var ErrInstanceDeleteInvariantConflict = errors.New("instance delete invariant conflict")
@@ -134,10 +144,10 @@ type Manager struct {
 	provisionerMutationDisabled bool
 	// Recovery-only test seams prove foreign pending/parked handling without
 	// synthesizing protocol state. Production always uses the DB methods.
-	lookupDeleteRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResolution, error)
+	lookupDeleteRecoveryOperation func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResult, error)
 	observeDeleteRecoveryReceipt  func(context.Context, db.PublishedWriteReceipt) (db.EventReceiptObservation, error)
 	publishDeleteOperation        func(context.Context, db.PublishedWriteOperation, InstanceInfo) (db.PublishedWriteReceipt, error)
-	lookupPeerDrainAuthorization  func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResolution, error)
+	lookupPeerDrainAuthorization  func(context.Context, db.PublishedWriteOperation) (swarmionapp.OperationResult, error)
 	publishPeerDrainAuthorization func(context.Context, db.PublishedWriteOperation, InstanceInfo, tasks.OperationFact) (db.PublishedWriteReceipt, error)
 	waitPeerDrainAuthorization    func(context.Context, db.PublishedWriteReceipt, string) (db.EventReceiptObservation, error)
 	verifyPeerDrainAuthorization  func(context.Context, string, instancePeerDrainAuthorization, tasks.OperationFact) error
@@ -262,6 +272,7 @@ func (cm *Manager) deploymentOriginBootstrapAddrs(originPublicKey string, peerPu
 
 type replicationPeerDrainRuntime interface {
 	Available() bool
+	RuntimeGeneration() uint64
 	Prepare(context.Context, string, []db.ReplicationCandidate) error
 	Start(context.Context, string, string) (replicationPeerDrainSession, error)
 }
@@ -277,21 +288,32 @@ type replicationPeerRouteFence interface {
 	WithPeerFenceGeneration(context.Context, string, string, func() error) error
 }
 
-type databasePeerDrainRuntime struct{ database *db.DB }
-
-func (runtime databasePeerDrainRuntime) Available() bool {
-	if runtime.database == nil {
-		return false
-	}
-	_, ok := runtime.database.SwarmionStatus()
-	return ok
+type databasePeerDrainRuntime struct {
+	database   *db.DB
+	generation uint64
 }
 
+func (runtime databasePeerDrainRuntime) Available() bool {
+	if runtime.database == nil || runtime.generation == 0 {
+		return false
+	}
+	current, ok := runtime.database.SwarmionRuntimeGeneration()
+	return ok && current == runtime.generation
+}
+
+func (runtime databasePeerDrainRuntime) RuntimeGeneration() uint64 { return runtime.generation }
+
 func (runtime databasePeerDrainRuntime) Prepare(ctx context.Context, peerID string, candidates []db.ReplicationCandidate) error {
+	if !runtime.Available() {
+		return db.ErrReplicationPeerDrainUnavailable
+	}
 	return runtime.database.PrepareReplicationPeerDrain(ctx, peerID, candidates)
 }
 
 func (runtime databasePeerDrainRuntime) Start(ctx context.Context, peerID, generation string) (replicationPeerDrainSession, error) {
+	if !runtime.Available() {
+		return nil, db.ErrReplicationPeerDrainUnavailable
+	}
 	return runtime.database.StartReplicationPeerDrain(ctx, peerID, generation)
 }
 
@@ -302,7 +324,11 @@ func (cm *Manager) replicationPeerDrainRuntime() replicationPeerDrainRuntime {
 	if cm == nil || cm.db == nil {
 		return nil
 	}
-	return databasePeerDrainRuntime{database: cm.db}
+	generation, ok := cm.db.SwarmionRuntimeGeneration()
+	if !ok {
+		return nil
+	}
+	return databasePeerDrainRuntime{database: cm.db, generation: generation}
 }
 
 func (cm *Manager) replicationPeerRouteFence() replicationPeerRouteFence {
@@ -1276,18 +1302,18 @@ func (cm *Manager) deleteInstanceImperative(
 		if !errors.Is(authorityErr, stdsql.ErrNoRows) {
 			return fmt.Errorf("load instance delete authority: %w", authorityErr)
 		}
-		authorityInstance = InstanceInfo{ID: id, LifecycleOwnerPeerID: operationIdentity.AuthorPeerID}
+		authorityInstance = InstanceInfo{ID: id, LifecycleOwnerPeerID: operationIdentity.Operation.AuthorPeerID()}
 	}
-	if err := cm.assertInstanceLifecycleExecutor(authorityInstance, operationIdentity.AuthorPeerID); err != nil {
+	if err := cm.assertInstanceLifecycleExecutor(authorityInstance, operationIdentity.Operation.AuthorPeerID()); err != nil {
 		return err
 	}
-	if strings.TrimSpace(operationIdentity.AuthorPeerID) != strings.TrimSpace(authorityInstance.LifecycleOwnerPeerID) {
+	if strings.TrimSpace(operationIdentity.Operation.AuthorPeerID()) != strings.TrimSpace(authorityInstance.LifecycleOwnerPeerID) {
 		return fmt.Errorf(
 			"%w: instance=%s persisted_owner=%s delete_author=%s",
 			ErrInstanceLifecycleOwnerConflict,
 			id,
 			authorityInstance.LifecycleOwnerPeerID,
-			operationIdentity.AuthorPeerID,
+			operationIdentity.Operation.AuthorPeerID(),
 		)
 	}
 	// Resolve before reading the instance or repeating any provider-side work.
@@ -1297,39 +1323,24 @@ func (cm *Manager) deleteInstanceImperative(
 	if err != nil {
 		return fmt.Errorf("resolve instance delete operation %s: %w", operationID, err)
 	}
-	switch resolved.State {
-	case swarmionapp.OperationResolvedAccepted:
-		published, err := db.PublishedWriteReceiptFromResolution(resolved)
-		if err != nil {
-			return fmt.Errorf("recover instance delete operation %s: %w", operationID, err)
-		}
-		receipt := instanceDeleteReceiptFromPublished(operationID, operationIdentity, published)
-		if err := persistReceipt(receipt, 92, "recovered published instance deletion"); err != nil {
-			return fmt.Errorf("persist recovered instance delete receipt: %w", err)
-		}
-		if err := cm.completeInstanceDeleteReceipt(ctx, receipt, persistReceipt); err != nil {
-			return err
-		}
-		if err := cm.deleteInstanceSSHKey(id); err != nil {
-			log.Warnf("failed to delete SSH key for instance '%s': %s", id, err.Error())
-		}
-		return nil
-	case swarmionapp.OperationResolvedUnavailable:
+	switch resolved.Disposition() {
+	case swarmionapp.OperationAccepted:
+		return cm.completePreviouslyAcceptedInstanceDelete(ctx, operationID, operationIdentity, resolved, persistReceipt)
+	case swarmionapp.OperationRecoveryRequired:
 		return fmt.Errorf("%w: instance delete operation=%s", db.ErrOperationReceiptUnavailable, operationID)
-	case swarmionapp.OperationResolvedAbsent:
-		if !resolved.SafeToExecute {
-			return fmt.Errorf("%w: instance delete operation=%s was absent without safe publication authority", db.ErrOperationReceiptUnavailable, operationID)
-		}
+	case swarmionapp.OperationRetryPermitted:
 		// Authoritative local absence permits the one and only first attempt.
+	case swarmionapp.OperationFailedClosed:
+		return fmt.Errorf("resolve instance delete operation %s failed closed: %s", operationID, operationDiagnosticText(resolved.Diagnostic()))
 	default:
-		return fmt.Errorf("resolve instance delete operation %s returned unknown resolution %q", operationID, resolved.State)
+		return fmt.Errorf("resolve instance delete operation %s returned unknown disposition %q", operationID, resolved.Disposition())
 	}
 
 	instance, err := cm.getInstanceRecord(id)
 	if err != nil {
 		return fmt.Errorf("could not retrieve instance '%s': %w", id, err)
 	}
-	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.AuthorPeerID); err != nil {
+	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.Operation.AuthorPeerID()); err != nil {
 		return err
 	}
 	if (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) &&
@@ -1364,7 +1375,7 @@ func (cm *Manager) deleteInstanceImperative(
 			return err
 		}
 		instance.DesiredStatus = ServerStateDeleting
-		return cm.executeInstanceDeleteAfterAuthorization(ctx, progress, id, localOnly, operationID, operationIdentity, instance, persistReceipt)
+		return cm.executeInstanceDeleteAfterAuthorization(ctx, progress, id, localOnly, operationID, operationIdentity, instance, 0, persistReceipt)
 	}
 
 	if peerDrainAuthorization == nil && cm.tasks != nil {
@@ -1382,7 +1393,7 @@ func (cm *Manager) deleteInstanceImperative(
 		if IsDeletingInstance(instance) {
 			return fmt.Errorf("%w: deleting instance %s has no immutable peer-drain authorization P", ErrInstanceDeleteInvariantConflict, instance.ID)
 		}
-		authorization, err := newInstancePeerDrainAuthorization(operationID, operationIdentity, instance, localOnly)
+		authorization, err := newInstancePeerDrainAuthorization(cm.db, operationID, operationIdentity, instance, localOnly)
 		if err != nil {
 			return err
 		}
@@ -1404,12 +1415,12 @@ func (cm *Manager) deleteInstanceImperative(
 	if err != nil {
 		return err
 	}
-	continueDelete := func() error {
+	continueDelete := func(runtimeGeneration uint64) error {
 		instance.DesiredStatus = ServerStateDeleting
-		return cm.executeInstanceDeleteAfterAuthorization(ctx, progress, id, localOnly, operationID, operationIdentity, instance, persistReceipt)
+		return cm.executeInstanceDeleteAfterAuthorization(ctx, progress, id, localOnly, operationID, operationIdentity, instance, runtimeGeneration, persistReceipt)
 	}
 	if alreadyAccepted {
-		resolvedReceipt, err = cm.completeInstancePeerDrainAuthorization(ctx, authorization, fact, resolvedReceipt, true)
+		resolvedReceipt, err = cm.completeInstancePeerDrainAuthorization(ctx, authorization, fact, resolvedReceipt, true, 0)
 		if err != nil {
 			return err
 		}
@@ -1423,8 +1434,8 @@ func (cm *Manager) deleteInstanceImperative(
 		// before provider I/O or D publication. Do not run Prepare here: the
 		// provider may already be absent, and the scoped drain can safely finalize
 		// a covered unknown peer from persisted checkpoint lineage.
-		return cm.withInstancePeerDurableRemovalReady(ctx, instance, func() error {
-			return continueDelete()
+		return cm.withInstancePeerDurableRemovalReady(ctx, instance, func(runtimeGeneration uint64) error {
+			return continueDelete(runtimeGeneration)
 		})
 	}
 
@@ -1434,8 +1445,8 @@ func (cm *Manager) deleteInstanceImperative(
 	if IsDeletingInstance(instance) {
 		return fmt.Errorf("%w: deleting instance %s has authoritative P absence", ErrInstanceDeleteInvariantConflict, instance.ID)
 	}
-	if status, ok := cm.db.SwarmionStatus(); !ok || strings.TrimSpace(status.PeerID) != strings.TrimSpace(authorization.AuthorPeerID) {
-		return fmt.Errorf("%w: peer-drain authorization P task=%s requires original author %s", db.ErrOperationReceiptUnavailable, operationID, authorization.AuthorPeerID)
+	if status, ok := cm.db.SwarmionStatus(); !ok || strings.TrimSpace(status.PeerID) != strings.TrimSpace(authorization.Operation.AuthorPeerID()) {
+		return fmt.Errorf("%w: peer-drain authorization P task=%s requires original author %s", db.ErrOperationReceiptUnavailable, operationID, authorization.Operation.AuthorPeerID())
 	}
 	if err := progress(8, "preparing durable peer drain", map[string]string{"instance_id": instance.ID}); err != nil {
 		return err
@@ -1449,9 +1460,16 @@ func (cm *Manager) deleteInstanceImperative(
 	if err := progress(40, "waiting for durable peer removal", map[string]string{"instance_id": instance.ID}); err != nil {
 		return err
 	}
-	return cm.withInstancePeerDurableRemovalReady(ctx, instance, func() error {
+	return cm.withInstancePeerDurableRemovalReady(ctx, instance, func(runtimeGeneration uint64) error {
 		unlock := cm.lockInstanceLifecycle(instance.ID)
-		receipt, err := cm.completeInstancePeerDrainAuthorization(ctx, authorization, fact, db.PublishedWriteReceipt{}, false)
+		receipt, err := cm.completeInstancePeerDrainAuthorization(
+			ctx,
+			authorization,
+			fact,
+			db.PublishedWriteReceipt{},
+			false,
+			runtimeGeneration,
+		)
 		if err != nil {
 			unlock()
 			return err
@@ -1464,8 +1482,42 @@ func (cm *Manager) deleteInstanceImperative(
 		if cm.afterPeerDrainAuthorized != nil {
 			cm.afterPeerDrainAuthorized(receipt)
 		}
-		return continueDelete()
+		return continueDelete(runtimeGeneration)
 	})
+}
+
+func (cm *Manager) completePreviouslyAcceptedInstanceDelete(
+	ctx context.Context,
+	operationID string,
+	operationIdentity instanceDeleteOperationIdentity,
+	resolved swarmionapp.OperationResult,
+	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
+) error {
+	published, err := db.PublishedWriteReceiptFromResult(operationIdentity.Operation, resolved)
+	if err != nil {
+		return fmt.Errorf("recover instance delete operation %s: %w", operationID, err)
+	}
+	return cm.completePreviouslyAcceptedInstanceDeleteReceipt(ctx, operationID, operationIdentity, published, persistReceipt)
+}
+
+func (cm *Manager) completePreviouslyAcceptedInstanceDeleteReceipt(
+	ctx context.Context,
+	operationID string,
+	operationIdentity instanceDeleteOperationIdentity,
+	published db.PublishedWriteReceipt,
+	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
+) error {
+	receipt := instanceDeleteReceiptFromPublished(operationID, operationIdentity, published)
+	if err := persistReceipt(receipt, 92, "recovered published instance deletion"); err != nil {
+		return fmt.Errorf("persist recovered instance delete receipt: %w", err)
+	}
+	if err := cm.completeInstanceDeleteReceipt(ctx, receipt, persistReceipt); err != nil {
+		return err
+	}
+	if err := cm.deleteInstanceSSHKey(operationIdentity.ExpectedInvariant.InstanceID); err != nil {
+		log.Warnf("failed to delete SSH key for instance '%s': %s", operationIdentity.ExpectedInvariant.InstanceID, err.Error())
+	}
+	return nil
 }
 
 func (cm *Manager) executeInstanceDeleteAfterAuthorization(
@@ -1476,18 +1528,12 @@ func (cm *Manager) executeInstanceDeleteAfterAuthorization(
 	operationID string,
 	operationIdentity instanceDeleteOperationIdentity,
 	instance InstanceInfo,
+	runtimeGeneration uint64,
 	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
 ) error {
-	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.AuthorPeerID); err != nil {
+	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.Operation.AuthorPeerID()); err != nil {
 		return err
 	}
-	if err := progress(20, "removing instance apps", map[string]string{"instance_id": instance.ID}); err != nil {
-		return err
-	}
-	if err := cm.deleteAppsForInstance(ctx, instance.ID); err != nil {
-		return err
-	}
-
 	if !localOnly && (instance.Kind == KindCloudVM || instance.Kind == KindLocalVM) {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -1521,6 +1567,34 @@ func (cm *Manager) executeInstanceDeleteAfterAuthorization(
 				return fmt.Errorf("failed to get details for instance '%s': %w", id, err)
 			}
 		}
+		runProviderMutation := func(label string, mutation func()) (bool, error) {
+			acceptedReceipt, alreadyAccepted, leaseErr := cm.db.WithPublishedWriteAbsenceLease(
+				ctx,
+				operationIdentity.publishedWriteOperation(),
+				runtimeGeneration,
+				label,
+				func() error {
+					mutation()
+					return nil
+				},
+			)
+			if leaseErr != nil {
+				return false, leaseErr
+			}
+			if !alreadyAccepted {
+				return false, nil
+			}
+			if err := cm.completePreviouslyAcceptedInstanceDeleteReceipt(
+				ctx,
+				operationID,
+				operationIdentity,
+				acceptedReceipt,
+				persistReceipt,
+			); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
 
 		// only delete cloud instance if found. Otherwise we proceed with removing it from local db
 		if found {
@@ -1532,7 +1606,17 @@ func (cm *Manager) executeInstanceDeleteAfterAuthorization(
 				if err := progress(60, "stopping provider instance", map[string]string{"instance_id": instance.ID, "provider_instance_id": providerInstanceID}); err != nil {
 					return err
 				}
-				err = computeProvider.StopInstance(providerInstanceID, instance.Location)
+				var stopErr error
+				completed, leaseErr := runProviderMutation("stop provider instance before delete", func() {
+					stopErr = computeProvider.StopInstance(providerInstanceID, instance.Location)
+				})
+				if leaseErr != nil {
+					return fmt.Errorf("revalidate instance delete before stopping provider instance '%s': %w", id, leaseErr)
+				}
+				if completed {
+					return nil
+				}
+				err = stopErr
 				if err != nil {
 					log.Warnf("failed to stop instance '%s' before delete; attempting provider delete anyway: %s", id, err.Error())
 				}
@@ -1545,7 +1629,17 @@ func (cm *Manager) executeInstanceDeleteAfterAuthorization(
 				if err := progress(70, "deleting provider volume", map[string]string{"instance_id": instance.ID, "volume_id": vol.VolumeID}); err != nil {
 					return err
 				}
-				err = volumeProvider.DeleteVolume(vol.VolumeID, instance.Location)
+				var deleteVolumeErr error
+				completed, leaseErr := runProviderMutation("delete provider volume", func() {
+					deleteVolumeErr = volumeProvider.DeleteVolume(vol.VolumeID, instance.Location)
+				})
+				if leaseErr != nil {
+					return fmt.Errorf("revalidate instance delete before deleting volume '%s': %w", vol.VolumeID, leaseErr)
+				}
+				if completed {
+					return nil
+				}
+				err = deleteVolumeErr
 				if err != nil {
 					return fmt.Errorf("could not delete volume '%s' for instance '%s': %w", vol.VolumeID, id, err)
 				}
@@ -1557,7 +1651,17 @@ func (cm *Manager) executeInstanceDeleteAfterAuthorization(
 			if err := progress(80, "deleting provider instance", map[string]string{"instance_id": instance.ID, "provider_instance_id": providerInstanceID}); err != nil {
 				return err
 			}
-			err = computeProvider.DeleteInstance(providerInstanceID, instance.Location)
+			var deleteInstanceErr error
+			completed, leaseErr := runProviderMutation("delete provider instance", func() {
+				deleteInstanceErr = computeProvider.DeleteInstance(providerInstanceID, instance.Location)
+			})
+			if leaseErr != nil {
+				return fmt.Errorf("revalidate instance delete before deleting provider instance '%s': %w", id, leaseErr)
+			}
+			if completed {
+				return nil
+			}
+			err = deleteInstanceErr
 			if err != nil {
 				return fmt.Errorf("could not delete instance '%s': %w", id, err)
 			}
@@ -1570,7 +1674,7 @@ func (cm *Manager) executeInstanceDeleteAfterAuthorization(
 	if err := progress(90, "deleting instance records", map[string]string{"instance_id": instance.ID}); err != nil {
 		return err
 	}
-	if err := cm.deleteInstanceRecords(ctx, operationID, operationIdentity, instance, persistReceipt); err != nil {
+	if err := cm.deleteInstanceRecords(ctx, operationID, operationIdentity, instance, runtimeGeneration, persistReceipt); err != nil {
 		return fmt.Errorf("failed to delete instance '%s': %w", id, err)
 	}
 	if err := cm.deleteInstanceSSHKey(instance.ID); err != nil {
@@ -1595,6 +1699,7 @@ func (cm *Manager) deleteInstanceRecords(
 	operationID string,
 	operationIdentity instanceDeleteOperationIdentity,
 	instance InstanceInfo,
+	runtimeGeneration uint64,
 	persistReceipt func(instanceDeleteOperationReceipt, int, string) error,
 ) error {
 	if cm == nil || cm.db == nil {
@@ -1610,7 +1715,7 @@ func (cm *Manager) deleteInstanceRecords(
 	if persistReceipt == nil {
 		return fmt.Errorf("instance delete receipt persistence is not configured")
 	}
-	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.AuthorPeerID); err != nil {
+	if err := cm.assertInstanceLifecycleExecutor(instance, operationIdentity.Operation.AuthorPeerID()); err != nil {
 		return err
 	}
 	effectFact, err := newInstanceDeleteEffectFact(operationID, operationIdentity)
@@ -1618,32 +1723,38 @@ func (cm *Manager) deleteInstanceRecords(
 		return fmt.Errorf("build instance delete effect fact: %w", err)
 	}
 
-	var (
-		lastErr   error
-		published db.PublishedWriteReceipt
-	)
-	for attempt := 1; ; attempt++ {
-		if err := ctx.Err(); err != nil {
-			if lastErr != nil {
-				return instanceDeletePublicationWithoutReceipt(fmt.Errorf("%w: previous publication error: %w", err, lastErr))
-			}
-			return instanceDeletePublicationWithoutReceipt(err)
-		}
+	if err := ctx.Err(); err != nil {
+		return instanceDeletePublicationWithoutReceipt(err)
+	}
+	var published db.PublishedWriteReceipt
+	{
 		publisher := cm.publishDeleteOperation
 		if publisher == nil {
 			publisher = func(ctx context.Context, operation db.PublishedWriteOperation, instance InstanceInfo) (db.PublishedWriteReceipt, error) {
 				im, cmmd := createInstanceDeleteMapper(instance.ID)
+				deletes := []db.DeleteMapper{
+					db.CreatePeerDeleteMapper(instance.PublicKey),
+					createAppDeleteByInstanceMapper(instance.ID),
+					im,
+					cmmd,
+				}
+				inserts := []db.InsertMapper{tasks.InsertOperationFactMapper(effectFact)}
+				if runtimeGeneration != 0 {
+					return db.DeleteAndInsertWithOperationReceiptForRuntimeGenerationContext(
+						ctx,
+						cm.db,
+						operation,
+						runtimeGeneration,
+						deletes,
+						inserts,
+					)
+				}
 				return db.DeleteAndInsertWithOperationReceiptContext(
 					ctx,
 					cm.db,
 					operation,
-					[]db.DeleteMapper{
-						db.CreatePeerDeleteMapper(instance.PublicKey),
-						createAppDeleteByInstanceMapper(instance.ID),
-						im,
-						cmmd,
-					},
-					[]db.InsertMapper{tasks.InsertOperationFactMapper(effectFact)},
+					deletes,
+					inserts,
 				)
 			}
 		}
@@ -1664,7 +1775,7 @@ func (cm *Manager) deleteInstanceRecords(
 				err,
 			)
 		}
-		if published.HasExactEventIdentity() {
+		if published.Committed && published.HasExactEventIdentity() {
 			if err != nil {
 				log.Warnf(
 					"tracking published instance delete after receipt-return error operation_id=%s instance_id=%s event_id=%s published_root=%s error=%s",
@@ -1675,22 +1786,13 @@ func (cm *Manager) deleteInstanceRecords(
 					err.Error(),
 				)
 			}
-			break
-		}
-		if err == nil {
+			// Exact acceptance is the only path beyond this block.
+		} else if err == nil {
 			return instanceDeletePublicationWithoutReceipt(fmt.Errorf("instance delete did not publish an event receipt"))
-		}
-		if errors.Is(err, db.ErrOperationReceiptUnavailable) || !db.IsRetryablePublishedWriteError(err) {
+		} else {
+			// The DB operation boundary already consumed any direct retry authority.
+			// An error here is diagnostic-only and cannot authorize republishing.
 			return instanceDeletePublicationWithoutReceipt(err)
-		}
-		lastErr = err
-		sleep := time.Duration(attempt*2) * time.Second
-		if sleep > 15*time.Second {
-			sleep = 15 * time.Second
-		}
-		select {
-		case <-ctx.Done():
-		case <-time.After(sleep):
 		}
 	}
 
@@ -1721,8 +1823,8 @@ func instanceDeleteReceiptFromPublished(
 		ExpectedInvariant:     identity.ExpectedInvariant,
 		EventID:               published.EventID,
 		PublishedRootHash:     published.PublishedRootHash,
-		OperationIntentDigest: identity.IntentDigest,
-		OperationAuthorPeerID: identity.AuthorPeerID,
+		OperationIntentDigest: identity.Operation.IntentDigest(),
+		OperationAuthorPeerID: identity.Operation.AuthorPeerID(),
 		OutcomeUncertain:      published.OutcomeUncertain,
 		CheckpointCommitID:    published.CheckpointCommitID,
 		CheckpointRootHash:    published.CheckpointRootHash,
@@ -1753,10 +1855,10 @@ func validateInstanceDeleteOperationReceipt(
 	if receipt.ExpectedInvariant != identity.ExpectedInvariant {
 		return fmt.Errorf("instance delete receipt invariant does not match replicated operation identity")
 	}
-	if digest := strings.TrimSpace(receipt.OperationIntentDigest); digest == "" || digest != strings.TrimSpace(identity.IntentDigest) {
+	if digest := strings.TrimSpace(receipt.OperationIntentDigest); digest == "" || digest != strings.TrimSpace(identity.Operation.IntentDigest()) {
 		return fmt.Errorf("instance delete receipt intent digest does not match replicated operation identity")
 	}
-	if author := strings.TrimSpace(receipt.OperationAuthorPeerID); author == "" || author != strings.TrimSpace(identity.AuthorPeerID) {
+	if author := strings.TrimSpace(receipt.OperationAuthorPeerID); author == "" || author != strings.TrimSpace(identity.Operation.AuthorPeerID()) {
 		return fmt.Errorf("instance delete receipt author does not match replicated operation identity")
 	}
 	eventID := strings.TrimSpace(receipt.EventID)
@@ -1901,20 +2003,6 @@ func (cm *Manager) markInstanceDeleting(ctx context.Context, instance InstanceIn
 	return nil
 }
 
-func (cm *Manager) deleteAppsForInstance(ctx context.Context, instanceID string) error {
-	instanceID = strings.TrimSpace(instanceID)
-	if cm == nil || cm.db == nil || instanceID == "" {
-		return nil
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if _, err := db.DeleteWithAvailabilityContext(ctx, cm.db, createAppDeleteByInstanceMapper(instanceID)); err != nil {
-		return fmt.Errorf("failed to delete apps for instance '%s': %w", instanceID, err)
-	}
-	return nil
-}
-
 func (cm *Manager) assertInstancePeerRemoved(ctx context.Context, peerID string) error {
 	peerID = strings.TrimSpace(peerID)
 	if cm == nil || cm.db == nil || peerID == "" {
@@ -1964,7 +2052,7 @@ const peerDrainFinalizeRetryDelay = 500 * time.Millisecond
 func (cm *Manager) withInstancePeerDurableRemovalReady(
 	ctx context.Context,
 	instance InstanceInfo,
-	afterFinalize func() error,
+	afterFinalize func(uint64) error,
 ) error {
 	if cm == nil {
 		return fmt.Errorf("%w: provisioner manager is unavailable", db.ErrReplicationPeerDrainUnavailable)
@@ -2036,7 +2124,7 @@ func (cm *Manager) observeInstancePeerDrainGeneration(
 	session replicationPeerDrainSession,
 	runtime replicationPeerDrainRuntime,
 	routeFence replicationPeerRouteFence,
-	afterFinalize func() error,
+	afterFinalize func(uint64) error,
 ) (bool, error) {
 	if session == nil {
 		return false, fmt.Errorf("%w: generation %s for instance '%s' has no peer-drain session", db.ErrReplicationPeerDrainPending, generation, instance.Name)
@@ -2089,8 +2177,16 @@ func (cm *Manager) observeInstancePeerDrainGeneration(
 				// Join the SDK session before potentially slow P/provider work while
 				// retaining the exact application route-generation lease.
 				session.Close()
+				if !runtime.Available() || runtime.RuntimeGeneration() == 0 {
+					return fmt.Errorf(
+						"%w for instance '%s' after finalizing generation %s",
+						db.ErrReplicationPeerDrainUnavailable,
+						instance.Name,
+						generation,
+					)
+				}
 				if afterFinalize != nil {
-					return afterFinalize()
+					return afterFinalize(runtime.RuntimeGeneration())
 				}
 				return nil
 			})
@@ -2098,20 +2194,10 @@ func (cm *Manager) observeInstancePeerDrainGeneration(
 				return false, nil
 			}
 			// Finalize succeeded and the guarded phase continuation failed. Do
-			// not re-finalize in this attempt; recovery resolves P first. If P
-			// exhausted only validated pre-publication retries, preserve this as a
-			// deferred drain outcome. Its replicated instance snapshot remains
-			// pre-delete, so a later attempt must establish a fresh route fence
-			// and drain generation before trying P again.
+			// not re-finalize in this attempt; recovery resolves P first. The DB
+			// execution boundary has already consumed any same-call retry authority,
+			// so this layer never reclassifies the diagnostic error graph.
 			if finalizeCompleted {
-				if isPeerDrainAuthorizationRejectionsExhausted(finalizeErr) {
-					return false, fmt.Errorf(
-						"%w: generation %s finalized but peer-drain authorization P remained safely rejected: %w",
-						db.ErrReplicationPeerDrainPending,
-						generation,
-						finalizeErr,
-					)
-				}
 				return false, finalizeErr
 			}
 			// A successful response with a malformed identity is not permission
@@ -2212,16 +2298,19 @@ func (cm *Manager) observeInstancePeerDrainGeneration(
 				}
 				return false, fmt.Errorf("%w: watch generation %s for instance '%s' closed before a terminal status", db.ErrReplicationPeerDrainPending, generation, instance.Name)
 			}
-			if event.Err != nil {
-				if !runtime.Available() {
-					return false, fmt.Errorf("%w for instance '%s' while watching generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, event.Err)
-				}
-				return false, fmt.Errorf("%w: watch generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, event.Err)
-			}
 			if validationErr := event.ValidateFor(request); validationErr != nil {
 				// Treat invalid forwarded state as descriptive evidence behind the
 				// package-minted pending boundary, never as independent authority.
 				return false, fmt.Errorf("%w: invalid event for generation %s of instance '%s': %s", db.ErrReplicationPeerDrainPending, generation, instance.Name, validationErr.Error())
+			}
+			if terminalErr := event.Terminal(); terminalErr != nil {
+				if !runtime.Available() {
+					return false, fmt.Errorf("%w for instance '%s' while watching generation %s: %w", db.ErrReplicationPeerDrainUnavailable, instance.Name, generation, terminalErr)
+				}
+				return false, fmt.Errorf("%w: watch generation %s for instance '%s': %w", db.ErrReplicationPeerDrainPending, generation, instance.Name, terminalErr)
+			}
+			if !event.ActionableFor(request) {
+				return false, fmt.Errorf("%w: non-actionable event for generation %s of instance '%s'", db.ErrReplicationPeerDrainPending, generation, instance.Name)
 			}
 			status = event.Snapshot
 			haveStatus = true

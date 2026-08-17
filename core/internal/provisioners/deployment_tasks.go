@@ -3,9 +3,7 @@ package provisioners
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	stdsql "database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +30,8 @@ const (
 	instanceLifecycleOperationDelete    = "delete"
 	instanceDeleteInvariantAbsent       = "instance_absent"
 	instanceDeleteRecoveryObserveLimit  = 5 * time.Second
-	instanceDeleteRecoveryModel         = "immutable_operation_facts"
+	instanceDeleteRecoveryModel         = "immutable_operation_recovery_v1"
+	instanceOperationRecoveryVersion    = 1
 	instancePeerDrainAuthorizationFact  = "instance_peer_drain_authorization"
 
 	// Instance delete is an idempotent multi-phase lifecycle (mark deleting,
@@ -93,10 +92,15 @@ type instanceDeleteInvariant struct {
 // publish. It is sufficient to resolve the original Swarmion event after a
 // process restart even when DeleteReceipt was never checkpointed.
 type instanceDeleteOperationIdentity struct {
-	Key               string                  `json:"key"`
-	IntentDigest      string                  `json:"intent_digest"`
-	AuthorPeerID      string                  `json:"author_peer_id"`
-	ExpectedInvariant instanceDeleteInvariant `json:"expected_invariant"`
+	RecoveryVersion   int                        `json:"recovery_version"`
+	Operation         db.PublishedWriteOperation `json:"operation"`
+	ExpectedInvariant instanceDeleteInvariant    `json:"expected_invariant"`
+}
+
+func sameInstanceDeleteOperationIdentity(left, right instanceDeleteOperationIdentity) bool {
+	return left.RecoveryVersion == right.RecoveryVersion &&
+		left.Operation.Equal(right.Operation) &&
+		left.ExpectedInvariant == right.ExpectedInvariant
 }
 
 // instancePeerDrainAuthorization is immutable, replicated phase authority for
@@ -107,15 +111,25 @@ type instanceDeleteOperationIdentity struct {
 // attempt or time. The persisted lifecycle owner is immutable application
 // authority and therefore is part of the snapshot and operation digest.
 type instancePeerDrainAuthorization struct {
-	Key             string                          `json:"key"`
-	IntentDigest    string                          `json:"intent_digest"`
-	AuthorPeerID    string                          `json:"author_peer_id"`
+	RecoveryVersion int                             `json:"recovery_version"`
+	Operation       db.PublishedWriteOperation      `json:"operation"`
 	DeleteOperation instanceDeleteOperationIdentity `json:"delete_operation"`
 	TaskID          string                          `json:"task_id"`
 	InstanceID      string                          `json:"instance_id"`
 	PeerID          string                          `json:"peer_id"`
 	LocalOnly       bool                            `json:"local_only"`
 	Instance        instancePeerDrainInstance       `json:"instance"`
+}
+
+func sameInstancePeerDrainAuthorization(left, right instancePeerDrainAuthorization) bool {
+	return left.RecoveryVersion == right.RecoveryVersion &&
+		left.Operation.Equal(right.Operation) &&
+		sameInstanceDeleteOperationIdentity(left.DeleteOperation, right.DeleteOperation) &&
+		left.TaskID == right.TaskID &&
+		left.InstanceID == right.InstanceID &&
+		left.PeerID == right.PeerID &&
+		left.LocalOnly == right.LocalOnly &&
+		left.Instance == right.Instance
 }
 
 // instancePeerDrainInstance is the complete persisted machine/provider row
@@ -165,9 +179,11 @@ type instanceDeleteOperationReceipt struct {
 // is inserted in the same SQL transaction as the final record deletion. It
 // deliberately excludes task progress and execution ownership.
 type instanceDeleteEffectFactPayload struct {
-	OperationID       string                  `json:"operation_id"`
-	Operation         string                  `json:"operation"`
-	ExpectedInvariant instanceDeleteInvariant `json:"expected_invariant"`
+	RecoveryVersion    int                        `json:"recovery_version"`
+	PublishedOperation db.PublishedWriteOperation `json:"published_operation"`
+	OperationID        string                     `json:"operation_id"`
+	Operation          string                     `json:"operation"`
+	ExpectedInvariant  instanceDeleteInvariant    `json:"expected_invariant"`
 }
 
 // instanceDeleteReceiptFactPayload contains only exact receipt identity
@@ -175,13 +191,15 @@ type instanceDeleteEffectFactPayload struct {
 // Checkpoint and durability observations remain mutable projections and never
 // participate in this fact's deterministic identity.
 type instanceDeleteReceiptFactPayload struct {
-	OperationID           string                  `json:"operation_id"`
-	Operation             string                  `json:"operation"`
-	ExpectedInvariant     instanceDeleteInvariant `json:"expected_invariant"`
-	EventID               string                  `json:"event_id"`
-	PublishedRootHash     string                  `json:"published_root_hash"`
-	OperationIntentDigest string                  `json:"operation_intent_digest"`
-	OperationAuthorPeerID string                  `json:"operation_author_peer_id"`
+	RecoveryVersion       int                        `json:"recovery_version"`
+	PublishedOperation    db.PublishedWriteOperation `json:"published_operation"`
+	OperationID           string                     `json:"operation_id"`
+	Operation             string                     `json:"operation"`
+	ExpectedInvariant     instanceDeleteInvariant    `json:"expected_invariant"`
+	EventID               string                     `json:"event_id"`
+	PublishedRootHash     string                     `json:"published_root_hash"`
+	OperationIntentDigest string                     `json:"operation_intent_digest"`
+	OperationAuthorPeerID string                     `json:"operation_author_peer_id"`
 }
 
 type uploadLocalImageTaskPayload struct {
@@ -277,7 +295,7 @@ func validateInstanceDeleteTaskPayloadModel(payload instanceLifecycleTaskPayload
 	model := strings.TrimSpace(payload.RecoveryModel)
 	if model != instanceDeleteRecoveryModel {
 		return fmt.Errorf(
-			"instance delete task %s uses unsupported recovery model %q; immutable operation facts are required",
+			"instance delete task %s uses unsupported recovery model %q; preview key/digest-only facts are not accepted, immutable operation recovery v1 is required",
 			strings.TrimSpace(taskID),
 			model,
 		)
@@ -285,7 +303,12 @@ func validateInstanceDeleteTaskPayloadModel(payload instanceLifecycleTaskPayload
 	if payload.DeleteOperation == nil {
 		return fmt.Errorf("instance delete task %s is missing its immutable operation identity", strings.TrimSpace(taskID))
 	}
-	return nil
+	return validateInstanceDeleteOperationIdentity(
+		*payload.DeleteOperation,
+		strings.TrimSpace(taskID),
+		strings.TrimSpace(payload.InstanceID),
+		payload.LocalOnly,
+	)
 }
 
 // recoverInstanceLifecycleTaskFromOperationFacts never resolves or claims a
@@ -319,7 +342,7 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 		if factErr != nil {
 			return tasks.StreamRecoveryReady, tasks.MarkPermanent(factErr)
 		}
-		if factIdentity != identity {
+		if !sameInstanceDeleteOperationIdentity(factIdentity, identity) {
 			return tasks.StreamRecoveryReady, tasks.MarkPermanent(fmt.Errorf(
 				"%w: task payload and effect fact disagree task_id=%s",
 				tasks.ErrOperationFactConflict,
@@ -355,11 +378,11 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 			}
 			return tasks.StreamRecoveryReady, fmt.Errorf("resolve immutable receipt fact %s: %w", operationID, resolveErr)
 		}
-		switch resolved.State {
-		case swarmionapp.OperationResolvedUnavailable:
+		switch resolved.Disposition() {
+		case swarmionapp.OperationRecoveryRequired:
 			return tasks.StreamRecoveryDeferred, nil
-		case swarmionapp.OperationResolvedAccepted:
-			if !receipt.matchesOperationResolution(resolved) {
+		case swarmionapp.OperationAccepted:
+			if !receipt.matchesOperationResult(identity.Operation, resolved) {
 				return tasks.StreamRecoveryReady, tasks.MarkPermanent(fmt.Errorf(
 					"%w: immutable receipt fact disagrees with Swarmion operation binding task_id=%s",
 					tasks.ErrOperationFactConflict,
@@ -368,11 +391,10 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 			}
 		default:
 			return tasks.StreamRecoveryReady, tasks.MarkPermanent(fmt.Errorf(
-				"%w: immutable receipt fact has no matching Swarmion operation binding task_id=%s resolution=%s safe_to_execute=%t",
+				"%w: immutable receipt fact has no matching Swarmion operation binding task_id=%s disposition=%s",
 				tasks.ErrOperationFactConflict,
 				operationID,
-				resolved.State,
-				resolved.SafeToExecute,
+				resolved.Disposition(),
 			))
 		}
 	} else {
@@ -387,30 +409,28 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 			}
 			return tasks.StreamRecoveryReady, fmt.Errorf("resolve immutable instance delete operation %s: %w", operationID, lookupErr)
 		}
-		switch resolved.State {
-		case swarmionapp.OperationResolvedAbsent:
+		switch resolved.Disposition() {
+		case swarmionapp.OperationRetryPermitted:
 			if effectFound {
 				// SQL already proves that the operation event exists. Treat a lagging
 				// protocol binding as not-ready, never as permission to republish.
 				return tasks.StreamRecoveryDeferred, nil
 			}
-			if !resolved.SafeToExecute {
-				return tasks.StreamRecoveryDeferred, nil
-			}
 			return tasks.StreamRecoveryReady, nil
-		case swarmionapp.OperationResolvedUnavailable:
+		case swarmionapp.OperationRecoveryRequired:
 			return tasks.StreamRecoveryDeferred, nil
-		case swarmionapp.OperationResolvedAccepted:
-			published, receiptErr := db.PublishedWriteReceiptFromResolution(resolved)
+		case swarmionapp.OperationAccepted:
+			published, receiptErr := db.PublishedWriteReceiptFromResult(identity.Operation, resolved)
 			if receiptErr != nil {
 				return tasks.StreamRecoveryReady, fmt.Errorf("recover immutable instance delete operation %s: %w", operationID, receiptErr)
 			}
 			receipt = instanceDeleteReceiptFromPublished(operationID, identity, published)
 		default:
 			return tasks.StreamRecoveryReady, fmt.Errorf(
-				"resolve immutable instance delete operation %s returned unknown resolution %q",
+				"resolve immutable instance delete operation %s returned disposition %q: %s",
 				operationID,
-				resolved.State,
+				resolved.Disposition(),
+				operationDiagnosticText(resolved.Diagnostic()),
 			)
 		}
 	}
@@ -445,7 +465,7 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 			))
 		}
 		factIdentity, factErr := instanceDeleteIdentityFromEffectFact(effectFact)
-		if factErr != nil || factIdentity != identity {
+		if factErr != nil || !sameInstanceDeleteOperationIdentity(factIdentity, identity) {
 			if factErr == nil {
 				factErr = fmt.Errorf("%w: applied effect fact identity mismatch task_id=%s", tasks.ErrOperationFactConflict, operationID)
 			}
@@ -481,13 +501,13 @@ func (cm *Manager) recoverInstanceLifecycleTaskFromOperationFacts(
 	return tasks.StreamRecoveryReady, nil
 }
 
-func (receipt instanceDeleteOperationReceipt) matchesOperationResolution(resolved swarmionapp.OperationResolution) bool {
-	return resolved.State == swarmionapp.OperationResolvedAccepted &&
-		resolved.Receipt != nil &&
-		strings.TrimSpace(resolved.Receipt.EventID) == strings.TrimSpace(receipt.EventID) &&
-		strings.TrimSpace(resolved.Receipt.PublishedRootHash) == strings.TrimSpace(receipt.PublishedRootHash) &&
-		strings.TrimSpace(resolved.AuthorPeerID) == strings.TrimSpace(receipt.OperationAuthorPeerID) &&
-		strings.TrimSpace(resolved.Identity.IntentDigest) == strings.TrimSpace(receipt.OperationIntentDigest)
+func (receipt instanceDeleteOperationReceipt) matchesOperationResult(operation db.PublishedWriteOperation, resolved swarmionapp.OperationResult) bool {
+	published, err := db.PublishedWriteReceiptFromResult(operation, resolved)
+	return err == nil &&
+		strings.TrimSpace(published.EventID) == strings.TrimSpace(receipt.EventID) &&
+		strings.TrimSpace(published.PublishedRootHash) == strings.TrimSpace(receipt.PublishedRootHash) &&
+		strings.TrimSpace(published.AuthorPeerID) == strings.TrimSpace(receipt.OperationAuthorPeerID) &&
+		strings.TrimSpace(published.OperationIntentDigest) == strings.TrimSpace(receipt.OperationIntentDigest)
 }
 
 // logInstanceDeleteRecoveryDeferred documents the deliberate parked/pending
@@ -517,7 +537,7 @@ func (cm *Manager) logInstanceDeleteRecoveryDeferred(
 	format := "deferring interrupted instance delete recovery without task write or delete republication operation_id=%s operation_author=%s event_id=%s published_root=%s checkpoint_commit=%s checkpoint_root=%s durable_head_commit=%s durable_head_root=%s queryable_root=%s state=%s reason=%s proof_result=%s policy=bounded_background_reobserve"
 	args := []any{
 		operationID,
-		identity.AuthorPeerID,
+		identity.Operation.AuthorPeerID(),
 		receipt.EventID,
 		receipt.PublishedRootHash,
 		receipt.CheckpointCommitID,
@@ -542,6 +562,7 @@ func newPendingInstanceID() string {
 }
 
 func newInstanceDeleteOperationIdentity(
+	store *db.DB,
 	operationID string,
 	instance InstanceInfo,
 	localOnly bool,
@@ -550,10 +571,6 @@ func newInstanceDeleteOperationIdentity(
 	operationID = strings.TrimSpace(operationID)
 	if operationID == "" {
 		return instanceDeleteOperationIdentity{}, fmt.Errorf("instance delete operation ID is empty")
-	}
-	key, err := db.NewPublishedWriteOperationKey()
-	if err != nil {
-		return instanceDeleteOperationIdentity{}, err
 	}
 	peerID := ""
 	if strings.TrimSpace(instance.PublicKey) != "" {
@@ -564,35 +581,36 @@ func newInstanceDeleteOperationIdentity(
 		InstanceID: strings.TrimSpace(instance.ID),
 		PeerID:     strings.TrimSpace(peerID),
 	}
-	operation, err := db.NewPublishedWriteOperation(
-		key,
-		"protos:instance-record-delete",
-		operationID,
-		invariant.InstanceID,
-		strconv.FormatBool(localOnly),
-		invariant.Kind,
-		invariant.PeerID,
+	operation, err := store.NewPublishedWriteOperation(
+		db.OperationSchemaInstanceDelete,
+		[]byte(operationID),
+		[]byte(invariant.InstanceID),
+		[]byte(strconv.FormatBool(localOnly)),
+		[]byte(invariant.Kind),
+		[]byte(invariant.PeerID),
 	)
 	if err != nil {
 		return instanceDeleteOperationIdentity{}, err
 	}
+	if strings.TrimSpace(authorPeerID) != operation.AuthorPeerID() {
+		return instanceDeleteOperationIdentity{}, fmt.Errorf(
+			"instance delete author %q does not match runtime recovery author %q",
+			strings.TrimSpace(authorPeerID), operation.AuthorPeerID(),
+		)
+	}
 	return instanceDeleteOperationIdentity{
-		Key:               operation.Key,
-		IntentDigest:      operation.IntentDigest,
-		AuthorPeerID:      strings.TrimSpace(authorPeerID),
+		RecoveryVersion:   instanceOperationRecoveryVersion,
+		Operation:         operation,
 		ExpectedInvariant: invariant,
 	}, nil
 }
 
 func (identity instanceDeleteOperationIdentity) publishedWriteOperation() db.PublishedWriteOperation {
-	return db.PublishedWriteOperation{
-		Key:          strings.TrimSpace(identity.Key),
-		IntentDigest: strings.TrimSpace(identity.IntentDigest),
-		AuthorPeerID: strings.TrimSpace(identity.AuthorPeerID),
-	}
+	return identity.Operation
 }
 
 func newInstancePeerDrainAuthorization(
+	store *db.DB,
 	taskID string,
 	deleteOperation instanceDeleteOperationIdentity,
 	instance InstanceInfo,
@@ -609,23 +627,19 @@ func newInstancePeerDrainAuthorization(
 	if err != nil {
 		return instancePeerDrainAuthorization{}, err
 	}
-	if strings.TrimSpace(deleteOperation.AuthorPeerID) != ownerPeerID {
+	if strings.TrimSpace(deleteOperation.Operation.AuthorPeerID()) != ownerPeerID {
 		return instancePeerDrainAuthorization{}, fmt.Errorf(
 			"%w: instance=%s persisted_owner=%s delete_author=%s",
 			ErrInstanceLifecycleOwnerConflict,
 			instance.ID,
 			ownerPeerID,
-			deleteOperation.AuthorPeerID,
+			deleteOperation.Operation.AuthorPeerID(),
 		)
 	}
 	peerID, err := db.PeerIDFromPublicKeyString(instance.PublicKey)
 	if err != nil {
 		return instancePeerDrainAuthorization{}, fmt.Errorf("derive peer-drain authorization peer: %w", err)
 	}
-	keyDigest := sha256.Sum256([]byte(
-		"protos:instance-peer-drain-authorization-key\x00" + strings.TrimSpace(deleteOperation.Key),
-	))
-	key := hex.EncodeToString(keyDigest[:])
 	snapshot := instancePeerDrainInstance{
 		Name:                 instance.Name,
 		Kind:                 instance.Kind,
@@ -639,36 +653,34 @@ func newInstancePeerDrainAuthorization(
 		PublicKey:            instance.PublicKey,
 		LifecycleOwnerPeerID: ownerPeerID,
 	}
-	operation, err := db.NewPublishedWriteOperation(
-		key,
-		"protos:instance-peer-drain-authorization",
-		instancePeerDrainAuthorizationFact,
-		taskID,
-		strings.TrimSpace(deleteOperation.Key),
-		strings.TrimSpace(deleteOperation.IntentDigest),
-		strings.TrimSpace(deleteOperation.AuthorPeerID),
-		strings.TrimSpace(instance.ID),
-		peerID,
-		strconv.FormatBool(localOnly),
-		snapshot.Name,
-		snapshot.Kind,
-		snapshot.KindID,
-		snapshot.ProviderResourceID,
-		snapshot.PreDesiredStatus,
-		strconv.Itoa(snapshot.ReplicationPriority),
-		snapshot.PublicIP,
-		snapshot.Location,
-		snapshot.Architecture,
-		snapshot.PublicKey,
-		snapshot.LifecycleOwnerPeerID,
+	operation, err := store.NewPublishedWriteOperation(
+		db.OperationSchemaPeerDrainAuthorize,
+		[]byte(instancePeerDrainAuthorizationFact),
+		[]byte(taskID),
+		[]byte(deleteOperation.Operation.Key()),
+		[]byte(deleteOperation.Operation.IntentDigest()),
+		[]byte(deleteOperation.Operation.AuthorPeerID()),
+		[]byte(strings.TrimSpace(instance.ID)),
+		[]byte(peerID),
+		[]byte(strconv.FormatBool(localOnly)),
+		[]byte(snapshot.Name),
+		[]byte(snapshot.Kind),
+		[]byte(snapshot.KindID),
+		[]byte(snapshot.ProviderResourceID),
+		[]byte(snapshot.PreDesiredStatus),
+		[]byte(strconv.Itoa(snapshot.ReplicationPriority)),
+		[]byte(snapshot.PublicIP),
+		[]byte(snapshot.Location),
+		[]byte(snapshot.Architecture),
+		[]byte(snapshot.PublicKey),
+		[]byte(snapshot.LifecycleOwnerPeerID),
 	)
 	if err != nil {
 		return instancePeerDrainAuthorization{}, err
 	}
 	return instancePeerDrainAuthorization{
-		Key:             operation.Key,
-		IntentDigest:    operation.IntentDigest,
-		AuthorPeerID:    strings.TrimSpace(deleteOperation.AuthorPeerID),
+		RecoveryVersion: instanceOperationRecoveryVersion,
+		Operation:       operation,
 		DeleteOperation: deleteOperation,
 		TaskID:          taskID,
 		InstanceID:      strings.TrimSpace(instance.ID),
@@ -679,11 +691,7 @@ func newInstancePeerDrainAuthorization(
 }
 
 func (authorization instancePeerDrainAuthorization) publishedWriteOperation() db.PublishedWriteOperation {
-	return db.PublishedWriteOperation{
-		Key:          strings.TrimSpace(authorization.Key),
-		IntentDigest: strings.TrimSpace(authorization.IntentDigest),
-		AuthorPeerID: strings.TrimSpace(authorization.AuthorPeerID),
-	}
+	return authorization.Operation
 }
 
 func (authorization instancePeerDrainAuthorization) expectedInstance() InstanceInfo {
@@ -710,22 +718,49 @@ func validateInstancePeerDrainAuthorization(
 	instanceID string,
 	localOnly bool,
 ) error {
+	if authorization.RecoveryVersion != instanceOperationRecoveryVersion {
+		return fmt.Errorf("unsupported peer-drain authorization recovery version %d; preview key/digest-only state is not accepted", authorization.RecoveryVersion)
+	}
+	if err := authorization.Operation.Validate(); err != nil {
+		return fmt.Errorf("peer-drain authorization operation: %w", err)
+	}
 	if strings.TrimSpace(authorization.TaskID) != strings.TrimSpace(taskID) ||
 		strings.TrimSpace(authorization.InstanceID) != strings.TrimSpace(instanceID) ||
-		authorization.LocalOnly != localOnly || authorization.DeleteOperation != deleteOperation {
+		authorization.LocalOnly != localOnly ||
+		!authorization.DeleteOperation.Operation.Equal(deleteOperation.Operation) ||
+		authorization.DeleteOperation.RecoveryVersion != deleteOperation.RecoveryVersion ||
+		authorization.DeleteOperation.ExpectedInvariant != deleteOperation.ExpectedInvariant {
 		return fmt.Errorf("invalid immutable peer-drain authorization identity for task %s", taskID)
 	}
-	expected, err := newInstancePeerDrainAuthorization(
-		taskID,
-		deleteOperation,
-		authorization.expectedInstance(),
-		localOnly,
+	snapshot := authorization.Instance
+	expected, err := swarmionapp.NewOperationIdentity(
+		authorization.Operation.Key(),
+		db.OperationSchemaPeerDrainAuthorize,
+		[]byte(instancePeerDrainAuthorizationFact),
+		[]byte(strings.TrimSpace(taskID)),
+		[]byte(deleteOperation.Operation.Key()),
+		[]byte(deleteOperation.Operation.IntentDigest()),
+		[]byte(deleteOperation.Operation.AuthorPeerID()),
+		[]byte(strings.TrimSpace(instanceID)),
+		[]byte(strings.TrimSpace(authorization.PeerID)),
+		[]byte(strconv.FormatBool(localOnly)),
+		[]byte(snapshot.Name),
+		[]byte(snapshot.Kind),
+		[]byte(snapshot.KindID),
+		[]byte(snapshot.ProviderResourceID),
+		[]byte(snapshot.PreDesiredStatus),
+		[]byte(strconv.Itoa(snapshot.ReplicationPriority)),
+		[]byte(snapshot.PublicIP),
+		[]byte(snapshot.Location),
+		[]byte(snapshot.Architecture),
+		[]byte(snapshot.PublicKey),
+		[]byte(snapshot.LifecycleOwnerPeerID),
 	)
 	if err != nil {
 		return err
 	}
-	if expected != authorization {
-		return fmt.Errorf("immutable peer-drain authorization does not match its deterministic identity for task %s", taskID)
+	if expected.Key() != authorization.Operation.Key() || expected.IntentDigest() != authorization.Operation.IntentDigest() {
+		return fmt.Errorf("immutable peer-drain authorization does not match its persisted identity for task %s", taskID)
 	}
 	return nil
 }
@@ -754,9 +789,11 @@ func newInstanceDeleteEffectFact(
 		taskSubjectInstance,
 		identity.ExpectedInvariant.InstanceID,
 		instanceDeleteEffectFactPayload{
-			OperationID:       strings.TrimSpace(operationID),
-			Operation:         instanceLifecycleOperationDelete,
-			ExpectedInvariant: identity.ExpectedInvariant,
+			RecoveryVersion:    instanceOperationRecoveryVersion,
+			PublishedOperation: identity.Operation,
+			OperationID:        strings.TrimSpace(operationID),
+			Operation:          instanceLifecycleOperationDelete,
+			ExpectedInvariant:  identity.ExpectedInvariant,
 		},
 	)
 }
@@ -768,14 +805,12 @@ func newInstanceDeleteReceiptFact(
 	return tasks.NewOperationFact(
 		receipt.OperationID,
 		tasks.OperationFactKindReceipt,
-		db.PublishedWriteOperation{
-			Key:          identity.Key,
-			IntentDigest: receipt.OperationIntentDigest,
-			AuthorPeerID: receipt.OperationAuthorPeerID,
-		},
+		identity.Operation,
 		taskSubjectInstance,
 		receipt.ExpectedInvariant.InstanceID,
 		instanceDeleteReceiptFactPayload{
+			RecoveryVersion:       instanceOperationRecoveryVersion,
+			PublishedOperation:    identity.Operation,
 			OperationID:           strings.TrimSpace(receipt.OperationID),
 			Operation:             instanceLifecycleOperationDelete,
 			ExpectedInvariant:     receipt.ExpectedInvariant,
@@ -793,12 +828,15 @@ func instanceDeleteIdentityFromEffectFact(fact tasks.OperationFact) (instanceDel
 		return instanceDeleteOperationIdentity{}, fmt.Errorf("decode instance delete effect fact: %w", err)
 	}
 	identity := instanceDeleteOperationIdentity{
-		Key:               strings.TrimSpace(fact.OperationKey),
-		IntentDigest:      strings.TrimSpace(fact.IntentDigest),
-		AuthorPeerID:      strings.TrimSpace(fact.AuthorPeerID),
+		RecoveryVersion:   payload.RecoveryVersion,
+		Operation:         payload.PublishedOperation,
 		ExpectedInvariant: payload.ExpectedInvariant,
 	}
-	if strings.TrimSpace(payload.OperationID) != strings.TrimSpace(fact.TaskID) ||
+	if payload.RecoveryVersion != instanceOperationRecoveryVersion ||
+		payload.PublishedOperation.Key() != strings.TrimSpace(fact.OperationKey) ||
+		payload.PublishedOperation.IntentDigest() != strings.TrimSpace(fact.IntentDigest) ||
+		payload.PublishedOperation.AuthorPeerID() != strings.TrimSpace(fact.AuthorPeerID) ||
+		strings.TrimSpace(payload.OperationID) != strings.TrimSpace(fact.TaskID) ||
 		strings.TrimSpace(payload.Operation) != instanceLifecycleOperationDelete ||
 		strings.TrimSpace(fact.SubjectType) != taskSubjectInstance ||
 		strings.TrimSpace(fact.SubjectID) != strings.TrimSpace(payload.ExpectedInvariant.InstanceID) {
@@ -879,11 +917,13 @@ func instanceDeleteReceiptFromFact(
 	}
 	if strings.TrimSpace(fact.SubjectType) != taskSubjectInstance ||
 		strings.TrimSpace(fact.SubjectID) != strings.TrimSpace(identity.ExpectedInvariant.InstanceID) ||
-		fact.OperationKey != identity.Key ||
-		fact.IntentDigest != identity.IntentDigest ||
-		fact.AuthorPeerID != identity.AuthorPeerID ||
-		receipt.OperationIntentDigest != identity.IntentDigest ||
-		receipt.OperationAuthorPeerID != identity.AuthorPeerID {
+		payload.RecoveryVersion != instanceOperationRecoveryVersion ||
+		!payload.PublishedOperation.Equal(identity.Operation) ||
+		fact.OperationKey != identity.Operation.Key() ||
+		fact.IntentDigest != identity.Operation.IntentDigest() ||
+		fact.AuthorPeerID != identity.Operation.AuthorPeerID() ||
+		receipt.OperationIntentDigest != identity.Operation.IntentDigest() ||
+		receipt.OperationAuthorPeerID != identity.Operation.AuthorPeerID() {
 		return instanceDeleteOperationReceipt{}, fmt.Errorf("%w: receipt/effect identity mismatch task_id=%s", tasks.ErrOperationFactConflict, fact.TaskID)
 	}
 	return receipt, nil
@@ -910,31 +950,29 @@ func validateInstanceDeleteOperationIdentity(
 	instanceID string,
 	localOnly bool,
 ) error {
-	key := strings.TrimSpace(identity.Key)
-	keyBytes, err := hex.DecodeString(key)
-	if err != nil || len(keyBytes) < 16 {
-		return fmt.Errorf("instance delete operation key must contain at least 128 bits")
+	if identity.RecoveryVersion != instanceOperationRecoveryVersion {
+		return fmt.Errorf("unsupported instance delete recovery version %d; preview key/digest-only state is not accepted", identity.RecoveryVersion)
 	}
-	if strings.TrimSpace(identity.AuthorPeerID) == "" {
-		return fmt.Errorf("instance delete operation author peer ID is empty")
+	if err := identity.Operation.Validate(); err != nil {
+		return fmt.Errorf("instance delete operation: %w", err)
 	}
 	if identity.ExpectedInvariant.Kind != instanceDeleteInvariantAbsent ||
 		strings.TrimSpace(identity.ExpectedInvariant.InstanceID) != strings.TrimSpace(instanceID) {
 		return fmt.Errorf("instance delete operation has invalid expected invariant: %+v", identity.ExpectedInvariant)
 	}
-	expected, err := db.NewPublishedWriteOperation(
-		key,
-		"protos:instance-record-delete",
-		strings.TrimSpace(operationID),
-		strings.TrimSpace(instanceID),
-		strconv.FormatBool(localOnly),
-		identity.ExpectedInvariant.Kind,
-		strings.TrimSpace(identity.ExpectedInvariant.PeerID),
+	expected, err := swarmionapp.NewOperationIdentity(
+		identity.Operation.Key(),
+		db.OperationSchemaInstanceDelete,
+		[]byte(strings.TrimSpace(operationID)),
+		[]byte(strings.TrimSpace(instanceID)),
+		[]byte(strconv.FormatBool(localOnly)),
+		[]byte(identity.ExpectedInvariant.Kind),
+		[]byte(strings.TrimSpace(identity.ExpectedInvariant.PeerID)),
 	)
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(identity.IntentDigest) != expected.IntentDigest {
+	if identity.Operation.Key() != expected.Key() || identity.Operation.IntentDigest() != expected.IntentDigest() {
 		return fmt.Errorf("instance delete operation intent digest does not match its replicated invariant")
 	}
 	return nil
@@ -1173,13 +1211,13 @@ func (cm *Manager) queueInstanceLifecycle(ctx context.Context, instance Instance
 		if err != nil {
 			return tasks.Record{}, err
 		}
-		identity, err := newInstanceDeleteOperationIdentity(taskID, instance, localOnly, ownerPeerID)
+		identity, err := newInstanceDeleteOperationIdentity(cm.db, taskID, instance, localOnly, ownerPeerID)
 		if err != nil {
 			return tasks.Record{}, err
 		}
 		deleteOperation = &identity
 		if strings.TrimSpace(instance.PublicKey) != "" {
-			authorization, err := newInstancePeerDrainAuthorization(taskID, identity, instance, localOnly)
+			authorization, err := newInstancePeerDrainAuthorization(cm.db, taskID, identity, instance, localOnly)
 			if err != nil {
 				return tasks.Record{}, err
 			}
@@ -1256,18 +1294,18 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 		}
 		authorityInstance := persistedInstance
 		if persistedErr != nil {
-			authorityInstance = InstanceInfo{ID: instanceID, LifecycleOwnerPeerID: identity.AuthorPeerID}
+			authorityInstance = InstanceInfo{ID: instanceID, LifecycleOwnerPeerID: identity.Operation.AuthorPeerID()}
 		}
 		if err := cm.assertInstanceLifecycleExecutor(authorityInstance, instanceTaskOwner(task.Task())); err != nil {
 			return instanceLifecycleTaskResult{}, tasks.MarkPermanent(err)
 		}
-		if strings.TrimSpace(identity.AuthorPeerID) != strings.TrimSpace(authorityInstance.LifecycleOwnerPeerID) {
+		if strings.TrimSpace(identity.Operation.AuthorPeerID()) != strings.TrimSpace(authorityInstance.LifecycleOwnerPeerID) {
 			return instanceLifecycleTaskResult{}, tasks.MarkPermanent(fmt.Errorf(
 				"%w: instance=%s persisted_owner=%s delete_author=%s",
 				ErrInstanceLifecycleOwnerConflict,
 				instanceID,
 				authorityInstance.LifecycleOwnerPeerID,
-				identity.AuthorPeerID,
+				identity.Operation.AuthorPeerID(),
 			))
 		}
 		if err := validateInstanceDeleteOperationIdentity(*identity, task.Task().ID, instanceID, payload.LocalOnly); err != nil {
@@ -1335,7 +1373,7 @@ func (cm *Manager) runInstanceLifecycleTask(ctx context.Context, task *tasks.Run
 				return instanceLifecycleTaskResult{}, tasks.MarkDeferred(err)
 			}
 			var noReceipt *instanceDeletePublicationWithoutReceiptError
-			if errors.As(err, &noReceipt) && !db.IsRetryablePublishedWriteError(err) {
+			if errors.As(err, &noReceipt) {
 				return instanceLifecycleTaskResult{}, tasks.MarkPermanent(err)
 			}
 			return instanceLifecycleTaskResult{}, err

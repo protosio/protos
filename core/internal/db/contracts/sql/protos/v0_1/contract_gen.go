@@ -5,20 +5,20 @@ package protosv01
 import (
 	_ "embed"
 
-	"github.com/nustiueudinastea/swarmion/runtime/schema"
+	swarmion "github.com/nustiueudinastea/swarmion/runtime"
 )
 
 //go:embed contract.cue
 var CUELineage string
 
-var Version = schema.VersionDefinition{
+var Version = swarmion.SchemaVersionDefinition{
 	Version:    "0.1",
 	CUELineage: CUELineage,
-	SQL: schema.SQLSnapshot{
-		Tables: []schema.SQLTable{
+	SQL: swarmion.SchemaSQLSnapshot{
+		Tables: []swarmion.SchemaSQLTable{
 			{
 				Name: "machines",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "kind", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -28,7 +28,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "cloud_machines_metadata",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "cloud_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "provider_resource_id", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
@@ -41,7 +41,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "cloud_providers",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "type", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -50,7 +50,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "apps",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "installer_ref", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -62,7 +62,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "organisations",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "created_at", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
@@ -70,7 +70,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "users",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "username", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "name", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: false},
@@ -79,7 +79,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "user_devices_metadata",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "public_key", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "user_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
@@ -89,14 +89,14 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "peers",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "public_key", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 				},
 			},
 			{
 				Name: "tasks",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "task_stream", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
 					{Name: "subject_type", Type: "VARCHAR(255)", PrimaryKey: false, NotNull: true},
@@ -119,7 +119,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "task_events",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "task_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
 					{Name: "status", Type: "VARCHAR(64)", PrimaryKey: false, NotNull: true},
@@ -131,7 +131,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "task_operation_facts",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "CHAR(64)", PrimaryKey: true, NotNull: true},
 					{Name: "task_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
 					{Name: "fact_kind", Type: "VARCHAR(128)", PrimaryKey: false, NotNull: true},
@@ -145,7 +145,7 @@ var Version = schema.VersionDefinition{
 			},
 			{
 				Name: "exit_routes",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 					{Name: "id", Type: "BINARY(16)", PrimaryKey: true, NotNull: true},
 					{Name: "device_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
 					{Name: "instance_id", Type: "BINARY(16)", PrimaryKey: false, NotNull: true},
@@ -158,20 +158,20 @@ var Version = schema.VersionDefinition{
 	},
 }
 
-var Transition = schema.TransitionDefinition{
+var Transition = swarmion.SchemaTransitionDefinition{
 	FromVersion:           "0.0",
 	ToVersion:             "0.1",
-	Compatibility:         schema.Compatibility("breaking"),
+	Compatibility:         swarmion.SchemaCompatibility("breaking"),
 	RequiredWriteColumns:  map[string][]string{},
 	ForbiddenWriteColumns: map[string][]string{},
 }
 
 // InitialTransition permits a fresh repository to install the complete
 // current schema in the same atomic migration batch.
-var InitialTransition = schema.TransitionDefinition{
+var InitialTransition = swarmion.SchemaTransitionDefinition{
 	FromVersion:           "",
 	ToVersion:             "0.1",
-	Compatibility:         schema.Compatibility("breaking"),
+	Compatibility:         swarmion.SchemaCompatibility("breaking"),
 	RequiredWriteColumns:  map[string][]string{},
 	ForbiddenWriteColumns: map[string][]string{},
 }

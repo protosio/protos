@@ -3,7 +3,6 @@ package provisioners
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -75,8 +74,8 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 		t.Fatal("queued delete task did not replicate its operation identity")
 	}
 	operationIdentity := *queuedPayload.DeleteOperation
-	if operationIdentity.AuthorPeerID != authorStatus.PeerID {
-		t.Fatalf("delete operation author=%q, want author peer A %q", operationIdentity.AuthorPeerID, authorStatus.PeerID)
+	if operationIdentity.Operation.AuthorPeerID() != authorStatus.PeerID {
+		t.Fatalf("delete operation author=%q, want author peer A %q", operationIdentity.Operation.AuthorPeerID(), authorStatus.PeerID)
 	}
 	if queuedPayload.RecoveryModel != instanceDeleteRecoveryModel {
 		t.Fatalf("queued recovery model=%q, want %q", queuedPayload.RecoveryModel, instanceDeleteRecoveryModel)
@@ -166,7 +165,10 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 		t.Fatalf("read replicated delete task on relay peer C: %v", err)
 	}
 	relayPayload := decodeDeleteRestartPayload(t, replicatedOnRelay)
-	if relayPayload.DeleteOperation == nil || *relayPayload.DeleteOperation != operationIdentity ||
+	if relayPayload.DeleteOperation == nil ||
+		relayPayload.DeleteOperation.RecoveryVersion != operationIdentity.RecoveryVersion ||
+		!relayPayload.DeleteOperation.Operation.Equal(operationIdentity.Operation) ||
+		relayPayload.DeleteOperation.ExpectedInvariant != operationIdentity.ExpectedInvariant ||
 		relayPayload.RecoveryModel != instanceDeleteRecoveryModel {
 		t.Fatalf("relay task state=%+v, want exact operation identity and no receipt", relayPayload)
 	}
@@ -191,7 +193,7 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	if accepted.EventID == "" || accepted.PublishedRootHash == "" {
 		t.Fatalf("author crash lost accepted exact receipt: %+v", accepted)
 	}
-	if accepted.AuthorPeerID != authorStatus.PeerID || accepted.OperationIntentDigest != operationIdentity.IntentDigest {
+	if accepted.AuthorPeerID != authorStatus.PeerID || accepted.OperationIntentDigest != operationIdentity.Operation.IntentDigest() {
 		t.Fatalf("accepted receipt lost operation provenance: receipt=%+v identity=%+v", accepted, operationIdentity)
 	}
 	interrupted, err := authorManager.tasks.Get(record.ID)
@@ -199,7 +201,10 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 		t.Fatal(err)
 	}
 	interruptedPayload := decodeDeleteRestartPayload(t, interrupted)
-	if interruptedPayload.DeleteOperation == nil || *interruptedPayload.DeleteOperation != operationIdentity {
+	if interruptedPayload.DeleteOperation == nil ||
+		interruptedPayload.DeleteOperation.RecoveryVersion != operationIdentity.RecoveryVersion ||
+		!interruptedPayload.DeleteOperation.Operation.Equal(operationIdentity.Operation) ||
+		interruptedPayload.DeleteOperation.ExpectedInvariant != operationIdentity.ExpectedInvariant {
 		t.Fatalf("interrupted task lost replicated operation identity: %+v", interruptedPayload.DeleteOperation)
 	}
 	if !relayPending.Known || relayPending.Checkpointed || relayPending.AppliedDurably {
@@ -238,28 +243,23 @@ func TestInstanceDeleteFreshPeerRecoversForeignAuthorOperationFromValidatedPendi
 	if err != nil {
 		t.Fatalf("repeat relay resolution of A-authored pending delete: %v", err)
 	}
-	if !reflect.DeepEqual(repeatedResolved, relayResolved) {
-		t.Fatalf("repeated pending receipt changed: first=%+v repeated=%+v", relayResolved, repeatedResolved)
-	}
+	assertForeignDeleteOperationReceipt(t, repeatedResolved, operationIdentity, accepted)
 
-	unknownKey := operationIdentity.publishedWriteOperation()
-	unknownKey.Key += "-unknown"
+	unknownKey := publishedWriteOperationWithKeyForTest(t, operationIdentity.Operation, operationIdentity.Operation.Key()+"-unknown")
 	assertForeignDeleteOperationUnavailable(t, relayStore, unknownKey, "unknown operation key for known foreign author")
-	wrongAuthor := operationIdentity.publishedWriteOperation()
-	wrongAuthor.AuthorPeerID = "unknown-foreign-author"
+	wrongAuthor := publishedWriteOperationWithAuthorForTest(t, operationIdentity.Operation, "unknown-foreign-author")
 	assertForeignDeleteOperationUnavailable(t, relayStore, wrongAuthor, "known operation key for unknown foreign author")
 
 	// The same operation identity scoped to C is authoritatively absent before
 	// recovery. It must remain absent afterwards; finding it would prove that C
 	// re-executed and published a duplicate delete instead of resuming A's event.
-	relayAuthoredOperation := operationIdentity.publishedWriteOperation()
-	relayAuthoredOperation.AuthorPeerID = relayStatus.PeerID
+	relayAuthoredOperation := publishedWriteOperationWithAuthorForTest(t, operationIdentity.Operation, relayStatus.PeerID)
 	locallyResolvedBefore, err := relayStore.LookupPublishedWriteOperation(context.Background(), relayAuthoredOperation)
 	if err != nil {
 		t.Fatalf("resolve relay-authored operation before recovery: %v", err)
 	}
-	if locallyResolvedBefore.State != swarmionapp.OperationResolvedAbsent || !locallyResolvedBefore.SafeToExecute {
-		t.Fatalf("relay-authored operation before recovery=%+v, want authoritative absent", locallyResolvedBefore)
+	if locallyResolvedBefore.Disposition() != swarmionapp.OperationRetryPermitted {
+		t.Fatalf("relay-authored operation before recovery disposition=%s diagnostic=%v, want retry permitted", locallyResolvedBefore.Disposition(), locallyResolvedBefore.Diagnostic())
 	}
 
 	probeManager := newLifecycleTestManager(t, relayStore, newProvisionerRegistry())
@@ -323,7 +323,7 @@ func waitForForeignDeletePendingEvent(
 	deadline := time.Now().Add(2 * time.Second)
 	var (
 		lastStatus  swarmionapp.ReceiptStatus
-		lastReceipt swarmionapp.OperationResolution
+		lastReceipt swarmionapp.OperationResult
 		lastErr     error
 	)
 	for {
@@ -340,7 +340,7 @@ func waitForForeignDeletePendingEvent(
 				context.Background(),
 				identity.publishedWriteOperation(),
 			)
-			if lastErr == nil && lastReceipt.State == swarmionapp.OperationResolvedAccepted {
+			if lastErr == nil && lastReceipt.Disposition() == swarmionapp.OperationAccepted {
 				assertForeignDeleteOperationReceipt(t, lastReceipt, identity, want)
 				return lastStatus
 			}
@@ -368,44 +368,29 @@ func assertForeignDeleteOperationUnavailable(
 	if err != nil {
 		t.Fatalf("%s lookup failed: %v", reason, err)
 	}
-	if resolved.State != swarmionapp.OperationResolvedUnavailable || resolved.SafeToExecute {
-		t.Fatalf("%s resolution=%q, want unavailable (never authoritative absent): %+v", reason, resolved.State, resolved)
+	if resolved.Disposition() != swarmionapp.OperationRecoveryRequired {
+		t.Fatalf("%s disposition=%q diagnostic=%v, want recovery required", reason, resolved.Disposition(), resolved.Diagnostic())
 	}
 }
 
 func assertForeignDeleteOperationReceipt(
 	t *testing.T,
-	resolved swarmionapp.OperationResolution,
+	resolved swarmionapp.OperationResult,
 	identity instanceDeleteOperationIdentity,
 	want db.PublishedWriteReceipt,
 ) {
 	t.Helper()
-	expectedIdentity, err := swarmionapp.CanonicalOperationIdentity(identity.Key, identity.IntentDigest)
-	if err != nil {
-		t.Fatalf("canonicalize expected foreign operation identity: %v", err)
+	if resolved.Disposition() != swarmionapp.OperationAccepted {
+		t.Fatalf("foreign operation disposition=%s diagnostic=%v, want accepted", resolved.Disposition(), resolved.Diagnostic())
 	}
-	if err := resolved.Validate(); err != nil {
-		t.Fatalf("validate foreign operation resolution: %v", err)
-	}
-	if resolved.State != swarmionapp.OperationResolvedAccepted ||
-		resolved.Receipt == nil ||
-		resolved.Receipt.EventID != want.EventID ||
-		resolved.Receipt.PublishedRootHash != want.PublishedRootHash ||
-		resolved.AuthorPeerID != identity.AuthorPeerID ||
-		resolved.Identity != expectedIdentity {
-		t.Fatalf("foreign operation receipt=%+v, want exact accepted receipt %+v with identity %+v", resolved, want, identity)
-	}
-	if resolved.SafeToExecute || resolved.ReasonCode != "" {
-		t.Fatalf("found foreign operation receipt exposes unavailable/publication guidance: %+v", resolved)
-	}
-	got, err := db.PublishedWriteReceiptFromResolution(resolved)
+	got, err := db.PublishedWriteReceiptFromResult(identity.Operation, resolved)
 	if err != nil {
 		t.Fatalf("convert foreign operation receipt: %v", err)
 	}
 	if got.EventID != want.EventID ||
 		got.PublishedRootHash != want.PublishedRootHash ||
-		got.AuthorPeerID != identity.AuthorPeerID ||
-		got.OperationIntentDigest != identity.IntentDigest {
+		got.AuthorPeerID != identity.Operation.AuthorPeerID() ||
+		got.OperationIntentDigest != identity.Operation.IntentDigest() {
 		t.Fatalf("foreign operation receipt=%+v, want exact accepted receipt %+v with identity %+v", got, want, identity)
 	}
 }

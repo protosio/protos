@@ -15,72 +15,6 @@ import (
 
 var errInstancePeerDrainAuthorizationFactAbsent = errors.New("peer-drain authorization fact absent from checkpoint")
 
-// peerDrainAuthorizationRejectionsExhaustedError records that every P attempt
-// made under one already-finalized route fence carried Swarmion's explicit
-// pre-publication retry authority before the lifecycle context ended. It
-// intentionally exposes only the terminal context through Unwrap: the prior
-// publication error is diagnostic text, not retry authority that callers may
-// recover from this terminal handoff.
-type peerDrainAuthorizationRejectionsExhaustedError struct {
-	terminal       error
-	lastDiagnostic string
-}
-
-func (err *peerDrainAuthorizationRejectionsExhaustedError) Error() string {
-	if err == nil {
-		return "peer-drain authorization safe rejections exhausted"
-	}
-	message := "peer-drain authorization safe rejections exhausted"
-	if err.terminal != nil {
-		message += ": " + err.terminal.Error()
-	}
-	if strings.TrimSpace(err.lastDiagnostic) != "" {
-		message += ": last rejection: " + err.lastDiagnostic
-	}
-	return message
-}
-
-func (err *peerDrainAuthorizationRejectionsExhaustedError) Unwrap() error {
-	if err == nil {
-		return nil
-	}
-	return err.terminal
-}
-
-func newPeerDrainAuthorizationRejectionsExhaustedError(terminal, lastRejection error) error {
-	diagnostic := ""
-	if lastRejection != nil {
-		diagnostic = lastRejection.Error()
-	}
-	return &peerDrainAuthorizationRejectionsExhaustedError{
-		terminal:       terminal,
-		lastDiagnostic: diagnostic,
-	}
-}
-
-// isPeerDrainAuthorizationRejectionsExhausted accepts only the exact
-// provisioner-owned no-receipt -> exhausted marker chain, allowing ordinary
-// single-error wrappers around it. Joined/sibling errors and direct public
-// publication rejections remain non-authorizing and fail closed.
-//
-//nolint:errorlint // Exact current-node assertions are the fail-closed boundary; errors.As would skip over disallowed wrappers.
-func isPeerDrainAuthorizationRejectionsExhausted(err error) bool {
-	for err != nil {
-		if _, joined := err.(interface{ Unwrap() []error }); joined {
-			return false
-		}
-		if noReceipt, ok := err.(*instanceDeletePublicationWithoutReceiptError); ok {
-			if noReceipt == nil {
-				return false
-			}
-			marker, ok := noReceipt.Cause.(*peerDrainAuthorizationRejectionsExhaustedError)
-			return ok && marker != nil && marker.terminal != nil
-		}
-		err = errors.Unwrap(err)
-	}
-	return false
-}
-
 func instancePeerDrainAuthorizationFromFact(fact tasks.OperationFact) (instancePeerDrainAuthorization, error) {
 	var authorization instancePeerDrainAuthorization
 	if err := decodeOperationFactPayload(fact.Payload, &authorization); err != nil {
@@ -90,9 +24,9 @@ func instancePeerDrainAuthorizationFromFact(fact tasks.OperationFact) (instanceP
 		strings.TrimSpace(fact.TaskID) != strings.TrimSpace(authorization.TaskID) ||
 		strings.TrimSpace(fact.SubjectType) != taskSubjectInstance ||
 		strings.TrimSpace(fact.SubjectID) != strings.TrimSpace(authorization.InstanceID) ||
-		strings.TrimSpace(fact.OperationKey) != strings.TrimSpace(authorization.Key) ||
-		strings.TrimSpace(fact.IntentDigest) != strings.TrimSpace(authorization.IntentDigest) ||
-		strings.TrimSpace(fact.AuthorPeerID) != strings.TrimSpace(authorization.AuthorPeerID) {
+		strings.TrimSpace(fact.OperationKey) != strings.TrimSpace(authorization.Operation.Key()) ||
+		strings.TrimSpace(fact.IntentDigest) != strings.TrimSpace(authorization.Operation.IntentDigest()) ||
+		strings.TrimSpace(fact.AuthorPeerID) != strings.TrimSpace(authorization.Operation.AuthorPeerID()) {
 		return instancePeerDrainAuthorization{}, fmt.Errorf("%w: peer-drain authorization fact identity mismatch task=%s", tasks.ErrOperationFactConflict, fact.TaskID)
 	}
 	if err := validateInstancePeerDrainAuthorization(
@@ -162,9 +96,9 @@ func (cm *Manager) resolveInstancePeerDrainAuthorization(
 	if err != nil {
 		return db.PublishedWriteReceipt{}, false, fmt.Errorf("resolve peer-drain authorization P for task %s: %w", authorization.TaskID, err)
 	}
-	switch resolved.State {
-	case swarmionapp.OperationResolvedAccepted:
-		receipt, err := db.PublishedWriteReceiptFromResolution(resolved)
+	switch resolved.Disposition() {
+	case swarmionapp.OperationAccepted:
+		receipt, err := db.PublishedWriteReceiptFromResult(authorization.Operation, resolved)
 		if err != nil {
 			return db.PublishedWriteReceipt{}, false, fmt.Errorf("decode peer-drain authorization P receipt for task %s: %w", authorization.TaskID, err)
 		}
@@ -172,15 +106,14 @@ func (cm *Manager) resolveInstancePeerDrainAuthorization(
 			return db.PublishedWriteReceipt{}, false, err
 		}
 		return receipt, true, nil
-	case swarmionapp.OperationResolvedUnavailable:
+	case swarmionapp.OperationRecoveryRequired:
 		return db.PublishedWriteReceipt{}, false, fmt.Errorf("%w: peer-drain authorization P task=%s", db.ErrOperationReceiptUnavailable, authorization.TaskID)
-	case swarmionapp.OperationResolvedAbsent:
-		if !resolved.SafeToExecute {
-			return db.PublishedWriteReceipt{}, false, fmt.Errorf("%w: peer-drain authorization P task=%s absent without publication authority", db.ErrOperationReceiptUnavailable, authorization.TaskID)
-		}
+	case swarmionapp.OperationRetryPermitted:
 		return db.PublishedWriteReceipt{}, false, nil
+	case swarmionapp.OperationFailedClosed:
+		return db.PublishedWriteReceipt{}, false, fmt.Errorf("peer-drain authorization P task=%s failed closed: %s", authorization.TaskID, operationDiagnosticText(resolved.Diagnostic()))
 	default:
-		return db.PublishedWriteReceipt{}, false, fmt.Errorf("peer-drain authorization P task=%s returned unknown resolution %q", authorization.TaskID, resolved.State)
+		return db.PublishedWriteReceipt{}, false, fmt.Errorf("peer-drain authorization P task=%s returned unknown disposition %q", authorization.TaskID, resolved.Disposition())
 	}
 }
 
@@ -191,8 +124,8 @@ func validatePeerDrainAuthorizationReceipt(
 	if !receipt.HasExactEventIdentity() {
 		return fmt.Errorf("peer-drain authorization P task=%s returned no exact event identity", authorization.TaskID)
 	}
-	if strings.TrimSpace(receipt.OperationIntentDigest) != strings.TrimSpace(authorization.IntentDigest) ||
-		strings.TrimSpace(receipt.AuthorPeerID) != strings.TrimSpace(authorization.AuthorPeerID) {
+	if strings.TrimSpace(receipt.OperationIntentDigest) != strings.TrimSpace(authorization.Operation.IntentDigest()) ||
+		strings.TrimSpace(receipt.AuthorPeerID) != strings.TrimSpace(authorization.Operation.AuthorPeerID()) {
 		return fmt.Errorf("%w: peer-drain authorization P response identity does not match task %s", db.ErrPublishedWriteReceiptIdentityConflict, authorization.TaskID)
 	}
 	return nil
@@ -215,72 +148,54 @@ func (cm *Manager) completeInstancePeerDrainAuthorization(
 	fact tasks.OperationFact,
 	receipt db.PublishedWriteReceipt,
 	alreadyAccepted bool,
+	runtimeGeneration uint64,
 ) (db.PublishedWriteReceipt, error) {
 	expected := authorization.expectedInstance()
-	if err := cm.assertInstanceLifecycleExecutor(expected, authorization.AuthorPeerID); err != nil {
+	if err := cm.assertInstanceLifecycleExecutor(expected, authorization.Operation.AuthorPeerID()); err != nil {
 		return db.PublishedWriteReceipt{}, err
 	}
 	if !alreadyAccepted {
 		publisher := cm.publishPeerDrainAuthorization
 		if publisher == nil {
 			publisher = func(ctx context.Context, operation db.PublishedWriteOperation, instance InstanceInfo, fact tasks.OperationFact) (db.PublishedWriteReceipt, error) {
-				return db.InsertAndUpdateWithOperationReceiptContext(
+				if runtimeGeneration == 0 {
+					return db.PublishedWriteReceipt{}, fmt.Errorf(
+						"%w: peer-drain authorization P task=%s has no runtime generation",
+						db.ErrOperationReceiptUnavailable,
+						authorization.TaskID,
+					)
+				}
+				return db.InsertAndUpdateWithOperationReceiptForRuntimeGenerationContext(
 					ctx,
 					cm.db,
 					operation,
+					runtimeGeneration,
 					[]db.InsertMapper{createInstancePeerDrainAuthorizationFactCASMapper(fact, instance)},
 					[]db.UpdateMapper{createInstancePeerDrainAuthorizationUpdateMapper(instance, fact)},
 				)
 			}
 		}
-		var lastPublishErr error
-		for attempt := 1; ; attempt++ {
-			if err := ctx.Err(); err != nil {
-				if lastPublishErr != nil {
-					return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(
-						newPeerDrainAuthorizationRejectionsExhaustedError(err, lastPublishErr),
-					)
-				}
-				return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(err)
+		if err := ctx.Err(); err != nil {
+			return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(err)
+		}
+		published, publishErr := publisher(ctx, authorization.publishedWriteOperation(), expected, fact)
+		if published.HasExactEventIdentity() {
+			if err := validatePeerDrainAuthorizationReceipt(published, authorization); err != nil {
+				return db.PublishedWriteReceipt{}, err
 			}
-
-			published, publishErr := publisher(ctx, authorization.publishedWriteOperation(), expected, fact)
-			if published.HasExactEventIdentity() {
-				if err := validatePeerDrainAuthorizationReceipt(published, authorization); err != nil {
-					return db.PublishedWriteReceipt{}, err
-				}
-				receipt = published
-				if publishErr != nil {
-					log.Warnf("tracking peer-drain authorization P after receipt-return error task_id=%s event_id=%s: %v", authorization.TaskID, receipt.EventID, publishErr)
-				}
-				break
+			receipt = published
+			if publishErr != nil {
+				log.Warnf("tracking peer-drain authorization P after receipt-return error task_id=%s event_id=%s: %v", authorization.TaskID, receipt.EventID, publishErr)
 			}
-			if publishErr == nil {
-				return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(
-					fmt.Errorf("peer-drain authorization P returned neither receipt nor error"),
-				)
-			}
-			if errors.Is(publishErr, db.ErrOperationReceiptUnavailable) ||
-				!db.IsRetryablePublishedWriteError(publishErr) {
-				return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(publishErr)
-			}
-
-			// Finalize has already consumed the Swarmion drain generation. Keep
-			// the same application route-generation lease while retrying only a
-			// validated pre-publication P rejection. This prevents a transient
-			// SQL-view/commit rejection from forcing a second target-dependent
-			// drain. Ambiguous outcomes never enter this loop.
-			lastPublishErr = publishErr
-			delay := time.Duration(attempt) * 250 * time.Millisecond
-			if delay > 2*time.Second {
-				delay = 2 * time.Second
-			}
-			timer := time.NewTimer(delay)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-			case <-timer.C:
-			}
+		} else if publishErr == nil {
+			return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(
+				fmt.Errorf("peer-drain authorization P returned neither receipt nor error"),
+			)
+		} else {
+			// The DB helper consumes direct OperationRetryPermitted results under
+			// the same runtime lease. Errors here are diagnostic failures only and
+			// never authorize another publication attempt in this layer.
+			return db.PublishedWriteReceipt{}, instanceDeletePublicationWithoutReceipt(publishErr)
 		}
 
 		resolveCtx, cancelResolve := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)

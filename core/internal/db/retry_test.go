@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -84,8 +83,8 @@ func TestUncertainOrdinaryReceiptWaitCancellationRetainsExactReceipt(t *testing.
 		pending.Observation.Receipt.PublishedRootHash != receipt.PublishedRootHash {
 		t.Fatalf("canceled wait lost exact receipt: %+v", pending.Observation.Receipt)
 	}
-	if !errors.Is(err, context.Canceled) || IsRetryablePublishedWriteError(err) {
-		t.Fatalf("canceled exact-receipt wait classification=%v, want cancellation without replay permission", err)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled exact-receipt wait classification=%v, want cancellation", err)
 	}
 }
 
@@ -99,128 +98,6 @@ func TestTransientReadErrorsIncludeDoltWorkingSetContention(t *testing.T) {
 	for _, err := range tests {
 		if !isTransientWorkspaceAccessError(err) {
 			t.Fatalf("expected retryable error: %v", err)
-		}
-	}
-}
-
-func TestRetryablePublishedWriteErrorsRequireTypedNotAcceptedProof(t *testing.T) {
-	viewNotReady := &swarmionapp.SQLViewNotReadyError{
-		LineID: "main",
-		Reason: "test view not ready",
-	}
-	for _, err := range []error{
-		errors.New("duplicate primary key"),
-		fmt.Errorf("operation lookup: %w", swarmionprotocol.ErrOperationKeyConflict),
-		ErrOperationReceiptUnavailable,
-		errors.New("staged SQL root=abc conflicts with protocol root=def"),
-		&swarmionapp.ContentConflictError{CandidateRootHash: "abc", ProtocolRootHash: "def"},
-		viewNotReady,
-		errors.Join(viewNotReady, errors.New("publication failed")),
-		errors.New("swarmion SQL view is not ready"),
-	} {
-		if IsRetryablePublishedWriteError(err) {
-			t.Fatalf("application error must fail without a publication retry: %v", err)
-		}
-	}
-
-	safeOutcome := swarmionapp.PublicationOutcome{
-		Identity:        swarmionapp.OperationIdentity{Key: "retry-test", IntentDigest: strings.Repeat("a", 64)},
-		Scope:           swarmionapp.DatabasePublicationScope("/protos/db/retry-test"),
-		AuthorPeerID:    "peer-a",
-		State:           swarmionapp.PublicationRejectedSafeToRetry,
-		RejectionReason: swarmionapp.PublicationRejectionNotAccepted,
-	}
-	safe := &swarmionapp.PublicationRejectedError{Outcome: safeOutcome, Cause: errors.New("event admission rejected")}
-	if !IsRetryablePublishedWriteError(safe) {
-		t.Fatalf("typed not-accepted outcome should be retryable: %v", safe)
-	}
-	for _, stale := range []error{
-		swarmionprotocol.ErrStaleWriteContext,
-		fmt.Errorf("capture current SQL projection: %w", swarmionprotocol.ErrStaleWriteContext),
-		swarmionprotocol.ErrProjectionTooWide,
-		&swarmionprotocol.ProjectionTooWideError{HeadCount: 9, MaxHeads: 8},
-		fmt.Errorf("capture current SQL projection: %w", &swarmionprotocol.ProjectionTooWideError{HeadCount: 9, MaxHeads: 8}),
-	} {
-		if !IsRetryablePublishedWriteError(stale) {
-			t.Fatalf("typed pre-publication projection error should be retryable: %v", stale)
-		}
-	}
-	if IsRetryablePublishedWriteError(errors.Join(safe, errors.New("unrelated sibling"))) {
-		t.Fatal("joined sibling errors must not preserve publication retry authority")
-	}
-	if IsRetryablePublishedWriteError(errors.Join(swarmionprotocol.ErrStaleWriteContext, errors.New("unrelated sibling"))) {
-		t.Fatal("joined sibling errors must not preserve stale-context retry authority")
-	}
-
-	receipt := eventReceiptForTest()
-	for _, test := range []struct {
-		name     string
-		boundary error
-		cause    error
-	}{
-		{
-			name:     "event pending rejection",
-			boundary: &EventReceiptPendingError{Observation: EventReceiptObservation{Receipt: receipt}, Cause: safe},
-			cause:    safe,
-		},
-		{
-			name:     "event pending stale projection",
-			boundary: &EventReceiptPendingError{Observation: EventReceiptObservation{Receipt: receipt}, Cause: swarmionprotocol.ErrStaleWriteContext},
-			cause:    swarmionprotocol.ErrStaleWriteContext,
-		},
-		{
-			name: "availability pending rejection",
-			boundary: &PublishedWriteAvailabilityPendingError{
-				Observation: PublishedWriteAvailabilityObservation{Receipt: receipt},
-				Cause:       safe,
-			},
-			cause: safe,
-		},
-		{
-			name: "availability pending stale projection",
-			boundary: &PublishedWriteAvailabilityPendingError{
-				Observation: PublishedWriteAvailabilityObservation{Receipt: receipt},
-				Cause:       swarmionprotocol.ErrStaleWriteContext,
-			},
-			cause: swarmionprotocol.ErrStaleWriteContext,
-		},
-		{
-			name: "receipt identity conflict rejection",
-			boundary: &PublishedWriteReceiptIdentityConflictError{
-				Receipt: receipt,
-				Cause:   safe,
-			},
-			cause: safe,
-		},
-		{
-			name: "receipt identity conflict stale projection",
-			boundary: &PublishedWriteReceiptIdentityConflictError{
-				Receipt: receipt,
-				Cause:   swarmionprotocol.ErrStaleWriteContext,
-			},
-			cause: swarmionprotocol.ErrStaleWriteContext,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			wrapped := fmt.Errorf("caller context: %w", test.boundary)
-			if !errors.Is(wrapped, test.cause) {
-				t.Fatalf("synthetic boundary did not retain its diagnostic cause: %v", wrapped)
-			}
-			if IsRetryablePublishedWriteError(wrapped) {
-				t.Fatalf("exact-receipt boundary leaked nested retry authority: %v", wrapped)
-			}
-		})
-	}
-
-	for _, boundary := range []error{
-		&PublishedWriteConfirmationUnresolvedError{
-			Confirmation: PublishedWriteConfirmation{Receipt: receipt},
-			Cause:        safe,
-		},
-		&EventReceiptParkedError{Observation: EventReceiptObservation{Receipt: receipt}},
-	} {
-		if IsRetryablePublishedWriteError(fmt.Errorf("caller context: %w", boundary)) {
-			t.Fatalf("explicit non-retryable lifecycle boundary granted retry: %v", boundary)
 		}
 	}
 }

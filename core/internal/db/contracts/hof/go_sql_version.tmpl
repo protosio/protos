@@ -5,21 +5,21 @@ package {{ .go.package }}
 import (
 	_ "embed"
 
-	"github.com/nustiueudinastea/swarmion/runtime/schema"
+	swarmion "github.com/nustiueudinastea/swarmion/runtime"
 )
 
 //go:embed contract.cue
 var CUELineage string
 
-var Version = schema.VersionDefinition{
+var Version = swarmion.SchemaVersionDefinition{
 	Version:    "{{ .migration.to_version }}",
 	CUELineage: CUELineage,
-	SQL: schema.SQLSnapshot{
-		Tables: []schema.SQLTable{
+	SQL: swarmion.SchemaSQLSnapshot{
+		Tables: []swarmion.SchemaSQLTable{
 {{- range $table := .schema.tables }}
 			{
 				Name: "{{ $table.name }}",
-				Columns: []schema.SQLColumn{
+				Columns: []swarmion.SchemaSQLColumn{
 {{- range $column := $table.columns }}
 					{Name: "{{ $column.name }}", Type: "{{ $column.type }}", PrimaryKey: {{ if $column.primary_key }}true{{ else }}false{{ end }}, NotNull: {{ if $column.not_null }}true{{ else }}false{{ end }}},
 {{- end }}
@@ -30,10 +30,10 @@ var Version = schema.VersionDefinition{
 	},
 }
 
-var Transition = schema.TransitionDefinition{
+var Transition = swarmion.SchemaTransitionDefinition{
 	FromVersion:   "{{ .migration.from_version }}",
 	ToVersion:     "{{ .migration.to_version }}",
-	Compatibility: schema.Compatibility("{{ .migration.compatibility }}"),
+	Compatibility: swarmion.SchemaCompatibility("{{ .migration.compatibility }}"),
 	RequiredWriteColumns: map[string][]string{
 {{- range $rule := .migration.required_write_columns }}
 		"{{ $rule.table }}": []string{
@@ -57,10 +57,10 @@ var Transition = schema.TransitionDefinition{
 {{ if .migration.initial_transition -}}
 // InitialTransition permits a fresh repository to install the complete
 // current schema in the same atomic migration batch.
-var InitialTransition = schema.TransitionDefinition{
+var InitialTransition = swarmion.SchemaTransitionDefinition{
 	FromVersion:   "",
 	ToVersion:     "{{ .migration.to_version }}",
-	Compatibility: schema.Compatibility("{{ .migration.compatibility }}"),
+	Compatibility: swarmion.SchemaCompatibility("{{ .migration.compatibility }}"),
 	RequiredWriteColumns:  map[string][]string{},
 	ForbiddenWriteColumns: map[string][]string{},
 }

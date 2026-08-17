@@ -14,16 +14,13 @@ func TestOperationFactIsDeterministicAndImmutable(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
 	taskID := db.MustNewUUIDv7()
-	operation, err := db.NewPublishedWriteOperation(
-		"0123456789abcdef0123456789abcdef",
-		"protos:test:immutable-operation-fact",
-		taskID,
+	operation, err := store.NewPublishedWriteOperation(
+		"io.protos.tests.immutable-operation-fact/v1",
+		[]byte(taskID),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operation.AuthorPeerID = "peer-a"
-
 	left, err := NewOperationFact(
 		taskID,
 		OperationFactKindEffect,
@@ -78,20 +75,16 @@ func TestOperationFactIsDeterministicAndImmutable(t *testing.T) {
 }
 
 func TestOperationFactIdentityRejectsMutableOrMalformedInputs(t *testing.T) {
-	operation, err := db.NewPublishedWriteOperation(
-		"0123456789abcdef0123456789abcdef",
-		"protos:test:immutable-operation-fact",
-	)
+	store := openTaskTestDB(t)
+	operation, err := store.NewPublishedWriteOperation("io.protos.tests.immutable-operation-fact/v1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	operation.AuthorPeerID = "peer-a"
 	if _, err := NewOperationFact("not-a-uuid", OperationFactKindReceipt, operation, "instance", "instance-1", struct{}{}); err == nil {
 		t.Fatal("malformed task ID was accepted")
 	}
-	operation.IntentDigest = "not-a-digest"
-	if _, err := NewOperationFact(db.MustNewUUIDv7(), OperationFactKindReceipt, operation, "instance", "instance-1", struct{}{}); err == nil {
-		t.Fatal("malformed operation digest was accepted")
+	if _, err := NewOperationFact(db.MustNewUUIDv7(), OperationFactKindReceipt, (db.PublishedWriteOperation{}), "instance", "instance-1", struct{}{}); err == nil {
+		t.Fatal("zero operation recovery was accepted")
 	}
 }
 
@@ -100,7 +93,7 @@ func TestOperationFactMatchesAtCheckpoint(t *testing.T) {
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
 
-	fact := newCheckpointTestOperationFact(t, db.MustNewUUIDv7(), "instance-1")
+	fact := newCheckpointTestOperationFact(t, store, db.MustNewUUIDv7(), "instance-1")
 	checkpointCommitID := publishOperationFactAndWaitDurable(t, store, fact)
 
 	equivalent := fact
@@ -120,7 +113,7 @@ func TestOperationFactMatchesAtCheckpoint(t *testing.T) {
 		t.Fatal("identical operation fact was reported absent")
 	}
 
-	absent := newCheckpointTestOperationFact(t, db.MustNewUUIDv7(), "instance-absent")
+	absent := newCheckpointTestOperationFact(t, store, db.MustNewUUIDv7(), "instance-absent")
 	matches, err = manager.OperationFactMatchesAtCheckpoint(
 		context.Background(),
 		checkpointCommitID,
@@ -159,7 +152,7 @@ func TestOperationFactMatchesAtCheckpointRejectsMalformedStoredIdentity(t *testi
 	t.Setenv("SWARMION_CHECKPOINT_SCHEDULER_PROFILE", "single_node_development")
 	store := openTaskTestDB(t)
 	manager := NewManager(store)
-	expected := newCheckpointTestOperationFact(t, db.MustNewUUIDv7(), "instance-malformed")
+	expected := newCheckpointTestOperationFact(t, store, db.MustNewUUIDv7(), "instance-malformed")
 
 	malformed := expected
 	malformed.Kind = OperationFactKindReceipt
@@ -175,17 +168,15 @@ func TestOperationFactMatchesAtCheckpointRejectsMalformedStoredIdentity(t *testi
 	}
 }
 
-func newCheckpointTestOperationFact(t *testing.T, taskID, subjectID string) OperationFact {
+func newCheckpointTestOperationFact(t *testing.T, store *db.DB, taskID, subjectID string) OperationFact {
 	t.Helper()
-	operation, err := db.NewPublishedWriteOperation(
-		"fedcba9876543210fedcba9876543210",
-		"protos:test:checkpoint-operation-fact",
-		taskID,
+	operation, err := store.NewPublishedWriteOperation(
+		"io.protos.tests.checkpoint-operation-fact/v1",
+		[]byte(taskID),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operation.AuthorPeerID = "peer-checkpoint-author"
 	fact, err := NewOperationFact(
 		taskID,
 		OperationFactKindEffect,
