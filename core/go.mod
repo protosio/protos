@@ -279,7 +279,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3 // indirect
 	github.com/multiformats/go-multistream v0.6.1
 	github.com/multiformats/go-varint v0.1.0 // indirect
-	github.com/nustiueudinastea/swarmion v0.0.0-20260817040903-82cae1038c71
+	github.com/nustiueudinastea/swarmion v0.0.0-20260817060333-0ce8d9fde42a
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/oracle/oci-go-sdk/v65 v65.114.2 // indirect
