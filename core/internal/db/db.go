@@ -210,6 +210,7 @@ type DB struct {
 	beforeOperationCleanupAdmissionForTest func()
 	executeOperationForTest                func(context.Context, *swarmionapp.DatabaseRuntime, swarmionapp.OperationRequest) swarmionapp.OperationResult
 	waitPublishedWriteRetryForTest         func(context.Context, int, swarmionapp.OperationRetryReason) error
+	waitPublishedWriteBackoffForTest       func(context.Context, int) error
 
 	bootstrapRetryMu     sync.Mutex
 	bootstrapRetryCancel context.CancelFunc
@@ -4588,15 +4589,38 @@ func (db *DB) executePublishedWriteTransactionForRuntimeGenerationWithSafeRetryC
 			}
 			continue
 		}
-		if retryReason == swarmionapp.RetryProjectionTooWide {
-			if readyErr := db.WaitMutationReady(ctx); readyErr != nil {
-				return PublishedWriteReceipt{}, fmt.Errorf("wait for published %s write projection readiness: %w", name, readyErr)
-			}
-			continue
+		if waitErr := db.waitForPublishedWriteRetry(ctx, attempt, retryReason); waitErr != nil {
+			return PublishedWriteReceipt{}, fmt.Errorf(
+				"wait before safely retrying published %s write after %q: %w",
+				name,
+				retryReason,
+				waitErr,
+			)
 		}
-		if waitErr := waitBeforeDatabaseRetryContext(ctx, attempt); waitErr != nil {
-			return PublishedWriteReceipt{}, fmt.Errorf("wait before safely retrying published %s write: %w", name, waitErr)
+	}
+}
+
+// waitForPublishedWriteRetry consumes only the retry reason minted by the
+// direct, still-live Execute result. Diagnostic text and error graphs never
+// select a control-flow path. The caller revalidates the owning runtime and
+// the dynamic retry result under opMu immediately before the next Execute.
+func (db *DB) waitForPublishedWriteRetry(
+	ctx context.Context,
+	attempt int,
+	reason swarmionapp.OperationRetryReason,
+) error {
+	switch reason {
+	case swarmionapp.RetrySQLViewNotReady:
+		return db.WaitSQLViewReady(ctx)
+	case swarmionapp.RetryStaleWriteContext, swarmionapp.RetryProjectionTooWide:
+		return db.WaitMutationReady(ctx)
+	case swarmionapp.RetryWorkspaceDirty, swarmionapp.RetryCommitNotAccepted:
+		if db.waitPublishedWriteBackoffForTest != nil {
+			return db.waitPublishedWriteBackoffForTest(ctx, attempt)
 		}
+		return waitBeforeDatabaseRetryContext(ctx, attempt)
+	default:
+		return fmt.Errorf("unsupported Execute retry reason %q", reason)
 	}
 }
 

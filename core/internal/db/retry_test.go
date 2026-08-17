@@ -60,6 +60,79 @@ func TestSQLViewReadinessRetriesRequireTypedPreExecutionOutcome(t *testing.T) {
 	}
 }
 
+func TestPublishedWriteRetryWaitDispatchesOnlyFromRuntimeReason(t *testing.T) {
+	tests := []struct {
+		name       string
+		reason     swarmionapp.OperationRetryReason
+		wantAction string
+	}{
+		{name: "SQL view not ready", reason: swarmionapp.RetrySQLViewNotReady, wantAction: "sql"},
+		{name: "stale write context", reason: swarmionapp.RetryStaleWriteContext, wantAction: "mutation"},
+		{name: "projection too wide", reason: swarmionapp.RetryProjectionTooWide, wantAction: "mutation"},
+		{name: "workspace dirty", reason: swarmionapp.RetryWorkspaceDirty, wantAction: "backoff"},
+		{name: "commit not accepted", reason: swarmionapp.RetryCommitNotAccepted, wantAction: "backoff"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			database := &DB{}
+			var actions []string
+			database.waitSQLViewReadyForTest = func(context.Context) error {
+				actions = append(actions, "sql")
+				return nil
+			}
+			database.waitMutationReadyForTest = func(context.Context) error {
+				actions = append(actions, "mutation")
+				return nil
+			}
+			database.waitPublishedWriteBackoffForTest = func(_ context.Context, attempt int) error {
+				if attempt != 2 {
+					t.Fatalf("backoff attempt=%d, want 2", attempt)
+				}
+				actions = append(actions, "backoff")
+				return nil
+			}
+
+			if err := database.waitForPublishedWriteRetry(context.Background(), 2, tt.reason); err != nil {
+				t.Fatalf("wait for %q: %v", tt.reason, err)
+			}
+			if !reflect.DeepEqual(actions, []string{tt.wantAction}) {
+				t.Fatalf("retry reason %q actions=%v, want only %q", tt.reason, actions, tt.wantAction)
+			}
+		})
+	}
+}
+
+func TestPublishedWriteRetryWaitFailsClosedForNonExecuteReasons(t *testing.T) {
+	database := &DB{}
+	var waitCalls int
+	database.waitSQLViewReadyForTest = func(context.Context) error {
+		waitCalls++
+		return nil
+	}
+	database.waitMutationReadyForTest = func(context.Context) error {
+		waitCalls++
+		return nil
+	}
+	database.waitPublishedWriteBackoffForTest = func(context.Context, int) error {
+		waitCalls++
+		return nil
+	}
+
+	for _, reason := range []swarmionapp.OperationRetryReason{
+		swarmionapp.RetryResolvedAbsent,
+		"SQL view is not ready; retry it",
+		"future_retry_reason",
+		"",
+	} {
+		if err := database.waitForPublishedWriteRetry(context.Background(), 1, reason); err == nil {
+			t.Fatalf("retry reason %q unexpectedly selected a wait", reason)
+		}
+	}
+	if waitCalls != 0 {
+		t.Fatalf("non-Execute retry reasons selected %d readiness/backoff waits", waitCalls)
+	}
+}
+
 func TestUncertainOrdinaryReceiptWaitCancellationRetainsExactReceipt(t *testing.T) {
 	receipt := eventReceiptForTest()
 	receipt.Committed = false
