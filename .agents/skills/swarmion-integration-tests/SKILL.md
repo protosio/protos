@@ -267,7 +267,13 @@ go run ./cmd/swarmion-observe compare \
 
 Use `integration-tests/tooling/observability_matrix.sh` for peer-count sweeps. It defaults to Docker, peer counts `5 10 25 50 100`, and startup/batch/concurrent-write scenarios, then writes `compare.json` when analyzer-compatible run directories exist. Override `SWARMION_OBSERVABILITY_MATRIX_PEERS`, `SWARMION_MATRIX_BACKEND`, `SWARMION_MATRIX_RUN`, `SWARMION_MATRIX_TIMEOUT`, or `SWARMION_MATRIX_ARTIFACT_DIR`. Local Docker runs above `SWARMION_LOCAL_MATRIX_PEER_LIMIT` default to skip unless `SWARMION_OBSERVABILITY_MATRIX_LARGE=1` is set or a non-default Docker context is selected.
 
-Fast-metrics and trace-probe admin RPCs are defined in `runtime/adminrpc/adminrpc.go`, implemented in `runtime/app/app.go`, and used by the integration harness through `integration-tests/harness/control.go`. Prefer fast metrics for repeated checks and trace-probe for targeted event/root debugging instead of full node snapshots.
+Fast-metrics and trace-probe admin RPCs are defined in Swarmion's private
+`runtime/internal/adminrpc/adminrpc.go`, implemented by
+`runtime/internal/engine/app.go`, and exposed to supported consumers through
+`runtime/adminclient`. The in-repository integration harness reaches the same
+wire through `integration-tests/harness/control.go`. Prefer fast metrics for
+repeated checks and trace-probe for targeted event/root debugging instead of
+full node snapshots.
 
 ## Cache And Cleanup Expectations
 
